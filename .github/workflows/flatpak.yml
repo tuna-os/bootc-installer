@@ -40,19 +40,16 @@ jobs:
           path: org.bootcinstaller.Installer.flatpak
           retention-days: 30
 
-      - name: Attach stable asset to latest versioned release (prod branch)
-        if: github.ref == 'refs/heads/prod'
+      - name: Export OCI
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          # The stable channel uses GitHub's /releases/latest/download/ redirect,
-          # which auto-resolves to the newest non-prerelease versioned tag.
-          # We no longer maintain a rolling 'latest-stable' tag — its name is
-          # permanently banned by a GitHub ruleset after an immutable release.
-          # The versioned tag release already has the asset attached by the
-          # 'Attach bundle to tagged release' step below; nothing to do here.
-          echo "Stable channel served via releases/latest/download/ → $(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')"
-        env:
-          GH_TOKEN: ${{ github.token }}
+          flatpak build-bundle --oci --arch=x86_64 repo bootc-installer.oci org.bootcinstaller.Installer
+
+      - name: Upload OCI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bootc-installer-oci
+          path: bootc-installer.oci/
+          retention-days: 1
 
       - name: Attach bundle to tagged release
         if: startsWith(github.ref, 'refs/tags/')
@@ -149,9 +146,6 @@ jobs:
       - name: Create and publish release
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          # Upload assets to the release, creating it if needed.
-          # The release may already exist if the tag was pushed manually
-          # before CI ran (common during hotfix cycles).
           if ! gh release create ${{ github.ref_name }} \
               --repo ${{ github.repository }} \
               --title "bootc-installer ${{ github.ref_name }}" \
@@ -167,3 +161,49 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ github.token }}
+
+  publish-oci:
+    name: Publish OCI to tunaos.org remote
+    if: github.ref == 'refs/heads/prod' || startsWith(github.ref, 'refs/tags/')
+    needs: [production]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: bootc-installer-oci
+          path: bootc-installer.oci
+
+      - name: Push OCI to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ghcr.io -u "${{ github.actor }}" --password-stdin
+          skopeo copy oci:bootc-installer.oci docker://ghcr.io/tuna-os/bootc-installer:latest
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            skopeo copy oci:bootc-installer.oci docker://ghcr.io/tuna-os/bootc-installer:${{ github.ref_name }}
+          fi
+
+      - name: Update central index (tuna-os/docs)
+        run: |
+          git clone --depth 1 \
+            https://x-access-token:${{ secrets.FLATPAK_INDEX_TOKEN }}@github.com/tuna-os/docs.git \
+            index-repo
+          pip install requests
+          python3 .github/scripts/update-index.py \
+            --oci-dir bootc-installer.oci \
+            --index-file index-repo/static/flatpak/index/static \
+            --repo-name tuna-os/bootc-installer \
+            --tags latest
+          cd index-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add static/flatpak/index/static
+          if git diff --cached --quiet; then
+            echo "No index changes"
+          else
+            git commit -m "chore(flatpak): update bootc-installer OCI index"
+            git push origin main
+          fi
