@@ -2,7 +2,7 @@ name: Publish Flatpak
 
 on:
   push:
-    branches: [master]
+    branches: [dev]
     tags: ['v*']
   workflow_dispatch:
 
