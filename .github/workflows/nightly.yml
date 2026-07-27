@@ -1,8 +1,9 @@
-name: Nightly Tests
+name: CI Tests
 
 on:
+  pull_request:
   schedule:
-    - cron: '0 6 * * *'   # 06:00 UTC daily
+    - cron: '0 6 * * 0'   # 06:00 UTC weekly (Sunday)
   workflow_dispatch:
 
 jobs:
@@ -139,6 +140,7 @@ jobs:
             meson \
             ninja-build \
             libglib2.0-dev \
+            gettext \
             xvfb
 
       - name: Build GResources
