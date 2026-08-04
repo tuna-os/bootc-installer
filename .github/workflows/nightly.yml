@@ -140,6 +140,7 @@ jobs:
             meson \
             ninja-build \
             libglib2.0-dev \
+            desktop-file-utils \
             gettext \
             xvfb
 
