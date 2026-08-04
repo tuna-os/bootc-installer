@@ -13,7 +13,7 @@ jobs:
       matrix:
         branch: [prod, dev]
     name: "Go Tests (${{ matrix.branch }})"
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
 
     defaults:
       run:
@@ -46,7 +46,7 @@ jobs:
       matrix:
         branch: [prod, dev]
     name: "Python Unit Tests (${{ matrix.branch }})"
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -68,7 +68,7 @@ jobs:
       matrix:
         branch: [prod, dev]
     name: "Python UI Tests (${{ matrix.branch }})"
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -116,7 +116,7 @@ jobs:
       matrix:
         branch: [prod, dev]
     name: "Python Integration Tests (${{ matrix.branch }})"
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
