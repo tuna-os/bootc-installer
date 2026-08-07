@@ -18,12 +18,47 @@ _FRIENDLY_STEP_LABELS: dict[str, str] = {
     "Formatting root filesystem":   "Formatting your drive…",
     "Mounting filesystem":          "Almost ready…",
     "Formatting data disk (/var)":  "Preparing data storage…",
-    "Installing OS":                "Installing Bluefin…",
+    # {product} is substituted at lookup with the recipe's distro_name. This
+    # label used to read "Installing Bluefin…" literally, so every downstream
+    # that rebrands this installer still told its users it was installing
+    # Bluefin — on the progress screen, which is the one they watch for the
+    # whole install.
+    "Installing OS":                "Installing {product}…",
     "Enrolling TPM2 auto-unlock":   "Setting up auto-unlock…",
     "Copying system Flatpaks":      "Installing your apps…",
     "Configuring installed system": "Configuring your system…",
     "Finalizing installation":      "Finishing up…",
 }
+
+# The product being installed, for labels that name it.
+#
+# A module-level value with a setter rather than a recipe import, to keep this
+# module what its docstring says it is: a pure parser with no GTK and no file
+# IO, importable by unit tests on its own. The default is deliberately neutral
+# rather than any distro's name — an unset product must read as generic, not
+# as somebody else's brand.
+_PRODUCT_NAME = "the OS"
+
+
+def set_product_name(name: str) -> None:
+    """Set the product name used in step labels. Empty values are ignored."""
+    global _PRODUCT_NAME
+    if name:
+        _PRODUCT_NAME = name
+
+
+def _friendly_label(step_name: str) -> str:
+    """Human label for a fisherman step, with {product} filled in.
+
+    Falls back to the raw step name, which is what unknown steps already did.
+    Only labels containing the placeholder are formatted, so a future label
+    with a literal brace cannot raise here.
+    """
+    label = _FRIENDLY_STEP_LABELS.get(step_name, step_name)
+    if "{product}" in label:
+        return label.format(product=_PRODUCT_NAME)
+    return label
+
 
 # Matches "Pulling image: layer 23/71" substep messages from fisherman.
 _RE_LAYER_PROGRESS = re.compile(r"Pulling image: layer (\d+)/(\d+)")
@@ -78,7 +113,7 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
         state["current_step_name"] = name
         state["seen_substeps"].clear()
         state["pulse_active"] = False
-        friendly = _FRIENDLY_STEP_LABELS.get(name, name)
+        friendly = _friendly_label(name)
         return {
             "fraction": cumulative_pct / 100.0,
             "label": friendly,
@@ -108,7 +143,7 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
         state["seen_substeps"].add(msg)
         label = None
         if state["current_step"]:
-            friendly = _FRIENDLY_STEP_LABELS.get(state["current_step_name"], state["current_step_name"])
+            friendly = _friendly_label(state["current_step_name"])
             label = friendly
         return {"fraction": fraction, "label": label, "pulse": False, "complete": False}
 

@@ -37,7 +37,7 @@ _FISHERMAN_CACHE_DIR = os.path.join(os.environ.get("HOME", "/tmp"), ".cache", "b
 _FISHERMAN_HOST_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman")
 _FISHERMAN_LOG_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman-output.log")
 
-from bootc_installer.utils.progress_parser import apply_progress_event, new_progress_state, _RE_LAYER_PROGRESS  # noqa: E402
+from bootc_installer.utils.progress_parser import apply_progress_event, new_progress_state, set_product_name, _RE_LAYER_PROGRESS  # noqa: E402
 from bootc_installer.utils.codec_check import check_codecs_present  # noqa: E402
 
 
@@ -132,6 +132,14 @@ class BootcProgress(Gtk.Box):
     def __init__(self, window, **kwargs):
         super().__init__(**kwargs)
         self.__window = window
+        # Tell the parser what we are installing, so its step labels say the
+        # product's name instead of a hardcoded one. Done here because this is
+        # the first point the recipe is in hand; the parser itself stays free
+        # of recipe and file IO.
+        try:
+            set_product_name(window.recipe.get("distro_name", ""))
+        except Exception:
+            pass  # labels fall back to the neutral default
         self.__proc = None       # subprocess handle for fisherman
         self.__log_out = None    # open file handle for fisherman stdout/stderr
         self.__log_buf = None    # GtkTextBuffer — set after super().__init__
