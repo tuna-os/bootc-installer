@@ -12,7 +12,7 @@ jobs:
   # Detect whether this PR only touches documentation — if so, skip tests
   changes:
     name: Detect changed paths
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       docs_only: ${{ steps.filter.outputs.docs_only }}
     steps:
@@ -44,7 +44,7 @@ jobs:
     name: Unit Tests (no display)
     needs: changes
     if: needs.changes.outputs.docs_only != 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -61,6 +61,7 @@ jobs:
 
       - name: Run unit tests
         run: pytest tests/unit/ -v --tb=short --cov=bootc_installer --cov-report=xml --cov-report=term-missing --cov-fail-under=51
+
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -80,7 +81,7 @@ jobs:
     name: Unit Tests (no display)
     needs: changes
     if: needs.changes.outputs.docs_only == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - run: echo "Documentation-only change — unit tests skipped ✓"
 
@@ -89,7 +90,7 @@ jobs:
     name: UI Integration Tests (offscreen GTK)
     needs: changes
     if: needs.changes.outputs.docs_only != 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -146,6 +147,6 @@ jobs:
     name: UI Integration Tests (offscreen GTK)
     needs: changes
     if: needs.changes.outputs.docs_only == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - run: echo "Documentation-only change — UI tests skipped ✓"

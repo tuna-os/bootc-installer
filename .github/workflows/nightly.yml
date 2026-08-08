@@ -1,8 +1,9 @@
-name: Nightly Tests
+name: CI Tests
 
 on:
+  pull_request:
   schedule:
-    - cron: '0 6 * * *'   # 06:00 UTC daily
+    - cron: '0 6 * * 0'   # 06:00 UTC weekly (Sunday)
   workflow_dispatch:
 
 jobs:
@@ -12,7 +13,7 @@ jobs:
       matrix:
         branch: [prod, dev]
     name: "Go Tests (${{ matrix.branch }})"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     defaults:
       run:
@@ -45,7 +46,7 @@ jobs:
       matrix:
         branch: [prod, dev]
     name: "Python Unit Tests (${{ matrix.branch }})"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -67,7 +68,7 @@ jobs:
       matrix:
         branch: [prod, dev]
     name: "Python UI Tests (${{ matrix.branch }})"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -115,7 +116,7 @@ jobs:
       matrix:
         branch: [prod, dev]
     name: "Python Integration Tests (${{ matrix.branch }})"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -126,6 +127,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - run: pip install pytest
 
       - name: Install system dependencies
         run: |
@@ -139,6 +142,8 @@ jobs:
             meson \
             ninja-build \
             libglib2.0-dev \
+            desktop-file-utils \
+            gettext \
             xvfb
 
       - name: Build GResources

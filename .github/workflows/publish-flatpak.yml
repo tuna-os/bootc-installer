@@ -1,0 +1,83 @@
+name: Publish Flatpak
+
+on:
+  push:
+    branches: [dev]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Build x86_64
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: flatpak/org.bootcinstaller.Installer.json
+          cache-key: flatpak-builder-${{ github.sha }}-x86_64
+          build-bundle: false
+          upload-artifact: false
+
+      - name: Export OCI
+        run: |
+          flatpak build-bundle --oci --arch=x86_64 repo bootc-installer.oci org.bootcinstaller.Installer
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bootc-installer-oci
+          path: bootc-installer.oci/
+          retention-days: 1
+
+  publish:
+    name: Publish to GHCR
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: bootc-installer-oci
+          path: bootc-installer.oci
+
+      - name: Push to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ghcr.io -u "${{ github.actor }}" --password-stdin
+          skopeo copy oci:bootc-installer.oci docker://ghcr.io/tuna-os/bootc-installer:latest
+
+      - name: Update central index (tuna-os/docs)
+        env:
+          FLATPAK_INDEX_TOKEN: ${{ secrets.FLATPAK_INDEX_TOKEN }}
+        run: |
+          git clone --depth 1 \
+            https://x-access-token:${FLATPAK_INDEX_TOKEN}@github.com/tuna-os/docs.git \
+            index-repo
+          pip install requests
+          python3 .github/scripts/update-index.py \
+            --oci-dir bootc-installer.oci \
+            --index-file index-repo/static/flatpak/index/static \
+            --repo-name tuna-os/bootc-installer \
+            --tags latest
+          cd index-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add static/flatpak/index/static
+          if git diff --cached --quiet; then
+            echo "No index changes"
+          else
+            git commit -m "chore(flatpak): update bootc-installer OCI index"
+            git push origin main
+          fi

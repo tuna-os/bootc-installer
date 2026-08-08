@@ -12,7 +12,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from bootc_installer.utils.progress_parser import apply_progress_event, new_progress_state
+from bootc_installer.utils import progress_parser
+from bootc_installer.utils.progress_parser import (
+    apply_progress_event, new_progress_state, set_product_name)
 
 
 def _step(step=1, total=8, name="Partitioning disk", cumulative_pct=0, weight_pct=1):
@@ -128,8 +130,33 @@ class TestSubstepEvent:
         apply_progress_event(_step(step=5, name="Installing OS", cumulative_pct=1, weight_pct=87), state)
         update = apply_progress_event(_substep("Pulling container image"), state)
         assert update is not None
-        # Main label shows the step's friendly text; raw message goes to progress_substep widget
-        assert "Installing Bluefin" in update["label"]
+        # Main label shows the step's friendly text; raw message goes to progress_substep widget.
+        # The product name is substituted from the recipe, so assert the part
+        # that is ours rather than a distro name — this used to read
+        # "Installing Bluefin" and that is exactly what downstreams saw.
+        assert "Installing" in update["label"]
+
+    def test_substep_label_uses_the_configured_product(self):
+        """The step label must name the product the recipe asked for."""
+        set_product_name("Skipjack")
+        try:
+            state = new_progress_state()
+            apply_progress_event(
+                _step(step=5, name="Installing OS", cumulative_pct=1, weight_pct=87), state)
+            update = apply_progress_event(_substep("Pulling container image"), state)
+            assert update is not None
+            assert "Installing Skipjack" in update["label"]
+            assert "Bluefin" not in update["label"]
+        finally:
+            # Module-level state: leave it as we found it, or later tests in
+            # this file inherit "Skipjack".
+            progress_parser._PRODUCT_NAME = "the OS"
+
+    def test_empty_product_name_is_ignored(self):
+        """An empty recipe value must not blank the label."""
+        progress_parser._PRODUCT_NAME = "the OS"
+        set_product_name("")
+        assert progress_parser._PRODUCT_NAME == "the OS"
 
     def test_duplicate_substep_no_label(self):
         state = new_progress_state()

@@ -18,6 +18,7 @@ import logging
 import os
 import pathlib
 import subprocess
+from gettext import gettext as _
 
 from gi.repository import Adw, GLib, Gtk
 
@@ -95,6 +96,21 @@ class BootcDefaultWelcome(Adw.Bin):
         apply_icon(self.page_header, icon_spec)
         welcome_title = self.__distro_info.get("welcome_title") or "bootc Installer"
         self.page_header.title = welcome_title
+
+        # The install row's title is hardcoded to "Install Bluefin" in
+        # default-welcome.blp and was never set at runtime, so every downstream
+        # that rebrands this installer still offered to install Bluefin —
+        # directly beneath a correctly branded welcome title, because
+        # welcome_title above IS driven by the recipe.
+        #
+        # "name", not "distro_name": builder.py's distro_info property maps
+        # recipe["distro_name"] onto the key "name". Reading "distro_name" here
+        # would silently always miss and render the fallback, which is
+        # indistinguishable from having no recipe at all.
+        #
+        # Same source and same fallback as done.py's "{} is installed".
+        distro_name = self.__distro_info.get("name") or "the operating system"
+        self.row_install.set_title(_("Install {}").format(distro_name))
         welcome_subtitle = self.__distro_info.get("welcome_subtitle", "")
         if welcome_subtitle:
             self.page_header.subtitle = welcome_subtitle
