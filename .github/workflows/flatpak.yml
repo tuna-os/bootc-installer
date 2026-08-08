@@ -14,7 +14,8 @@ jobs:
     if: >-
       github.event_name == 'pull_request' ||
       startsWith(github.ref, 'refs/tags/') ||
-      github.ref == 'refs/heads/prod'
+      github.ref == 'refs/heads/prod' ||
+      github.ref == 'refs/heads/dev'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -59,6 +60,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tagged-org.bootcinstaller.Installer.flatpak
+          path: org.bootcinstaller.Installer.flatpak
+          retention-days: 1
+
+      - name: Keep production bundle for the auto-release
+        if: github.ref == 'refs/heads/dev'
+        uses: actions/upload-artifact@v4
+        with:
+          name: autorelease-org.bootcinstaller.Installer.flatpak
           path: org.bootcinstaller.Installer.flatpak
           retention-days: 1
 
@@ -165,5 +174,68 @@ jobs:
               org.bootcinstaller.Installer.flatpak \
               org.bootcinstaller.Installer.Devel.flatpak
           fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  # ── Auto-release from dev ────────────────────────────────────────────────
+  # Why this exists: before it, this fork had ZERO releases (GET
+  # /repos/tuna-os/bootc-installer/releases/latest → 404), so downstreams that
+  # fetch releases/latest/download/org.bootcinstaller.Installer.flatpak got
+  # nothing and silently fell back to upstream — shipping upstream's branding
+  # under their own. Three separate gaps caused it:
+  #
+  #   1. dev published only `latest-dev`, marked --prerelease, and
+  #      /releases/latest/ skips prereleases by design.
+  #   2. that bundle is the Devel app id (…Installer.Devel), not the id a live
+  #      ISO installs.
+  #   3. prod attached nothing at all — its step only echoes; a real release
+  #      required someone to push a v* tag by hand.
+  #
+  # So: every push to dev cuts a real, non-prerelease release carrying the
+  # production app id. The tag is date+sha, never a rolling name — the repo
+  # has a ruleset that permanently bans a tag name once an immutable release
+  # has used it, which is exactly why `latest-stable` could not be reused.
+  auto-release:
+    name: Auto-release (dev)
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+    needs: [production]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: autorelease-org.bootcinstaller.Installer.flatpak
+
+      - name: Cut a versioned release
+        run: |
+          set -euo pipefail
+          # Date + short sha: monotonic, unique per push, and never a name a
+          # ruleset can ban. /releases/latest/ resolves to the newest of these.
+          TAG="v$(date -u +%Y.%m.%d)-$(git rev-parse --short HEAD)"
+          echo "Releasing ${TAG}"
+
+          gh release create "${TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "bootc-installer ${TAG}" \
+            --notes "Automatic release from \`dev\` (${GITHUB_SHA})." \
+            --latest \
+            org.bootcinstaller.Installer.flatpak
+
+          # Fail loudly if the asset is not actually reachable at the URL
+          # downstreams use. A release that exists but serves no asset is the
+          # same outage as no release, and it would otherwise read as success.
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/org.bootcinstaller.Installer.flatpak"
+          for _ in $(seq 1 10); do
+            if curl -sfIL -o /dev/null "${URL}"; then
+              echo "verified: ${URL}"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::${URL} did not become reachable after the release was cut"
+          exit 1
         env:
           GH_TOKEN: ${{ github.token }}
