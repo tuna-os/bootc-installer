@@ -45,6 +45,21 @@ logger = logging.getLogger(__name__)
 # /run/user/<uid>/app/<app-id>/ — the smoke test looks in both.
 STAMP_NAME = "tuna-installer-ready"
 
+# The `signal` field records HOW the stamp was earned, because the five
+# frontends cannot all make the same claim and a reader must not treat them as
+# equivalent.
+#
+#   gtk-map      the GTK `map` signal — the widget was actually mapped.
+#   first-frame  the toolkit asked us to build a frame. Strictly weaker: it
+#                proves the event loop runs and produces frames, not that a
+#                surface was mapped and presented.
+#
+# libcosmic is iced-on-wgpu and has no `map` equivalent, so
+# tuna-installer-cosmic can only offer first-frame. Flattening that difference
+# would let a smoke test believe a frame callback proves a mapped window — on
+# the very frontend whose window never appeared.
+SIGNAL = "gtk-map"
+
 
 def stamp_path():
     runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
@@ -69,6 +84,7 @@ def write_stamp(app_id, window_class, page=None):
     fields = [
         f"app_id={app_id}",
         f"window={window_class}",
+        f"signal={SIGNAL}",
         f"mapped_at={time.time():.3f}",
     ]
     if page is not None:
