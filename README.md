@@ -386,7 +386,7 @@ ExecStart=flatpak run org.bootcinstaller.Installer --autoinstall /etc/bootc-inst
 
 ## Contributing Images
 
-The installer's image catalog is defined in [`fisherman/data/images.json`](fisherman/data/images.json). Adding a new image means adding an entry to that file. The structure is a recursive tree of groups and leaves:
+The installer's image catalog is defined in [`fisherman/data/images.json`](https://github.com/projectbluefin/fisherman/blob/dev/data/images.json) (the `fisherman` backend is a git submodule pointing at projectbluefin/fisherman@dev). Adding a new image means adding an entry to that file. The structure is a recursive tree of groups and leaves:
 
 ```jsonc
 {
