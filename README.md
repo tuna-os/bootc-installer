@@ -143,8 +143,8 @@ The installer drives the `fisherman` backend with a JSON recipe file. The wizard
   "hostname": "bootcos",
   "flatpaks": [],
   "user": {
-    "username": "james",
-    "fullname": "James",
+    "username": "tuna",
+    "fullname": "Tuna User",
     "password": "hunter2",
     "groups": ["wheel"]
   }
@@ -190,8 +190,8 @@ The installer drives the `fisherman` backend with a JSON recipe file. The wizard
   "hostname": "bootcos",
   "flatpaks": ["org.mozilla.firefox", "org.gnome.Console"],
   "user": {
-    "username": "james",
-    "fullname": "James",
+    "username": "tuna",
+    "fullname": "Tuna User",
     "password": "hunter2",
     "groups": ["wheel"]
   }
