@@ -184,6 +184,28 @@ class BootcCreditsWindow(Adw.Window):
 
         # 2. Built-in GResource
         if data is None:
+            # This file credits Bluefin's maintainers by name and role, which
+            # is correct for Bluefin and wrong for everyone else. The override
+            # above exists precisely so a downstream can supply its own — but
+            # it is opt-in, and a downstream that has never heard of
+            # `credits_data` ships Bluefin's credits under its own branding
+            # without any signal that it happened.
+            #
+            # Observed on TunaOS: a Skipjack live ISO whose welcome screen is
+            # branded correctly, whose Credits dialog lists "Bluefin
+            # Maintainer" and "Bluefin Maintainer Emeritus".
+            #
+            # So say so, once, at WARNING. Not an error: falling back is the
+            # right behaviour, and an installer must not fail over its credits
+            # dialog. The point is that the branding layer gets told.
+            distro = (recipe.get("distro_name") or "").strip()
+            if distro and distro.lower() not in ("bluefin", "bluefin-lts"):
+                logger.warning(
+                    "recipe has no 'credits_data', so the Credits dialog will "
+                    "show Bluefin's maintainers while the product is branded "
+                    "%r. Set recipe['credits_data'] to a GResource path "
+                    "(/org/...) or a filesystem path to your own credits.json.",
+                    distro)
             try:
                 resource_path = "/org/bootcinstaller/Installer/data/credits.json"
                 gfile = Gio.File.new_for_uri(f"resource://{resource_path}")
