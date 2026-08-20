@@ -14,18 +14,22 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import logging
 import os
 import pathlib
 import subprocess
 from gettext import gettext as _
 
-from gi.repository import Adw, Gtk
+from gi.repository import Adw, GLib, Gtk
 
 from bootc_installer.views.done import apply_icon
 from bootc_installer.windows.dialog_recovery import BootcRecoveryDialog
 from bootc_installer.windows.dialog_poweroff import BootcPoweroffDialog
 
 _IN_FLATPAK = os.path.exists("/.flatpak-info")
+
+
+logger = logging.getLogger("Installer::Welcome")
 
 
 def _needs_bluetooth_pairing() -> bool:
@@ -122,6 +126,32 @@ class BootcDefaultWelcome(Adw.Bin):
         self.row_recovery.connect("activated", self.__on_recovery_clicked)
         self.row_poweroff.connect("activated", self.__on_poweroff_clicked)
         self.btn_credits.connect("clicked", self.__on_credits_clicked)
+
+        # Install is the primary action, so it should be what has focus when
+        # the screen appears — Enter starts the install rather than doing
+        # whatever happens to be first in tab order.
+        #
+        # Without this the welcome screen opens with focus nowhere in
+        # particular, and Tab walks install -> bluetooth -> recovery ->
+        # poweroff -> credits. TunaOS's screenshot harness, which drives the
+        # installer blind with tab/Enter, reached Credits and opened the modal;
+        # every subsequent keystroke went to the dialog and the run never left
+        # the welcome screen (tunaOS installer-smoke run 31183217981).
+        #
+        # A keyboard user hits the same edge more mildly: on a wizard whose
+        # entire purpose is one action, Enter should perform it.
+        #
+        # Deferred to an idle callback because the row is not realised yet at
+        # __init__ time and grab_focus() on an unrealised widget is a no-op.
+        GLib.idle_add(self.__focus_primary_action)
+
+    def __focus_primary_action(self):
+        """Put focus on Install once the row exists. Runs once."""
+        try:
+            self.row_install.grab_focus()
+        except Exception as e:  # never let focus cost us the screen
+            logger.debug("Could not focus the install row: %s", e)
+        return GLib.SOURCE_REMOVE
 
     def should_show(self, context: dict) -> bool:
         return True

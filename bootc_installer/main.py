@@ -57,6 +57,7 @@ from bootc_installer.windows.window_unsupported import BootcUnsupportedWindow  #
 from bootc_installer.windows.window_ram import BootcRamWindow  # noqa: E402
 from bootc_installer.windows.window_cpu import BootcCpuWindow  # noqa: E402
 from bootc_installer.core.system import Systeminfo  # noqa: E402
+from bootc_installer import readiness  # noqa: E402
 logger_boot.info("All imports done")
 
 logger = logging.getLogger("Installer::Main")
@@ -122,6 +123,19 @@ class BootcInstaller(Adw.Application):
                 logger.exception("Fatal error in do_activate")
                 self.quit()
                 return
+
+        # Record which window actually MAPS, before presenting it.
+        #
+        # installer-smoke.yml proves the frontend is up with `flatpak ps`,
+        # which answers "is the process alive" — a different question from
+        # "did the user get a window", and the two have already diverged: the
+        # COSMIC leg ran the process with no window ever appearing and stayed
+        # green. It also cannot tell the wizard apart from the RAM, CPU and
+        # UEFI windows above, any of which a CI VM can land on while every
+        # check passes. The stamp names the class, so the smoke test can
+        # require the wizard rather than merely a window.
+        readiness.arm(win, self.props.application_id)
+
         win.present()
 
     def create_action(self, name, callback, shortcuts=None):
