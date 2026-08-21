@@ -61,12 +61,27 @@ def test_both_arches_build_the_same_manifest(jobs):
     assert manifests == {"flatpak/org.bootcinstaller.Installer.json"}
 
 
-def test_the_aarch64_build_is_native_not_cross(jobs):
-    """The runner is aarch64, so no `arch:` input belongs here. Passing one on
-    an x86_64 runner would request a cross-build this manifest is not set up
-    for, and would produce a bundle that fails at install rather than at
-    build."""
-    assert "arch" not in _builder(jobs["production-aarch64"]).get("with", {})
+def test_the_aarch64_build_asks_for_aarch64_refs(jobs):
+    """`arch:` is required, and the first version of this file asserted the
+    opposite.
+
+    The action does NOT default to the runner's architecture — its default is
+    the literal x86_64. Omitting it on an arm64 runner installed
+    org.gnome.Sdk/x86_64/50 and then tried to run those binaries under bwrap:
+
+        bwrap: execvp /bin/sh: Exec format error
+        Error: module mutter-schemas: Child process exited with code 1
+
+    (run 32534151231.) The test that asserted the absence of the input
+    encoded that wrong assumption and would have blocked the fix, which is
+    why this one asserts the value instead."""
+    assert _builder(jobs["production-aarch64"])["with"]["arch"] == "aarch64"
+
+
+def test_the_x86_64_build_is_left_alone(jobs):
+    """It works today on the action's default; adding an explicit arch there
+    would be an unrelated change to a working path."""
+    assert "arch" not in _builder(jobs["production"]).get("with", {})
 
 
 def test_the_two_builds_do_not_share_a_cache_key(jobs):

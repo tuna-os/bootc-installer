@@ -110,11 +110,26 @@ jobs:
         with:
           submodules: recursive
 
-      # No `arch:` input: the runner is aarch64, so a native build produces
-      # the aarch64 refs. Passing --arch on an x86_64 runner would mean
-      # cross-building, which this manifest is not set up for.
+      # `arch: aarch64` is REQUIRED, and I had this backwards first time.
+      #
+      # The action does NOT default to the runner's architecture — its
+      # default is the literal x86_64. Omitting it on an arm64 runner
+      # installed org.gnome.Sdk/x86_64/50 and then tried to run those
+      # binaries under bwrap on aarch64:
+      #
+      #   bwrap: execvp /bin/sh: Exec format error
+      #   Error: module mutter-schemas: Child process exited with code 1
+      #
+      # (run 32534151231, the first dispatch of this job.) The log line that
+      # settles it is the action's own echoed input, `arch: x86_64`, on an
+      # aarch64 runner.
+      #
+      # This is still a NATIVE build: the runner is aarch64 and the refs are
+      # aarch64. The input selects which flatpak arch to resolve, not
+      # whether to cross-compile.
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
+          arch: aarch64
           bundle: org.bootcinstaller.Installer-aarch64.flatpak
           manifest-path: flatpak/org.bootcinstaller.Installer.json
           cache-key: flatpak-builder-production-aarch64-${{ github.sha }}
