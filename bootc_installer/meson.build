@@ -119,4 +119,13 @@ configure_file(
   install_dir: moduledir,
 )
 
-install_data(['__init__.py', 'main.py'], install_dir: moduledir)
+# readiness.py is imported unconditionally by main.py, so it must be
+# installed with it: a packaged build missing it raises ModuleNotFoundError
+# before any window can appear. It shipped in #7/#8 without being added
+# here, so no packaged build has ever contained it — tunaOS installer-smoke
+# run 32427184070 caught it as the installer being installed, autostarted,
+# and never running at all.
+install_data(
+  ['__init__.py', 'main.py', 'readiness.py'],
+  install_dir: moduledir,
+)
