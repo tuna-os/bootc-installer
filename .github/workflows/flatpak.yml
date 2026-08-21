@@ -71,6 +71,77 @@ jobs:
           path: org.bootcinstaller.Installer.flatpak
           retention-days: 1
 
+  # ── aarch64 production bundle ────────────────────────────────────────────
+  # A SEPARATE job rather than a matrix leg on `production`, deliberately.
+  #
+  # A flatpak bundle carries refs for one architecture. The production bundle
+  # has always been x86_64-only, which meant an aarch64 live ISO downloaded
+  # it, imported `app/org.bootcinstaller.Installer/x86_64/master`, and then
+  # `flatpak install` matched nothing for the host arch:
+  #
+  #   error: Nothing matches org.bootcinstaller.Installer in remote installer-local
+  #
+  # (tuna-os/tunaOS gurnard run 32495176056, iso:pantheon linux-arm64.) So the
+  # arm64 ISO could never carry the installer, and nothing downstream of it
+  # was exercisable on that arch.
+  #
+  # Why not a matrix: `auto-release` and `publish-tagged-release` both
+  # `needs: [production]`, and one failing matrix leg fails the whole job,
+  # which would skip the release entirely. x86_64 releases work today and
+  # must not become contingent on a new arch. As its own job this is purely
+  # additive: if it breaks, releases still cut exactly as before, carrying
+  # x86_64 alone.
+  production-aarch64:
+    name: Build (production, aarch64)
+    if: >-
+      github.event_name == 'pull_request' ||
+      startsWith(github.ref, 'refs/tags/') ||
+      github.ref == 'refs/heads/prod' ||
+      github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # No `arch:` input: the runner is aarch64, so a native build produces
+      # the aarch64 refs. Passing --arch on an x86_64 runner would mean
+      # cross-building, which this manifest is not set up for.
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: org.bootcinstaller.Installer-aarch64.flatpak
+          manifest-path: flatpak/org.bootcinstaller.Installer.json
+          cache-key: flatpak-builder-production-aarch64-${{ github.sha }}
+
+      - name: Upload bundle as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: org.bootcinstaller.Installer-aarch64.flatpak
+          path: org.bootcinstaller.Installer-aarch64.flatpak
+          retention-days: 30
+
+      - name: Attach bundle to tagged release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: tagged-org.bootcinstaller.Installer-aarch64.flatpak
+          path: org.bootcinstaller.Installer-aarch64.flatpak
+          retention-days: 1
+
+      - name: Keep production bundle for the auto-release
+        if: github.ref == 'refs/heads/dev'
+        uses: actions/upload-artifact@v4
+        with:
+          name: autorelease-org.bootcinstaller.Installer-aarch64.flatpak
+          path: org.bootcinstaller.Installer-aarch64.flatpak
+          retention-days: 1
+
   devel:
     name: Build (devel)
     if: >-
@@ -155,24 +226,41 @@ jobs:
         with:
           name: tagged-org.bootcinstaller.Installer.Devel.flatpak
 
+      # Best-effort: this job does NOT `needs` the aarch64 build, so the
+      # artifact may legitimately be absent. Releasing x86_64 alone is the
+      # pre-existing behaviour and must stay possible.
+      - name: Download aarch64 bundle (optional)
+        id: aarch64
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: tagged-org.bootcinstaller.Installer-aarch64.flatpak
+
       - name: Create and publish release
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           # Upload assets to the release, creating it if needed.
           # The release may already exist if the tag was pushed manually
           # before CI ran (common during hotfix cycles).
+          assets=(
+            org.bootcinstaller.Installer.flatpak
+            org.bootcinstaller.Installer.Devel.flatpak
+          )
+          if [ -f org.bootcinstaller.Installer-aarch64.flatpak ]; then
+            assets+=(org.bootcinstaller.Installer-aarch64.flatpak)
+          else
+            echo "::warning::no aarch64 bundle; releasing x86_64 only"
+          fi
           if ! gh release create ${{ github.ref_name }} \
               --repo ${{ github.repository }} \
               --title "bootc-installer ${{ github.ref_name }}" \
               --notes "Release ${{ github.ref_name }}" \
-              org.bootcinstaller.Installer.flatpak \
-              org.bootcinstaller.Installer.Devel.flatpak; then
+              "${assets[@]}"; then
             echo "Release already exists — uploading assets to existing release"
             gh release upload ${{ github.ref_name }} \
               --repo ${{ github.repository }} \
               --clobber \
-              org.bootcinstaller.Installer.flatpak \
-              org.bootcinstaller.Installer.Devel.flatpak
+              "${assets[@]}"
           fi
         env:
           GH_TOKEN: ${{ github.token }}
@@ -209,6 +297,15 @@ jobs:
         with:
           name: autorelease-org.bootcinstaller.Installer.flatpak
 
+      # Best-effort, same reason as the tagged path: this job does not
+      # `needs` the aarch64 build, so x86_64 releases keep cutting whether or
+      # not that leg produced anything.
+      - name: Download aarch64 bundle (optional)
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: autorelease-org.bootcinstaller.Installer-aarch64.flatpak
+
       - name: Cut a versioned release
         run: |
           set -euo pipefail
@@ -217,12 +314,19 @@ jobs:
           TAG="v$(date -u +%Y.%m.%d)-$(git rev-parse --short HEAD)"
           echo "Releasing ${TAG}"
 
+          assets=(org.bootcinstaller.Installer.flatpak)
+          if [ -f org.bootcinstaller.Installer-aarch64.flatpak ]; then
+            assets+=(org.bootcinstaller.Installer-aarch64.flatpak)
+          else
+            echo "::warning::no aarch64 bundle; releasing x86_64 only"
+          fi
+
           gh release create "${TAG}" \
             --repo "${GITHUB_REPOSITORY}" \
             --title "bootc-installer ${TAG}" \
             --notes "Automatic release from \`dev\` (${GITHUB_SHA})." \
             --latest \
-            org.bootcinstaller.Installer.flatpak
+            "${assets[@]}"
 
           # Fail loudly if the asset is not actually reachable at the URL
           # downstreams use. A release that exists but serves no asset is the
