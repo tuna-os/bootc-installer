@@ -158,6 +158,8 @@
                 "meson setup _flatpak_build --prefix=/app -Dbge_only=true",
                 "meson compile -C _flatpak_build",
                 "meson install -C _flatpak_build",
+                "install -Dm644 bge/bge-markdown-render.h /app/include/bge/bge-markdown-render.h  # bootc-installer#25: bge.h #includes this unconditionally, upstream meson.build omits it from the installed headers",
+                "install -Dm644 -t /app/include/bge/wdgt bge/wdgt/*.h  # bootc-installer#25: bge.h #includes \"wdgt/...\" but upstream installs these flat into /app/include/bge",
                 "ln -sf bge-0.7.15.pc /app/lib/pkgconfig/libbge.pc"
             ],
             "cleanup": [
