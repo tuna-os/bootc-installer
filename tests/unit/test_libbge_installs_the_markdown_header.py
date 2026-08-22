@@ -78,8 +78,29 @@ def test_it_runs_after_meson_install():
     assert header > install
 
 
+def test_the_wdgt_headers_land_in_their_include_subdirectory():
+    """Round 2. With the markdown header installed, bge.h got one line further:
+
+        /app/include/bge/bge.h:33:10: fatal error: wdgt/bge-easing.h
+
+    The probe had already shown why -- upstream installs bge/wdgt/*.h FLAT
+    into /app/include/bge while bge.h includes them as "wdgt/...". Same defect
+    class as the markdown header, adjacent line."""
+    assert any(
+        "/app/include/bge/wdgt" in c and "bge/wdgt/*.h" in c for c in commands()
+    ), commands()
+
+
+def test_the_flat_copies_are_not_removed():
+    """Installing into the subdirectory is additive. Removing the flat copies
+    would break any consumer that includes them the way meson installed
+    them."""
+    assert not any("rm " in c for c in commands()), commands()
+
+
 def test_the_upstream_build_is_otherwise_untouched():
-    cmds = [c for c in commands() if "bge-markdown-render.h" not in c]
+    cmds = [c for c in commands()
+            if "bge-markdown-render.h" not in c and "bge/wdgt/*.h" not in c]
     assert cmds == [
         "meson setup _flatpak_build --prefix=/app -Dbge_only=true",
         "meson compile -C _flatpak_build",
