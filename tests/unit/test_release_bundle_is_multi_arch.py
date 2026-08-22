@@ -78,6 +78,26 @@ def test_the_aarch64_build_asks_for_aarch64_refs(jobs):
     assert _builder(jobs["production-aarch64"])["with"]["arch"] == "aarch64"
 
 
+def test_the_aarch64_job_is_non_blocking_while_libbge_is_broken(jobs):
+    """It is knowingly red: libbge installs bge.h without
+    bge-markdown-render.h, which bge.h includes, so libpastry cannot
+    compile. Arch-specific rather than a plain packaging gap — in run
+    32537597515 the x86_64 job compiled both modules from source, with no
+    cache restored, and passed.
+
+    continue-on-error rather than deleting the job, because the three fixes
+    around it are correct and each was only found by running it. When #25
+    clears, delete this and the test with it."""
+    assert jobs["production-aarch64"].get("continue-on-error") is True
+
+
+def test_the_x86_64_build_never_becomes_non_blocking(jobs):
+    """The whole point of the line above is that it applies to the new,
+    known-broken arch only. Silencing the working one would hide a real
+    regression."""
+    assert "continue-on-error" not in jobs["production"]
+
+
 def test_the_x86_64_build_is_left_alone(jobs):
     """It works today on the action's default; adding an explicit arch there
     would be an unrelated change to a working path."""

@@ -101,6 +101,31 @@ jobs:
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
+    # KNOWN RED, on purpose, and it must not be left this way silently.
+    #
+    # The build gets through mutter-schemas, go, fisherman,
+    # blueprint-compiler, md4c, libsass, sassc and libbge, then dies in
+    # libpastry:
+    #
+    #   /app/include/bge/bge.h:32:10: fatal error: bge-markdown-render.h:
+    #   No such file or directory
+    #
+    # libbge installs bge.h, which #includes bge-markdown-render.h, without
+    # installing that header. It IS architecture-specific rather than a
+    # plain packaging gap: in the same run (32537597515) the x86_64 job
+    # compiled libbge and libpastry from source -- no cache was restored,
+    # the log has no cache lines at all -- and succeeded.
+    #
+    # The cause is in bazaar (libbge), a third-party project, so it is
+    # tracked in #25 rather than worked around here.
+    #
+    # continue-on-error rather than deleting the job: the three fixes below
+    # it are correct and needed, and every one of them was only found by
+    # running this. Releases are unaffected either way -- both release jobs
+    # already treat the aarch64 asset as optional -- so a red-but-visible
+    # job costs nothing and starts producing the asset the moment libbge is
+    # fixed. Remove this line then.
+    continue-on-error: true
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
       options: --privileged
