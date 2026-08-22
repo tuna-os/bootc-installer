@@ -1,5 +1,6 @@
 import logging
 import tempfile
+from urllib.parse import urlencode
 from gettext import gettext as _
 from gi.repository import Adw, GLib, Gtk
 
@@ -122,7 +123,7 @@ class BootcDefaultQrCompanion(Adw.Bin):
         
         ip = get_local_ip()
         protocol = "https" if self.__server.is_https else "http"
-        url = f"{protocol}://{ip}:8443"
+        url = f"{protocol}://{ip}:8443/?{urlencode({'token': self.__server.auth_token})}"
         self.link_label.set_markup(f'<a href="{url}">{url}</a>')
         
         # Generate QR code SVG on the fly
