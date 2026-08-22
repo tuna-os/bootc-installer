@@ -158,6 +158,12 @@
                 "meson setup _flatpak_build --prefix=/app -Dbge_only=true",
                 "meson compile -C _flatpak_build",
                 "meson install -C _flatpak_build",
+                "echo '===== bge probe (bootc-installer#25, REMOVE when the aarch64 header gap is understood) =====' && uname -m",
+                "echo '===== bge probe: headers present in SOURCE =====' && find . -name 'bge*.h' | sort || true",
+                "echo '===== bge probe: headers INSTALLED to /app/include/bge =====' && ls -la /app/include/bge/ 2>&1 || true",
+                "echo '===== bge probe: what meson recorded installing =====' && grep -i 'bge.*\\.h' _flatpak_build/meson-logs/install-log.txt || true",
+                "echo '===== bge probe: markdown/md4c in meson config =====' && grep -inE 'markdown|md4c|Dependency|Program' _flatpak_build/meson-logs/meson-log.txt | tail -60 || true",
+                "echo '===== bge probe: md4c visible to pkg-config? =====' && (pkg-config --list-all 2>/dev/null | grep -i md4c || echo 'md4c: NOT in pkg-config path') || true",
                 "ln -sf bge-0.7.15.pc /app/lib/pkgconfig/libbge.pc"
             ],
             "cleanup": [
