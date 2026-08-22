@@ -78,23 +78,33 @@ def test_the_aarch64_build_asks_for_aarch64_refs(jobs):
     assert _builder(jobs["production-aarch64"])["with"]["arch"] == "aarch64"
 
 
-def test_the_aarch64_job_is_non_blocking_while_libbge_is_broken(jobs):
-    """It is knowingly red: libbge installs bge.h without
-    bge-markdown-render.h, which bge.h includes, so libpastry cannot
-    compile. Arch-specific rather than a plain packaging gap — in run
-    32537597515 the x86_64 job compiled both modules from source, with no
-    cache restored, and passed.
+def test_the_aarch64_job_blocks_now_that_it_passes(jobs):
+    """The inverse of what this test asserted until #27, and deliberately not
+    a deletion.
 
-    continue-on-error rather than deleting the job, because the three fixes
-    around it are correct and each was only found by running it. When #25
-    clears, delete this and the test with it."""
-    assert jobs["production-aarch64"].get("continue-on-error") is True
+    It was continue-on-error while libbge installed bge.h without the headers
+    bge.h #includes, so libpastry could not compile. That was NOT
+    arch-specific, which is what the old version of this docstring claimed on
+    the strength of x86_64 passing: x86_64 omits the same headers and passed
+    only because libbge's .pc lands in /app/lib64/pkgconfig while the manifest
+    symlinks into /app/lib/pkgconfig — a dangling link, so meson never found
+    libbge as a system dependency and fell back to the vendored bazaar
+    subproject instead. aarch64 has no lib64, the link resolved, and the real
+    gap surfaced.
+
+    #27 installs the headers; run 32550801038 built the bundle green at
+    623f61f4 and release v2026.08.22-623f61f4 carries the aarch64 asset. An
+    arch that is shipping must fail loudly, so this asserts the absence rather
+    than being deleted — deleting it would let the line drift back in
+    unnoticed."""
+    assert "continue-on-error" not in jobs["production-aarch64"]
 
 
 def test_the_x86_64_build_never_becomes_non_blocking(jobs):
-    """The whole point of the line above is that it applies to the new,
-    known-broken arch only. Silencing the working one would hide a real
-    regression."""
+    """It never was non-blocking, and must not become so. When aarch64 was
+    the knowingly-broken arch, the exemption was scoped to it alone;
+    now that neither is exempt, both of these assertions say the same
+    thing and both are meant to keep saying it."""
     assert "continue-on-error" not in jobs["production"]
 
 
