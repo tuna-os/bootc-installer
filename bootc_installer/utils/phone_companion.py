@@ -4,12 +4,15 @@ import socket
 import threading
 import json
 import logging
+import secrets
 import subprocess
+from urllib.parse import parse_qs, urlparse
 
 logger = logging.getLogger("Installer::PhoneCompanion")
 
 GLOBAL_CONFIG = None
 CONFIG_RECEIVED_EVENT = threading.Event()
+MAX_CONFIG_BYTES = 64 * 1024
 
 def get_local_ip():
     """Finds the local IP address of the primary active interface."""
@@ -232,7 +235,8 @@ COMPANION_HTML = """<!DOCTYPE html>
                 sshkey: sshkey
             };
 
-            fetch('/api/config', {
+            const token = new URLSearchParams(window.location.search).get('token');
+            fetch('/api/config?token=' + encodeURIComponent(token || ''), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -261,24 +265,37 @@ class CompanionRequestHandler(http.server.SimpleHTTPRequestHandler):
         # Suppress noisy HTTP logging in the installer logs
         pass
 
+    def _authorized_path(self):
+        parsed = urlparse(self.path)
+        supplied = parse_qs(parsed.query).get("token", [""])[0]
+        expected = getattr(self.server, "auth_token", "")
+        if not expected or not secrets.compare_digest(supplied, expected):
+            self.send_error(403, "Forbidden")
+            return None
+        return parsed.path
+
     def do_GET(self):
-        if self.path in ["/", "/index.html"]:
+        path = self._authorized_path()
+        if path is None:
+            return
+        if path in ["/", "/index.html"]:
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
             self.end_headers()
             self.wfile.write(COMPANION_HTML.encode('utf-8'))
-        elif self.path in ["/config", "/api/config"]:
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps(GLOBAL_CONFIG or {}).encode("utf-8"))
         else:
             self.send_error(404, "Not Found")
 
     def do_POST(self):
-        if self.path == "/api/config":
+        path = self._authorized_path()
+        if path is None:
+            return
+        if path == "/api/config":
             try:
                 content_length = int(self.headers['Content-Length'])
+                if content_length > MAX_CONFIG_BYTES:
+                    self.send_error(413, "Request body too large")
+                    return
                 post_data = self.rfile.read(content_length)
                 config = json.loads(post_data.decode('utf-8'))
                 
@@ -319,17 +336,20 @@ class CompanionServer:
         self.server = None
         self.thread = None
         self.is_https = False
+        self.auth_token = None
 
     def start(self):
         global GLOBAL_CONFIG
         GLOBAL_CONFIG = None
         CONFIG_RECEIVED_EVENT.clear()
+        self.auth_token = secrets.token_urlsafe(32)
         
         # Try SSL first
         self.is_https = generate_self_signed_cert()
         
         try:
             self.server = http.server.HTTPServer(("0.0.0.0", self.port), CompanionRequestHandler)
+            self.server.auth_token = self.auth_token
             
             if self.is_https:
                 context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -348,7 +368,9 @@ class CompanionServer:
         if self.server:
             self.server.shutdown()
             self.server.server_close()
+            self.server = None
             logger.info("Stopped Phone Companion server")
+        self.auth_token = None
 
     def get_config(self):
         return GLOBAL_CONFIG
