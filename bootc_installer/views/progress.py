@@ -33,7 +33,18 @@ _RESOURCE_PREFIX = "/org/bootcinstaller/Installer"
 _ASSET_DIR = pathlib.Path(__file__).resolve().parent.parent / "assets"
 
 # Where to stage fisherman so the host can see it (shared via --filesystem=host)
-_FISHERMAN_CACHE_DIR = os.path.join(os.environ.get("HOME", "/tmp"), ".cache", "bootc-installer")
+#
+# The fallback used to be "/tmp", which put the staging directory — and so the
+# binary this module goes on to run under pkexec — somewhere every local user
+# on the machine can write. Fall back to the per-user runtime directory
+# instead: /run/user/<uid> is created 0700 and owned by the user, so the
+# HOME-unset case degrades to "private to us" rather than "world-writable".
+_FISHERMAN_STAGE_BASE = (
+    os.environ.get("HOME")
+    or os.environ.get("XDG_RUNTIME_DIR")
+    or f"/run/user/{os.getuid()}"
+)
+_FISHERMAN_CACHE_DIR = os.path.join(_FISHERMAN_STAGE_BASE, ".cache", "bootc-installer")
 _FISHERMAN_HOST_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman")
 _FISHERMAN_LOG_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman-output.log")
 
@@ -67,16 +78,74 @@ def _fisherman_argv_direct(recipe: str) -> list:
         return ["bash", "-c", f'pkexec /usr/local/bin/fisherman "$1" >"{log}" 2>&1; exit $?', "--", recipe]
 
 
+def _path_is_private(path: str, check_mode: bool = True) -> bool:
+    """True when `path` is safe to stage a pkexec target into.
+
+    The staged binary is executed as root, so anything about its path that
+    another account can influence is a privilege-escalation primitive. A path
+    that does not exist yet is fine — we are about to create it, and
+    `os.makedirs`/`shutil.copy2` below create with modes no one else can
+    write. What must be rejected is a path that already exists and is NOT
+    exclusively ours: a symlink someone else planted, a directory owned by
+    another account, or anything group- or other-writable.
+
+    `check_mode=False` skips the group/other-writable test, for paths we do
+    not create and whose permissions are the user's own business — a home
+    directory is 0775 under a user-private-group scheme on some distributions,
+    and refusing to install over that would be a false positive. The
+    directories this module creates are held to the full standard.
+
+    This does NOT make staging safe against the invoking user's own uid —
+    nothing checked here can, because the check and the eventual execve are
+    separated by a window. It closes the pre-created-directory and cross-user
+    cases, and turns the HOME-unset case into a refusal instead of a root
+    exec. See the tracking issue for the structural fix.
+    """
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        return True
+    except OSError as e:
+        logger.error("cannot stat staging path %s: %s", path, e)
+        return False
+
+    if stat.S_ISLNK(st.st_mode):
+        logger.error("staging path %s is a symlink; refusing to stage a "
+                     "privileged helper through it", path)
+        return False
+    if st.st_uid != os.getuid():
+        logger.error("staging path %s is owned by uid %d, not %d; refusing",
+                     path, st.st_uid, os.getuid())
+        return False
+    if check_mode and st.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        logger.error("staging path %s is group- or world-writable (mode %o); "
+                     "refusing to stage a privileged helper there",
+                     path, stat.S_IMODE(st.st_mode))
+        return False
+    return True
+
+
 def _stage_fisherman_on_host() -> bool:
     """Copy fisherman binary to a host-visible cache dir so pkexec can find it."""
     if not _IN_FLATPAK:
         return True
 
-    os.makedirs(_FISHERMAN_CACHE_DIR, exist_ok=True)
+    # Checked before the copy AND used to gate the run: this binary is handed
+    # to pkexec, so it must not live anywhere another account can substitute
+    # it.
+    if not _path_is_private(_FISHERMAN_STAGE_BASE, check_mode=False):
+        return False
+    for path in (os.path.dirname(_FISHERMAN_CACHE_DIR),
+                 _FISHERMAN_CACHE_DIR,
+                 _FISHERMAN_HOST_PATH):
+        if not _path_is_private(path):
+            return False
+
+    os.makedirs(_FISHERMAN_CACHE_DIR, mode=0o700, exist_ok=True)
     fisherman_src = os.environ.get("BOOTC_FISHERMAN_PATH", "/app/bin/fisherman")
     try:
         shutil.copy2(fisherman_src, _FISHERMAN_HOST_PATH)
-        os.chmod(_FISHERMAN_HOST_PATH, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
+        os.chmod(_FISHERMAN_HOST_PATH, stat.S_IRWXU)
         logger.info(f"Staged fisherman binary to {_FISHERMAN_HOST_PATH}")
         return True
     except Exception as e:
