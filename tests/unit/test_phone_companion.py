@@ -25,9 +25,10 @@ def reset_phone_companion_state():
     CONFIG_RECEIVED_EVENT.clear()
 
 
-def _make_handler(path, body=b""):
+def _make_handler(path, body=b"", token="test-token"):
     handler = CompanionRequestHandler.__new__(CompanionRequestHandler)
     handler.path = path
+    handler.server = MagicMock(auth_token=token)
     handler.headers = {"Content-Length": str(len(body))}
     handler.rfile = io.BytesIO(body)
     handler.wfile = io.BytesIO()
@@ -97,6 +98,7 @@ def test_companion_server_init_sets_default_state():
     assert server.server is None
     assert server.thread is None
     assert server.is_https is False
+    assert server.auth_token is None
 
 
 def test_companion_server_start_resets_state_and_starts_http_thread():
@@ -116,6 +118,8 @@ def test_companion_server_start_resets_state_and_starts_http_thread():
     assert server.server is fake_server
     assert server.thread is fake_thread
     assert server.is_https is False
+    assert server.auth_token is not None
+    assert fake_server.auth_token == server.auth_token
     http_server_mock.assert_called_once_with(("0.0.0.0", 9999), CompanionRequestHandler)
     thread_mock.assert_called_once_with(target=fake_server.serve_forever, daemon=True)
     fake_thread.start.assert_called_once_with()
@@ -148,12 +152,15 @@ def test_companion_server_start_configures_tls_when_certificate_exists():
 
 def test_companion_server_stop_shuts_down_active_server():
     server = CompanionServer()
-    server.server = MagicMock()
+    fake_server = MagicMock()
+    server.server = fake_server
 
     server.stop()
 
-    server.server.shutdown.assert_called_once_with()
-    server.server.server_close.assert_called_once_with()
+    fake_server.shutdown.assert_called_once_with()
+    fake_server.server_close.assert_called_once_with()
+    assert server.server is None
+    assert server.auth_token is None
 
 
 def test_companion_server_get_config_returns_current_global_config():
@@ -167,7 +174,7 @@ def test_companion_server_get_config_returns_current_global_config():
 
 
 def test_handler_get_root_serves_html():
-    handler = _make_handler("/")
+    handler = _make_handler("/?token=test-token")
 
     handler.do_GET()
 
@@ -177,19 +184,17 @@ def test_handler_get_root_serves_html():
     assert handler.wfile.getvalue() == COMPANION_HTML.encode("utf-8")
 
 
-def test_handler_get_config_returns_current_config():
+def test_handler_does_not_expose_current_config():
     phone_companion.GLOBAL_CONFIG = {"hostname": "bluefin", "username": "jorge"}
-    handler = _make_handler("/config")
+    handler = _make_handler("/config?token=test-token")
 
     handler.do_GET()
 
-    handler.send_response.assert_called_once_with(200)
-    handler.send_header.assert_called_once_with("Content-Type", "application/json")
-    assert json.loads(handler.wfile.getvalue().decode("utf-8")) == phone_companion.GLOBAL_CONFIG
+    handler.send_error.assert_called_once_with(404, "Not Found")
 
 
 def test_handler_get_unknown_path_returns_404():
-    handler = _make_handler("/missing")
+    handler = _make_handler("/missing?token=test-token")
 
     handler.do_GET()
 
@@ -204,7 +209,7 @@ def test_handler_post_valid_config_updates_global_state_and_event():
         "hostname": "bluefin",
         "sshkey": "ssh-ed25519 AAA",
     }
-    handler = _make_handler("/api/config", json.dumps(payload).encode("utf-8"))
+    handler = _make_handler("/api/config?token=test-token", json.dumps(payload).encode("utf-8"))
 
     handler.do_POST()
 
@@ -216,7 +221,7 @@ def test_handler_post_valid_config_updates_global_state_and_event():
 
 
 def test_handler_post_invalid_json_returns_error_without_setting_state():
-    handler = _make_handler("/api/config", b"{not-json")
+    handler = _make_handler("/api/config?token=test-token", b"{not-json")
 
     with patch("bootc_installer.utils.phone_companion.logger.error") as error_mock:
         handler.do_POST()
@@ -229,8 +234,28 @@ def test_handler_post_invalid_json_returns_error_without_setting_state():
 
 
 def test_handler_post_unknown_path_returns_404():
-    handler = _make_handler("/api/other", b"{}")
+    handler = _make_handler("/api/other?token=test-token", b"{}")
 
     handler.do_POST()
 
     handler.send_error.assert_called_once_with(404, "Not Found")
+
+
+@pytest.mark.parametrize("method", ["do_GET", "do_POST"])
+def test_handler_rejects_missing_or_invalid_token(method):
+    handler = _make_handler("/api/config?token=wrong", b"{}")
+
+    getattr(handler, method)()
+
+    handler.send_error.assert_called_once_with(403, "Forbidden")
+    assert phone_companion.GLOBAL_CONFIG is None
+    assert not CONFIG_RECEIVED_EVENT.is_set()
+
+
+def test_handler_rejects_oversized_config():
+    handler = _make_handler("/api/config?token=test-token", b"x" * (64 * 1024 + 1))
+
+    handler.do_POST()
+
+    handler.send_error.assert_called_once_with(413, "Request body too large")
+    assert phone_companion.GLOBAL_CONFIG is None
