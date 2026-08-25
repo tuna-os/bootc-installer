@@ -34,7 +34,7 @@ GTK4/Adwaita GUI that collects user choices, writes a recipe JSON, launches fish
 
 ## fisherman submodule workflow
 
-fisherman is a separate repo (`projectbluefin/fisherman`). Changes must be committed and pushed **separately**, then the parent repo's submodule pointer updated:
+fisherman is a separate repo (`tuna-os/fisherman`). Changes must be committed and pushed **separately**, then the parent repo's submodule pointer updated:
 
 ```bash
 cd fisherman/fisherman && git add -A && git commit -m "..." && git push
