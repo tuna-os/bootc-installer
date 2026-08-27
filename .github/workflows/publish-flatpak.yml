@@ -59,25 +59,9 @@ jobs:
           skopeo copy oci:bootc-installer.oci docker://ghcr.io/tuna-os/bootc-installer:latest
 
       - name: Update central index (tuna-os/docs)
-        env:
-          FLATPAK_INDEX_TOKEN: ${{ secrets.FLATPAK_INDEX_TOKEN }}
-        run: |
-          git clone --depth 1 \
-            https://x-access-token:${FLATPAK_INDEX_TOKEN}@github.com/tuna-os/docs.git \
-            index-repo
-          pip install requests
-          python3 .github/scripts/update-index.py \
-            --oci-dir bootc-installer.oci \
-            --index-file index-repo/static/flatpak/index/static \
-            --repo-name tuna-os/bootc-installer \
-            --tags latest
-          cd index-repo
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add static/flatpak/index/static
-          if git diff --cached --quiet; then
-            echo "No index changes"
-          else
-            git commit -m "chore(flatpak): update bootc-installer OCI index"
-            git push origin main
-          fi
+        uses: tuna-os/.github/.github/actions/publish-flatpak-index@main
+        with:
+          oci-dir: bootc-installer.oci
+          repo-name: tuna-os/bootc-installer
+          tags: latest
+          token: ${{ secrets.FLATPAK_INDEX_TOKEN }}
