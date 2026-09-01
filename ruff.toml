@@ -1,0 +1,7 @@
+target-version = "py310"
+line-length = 100
+
+# `_` is the gettext translation alias used throughout bootc_installer
+# (see CONTRIBUTING.md); without this, ruff's default F821 flags every
+# translated string as an undefined name.
+builtins = ["_"]
