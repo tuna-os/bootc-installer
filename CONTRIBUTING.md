@@ -5,7 +5,7 @@ bootc-installer is a GTK4/Libadwaita Flatpak installer for [bootc](https://conta
 ## Getting started
 
 ```bash
-git clone --recurse-submodules https://github.com/projectbluefin/bootc-installer
+git clone --recurse-submodules https://github.com/tuna-os/bootc-installer
 cd bootc-installer
 ```
 
@@ -87,4 +87,4 @@ See [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) for deeper architecture do
 
 ## Security
 
-Report vulnerabilities via [GitHub Private Vulnerability Reporting](https://github.com/projectbluefin/bootc-installer/security/advisories/new). Do not open public issues for security bugs.
+Report vulnerabilities via [GitHub Private Vulnerability Reporting](https://github.com/tuna-os/bootc-installer/security/advisories/new). Do not open public issues for security bugs.
