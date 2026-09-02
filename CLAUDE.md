@@ -20,7 +20,9 @@ go vet ./...                  # lint
 Root-level CLI that reads a JSON recipe and executes a 9-step disk install pipeline. Emits newline-delimited JSON progress to stdout.
 
 **Critical design constraints:**
-- Always **3-partition GPT** (EFI + ext4 `/boot` + root), even unencrypted. The separate ext4 `/boot` is required because GRUB cannot read modern XFS features (`nrext64`, `exchange`, `rmapbt`), and `bootupctl` inside bwrap needs `/boot` UUID from a raw block device.
+- The partition layout follows the selected boot stack:
+  - **systemd-boot / Dakota:** 2-partition GPT (EFI + root). The root partition is tagged with the architecture-specific Linux root GUID for GPT auto-discovery.
+  - **GRUB2 / Bluefin:** 3-partition GPT (EFI + ext4 `/boot` + root), even when the root is unencrypted. The separate ext4 `/boot` is required because GRUB cannot read modern XFS features (`nrext64`, `exchange`, `rmapbt`), and `bootupctl` inside bwrap needs the `/boot` UUID from a raw block device.
 - Scratch space is `/var/fisherman-tmp` (disk-backed, bind-mounted to `/var/tmp`). Do NOT change to `/run/*` — `/run` is tmpfs and too small.
 - `--skip-finalize` is passed to bootc so step 9 can manually finalize (fstrim → remount ro → fsfreeze/thaw), because `bootc install finalize` is a no-op upstream.
 
@@ -51,7 +53,7 @@ CI checks out submodules recursively — always verify CI passes after both push
 
 ## Don'ts
 
-- **Don't change the 3-partition GPT layout.** The separate ext4 `/boot` is non-negotiable.
+- **Don't remove the dedicated ext4 `/boot` partition from the GRUB2 layout.** It is required for GRUB2 images; systemd-boot images intentionally use the 2-partition layout described above.
 - **Don't use `/run/*` for scratch space.** Always use `/var/fisherman-tmp`.
 - **Don't skip the submodule push.** Changes in `fisherman/` must be pushed before updating the parent pointer, or CI breaks.
 - **Don't pass recipe directly to fisherman from filesystem.** The Flatpak sandbox can't see it — use the host staging path.
