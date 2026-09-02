@@ -39,6 +39,26 @@ logging.basicConfig(
 logger_boot = logging.getLogger("Installer::Boot")
 logger_boot.info(f"Logging to {_log_file}")
 
+
+def _log_uncaught_exception(exc_type, exc_value, exc_traceback):
+    """Route uncaught exceptions into installer-debug.log.
+
+    GTK/GLib signal callbacks route their exceptions through
+    sys.excepthook (via PyErr_Print), so without this override a crash
+    in a button handler or async callback only ever reaches stderr and
+    never lands in the log file users are asked to attach to bug reports.
+    """
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    logging.getLogger("Installer::Uncaught").critical(
+        "Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback)
+    )
+    sys.__excepthook__(exc_type, exc_value, exc_traceback)
+
+
+sys.excepthook = _log_uncaught_exception
+
 import gi  # noqa: E402
 logger_boot.info("gi imported")
 
