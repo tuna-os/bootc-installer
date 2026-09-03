@@ -1,0 +1,42 @@
+name: Incident Report
+description: Report an operational incident, build/release outage, or installer runtime failure
+title: "[Incident]: "
+labels: ["incident"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an operational incident or runtime failure with bootc-installer.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Incident Summary
+      description: What happened? Describe the impact on users or CI pipelines.
+      placeholder: e.g. Auto-release build output caused Flatpak launching failure on live ISOs.
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: Select the impact severity level.
+      options:
+        - "SEV-1: Critical outage (e.g. Broken release artifact blocks deployments)"
+        - "SEV-2: High impact (e.g. Major feature or desktop target broken)"
+        - "SEV-3: Minor impact (e.g. Flaky CI step or non-blocking UI glitch)"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment & Affected Components
+      description: OS version, Flatpak version, hardware/compositor, or CI workflow name.
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs & Error Tracebacks
+      description: Paste any relevant logs or error output.
+    validations:
+      required: false
