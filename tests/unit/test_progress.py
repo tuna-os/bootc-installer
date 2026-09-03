@@ -118,6 +118,108 @@ class TestFishermanArgvDirect(unittest.TestCase):
         self.assertIn(self.mod._FISHERMAN_LOG_PATH, script)
 
 
+class TestStagingPathIsPrivate(unittest.TestCase):
+    """_path_is_private gates the binary that gets handed to pkexec.
+
+    The staged copy of fisherman is executed as root, so any path component
+    another account can influence is a privilege-escalation primitive. These
+    cover the cases the check exists to reject; the same-uid race is NOT
+    covered because no stat-then-exec check can close it.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        with patch.dict("sys.modules", _mock_gtk_imports()):
+            import importlib
+            import bootc_installer.views.progress as mod
+            if not hasattr(mod, "_path_is_private"):
+                importlib.reload(mod)
+            cls.mod = mod
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, self.tmp, True)
+
+    def test_missing_path_is_allowed(self):
+        """We are about to create it; absent is not suspicious."""
+        self.assertTrue(self.mod._path_is_private(os.path.join(self.tmp, "nope")))
+
+    def test_private_file_is_allowed(self):
+        path = os.path.join(self.tmp, "fisherman")
+        with open(path, "w"):
+            pass
+        os.chmod(path, 0o700)
+        self.assertTrue(self.mod._path_is_private(path))
+
+    def test_world_writable_is_rejected(self):
+        """The pre-created-directory attack: someone else owns where we stage."""
+        path = os.path.join(self.tmp, "cache")
+        os.mkdir(path)
+        os.chmod(path, 0o777)
+        self.assertFalse(self.mod._path_is_private(path))
+
+    def test_group_writable_is_rejected(self):
+        path = os.path.join(self.tmp, "cache")
+        os.mkdir(path)
+        os.chmod(path, 0o775)
+        self.assertFalse(self.mod._path_is_private(path))
+
+    def test_symlink_is_rejected(self):
+        """lstat, not stat: a symlink must not be followed to a 'safe' target."""
+        target = os.path.join(self.tmp, "target")
+        os.mkdir(target)
+        os.chmod(target, 0o700)
+        link = os.path.join(self.tmp, "link")
+        os.symlink(target, link)
+        self.assertFalse(self.mod._path_is_private(link))
+
+    def test_foreign_owner_is_rejected(self):
+        path = os.path.join(self.tmp, "cache")
+        os.mkdir(path)
+        os.chmod(path, 0o755)
+        st = os.stat(path)
+        fake = os.stat_result((st.st_mode, st.st_ino, st.st_dev, st.st_nlink,
+                               st.st_uid + 1, st.st_gid, st.st_size,
+                               int(st.st_atime), int(st.st_mtime), int(st.st_ctime)))
+        with patch.object(self.mod.os, "lstat", return_value=fake):
+            self.assertFalse(self.mod._path_is_private(path))
+
+    def test_check_mode_false_tolerates_group_writable(self):
+        """The stage BASE is $HOME, which is 0775 under user-private groups.
+
+        Refusing to install over that would be a false positive, so ownership
+        alone gates the base; the directories we create ourselves get the
+        full check.
+        """
+        path = os.path.join(self.tmp, "home")
+        os.mkdir(path)
+        os.chmod(path, 0o775)
+        self.assertFalse(self.mod._path_is_private(path))
+        self.assertTrue(self.mod._path_is_private(path, check_mode=False))
+
+
+class TestStageBaseIsNotWorldWritable(unittest.TestCase):
+    """The HOME fallback must never be a world-writable directory.
+
+    It used to be "/tmp", which put the pkexec target somewhere every local
+    user can write — no same-user code execution needed to substitute it.
+    """
+
+    def test_fallback_is_not_tmp(self):
+        import importlib
+        with patch.dict("sys.modules", _mock_gtk_imports()):
+            with patch.dict(os.environ, {}, clear=True):
+                import bootc_installer.views.progress as mod
+                importlib.reload(mod)
+                base = mod._FISHERMAN_STAGE_BASE
+                self.assertNotEqual(base, "/tmp")
+                self.assertFalse(mod._FISHERMAN_HOST_PATH.startswith("/tmp/"))
+                self.assertEqual(base, f"/run/user/{os.getuid()}")
+        # patch.dict restores sys.modules on exit, so the reloaded module is
+        # dropped and later imports get a clean one.
+
+
 class TestMediaStreamReadiness(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
