@@ -288,19 +288,21 @@ jobs:
           else
             echo "::warning::no aarch64 bundle; releasing x86_64 only"
           fi
-          if ! gh release create ${{ github.ref_name }} \
-              --repo ${{ github.repository }} \
-              --title "bootc-installer ${{ github.ref_name }}" \
-              --notes "Release ${{ github.ref_name }}" \
+          if ! gh release create "$REF_NAME" \
+              --repo "$REPO" \
+              --title "bootc-installer $REF_NAME" \
+              --notes "Release $REF_NAME" \
               "${assets[@]}"; then
             echo "Release already exists — uploading assets to existing release"
-            gh release upload ${{ github.ref_name }} \
-              --repo ${{ github.repository }} \
+            gh release upload "$REF_NAME" \
+              --repo "$REPO" \
               --clobber \
               "${assets[@]}"
           fi
         env:
           GH_TOKEN: ${{ github.token }}
+          REF_NAME: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
 
   # ── Auto-release from dev ────────────────────────────────────────────────
   # Why this exists: before it, this fork had ZERO releases (GET
