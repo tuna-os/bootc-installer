@@ -21,14 +21,16 @@ jobs:
           fetch-depth: 0
       - name: Check for non-docs changes
         id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.sha }}
         run: |
           # Never skip on direct pushes to dev/prod or merge_group — only skip on PRs
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
+          if [ "$EVENT_NAME" != "pull_request" ]; then
             echo "docs_only=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          BASE="${{ github.event.pull_request.base.sha }}"
-          HEAD="${{ github.sha }}"
           changed=$(git diff --name-only "$BASE" "$HEAD")
           echo "Changed files:"
           echo "$changed"
