@@ -21,6 +21,19 @@ jobs:
       app-id: org.bootcinstaller.Installer
       manifest-path: flatpak/org.bootcinstaller.Installer.json
       repo-name: tuna-os/bootc-installer
-      archs: '["x86_64"]'
+      # aarch64 joins x86_64 because tunaOS's live-ISO customize installs
+      # this Flatpak from the tuna-os remote, and the remote carried no
+      # aarch64 entry -- so every arm64 gnome ISO leg failed while amd64
+      # passed (tunaOS nightly 33848074014).
+      #
+      # The manifest was ALREADY arch-aware: its `go` module carries both
+      # toolchains under only-arches. Only this input was never flipped, so
+      # the arm64 build was buildable but never published to the index --
+      # which is per-architecture and replaces only the matching entry.
+      #
+      # Verified end to end on the sibling installers first: cosmic
+      # (run 33953011236), then niri and xfce. All three now serve amd64
+      # and arm64 at https://tunaos.org/flatpak/index/static.
+      archs: '["x86_64", "aarch64"]'
       checkout-submodules: true
     secrets: inherit
