@@ -10,7 +10,7 @@ This is `projectbluefin/bootc-installer`: a GTK4/Libadwaita Flatpak GUI installe
 ## Key facts
 
 - **Repo:** `projectbluefin/bootc-installer` — work directly here, no fork
-- **fisherman:** git submodule at `fisherman/` → `projectbluefin/fisherman`. Push changes there separately, then update the pointer here
+- **fisherman:** git submodule at `fisherman/` → `tuna-os/fisherman` (the origin; `projectbluefin/fisherman` is a fork kept in sync). Push changes there separately, then update the pointer here
 - **Branch strategy:** `feature/xyz → dev → prod`. All PRs target `dev`
 - **CI gate:** `--cov-fail-under=51` for Python unit tests; Go coverage gate: 20%
 - **Linting:** `python3 -m ruff check bootc_installer/ tests/` — run before every commit
