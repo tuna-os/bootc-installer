@@ -231,7 +231,7 @@ Use the integer floor of the measured decimal (e.g. `47` for `47.57%`).
 
 ## fisherman Submodule Workflow
 
-fisherman at `fisherman/` is a **separate git repo** (`projectbluefin/fisherman`). Commits must land there first, then the parent pointer is updated.
+fisherman at `fisherman/` is a **separate git repo** (`tuna-os/fisherman`). Commits must land there first, then the parent pointer is updated.
 
 ```bash
 # 1. Edit + commit in submodule
