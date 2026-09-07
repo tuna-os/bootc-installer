@@ -25,7 +25,7 @@ are loaded separately and must not be listed here.
 - **Two-component**: Python GUI (GTK4/Adwaita) + fisherman Go backend (submodule at `fisherman/`)
 - **Single variant**: GNOME (default)
 - **Branch model**: `feature/xyz → dev → prod`. All PRs target `dev`. Never `prod` directly.
-- **Fisherman is a separate git repo** (`projectbluefin/fisherman`). Commit there first, then update the submodule pointer in this repo.
+- **Fisherman is a separate git repo** (`tuna-os/fisherman`). Commit there first, then update the submodule pointer in this repo.
 - **Dev loop**: `./run-dev.sh` — builds via `flatpak run org.flatpak.Builder --ccache` into `_build/`, runs with `flatpak-builder --run` (no user/system install). `/app/bin` not in PATH by default; use `/app/bin/bootc-installer`.
 - **Debug log (in --run mode)**: `~/.var/app/org.bootcinstaller.Installer.Devel/cache/bootc-installer/installer-debug.log`
 - **Branch protection**: no classic branch protection on `dev` — uses repository rulesets. Remove via `gh api --method DELETE repos/org/repo/rulesets/<id>`.
