@@ -319,10 +319,18 @@ jobs:
   # production app id. The tag is date+sha, never a rolling name — the repo
   # has a ruleset that permanently bans a tag name once an immutable release
   # has used it, which is exactly why `latest-stable` could not be reused.
+  #
+  # The Devel bundle rides along on the same release (needs: [production,
+  # devel]). Downstreams (dakota-iso) that need the dev channel take the
+  # Devel-named asset from this same /releases/latest/ redirect instead of a
+  # rolling tag — see dakota-iso's TestInstallerChannelURLs, which bans
+  # rolling dev-channel tags outright after projectbluefin lost `latest-dev`
+  # to the immutable-release ruleset. A release created together with both
+  # assets is the only pattern that ruleset allows to stay current.
   auto-release:
     name: Auto-release (dev)
     if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
-    needs: [production]
+    needs: [production, devel]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -332,6 +340,10 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: autorelease-org.bootcinstaller.Installer.flatpak
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: org.bootcinstaller.Installer.Devel.flatpak
 
       # Best-effort, same reason as the tagged path: this job does not
       # `needs` the aarch64 build, so x86_64 releases keep cutting whether or
@@ -350,7 +362,10 @@ jobs:
           TAG="v$(date -u +%Y.%m.%d)-$(git rev-parse --short HEAD)"
           echo "Releasing ${TAG}"
 
-          assets=(org.bootcinstaller.Installer.flatpak)
+          assets=(
+            org.bootcinstaller.Installer.flatpak
+            org.bootcinstaller.Installer.Devel.flatpak
+          )
           if [ -f org.bootcinstaller.Installer-aarch64.flatpak ]; then
             assets+=(org.bootcinstaller.Installer-aarch64.flatpak)
           else
@@ -364,18 +379,24 @@ jobs:
             --latest \
             "${assets[@]}"
 
-          # Fail loudly if the asset is not actually reachable at the URL
+          # Fail loudly if the assets are not actually reachable at the URLs
           # downstreams use. A release that exists but serves no asset is the
           # same outage as no release, and it would otherwise read as success.
-          URL="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/org.bootcinstaller.Installer.flatpak"
-          for _ in $(seq 1 10); do
-            if curl -sfIL -o /dev/null "${URL}"; then
-              echo "verified: ${URL}"
-              exit 0
+          for name in org.bootcinstaller.Installer.flatpak org.bootcinstaller.Installer.Devel.flatpak; do
+            URL="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/${name}"
+            ok=0
+            for _ in $(seq 1 10); do
+              if curl -sfIL -o /dev/null "${URL}"; then
+                echo "verified: ${URL}"
+                ok=1
+                break
+              fi
+              sleep 5
+            done
+            if [ "${ok}" -ne 1 ]; then
+              echo "::error::${URL} did not become reachable after the release was cut"
+              exit 1
             fi
-            sleep 5
           done
-          echo "::error::${URL} did not become reachable after the release was cut"
-          exit 1
         env:
           GH_TOKEN: ${{ github.token }}
