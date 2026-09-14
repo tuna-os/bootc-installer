@@ -18,17 +18,18 @@ import json
 import logging
 import os
 import pathlib
-import shutil
-import stat
 import subprocess
 import threading
 import time
 from gettext import gettext as _
 
+from bootc_installer.utils import fisherman_runner
+
+
 logger = logging.getLogger("Installer::Progress")
 
-_IN_FLATPAK = os.path.exists("/.flatpak-info")
-_LIVE_ISO = not _IN_FLATPAK and os.path.exists("/run/ostree-booted")
+_IN_FLATPAK = fisherman_runner.IN_FLATPAK
+_LIVE_ISO = fisherman_runner.LIVE_ISO
 _RESOURCE_PREFIX = "/org/bootcinstaller/Installer"
 _ASSET_DIR = pathlib.Path(__file__).resolve().parent.parent / "assets"
 
@@ -39,11 +40,7 @@ _ASSET_DIR = pathlib.Path(__file__).resolve().parent.parent / "assets"
 # on the machine can write. Fall back to the per-user runtime directory
 # instead: /run/user/<uid> is created 0700 and owned by the user, so the
 # HOME-unset case degrades to "private to us" rather than "world-writable".
-_FISHERMAN_STAGE_BASE = (
-    os.environ.get("HOME")
-    or os.environ.get("XDG_RUNTIME_DIR")
-    or f"/run/user/{os.getuid()}"
-)
+_FISHERMAN_STAGE_BASE = fisherman_runner.default_stage_base()
 _FISHERMAN_CACHE_DIR = os.path.join(_FISHERMAN_STAGE_BASE, ".cache", "bootc-installer")
 _FISHERMAN_HOST_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman")
 _FISHERMAN_LOG_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman-output.log")
@@ -64,18 +61,13 @@ def _fisherman_argv_direct(recipe: str) -> list:
     flatpak-spawn's D-Bus proxy doesn't forward the host process stdout back
     through the redirect — the log file stays empty even though fisherman runs.
     """
-    log = _FISHERMAN_LOG_PATH
-    if _IN_FLATPAK:
-        if os.environ.get("BOOTC_TEST"):
-            bin_ = os.environ.get("BOOTC_FISHERMAN_PATH", _FISHERMAN_HOST_PATH)
-            cmd = f'sudo "{bin_}" "$1" >"{log}" 2>&1; exit $?'
-        else:
-            cmd = f'pkexec "{_FISHERMAN_HOST_PATH}" "$1" >"{log}" 2>&1; exit $?'
-        return ["flatpak-spawn", "--host", "bash", "-c", cmd, "--", recipe]
-    elif _LIVE_ISO:
-        return ["bash", "-c", f'sudo /usr/local/bin/fisherman "$1" >"{log}" 2>&1; exit $?', "--", recipe]
-    else:
-        return ["bash", "-c", f'pkexec /usr/local/bin/fisherman "$1" >"{log}" 2>&1; exit $?', "--", recipe]
+    return fisherman_runner.build_argv(
+        recipe,
+        in_flatpak=_IN_FLATPAK,
+        live_iso=_LIVE_ISO,
+        host_path=_FISHERMAN_HOST_PATH,
+        log_path=_FISHERMAN_LOG_PATH,
+    )
 
 
 def _path_is_private(path: str, check_mode: bool = True) -> bool:
@@ -101,56 +93,17 @@ def _path_is_private(path: str, check_mode: bool = True) -> bool:
     cases, and turns the HOME-unset case into a refusal instead of a root
     exec. See the tracking issue for the structural fix.
     """
-    try:
-        st = os.lstat(path)
-    except FileNotFoundError:
-        return True
-    except OSError as e:
-        logger.error("cannot stat staging path %s: %s", path, e)
-        return False
-
-    if stat.S_ISLNK(st.st_mode):
-        logger.error("staging path %s is a symlink; refusing to stage a "
-                     "privileged helper through it", path)
-        return False
-    if st.st_uid != os.getuid():
-        logger.error("staging path %s is owned by uid %d, not %d; refusing",
-                     path, st.st_uid, os.getuid())
-        return False
-    if check_mode and st.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
-        logger.error("staging path %s is group- or world-writable (mode %o); "
-                     "refusing to stage a privileged helper there",
-                     path, stat.S_IMODE(st.st_mode))
-        return False
-    return True
+    return fisherman_runner.path_is_private(path, check_mode)
 
 
 def _stage_fisherman_on_host() -> bool:
     """Copy fisherman binary to a host-visible cache dir so pkexec can find it."""
-    if not _IN_FLATPAK:
-        return True
-
-    # Checked before the copy AND used to gate the run: this binary is handed
-    # to pkexec, so it must not live anywhere another account can substitute
-    # it.
-    if not _path_is_private(_FISHERMAN_STAGE_BASE, check_mode=False):
-        return False
-    for path in (os.path.dirname(_FISHERMAN_CACHE_DIR),
-                 _FISHERMAN_CACHE_DIR,
-                 _FISHERMAN_HOST_PATH):
-        if not _path_is_private(path):
-            return False
-
-    os.makedirs(_FISHERMAN_CACHE_DIR, mode=0o700, exist_ok=True)
-    fisherman_src = os.environ.get("BOOTC_FISHERMAN_PATH", "/app/bin/fisherman")
-    try:
-        shutil.copy2(fisherman_src, _FISHERMAN_HOST_PATH)
-        os.chmod(_FISHERMAN_HOST_PATH, stat.S_IRWXU)
-        logger.info(f"Staged fisherman binary to {_FISHERMAN_HOST_PATH}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to stage fisherman binary: {e}")
-        return False
+    return fisherman_runner.stage_on_host(
+        in_flatpak=_IN_FLATPAK,
+        stage_base=_FISHERMAN_STAGE_BASE,
+        cache_dir=_FISHERMAN_CACHE_DIR,
+        host_path=_FISHERMAN_HOST_PATH,
+    )
 
 from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 
