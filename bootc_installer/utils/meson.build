@@ -11,6 +11,7 @@ sources = [
   'progress_parser.py',
   'codec_check.py',
   'phone_companion.py',
+  'fisherman_runner.py',
 ]
 
 install_data(sources, install_dir: utilsdir)
