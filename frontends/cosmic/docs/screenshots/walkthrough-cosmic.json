@@ -1,0 +1,109 @@
+{
+  "flavor": "cosmic",
+  "frames": 6,
+  "rendered_frames": 0,
+  "advanced_transitions": 5,
+  "visual_states": 6,
+  "activation_key": null,
+  "ocr": false,
+  "screens": {
+    "welcome": null,
+    "disk": null,
+    "encryption": null,
+    "summary": null,
+    "install": null,
+    "done": null
+  },
+  "strict": true,
+  "failures": 0,
+  "source": "offscreen-capture",
+  "harness": "src/capture.rs (libcosmic on lavapipe under Xvfb)",
+  "text_source": "none",
+  "screens_detail": {
+    "welcome": {
+      "required": true,
+      "reached": false,
+      "on_pages": [],
+      "matched_keywords": []
+    },
+    "disk": {
+      "required": true,
+      "reached": false,
+      "on_pages": [],
+      "matched_keywords": []
+    },
+    "encryption": {
+      "required": false,
+      "reached": false,
+      "on_pages": [],
+      "matched_keywords": []
+    },
+    "summary": {
+      "required": true,
+      "reached": false,
+      "on_pages": [],
+      "matched_keywords": []
+    },
+    "install": {
+      "required": false,
+      "reached": false,
+      "on_pages": [],
+      "matched_keywords": []
+    },
+    "done": {
+      "required": false,
+      "reached": false,
+      "on_pages": [],
+      "matched_keywords": []
+    }
+  },
+  "pages": [
+    {
+      "name": "welcome",
+      "png": "docs/screenshots/01-welcome.png",
+      "rendered": null,
+      "text_excerpt": ""
+    },
+    {
+      "name": "disk",
+      "png": "docs/screenshots/02-disk.png",
+      "rendered": null,
+      "text_excerpt": ""
+    },
+    {
+      "name": "options",
+      "png": "docs/screenshots/03-options.png",
+      "rendered": null,
+      "text_excerpt": ""
+    },
+    {
+      "name": "confirm",
+      "png": "docs/screenshots/04-confirm.png",
+      "rendered": null,
+      "text_excerpt": ""
+    },
+    {
+      "name": "installing",
+      "png": "docs/screenshots/05-installing.png",
+      "rendered": null,
+      "text_excerpt": ""
+    },
+    {
+      "name": "done",
+      "png": "docs/screenshots/06-done.png",
+      "rendered": null,
+      "text_excerpt": ""
+    }
+  ],
+  "transition_pixels": [
+    389271,
+    248855,
+    239053,
+    152227,
+    374337
+  ],
+  "spec_drift": [
+    "'install' keywords differ from upstream"
+  ],
+  "notes": "PNG-only report: this harness does not read widget text, so contract screens are NOT MEASURED (null), not unreached. Rendered/blank per page is still audited from the pixels."
+}
