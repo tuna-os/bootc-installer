@@ -41,6 +41,8 @@ jobs:
         working-directory: frontends/xfce
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # python3-gi-cairo is not optional: without it every custom draw handler
       # fails and the TrawlLine progress indicator silently does not render.
@@ -73,4 +75,18 @@ jobs:
           git add docs/screenshots
           if git diff --cached --quiet; then echo "no screenshot changes"; exit 0; fi
           git commit -m "docs(xfce): refresh GUI screenshots [skip ci]"
-          git push
+          # Five capture jobs and the walkthrough all push small commits to dev
+          # within seconds of each other, and a plain push loses the race with
+          # a non-fast-forward rejection (runs 35281231391/462/400 on the
+          # first dev push after the monorepo merge). Rebase onto whatever
+          # landed meanwhile and retry; these commits never touch the same
+          # files, so the rebase is always clean.
+          for attempt in 1 2 3 4 5 6; do
+            git fetch -q origin dev
+            git rebase -q origin/dev || { git rebase --abort; echo "::error::rebase onto dev failed"; exit 1; }
+            if git push origin HEAD:dev; then exit 0; fi
+            echo "push rejected (attempt $attempt); retrying"
+            sleep $((attempt * 5))
+          done
+          echo "::error::could not push after 6 attempts"
+          exit 1
