@@ -58,14 +58,9 @@ def load_flavor(root, flavor):
     if os.path.exists(cp):
         with open(cp) as fh:
             captions = json.load(fh)
-    run_id = None
-    rid = os.path.join(d, ".run-id")
-    if os.path.exists(rid):
-        run_id = open(rid).read().strip()
     return {"dir": d, "frames": frames, "report": report, "captions": captions,
             "gif": ("walkthrough.gif"
-                    if os.path.exists(os.path.join(d, "walkthrough.gif")) else None),
-            "run_id": run_id}
+                    if os.path.exists(os.path.join(d, "walkthrough.gif")) else None)}
 
 
 def cell(data, screen_id):
@@ -139,18 +134,21 @@ def build(root, outdir, repo, strict):
                 problems.append(f"{name}: required screen '{sc['id']}' not reached")
         w("| " + " | ".join(row) + " |")
     w("")
-    w("| Frontend | Pages | Rendered | Transitions | Harness | Capture |")
-    w("|---|---|---|---|---|---|")
-    for flavor, name, toolkit, _path in FLAVORS:
+    w("| Frontend | Pages | Rendered | Transitions | Harness |")
+    w("|---|---|---|---|---|")
+    for flavor, name, _toolkit, _path in FLAVORS:
         d = data[flavor]
         if d is None or d["report"] is None:
-            w(f"| {name} | {len(d['frames']) if d else 0} | – | – | – | pending |")
+            w(f"| {name} | {len(d['frames']) if d else 0} | – | – | pending |")
             continue
         r = d["report"]
-        run = (f"[run {d['run_id']}](https://github.com/{repo}/actions/runs/{d['run_id']})"
-               if d["run_id"] and repo else "local")
+        # No run id or link here on purpose: this file is committed, and a
+        # value that changes on every CI run turns each re-run into a new
+        # commit even when nothing rendered differently (dev grew two
+        # identical-looking walkthrough commits in five minutes on the
+        # first day). The run ids stay in the job log.
         w(f"| {name} | {r.get('frames')} | {r.get('rendered_frames')} | "
-          f"{r.get('advanced_transitions')} | {r.get('harness', '')} | {run} |")
+          f"{r.get('advanced_transitions')} | {r.get('harness', '')} |")
     w("")
     if problems:
         w("**Gaps:**")
@@ -197,7 +195,6 @@ def build(root, outdir, repo, strict):
         "frontends": {flavor: {
             "frames": len(d["frames"]) if d else 0,
             "report": bool(d and d["report"]),
-            "run_id": d["run_id"] if d else None,
         } for flavor, *_ in FLAVORS},
         "problems": problems,
     }
