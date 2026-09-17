@@ -1,14 +1,39 @@
-name: Publish Flatpak
+name: Publish Flatpak (gnome)
 
-# Build/publish body lives in tuna-os/.github's reusable publish-flatpak.yml
-# (tunaos#1183 recommendation #2). This file just keeps this repo's own
-# trigger policy and submodule checkout.
+# Publishes the GNOME frontend (org.bootcinstaller.Installer) to the tuna-os
+# flatpak remote through the shared reusable workflow in tuna-os/.github.
+#
+# Since the promote/release flow (docs/RELEASE.md) this runs only when
+# release.yml calls it after `prod` has been promoted, plus a manual dispatch
+# escape hatch. It used to run on every push to `dev`, which meant every
+# unvalidated commit went straight to the remote every live ISO installs from.
 
 on:
-  push:
-    branches: [dev]
-    tags: ['v*']
+  workflow_call:
+    inputs:
+      publish:
+        description: Push to GHCR and the central index (false = build-only validation)
+        required: false
+        type: boolean
+        default: true
+      archs:
+        required: false
+        type: string
+        default: '["x86_64", "aarch64"]'
+    secrets:
+      FLATPAK_INDEX_TOKEN:
+        required: false
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Push to GHCR and the central index (false = build-only validation)
+        required: false
+        type: boolean
+        default: true
+      archs:
+        required: false
+        type: string
+        default: '["x86_64", "aarch64"]'
 
 permissions:
   contents: write
@@ -21,19 +46,10 @@ jobs:
       app-id: org.bootcinstaller.Installer
       manifest-path: flatpak/org.bootcinstaller.Installer.json
       repo-name: tuna-os/bootc-installer
-      # aarch64 joins x86_64 because tunaOS's live-ISO customize installs
-      # this Flatpak from the tuna-os remote, and the remote carried no
-      # aarch64 entry -- so every arm64 gnome ISO leg failed while amd64
-      # passed (tunaOS nightly 33848074014).
-      #
-      # The manifest was ALREADY arch-aware: its `go` module carries both
-      # toolchains under only-arches. Only this input was never flipped, so
-      # the arm64 build was buildable but never published to the index --
-      # which is per-architecture and replaces only the matching entry.
-      #
-      # Verified end to end on the sibling installers first: cosmic
-      # (run 33953011236), then niri and xfce. All three now serve amd64
-      # and arm64 at https://tunaos.org/flatpak/index/static.
-      archs: '["x86_64", "aarch64"]'
+      # aarch64 alongside x86_64: the tunaOS live-ISO build installs this
+      # Flatpak from the tuna-os remote on both architectures, and the
+      # manifest's `go` module already carries both toolchains.
+      archs: ${{ inputs.archs }}
       checkout-submodules: true
+      publish: ${{ inputs.publish }}
     secrets: inherit

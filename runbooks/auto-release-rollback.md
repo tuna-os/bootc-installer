@@ -1,11 +1,16 @@
-# Runbook: rolling back a bad auto-release
+# Runbook: rolling back a bad release
 
-`.github/workflows/flatpak.yml`'s `auto-release` job cuts a real,
-non-prerelease GitHub release on every push to `dev` and marks it
-`--latest`. That job only verifies the release asset is *reachable* — it
-does not run the Python/Go test suites or any functional check — so a
-`dev` push that compiles but is broken at runtime can become the release
-served at `releases/latest/download/org.bootcinstaller.Installer.flatpak`.
+> **Since the promote/release flow** (`docs/RELEASE.md`), releases are cut by
+> `.github/workflows/release.yml` from `prod`, which `promote.yml` only moves
+> once every check on the commit is green. The gap this runbook was written
+> for (a `dev` push becoming `latest` with no validation) is closed. The
+> recovery steps below still apply to a release that passed CI and is bad
+> anyway.
+
+`release.yml` cuts a real, non-prerelease GitHub release on every promotion
+to `prod` and marks it `--latest`, so a promoted commit that is broken at
+runtime becomes the release served at
+`releases/latest/download/org.bootcinstaller.Installer.flatpak`.
 
 That URL is what live ISOs (e.g. `projectbluefin/dakota-iso`) and other
 downstream consumers pull from. They are not pinned to a tag — rolling
@@ -66,15 +71,14 @@ just that a file is reachable — a stale-but-present asset would pass the
 
 Re-pointing `latest` only stops new pulls of the bad build — it does not
 fix `dev`. File/confirm the regression against the bad commit, land the
-fix, and let the next `dev` push cut a new auto-release. Do not delete
+fix, and let the next promotion cut a new release. Do not delete
 the bad release/tag (`gh release delete`); leaving it demoted but intact
 preserves the audit trail and any artifact already cached by a consumer
 that pinned the tag directly instead of `latest`.
 
 ## Prevention
 
-This runbook is a recovery procedure, not a fix for the underlying gap:
-`auto-release` gates only on the `production` build job, not on the
-Python/Go/UI test suites. Closing that gap is a separate, larger change
-to workflow dependencies (`needs:`) and is out of scope here — see
-[#57](https://github.com/tuna-os/bootc-installer/issues/57).
+Promotion is gated on every check on the commit plus a soak window
+(`docs/RELEASE.md`). If a bad build still got through, the check that would
+have caught it is missing: add it to `dev`'s validation and, if it is
+path-filtered, to `REQUIRED_CHECKS` in `promote.yml`.
