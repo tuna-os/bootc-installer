@@ -1,132 +1,103 @@
-# CI/CD Guide — bootc-installer
+# CI/CD Guide — bootc-installer monorepo
 
-Complete reference for all CI workflows, release process, and the release qualification runbook.
+Reference for every workflow in this repository, the promotion/release flow,
+and the release qualification runbook. The narrative version of the release
+flow is [`docs/RELEASE.md`](../docs/RELEASE.md); this page is the index.
+
+---
+
+## Branches
+
+```
+feature/xyz ──PR──▶ dev ──promote.yml (all checks green + soak)──▶ prod ──▶ release.yml
+```
+
+- All PRs target `dev`. Merge queue is enabled on `dev`.
+- `prod` is a fast-forward of `dev`, moved only by `promote.yml`. Never push
+  to it by hand and never open a PR against it.
+- Bots push `[skip ci]` commits to `dev` (refreshed screenshots, refreshed
+  walkthrough). Promotion skips those when picking a candidate.
 
 ---
 
 ## Workflows
 
-### `python-test.yml` — Python Tests
+### Validation (run on PRs and pushes to `dev`)
 
-**Triggers:** push/PR to `dev`/`prod`, merge queue, manual dispatch
+| Workflow | Job names (as the promotion gate sees them) | Scope |
+|---|---|---|
+| `python-test.yml` | `Unit Tests (no display)`, `UI Integration Tests (offscreen GTK)` | GNOME frontend. Coverage gate `--cov-fail-under` is a ratchet; never lower it. |
+| `go-test.yml` | `Unit Tests` | fisherman submodule: vet, tests, 20% coverage floor, race detector. |
+| `flatpak.yml` | `Build (production)`, `Build (production, aarch64)`, `Build (devel)` | GNOME Flatpak bundles, kept as artifacts. On a `dev` push also refreshes the `latest-dev` **pre-release**. Also `workflow_call`, used by `release.yml`. |
+| `flatpak-frontends.yml` | `kde / publish`, `cosmic / publish`, … | Build-only (`publish: false`) Flatpak of each imported frontend whose tree changed, x86_64. |
+| `screenshots-gnome.yml` | `Screenshots (gnome)` | Renders every GNOME page under Xvfb, pixel audit, parity report. Commits to `docs/screenshots/` on `dev`. |
+| `screenshots-kde.yml` | `Screenshots (kde)` | Same for `frontends/kde` (Fedora container, KF6). |
+| `screenshots-cosmic.yml` | `Screenshots (cosmic)` | Same for `frontends/cosmic` (lavapipe). Only job that compiles the crate. |
+| `screenshots-niri.yml` | `Screenshots (niri)` | Same for `frontends/niri` (PyQt6 offscreen, Quickshell stubs). |
+| `screenshots-xfce.yml` | `Screenshots (xfce)` | Same for `frontends/xfce` (GTK3 under Xvfb), plus its pytest suite. |
+| `ci-niri.yml` | `Go backend (niri)` | gofmt / vet / build / test for `frontends/niri/installer`. |
+| `cargo-sources-cosmic.yml` | `cargo-sources matches Cargo.lock (cosmic)` | Offline cargo vendoring stays in sync with `Cargo.lock`. |
+| `validate-flatpak.yml` | `validate` | GNOME manifests are well-formed with required fields. |
+| `actionlint.yml` | `actionlint` | Workflow syntax. |
+| `ste.yml` | `ste` | Simplified Technical English over every `.md`, budget in `.ste-budget` (a ratchet; the monorepo budget is the sum of the five repos'). |
+| `nightly.yml` | — | Weekly test sweep of `dev` and `prod`. |
+| `drop-bot-review-requests.yml` | — | Stops CODEOWNERS review requests on bot PRs. |
 
-| Job | What it does |
-|-----|-------------|
-| `unit` | `pytest tests/unit/` with coverage (`--cov-fail-under=51`) — no display required |
-| `ui` | `pytest tests/ui/` via Xvfb + compiled GResources (meson/ninja) |
+### Documentation
 
-Coverage gate is a **ratchet** — never lower `--cov-fail-under`. Measure with `pytest tests/unit/ -q --cov=bootc_installer 2>&1 | tail -5` before raising it.
+| Workflow | What |
+|---|---|
+| `walkthrough.yml` | After any screenshot job on `dev` (and daily): downloads the latest green `gui-screenshots-<frontend>` artifact of every frontend, runs `shared/walkthrough/aggregate.py`, commits `docs/walkthrough/`. |
 
----
+### Promotion and release
 
-### `go-test.yml` — Go Tests (fisherman)
+| Workflow | Trigger | What |
+|---|---|---|
+| `promote.yml` | completion of any validation workflow on `dev`; every 6 h; manual | Gate: candidate is newest non-`[skip ci]` `dev` commit, descends from `prod`, older than `SOAK_MINUTES`, every check run complete and green, every `REQUIRED_CHECKS` name present. Then fast-forwards `prod` and dispatches `release.yml`. |
+| `release.yml` | dispatch on `prod` (from promote); `v*` tag push; manual on `prod` | Builds GNOME bundles via `flatpak.yml`, cuts the `vYYYY.MM.DD-<sha>` release marked `--latest`, verifies the `/releases/latest/download/` URLs, then publishes each changed frontend's Flatpak. |
+| `publish-flatpak.yml` | `workflow_call` from release; manual | GNOME → tuna-os Flatpak remote via `tuna-os/.github` reusable workflow. |
+| `publish-flatpak-{kde,cosmic,niri,xfce}.yml` | `workflow_call` from release / frontends validation; manual | Same for each imported frontend. |
 
-**Triggers:** push/PR to `dev`/`prod`, merge queue, manual dispatch
-
-Runs inside `fisherman/fisherman/`:
-1. `go vet ./...`
-2. `go test -v -count=1 -timeout=60s -coverprofile=coverage.out ./...`
-3. Coverage gate: 20%
-4. `go test -race -count=1 -timeout=60s ./...` (race detector)
-
----
-
-### `flatpak.yml` — GNOME Flatpak Build
-
-**Triggers:** push to `dev`/`prod`, `v*` tags, PRs to `dev`/`prod`
-
-| Job | Condition | Output |
-|-----|-----------|--------|
-| `production` | PR, `prod` push, or `v*` tag | `org.bootcinstaller.Installer.flatpak` → `continuous` release |
-| `devel` | PR or `dev` push | `org.bootcinstaller.Installer.Devel.flatpak` → `continuous-dev` release |
-
-Uses `ghcr.io/flathub-infra/flatpak-github-actions:gnome-50` container with `--privileged`. Requires `permissions: contents: write` on the release job.
-
----
-
-### `build-flatpaks.yml` — GNOME Flatpak Build
-
-**Triggers:** push to `dev`/`prod`, `v*` tags, manual dispatch
-
-Builds the GNOME flatpak release bundle:
-
-| Variant | App ID | Manifest |
-|---------|--------|---------|
-| GNOME | `org.bootcinstaller.Installer` | `flatpak/org.bootcinstaller.Installer.json` |
-
-Publishes Flatpaks as GitHub release assets under the same `continuous` / `continuous-dev` / `v*` tags.
+Names matter: `promote.yml` lists workflow *names* in its `workflow_run`
+trigger and job *names* in `REQUIRED_CHECKS`. Renaming a job or workflow
+means updating both.
 
 ---
 
-### `validate-flatpak.yml` — Validate Flatpak Manifests
+## Release process
 
-**Triggers:** PRs/pushes that touch `flatpak/*.json`, `meson.build`, `meson_options.txt`
+There is no manual release step. A `dev` commit that passes every check and
+sits for the soak window is promoted and released automatically. See
+[`docs/RELEASE.md`](../docs/RELEASE.md) for the escape hatches (`force`,
+promoting a specific sha, hotfix tags, rollback, pausing).
 
-- Validates all manifests are well-formed JSON
-- Checks required fields: `app-id`, `runtime`, `command`
-- Verifies app-id consistency
-- Posts a ✅ comment on the PR when all pass
+Release assets:
 
----
+| Asset | Contents |
+|---|---|
+| `org.bootcinstaller.Installer.flatpak` | GNOME, production app id, x86_64 |
+| `org.bootcinstaller.Installer-aarch64.flatpak` | GNOME, production app id, aarch64 (absent if that build failed) |
+| `org.bootcinstaller.Installer.Devel.flatpak` | GNOME, devel app id, x86_64 |
 
-### `nightly.yml` — Nightly Tests
-
-**Triggers:** 06:00 UTC daily, manual dispatch
-
-Runs fisherman tests on both `dev` and `prod` branches:
-1. `go vet ./...`
-2. `go test -v -count=1 -timeout=60s ./...`
-3. `go test -race -count=1 -timeout=60s ./...`
-
-This catches race conditions and test drift that only appear under extended runs.
+The other four frontends are distributed through the tuna-os Flatpak remote
+(`https://tunaos.org/flatpak/index/static`), not as release assets.
 
 ---
 
-## Branch Strategy
+## Release qualification runbook
 
-```
-feature/xyz  ──►  dev  ──►  prod
-```
-
-- All feature PRs target `dev`
-- `prod` is promoted wholesale from `dev` when `dev` is shippable
-- Never open PRs directly against `prod`
-- Merge queue is enabled on `dev` — use `gh pr merge --squash <N>` to enqueue
-
----
-
-## Release Process
-
-### Continuous (pre-release)
-
-Automatic on every push to `dev` or `prod`:
-- `dev` → `continuous-dev` pre-release
-- `prod` → `continuous` pre-release
-
-### Tagged release
+### Software-only (automated in CI; reproducible locally)
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+./QUALIFY_SOFTWARE.sh     # GNOME: manifests, unit + UI tests, fisherman tests, both Flatpaks
+just capture              # GNOME screenshot walkthrough, as screenshots-gnome.yml runs it
+just walkthrough          # cross-frontend parity page from the committed captures
 ```
 
-Both `flatpak.yml` and `build-flatpaks.yml` attach their Flatpak artifacts to the tagged release.
+All of it must be green before `promote.yml` will move `prod`; running it
+locally is for diagnosing a red `dev`, not a step in releasing.
 
----
-
-## Release Qualification Runbook
-
-### Software-only (automated — run locally)
-
-```bash
-./QUALIFY_SOFTWARE.sh
-```
-
-This validates Flatpak JSON, runs all unit + UI tests, runs fisherman Go tests, and builds the production and devel Flatpaks. All steps must pass green before promoting `dev → prod`.
-
-### Hardware-only checks (manual — not automated in CI)
-
-These require real hardware and cannot be gated in CI:
+### Hardware-only checks (manual, not gated in CI)
 
 | Check | How to test |
 |-------|-------------|
@@ -138,30 +109,7 @@ These require real hardware and cannot be gated in CI:
 | Windows slurp | Run on machine with Windows NTFS partition; verify wallpapers + data migrated |
 | Offline ISO | Boot from live ISO with embedded OCI; verify install completes without internet |
 | Post-reboot WiFi | Install on machine with saved WiFi; verify auto-reconnect after reboot |
-| OEM first-boot | Install on ASUS/Framework hardware; verify OEM packages queued |
 
-For the full E2E integration tests (QEMU-backed, requires root):
-
-```bash
-go build -o /tmp/fisherman-test ./fisherman/fisherman/cmd/fisherman/
-sudo FISHERMAN_BIN=/tmp/fisherman-test pytest tests/integration/test_e2e_install.py -v -s
-# With QEMU boot verification (~5 min/image):
-sudo FISHERMAN_BIN=/tmp/fisherman-test BOOT_VERIFY=1 pytest tests/integration/test_e2e_install.py -v -s
-```
-
----
-
-## Common CI Failures
-
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| "No checks reported" on PR | Branch has merge conflicts — GitHub silently skips `pull_request` events | `gh pr view N --json mergeable` → rebase onto `dev` |
-| Coverage gate fails | New code not covered | Add tests or measure actual floor before lowering gate |
-| `ModuleNotFoundError` in Flatpak but not source | New `.py` not in `meson.build` `sources = [...]` | Add the file to its subpackage's `meson.build` |
-| fisherman submodule not updated | Parent repo pointer not bumped after submodule push | `git add fisherman && git commit -m "chore: update fisherman submodule"` |
-| `safe.bareRepository` Flatpak build failure | Used `"type": "git"` in manifest | Switch to `"type": "archive"` with SHA256 |
-
-
-**Triggers:**
-- Pushes to `dev` or `prod` branches
-- Any tag matching `v*`
+The VM install matrix for the backend lives in `tuna-os/fisherman`
+(`bootcrew-vm.yml`); the live-ISO smoke test for every frontend lives in
+`tuna-os/tunaOS` (`installer-smoke.yml`).

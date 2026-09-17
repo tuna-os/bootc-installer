@@ -1,0 +1,153 @@
+{
+  "activation_key": null,
+  "advanced_transitions": 5,
+  "failures": 0,
+  "flavor": "kde",
+  "frames": 6,
+  "harness": "tests/capture.cpp (Kirigami/QML, offscreen)",
+  "notes": "GPU-less capture: pages are driven programmatically and text is read from the item tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job.",
+  "ocr": false,
+  "pages": [
+    {
+      "colours": 198,
+      "flat": 0.989994884602654,
+      "ink": 0.008951945355520116,
+      "name": "01-welcome",
+      "png": "docs/screenshots/01-welcome.png",
+      "rendered": true,
+      "stddev": 0.05231341706725738
+    },
+    {
+      "colours": 280,
+      "flat": 0.7783377967682725,
+      "ink": 0.2197213612975055,
+      "name": "02-disk",
+      "png": "docs/screenshots/02-disk.png",
+      "rendered": true,
+      "stddev": 0.05171912805784567
+    },
+    {
+      "colours": 217,
+      "flat": 0.7292149369602503,
+      "ink": 0.26864863238347425,
+      "name": "03-encryption",
+      "png": "docs/screenshots/03-encryption.png",
+      "rendered": true,
+      "stddev": 0.05962075674388595
+    },
+    {
+      "colours": 207,
+      "flat": 0.6940992387085126,
+      "ink": 0.30122167724851806,
+      "name": "04-confirm",
+      "png": "docs/screenshots/04-confirm.png",
+      "rendered": true,
+      "stddev": 0.05590510108028291
+    },
+    {
+      "colours": 244,
+      "flat": 0.8453817003673811,
+      "ink": 0.1533888744250629,
+      "name": "05-progress",
+      "png": "docs/screenshots/05-progress.png",
+      "rendered": true,
+      "stddev": 0.08273019001915836
+    },
+    {
+      "colours": 153,
+      "flat": 0.9946890139319351,
+      "ink": 0.004709174615592935,
+      "name": "06-done",
+      "png": "docs/screenshots/06-done.png",
+      "rendered": true,
+      "stddev": 0.05224268001335579
+    }
+  ],
+  "rendered_frames": 6,
+  "screens": {
+    "disk": true,
+    "done": true,
+    "encryption": true,
+    "install": true,
+    "summary": true,
+    "welcome": true
+  },
+  "screens_detail": {
+    "disk": {
+      "matched_keywords": [
+        "choose the disk",
+        "be installed"
+      ],
+      "on_pages": [
+        "02-disk"
+      ],
+      "reached": true,
+      "required": true
+    },
+    "done": {
+      "matched_keywords": [
+        "installation complete",
+        "has been installed",
+        "remove the installation media",
+        "restart to boot"
+      ],
+      "on_pages": [
+        "06-done"
+      ],
+      "reached": true,
+      "required": false
+    },
+    "encryption": {
+      "matched_keywords": [
+        "disk encryption"
+      ],
+      "on_pages": [
+        "03-encryption"
+      ],
+      "reached": true,
+      "required": false
+    },
+    "install": {
+      "matched_keywords": [
+        "partitioning",
+        "installing image"
+      ],
+      "on_pages": [
+        "05-progress"
+      ],
+      "reached": true,
+      "required": false
+    },
+    "summary": {
+      "matched_keywords": [
+        "confirm installation"
+      ],
+      "on_pages": [
+        "04-confirm"
+      ],
+      "reached": true,
+      "required": true
+    },
+    "welcome": {
+      "matched_keywords": [
+        "welcome"
+      ],
+      "on_pages": [
+        "01-welcome"
+      ],
+      "reached": true,
+      "required": true
+    }
+  },
+  "source": "offscreen-capture",
+  "strict": true,
+  "text_source": "qml-item-tree",
+  "transition_pixels": [
+    137873,
+    86777,
+    50143,
+    403313,
+    540600
+  ],
+  "visual_states": 6
+}

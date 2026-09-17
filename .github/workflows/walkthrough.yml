@@ -1,0 +1,88 @@
+name: Walkthrough
+
+# Folds the five frontends' capture output into one document,
+# docs/walkthrough/README.md: a parity matrix (which contract screens each
+# frontend reaches) and every frontend's screen-by-screen walkthrough, side
+# by side. That is the artifact the monorepo exists to make possible: one
+# page where drift between the installers is visible instead of inferred.
+#
+# Runs after any screenshot workflow completes on dev, and daily as a
+# catch-up. It does not capture anything itself: it downloads the most recent
+# successful gui-screenshots-<frontend> artifact for each frontend from dev,
+# so a frontend whose capture is red keeps its last green walkthrough and the
+# matrix says so.
+
+on:
+  workflow_run:
+    workflows:
+      - Screenshots (gnome)
+      - Screenshots (kde)
+      - Screenshots (cosmic)
+      - Screenshots (niri)
+      - Screenshots (xfce)
+    types: [completed]
+    branches: [dev]
+  schedule:
+    - cron: "41 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: walkthrough
+  cancel-in-progress: true
+
+jobs:
+  aggregate:
+    name: Aggregate walkthroughs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Fetch the latest green capture of every frontend
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p captures
+          for n in gnome kde cosmic niri xfce; do
+            wf="screenshots-$n.yml"
+            run_id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "$wf" --branch dev \
+                       --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty' || true)
+            if [ -z "$run_id" ]; then
+              echo "::warning::no successful $wf run on dev yet; $n will read as pending"
+              continue
+            fi
+            if gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
+                 --name "gui-screenshots-$n" --dir "captures/$n"; then
+              echo "$n: run $run_id"
+              echo "$run_id" > "captures/$n/.run-id"
+            else
+              echo "::warning::run $run_id has no gui-screenshots-$n artifact"
+            fi
+          done
+          ls -R captures | head -80
+
+      - name: Build docs/walkthrough
+        run: |
+          python3 shared/walkthrough/aggregate.py captures docs/walkthrough \
+            --repo "$GITHUB_REPOSITORY"
+          cat docs/walkthrough/README.md | head -60
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: walkthrough
+          path: docs/walkthrough/
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/walkthrough
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "docs: refresh cross-frontend walkthrough [skip ci]"
+          git push

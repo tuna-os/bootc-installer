@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright TunaOS -->
+<component type="desktop-application">
+  <id>org.tunaos.InstallerKde</id>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>Install TunaOS</name>
+  <summary>Set up TunaOS on this computer</summary>
+
+  <description>
+    <p>
+      The KDE Plasma front-end for the TunaOS installer. It walks through
+      picking a disk, choosing whether to encrypt it, and writing the system
+      image, then hands over to a first boot of TunaOS.
+    </p>
+    <p>
+      Installation itself is carried out by the fisherman bootc backend, so
+      every desktop front-end installs exactly the same system.
+    </p>
+    <p>
+      This front-end comes preinstalled on the TunaOS Plasma live image. You
+      do not normally need to install it by hand.
+    </p>
+  </description>
+
+  <developer id="org.tunaos">
+    <name>TunaOS</name>
+  </developer>
+
+  <launchable type="desktop-id">org.tunaos.InstallerKde.desktop</launchable>
+
+  <!--
+    These PNGs are regenerated and committed by
+    .github/workflows/screenshots.yml on every push to main, straight from the
+    real UI, so the URLs below always show the current app. Do not hand-edit
+    the images; change the capture harness instead.
+  -->
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/tuna-os/tuna-installer-kde/main/docs/screenshots/01-welcome.png</image>
+      <caption>Starting the install wizard</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/tuna-os/tuna-installer-kde/main/docs/screenshots/02-disk.png</image>
+      <caption>Choosing which disk to install to</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/tuna-os/tuna-installer-kde/main/docs/screenshots/03-encryption.png</image>
+      <caption>Choosing whether to encrypt the disk</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/tuna-os/tuna-installer-kde/main/docs/screenshots/05-progress.png</image>
+      <caption>Writing the system image</caption>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1" />
+
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <recommends>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </recommends>
+  <supports>
+    <control>touch</control>
+  </supports>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#A8E6E0</color>
+    <color type="primary" scheme_preference="dark">#14504B</color>
+  </branding>
+
+  <url type="homepage">https://tunaos.org</url>
+  <url type="bugtracker">https://github.com/tuna-os/tuna-installer-kde/issues</url>
+  <url type="vcs-browser">https://github.com/tuna-os/tuna-installer-kde</url>
+
+  <categories>
+    <category>System</category>
+  </categories>
+
+  <keywords>
+    <keyword>install</keyword>
+    <keyword>installer</keyword>
+    <keyword>tunaos</keyword>
+    <keyword>bootc</keyword>
+  </keywords>
+</component>

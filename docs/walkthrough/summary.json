@@ -1,0 +1,74 @@
+{
+  "screens": {
+    "welcome": {
+      "gnome": "yes",
+      "kde": "yes",
+      "cosmic": "not measured",
+      "niri": "yes",
+      "xfce": "yes"
+    },
+    "disk": {
+      "gnome": "yes",
+      "kde": "yes",
+      "cosmic": "not measured",
+      "niri": "yes",
+      "xfce": "yes"
+    },
+    "encryption": {
+      "gnome": "yes",
+      "kde": "yes",
+      "cosmic": "not measured",
+      "niri": "yes",
+      "xfce": "no"
+    },
+    "summary": {
+      "gnome": "yes",
+      "kde": "yes",
+      "cosmic": "not measured",
+      "niri": "yes",
+      "xfce": "yes"
+    },
+    "install": {
+      "gnome": "yes",
+      "kde": "yes",
+      "cosmic": "not measured",
+      "niri": "yes",
+      "xfce": "yes"
+    },
+    "done": {
+      "gnome": "yes",
+      "kde": "yes",
+      "cosmic": "not measured",
+      "niri": "yes",
+      "xfce": "yes"
+    }
+  },
+  "frontends": {
+    "gnome": {
+      "frames": 8,
+      "report": true,
+      "run_id": null
+    },
+    "kde": {
+      "frames": 8,
+      "report": true,
+      "run_id": null
+    },
+    "cosmic": {
+      "frames": 8,
+      "report": true,
+      "run_id": null
+    },
+    "niri": {
+      "frames": 8,
+      "report": true,
+      "run_id": null
+    },
+    "xfce": {
+      "frames": 8,
+      "report": true,
+      "run_id": null
+    }
+  },
+  "problems": []
+}

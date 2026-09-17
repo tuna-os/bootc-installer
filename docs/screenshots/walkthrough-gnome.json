@@ -1,0 +1,191 @@
+{
+  "flavor": "gnome",
+  "frames": 9,
+  "rendered_frames": 9,
+  "advanced_transitions": 8,
+  "visual_states": 9,
+  "activation_key": null,
+  "ocr": false,
+  "screens": {
+    "welcome": true,
+    "disk": true,
+    "encryption": true,
+    "summary": true,
+    "install": true,
+    "done": true
+  },
+  "strict": true,
+  "failures": 0,
+  "source": "offscreen-capture",
+  "harness": "tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb)",
+  "text_source": "widget-tree",
+  "screens_detail": {
+    "welcome": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "welcome"
+      ],
+      "matched_keywords": [
+        "welcome"
+      ]
+    },
+    "disk": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "disk"
+      ],
+      "matched_keywords": [
+        "install location"
+      ]
+    },
+    "encryption": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "encryption"
+      ],
+      "matched_keywords": [
+        "disk encryption",
+        "encrypt this disk"
+      ]
+    },
+    "summary": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "confirm"
+      ],
+      "matched_keywords": [
+        "confirm installation"
+      ]
+    },
+    "install": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "progress"
+      ],
+      "matched_keywords": [
+        "deploying"
+      ]
+    },
+    "done": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "done"
+      ],
+      "matched_keywords": [
+        "is installed"
+      ]
+    }
+  },
+  "pages": [
+    {
+      "name": "welcome",
+      "png": "docs/screenshots/01-welcome.png",
+      "rendered": true,
+      "colours": 533,
+      "flat": 0.9192239498090562,
+      "ink": 0.0050531914893617025,
+      "stddev": 0.05155068081084082,
+      "text_excerpt": "Welcome to Bluefin Install Bluefin Installs to your internal disk. Takes about 5\u201310 minutes. Install Bluefin Installs to your internal disk. Takes about 5\u201310 minutes. Connect Bluetooth Devices Pair your keyboard or mouse to continue Connect"
+    },
+    {
+      "name": "qr_companion",
+      "png": "docs/screenshots/02-qr_companion.png",
+      "rendered": true,
+      "colours": 528,
+      "flat": 0.9275027277686853,
+      "ink": 0.037193126022913255,
+      "stddev": 0.12114843507870768,
+      "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
+    },
+    {
+      "name": "disk",
+      "png": "docs/screenshots/03-disk.png",
+      "rendered": true,
+      "colours": 505,
+      "flat": 0.8479609929078015,
+      "ink": 0.004698581560283688,
+      "stddev": 0.051484606594132766,
+      "text_excerpt": "Computer is not plugged in \u2014 connect power before installing Install Location Select the disk where you want to install. All data on the selected disk will be permanently erased. SAMSUNG MZVL2512 /dev/nvme0n1 \u00b7 476.9 GB SAMSUNG MZVL2512 /de"
+    },
+    {
+      "name": "slurp",
+      "png": "docs/screenshots/04-slurp.png",
+      "rendered": true,
+      "colours": 223,
+      "flat": 0.9590561920349154,
+      "ink": 0.010270049099836333,
+      "stddev": 0.07270071791646815,
+      "text_excerpt": "Bring Your Files We can copy documents, pictures, and other data from an existing Windows install. Windows data scanning is unavailable in demo mode. Skip Skip Continue Continue"
+    },
+    {
+      "name": "encryption",
+      "png": "docs/screenshots/05-encryption.png",
+      "rendered": true,
+      "colours": 249,
+      "flat": 0.8610679214402619,
+      "ink": 0.009772231314784507,
+      "stddev": 0.07404258619241541,
+      "text_excerpt": "Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You will need a passphrase each time you turn on your computer. Encrypt this disk You will need a passphrase each time you turn on your computer. Password Passwo"
+    },
+    {
+      "name": "confirm",
+      "png": "docs/screenshots/06-confirm.png",
+      "rendered": true,
+      "colours": 275,
+      "flat": 0.9144162575013639,
+      "ink": 0.008265139116202946,
+      "stddev": 0.05485078050383758,
+      "text_excerpt": "Confirm Installation \"Indeed.\" \u2014 Commander Zavala Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Whether we wanted it or not, we've stepped into a war with your old OS. Become Legend Bec"
+    },
+    {
+      "name": "progress",
+      "png": "docs/screenshots/07-progress.png",
+      "rendered": true,
+      "colours": 169,
+      "flat": 0.9619271685761047,
+      "ink": 0.006355701036552101,
+      "stddev": 0.04691646073495585,
+      "text_excerpt": "Installation Video Coming Soon! Installation will continue normally. Feel free to browse around. Rawr. Get Bluefin gear Installing Bluefin\u2026 Deploying image: writing layers 45% 0:00 elapsed"
+    },
+    {
+      "name": "recovery-key",
+      "png": "docs/screenshots/08-recovery-key.png",
+      "rendered": true,
+      "colours": 261,
+      "flat": 0.931512547735952,
+      "ink": 0.007610474631751228,
+      "stddev": 0.06382268653722975,
+      "text_excerpt": "Save Your Recovery Key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf I have saved "
+    },
+    {
+      "name": "done",
+      "png": "docs/screenshots/09-done.png",
+      "rendered": true,
+      "colours": 262,
+      "flat": 0.9626841243862521,
+      "ink": 0.008742498636115658,
+      "stddev": 0.05954910616611796,
+      "text_excerpt": "Bluefin is installed Restart now to complete the installation. Show Log Show Log Try Again Try Again Reboot Now Reboot Now Close Close Get Bluefin gear at store.projectbluefin.io"
+    }
+  ],
+  "transition_pixels": [
+    73338,
+    89707,
+    51171,
+    34536,
+    39190,
+    36880,
+    43496,
+    41297
+  ],
+  "spec_drift": [
+    "'install' keywords differ from upstream"
+  ],
+  "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
+}

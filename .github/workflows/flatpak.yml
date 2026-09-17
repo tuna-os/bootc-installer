@@ -1,28 +1,40 @@
 name: Flatpak
 
+# Builds the GNOME frontend's Flatpak bundles (production x86_64, production
+# aarch64, devel) and keeps them as run artifacts. On a push to `dev` it also
+# refreshes the `latest-dev` PRE-release. It never cuts a real release: that
+# is release.yml's job, which calls this workflow (workflow_call) on `prod`
+# after promote.yml has validated the commit. See docs/RELEASE.md.
+#
+# History, so nobody puts it back: this workflow used to cut a non-prerelease
+# `--latest` release on EVERY push to dev, gated on nothing but "the bundle
+# built". runbooks/auto-release-rollback.md exists because of what that shipped.
+
 on:
   push:
-    branches: [prod, dev]
-    tags: ["v*"]
+    branches: [dev]
   pull_request:
-    branches: [prod, dev]
+    branches: [dev, prod]
   merge_group:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flatpak-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   production:
     name: Build (production)
-    if: >-
-      github.event_name == 'pull_request' ||
-      startsWith(github.ref, 'refs/tags/') ||
-      github.ref == 'refs/heads/prod' ||
-      github.ref == 'refs/heads/dev'
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: read
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
       options: --privileged
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,165 +45,56 @@ jobs:
           bundle: org.bootcinstaller.Installer.flatpak
           manifest-path: flatpak/org.bootcinstaller.Installer.json
           cache-key: flatpak-builder-production-${{ github.sha }}
+          upload-artifact: false
 
-      - name: Upload bundle as artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: org.bootcinstaller.Installer.flatpak
           path: org.bootcinstaller.Installer.flatpak
           retention-days: 30
 
-      - name: Attach stable asset to latest versioned release (prod branch)
-        if: github.ref == 'refs/heads/prod'
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          # The stable channel uses GitHub's /releases/latest/download/ redirect,
-          # which auto-resolves to the newest non-prerelease versioned tag.
-          # We no longer maintain a rolling 'latest-stable' tag — its name is
-          # permanently banned by a GitHub ruleset after an immutable release.
-          # The versioned tag release already has the asset attached by the
-          # 'Attach bundle to tagged release' step below; nothing to do here.
-          echo "Stable channel served via releases/latest/download/ → $(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')"
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Attach bundle to tagged release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-artifact@v4
-        with:
-          name: tagged-org.bootcinstaller.Installer.flatpak
-          path: org.bootcinstaller.Installer.flatpak
-          retention-days: 1
-
-      - name: Keep production bundle for the auto-release
-        if: github.ref == 'refs/heads/dev'
-        uses: actions/upload-artifact@v4
-        with:
-          name: autorelease-org.bootcinstaller.Installer.flatpak
-          path: org.bootcinstaller.Installer.flatpak
-          retention-days: 1
-
-  # ── aarch64 production bundle ────────────────────────────────────────────
-  # A SEPARATE job rather than a matrix leg on `production`, deliberately.
+  # A separate job rather than a matrix leg, deliberately: a bundle carries
+  # refs for one architecture, and release.yml treats this one as optional so
+  # an aarch64 breakage cannot block an x86_64 release.
   #
-  # A flatpak bundle carries refs for one architecture. The production bundle
-  # has always been x86_64-only, which meant an aarch64 live ISO downloaded
-  # it, imported `app/org.bootcinstaller.Installer/x86_64/master`, and then
-  # `flatpak install` matched nothing for the host arch:
-  #
-  #   error: Nothing matches org.bootcinstaller.Installer in remote installer-local
-  #
-  # (tuna-os/tunaOS gurnard run 32495176056, iso:pantheon linux-arm64.) So the
-  # arm64 ISO could never carry the installer, and nothing downstream of it
-  # was exercisable on that arch.
-  #
-  # Why not a matrix: `auto-release` and `publish-tagged-release` both
-  # `needs: [production]`, and one failing matrix leg fails the whole job,
-  # which would skip the release entirely. x86_64 releases work today and
-  # must not become contingent on a new arch. As its own job this is purely
-  # additive: if it breaks, releases still cut exactly as before, carrying
-  # x86_64 alone.
+  # `arch: aarch64` is REQUIRED: the action's default is the literal x86_64,
+  # not the runner's architecture, and omitting it installs the x86_64 SDK on
+  # an arm64 runner (bwrap: Exec format error).
   production-aarch64:
     name: Build (production, aarch64)
-    if: >-
-      github.event_name == 'pull_request' ||
-      startsWith(github.ref, 'refs/tags/') ||
-      github.ref == 'refs/heads/prod' ||
-      github.ref == 'refs/heads/dev'
     runs-on: ubuntu-24.04-arm
     permissions:
-      contents: write
-    # This job was continue-on-error until #27; it is blocking now, and the
-    # `continue-on-error: true` must not come back without a new reason.
-    #
-    # It used to die in libpastry with:
-    #
-    #   /app/include/bge/bge.h:32:10: fatal error: bge-markdown-render.h:
-    #   No such file or directory
-    #
-    # libbge installs bge.h, which #includes bge-markdown-render.h and the
-    # wdgt/ headers, without installing any of them. That was NOT
-    # architecture-specific, which is what the comment here used to claim:
-    # x86_64 omits exactly the same headers and passed only because libbge's
-    # .pc file lands in /app/lib64/pkgconfig while the manifest symlinks into
-    # /app/lib/pkgconfig -- a dangling link, so meson never found libbge as a
-    # system dependency and silently fell back to the vendored bazaar
-    # subproject. aarch64 has no lib64, the link resolved, and the real
-    # packaging gap surfaced. #27 installs the headers.
-    #
-    # Blocking is now the honest setting: run 32550801038 built the aarch64
-    # bundle green at 623f61f4 and release v2026.08.22-623f61f4 carries
-    # org.bootcinstaller.Installer-aarch64.flatpak (88921984 bytes), so a
-    # failure here is a real regression on an arch that is shipping.
+      contents: read
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
       options: --privileged
-
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      # `arch: aarch64` is REQUIRED, and I had this backwards first time.
-      #
-      # The action does NOT default to the runner's architecture — its
-      # default is the literal x86_64. Omitting it on an arm64 runner
-      # installed org.gnome.Sdk/x86_64/50 and then tried to run those
-      # binaries under bwrap on aarch64:
-      #
-      #   bwrap: execvp /bin/sh: Exec format error
-      #   Error: module mutter-schemas: Child process exited with code 1
-      #
-      # (run 32534151231, the first dispatch of this job.) The log line that
-      # settles it is the action's own echoed input, `arch: x86_64`, on an
-      # aarch64 runner.
-      #
-      # This is still a NATIVE build: the runner is aarch64 and the refs are
-      # aarch64. The input selects which flatpak arch to resolve, not
-      # whether to cross-compile.
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           arch: aarch64
           bundle: org.bootcinstaller.Installer-aarch64.flatpak
           manifest-path: flatpak/org.bootcinstaller.Installer.json
           cache-key: flatpak-builder-production-aarch64-${{ github.sha }}
+          upload-artifact: false
 
-      - name: Upload bundle as artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: org.bootcinstaller.Installer-aarch64.flatpak
           path: org.bootcinstaller.Installer-aarch64.flatpak
           retention-days: 30
 
-      - name: Attach bundle to tagged release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-artifact@v4
-        with:
-          name: tagged-org.bootcinstaller.Installer-aarch64.flatpak
-          path: org.bootcinstaller.Installer-aarch64.flatpak
-          retention-days: 1
-
-      - name: Keep production bundle for the auto-release
-        if: github.ref == 'refs/heads/dev'
-        uses: actions/upload-artifact@v4
-        with:
-          name: autorelease-org.bootcinstaller.Installer-aarch64.flatpak
-          path: org.bootcinstaller.Installer-aarch64.flatpak
-          retention-days: 1
-
   devel:
     name: Build (devel)
-    if: >-
-      github.event_name == 'pull_request' ||
-      startsWith(github.ref, 'refs/tags/') ||
-      github.ref == 'refs/heads/dev'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
       options: --privileged
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -202,24 +105,20 @@ jobs:
           bundle: org.bootcinstaller.Installer.Devel.flatpak
           manifest-path: flatpak/org.bootcinstaller.Installer.Devel.json
           cache-key: flatpak-builder-devel-${{ github.sha }}
+          upload-artifact: false
 
-      - name: Upload bundle as artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: org.bootcinstaller.Installer.Devel.flatpak
           path: org.bootcinstaller.Installer.Devel.flatpak
           retention-days: 30
 
       # NEVER delete this release or its tag. Once a release has existed on a
-      # tag, that tag name is permanently banned from re-creation by an
-      # immutable-release ruleset (see projectbluefin/bootc-installer#201,
-      # where deleting `latest-dev` took the whole dev flatpak channel down
-      # for good — the delete succeeded, the re-create never could). This
-      # repo has no such ruleset today, but there's no reason to keep a
-      # pattern that self-destructs the moment one is added.
-      # Create-if-missing, then clobber the asset. No deletes, ever.
+      # tag, an immutable-release ruleset bans that tag name from re-creation
+      # for good (projectbluefin/bootc-installer#201 took the dev channel down
+      # that way). Create-if-missing, then clobber the asset. No deletes.
       - name: Publish dev pre-release (dev branch)
-        if: github.ref == 'refs/heads/dev'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
         run: |
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -227,176 +126,9 @@ jobs:
             gh release create latest-dev \
               --title "Dev Build" \
               --prerelease \
-              --notes "Latest build from the \`dev\` branch. May be unstable."
+              --notes "Latest build from the \`dev\` branch. Not yet promoted to \`prod\`; may be unstable."
           fi
           gh release upload latest-dev \
             org.bootcinstaller.Installer.Devel.flatpak --clobber
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Upload devel bundle for tagged release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-artifact@v4
-        with:
-          name: tagged-org.bootcinstaller.Installer.Devel.flatpak
-          path: org.bootcinstaller.Installer.Devel.flatpak
-          retention-days: 1
-
-  publish-tagged-release:
-    name: Publish tagged release
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: [production, devel]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - name: Download production bundle
-        uses: actions/download-artifact@v4
-        with:
-          name: tagged-org.bootcinstaller.Installer.flatpak
-
-      - name: Download devel bundle
-        uses: actions/download-artifact@v4
-        with:
-          name: tagged-org.bootcinstaller.Installer.Devel.flatpak
-
-      # Best-effort: this job does NOT `needs` the aarch64 build, so the
-      # artifact may legitimately be absent. Releasing x86_64 alone is the
-      # pre-existing behaviour and must stay possible.
-      - name: Download aarch64 bundle (optional)
-        id: aarch64
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: tagged-org.bootcinstaller.Installer-aarch64.flatpak
-
-      - name: Create and publish release
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          # Upload assets to the release, creating it if needed.
-          # The release may already exist if the tag was pushed manually
-          # before CI ran (common during hotfix cycles).
-          assets=(
-            org.bootcinstaller.Installer.flatpak
-            org.bootcinstaller.Installer.Devel.flatpak
-          )
-          if [ -f org.bootcinstaller.Installer-aarch64.flatpak ]; then
-            assets+=(org.bootcinstaller.Installer-aarch64.flatpak)
-          else
-            echo "::warning::no aarch64 bundle; releasing x86_64 only"
-          fi
-          if ! gh release create "$REF_NAME" \
-              --repo "$REPO" \
-              --title "bootc-installer $REF_NAME" \
-              --notes "Release $REF_NAME" \
-              "${assets[@]}"; then
-            echo "Release already exists — uploading assets to existing release"
-            gh release upload "$REF_NAME" \
-              --repo "$REPO" \
-              --clobber \
-              "${assets[@]}"
-          fi
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REF_NAME: ${{ github.ref_name }}
-          REPO: ${{ github.repository }}
-
-  # ── Auto-release from dev ────────────────────────────────────────────────
-  # Why this exists: before it, this fork had ZERO releases (GET
-  # /repos/tuna-os/bootc-installer/releases/latest → 404), so downstreams that
-  # fetch releases/latest/download/org.bootcinstaller.Installer.flatpak got
-  # nothing and silently fell back to upstream — shipping upstream's branding
-  # under their own. Three separate gaps caused it:
-  #
-  #   1. dev published only `latest-dev`, marked --prerelease, and
-  #      /releases/latest/ skips prereleases by design.
-  #   2. that bundle is the Devel app id (…Installer.Devel), not the id a live
-  #      ISO installs.
-  #   3. prod attached nothing at all — its step only echoes; a real release
-  #      required someone to push a v* tag by hand.
-  #
-  # So: every push to dev cuts a real, non-prerelease release carrying the
-  # production app id. The tag is date+sha, never a rolling name — the repo
-  # has a ruleset that permanently bans a tag name once an immutable release
-  # has used it, which is exactly why `latest-stable` could not be reused.
-  #
-  # The Devel bundle rides along on the same release (needs: [production,
-  # devel]). Downstreams (dakota-iso) that need the dev channel take the
-  # Devel-named asset from this same /releases/latest/ redirect instead of a
-  # rolling tag — see dakota-iso's TestInstallerChannelURLs, which bans
-  # rolling dev-channel tags outright after projectbluefin lost `latest-dev`
-  # to the immutable-release ruleset. A release created together with both
-  # assets is the only pattern that ruleset allows to stay current.
-  auto-release:
-    name: Auto-release (dev)
-    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
-    needs: [production, devel]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: autorelease-org.bootcinstaller.Installer.flatpak
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: org.bootcinstaller.Installer.Devel.flatpak
-
-      # Best-effort, same reason as the tagged path: this job does not
-      # `needs` the aarch64 build, so x86_64 releases keep cutting whether or
-      # not that leg produced anything.
-      - name: Download aarch64 bundle (optional)
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: autorelease-org.bootcinstaller.Installer-aarch64.flatpak
-
-      - name: Cut a versioned release
-        run: |
-          set -euo pipefail
-          # Date + short sha: monotonic, unique per push, and never a name a
-          # ruleset can ban. /releases/latest/ resolves to the newest of these.
-          TAG="v$(date -u +%Y.%m.%d)-$(git rev-parse --short HEAD)"
-          echo "Releasing ${TAG}"
-
-          assets=(
-            org.bootcinstaller.Installer.flatpak
-            org.bootcinstaller.Installer.Devel.flatpak
-          )
-          if [ -f org.bootcinstaller.Installer-aarch64.flatpak ]; then
-            assets+=(org.bootcinstaller.Installer-aarch64.flatpak)
-          else
-            echo "::warning::no aarch64 bundle; releasing x86_64 only"
-          fi
-
-          gh release create "${TAG}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --title "bootc-installer ${TAG}" \
-            --notes "Automatic release from \`dev\` (${GITHUB_SHA})." \
-            --latest \
-            "${assets[@]}"
-
-          # Fail loudly if the assets are not actually reachable at the URLs
-          # downstreams use. A release that exists but serves no asset is the
-          # same outage as no release, and it would otherwise read as success.
-          for name in org.bootcinstaller.Installer.flatpak org.bootcinstaller.Installer.Devel.flatpak; do
-            URL="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/${name}"
-            ok=0
-            for _ in $(seq 1 10); do
-              if curl -sfIL -o /dev/null "${URL}"; then
-                echo "verified: ${URL}"
-                ok=1
-                break
-              fi
-              sleep 5
-            done
-            if [ "${ok}" -ne 1 ]; then
-              echo "::error::${URL} did not become reachable after the release was cut"
-              exit 1
-            fi
-          done
         env:
           GH_TOKEN: ${{ github.token }}

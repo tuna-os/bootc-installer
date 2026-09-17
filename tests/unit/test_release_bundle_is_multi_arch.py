@@ -12,11 +12,17 @@ The arm64 ISO could therefore never carry the installer, and nothing
 downstream of it was exercisable on that arch.
 
 The fix is a separate job, not a matrix leg, and that distinction is the
-thing most likely to be "tidied" later into a regression: `auto-release` and
-`publish-tagged-release` both `needs: [production]`, and ONE failing matrix
+thing most likely to be "tidied" later into a regression: ONE failing matrix
 leg fails the whole job, which would skip the release entirely. x86_64
 releases work today and must not become contingent on a newer arch. So the
 tests below pin the independence as firmly as the existence.
+
+Since the promote/release flow, the bundles are built by flatpak.yml and the
+release is cut by release.yml's `release` job, which calls flatpak.yml as a
+reusable workflow. That call's result is red whenever the aarch64 leg is red,
+so the independence now lives in the `release` job's `if:` (it runs on
+`!cancelled()`) plus the optional aarch64 download, and the tests read both
+files.
 """
 from __future__ import annotations
 
@@ -28,6 +34,7 @@ yaml = pytest.importorskip("yaml")
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "flatpak.yml"
+RELEASE = ROOT / ".github" / "workflows" / "release.yml"
 
 X86_BUNDLE = "org.bootcinstaller.Installer.flatpak"
 ARM_BUNDLE = "org.bootcinstaller.Installer-aarch64.flatpak"
@@ -36,6 +43,11 @@ ARM_BUNDLE = "org.bootcinstaller.Installer-aarch64.flatpak"
 @pytest.fixture(scope="module")
 def jobs() -> dict:
     return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+
+
+@pytest.fixture(scope="module")
+def release_job() -> dict:
+    return yaml.safe_load(RELEASE.read_text(encoding="utf-8"))["jobs"]["release"]
 
 
 def _builder(job: dict) -> dict:
@@ -126,12 +138,14 @@ def test_the_two_builds_do_not_share_a_cache_key(jobs):
 # ------------------------------------------- and it does not gate the old one
 
 
-def test_neither_release_job_depends_on_the_aarch64_build(jobs):
+def test_the_release_job_does_not_wait_for_a_green_aarch64_build(release_job):
     """The regression this guards: making the release contingent on a newer
-    arch would stop x86_64 releases the first time that leg breaks."""
-    for name in ("auto-release", "publish-tagged-release"):
-        assert "production-aarch64" not in jobs[name]["needs"], name
-        assert "production" in jobs[name]["needs"], name
+    arch would stop x86_64 releases the first time that leg breaks. The
+    `build` dependency is the whole reusable flatpak.yml, so a red aarch64 leg
+    makes it red; the job must run anyway and let the required x86_64
+    download decide."""
+    assert "build" in release_job["needs"]
+    assert "!cancelled()" in str(release_job.get("if", "")), release_job.get("if")
 
 
 def test_the_aarch64_bundle_is_not_a_matrix_leg_of_production(jobs):
@@ -140,27 +154,45 @@ def test_the_aarch64_bundle_is_not_a_matrix_leg_of_production(jobs):
     assert "strategy" not in jobs["production"]
 
 
-def test_both_release_jobs_download_the_aarch64_bundle_optionally(jobs):
-    for name in ("auto-release", "publish-tagged-release"):
+def test_the_release_job_downloads_the_aarch64_bundle_optionally(release_job):
+    step = next(
+        s for s in release_job["steps"]
+        if ARM_BUNDLE in str(s.get("with", {}).get("name", ""))
+    )
+    assert step.get("continue-on-error") is True
+
+
+def test_the_x86_64_and_devel_downloads_are_not_optional(release_job):
+    """The inverse: the assets every downstream fetches must fail the job
+    when absent, not silently drop out of the asset list."""
+    for name in (X86_BUNDLE, "org.bootcinstaller.Installer.Devel.flatpak"):
         step = next(
-            s for s in jobs[name]["steps"]
-            if ARM_BUNDLE in str(s.get("with", {}).get("name", ""))
+            s for s in release_job["steps"]
+            if str(s.get("with", {}).get("name", "")) == name
         )
-        assert step.get("continue-on-error") is True, name
+        assert not step.get("continue-on-error"), name
 
 
-def test_a_missing_aarch64_bundle_still_releases_x86_64(jobs):
+def test_a_missing_aarch64_bundle_still_releases_x86_64(release_job):
     """Absence is a warning and a shorter asset list, never a failure."""
-    for name in ("auto-release", "publish-tagged-release"):
-        run = "\n".join(s.get("run", "") for s in jobs[name]["steps"])
-        assert f"[ -f {ARM_BUNDLE} ]" in run, name
-        assert "releasing x86_64 only" in run, name
-        assert X86_BUNDLE in run, name
+    run = "\n".join(s.get("run", "") for s in release_job["steps"])
+    assert f"[ -f {ARM_BUNDLE} ]" in run
+    assert "releasing x86_64 only" in run
+    assert X86_BUNDLE in run
 
 
-def test_the_x86_64_asset_name_is_unchanged(jobs):
+def test_the_x86_64_asset_name_is_unchanged(jobs, release_job):
     """Downstreams fetch releases/latest/download/<this exact name>; renaming
     it would break every existing consumer, tunaOS's live ISO included."""
     assert _builder(jobs["production"])["with"]["bundle"] == X86_BUNDLE
-    run = "\n".join(s.get("run", "") for s in jobs["auto-release"]["steps"])
+    run = "\n".join(s.get("run", "") for s in release_job["steps"])
     assert f"releases/latest/download/{X86_BUNDLE}" in run
+
+
+def test_releases_are_never_cut_from_dev(jobs):
+    """flatpak.yml builds and keeps the dev PRE-release current; the real,
+    --latest release is release.yml's job on prod (docs/RELEASE.md)."""
+    for job in jobs.values():
+        run = "\n".join(s.get("run", "") for s in job.get("steps", []))
+        assert "--latest" not in run
+        assert "gh release create latest-dev" in run or "gh release create" not in run

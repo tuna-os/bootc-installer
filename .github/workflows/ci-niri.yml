@@ -1,0 +1,60 @@
+name: CI (niri backend)
+
+# Go compile + vet + test for frontends/niri/installer. Nothing else gates
+# that module: publish-flatpak-niri only runs on promotion, and
+# screenshots-niri drives the QML UI.
+#
+# Moved here from tuna-os/tuna-installer-niri's ci.yml.
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "frontends/niri/installer/**"
+      - ".github/workflows/ci-niri.yml"
+  pull_request:
+    paths:
+      - "frontends/niri/installer/**"
+      - ".github/workflows/ci-niri.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-niri-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Go backend (niri)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontends/niri/installer
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: frontends/niri/installer/go.mod
+          # No go.sum: the backend is standard-library only.
+          cache: false
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt needs to run on:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./...
