@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+import os
+import sys
+
+FLATPAK_LIB = "/app/lib/tuna-installer-xfce"
+base = FLATPAK_LIB if os.path.isdir(FLATPAK_LIB) else os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, base)
+
+from tuna_installer_xfce.app import main
+
+main()
