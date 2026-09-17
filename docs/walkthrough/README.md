@@ -14,18 +14,18 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 
 | Screen | GNOME | KDE Plasma | COSMIC | Niri | XFCE |
 |---|---|---|---|---|---|
-| `welcome` (required) | ✅ | ✅ | ⏳ | ✅ | ✅ |
-| `disk` (required) | ✅ | ✅ | ⏳ | ✅ | ✅ |
-| `encryption` | ✅ | ✅ | ⏳ | ✅ | ⚠️ |
-| `summary` (required) | ✅ | ✅ | ⏳ | ✅ | ✅ |
-| `install` | ✅ | ✅ | ⏳ | ✅ | ✅ |
-| `done` | ✅ | ✅ | ⏳ | ✅ | ✅ |
+| `welcome` (required) | ✅ | ✅ | ➖ | ✅ | ✅ |
+| `disk` (required) | ✅ | ✅ | ➖ | ✅ | ✅ |
+| `encryption` | ✅ | ✅ | ➖ | ✅ | ⚠️ |
+| `summary` (required) | ✅ | ✅ | ➖ | ✅ | ✅ |
+| `install` | ✅ | ✅ | ➖ | ✅ | ✅ |
+| `done` | ✅ | ✅ | ➖ | ✅ | ✅ |
 
 | Frontend | Pages | Rendered | Transitions | Harness |
 |---|---|---|---|---|
 | GNOME | 9 | 9 | 8 | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
 | KDE Plasma | 6 | 6 | 5 | tests/capture.cpp (Kirigami/QML, offscreen) |
-| COSMIC | 0 | – | – | pending |
+| COSMIC | 6 | 0 | 5 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
 | Niri | 6 | 6 | 5 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
 | XFCE | 8 | 8 | 7 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
 
@@ -67,7 +67,16 @@ Qt 6 / Kirigami (C++ + QML). Source: `frontends/kde/`.
 
 libcosmic / iced (Rust). Source: `frontends/cosmic/`.
 
-_No capture on record yet._
+<p align="center"><img src="cosmic/walkthrough.gif" alt="COSMIC installer walkthrough" width="640"></p>
+
+| | |
+|---|---|
+| <img src="cosmic/01-welcome.png" width="360"> | **welcome**  |
+| <img src="cosmic/02-disk.png" width="360"> | **disk**  |
+| <img src="cosmic/03-options.png" width="360"> | **options**  |
+| <img src="cosmic/04-confirm.png" width="360"> | **confirm**  |
+| <img src="cosmic/05-installing.png" width="360"> | **installing**  |
+| <img src="cosmic/06-done.png" width="360"> | **done**  |
 
 ## Niri
 

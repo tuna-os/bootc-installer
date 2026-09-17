@@ -1,7 +1,7 @@
 {
   "flavor": "cosmic",
   "frames": 6,
-  "rendered_frames": 6,
+  "rendered_frames": 0,
   "advanced_transitions": 5,
   "visual_states": 6,
   "activation_key": null,
@@ -60,62 +60,38 @@
   "pages": [
     {
       "name": "welcome",
-      "png": "/tmp/captures/cosmic/01-welcome.png",
-      "rendered": true,
-      "colours": 186,
-      "flat": 0.9659655048876605,
-      "ink": 0.9885229540918163,
-      "stddev": 0.07291406631990316,
+      "png": "docs/screenshots/01-welcome.png",
+      "rendered": null,
       "text_excerpt": ""
     },
     {
       "name": "disk",
-      "png": "/tmp/captures/cosmic/02-disk.png",
-      "rendered": true,
-      "colours": 196,
-      "flat": 0.5412124469010696,
-      "ink": 0.993052356824812,
-      "stddev": 0.06435257985623488,
+      "png": "docs/screenshots/02-disk.png",
+      "rendered": null,
       "text_excerpt": ""
     },
     {
       "name": "options",
-      "png": "/tmp/captures/cosmic/03-options.png",
-      "rendered": true,
-      "colours": 211,
-      "flat": 0.7590843953119403,
-      "ink": 0.9929755872869646,
-      "stddev": 0.06545220817179427,
+      "png": "docs/screenshots/03-options.png",
+      "rendered": null,
       "text_excerpt": ""
     },
     {
       "name": "confirm",
-      "png": "/tmp/captures/cosmic/04-confirm.png",
-      "rendered": true,
-      "colours": 303,
-      "flat": 0.580057833051845,
-      "ink": 0.9920799426787451,
-      "stddev": 0.07045952423024181,
+      "png": "docs/screenshots/04-confirm.png",
+      "rendered": null,
       "text_excerpt": ""
     },
     {
       "name": "installing",
-      "png": "/tmp/captures/cosmic/05-installing.png",
-      "rendered": true,
-      "colours": 225,
-      "flat": 0.5017656993704898,
-      "ink": 0.9879855673268847,
-      "stddev": 0.0798167516428971,
+      "png": "docs/screenshots/05-installing.png",
+      "rendered": null,
       "text_excerpt": ""
     },
     {
       "name": "done",
-      "png": "/tmp/captures/cosmic/06-done.png",
-      "rendered": true,
-      "colours": 202,
-      "flat": 0.9747300271252367,
-      "ink": 0.9936025385127182,
-      "stddev": 0.0543209423288022,
+      "png": "docs/screenshots/06-done.png",
+      "rendered": null,
       "text_excerpt": ""
     }
   ],
