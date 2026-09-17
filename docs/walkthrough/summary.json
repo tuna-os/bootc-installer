@@ -2,42 +2,42 @@
   "screens": {
     "welcome": {
       "gnome": "pending",
-      "kde": "pending",
+      "kde": "yes",
       "cosmic": "pending",
       "niri": "yes",
       "xfce": "pending"
     },
     "disk": {
       "gnome": "pending",
-      "kde": "pending",
+      "kde": "yes",
       "cosmic": "pending",
       "niri": "yes",
       "xfce": "pending"
     },
     "encryption": {
       "gnome": "pending",
-      "kde": "pending",
+      "kde": "yes",
       "cosmic": "pending",
       "niri": "yes",
       "xfce": "pending"
     },
     "summary": {
       "gnome": "pending",
-      "kde": "pending",
+      "kde": "yes",
       "cosmic": "pending",
       "niri": "yes",
       "xfce": "pending"
     },
     "install": {
       "gnome": "pending",
-      "kde": "pending",
+      "kde": "yes",
       "cosmic": "pending",
       "niri": "yes",
       "xfce": "pending"
     },
     "done": {
       "gnome": "pending",
-      "kde": "pending",
+      "kde": "yes",
       "cosmic": "pending",
       "niri": "yes",
       "xfce": "pending"

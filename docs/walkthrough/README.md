@@ -14,17 +14,17 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 
 | Screen | GNOME | KDE Plasma | COSMIC | Niri | XFCE |
 |---|---|---|---|---|---|
-| `welcome` (required) | ⏳ | ⏳ | ⏳ | ✅ | ⏳ |
-| `disk` (required) | ⏳ | ⏳ | ⏳ | ✅ | ⏳ |
-| `encryption` | ⏳ | ⏳ | ⏳ | ✅ | ⏳ |
-| `summary` (required) | ⏳ | ⏳ | ⏳ | ✅ | ⏳ |
-| `install` | ⏳ | ⏳ | ⏳ | ✅ | ⏳ |
-| `done` | ⏳ | ⏳ | ⏳ | ✅ | ⏳ |
+| `welcome` (required) | ⏳ | ✅ | ⏳ | ✅ | ⏳ |
+| `disk` (required) | ⏳ | ✅ | ⏳ | ✅ | ⏳ |
+| `encryption` | ⏳ | ✅ | ⏳ | ✅ | ⏳ |
+| `summary` (required) | ⏳ | ✅ | ⏳ | ✅ | ⏳ |
+| `install` | ⏳ | ✅ | ⏳ | ✅ | ⏳ |
+| `done` | ⏳ | ✅ | ⏳ | ✅ | ⏳ |
 
 | Frontend | Pages | Rendered | Transitions | Harness | Capture |
 |---|---|---|---|---|---|
 | GNOME | 0 | – | – | – | pending |
-| KDE Plasma | 0 | – | – | – | pending |
+| KDE Plasma | 6 | 6 | 5 | tests/capture.cpp (Kirigami/QML, offscreen) | [run 35281231354](https://github.com/tuna-os/bootc-installer/actions/runs/35281231354) |
 | COSMIC | 0 | – | – | – | pending |
 | Niri | 6 | 6 | 5 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) | [run 35281231371](https://github.com/tuna-os/bootc-installer/actions/runs/35281231371) |
 | XFCE | 0 | – | – | – | pending |
@@ -39,7 +39,16 @@ _No capture on record yet._
 
 Qt 6 / Kirigami (C++ + QML). Source: `frontends/kde/`.
 
-_No capture on record yet._
+<p align="center"><img src="kde/walkthrough.gif" alt="KDE Plasma installer walkthrough" width="640"></p>
+
+| | |
+|---|---|
+| <img src="kde/01-welcome.png" width="360"> | **welcome**  |
+| <img src="kde/02-disk.png" width="360"> | **disk**  |
+| <img src="kde/03-encryption.png" width="360"> | **encryption**  |
+| <img src="kde/04-confirm.png" width="360"> | **confirm**  |
+| <img src="kde/05-progress.png" width="360"> | **progress**  |
+| <img src="kde/06-done.png" width="360"> | **done**  |
 
 ## COSMIC
 
