@@ -84,80 +84,86 @@
       "name": "welcome",
       "png": "docs/screenshots/01-welcome.png",
       "rendered": true,
-      "colours": 234,
+      "colours": 239,
       "ink": 0.011494252873563218,
-      "stddev": 0.07260585549264945
+      "stddev": 0.07273946311080291,
+      "text_excerpt": "Welcome to TunaOS This assistant installs TunaOS on this computer.\n\nYou'll choose what to install and where; nothing is written to any disk until you confirm on the final step."
     },
     {
       "name": "source",
       "png": "docs/screenshots/02-source.png",
       "rendered": true,
-      "colours": 279,
+      "colours": 285,
       "ink": 0.010070899129874316,
-      "stddev": 0.0653934245939696
+      "stddev": 0.06554315673831485,
+      "text_excerpt": "What do you want to install? Bluefin Bluefin ghcr.io/ublue-os/bluefin:latest GNOME GNOME ghcr.io/tuna-os/bonito:latest KDE Plasma KDE Plasma ghcr.io/tuna-os/bonito:kde"
     },
     {
       "name": "destination",
       "png": "docs/screenshots/03-destination.png",
       "rendered": true,
-      "colours": 304,
+      "colours": 308,
       "ink": 0.01307874100333011,
-      "stddev": 0.07537078746185723
+      "stddev": 0.07543574936661218,
+      "text_excerpt": "Where should TunaOS be installed? SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 WDC WD20SPZX    2 TB    /dev/sda WDC WD20SPZX    2 TB    /dev/sda Everything on SAMSUNG MZVL2512 (/dev/nvme0n1) will"
     },
     {
       "name": "setup",
       "png": "docs/screenshots/04-setup.png",
       "rendered": true,
-      "colours": 302,
+      "colours": 305,
       "ink": 0.009453217316575358,
-      "stddev": 0.06543076088753945
+      "stddev": 0.06548145504381778,
+      "text_excerpt": "Filesystem and encryption No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at every boot. Confirm Passphrase Filesystem Create btrfs subvolumes (@, @home, @snapshots) Create btrfs su"
     },
     {
       "name": "identity",
       "png": "docs/screenshots/05-identity.png",
       "rendered": true,
-      "colours": 234,
+      "colours": 240,
       "ink": 0.006713932753249543,
-      "stddev": 0.05727068925724044
+      "stddev": 0.05732723546278268,
+      "text_excerpt": "Name this computer Hostname Password Full name Username Your account"
     },
     {
       "name": "confirm",
       "png": "docs/screenshots/06-confirm.png",
       "rendered": true,
-      "colours": 302,
+      "colours": 311,
       "ink": 0.014072403050811044,
-      "stddev": 0.07514592549896647
+      "stddev": 0.07520054267498712,
+      "text_excerpt": "Ready to install Image:       ghcr.io/ublue-os/bluefin:latest\nDisk:        /dev/nvme0n1\nFilesystem:  xfs\nEncryption:  none\nHostname:    tunaos Clicking Install Now erases the selected disk. This cannot be undone."
     },
     {
       "name": "progress",
       "png": "docs/screenshots/07-progress.png",
       "rendered": true,
-      "colours": 300,
+      "colours": 298,
       "ink": 0.0352347190890536,
-      "stddev": 0.14620339915967337
+      "stddev": 0.1461966187995092,
+      "text_excerpt": "Installing TunaOS Installing image [1/9] Partitioning /dev/nvme0n1\n  created EFI system partition (1.0 GiB, FAT32)\n  created root partition (511.1 GiB)\n[2/9] Formatting boot partitions\n[3/9] Setting up encryption\n  encryption: none\n[4/9] Fo"
     },
     {
       "name": "done",
       "png": "docs/screenshots/08-done.png",
       "rendered": true,
-      "colours": 198,
+      "colours": 197,
       "ink": 0.0068750671393275325,
-      "stddev": 0.06114767816640852
+      "stddev": 0.061140428084353896,
+      "text_excerpt": "Installation complete Remove the installation medium, then reboot into your new system. Reboot Reboot"
     }
   ],
   "transition_pixels": [
-    9454,
-    9316,
+    9446,
+    9280,
     10335,
-    10255,
-    12232,
-    19658,
-    23180
+    10198,
+    12226,
+    19630,
+    23226
   ],
   "spec_drift": [
-    "'disk' keywords differ from upstream",
-    "'install' keywords differ from upstream",
-    "'welcome' keywords differ from upstream"
+    "'install' keywords differ from upstream"
   ],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
 }
