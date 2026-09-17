@@ -1,73 +1,68 @@
 {
   "screens": {
     "welcome": {
-      "gnome": "pending",
+      "gnome": "yes",
       "kde": "yes",
       "cosmic": "pending",
       "niri": "yes",
-      "xfce": "pending"
+      "xfce": "yes"
     },
     "disk": {
-      "gnome": "pending",
+      "gnome": "yes",
       "kde": "yes",
       "cosmic": "pending",
       "niri": "yes",
-      "xfce": "pending"
+      "xfce": "yes"
     },
     "encryption": {
-      "gnome": "pending",
+      "gnome": "yes",
       "kde": "yes",
       "cosmic": "pending",
       "niri": "yes",
-      "xfce": "pending"
+      "xfce": "no"
     },
     "summary": {
-      "gnome": "pending",
+      "gnome": "yes",
       "kde": "yes",
       "cosmic": "pending",
       "niri": "yes",
-      "xfce": "pending"
+      "xfce": "yes"
     },
     "install": {
-      "gnome": "pending",
+      "gnome": "yes",
       "kde": "yes",
       "cosmic": "pending",
       "niri": "yes",
-      "xfce": "pending"
+      "xfce": "yes"
     },
     "done": {
-      "gnome": "pending",
+      "gnome": "yes",
       "kde": "yes",
       "cosmic": "pending",
       "niri": "yes",
-      "xfce": "pending"
+      "xfce": "yes"
     }
   },
   "frontends": {
     "gnome": {
-      "frames": 0,
-      "report": false,
-      "run_id": null
+      "frames": 8,
+      "report": true
     },
     "kde": {
-      "frames": 0,
-      "report": false,
-      "run_id": null
+      "frames": 8,
+      "report": true
     },
     "cosmic": {
-      "frames": 0,
-      "report": false,
-      "run_id": null
+      "frames": 8,
+      "report": true
     },
     "niri": {
-      "frames": 0,
-      "report": false,
-      "run_id": null
+      "frames": 8,
+      "report": true
     },
     "xfce": {
-      "frames": 0,
-      "report": false,
-      "run_id": null
+      "frames": 8,
+      "report": true
     }
   },
   "problems": []

@@ -97,10 +97,10 @@
       "name": "qr_companion",
       "png": "docs/screenshots/02-qr_companion.png",
       "rendered": true,
-      "colours": 528,
-      "flat": 0.9275027277686853,
-      "ink": 0.037193126022913255,
-      "stddev": 0.12114843507870768,
+      "colours": 529,
+      "flat": 0.9275095471903982,
+      "ink": 0.037159028914348066,
+      "stddev": 0.12116189571439277,
       "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
     },
     {
@@ -139,8 +139,8 @@
       "rendered": true,
       "colours": 275,
       "flat": 0.9144162575013639,
-      "ink": 0.008265139116202946,
-      "stddev": 0.05485078050383758,
+      "ink": 0.008387888707037643,
+      "stddev": 0.055196111954875525,
       "text_excerpt": "Confirm Installation \"Indeed.\" \u2014 Commander Zavala Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Whether we wanted it or not, we've stepped into a war with your old OS. Become Legend Bec"
     },
     {
@@ -175,12 +175,12 @@
     }
   ],
   "transition_pixels": [
-    73338,
-    89707,
+    73351,
+    89720,
     51171,
     34536,
-    39190,
-    36880,
+    39438,
+    37278,
     43496,
     41297
   ],

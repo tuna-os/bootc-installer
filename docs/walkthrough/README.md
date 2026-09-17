@@ -14,26 +14,39 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 
 | Screen | GNOME | KDE Plasma | COSMIC | Niri | XFCE |
 |---|---|---|---|---|---|
-| `welcome` (required) | ⏳ | ✅ | ⏳ | ✅ | ⏳ |
-| `disk` (required) | ⏳ | ✅ | ⏳ | ✅ | ⏳ |
-| `encryption` | ⏳ | ✅ | ⏳ | ✅ | ⏳ |
-| `summary` (required) | ⏳ | ✅ | ⏳ | ✅ | ⏳ |
-| `install` | ⏳ | ✅ | ⏳ | ✅ | ⏳ |
-| `done` | ⏳ | ✅ | ⏳ | ✅ | ⏳ |
+| `welcome` (required) | ✅ | ✅ | ⏳ | ✅ | ✅ |
+| `disk` (required) | ✅ | ✅ | ⏳ | ✅ | ✅ |
+| `encryption` | ✅ | ✅ | ⏳ | ✅ | ⚠️ |
+| `summary` (required) | ✅ | ✅ | ⏳ | ✅ | ✅ |
+| `install` | ✅ | ✅ | ⏳ | ✅ | ✅ |
+| `done` | ✅ | ✅ | ⏳ | ✅ | ✅ |
 
-| Frontend | Pages | Rendered | Transitions | Harness | Capture |
-|---|---|---|---|---|---|
-| GNOME | 0 | – | – | – | pending |
-| KDE Plasma | 6 | 6 | 5 | tests/capture.cpp (Kirigami/QML, offscreen) | [run 35281231354](https://github.com/tuna-os/bootc-installer/actions/runs/35281231354) |
-| COSMIC | 0 | – | – | – | pending |
-| Niri | 6 | 6 | 5 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) | [run 35281231371](https://github.com/tuna-os/bootc-installer/actions/runs/35281231371) |
-| XFCE | 0 | – | – | – | pending |
+| Frontend | Pages | Rendered | Transitions | Harness |
+|---|---|---|---|---|
+| GNOME | 9 | 9 | 8 | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
+| KDE Plasma | 6 | 6 | 5 | tests/capture.cpp (Kirigami/QML, offscreen) |
+| COSMIC | 0 | – | – | pending |
+| Niri | 6 | 6 | 5 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
+| XFCE | 8 | 8 | 7 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
 
 ## GNOME
 
 GTK4 / libadwaita (Python). Source: `bootc_installer/`.
 
-_No capture on record yet._
+<p align="center"><img src="gnome/walkthrough.gif" alt="GNOME installer walkthrough" width="640"></p>
+
+| | |
+|---|---|
+| <img src="gnome/01-welcome.png" width="360"> | **welcome** What the installer is about to do. <br><sub>Welcome to Bluefin Install Bluefin Installs to your internal disk. Takes about 5–10 minutes. Install Bluefin Installs to your internal disk.</sub> |
+| <img src="gnome/02-qr_companion.png" width="360"> | **qr companion** Optional phone companion for typing on a laptop keyboard. <br><sub>Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.
+Both devices must be on the same local net</sub> |
+| <img src="gnome/03-disk.png" width="360"> | **disk** Choose the disk. Nothing is written yet. <br><sub>Computer is not plugged in — connect power before installing Install Location Select the disk where you want to install. All data on the sel</sub> |
+| <img src="gnome/04-slurp.png" width="360"> | **slurp** Bring documents and settings over from an existing Windows install. <br><sub>Bring Your Files We can copy documents, pictures, and other data from an existing Windows install. Windows data scanning is unavailable in d</sub> |
+| <img src="gnome/05-encryption.png" width="360"> | **encryption** Full-disk encryption, with or without TPM2. <br><sub>Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You will need a passphrase each time you turn on your compute</sub> |
+| <img src="gnome/06-confirm.png" width="360"> | **confirm** The last screen before anything is written. <br><sub>Confirm Installation "Indeed." — Commander Zavala Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with </sub> |
+| <img src="gnome/07-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installation Video Coming Soon! Installation will continue normally. Feel free to browse around. Rawr. Get Bluefin gear Installing Bluefin… </sub> |
+| <img src="gnome/08-recovery-key.png" width="360"> | **recovery key** The LUKS recovery key, shown once after an encrypted install. <br><sub>Save Your Recovery Key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere sa</sub> |
+| <img src="gnome/09-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>Bluefin is installed Restart now to complete the installation. Show Log Show Log Try Again Try Again Reboot Now Reboot Now Close Close Get B</sub> |
 
 ## KDE Plasma
 
@@ -78,5 +91,24 @@ Quickshell QML + Go backend. Source: `frontends/niri/`.
 
 GTK3 / PyGObject. Source: `frontends/xfce/`.
 
-_No capture on record yet._
+<p align="center"><img src="xfce/walkthrough.gif" alt="XFCE installer walkthrough" width="640"></p>
+
+| | |
+|---|---|
+| <img src="xfce/01-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to TunaOS This assistant installs TunaOS on this computer.
+
+You'll choose what to install and where; nothing is written to any disk </sub> |
+| <img src="xfce/02-source.png" width="360"> | **source**  <br><sub>What do you want to install? Bluefin Bluefin ghcr.io/ublue-os/bluefin:latest GNOME GNOME ghcr.io/tuna-os/bonito:latest KDE Plasma KDE Plasma</sub> |
+| <img src="xfce/03-destination.png" width="360"> | **destination**  <br><sub>Where should TunaOS be installed? SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 WDC WD20SPZX    </sub> |
+| <img src="xfce/04-setup.png" width="360"> | **setup**  <br><sub>Filesystem and encryption No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at ever</sub> |
+| <img src="xfce/05-identity.png" width="360"> | **identity**  <br><sub>Name this computer Hostname Password Full name Username Your account</sub> |
+| <img src="xfce/06-confirm.png" width="360"> | **confirm**  <br><sub>Ready to install Image:       ghcr.io/ublue-os/bluefin:latest
+Disk:        /dev/nvme0n1
+Filesystem:  xfs
+Encryption:  none
+Hostname:    tuna</sub> |
+| <img src="xfce/07-progress.png" width="360"> | **progress**  <br><sub>Installing TunaOS Installing image [1/9] Partitioning /dev/nvme0n1
+  created EFI system partition (1.0 GiB, FAT32)
+  created root partition </sub> |
+| <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>Installation complete Remove the installation medium, then reboot into your new system. Reboot Reboot</sub> |
 
