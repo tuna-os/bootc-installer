@@ -1,4 +1,12 @@
-# AGENTS.md — agent guide for tuna-os/tuna-installer-xfce
+# AGENTS.md — agent guide for frontends/xfce (formerly tuna-os/tuna-installer-xfce)
+
+> **Monorepo note.** This directory is one of five frontends in
+> `tuna-os/bootc-installer`. Every path below is relative to THIS directory.
+> Workflows referenced as `screenshots.yml` / `publish-flatpak.yml` / `ci.yml`
+> are now `.github/workflows/screenshots-xfce.yml`, `publish-flatpak-xfce.yml`
+> (plus `ci-niri.yml` for the niri Go backend) at the repository root, running with
+> `working-directory: frontends/xfce`. The shared recipe schema and screen
+> contract live in `../../shared/`. Do not add a `.github/` here.
 
 A **GTK3 / PyGObject wizard** that drives the
 [fisherman](https://github.com/tuna-os/fisherman) bootc install backend.

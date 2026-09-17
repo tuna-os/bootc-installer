@@ -1,0 +1,75 @@
+name: Screenshots (niri)
+
+# Renders frontends/niri/ui/installer.qml headlessly and publishes the
+# walkthrough. Beyond docs, this is the only way anyone can LOOK at this UI
+# without a Wayland compositor: it normally runs under Quickshell on niri.
+#
+# Moved here from tuna-os/tuna-installer-niri's screenshots.yml when that repo
+# became frontends/niri; the body is unchanged apart from paths.
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "frontends/niri/ui/**"
+      - "frontends/niri/tests/**"
+      - "shared/walkthrough/**"
+      - ".github/workflows/screenshots-niri.yml"
+  pull_request:
+    paths:
+      - "frontends/niri/ui/**"
+      - "frontends/niri/tests/**"
+      - "shared/walkthrough/**"
+      - ".github/workflows/screenshots-niri.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screenshots-niri-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    name: Screenshots (niri)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: frontends/niri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Qt's offscreen platform plugin still links these even though it never
+      # opens a display.
+      - name: install Qt runtime deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            libgl1 libegl1 libxkbcommon0 libfontconfig1 libdbus-1-3 \
+            libglib2.0-0 imagemagick
+          pip install --quiet PyQt6
+
+      - name: capture every screen
+        run: python3 tests/gui/capture-screens.py docs/screenshots
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gui-screenshots-niri
+          path: frontends/niri/docs/screenshots/
+
+      - name: commit refreshed screenshots
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "docs(niri): refresh GUI screenshots [skip ci]"
+          git push

@@ -1,0 +1,56 @@
+name: Publish Flatpak (cosmic)
+
+# Publishes frontends/cosmic to the tuna-os flatpak remote through the shared
+# reusable workflow in tuna-os/.github. The build body lives there; this file
+# only pins the app id, manifest and runtime image.
+#
+# Since the monorepo, publishing is driven by release.yml on promotion to
+# `prod` (see docs/RELEASE.md): this file is `workflow_call`-only plus a manual
+# dispatch escape hatch. It used to run on every push to the old repo's
+# `main`, which shipped unvalidated commits to every live ISO build.
+
+on:
+  workflow_call:
+    inputs:
+      publish:
+        description: Push to GHCR and the central index (false = build-only validation)
+        required: false
+        type: boolean
+        default: true
+      archs:
+        required: false
+        type: string
+        default: '["x86_64", "aarch64"]'
+    secrets:
+      FLATPAK_INDEX_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Push to GHCR and the central index (false = build-only validation)
+        required: false
+        type: boolean
+        default: true
+      archs:
+        required: false
+        type: string
+        default: '["x86_64", "aarch64"]'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  publish:
+    uses: tuna-os/.github/.github/workflows/publish-flatpak.yml@main
+    with:
+      app-id: org.tunaos.InstallerCosmic
+      manifest-path: frontends/cosmic/flatpak/org.tunaos.InstallerCosmic.json
+      repo-name: tuna-os/tuna-installer-cosmic
+      # aarch64 alongside x86_64: the tunaOS live-ISO build installs this
+      # Flatpak from the tuna-os remote on both architectures.
+      archs: ${{ inputs.archs }}
+      # Must track "runtime-version" in the manifest.
+      flatpak-builder-image: freedesktop-25.08
+      publish: ${{ inputs.publish }}
+    secrets: inherit

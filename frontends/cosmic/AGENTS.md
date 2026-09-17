@@ -1,4 +1,12 @@
-# AGENTS.md — agent guide for tuna-os/tuna-installer-cosmic
+# AGENTS.md — agent guide for frontends/cosmic (formerly tuna-os/tuna-installer-cosmic)
+
+> **Monorepo note.** This directory is one of five frontends in
+> `tuna-os/bootc-installer`. Every path below is relative to THIS directory.
+> Workflows referenced as `screenshots.yml` / `publish-flatpak.yml` / `ci.yml`
+> are now `.github/workflows/screenshots-cosmic.yml`, `publish-flatpak-cosmic.yml`
+> (plus `ci-niri.yml` for the niri Go backend) at the repository root, running with
+> `working-directory: frontends/cosmic`. The shared recipe schema and screen
+> contract live in `../../shared/`. Do not add a `.github/` here.
 
 A real **COSMIC** application — `cosmic::Application`, the COSMIC header bar,
 the cosmic widget set and the `cosmic-theme` palette — that drives the

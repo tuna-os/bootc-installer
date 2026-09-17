@@ -1,0 +1,163 @@
+{
+  "flavor": "xfce",
+  "frames": 8,
+  "rendered_frames": 8,
+  "advanced_transitions": 7,
+  "visual_states": 8,
+  "activation_key": null,
+  "ocr": false,
+  "screens": {
+    "welcome": true,
+    "disk": true,
+    "encryption": false,
+    "summary": true,
+    "install": true,
+    "done": true
+  },
+  "strict": true,
+  "failures": 0,
+  "source": "offscreen-capture",
+  "harness": "tests/gui/capture-screens.py (GTK3 under Xvfb)",
+  "text_source": "widget-tree",
+  "screens_detail": {
+    "welcome": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "welcome"
+      ],
+      "matched_keywords": [
+        "welcome"
+      ]
+    },
+    "disk": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "destination"
+      ],
+      "matched_keywords": [
+        "be installed"
+      ]
+    },
+    "encryption": {
+      "required": false,
+      "reached": false,
+      "on_pages": [],
+      "matched_keywords": []
+    },
+    "summary": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "confirm"
+      ],
+      "matched_keywords": [
+        "ready to install"
+      ]
+    },
+    "install": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "progress"
+      ],
+      "matched_keywords": [
+        "installing image",
+        "partitioning"
+      ]
+    },
+    "done": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "done"
+      ],
+      "matched_keywords": [
+        "installation complete",
+        "reboot into"
+      ]
+    }
+  },
+  "pages": [
+    {
+      "name": "welcome",
+      "png": "docs/screenshots/01-welcome.png",
+      "rendered": true,
+      "colours": 234,
+      "ink": 0.011494252873563218,
+      "stddev": 0.07260585549264945
+    },
+    {
+      "name": "source",
+      "png": "docs/screenshots/02-source.png",
+      "rendered": true,
+      "colours": 279,
+      "ink": 0.010070899129874316,
+      "stddev": 0.0653934245939696
+    },
+    {
+      "name": "destination",
+      "png": "docs/screenshots/03-destination.png",
+      "rendered": true,
+      "colours": 304,
+      "ink": 0.01307874100333011,
+      "stddev": 0.07537078746185723
+    },
+    {
+      "name": "setup",
+      "png": "docs/screenshots/04-setup.png",
+      "rendered": true,
+      "colours": 302,
+      "ink": 0.009453217316575358,
+      "stddev": 0.06543076088753945
+    },
+    {
+      "name": "identity",
+      "png": "docs/screenshots/05-identity.png",
+      "rendered": true,
+      "colours": 234,
+      "ink": 0.006713932753249543,
+      "stddev": 0.05727068925724044
+    },
+    {
+      "name": "confirm",
+      "png": "docs/screenshots/06-confirm.png",
+      "rendered": true,
+      "colours": 302,
+      "ink": 0.014072403050811044,
+      "stddev": 0.07514592549896647
+    },
+    {
+      "name": "progress",
+      "png": "docs/screenshots/07-progress.png",
+      "rendered": true,
+      "colours": 300,
+      "ink": 0.0352347190890536,
+      "stddev": 0.14620339915967337
+    },
+    {
+      "name": "done",
+      "png": "docs/screenshots/08-done.png",
+      "rendered": true,
+      "colours": 198,
+      "ink": 0.0068750671393275325,
+      "stddev": 0.06114767816640852
+    }
+  ],
+  "transition_pixels": [
+    9454,
+    9316,
+    10335,
+    10255,
+    12232,
+    19658,
+    23180
+  ],
+  "spec_drift": [
+    "'disk' keywords differ from upstream",
+    "'install' keywords differ from upstream",
+    "'welcome' keywords differ from upstream"
+  ],
+  "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
+}

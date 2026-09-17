@@ -1,3 +1,8 @@
+> **Part of the [bootc-installer monorepo](../../README.md).** This tree was
+> `tuna-os/tuna-installer-kde` until 2026-09-17 and was imported with its history. CI for it
+> lives in the root `.github/workflows/` (`screenshots-kde.yml`,
+> `publish-flatpak-kde.yml`); releases follow [`docs/RELEASE.md`](../../docs/RELEASE.md).
+
 # TunaOS KDE Installer — Kirigami/Plasma 6 frontend for fisherman
 
 <p align="center">

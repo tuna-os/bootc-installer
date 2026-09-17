@@ -1,3 +1,8 @@
+> **Part of the [bootc-installer monorepo](../../README.md).** This tree was
+> `tuna-os/tuna-installer-niri` until 2026-09-17 and was imported with its history. CI for it
+> lives in the root `.github/workflows/` (`screenshots-niri.yml`,
+> `publish-flatpak-niri.yml`); releases follow [`docs/RELEASE.md`](../../docs/RELEASE.md).
+
 # TunaOS Niri Installer — Quickshell + Go installer
 
 <p align="center">

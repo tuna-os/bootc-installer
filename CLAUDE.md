@@ -1,6 +1,22 @@
 # CLAUDE.md
 
-bootc-installer is a GTK4/Libadwaita Flatpak GUI installer for BootcOS and Universal Blue bootc container images. Python GTK4 frontend + Go backend (fisherman, a git submodule).
+bootc-installer is the monorepo for every TunaOS / Bluefin bootc installer frontend. The GNOME frontend (GTK4/Libadwaita, Python) lives at the root; the KDE, COSMIC, Niri and XFCE frontends live under `frontends/<name>/`, each with its own `AGENTS.md` that is authoritative for that tree. All five drive the Go backend fisherman (a git submodule).
+
+## Monorepo layout
+
+| Path | What |
+|---|---|
+| `bootc_installer/`, `data/`, `flatpak/`, `tests/` | GNOME frontend (this file's original subject) |
+| `frontends/kde|cosmic|niri|xfce/` | the other frontends, imported with history from `tuna-os/tuna-installer-*`; read their `AGENTS.md` first |
+| `shared/recipe/` | canonical recipe schema (KDE keeps a byte-identical copy; a unit test enforces it) |
+| `shared/walkthrough/` | screen contract + parity report + `aggregate.py` that builds `docs/walkthrough/` |
+| `fisherman/` | backend submodule |
+
+Workflows live only in the root `.github/workflows/`; per-frontend ones are named `<thing>-<frontend>.yml` and use `working-directory: frontends/<name>`.
+
+## Release flow (read docs/RELEASE.md before touching CI)
+
+`dev` → every check green + soak → `promote.yml` fast-forwards `prod` → `release.yml` cuts the GitHub release and publishes all five Flatpaks. Nothing on `dev` reaches `/releases/latest/` or the Flatpak remote. `prod` is never pushed by hand.
 
 ## Build commands
 
@@ -46,6 +62,10 @@ git add fisherman && git commit -m "chore: update fisherman submodule (...)" && 
 
 CI checks out submodules recursively — always verify CI passes after both pushes.
 
+## Screenshot walkthroughs
+
+Every frontend has a headless capture job (`screenshots-<name>.yml`) that renders each page, audits the pixels, and emits `walkthrough-<name>.json` against the shared screen contract. `walkthrough.yml` folds them into `docs/walkthrough/README.md`. GNOME: `xvfb-run -a python3 tests/gui/capture-screens.py docs/screenshots` after a meson build.
+
 ## Known issues
 
 - **UI freeze during blob download**: `__on_vte_contents_changed` in `progress.py` scrapes the entire VTE buffer on every character change.
@@ -57,6 +77,8 @@ CI checks out submodules recursively — always verify CI passes after both push
 - **Don't use `/run/*` for scratch space.** Always use `/var/fisherman-tmp`.
 - **Don't skip the submodule push.** Changes in `fisherman/` must be pushed before updating the parent pointer, or CI breaks.
 - **Don't pass recipe directly to fisherman from filesystem.** The Flatpak sandbox can't see it — use the host staging path.
+- **Don't push to `prod` or cut releases from `dev`.** `promote.yml` owns `prod`; `release.yml` owns tags and the Flatpak remote. Rolling release tags (`latest-stable`) are banned by ruleset history.
+- **Don't add a `.github/` under `frontends/<name>/`.** Workflows only run from the root.
 
 ## References
 - `fisherman/data/images.json` — recursive distro image catalog

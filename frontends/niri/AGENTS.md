@@ -1,4 +1,12 @@
-# AGENTS.md — agent guide for tuna-os/tuna-installer-niri
+# AGENTS.md — agent guide for frontends/niri (formerly tuna-os/tuna-installer-niri)
+
+> **Monorepo note.** This directory is one of five frontends in
+> `tuna-os/bootc-installer`. Every path below is relative to THIS directory.
+> Workflows referenced as `screenshots.yml` / `publish-flatpak.yml` / `ci.yml`
+> are now `.github/workflows/screenshots-niri.yml`, `publish-flatpak-niri.yml`
+> (plus `ci-niri.yml` for the niri Go backend) at the repository root, running with
+> `working-directory: frontends/niri`. The shared recipe schema and screen
+> contract live in `../../shared/`. Do not add a `.github/` here.
 
 A **Quickshell/QML wizard with a Go backend** that drives the
 [fisherman](https://github.com/tuna-os/fisherman) bootc install backend, for

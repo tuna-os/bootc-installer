@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Fisherman Install Recipe",
+  "description": "JSON recipe for the fisherman bootc install backend",
+  "type": "object",
+  "required": ["disk", "hostname"],
+  "properties": {
+    "disk": {
+      "type": "string",
+      "description": "Target block device, e.g. /dev/sda or /dev/nvme0n1"
+    },
+    "filesystem": {
+      "type": "string",
+      "enum": ["xfs", "btrfs"],
+      "default": "xfs"
+    },
+    "btrfsSubvolumes": {
+      "type": "boolean",
+      "default": false
+    },
+    "encryption": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "none",
+            "luks-passphrase",
+            "tpm2-luks",
+            "tpm2-luks-passphrase"
+          ],
+          "default": "none"
+        },
+        "passphrase": {
+          "type": "string",
+          "minLength": 1,
+          "description": "LUKS passphrase; required for passphrase-based encryption types"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": ["luks-passphrase", "tpm2-luks-passphrase"]
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["passphrase"]
+          }
+        }
+      ]
+    },
+    "image": {
+      "type": "string",
+      "description": "OCI image reference; omitted when installing the running live-ISO image"
+    },
+    "targetImgref": {
+      "type": "string",
+      "description": "Override the installed image reference in the bootloader"
+    },
+    "bootloader": {
+      "type": "string",
+      "enum": ["grub2", "systemd"],
+      "description": "Explicit bootloader selection"
+    },
+    "composeFsBackend": {
+      "type": "boolean",
+      "default": false
+    },
+    "flatpaks": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "additionalImageStores": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Local OCI stores available during an offline install"
+    },
+    "distroID": {
+      "type": "string",
+      "default": "tunaos"
+    },
+    "selinuxDisabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "hostname": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$",
+      "description": "Hostname for the installed system"
+    }
+  }
+}

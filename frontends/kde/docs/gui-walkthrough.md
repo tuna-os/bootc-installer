@@ -8,7 +8,7 @@ shipped installer loads. Only `src/main.cpp` is swapped, for
 The capture runs on the Qt `offscreen` platform plugin with the software
 scenegraph, inside a Fedora container that carries the KF6 runtime (Kirigami,
 Kirigami Addons, `org.kde.desktop` Qt Quick Controls style). See
-[`.github/workflows/screenshots.yml`](../.github/workflows/screenshots.yml).
+[`.github/workflows/screenshots-kde.yml`](../.github/workflows/screenshots.yml).
 
 <p align="center">
   <img src="screenshots/walkthrough.gif" alt="The TunaOS KDE installer, step by step" width="720">
