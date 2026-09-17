@@ -14,69 +14,38 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 
 | Screen | GNOME | KDE Plasma | COSMIC | Niri | XFCE |
 |---|---|---|---|---|---|
-| `welcome` (required) | ✅ | ✅ | ➖ | ✅ | ✅ |
-| `disk` (required) | ✅ | ✅ | ➖ | ✅ | ✅ |
-| `encryption` | ✅ | ✅ | ➖ | ✅ | ⚠️ |
-| `summary` (required) | ✅ | ✅ | ➖ | ✅ | ✅ |
-| `install` | ✅ | ✅ | ➖ | ✅ | ✅ |
-| `done` | ✅ | ✅ | ➖ | ✅ | ✅ |
+| `welcome` (required) | ⏳ | ⏳ | ⏳ | ✅ | ⏳ |
+| `disk` (required) | ⏳ | ⏳ | ⏳ | ✅ | ⏳ |
+| `encryption` | ⏳ | ⏳ | ⏳ | ✅ | ⏳ |
+| `summary` (required) | ⏳ | ⏳ | ⏳ | ✅ | ⏳ |
+| `install` | ⏳ | ⏳ | ⏳ | ✅ | ⏳ |
+| `done` | ⏳ | ⏳ | ⏳ | ✅ | ⏳ |
 
 | Frontend | Pages | Rendered | Transitions | Harness | Capture |
 |---|---|---|---|---|---|
-| GNOME | 9 | 9 | 8 | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) | local |
-| KDE Plasma | 6 | 6 | 5 | tests/capture.cpp (Kirigami/QML, offscreen) | local |
-| COSMIC | 6 | 6 | 5 | src/capture.rs (libcosmic on lavapipe under Xvfb) | local |
-| Niri | 6 | 6 | 5 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) | local |
-| XFCE | 8 | 8 | 7 | tests/gui/capture-screens.py (GTK3 under Xvfb) | local |
+| GNOME | 0 | – | – | – | pending |
+| KDE Plasma | 0 | – | – | – | pending |
+| COSMIC | 0 | – | – | – | pending |
+| Niri | 6 | 6 | 5 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) | [run 35281231371](https://github.com/tuna-os/bootc-installer/actions/runs/35281231371) |
+| XFCE | 0 | – | – | – | pending |
 
 ## GNOME
 
 GTK4 / libadwaita (Python). Source: `bootc_installer/`.
 
-<p align="center"><img src="gnome/walkthrough.gif" alt="GNOME installer walkthrough" width="640"></p>
-
-| | |
-|---|---|
-| <img src="gnome/01-welcome.png" width="360"> | **welcome** What the installer is about to do. <br><sub>Welcome to Bluefin Install Bluefin Installs to your internal disk. Takes about 5–10 minutes. Install Bluefin Installs to your internal disk.</sub> |
-| <img src="gnome/02-qr_companion.png" width="360"> | **qr companion** Optional phone companion for typing on a laptop keyboard. <br><sub>Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.
-Both devices must be on the same local net</sub> |
-| <img src="gnome/03-disk.png" width="360"> | **disk** Choose the disk. Nothing is written yet. <br><sub>Computer is not plugged in — connect power before installing Install Location Select the disk where you want to install. All data on the sel</sub> |
-| <img src="gnome/04-slurp.png" width="360"> | **slurp** Bring documents and settings over from an existing Windows install. <br><sub>Bring Your Files We can copy documents, pictures, and other data from an existing Windows install. Windows data scanning is unavailable in d</sub> |
-| <img src="gnome/05-encryption.png" width="360"> | **encryption** Full-disk encryption, with or without TPM2. <br><sub>Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You will need a passphrase each time you turn on your compute</sub> |
-| <img src="gnome/06-confirm.png" width="360"> | **confirm** The last screen before anything is written. <br><sub>Confirm Installation "Indeed." — Commander Zavala Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with </sub> |
-| <img src="gnome/07-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installation Video Coming Soon! Installation will continue normally. Feel free to browse around. Rawr. Get Bluefin gear Installing Bluefin… </sub> |
-| <img src="gnome/08-recovery-key.png" width="360"> | **recovery key** The LUKS recovery key, shown once after an encrypted install. <br><sub>Save Your Recovery Key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere sa</sub> |
-| <img src="gnome/09-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>Bluefin is installed Restart now to complete the installation. Show Log Show Log Try Again Try Again Reboot Now Reboot Now Close Close Get B</sub> |
+_No capture on record yet._
 
 ## KDE Plasma
 
 Qt 6 / Kirigami (C++ + QML). Source: `frontends/kde/`.
 
-<p align="center"><img src="kde/walkthrough.gif" alt="KDE Plasma installer walkthrough" width="640"></p>
-
-| | |
-|---|---|
-| <img src="kde/01-welcome.png" width="360"> | **welcome**  |
-| <img src="kde/02-disk.png" width="360"> | **disk**  |
-| <img src="kde/03-encryption.png" width="360"> | **encryption**  |
-| <img src="kde/04-confirm.png" width="360"> | **confirm**  |
-| <img src="kde/05-progress.png" width="360"> | **progress**  |
-| <img src="kde/06-done.png" width="360"> | **done**  |
+_No capture on record yet._
 
 ## COSMIC
 
 libcosmic / iced (Rust). Source: `frontends/cosmic/`.
 
-<p align="center"><img src="cosmic/walkthrough.gif" alt="COSMIC installer walkthrough" width="640"></p>
-
-| | |
-|---|---|
-| <img src="cosmic/01-welcome.png" width="360"> | **welcome**  |
-| <img src="cosmic/02-disk.png" width="360"> | **disk**  |
-| <img src="cosmic/03-options.png" width="360"> | **options**  |
-| <img src="cosmic/04-confirm.png" width="360"> | **confirm**  |
-| <img src="cosmic/05-installing.png" width="360"> | **installing**  |
-| <img src="cosmic/06-done.png" width="360"> | **done**  |
+_No capture on record yet._
 
 ## Niri
 
@@ -86,27 +55,19 @@ Quickshell QML + Go backend. Source: `frontends/niri/`.
 
 | | |
 |---|---|
-| <img src="niri/01-welcome.png" width="360"> | **welcome**  |
-| <img src="niri/02-disk.png" width="360"> | **disk**  |
-| <img src="niri/03-encryption.png" width="360"> | **encryption**  |
-| <img src="niri/04-confirm.png" width="360"> | **confirm**  |
-| <img src="niri/05-progress.png" width="360"> | **progress**  |
-| <img src="niri/06-done.png" width="360"> | **done**  |
+| <img src="niri/01-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to TunaOS This wizard will guide you through installing TunaOS onto your computer. Get Started Get Started Get Started</sub> |
+| <img src="niri/02-disk.png" width="360"> | **disk**  <br><sub>Destination All data on the selected disk will be erased. Back Back Back Continue Continue Continue</sub> |
+| <img src="niri/03-encryption.png" width="360"> | **encryption**  <br><sub>Disk Encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encrypti</sub> |
+| <img src="niri/04-confirm.png" width="360"> | **confirm**  <br><sub>Confirm Installation Target Disk: — Filesystem: xfs Encryption: none Hostname: tunaos Image: ghcr.io/tuna-os/albacore:gnome Back Back Back I</sub> |
+| <img src="niri/05-progress.png" width="360"> | **progress**  <br><sub>Installing… [1/9] Partitioning /dev/nvme0n1
+[2/9] Formatting boot partitions
+[3/9] Setting up encryption
+[4/9] Formatting root filesystem (x</sub> |
+| <img src="niri/06-done.png" width="360"> | **done**  <br><sub>✓ Installation Complete Remove the installation media and restart your computer. Close Close Close</sub> |
 
 ## XFCE
 
 GTK3 / PyGObject. Source: `frontends/xfce/`.
 
-<p align="center"><img src="xfce/walkthrough.gif" alt="XFCE installer walkthrough" width="640"></p>
-
-| | |
-|---|---|
-| <img src="xfce/01-welcome.png" width="360"> | **welcome**  |
-| <img src="xfce/02-source.png" width="360"> | **source**  |
-| <img src="xfce/03-destination.png" width="360"> | **destination**  |
-| <img src="xfce/04-setup.png" width="360"> | **setup**  |
-| <img src="xfce/05-identity.png" width="360"> | **identity**  |
-| <img src="xfce/06-confirm.png" width="360"> | **confirm**  |
-| <img src="xfce/07-progress.png" width="360"> | **progress**  |
-| <img src="xfce/08-done.png" width="360"> | **done**  |
+_No capture on record yet._
 
