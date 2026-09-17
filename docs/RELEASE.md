@@ -42,8 +42,9 @@ devel bundle. That is the only release-like thing `dev` does. Nothing on
 
 ### 2. Promote (`promote.yml`)
 
-Fires when any validation workflow completes on `dev`, every six hours as a
-catch-up, and on demand. Each firing:
+Fires when any validation workflow completes on `dev`, every hour as a
+catch-up (the completion usually lands before the soak has elapsed, so the
+hourly tick is what actually ships most commits), and on demand. Each firing:
 
 1. Picks the candidate: the newest `dev` commit that is not a bot
    `[skip ci]` commit (those carry no checks and must not stall promotion).
