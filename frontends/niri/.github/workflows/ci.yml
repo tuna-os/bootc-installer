@@ -1,0 +1,61 @@
+name: CI
+
+# Nothing gated installer/** before this: publish-flatpak.yml only runs on
+# pushes to main and tags, and screenshots.yml drives the QML UI. A Go
+# compile error or a failing backend test could merge unnoticed (#27).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "installer/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "installer/**"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Go backend
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          # Follows installer/go.mod rather than pinning a second version here,
+          # so the toolchain cannot drift from what the module declares.
+          go-version-file: installer/go.mod
+          # No go.sum: the backend is standard-library only, and setup-go's
+          # cache step fails when it cannot find a dependency file to hash.
+          cache: false
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt needs to run on:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./...

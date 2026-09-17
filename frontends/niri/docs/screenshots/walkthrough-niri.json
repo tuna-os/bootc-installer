@@ -1,0 +1,155 @@
+{
+  "flavor": "niri",
+  "frames": 6,
+  "rendered_frames": 6,
+  "advanced_transitions": 5,
+  "visual_states": 6,
+  "activation_key": null,
+  "ocr": false,
+  "screens": {
+    "welcome": true,
+    "disk": true,
+    "encryption": true,
+    "summary": true,
+    "install": true,
+    "done": true
+  },
+  "strict": true,
+  "failures": 0,
+  "source": "offscreen-capture",
+  "harness": "tests/gui/capture-screens.py (QML via PyQt6, offscreen)",
+  "text_source": "widget-tree",
+  "screens_detail": {
+    "welcome": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "01-welcome"
+      ],
+      "matched_keywords": [
+        "get started",
+        "welcome"
+      ]
+    },
+    "disk": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "02-disk"
+      ],
+      "matched_keywords": [
+        "destination"
+      ]
+    },
+    "encryption": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "03-encryption"
+      ],
+      "matched_keywords": [
+        "disk encryption"
+      ]
+    },
+    "summary": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "04-confirm"
+      ],
+      "matched_keywords": [
+        "confirm installation"
+      ]
+    },
+    "install": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "05-progress"
+      ],
+      "matched_keywords": [
+        "installing image",
+        "installing\u2026",
+        "partitioning"
+      ]
+    },
+    "done": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "06-done"
+      ],
+      "matched_keywords": [
+        "installation complete",
+        "remove the installation media"
+      ]
+    }
+  },
+  "pages": [
+    {
+      "name": "01-welcome",
+      "png": "docs/screenshots/01-welcome.png",
+      "rendered": true,
+      "colours": 191,
+      "flat": 0.9805333333333334,
+      "ink": 0.01,
+      "stddev": 0.04308275538376269
+    },
+    {
+      "name": "02-disk",
+      "png": "docs/screenshots/02-disk.png",
+      "rendered": true,
+      "colours": 127,
+      "flat": 0.9864,
+      "ink": 0.008766666666666667,
+      "stddev": 0.03532426403158768
+    },
+    {
+      "name": "03-encryption",
+      "png": "docs/screenshots/03-encryption.png",
+      "rendered": true,
+      "colours": 272,
+      "flat": 0.9707666666666667,
+      "ink": 0.016566666666666667,
+      "stddev": 0.06835487071386871
+    },
+    {
+      "name": "04-confirm",
+      "png": "docs/screenshots/04-confirm.png",
+      "rendered": true,
+      "colours": 173,
+      "flat": 0.9767333333333333,
+      "ink": 0.012366666666666666,
+      "stddev": 0.051006087776043325
+    },
+    {
+      "name": "05-progress",
+      "png": "docs/screenshots/05-progress.png",
+      "rendered": true,
+      "colours": 173,
+      "flat": 0.9174666666666667,
+      "ink": 0.0104,
+      "stddev": 0.05259367334628963
+    },
+    {
+      "name": "06-done",
+      "png": "docs/screenshots/06-done.png",
+      "rendered": true,
+      "colours": 147,
+      "flat": 0.9812333333333333,
+      "ink": 0.009266666666666666,
+      "stddev": 0.04213653402465916
+    }
+  ],
+  "transition_pixels": [
+    14218,
+    13126,
+    16024,
+    12883,
+    14272
+  ],
+  "spec_drift": [
+    "'install' keywords differ from upstream"
+  ],
+  "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
+}
