@@ -28,7 +28,8 @@
       ],
       "matched_keywords": [
         "get started",
-        "welcome"
+        "welcome",
+        "will guide you through"
       ]
     },
     "disk": {
@@ -93,7 +94,8 @@
       "colours": 191,
       "flat": 0.9805333333333334,
       "ink": 0.01,
-      "stddev": 0.04308275538376269
+      "stddev": 0.04308275538376269,
+      "text_excerpt": "Welcome to TunaOS This wizard will guide you through installing TunaOS onto your computer. Get Started Get Started Get Started"
     },
     {
       "name": "02-disk",
@@ -102,7 +104,8 @@
       "colours": 127,
       "flat": 0.9864,
       "ink": 0.008766666666666667,
-      "stddev": 0.03532426403158768
+      "stddev": 0.03532426403158768,
+      "text_excerpt": "Destination All data on the selected disk will be erased. Back Back Back Continue Continue Continue"
     },
     {
       "name": "03-encryption",
@@ -111,7 +114,8 @@
       "colours": 272,
       "flat": 0.9707666666666667,
       "ink": 0.016566666666666667,
-      "stddev": 0.06835487071386871
+      "stddev": 0.06835487071386871,
+      "text_excerpt": "Disk Encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at e"
     },
     {
       "name": "04-confirm",
@@ -120,7 +124,8 @@
       "colours": 173,
       "flat": 0.9767333333333333,
       "ink": 0.012366666666666666,
-      "stddev": 0.051006087776043325
+      "stddev": 0.051006087776043325,
+      "text_excerpt": "Confirm Installation Target Disk: \u2014 Filesystem: xfs Encryption: none Hostname: tunaos Image: ghcr.io/tuna-os/albacore:gnome Back Back Back Install Install Install"
     },
     {
       "name": "05-progress",
@@ -129,7 +134,8 @@
       "colours": 173,
       "flat": 0.9174666666666667,
       "ink": 0.0104,
-      "stddev": 0.05259367334628963
+      "stddev": 0.05259367334628963,
+      "text_excerpt": "Installing\u2026 [1/9] Partitioning /dev/nvme0n1\n[2/9] Formatting boot partitions\n[3/9] Setting up encryption\n[4/9] Formatting root filesystem (xfs)\n[5/9] Mounting target at /mnt\n[6/9] Installing image ghcr.io/tuna-os/albacore:gnome\n  pulling la"
     },
     {
       "name": "06-done",
@@ -138,7 +144,8 @@
       "colours": 147,
       "flat": 0.9812333333333333,
       "ink": 0.009266666666666666,
-      "stddev": 0.04213653402465916
+      "stddev": 0.04213653402465916,
+      "text_excerpt": "\u2713 Installation Complete Remove the installation media and restart your computer. Close Close Close"
     }
   ],
   "transition_pixels": [
