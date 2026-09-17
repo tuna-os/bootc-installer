@@ -16,9 +16,14 @@ on:
   merge_group:
   workflow_dispatch:
 
+# A called reusable workflow may only narrow the permissions its caller
+# passes, never widen them, and publish-flatpak-<name>.yml declares
+# contents/packages write for its publishing path. Granting less here is a
+# startup failure of the whole workflow (run 35254136098), not a skipped
+# publish. The build-only path never uses the write scopes.
 permissions:
-  contents: read
-  packages: read
+  contents: write
+  packages: write
 
 concurrency:
   group: flatpak-frontends-${{ github.event.pull_request.number || github.ref }}
