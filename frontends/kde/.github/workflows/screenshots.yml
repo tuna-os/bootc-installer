@@ -1,0 +1,182 @@
+name: screenshots
+
+# Builds the Kirigami/QML installer and renders every wizard step from the REAL
+# QML module (only main.cpp is swapped for tests/capture.cpp), then publishes
+# the walkthrough.
+#
+# This job runs in a Fedora container because the UI is Plasma 6 / KF6:
+# Kirigami, Kirigami Addons (FormCard) and the org.kde.desktop Controls style
+# are resolved at runtime from the QML import path, and Ubuntu runners have no
+# KF6 packages. It is also the only thing in CI that actually starts the app —
+# the previous Widgets version segfaulted on launch once, and nothing but this
+# job could have caught it.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "modules/**"
+      - "tests/**"
+      - "CMakeLists.txt"
+      - ".github/workflows/screenshots.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "modules/**"
+      - "tests/**"
+      - "CMakeLists.txt"
+      - ".github/workflows/screenshots.yml"
+  workflow_dispatch:
+
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    container: quay.io/fedora/fedora:45
+    permissions:
+      contents: write
+    steps:
+      # Runs before checkout: the fedora image has no git, so
+      # actions/checkout would fall back to the slower REST tarball path.
+      - name: install Qt6 + KF6 runtime
+        run: |
+          dnf -y install --setopt=install_weak_deps=False \
+            git tar findutils which \
+            cmake ninja-build gcc-c++ \
+            qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg \
+            kf6-kirigami kf6-kirigami-addons kf6-qqc2-desktop-style \
+            kf6-breeze-icons dejavu-sans-fonts dejavu-sans-mono-fonts \
+            ImageMagick
+          echo "--- versions ---"
+          # Fatal on purpose. The first run asked for "breeze-icons", which is
+          # not a binary package on Fedora — dnf resolved it through a
+          # Provides and installed something, and this check is what caught
+          # that the icon theme the UI actually needs was not there. The KF6
+          # theme is kf6-breeze-icons.
+          rpm -q qt6-qtbase kf6-kirigami kf6-kirigami-addons \
+                 kf6-qqc2-desktop-style kf6-breeze-icons
+          echo "--- icon theme ---"
+          test -f /usr/share/icons/breeze/index.theme
+          ls /usr/share/icons
+
+      - uses: actions/checkout@v7
+
+      # Before the BUILD, not before the capture. The clear-out used to live in
+      # the capture step, which only runs if the build succeeded — so a build
+      # failure skipped it and the upload step (if: always()) published the
+      # PNGs committed to main by the previous run as though they were this
+      # run's output. Run 31142875223 did exactly that: the compile failed and
+      # the job still uploaded eight files.
+      #
+      # Emptying the directory here means a failed run uploads nothing, which
+      # is the honest answer. Nothing downstream reads the committed copies
+      # during a run; they are regenerated below.
+      - name: drop the committed screenshots so only this run's output ships
+        run: rm -rf docs/screenshots
+
+      - name: build installer + capture harness
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_CAPTURE=ON -DBUILD_TESTING=ON
+          cmake --build build -j"$(nproc)"
+
+      - name: run unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      # Qt's offscreen platform plugin and the software scenegraph: no X
+      # server, no compositor, no GPU.
+      - name: capture every screen
+        env:
+          XDG_RUNTIME_DIR: /tmp/runtime
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+          # These images are generic documentation, not a Skipjack ISO's
+          # screenshots, so they are rendered with the neutral fallback name.
+          # Without this they would carry the CI container's PRETTY_NAME —
+          # "Fedora Linux 45 (Container Image Prerelease)" — straight into the
+          # README, because the UI now honestly shows whatever os-release says.
+          TUNA_INSTALLER_PRODUCT_NAME: TunaOS
+        run: |
+          mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+          ./build/tuna-installer-capture docs/screenshots
+          rm -f docs/screenshots/.lsblk-fixture.json
+          if command -v magick >/dev/null; then IM=magick; else IM=convert; fi
+          $IM -delay 240 -loop 0 docs/screenshots/0*.png docs/screenshots/walkthrough.gif
+          ls -l docs/screenshots
+
+      # Proves the branding actually resolves, rather than asserting it.
+      #
+      # The main capture above renders the documentation images with the
+      # neutral fallback name (see tests/capture.cpp), so those PNGs cannot
+      # tell "reads os-release" apart from "still hardcoded". This run does:
+      # it plants a variant os-release at the HOST path a flatpak sees,
+      # /run/host/etc/os-release, sets NO override (note the absence of
+      # TUNA_INSTALLER_PRODUCT_NAME below — an earlier version of this had the
+      # harness default it to "TunaOS" internally, which made the check pass
+      # while proving nothing), and renders into a scratch directory that is
+      # never committed. If the resulting screens say "Skipjack", the os-release
+      # lookup and the QML bindings both work.
+      - name: render a variant ISO's branding (verification only)
+        env:
+          XDG_RUNTIME_DIR: /tmp/runtime
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+        run: |
+          mkdir -p /run/host/etc
+          printf 'NAME="Skipjack"\nPRETTY_NAME="Skipjack"\nID=skipjack\n' \
+            > /run/host/etc/os-release
+          mkdir -p /tmp/branding-check
+          ./build/tuna-installer-capture /tmp/branding-check
+          rm -f /tmp/branding-check/.lsblk-fixture.json
+          # /etc/os-release must NOT be the answer: the host copy wins.
+          grep PRETTY_NAME /etc/os-release
+          ls -l /tmp/branding-check
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: branding-check
+          path: /tmp/branding-check/
+
+      # Warns if the screen contract vendored into tests/parity_report.h has
+      # fallen behind tunaOS's. Reporting parity against a spec nobody else
+      # uses would be worse than reporting nothing. Never fails the build: an
+      # unreachable network must not turn a working capture red.
+      - name: check screen spec has not drifted
+        if: always()
+        continue-on-error: true
+        run: |
+          curl -fsSL --max-time 10 -o /tmp/installer-screens.yaml \
+            https://raw.githubusercontent.com/tuna-os/tunaOS/main/tests/installer-screens.yaml || {
+              echo "::notice::could not fetch upstream spec — drift not checked"; exit 0; }
+          # Comments are stripped FIRST. The spec file quotes example strings
+          # inside its comments to explain keywords it deliberately rejects
+          # ("NOT 'installing tunaos'"), and reading those as keywords makes
+          # the check warn about a keyword that upstream does not have.
+          sed 's/#.*//' /tmp/installer-screens.yaml \
+            | grep -oE '"[^"]+"' | tr -d '"' | sort -u | while read -r kw; do
+                grep -qiF "$kw" tests/parity_report.h \
+                  || echo "::warning::upstream keyword missing from vendored spec: $kw"
+              done
+          exit 0
+
+      # Also carries walkthrough-kde.json — the parity report tunaOS's
+      # installer matrix consumes (docs/INSTALLER-FRONTENDS.md). It is written
+      # into the same directory, so it needs no separate upload.
+      - uses: actions/upload-artifact@v7
+        # always(): the capture fails when a screen renders wrong, which is
+        # exactly when the picture is needed.
+        if: always()
+        with:
+          name: gui-screenshots
+          path: docs/screenshots/
+
+      - name: commit refreshed screenshots
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "docs: refresh GUI screenshots [skip ci]"
+          git push
