@@ -1,6 +1,8 @@
 # bootc-installer Roadmap
 
-**Last updated**: 2026-08-13 | **Maintainer**: tuna-os (hanthor) / architect agent
+# bootc-installer Roadmap
+
+**Last updated**: 2026-09-17 | **Maintainer**: tuna-os (hanthor) / architect agent
 
 ---
 
@@ -16,23 +18,13 @@ stack (Bluefin, Bluefin-LTS, Bazzite).
 
 ---
 
-## Current Status (August 2026)
+## Current Status (September 2026)
 
-- Young, active repo: production Flatpak auto-released on every push to `dev`
-  (#5); TunaOS project-baseline CI adopted (#11, merged).
-- 9-step fisherman pipeline covers both boot stacks; Windows data migration
-  (documents/photos/music/bookmarks/fonts/wallpapers) is a differentiator.
-- ✅ The supply-chain issue this doc previously flagged as open —
-  `FLATPAK_INDEX_TOKEN`/`GITHUB_TOKEN` embedded in git clone URLs — is fixed
-  (#12, merged). Unit-test coverage has also grown substantially since this
-  doc was first written (coverage gate raised across several PRs on `dev`).
-- Org context: per-desktop installers (`tuna-installer-cosmic|kde|niri|xfce`)
-  and Apple Silicon (`bootc-installer-asahi`) share this backend's concepts;
-  parity between them is not yet tracked in this repo.
-- No milestones yet; work tracked ad-hoc via issues.
-- ⚠️ This file previously lived only on the non-default `main` branch
-  (tunaos#1361) — landed here on `dev`, the repo's actual default branch, so
-  it's visible from the repo root.
+- Production GTK4 installer frontend and `fisherman` backend active; production Flatpak auto-released on push to `dev` (#5).
+- Project-baseline CI adopted (#11); unit-test coverage gates actively enforced.
+- 9-step fisherman pipeline covers both boot stacks; Windows data migration (documents/photos/music/bookmarks/fonts/wallpapers) validated.
+- ✅ Supply-chain security check: `FLATPAK_INDEX_TOKEN`/`GITHUB_TOKEN` secret extraction from clone URLs resolved (#12).
+- Org context: per-desktop installers (`tuna-installer-cosmic|kde|niri|xfce`) and Apple Silicon (`bootc-installer-asahi`) rely on shared fisherman backend concepts; formal contract definition underway.
 
 ### Priorities
 
@@ -40,28 +32,28 @@ stack (Bluefin, Bluefin-LTS, Bazzite).
 |----------|------|----------|--------|
 | P0 | Stop embedding FLATPAK_INDEX_TOKEN / GITHUB_TOKEN in clone URLs | #12 | ✅ Done |
 | P0 | Live-ISO flow documented + tested end-to-end | docs/live-iso.md | 🟡 Docs exist |
-| P1 | tuna-installer-* family parity — single backend, per-desktop skins | tunaos#1294 (context) | ⬜ Not started |
+| P1 | tuna-installer-* family parity — single backend, per-desktop skins | tunaos#1294 | 🟡 Contract definition in progress |
 | P1 | E2E test plans for both boot stacks (systemd-boot + GRUB2) | docs/test-plans/ | 🟡 In progress |
-| P2 | Windows migration QA matrix (Win10/11, FAT32/NTFS/exFAT) | docs/features/ | ⬜ Not started |
+| P2 | Windows migration QA matrix (Win10/11, FAT32/NTFS/exFAT) | docs/features/ | 🟡 In progress |
 
 ---
 
 ## Quarterly Goals
 
-### Current Quarter (2026 Q3 — July–September)
+### Current Quarter Transition (2026 Q3 Exit → Q4 Horizon)
 
-**Theme**: Stable, token-safe install UX
+**Theme**: Enterprise-ready, token-safe install UX & backend parity contract
 
 | Goal | Owner | Tracking | Status |
 |------|-------|----------|--------|
 | Land #12 token fix + verify no secrets in recipe/clone paths | sec-check | #12 | ✅ Done |
-| Baseline CI green on both boot-stack test plans | ci-maintainer | #11 (baseline) | ✅ Baseline adopted; coverage gate rising |
-| Publish install-UX guide for tunaos.org (download → installed) | guide | docs site | ⬜ Not started |
-| Define tuna-installer-* parity contract (backend reuse) | architect | — | ⬜ Not started |
+| Baseline CI green on both boot-stack test plans | ci-maintainer | #11 | ✅ Adopted & passing |
+| Publish install-UX guide for tunaos.org (download → installed) | guide | docs site | 🟡 In progress |
+| Define tuna-installer-* parity contract (backend reuse) | architect | #91 | 🟡 In progress |
 
 ### Next Quarter (2026 Q4 — October–December)
 
-**Theme**: Enterprise-ready installs
+**Theme**: Enterprise-ready installs & ecosystem multi-desktop integration
 
 - LUKS-first + dual-boot scenarios validated on Redfin/RHEL track (#1123)
 - Signed Flatpak releases + SBOM aligned with org Q4 supply chain (#1187)
