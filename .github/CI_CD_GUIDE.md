@@ -53,7 +53,7 @@ feature/xyz ──PR──▶ dev ──promote.yml (all checks green + soak)─
 
 | Workflow | Trigger | What |
 |---|---|---|
-| `promote.yml` | completion of any validation workflow on `dev`; every 6 h; manual | Gate: candidate is newest non-`[skip ci]` `dev` commit, descends from `prod`, older than `SOAK_MINUTES`, every check run complete and green, every `REQUIRED_CHECKS` name present. Then fast-forwards `prod` and dispatches `release.yml`. |
+| `promote.yml` | completion of any validation workflow on `dev`; hourly; manual | Gate: candidate is newest non-`[skip ci]` `dev` commit, descends from `prod`, older than `SOAK_MINUTES`, every check run complete and green, every `REQUIRED_CHECKS` name present. Then fast-forwards `prod` and dispatches `release.yml`. |
 | `release.yml` | dispatch on `prod` (from promote); `v*` tag push; manual on `prod` | Builds GNOME bundles via `flatpak.yml`, cuts the `vYYYY.MM.DD-<sha>` release marked `--latest`, verifies the `/releases/latest/download/` URLs, then publishes each changed frontend's Flatpak. |
 | `publish-flatpak.yml` | `workflow_call` from release; manual | GNOME → tuna-os Flatpak remote via `tuna-os/.github` reusable workflow. |
 | `publish-flatpak-{kde,cosmic,niri,xfce}.yml` | `workflow_call` from release / frontends validation; manual | Same for each imported frontend. |
