@@ -1,6 +1,7 @@
 """GTK integration tests for confirm.py and progress.py."""
 
 import json
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import gi
@@ -18,6 +19,19 @@ def _pump():
     ctx = GLib.MainContext.default()
     while ctx.pending():
         ctx.iteration(False)
+
+
+def _branded_window():
+    """A window whose recipe carries a resolved branding block (the shape the
+    RecipeLoader produces), so the confirm view has copy to render."""
+    return SimpleNamespace(recipe={"branding": {
+        "name": "Marlin",
+        "copy": {
+            "confirm_button": "Onward",
+            "confirm_subtitle": '"Hold fast." — Someone',
+        },
+        "confirm_quotes": {"pt_BR": ['"Segue em frente." — Alguém']},
+    }})
 
 
 class _DummyWindow:
@@ -43,7 +57,7 @@ class _ImmediateThread:
 
 class TestConfirmScreen:
     def test_update_renders_summary_rows_and_pt_br_quote(self):
-        confirm = BootcConfirm(object())
+        confirm = BootcConfirm(_branded_window())
         finals = [
             {"language": "pt_BR.UTF-8"},
             {"keyboard": [{"layout": "us", "variant": ""}, {"layout": "br", "variant": "abnt2"}]},
@@ -52,13 +66,13 @@ class TestConfirmScreen:
             {"disk": {"auto": {"disk": "/dev/nvme0n1", "pretty_size": "1 TB"}}},
             {"encryption": {"type": "tpm2-luks-passphrase"}},
             {"hostname": "legendary-box"},
-            {"selected_image": "ghcr.io/projectbluefin/bluefin:latest", "pretty_name": "Bluefin GTS"},
+            {"selected_image": "ghcr.io/example/marlin:latest", "pretty_name": "Marlin GTS"},
         ]
 
         with (
             patch("bootc_installer.core.system.Systeminfo.gpu_display_string", return_value="AMD Radeon"),
             patch("bootc_installer.core.system.Systeminfo.gpu_icon_name", return_value="video-display-symbolic"),
-            patch("random.choice", return_value='"Go beyond it." — Ayrton Senna'),
+            patch("random.choice", return_value='"Segue em frente." — Alguém'),
         ):
             confirm.update(finals)
 
@@ -67,8 +81,8 @@ class TestConfirmScreen:
             subtitle = getattr(widget, 'get_text', None) or getattr(widget, 'get_subtitle', None)
             return (widget.get_title(), subtitle() if callable(subtitle) else "")
         rows = {_row_key(widget) for widget in confirm.active_widgets}
-        assert confirm.page_header.subtitle == '"Go beyond it." — Ayrton Senna'
-        assert confirm.btn_confirm.get_label() == "Become Legend"
+        assert confirm.page_header.subtitle == '"Segue em frente." — Alguém'
+        assert confirm.btn_confirm.get_label() == "Onward"
         assert ("Language", "pt_BR.UTF-8") in rows
         assert ("Keyboard 1", "us") in rows
         assert ("Keyboard 2", "br+abnt2") in rows
@@ -77,15 +91,15 @@ class TestConfirmScreen:
         assert ("Disk", "/dev/nvme0n1 (1 TB)") in rows
         assert ("Encryption", "Hardware-backed + passphrase fallback") in rows
         assert ("Hostname", "legendary-box") in rows  # EntryRow, text via get_text
-        assert ("Image", "Bluefin GTS") in rows
+        assert ("Image", "Marlin GTS") in rows
         assert ("Graphics", "AMD Radeon") in rows
         assert (
             "⚠️ ALL DATA ON THIS DISK WILL BE ERASED",
             "This action cannot be undone",
         ) in rows
 
-    def test_confirm_button_emits_signal_once_and_defaults_to_zavala(self):
-        confirm = BootcConfirm(object())
+    def test_confirm_button_emits_signal_once_and_uses_confirm_subtitle(self):
+        confirm = BootcConfirm(_branded_window())
         seen = []
 
         with patch("bootc_installer.core.system.Systeminfo.gpu_display_string", return_value=""):
@@ -97,7 +111,8 @@ class TestConfirmScreen:
         confirm.test_auto_advance()
         _pump()
 
-        assert confirm.page_header.subtitle == '"Indeed." — Commander Zavala'
+        # No pt_BR quote for en_US: the copy's confirm_subtitle line.
+        assert confirm.page_header.subtitle == '"Hold fast." — Someone'
         assert seen == ["confirmed"]
 
 

@@ -10,11 +10,15 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import GLib, Gtk  # noqa: E402
 
+from bootc_installer.utils.branding import COPY_DEFAULTS  # noqa: E402
 from bootc_installer.views.done import BootcDone  # noqa: E402
 from bootc_installer.windows.dialog_credits import BootcCreditsWindow  # noqa: E402
 
+# The installer bundles no credits of its own; a product supplies them
+# through the branding layer. Bluefin's example package is the sample.
 _CREDITS_JSON = (
-    Path(__file__).resolve().parents[2] / "bootc_installer" / "data" / "credits.json"
+    Path(__file__).resolve().parents[2]
+    / "shared" / "branding" / "examples" / "bluefin" / "assets" / "credits.json"
 )
 
 
@@ -45,7 +49,7 @@ def host_window():
 
 def _make_done(window):
     controller = SimpleNamespace(
-        recipe={"distro_name": "Bluefin", "store_url": "https://example.com"},
+        recipe={"distro_name": "Marlin", "store_url": "https://example.com"},
         close=MagicMock(),
         on_installation_confirmed=MagicMock(),
     )
@@ -58,17 +62,16 @@ def _make_done(window):
 class TestDoneScreen:
     def test_success_result_updates_header_and_store_visibility(self, host_window):
         done, controller = _make_done(host_window)
-        controller.pretty_name = "Bluefin DX"
+        controller.pretty_name = "Marlin DX"
 
         with patch.object(
             BootcDone, "_BootcDone__is_us_locale", return_value=True
         ):
             done.set_result(True, terminal=object(), elapsed_secs=125)
 
-        assert done.page_header.title == "Bluefin DX is installed"
-        assert (
-            done.page_header.subtitle
-            == "Installed in 2:05. Restart to begin your new experience."
+        assert done.page_header.title == "Marlin DX is installed"
+        assert done.page_header.subtitle == (
+            "Installed in 2:05. " + COPY_DEFAULTS["done_subtitle"]
         )
         assert done.btn_reboot.get_visible()
         assert not done.btn_close.get_visible()
@@ -115,7 +118,7 @@ class TestDoneScreen:
         self, host_window
     ):
         done, controller = _make_done(host_window)
-        controller.pretty_name = "Bluefin DX"
+        controller.pretty_name = "Marlin DX"
 
         with patch.object(
             done,
@@ -130,10 +133,9 @@ class TestDoneScreen:
             done.set_result(True, terminal=object(), elapsed_secs=9)
 
         assert done.page_header.icon_name == "object-select-symbolic"
-        assert done.page_header.title == "Bluefin DX is installed"
-        assert (
-            done.page_header.subtitle
-            == "Installed in 0:09. Restart to begin your new experience."
+        assert done.page_header.title == "Marlin DX is installed"
+        assert done.page_header.subtitle == (
+            "Installed in 0:09. " + COPY_DEFAULTS["done_subtitle"]
         )
         assert done.btn_reboot.get_visible()
         assert not done.btn_close.get_visible()
@@ -161,6 +163,7 @@ class TestDoneScreen:
 class TestCreditsWindow:
     def test_populates_header_sections_and_cards(self, host_window):
         data = json.loads(_CREDITS_JSON.read_text())
+        host_window.recipe = {"credits_data": str(_CREDITS_JSON)}
         credits = BootcCreditsWindow(host_window)
 
         assert credits.header_title.get_label() == data["header"]["title"]
