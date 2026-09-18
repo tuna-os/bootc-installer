@@ -139,6 +139,7 @@ class BootcProgress(Gtk.Box):
     video_fallback_box = Gtk.Template.Child()
     fallback_dino = Gtk.Template.Child()
     fallback_store_qr = Gtk.Template.Child()
+    lbl_store = Gtk.Template.Child()
     progressbar = Gtk.Template.Child()
     progressbar_text = Gtk.Template.Child()
     progress_percentage = Gtk.Template.Child()
@@ -210,21 +211,29 @@ class BootcProgress(Gtk.Box):
         pass  # unused — kept for safety if connected externally
 
     def __extract_and_play_video(self):
-        """Extract installer-video.webm from GResource to a temp file, then play."""
+        """Play the branding's install video (a host path, or a GResource path
+        extracted to a temp file). No video configured means the fallback
+        panel, not somebody else's film."""
         import tempfile
         try:
-            data = Gio.resources_lookup_data(
-                f"{_RESOURCE_PREFIX}/assets/installer-video.webm",
-                Gio.ResourceLookupFlags.NONE,
-            )
-            tmp = tempfile.NamedTemporaryFile(
-                suffix=".webm", prefix="bootc-installer-video-", delete=False
-            )
-            tmp.write(data.get_data())
-            tmp.flush()
-            tmp.close()
-            self._video_tmp_path = tmp.name
-            video_file = Gio.File.new_for_path(tmp.name)
+            spec = self.__window.recipe.get("install_video", "") if isinstance(
+                getattr(self.__window, "recipe", None), dict) else ""
+            if not spec:
+                raise FileNotFoundError("no install_video in the branding")
+            if spec.startswith("/org/"):
+                data = Gio.resources_lookup_data(spec, Gio.ResourceLookupFlags.NONE)
+                tmp = tempfile.NamedTemporaryFile(
+                    suffix=".webm", prefix="bootc-installer-video-", delete=False
+                )
+                tmp.write(data.get_data())
+                tmp.flush()
+                tmp.close()
+                self._video_tmp_path = tmp.name
+                video_file = Gio.File.new_for_path(tmp.name)
+            else:
+                if not os.path.exists(spec):
+                    raise FileNotFoundError(spec)
+                video_file = Gio.File.new_for_path(spec)
 
             def _done():
                 self._video_file = video_file
@@ -363,26 +372,32 @@ class BootcProgress(Gtk.Box):
         """Populate the video-unavailable fallback panel with the dino image and store QR."""
         recipe = self.__window.recipe
 
-        # Dinosaur image — use the tour welcome image from the recipe (set by live ISO),
-        # fall back to the bundled dakota.png if not configured.
-        dino_path = (
+        # Artwork and store come from the branding contract (via the recipe
+        # overlay); with none configured the panel shows the product logo and
+        # no store. Nothing here names a product.
+        from bootc_installer.utils import copy as copy_text
+        art = (
             recipe.get("tour", {}).get("welcome", {}).get("image", "")
             if isinstance(recipe.get("tour"), dict)
             else ""
         )
-        if dino_path and os.path.exists(dino_path):
-            self.fallback_dino.set_filename(dino_path)
+        if art and art.startswith("/org/"):
+            self.fallback_dino.set_resource(art)
+        elif art and os.path.exists(art):
+            self.fallback_dino.set_filename(art)
         else:
-            self.fallback_dino.set_resource(
-                "/org/bootcinstaller/Installer/images/dakota.png"
-            )
+            self.fallback_dino.set_visible(False)
 
-        # Store QR code — same source as the done screen.
-        qr_resource = recipe.get(
-            "store_qr_resource",
-            "/org/bootcinstaller/Installer/assets/store-qr.svg",
-        )
-        self.fallback_store_qr.set_resource(qr_resource)
+        qr_resource = recipe.get("store_qr_resource", "")
+        if recipe.get("store_url") and qr_resource:
+            if qr_resource.startswith("/org/"):
+                self.fallback_store_qr.set_resource(qr_resource)
+            else:
+                self.fallback_store_qr.set_filename(qr_resource)
+            self.lbl_store.set_label(copy_text.text(self.__window, "store_label"))
+        else:
+            self.fallback_store_qr.set_visible(False)
+            self.lbl_store.set_visible(False)
 
     def __show_video_spinner(self):
         pass

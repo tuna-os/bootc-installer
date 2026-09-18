@@ -6,12 +6,21 @@ package main
 // (monorepo root). Every frontend resolves the same way; this is the Go
 // copy, exercised against the shared fixtures by branding_test.go. Nothing
 // in this file names a product.
+//
+// copy-defaults.json next to this file is a byte-identical copy of
+// shared/branding/copy-defaults.json (the monorepo's
+// tests/unit/test_shared_branding.py enforces it); it is embedded so the
+// backend needs no data file at runtime.
 
 import (
+	_ "embed"
 	"encoding/json"
 	"os"
 	"strings"
 )
+
+//go:embed copy-defaults.json
+var copyDefaultsJSON []byte
 
 const (
 	brandingEnvFile = "BOOTC_INSTALLER_BRANDING"
@@ -19,6 +28,8 @@ const (
 	neutralName     = "Linux"
 	neutralID       = "linux"
 )
+
+var assetKeys = []string{"welcome_image", "complete_image", "store_qr", "video", "credits"}
 
 // Host first: this ships as a flatpak, where /etc is the runtime's and the
 // host's is under /run/host. The first readable file wins; no merging.
@@ -38,15 +49,44 @@ var osReleasePaths = []string{
 
 // Branding is the JSON the QML receives under detect's "branding" key.
 type Branding struct {
-	Name            string `json:"name"`
-	ID              string `json:"id"`
-	Vendor          string `json:"vendor"`
-	HomeURL         string `json:"homeUrl"`
-	DocsURL         string `json:"docsUrl"`
-	SupportURL      string `json:"supportUrl"`
-	Logo            string `json:"logo"`
-	DefaultHostname string `json:"defaultHostname"`
-	DefaultImage    string `json:"defaultImage"`
+	Name            string              `json:"name"`
+	ID              string              `json:"id"`
+	Vendor          string              `json:"vendor"`
+	HomeURL         string              `json:"homeUrl"`
+	DocsURL         string              `json:"docsUrl"`
+	SupportURL      string              `json:"supportUrl"`
+	StoreURL        string              `json:"storeUrl"`
+	Logo            string              `json:"logo"`
+	DefaultHostname string              `json:"defaultHostname"`
+	DefaultImage    string              `json:"defaultImage"`
+	Copy            map[string]string   `json:"copy"`
+	Assets          map[string]string   `json:"assets"`
+	ConfirmQuotes   map[string][]string `json:"confirmQuotes"`
+}
+
+// copyDefaults is copy-defaults.json without its "_comment" entry.
+func copyDefaults() map[string]string {
+	var raw map[string]any
+	out := map[string]string{}
+	if json.Unmarshal(copyDefaultsJSON, &raw) != nil {
+		return out
+	}
+	for k, v := range raw {
+		if s, ok := v.(string); ok && !strings.HasPrefix(k, "_") {
+			out[k] = s
+		}
+	}
+	return out
+}
+
+// Text returns a copy line with {name} and the given placeholders filled in.
+func (b Branding) Text(key string, values map[string]string) string {
+	line := b.Copy[key]
+	line = strings.ReplaceAll(line, "{name}", b.Name)
+	for k, v := range values {
+		line = strings.ReplaceAll(line, "{"+k+"}", v)
+	}
+	return line
 }
 
 // resolveBranding reads the machine's branding using the real search paths
@@ -106,12 +146,54 @@ func brandingFromSources(file map[string]any, osReleaseText, nameOverride string
 		HomeURL:         pick("home_url", "", "HOME_URL"),
 		DocsURL:         pick("docs_url", "", "DOCUMENTATION_URL"),
 		SupportURL:      pick("support_url", "", "SUPPORT_URL"),
+		StoreURL:        pick("store_url", ""),
 		Logo:            pick("logo", "", "LOGO"),
 		DefaultHostname: pick("default_hostname", neutralID, "DEFAULT_HOSTNAME", "ID"),
 		DefaultImage:    pick("default_image", ""),
+		Copy:            copyDefaults(),
+		Assets:          map[string]string{},
+		ConfirmQuotes:   map[string][]string{},
 	}
 	if o := strings.TrimSpace(nameOverride); o != "" {
 		b.Name = o
+	}
+	for _, k := range assetKeys {
+		b.Assets[k] = ""
+	}
+	// Flavour: a present string key overrides, even when empty (that is how
+	// a product hides a line); anything else keeps the neutral default.
+	if fc, ok := file["copy"].(map[string]any); ok {
+		for k, v := range fc {
+			if s, ok := v.(string); ok {
+				if _, known := b.Copy[k]; known {
+					b.Copy[k] = strings.TrimSpace(s)
+				}
+			}
+		}
+	}
+	if fa, ok := file["assets"].(map[string]any); ok {
+		for k, v := range fa {
+			if s, ok := v.(string); ok {
+				b.Assets[k] = strings.TrimSpace(s)
+			}
+		}
+	}
+	if fq, ok := file["confirm_quotes"].(map[string]any); ok {
+		for k, v := range fq {
+			list, ok := v.([]any)
+			if !ok {
+				continue
+			}
+			var lines []string
+			for _, item := range list {
+				if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+					lines = append(lines, strings.TrimSpace(s))
+				}
+			}
+			if len(lines) > 0 {
+				b.ConfirmQuotes[k] = lines
+			}
+		}
 	}
 	return b
 }

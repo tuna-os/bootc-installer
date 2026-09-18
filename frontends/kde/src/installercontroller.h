@@ -15,6 +15,8 @@
 #include <qqmlintegration.h>
 
 #include "branding.h"
+
+#include <QVariantMap>
 #include "recipe.h"
 
 class InstallerController : public QObject
@@ -41,6 +43,10 @@ class InstallerController : public QObject
     // user-visible string reads this; nothing names a product. CONSTANT: the
     // files cannot change under a running installer.
     Q_PROPERTY(QString productName READ productName CONSTANT)
+    // Flavour text from the branding contract (shared/branding copy keys),
+    // {name} already filled in; {disk} through text(). CONSTANT like the name.
+    Q_PROPERTY(QVariantMap copy READ copy CONSTANT)
+    Q_PROPERTY(QString storeUrl READ storeUrl CONSTANT)
 
     Q_PROPERTY(QString log READ log NOTIFY logChanged)
 
@@ -75,6 +81,15 @@ public:
 
     bool hasTpm() const { return m_hasTpm; }
     QString productName() const { return m_productName; }
+    QVariantMap copy() const { return m_branding.copyAsVariantMap(); }
+    QString storeUrl() const { return m_branding.storeUrl; }
+    // A copy line with {name} and {disk} filled in.
+    Q_INVOKABLE QString text(const QString &key, const QString &disk = QString()) const
+    {
+        return m_branding.text(key, {{QStringLiteral("disk"), disk.isEmpty() ? QStringLiteral("the selected disk") : disk}});
+    }
+    // The done page's Restart: systemctl reboot on the host.
+    Q_INVOKABLE void reboot();
     QString log() const { return m_log; }
     QString logPath() const { return m_logPath; }
     bool installing() const { return m_process != nullptr; }

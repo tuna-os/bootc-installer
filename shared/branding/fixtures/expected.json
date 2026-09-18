@@ -1,5 +1,5 @@
 {
-  "_comment": "Outcomes every resolver must reproduce. Inputs are the sibling files; 'name_override' is the BOOTC_INSTALLER_PRODUCT_NAME case.",
+  "_comment": "Outcomes every resolver must reproduce. Inputs are the sibling files; 'name_override' is the BOOTC_INSTALLER_PRODUCT_NAME case. 'expect' covers the scalar keys; 'expect_copy' lists copy keys (file overrides, an explicit empty override, and untouched defaults); 'expect_assets' and 'expect_store_url' the rest.",
   "file_and_os_release": {
     "branding": "branding.json",
     "os_release": "os-release",
@@ -13,6 +13,19 @@
       "logo": "exampleos-logo",
       "default_hostname": "reef",
       "default_image": "ghcr.io/example/marlin:latest"
+    },
+    "expect_store_url": "https://store.example.org/",
+    "expect_copy": {
+      "confirm_button": "Onward",
+      "confirm_subtitle": "\"Hold fast.\" — Someone",
+      "done_subtitle": "",
+      "welcome_title": "Welcome to {name}",
+      "progress_title": "Installing {name}…"
+    },
+    "expect_assets": {
+      "store_qr": "/usr/share/example/store-qr.svg",
+      "welcome_image": "",
+      "video": ""
     }
   },
   "os_release_only": {
@@ -28,6 +41,15 @@
       "logo": "exampleos-logo",
       "default_hostname": "reef",
       "default_image": ""
+    },
+    "expect_store_url": "",
+    "expect_copy": {
+      "confirm_button": "Install",
+      "confirm_subtitle": "",
+      "done_subtitle": "Remove the installation media and restart the computer."
+    },
+    "expect_assets": {
+      "store_qr": ""
     }
   },
   "os_release_minimal": {
@@ -58,6 +80,11 @@
       "logo": "",
       "default_hostname": "linux",
       "default_image": ""
+    },
+    "expect_store_url": "",
+    "expect_copy": {
+      "welcome_install": "Install {name}",
+      "done_title": "{name} is installed"
     }
   },
   "name_override": {

@@ -51,6 +51,11 @@ set(BACKEND_SOURCES
     src/readiness.h
 )
 
+# copy-defaults.json compiled into branding.cpp as a raw string literal. The
+# file is a byte-identical copy of shared/branding/copy-defaults.json.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/copy-defaults.json" TUNA_COPY_DEFAULTS_JSON)
+configure_file(src/branding_defaults.h.in "${CMAKE_CURRENT_BINARY_DIR}/branding_defaults.h" @ONLY)
+
 # The whole UI lives in a static library so that both the installer and the
 # screenshot harness link the *same* QML module — registering one URI from two
 # targets would collide on the generated qmldir.
@@ -83,7 +88,7 @@ qt_add_qml_module(tunainstallerapp
         ${BACKEND_SOURCES}
 )
 
-target_include_directories(tunainstallerapp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(tunainstallerapp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(tunainstallerapp PUBLIC
     Qt6::Core
     Qt6::Gui
@@ -125,7 +130,7 @@ if(BUILD_TESTING)
         src/offline.cpp
         src/readiness.cpp
     )
-    target_include_directories(tuna-installer-backend-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_include_directories(tuna-installer-backend-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR})
     # The branding fixtures every frontend's resolver is judged by; the test
     # skips when this tree is checked out without the monorepo around it.
     target_compile_definitions(tuna-installer-backend-tests PRIVATE

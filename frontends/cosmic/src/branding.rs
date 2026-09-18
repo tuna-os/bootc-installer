@@ -7,6 +7,11 @@
 //!
 //! Resolved once, on first use, and cached: the value cannot change while the
 //! installer is running, and `view()` runs every frame.
+//!
+//! `copy-defaults.json` next to this file is a byte-identical copy of
+//! `shared/branding/copy-defaults.json` (the monorepo's
+//! `tests/unit/test_shared_branding.py` enforces it); it is compiled in so the
+//! app needs no data file at runtime.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -19,6 +24,9 @@ const ENV_NAME: &str = "BOOTC_INSTALLER_PRODUCT_NAME";
 
 pub const NEUTRAL_NAME: &str = "Linux";
 pub const NEUTRAL_ID: &str = "linux";
+
+const COPY_DEFAULTS_JSON: &str = include_str!("copy-defaults.json");
+const ASSET_KEYS: [&str; 5] = ["welcome_image", "complete_image", "store_qr", "video", "credits"];
 
 /// Host first: this ships as a Flatpak, where `/etc` is the runtime's and the
 /// host's is bind-mounted under `/run/host`. First readable file wins.
@@ -46,6 +54,39 @@ pub struct Branding {
     pub logo: String,
     pub default_hostname: String,
     pub default_image: String,
+    pub store_url: String,
+    /// Every user-facing line a product may rebrand; see copy-defaults.json.
+    pub copy: HashMap<String, String>,
+    pub assets: HashMap<String, String>,
+    pub confirm_quotes: HashMap<String, Vec<String>>,
+}
+
+impl Branding {
+    /// A copy line with `{name}` (and the given placeholders) filled in.
+    pub fn text(&self, key: &str) -> String {
+        self.text_with(key, &[])
+    }
+
+    pub fn text_with(&self, key: &str, values: &[(&str, &str)]) -> String {
+        let mut line = self.copy.get(key).cloned().unwrap_or_default();
+        line = line.replace("{name}", &self.name);
+        for (k, v) in values {
+            line = line.replace(&format!("{{{k}}}"), v);
+        }
+        line
+    }
+}
+
+fn copy_defaults() -> HashMap<String, String> {
+    let raw: serde_json::Value = serde_json::from_str(COPY_DEFAULTS_JSON).unwrap_or_default();
+    raw.as_object()
+        .map(|o| {
+            o.iter()
+                .filter(|(k, _)| !k.starts_with('_'))
+                .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// The branding for this machine, resolved once.
@@ -57,6 +98,11 @@ pub fn get() -> &'static Branding {
 /// The product name to show the user, e.g. "Skipjack".
 pub fn name() -> &'static str {
     &get().name
+}
+
+/// A copy line with `{name}` filled in.
+pub fn text(key: &str) -> String {
+    get().text(key)
 }
 
 fn resolve() -> Branding {
@@ -112,10 +158,51 @@ pub fn from_sources(
         logo: pick("logo", &["LOGO"], ""),
         default_hostname: pick("default_hostname", &["DEFAULT_HOSTNAME", "ID"], NEUTRAL_ID),
         default_image: pick("default_image", &[], ""),
+        store_url: pick("store_url", &[], ""),
+        copy: copy_defaults(),
+        assets: ASSET_KEYS.iter().map(|k| (k.to_string(), String::new())).collect(),
+        confirm_quotes: HashMap::new(),
     };
     let o = name_override.trim();
     if !o.is_empty() {
         b.name = o.to_string();
+    }
+    // Flavour: a present string key overrides, even when empty (that is how
+    // a product hides a line); anything else keeps the neutral default.
+    if let Some(fc) = file.and_then(|f| f.get("copy")).and_then(|v| v.as_object()) {
+        for (k, v) in fc {
+            if let Some(s) = v.as_str() {
+                if b.copy.contains_key(k) {
+                    b.copy.insert(k.clone(), s.trim().to_string());
+                }
+            }
+        }
+    }
+    if let Some(fa) = file.and_then(|f| f.get("assets")).and_then(|v| v.as_object()) {
+        for (k, v) in fa {
+            if let Some(s) = v.as_str() {
+                b.assets.insert(k.clone(), s.trim().to_string());
+            }
+        }
+    }
+    if let Some(fq) = file
+        .and_then(|f| f.get("confirm_quotes"))
+        .and_then(|v| v.as_object())
+    {
+        for (k, v) in fq {
+            if let Some(list) = v.as_array() {
+                let lines: Vec<String> = list
+                    .iter()
+                    .filter_map(|s| s.as_str())
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string)
+                    .collect();
+                if !lines.is_empty() {
+                    b.confirm_quotes.insert(k.clone(), lines);
+                }
+            }
+        }
     }
     b
 }
@@ -238,7 +325,40 @@ mod tests {
             if let Some(n) = spec["expect_name"].as_str() {
                 assert_eq!(got.name, n, "{case}: name override");
             }
+            if let Some(expect) = spec["expect_copy"].as_object() {
+                for (k, v) in expect {
+                    assert_eq!(got.copy.get(k).map(String::as_str), v.as_str(), "{case}: copy.{k}");
+                }
+            }
+            if let Some(expect) = spec["expect_assets"].as_object() {
+                for (k, v) in expect {
+                    assert_eq!(got.assets.get(k).map(String::as_str).unwrap_or(""), v.as_str().unwrap(), "{case}: assets.{k}");
+                }
+            }
+            if let Some(url) = spec["expect_store_url"].as_str() {
+                assert_eq!(got.store_url, url, "{case}: store_url");
+            }
         }
+    }
+
+    #[test]
+    fn copy_defaults_match_shared() {
+        let Some(dir) = fixtures() else { return };
+        let shared = std::fs::read_to_string(dir.join("..").join("copy-defaults.json")).unwrap();
+        assert_eq!(shared, COPY_DEFAULTS_JSON, "src/copy-defaults.json drifted from shared/branding/copy-defaults.json");
+        assert!(!copy_defaults()["welcome_title"].is_empty());
+    }
+
+    #[test]
+    fn text_fills_placeholders() {
+        let mut file = serde_json::Map::new();
+        file.insert("name".into(), "Marlin".into());
+        let b = from_sources(Some(&file), None, "");
+        assert_eq!(b.text("welcome_title"), "Welcome to Marlin");
+        assert_eq!(
+            b.text_with("confirm_warning", &[("disk", "/dev/sda")]),
+            "Everything on /dev/sda will be erased. This cannot be undone."
+        );
     }
 
     #[test]

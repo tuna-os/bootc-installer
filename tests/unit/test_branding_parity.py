@@ -190,6 +190,7 @@ def _make_done_obj(recipe):
     obj._BootcDone__window = window
     obj.store_qr = MagicMock()
     obj.store_group = MagicMock()
+    obj.lbl_store = MagicMock()
     return obj, done_mod
 
 
@@ -217,15 +218,23 @@ class TestDoneStoreQR(unittest.TestCase):
             done_mod.BootcDone._BootcDone__maybe_show_store(obj)
         obj.store_group.set_visible.assert_not_called()
 
-    def test_store_qr_resource_defaults_to_builtin_when_key_absent(self):
-        """If store_url is set but store_qr_resource is absent, use the built-in asset."""
+    def test_store_hidden_when_no_qr_asset(self):
+        """store_url without a QR asset shows nothing: the installer bundles
+        no product's QR any more (shared/branding/examples/bluefin has it)."""
         recipe = {k: v for k, v in DAKOTA_RECIPE.items() if k != "store_qr_resource"}
         obj, done_mod = _make_done_obj(recipe)
         with patch.object(done_mod.BootcDone, "_BootcDone__is_us_locale", return_value=True):
             done_mod.BootcDone._BootcDone__maybe_show_store(obj)
-        obj.store_qr.set_resource.assert_called_once_with(
-            "/org/bootcinstaller/Installer/assets/store-qr.svg"
-        )
+        obj.store_qr.set_resource.assert_not_called()
+        obj.store_group.set_visible.assert_not_called()
+
+    def test_store_qr_host_path_uses_set_filename(self):
+        recipe = dict(DAKOTA_RECIPE, store_qr_resource="/usr/share/bootc-installer/branding/store-qr.svg")
+        obj, done_mod = _make_done_obj(recipe)
+        with patch.object(done_mod.BootcDone, "_BootcDone__is_us_locale", return_value=True):
+            done_mod.BootcDone._BootcDone__maybe_show_store(obj)
+        obj.store_qr.set_filename.assert_called_once_with(recipe["store_qr_resource"])
+        obj.store_group.set_visible.assert_called_once_with(True)
 
 
 # ---------------------------------------------------------------------------

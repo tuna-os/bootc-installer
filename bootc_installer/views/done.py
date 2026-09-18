@@ -90,6 +90,14 @@ def do_reboot(in_flatpak):
 
 
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/done.ui")
+def _set_picture(picture, spec: str) -> None:
+    """A GResource path (/org/...) or a host file path onto a Gtk.Picture."""
+    if spec.startswith("/org/"):
+        picture.set_resource(spec)
+    else:
+        picture.set_filename(spec)
+
+
 class BootcDone(Adw.Bin):
     __gtype_name__ = "BootcDone"
 
@@ -100,6 +108,7 @@ class BootcDone(Adw.Bin):
     btn_retry = Gtk.Template.Child()
     store_group = Gtk.Template.Child()
     store_qr = Gtk.Template.Child()
+    lbl_store = Gtk.Template.Child()
 
     def __init__(self, window, **kwargs):
         super().__init__(**kwargs)
@@ -132,15 +141,17 @@ class BootcDone(Adw.Bin):
 
         if result:
             self.page_header.icon_name = "object-select-symbolic"
+            from bootc_installer.utils import copy as copy_text
             pretty_name = getattr(self.__window, "pretty_name", None) \
-                or self.__window.recipe.get("distro_name", "the operating system")
-            self.page_header.title = _("{} is installed").format(pretty_name)
+                or copy_text.product_name(self.__window)
+            self.page_header.title = copy_text.text(self.__window, "done_title", name=pretty_name)
+            subtitle = copy_text.text(self.__window, "done_subtitle", name=pretty_name)
             if elapsed_secs > 0:
                 minutes, secs = divmod(elapsed_secs, 60)
                 time_str = f"{minutes}:{secs:02d}"
-                self.page_header.subtitle = _("Installed in %s. Restart to begin your new experience.") % time_str
-            else:
-                self.page_header.subtitle = _("Restart now to complete the installation.")
+                subtitle = (_("Installed in %s. ") % time_str) + subtitle
+            self.page_header.subtitle = subtitle
+            self.btn_reboot.set_label(copy_text.text(self.__window, "done_restart") or _("Restart now"))
             icon_spec = getattr(self.__window, "selected_icon", None)
             if icon_spec:
                 apply_icon(self.page_header, icon_spec)
@@ -280,12 +291,13 @@ class BootcDone(Adw.Bin):
             return
         if not self.__is_us_locale():
             return
-        qr_resource = self.__window.recipe.get(
-            "store_qr_resource",
-            "/org/bootcinstaller/Installer/assets/store-qr.svg",
-        )
+        qr_resource = self.__window.recipe.get("store_qr_resource", "")
+        if not qr_resource:
+            return
         try:
-            self.store_qr.set_resource(qr_resource)
+            from bootc_installer.utils import copy as copy_text
+            _set_picture(self.store_qr, qr_resource)
+            self.lbl_store.set_label(copy_text.text(self.__window, "store_label") or store_url)
             self.store_group.set_visible(True)
         except Exception as e:
             log.debug("Could not load store QR: %s", e)

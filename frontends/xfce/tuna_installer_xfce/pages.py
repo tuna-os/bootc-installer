@@ -63,10 +63,17 @@ class Page(Gtk.Box):
 
 
 class WelcomePage(Page):
-    title = f"Welcome to {core.PRODUCT_NAME}"
+    # Flavour text is branding copy (shared/branding): the product's own
+    # welcome line first, then what this assistant does.
+    title = core.BRANDING.text("welcome_title")
 
     def __init__(self, win):
         super().__init__(win)
+        subtitle = core.BRANDING.text("welcome_subtitle")
+        if subtitle:
+            sub = Gtk.Label(label=subtitle, xalign=0)
+            sub.set_line_wrap(True)
+            self.pack_start(sub, False, False, 0)
         body = Gtk.Label(xalign=0)
         body.set_line_wrap(True)
         body.set_text(
@@ -112,7 +119,7 @@ class SourcePage(Page):
         self.pack_start(scroll, True, True, 0)
 
         if self.live_ref:
-            add_radio(f"Install {core.PRODUCT_NAME} (this system)",
+            add_radio(core.BRANDING.text("welcome_install") + " (this system)",
                       "no download required", {"live": True}, True)
 
         def sort_key(leaf):
@@ -296,16 +303,29 @@ class IdentityPage(Page):
 
 
 class ConfirmPage(Page):
-    title = "Ready to install"
+    title = core.BRANDING.text("confirm_title")
 
     def __init__(self, win):
         super().__init__(win)
+        # confirm_subtitle and confirm_body are the product's own lines
+        # (a quote, a tagline); empty in the neutral defaults, so hidden.
+        self.subtitle = Gtk.Label(xalign=0)
+        self.subtitle.set_line_wrap(True)
+        self.subtitle.set_no_show_all(True)
+        self.pack_start(self.subtitle, False, False, 0)
         self.summary = Gtk.Label(xalign=0)
         self.summary.set_line_wrap(True)
         self.pack_start(self.summary, False, False, 0)
-        self.pack_start(_warn_row(
-            "Clicking Install Now erases the selected disk. "
-            "This cannot be undone."), False, False, 0)
+        self.body = Gtk.Label(xalign=0)
+        self.body.set_line_wrap(True)
+        self.body.set_no_show_all(True)
+        self.pack_start(self.body, False, False, 0)
+        self.warn_label = _warn_row(core.BRANDING.text("confirm_warning", disk="the selected disk"))
+        self.pack_start(self.warn_label, False, False, 0)
+        for widget, key in ((self.subtitle, "confirm_subtitle"), (self.body, "confirm_body")):
+            line = core.BRANDING.text(key)
+            widget.set_text(line)
+            widget.set_visible(bool(line))
 
     def on_enter(self):
         r = self.win.build_recipe()
@@ -324,7 +344,7 @@ class ConfirmPage(Page):
 
 
 class ProgressPage(Page):
-    title = f"Installing {core.PRODUCT_NAME}"
+    title = core.BRANDING.text("progress_title")
 
     def __init__(self, win):
         super().__init__(win)
@@ -368,18 +388,19 @@ class DonePage(Page):
         self.body = Gtk.Label(xalign=0)
         self.body.set_line_wrap(True)
         self.pack_start(self.body, False, False, 0)
-        self.reboot_btn = Gtk.Button(label="Reboot")
+        self.reboot_btn = Gtk.Button(label=core.BRANDING.text("done_restart") or "Restart now")
         self.reboot_btn.connect("clicked", lambda *_: core.host_run(["systemctl", "reboot"]))
         self.pack_start(self.reboot_btn, False, False, 8)
 
     def set_result(self, ok, log_tail):
         if ok:
-            self.headline.set_markup("<big><b>Installation complete</b></big>")
-            self.body.set_text("Remove the installation medium, then reboot "
-                               "into your new system.")
+            self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
+                core.BRANDING.text("done_title")) + "</b></big>")
+            self.body.set_text(core.BRANDING.text("done_subtitle"))
             self.reboot_btn.show()
         else:
-            self.headline.set_markup("<big><b>Installation failed</b></big>")
+            self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
+                core.BRANDING.text("done_failed_title")) + "</b></big>")
             self.body.set_text(
                 "The last lines of the install log:\n\n" + log_tail +
                 "\n\nFull log: " + core.install_log_path())

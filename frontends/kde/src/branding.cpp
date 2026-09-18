@@ -1,7 +1,9 @@
 #include "branding.h"
+#include "branding_defaults.h"
 
 #include <QByteArray>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QRegularExpression>
 
@@ -84,7 +86,45 @@ QString pick(const QJsonObject &file, const QHash<QString, QString> &osr, const 
     return def;
 }
 
+const QStringList &assetKeys()
+{
+    static const QStringList keys = {
+        QStringLiteral("welcome_image"), QStringLiteral("complete_image"),
+        QStringLiteral("store_qr"), QStringLiteral("video"), QStringLiteral("credits"),
+    };
+    return keys;
+}
+
 } // namespace
+
+QHash<QString, QString> copyDefaults()
+{
+    QHash<QString, QString> out;
+    const QJsonObject obj = QJsonDocument::fromJson(QByteArray(kCopyDefaultsJson)).object();
+    for (auto it = obj.begin(); it != obj.end(); ++it) {
+        if (it.key().startsWith(QLatin1Char('_')) || !it.value().isString())
+            continue;
+        out.insert(it.key(), it.value().toString());
+    }
+    return out;
+}
+
+QString Branding::text(const QString &key, const QHash<QString, QString> &values) const
+{
+    QString line = copy.value(key);
+    line.replace(QStringLiteral("{name}"), name);
+    for (auto it = values.begin(); it != values.end(); ++it)
+        line.replace(QLatin1Char('{') + it.key() + QLatin1Char('}'), it.value());
+    return line;
+}
+
+QVariantMap Branding::copyAsVariantMap() const
+{
+    QVariantMap out;
+    for (auto it = copy.begin(); it != copy.end(); ++it)
+        out.insert(it.key(), text(it.key()));
+    return out;
+}
 
 QHash<QString, QString> parseOsRelease(const QString &text)
 {
@@ -121,9 +161,37 @@ Branding fromSources(const QJsonObject &file, const QString &osReleaseText, cons
     b.defaultHostname = pick(file, osr, QStringLiteral("default_hostname"),
                              {QStringLiteral("DEFAULT_HOSTNAME"), QStringLiteral("ID")}, QLatin1String(kNeutralId));
     b.defaultImage = pick(file, osr, QStringLiteral("default_image"), {}, QString());
+    b.storeUrl = pick(file, osr, QStringLiteral("store_url"), {}, QString());
     const QString overrideName = nameOverride.trimmed();
     if (!overrideName.isEmpty())
         b.name = overrideName;
+
+    // Flavour: a present string key overrides, even when empty (that is how a
+    // product hides a line); anything else keeps the neutral default.
+    b.copy = copyDefaults();
+    const QJsonObject fileCopy = file.value(QStringLiteral("copy")).toObject();
+    for (auto it = fileCopy.begin(); it != fileCopy.end(); ++it) {
+        if (it.value().isString() && b.copy.contains(it.key()))
+            b.copy.insert(it.key(), it.value().toString().trimmed());
+    }
+    for (const QString &k : assetKeys())
+        b.assets.insert(k, QString());
+    const QJsonObject fileAssets = file.value(QStringLiteral("assets")).toObject();
+    for (auto it = fileAssets.begin(); it != fileAssets.end(); ++it) {
+        if (it.value().isString())
+            b.assets.insert(it.key(), it.value().toString().trimmed());
+    }
+    const QJsonObject fileQuotes = file.value(QStringLiteral("confirm_quotes")).toObject();
+    for (auto it = fileQuotes.begin(); it != fileQuotes.end(); ++it) {
+        QStringList lines;
+        for (const QJsonValue &v : it.value().toArray()) {
+            const QString line = v.toString().trimmed();
+            if (!line.isEmpty())
+                lines.append(line);
+        }
+        if (!lines.isEmpty())
+            b.confirmQuotes.insert(it.key(), lines);
+    }
     return b;
 }
 

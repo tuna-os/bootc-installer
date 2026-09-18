@@ -1,5 +1,6 @@
 #include "offline.h"
 #include "branding.h"
+#include "branding_defaults.h"
 #include "readiness.h"
 #include "recipe.h"
 
@@ -25,6 +26,7 @@ private slots:
     void recipeValidation();
     void recipeJsonRoundTrip();
     void brandingFixtures();
+    void brandingText();
     void brandingNothingReadableIsNeutral();
     void offlineCommandHelpers();
     void readinessWriteStampFailsWithEmptyRuntimeDir();
@@ -230,7 +232,32 @@ void BackendTest::brandingFixtures()
         }
         if (spec.contains(QStringLiteral("expect_name")))
             QCOMPARE(got.name, spec.value(QStringLiteral("expect_name")).toString());
+        const QJsonObject expectCopy = spec.value(QStringLiteral("expect_copy")).toObject();
+        for (auto e = expectCopy.begin(); e != expectCopy.end(); ++e) {
+            QVERIFY2(got.copy.value(e.key()) == e.value().toString(),
+                     qPrintable(it.key() + QStringLiteral(": copy.") + e.key() + QStringLiteral(" got '")
+                                + got.copy.value(e.key()) + QStringLiteral("'")));
+        }
+        const QJsonObject expectAssets = spec.value(QStringLiteral("expect_assets")).toObject();
+        for (auto e = expectAssets.begin(); e != expectAssets.end(); ++e)
+            QCOMPARE(got.assets.value(e.key()), e.value().toString());
+        if (spec.contains(QStringLiteral("expect_store_url")))
+            QCOMPARE(got.storeUrl, spec.value(QStringLiteral("expect_store_url")).toString());
     }
+
+    // The compiled-in defaults are the shared file, verbatim.
+    QCOMPARE(QString::fromUtf8(kCopyDefaultsJson), readText(dir + QStringLiteral("/../copy-defaults.json")));
+    QVERIFY(!branding::copyDefaults().value(QStringLiteral("welcome_title")).isEmpty());
+}
+
+void BackendTest::brandingText()
+{
+    QJsonObject file;
+    file.insert(QStringLiteral("name"), QStringLiteral("Marlin"));
+    const branding::Branding b = branding::fromSources(file, QString());
+    QCOMPARE(b.text(QStringLiteral("welcome_title")), QStringLiteral("Welcome to Marlin"));
+    QCOMPARE(b.text(QStringLiteral("confirm_warning"), {{QStringLiteral("disk"), QStringLiteral("/dev/sda")}}),
+             QStringLiteral("Everything on /dev/sda will be erased. This cannot be undone."));
 }
 
 void BackendTest::brandingNothingReadableIsNeutral()

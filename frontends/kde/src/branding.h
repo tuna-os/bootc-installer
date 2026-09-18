@@ -11,6 +11,7 @@
 #include <QJsonObject>
 #include <QString>
 #include <QStringList>
+#include <QVariantMap>
 
 namespace branding {
 
@@ -24,7 +25,22 @@ struct Branding {
     QString logo;
     QString defaultHostname;
     QString defaultImage;
+    QString storeUrl;
+    // Every user-facing line a product may rebrand (copy-defaults.json, with
+    // the branding file's `copy` merged over it); {name}/{disk} placeholders.
+    QHash<QString, QString> copy;
+    QHash<QString, QString> assets;
+    QHash<QString, QStringList> confirmQuotes;
+
+    // A copy line with {name} (and the given placeholders) filled in.
+    QString text(const QString &key, const QHash<QString, QString> &values = {}) const;
+    // The copy map as QML sees it (InstallerController.copy).
+    QVariantMap copyAsVariantMap() const;
 };
+
+// copy-defaults.json (frontends/kde/copy-defaults.json, a byte-identical copy
+// of shared/branding/copy-defaults.json) minus its "_comment".
+QHash<QString, QString> copyDefaults();
 
 // The branding for this machine: $BOOTC_INSTALLER_BRANDING or the standard
 // branding.json paths (host first, this ships as a Flatpak), then os-release,

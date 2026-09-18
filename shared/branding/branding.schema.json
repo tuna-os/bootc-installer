@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/tuna-os/bootc-installer/shared/branding/branding.schema.json",
   "title": "bootc-installer branding",
-  "description": "Product identity for every installer frontend. Every key is optional; a missing or empty value falls through to os-release, then to a neutral default. See shared/branding/README.md.",
+  "description": "Product identity and flavour text for every installer frontend. Every key is optional; a missing or empty scalar falls through to os-release, then to a neutral default; a missing copy key falls through to copy-defaults.json. See shared/branding/README.md.",
   "type": "object",
   "properties": {
     "name": {
@@ -30,6 +30,10 @@
       "type": "string",
       "description": "Support or community site. Falls back to SUPPORT_URL."
     },
+    "store_url": {
+      "type": "string",
+      "description": "Merchandise store. No os-release fallback; empty hides every store element."
+    },
     "logo": {
       "type": "string",
       "description": "Themed icon name or absolute path for welcome and done artwork. Falls back to LOGO."
@@ -42,6 +46,28 @@
     "default_image": {
       "type": "string",
       "description": "OCI reference installed when the frontend offers no catalog choice and is not on a live ISO. No os-release fallback."
+    },
+    "copy": {
+      "type": "object",
+      "description": "Flavour text. Any key of copy-defaults.json; a present key overrides (an empty string hides the line where the frontend can hide it), a missing key keeps the neutral default. {name} and {disk} are substituted.",
+      "additionalProperties": {"type": "string"}
+    },
+    "confirm_quotes": {
+      "type": "object",
+      "description": "Optional locale-specific confirm subtitles: language tag (\"pt_BR\") to a list of lines, one chosen at random when the installer runs in that language. Frontends without locale-aware copy ignore it.",
+      "additionalProperties": {"type": "array", "items": {"type": "string"}}
+    },
+    "assets": {
+      "type": "object",
+      "description": "Absolute paths on the host (or GResource paths starting with /org/ for the GNOME frontend's own bundle). Empty or missing means the frontend hides or skips the element.",
+      "properties": {
+        "welcome_image": {"type": "string", "description": "Welcome and tour artwork."},
+        "complete_image": {"type": "string", "description": "Done-page artwork."},
+        "store_qr": {"type": "string", "description": "QR image for store_url."},
+        "video": {"type": "string", "description": "Video played during the install (GNOME)."},
+        "credits": {"type": "string", "description": "credits.json for the Credits dialog (GNOME)."}
+      },
+      "additionalProperties": {"type": "string"}
     }
   },
   "additionalProperties": true

@@ -80,7 +80,7 @@ class InstallerWindow(Gtk.ApplicationWindow):
         self.back_btn.set_sensitive(name not in ("progress", "done") and self.index > 0)
         self.next_btn.set_visible(name not in ("progress", "done"))
         self.next_btn.set_sensitive(page.can_continue())
-        self.next_btn.set_label("Install Now" if name == "confirm" else "Next")
+        self.next_btn.set_label(core.BRANDING.text("confirm_button") if name == "confirm" else "Next")
         ctx = self.next_btn.get_style_context()
         if name == "confirm":
             ctx.add_class("destructive-action")

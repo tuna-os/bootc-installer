@@ -17,7 +17,8 @@
 import re
 from gettext import gettext as _
 
-from bootc_installer.views.confirm_data import _ENC_LABELS, _SENNA_QUOTES
+from bootc_installer.utils import copy as copy_text
+from bootc_installer.views.confirm_data import _ENC_LABELS
 
 from gi.repository import Adw, GObject, Gtk
 
@@ -48,7 +49,6 @@ class BootcChoiceExpanderEntry(Adw.ExpanderRow):
         self.img_choice.set_from_icon_name(icon_name)
 
 
-# _SENNA_QUOTES imported from bootc_installer.views.confirm_data
 
 
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/confirm.ui")
@@ -60,12 +60,13 @@ class BootcConfirm(Adw.Bin):
 
     group_changes = Gtk.Template.Child()
     btn_confirm = Gtk.Template.Child()
+    lbl_body = Gtk.Template.Child()
     page_header = Gtk.Template.Child()
 
-    _SENNA_QUOTES = _SENNA_QUOTES
 
     def __init__(self, window, **kwargs):
         super().__init__(**kwargs)
+        self.__window = window
         self.delta = False
         self._hostname_entry_row = None
 
@@ -194,14 +195,16 @@ class BootcConfirm(Adw.Bin):
                 )
             )
 
-        # Locale-specific quote: Senna for pt_BR, Zavala otherwise
-        import random
-        if selected_language and selected_language.startswith("pt_BR"):
-            self.page_header.subtitle = random.choice(self._SENNA_QUOTES)
-        else:
-            self.page_header.subtitle = _("\"Indeed.\" — Commander Zavala")
-
-        self.btn_confirm.set_label(_("Become Legend"))
+        # Flavour text from the branding contract (shared/branding): a
+        # locale-specific quote when the product ships one for the selected
+        # language, else its confirm_subtitle; the body line and the button
+        # label likewise. Nothing here names a product.
+        self.page_header.title = copy_text.text(self.__window, "confirm_title")
+        self.page_header.subtitle = copy_text.confirm_subtitle(self.__window, selected_language or "")
+        body = copy_text.text(self.__window, "confirm_body")
+        self.lbl_body.set_label(body)
+        self.lbl_body.set_visible(bool(body))
+        self.btn_confirm.set_label(copy_text.text(self.__window, "confirm_button") or _("Install"))
 
         for widget in self.active_widgets:
             self.group_changes.add(widget)

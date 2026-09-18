@@ -32,12 +32,26 @@ TunaComponents.SetupModule {
                 // here credited a welcome screen off the confirm page in run
                 // 31143012730 — and would keep crediting one if the welcome
                 // step were ever removed. Same sentence, one word different.
-                text: "Selecting Install erases " + InstallerController.disk + " and writes " + InstallerController.productName + " to it."
+                text: InstallerController.text("confirm_warning", InstallerController.disk)
 
                 Layout.fillWidth: true
                 Layout.maximumWidth: root.cardWidth
                 Layout.alignment: Qt.AlignHCenter
                 Layout.bottomMargin: Kirigami.Units.largeSpacing
+            }
+
+            // The product's own lines (a quote, a tagline) from the branding
+            // copy; empty in the neutral defaults, so hidden.
+            Label {
+                text: InstallerController.text("confirm_subtitle")
+                visible: text.length > 0
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                font.italic: true
+
+                Layout.fillWidth: true
+                Layout.maximumWidth: root.cardWidth
+                Layout.alignment: Qt.AlignHCenter
             }
 
             FormCard.FormCard {
@@ -82,6 +96,18 @@ TunaComponents.SetupModule {
                         ? InstallerController.image
                         : "the running live system"
                 }
+            }
+            Label {
+                text: InstallerController.text("confirm_body")
+                visible: text.length > 0
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                opacity: 0.75
+
+                Layout.fillWidth: true
+                Layout.maximumWidth: root.cardWidth
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: Kirigami.Units.largeSpacing
             }
         }
     }

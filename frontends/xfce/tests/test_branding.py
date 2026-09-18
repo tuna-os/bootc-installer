@@ -39,7 +39,14 @@ def _case(name):
     "name", ["file_and_os_release", "os_release_only", "os_release_minimal", "nothing"])
 def test_fixture_case(name):
     case, file_data, os_release = _case(name)
-    assert branding.from_sources(file_data, os_release).as_dict() == case["expect"]
+    got = branding.from_sources(file_data, os_release)
+    assert got.as_dict() == case["expect"]
+    for k, v in case.get("expect_copy", {}).items():
+        assert got.copy[k] == v, k
+    for k, v in case.get("expect_assets", {}).items():
+        assert got.assets.get(k, "") == v, k
+    if "expect_store_url" in case:
+        assert got.store_url == case["expect_store_url"]
 
 
 def test_name_override():

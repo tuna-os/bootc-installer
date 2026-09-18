@@ -6,6 +6,17 @@ and frontends/xfce/tuna_installer_xfce/branding.py are byte-identical copies
 table and the fixtures the other languages test against are in
 shared/branding/README.md.
 
+Two layers:
+
+- identity: name, id, vendor, URLs, logo, default hostname and image;
+- flavour: `copy` (every user-facing line a product may rebrand, with
+  {name}/{disk} placeholders), `assets` (artwork paths), `store_url` and
+  locale-specific `confirm_quotes`.
+
+The neutral copy lives in shared/branding/copy-defaults.json; COPY_DEFAULTS
+below is that file verbatim (the same test checks it), so this module needs
+no data file at runtime.
+
 No GTK, no gettext, nothing but the standard library, so every frontend and
 every test can import it as-is.
 """
@@ -13,7 +24,7 @@ every test can import it as-is.
 import json
 import os
 import shlex
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 
 ENV_FILE = "BOOTC_INSTALLER_BRANDING"
 ENV_NAME = "BOOTC_INSTALLER_PRODUCT_NAME"
@@ -41,6 +52,36 @@ KEYS = (
     "logo", "default_hostname", "default_image",
 )
 
+ASSET_KEYS = ("welcome_image", "complete_image", "store_qr", "video", "credits")
+
+# shared/branding/copy-defaults.json, verbatim.
+COPY_DEFAULTS_JSON = r'''{
+  "_comment": "Neutral defaults for every user-facing line a product may rebrand. A branding.json `copy` object overrides any key; an empty string hides the line where the frontend can hide it. Placeholders: {name} = product name, {disk} = the disk that will be erased. Copies of this file in each frontend tree must stay byte-identical (tests/unit/test_shared_branding.py).",
+  "welcome_title": "Welcome to {name}",
+  "welcome_subtitle": "",
+  "welcome_install": "Install {name}",
+  "welcome_install_subtitle": "Installs to your internal disk.",
+  "welcome_button": "Get started",
+  "confirm_title": "Confirm installation",
+  "confirm_subtitle": "",
+  "confirm_body": "",
+  "confirm_warning": "Everything on {disk} will be erased. This cannot be undone.",
+  "confirm_button": "Install",
+  "progress_title": "Installing {name}…",
+  "progress_note": "Do not power off the computer.",
+  "done_title": "{name} is installed",
+  "done_subtitle": "Remove the installation media and restart the computer.",
+  "done_restart": "Restart now",
+  "done_failed_title": "Installation failed",
+  "store_label": "Visit the store",
+  "tour_welcome_title": "Installing {name}",
+  "tour_welcome_description": "This will take a few minutes.",
+  "tour_done_title": "Installation complete",
+  "tour_done_description": "Your system is ready to use."
+}
+'''
+COPY_DEFAULTS = {k: v for k, v in json.loads(COPY_DEFAULTS_JSON).items() if not k.startswith("_")}
+
 
 @dataclass(frozen=True)
 class Branding:
@@ -53,14 +94,43 @@ class Branding:
     logo: str = ""
     default_hostname: str = NEUTRAL_ID
     default_image: str = ""
+    store_url: str = ""
+    copy: dict = field(default_factory=lambda: dict(COPY_DEFAULTS))
+    assets: dict = field(default_factory=lambda: {k: "" for k in ASSET_KEYS})
+    confirm_quotes: dict = field(default_factory=dict)
     # Where `name` came from: "env", "file", "os-release" or "default".
     # Diagnostics only; not part of the cross-language contract.
     source: str = "default"
 
     def as_dict(self) -> dict:
+        """The scalar identity keys only (what fixtures/expected.json `expect` lists)."""
         d = asdict(self)
-        d.pop("source")
+        for k in ("source", "store_url", "copy", "assets", "confirm_quotes"):
+            d.pop(k)
         return d
+
+    def text(self, key: str, **values) -> str:
+        """A copy line with {name} (and any given placeholder) filled in."""
+        values.setdefault("name", self.name)
+        line = self.copy.get(key, COPY_DEFAULTS.get(key, ""))
+        for k, v in values.items():
+            line = line.replace("{" + k + "}", str(v))
+        return line
+
+    def quote_for(self, language: str) -> str:
+        """A locale-specific confirm subtitle, or the plain one.
+
+        `language` is a locale like "pt_BR.UTF-8"; the longest matching key of
+        confirm_quotes wins ("pt_BR" before "pt"). Deterministic: the first
+        line, so screenshots and tests are stable; callers wanting variety
+        pick from `confirm_quotes` themselves.
+        """
+        lang = (language or "").split(".")[0].split("@")[0]
+        for candidate in (lang, lang.split("_")[0]):
+            lines = self.confirm_quotes.get(candidate) if candidate else None
+            if lines:
+                return lines[0]
+        return self.text("confirm_subtitle")
 
 
 def parse_os_release(text: str) -> dict:
@@ -122,10 +192,36 @@ def from_sources(file_data, os_release_text, name_override="") -> Branding:
     logo, _ = pick("logo", "LOGO")
     default_hostname, _ = pick("default_hostname", "DEFAULT_HOSTNAME", "ID", default=NEUTRAL_ID)
     default_image, _ = pick("default_image")
+    store_url, _ = pick("store_url")
+
+    # Flavour: a present string key overrides, even when empty (that is how a
+    # product hides a line); anything else keeps the neutral default.
+    copy = dict(COPY_DEFAULTS)
+    file_copy = file_data.get("copy")
+    if isinstance(file_copy, dict):
+        for k, v in file_copy.items():
+            if isinstance(v, str) and k in COPY_DEFAULTS:
+                copy[k] = v.strip()
+    assets = {k: "" for k in ASSET_KEYS}
+    file_assets = file_data.get("assets")
+    if isinstance(file_assets, dict):
+        for k, v in file_assets.items():
+            if isinstance(v, str):
+                assets[k] = v.strip()
+    quotes = {}
+    file_quotes = file_data.get("confirm_quotes")
+    if isinstance(file_quotes, dict):
+        for k, v in file_quotes.items():
+            if isinstance(v, list):
+                lines = [s.strip() for s in v if isinstance(s, str) and s.strip()]
+                if lines:
+                    quotes[k] = lines
+
     return Branding(
         name=name, id=id_, vendor=vendor, home_url=home_url, docs_url=docs_url,
         support_url=support_url, logo=logo, default_hostname=default_hostname,
-        default_image=default_image, source=source,
+        default_image=default_image, store_url=store_url, copy=copy, assets=assets,
+        confirm_quotes=quotes, source=source,
     )
 
 

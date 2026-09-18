@@ -22,6 +22,12 @@ COPIES = [
     REPO / "frontends" / "xfce" / "tuna_installer_xfce" / "branding.py",
 ]
 FIXTURES = REPO / "shared" / "branding" / "fixtures"
+COPY_DEFAULTS = REPO / "shared" / "branding" / "copy-defaults.json"
+COPY_DEFAULT_COPIES = [
+    REPO / "frontends" / "niri" / "installer" / "copy-defaults.json",
+    REPO / "frontends" / "cosmic" / "src" / "copy-defaults.json",
+    REPO / "frontends" / "kde" / "copy-defaults.json",
+]
 
 
 def _load(path):
@@ -43,6 +49,21 @@ class CopiesAreIdentical(unittest.TestCase):
                 f"{copy.relative_to(REPO)} has diverged from shared/branding/branding.py; "
                 "edit the shared copy and cp it over",
             )
+
+
+class CopyDefaultsAreIdentical(unittest.TestCase):
+    def test_embedded_and_per_frontend_copies_match(self):
+        canonical = COPY_DEFAULTS.read_text()
+        self.assertEqual(branding.COPY_DEFAULTS_JSON, canonical,
+                         "COPY_DEFAULTS_JSON in branding.py must be copy-defaults.json verbatim")
+        for copy in COPY_DEFAULT_COPIES:
+            self.assertEqual(copy.read_text(), canonical,
+                             f"{copy.relative_to(REPO)} has diverged from shared/branding/copy-defaults.json")
+
+    def test_defaults_name_no_product(self):
+        text = COPY_DEFAULTS.read_text().lower()
+        for banned in ("bluefin", "tunaos", "dakota", "legend", "zavala"):
+            self.assertNotIn(banned, text)
 
 
 class FixtureCases(unittest.TestCase):
@@ -67,8 +88,14 @@ class FixtureCases(unittest.TestCase):
                 continue
             with self.subTest(case=name):
                 file_data, os_release = self._inputs(case)
-                got = branding.from_sources(file_data, os_release).as_dict()
-                self.assertEqual(got, case["expect"])
+                got = branding.from_sources(file_data, os_release)
+                self.assertEqual(got.as_dict(), case["expect"])
+                for k, v in case.get("expect_copy", {}).items():
+                    self.assertEqual(got.copy[k], v, f"{name}: copy.{k}")
+                for k, v in case.get("expect_assets", {}).items():
+                    self.assertEqual(got.assets.get(k, ""), v, f"{name}: assets.{k}")
+                if "expect_store_url" in case:
+                    self.assertEqual(got.store_url, case["expect_store_url"])
 
     def test_name_override_wins(self):
         case = self.expected["name_override"]
@@ -115,6 +142,25 @@ class FixtureCases(unittest.TestCase):
             self.assertEqual(got.name, "Linux")
             self.assertEqual(got.id, "linux")
             self.assertEqual(got.source, "default")
+
+
+class CopyHelpers(unittest.TestCase):
+    def test_text_and_quotes(self):
+        file_data = json.loads((FIXTURES / "branding.json").read_text())
+        b = branding.from_sources(file_data, None)
+        self.assertEqual(b.text("welcome_title"), "Welcome to Marlin")
+        self.assertEqual(b.text("confirm_warning", disk="/dev/sda"),
+                         "Everything on /dev/sda will be erased. This cannot be undone.")
+        self.assertEqual(b.quote_for("pt_BR.UTF-8"), '"Segue em frente." — Alguém')
+        self.assertEqual(b.quote_for("pt"), '"Segue em frente." — Alguém'
+                         if "pt" in b.confirm_quotes else '"Hold fast." — Someone')
+        self.assertEqual(b.quote_for("en_US"), '"Hold fast." — Someone')
+        self.assertEqual(b.text("done_subtitle"), "")  # explicit empty override hides it
+
+    def test_unknown_copy_keys_are_ignored(self):
+        b = branding.from_sources({"copy": {"not_a_key": "x", "confirm_button": 5}}, None)
+        self.assertNotIn("not_a_key", b.copy)
+        self.assertEqual(b.copy["confirm_button"], "Install")
 
 
 class OsReleaseParsing(unittest.TestCase):

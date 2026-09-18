@@ -36,7 +36,9 @@ TunaComponents.SetupModule {
             }
 
             Kirigami.Heading {
-                text: InstallerController.succeeded ? "Installation complete" : "Installation failed"
+                text: InstallerController.succeeded
+                    ? InstallerController.text("done_title")
+                    : InstallerController.text("done_failed_title")
                 level: 1
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
@@ -46,13 +48,27 @@ TunaComponents.SetupModule {
 
             Label {
                 text: InstallerController.succeeded
-                    ? InstallerController.productName + " has been installed. Remove the installation media and restart to boot into your new system."
+                    ? InstallerController.text("done_subtitle")
                     : "The installation did not finish. The log above has the details — exit code "
                       + InstallerController.exitCode + "."
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
 
                 Layout.fillWidth: true
+            }
+
+            // Restart is the primary action after a successful install, the
+            // same as on the other frontends; Close stays in the footer.
+            Button {
+                text: InstallerController.text("done_restart")
+                icon.name: "system-reboot-symbolic"
+                visible: InstallerController.succeeded
+                highlighted: true
+
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: Kirigami.Units.largeSpacing
+
+                onClicked: InstallerController.reboot()
             }
 
             // The log shown on the previous step dies with this window; this

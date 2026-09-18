@@ -96,9 +96,43 @@ class RecipeLoader:
             r["distro_name"] = b.name
         if not r.get("distro_logo"):
             r["distro_logo"] = b.logo or "org.bootcinstaller.Installer"
+        # Every flavour line comes from the branding copy layer; the recipe's
+        # own welcome_title/welcome_subtitle are honoured only when no
+        # branding file names the product (a custom recipe is a config file
+        # too, but the branding file is the one the contract names).
+        name = r["distro_name"]
         if file_wins or not r.get("welcome_title"):
-            r["welcome_title"] = _("Welcome to {}").format(r["distro_name"])
-        r["branding"] = b.as_dict()
+            r["welcome_title"] = b.text("welcome_title", name=name)
+        if file_wins or "welcome_subtitle" not in r:
+            r["welcome_subtitle"] = b.text("welcome_subtitle", name=name)
+        # Store, credits and artwork: assets are host paths; the recipe keys
+        # the views already read stay the interface, so a branding file and
+        # an old-style recipe both work.
+        if file_wins or not r.get("store_url"):
+            r["store_url"] = b.store_url
+        if b.assets.get("store_qr") and (file_wins or not r.get("store_qr_resource")):
+            r["store_qr_resource"] = b.assets["store_qr"]
+        if b.assets.get("credits") and (file_wins or not r.get("credits_data")):
+            r["credits_data"] = b.assets["credits"]
+        if b.assets.get("video") and (file_wins or not r.get("install_video")):
+            r["install_video"] = b.assets["video"]
+        if file_wins or not isinstance(r.get("tour"), dict):
+            r["tour"] = {
+                "welcome": {
+                    "image": b.assets.get("welcome_image", ""),
+                    "title": b.text("tour_welcome_title", name=name),
+                    "description": b.text("tour_welcome_description", name=name),
+                },
+                "completed": {
+                    "image": b.assets.get("complete_image", ""),
+                    "title": b.text("tour_done_title", name=name),
+                    "description": b.text("tour_done_description", name=name),
+                },
+            }
+        d = b.as_dict()
+        d.update({"store_url": b.store_url, "copy": dict(b.copy), "assets": dict(b.assets),
+                  "confirm_quotes": dict(b.confirm_quotes)})
+        r["branding"] = d
         logger.info("Branding: %s (%s)", r["distro_name"], b.source)
 
     def __enrich(self):

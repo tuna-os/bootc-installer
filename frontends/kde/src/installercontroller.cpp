@@ -327,3 +327,11 @@ void InstallerController::startInstall()
     m_process->start();
     Q_EMIT installingChanged();
 }
+
+void InstallerController::reboot()
+{
+    // Same host path as the install: flatpak-spawn --host when sandboxed.
+    QStringList argv = offline::hostCommand({QStringLiteral("systemctl"), QStringLiteral("reboot")});
+    const QString program = argv.takeFirst();
+    QProcess::startDetached(program, argv);
+}

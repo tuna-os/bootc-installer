@@ -48,6 +48,27 @@ ApplicationWindow {
     property var branding: ({})
     readonly property string productName: branding.name || "Linux"
 
+    // Flavour text (shared/branding copy keys) with {name}/{disk} filled in.
+    // Neutral until detect delivers the branding; never a product literal.
+    function text(key, values) {
+        const copy = root.branding.copy || {}
+        let line = copy[key] !== undefined ? copy[key] : ({
+            welcome_title: "Welcome to {name}", welcome_subtitle: "",
+            welcome_button: "Get started", confirm_title: "Confirm installation",
+            confirm_subtitle: "", confirm_body: "",
+            confirm_warning: "Everything on {disk} will be erased. This cannot be undone.",
+            confirm_button: "Install", progress_title: "Installing {name}\u2026",
+            progress_note: "Do not power off the computer.",
+            done_title: "{name} is installed",
+            done_subtitle: "Remove the installation media and restart the computer.",
+            done_restart: "Restart now", done_failed_title: "Installation failed"
+        })[key] || ""
+        line = line.split("{name}").join(root.productName)
+        for (const k in (values || {}))
+            line = line.split("{" + k + "}").join(values[k])
+        return line
+    }
+
     // Wizard state
     property int currentPage: 0 // 0=welcome, 1=disk, 2=encryption, 3=confirm, 4=progress, 5=done
 
@@ -202,10 +223,19 @@ ApplicationWindow {
                     // screen-parity contract keys the welcome screen off
                     // product-free words, and a bare "<product> Installer"
                     // would match none of them.
-                    text: "Welcome to " + root.productName
+                    text: root.text("welcome_title")
                     font.pixelSize: 28
                     font.weight: Font.Light
                     color: Theme.primary // --sonar
+                    Layout.alignment: Qt.AlignHCenter
+                }
+                Text {
+                    text: root.text("welcome_subtitle")
+                    visible: text !== ""
+                    font.pixelSize: 15
+                    color: Theme.surfaceText
+                    wrapMode: Text.WordWrap
+                    Layout.maximumWidth: 420
                     Layout.alignment: Qt.AlignHCenter
                 }
                 Text {
@@ -219,7 +249,7 @@ ApplicationWindow {
                     Layout.alignment: Qt.AlignHCenter
                 }
                 Button {
-                    text: "Get Started"
+                    text: root.text("welcome_button")
                     Layout.alignment: Qt.AlignHCenter
                     Layout.preferredWidth: 200
                     onClicked: {
@@ -242,9 +272,8 @@ ApplicationWindow {
                 color: Theme.surfaceVariantText
             }
             Text {
-                text: root.selectedDisk.name !== undefined
-                    ? "erases everything on " + root.selectedDisk.name
-                    : "All data on the selected disk will be erased."
+                text: root.text("confirm_warning", { disk: root.selectedDisk.name !== undefined
+                    ? "/dev/" + root.selectedDisk.name : "the selected disk" })
                 font.pixelSize: 13
                 color: Theme.warning // --catch
             }
@@ -385,7 +414,7 @@ ApplicationWindow {
             anchors.margins: 40
 
             Text {
-                text: "Confirm Installation"
+                text: root.text("confirm_title")
                 font.pixelSize: 22
                 font.weight: Font.Light
                 color: Theme.surfaceVariantText
@@ -394,6 +423,13 @@ ApplicationWindow {
                 columns: 2
                 columnSpacing: 24
                 rowSpacing: 8
+                Text {
+                    text: root.text("confirm_subtitle")
+                    visible: text !== ""
+                    font.pixelSize: 13
+                    color: Theme.surfaceVariantText
+                    Layout.columnSpan: 2
+                }
                 Text { text: "Target Disk:"; font.bold: true; color: Theme.surfaceVariantText }
                 Text {
                     text: root.selectedDisk.name ? "/dev/" + root.selectedDisk.name : "—"
@@ -423,9 +459,17 @@ ApplicationWindow {
             RowLayout {
                 Layout.fillWidth: true
                 Button { text: "Back"; onClicked: root.currentPage = 2 }
+                Text {
+                    text: root.text("confirm_body")
+                    visible: text !== ""
+                    font.pixelSize: 13
+                    color: Theme.surfaceVariantText
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                }
                 Item { Layout.fillWidth: true }
                 Button {
-                    text: "Install"
+                    text: root.text("confirm_button")
                     highlighted: true
                     onClicked: root.startInstall()
                 }
@@ -438,7 +482,7 @@ ApplicationWindow {
             anchors.margins: 40
 
             Text {
-                text: "Installing…"
+                text: root.text("progress_title")
                 font.pixelSize: 22
                 font.weight: Font.Light
                 color: Theme.surfaceVariantText
@@ -464,7 +508,7 @@ ApplicationWindow {
                 anchors.centerIn: parent
 
                 Text {
-                    text: root.installSuccess ? "✓ Installation Complete" : "✗ Installation Failed"
+                    text: root.installSuccess ? "✓ " + root.text("done_title") : "✗ " + root.text("done_failed_title")
                     font.pixelSize: 28
                     font.weight: Font.Light
                     color: root.installSuccess ? Theme.primary : Theme.warning
@@ -472,11 +516,18 @@ ApplicationWindow {
                 }
                 Text {
                     text: root.installSuccess
-                        ? "Remove the installation media and restart your computer."
+                        ? root.text("done_subtitle")
                         : "Check the installation log above for details."
                     font.pixelSize: 14
                     color: Theme.surfaceVariantText
                     Layout.alignment: Qt.AlignHCenter
+                }
+                Button {
+                    text: root.text("done_restart")
+                    visible: root.installSuccess
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: 200
+                    onClicked: rebootProc.running = true
                 }
                 Button {
                     text: "Close"
@@ -486,5 +537,13 @@ ApplicationWindow {
                 }
             }
         }
+    }
+
+    // Restart from the done page: the backend runs `systemctl reboot` on the
+    // host (through flatpak-spawn when sandboxed), the same path the other
+    // frontends use.
+    Process {
+        id: rebootProc
+        command: [root.backendBin, "reboot"]
     }
 }

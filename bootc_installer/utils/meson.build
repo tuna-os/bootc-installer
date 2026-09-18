@@ -13,6 +13,7 @@ sources = [
   'phone_companion.py',
   'fisherman_runner.py',
   'branding.py',
+  'copy.py',
 ]
 
 install_data(sources, install_dir: utilsdir)

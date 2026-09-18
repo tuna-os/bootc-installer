@@ -137,6 +137,15 @@ class TestProcessKeyboards(unittest.TestCase):
         self.assertEqual(len(obj.active_widgets), 0)
 
 
+def _set_window(obj, recipe):
+    """Give a __new__-built view the window update() reads the branding from.
+    Set in the instance dict so it shadows whatever the GTK stubs put on the
+    class."""
+    window = MagicMock()
+    window.recipe = recipe
+    obj.__dict__["_BootcConfirm__window"] = window
+
+
 class TestConfirmUpdate(unittest.TestCase):
     def setUp(self):
         # Install core.system stub only for the duration of this test so
@@ -212,17 +221,30 @@ class TestConfirmUpdate(unittest.TestCase):
         obj.update([])
         obj.btn_confirm.set_label.assert_called_once()
 
-    def test_update_with_pt_br_language_uses_senna_quote(self):
+    def test_update_uses_branding_quote_for_its_language(self):
         obj = self._make_obj()
+        _set_window(obj, {"branding": {
+            "name": "Marlin", "copy": {"confirm_subtitle": "plain", "confirm_button": "Onward"},
+            "confirm_quotes": {"pt_BR": ["Linha"]}}})
         obj.update([{"language": "pt_BR.UTF-8"}])
-        subtitle = obj.page_header.subtitle
-        self.assertIn("Senna", subtitle)
+        self.assertEqual(obj.page_header.subtitle, "Linha")
+        obj.btn_confirm.set_label.assert_called_with("Onward")
 
-    def test_update_with_other_language_uses_zavala_quote(self):
+    def test_update_uses_plain_subtitle_for_other_languages(self):
         obj = self._make_obj()
+        _set_window(obj, {"branding": {
+            "name": "Marlin", "copy": {"confirm_subtitle": "plain"},
+            "confirm_quotes": {"pt_BR": ["Linha"]}}})
         obj.update([{"language": "en_US.UTF-8"}])
-        subtitle = obj.page_header.subtitle
-        self.assertIn("Zavala", subtitle)
+        self.assertEqual(obj.page_header.subtitle, "plain")
+
+    def test_update_without_branding_names_no_product(self):
+        obj = self._make_obj()
+        _set_window(obj, {})
+        obj.update([{"language": "en_US.UTF-8"}])
+        self.assertEqual(obj.page_header.subtitle, "")
+        for banned in ("Zavala", "Legend", "Bluefin"):
+            self.assertNotIn(banned, str(obj.btn_confirm.set_label.call_args))
 
     def test_update_resets_active_widgets_on_repeat_call(self):
         obj = self._make_obj()
@@ -250,7 +272,6 @@ def _import_BootcConfirm_fresh():
     if "bootc_installer.views.confirm_data" not in sys.modules:
         cd_stub = types.ModuleType("bootc_installer.views.confirm_data")
         cd_stub._ENC_LABELS = {}
-        cd_stub._SENNA_QUOTES = ["Senna quote"]
         sys.modules["bootc_installer.views.confirm_data"] = cd_stub
     fresh = importlib.import_module("bootc_installer.views.confirm")
     fresh.BootcChoiceEntry = lambda title, subtitle, icon, **kw: MagicMock()

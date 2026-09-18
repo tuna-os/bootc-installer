@@ -21,11 +21,14 @@ func write(t *testing.T, dir, name, body string) string {
 }
 
 type fixtureCase struct {
-	Branding     *string           `json:"branding"`
-	OsRelease    *string           `json:"os_release"`
-	Expect       map[string]string `json:"expect"`
-	NameOverride string            `json:"name_override"`
-	ExpectName   string            `json:"expect_name"`
+	Branding       *string           `json:"branding"`
+	OsRelease      *string           `json:"os_release"`
+	Expect         map[string]string `json:"expect"`
+	ExpectCopy     map[string]string `json:"expect_copy"`
+	ExpectAssets   map[string]string `json:"expect_assets"`
+	ExpectStoreURL *string           `json:"expect_store_url"`
+	NameOverride   string            `json:"name_override"`
+	ExpectName     string            `json:"expect_name"`
 }
 
 func loadFixtures(t *testing.T) map[string]fixtureCase {
@@ -105,6 +108,19 @@ func TestBrandingFixtures(t *testing.T) {
 			if c.ExpectName != "" && got.Name != c.ExpectName {
 				t.Errorf("name override: got %q want %q", got.Name, c.ExpectName)
 			}
+			for k, want := range c.ExpectCopy {
+				if got.Copy[k] != want {
+					t.Errorf("copy.%s: got %q want %q", k, got.Copy[k], want)
+				}
+			}
+			for k, want := range c.ExpectAssets {
+				if got.Assets[k] != want {
+					t.Errorf("assets.%s: got %q want %q", k, got.Assets[k], want)
+				}
+			}
+			if c.ExpectStoreURL != nil && got.StoreURL != *c.ExpectStoreURL {
+				t.Errorf("store_url: got %q want %q", got.StoreURL, *c.ExpectStoreURL)
+			}
 		})
 	}
 }
@@ -137,5 +153,28 @@ func TestParseOsReleaseQuoting(t *testing.T) {
 	}
 	if _, ok := got["NOEQ"]; ok {
 		t.Error("line without = must be skipped")
+	}
+}
+
+func TestCopyDefaultsMatchShared(t *testing.T) {
+	shared, err := os.ReadFile(filepath.Join(fixturesDir, "..", "copy-defaults.json"))
+	if err != nil {
+		t.Skipf("shared copy-defaults.json not available: %v", err)
+	}
+	if string(shared) != string(copyDefaultsJSON) {
+		t.Fatal("installer/copy-defaults.json has diverged from shared/branding/copy-defaults.json; cp the shared one over")
+	}
+	if copyDefaults()["welcome_title"] == "" {
+		t.Fatal("copy defaults did not parse")
+	}
+}
+
+func TestText(t *testing.T) {
+	b := brandingFromSources(map[string]any{"name": "Marlin"}, "", "")
+	if got := b.Text("confirm_warning", map[string]string{"disk": "/dev/sda"}); got != "Everything on /dev/sda will be erased. This cannot be undone." {
+		t.Errorf("Text: %q", got)
+	}
+	if got := b.Text("welcome_title", nil); got != "Welcome to Marlin" {
+		t.Errorf("Text name: %q", got)
 	}
 }

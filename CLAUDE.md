@@ -80,7 +80,7 @@ Every frontend has a headless capture job (`screenshots-<name>.yml`) that render
 - **Don't pass recipe directly to fisherman from filesystem.** The Flatpak sandbox can't see it — use the host staging path.
 - **Don't push to `prod` or cut releases from `dev`.** `promote.yml` owns `prod`; `release.yml` owns tags and the Flatpak remote. Rolling release tags (`latest-stable`) are banned by ruleset history.
 - **Don't add a `.github/` under `frontends/<name>/`.** Workflows only run from the root.
-- **Don't hardcode a product.** No "TunaOS", "Bluefin", image ref, hostname, URL or vendor in any frontend: read `shared/branding/README.md` and go through that frontend's branding resolver. The screenshot workflows set `BOOTC_INSTALLER_PRODUCT_NAME` for the docs; the bundled GNOME `recipe.json` carries no product strings.
+- **Don't hardcode a product.** No "TunaOS", "Bluefin", image ref, hostname, URL, vendor, quote, tagline, store or artwork in any frontend: read `shared/branding/README.md` and go through that frontend's branding resolver (`copy` keys for every rebrandable line, `assets` for artwork). The screenshot workflows set `BOOTC_INSTALLER_PRODUCT_NAME` for the docs; the bundled GNOME `recipe.json` carries no product strings; Bluefin's live in `shared/branding/examples/bluefin/`, which the live ISO ships. `docs/PARITY.md` says what each frontend renders.
 
 ## References
 - `fisherman/data/images.json` — recursive distro image catalog

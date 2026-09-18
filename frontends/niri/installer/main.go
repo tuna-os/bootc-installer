@@ -56,6 +56,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  detect             Report live-ISO image and offline stores as JSON")
 		fmt.Fprintln(os.Stderr, "  install <recipe>   Run fisherman with the given recipe JSON")
 		fmt.Fprintln(os.Stderr, "  readiness [page]   Record that the UI window presented a frame")
+		fmt.Fprintln(os.Stderr, "  reboot             Restart the host (the done page's action)")
 		os.Exit(1)
 	}
 
@@ -75,6 +76,13 @@ func main() {
 			os.Exit(1)
 		}
 		runInstall(string(recipeJSON))
+	case "reboot":
+		// The done page's Restart. On the host through flatpak-spawn when
+		// sandboxed, like every other frontend's reboot path.
+		if out, err := runHost("systemctl", "reboot"); err != nil {
+			fmt.Fprintf(os.Stderr, "reboot: %v\n%s", err, out)
+			os.Exit(1)
+		}
 	case "readiness":
 		// Called by the QML layer from ApplicationWindow.onFrameSwapped. See
 		// readiness.go for why the write lives on this side of the boundary.
