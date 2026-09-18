@@ -58,8 +58,48 @@ echo "=== installing $FRONTEND's recipe onto $LOOPDEV"
 sudo /tmp/fisherman "$OUT/recipe.json" 2>&1 | tee "$OUT/install.log"
 
 echo "=== enabling SSH in the installed system"
-bash "$HERE/enable-ssh-installed.sh" "$LOOPDEV" "$COMPOSEFS" /tmp/bootcrew-ssh/id_rsa.pub
+# fisherman's script writes root's authorized_keys into the stateroot var
+# (the tree the booted guest mounts as /var) and an sshd_config.d drop-in.
+# Needs the submodule at 7c3c738 or later: the older script wrote the key
+# into the deployment's own var/, which the guest never sees, so sshd ran
+# and rejected every probe until boot-verify timed out.
+bash scripts/enable-ssh-installed.sh "$LOOPDEV" "$COMPOSEFS" /tmp/bootcrew-ssh/id_rsa.pub "$PASSPHRASE"
 just verify-installation "$LOOPDEV" "$COMPOSEFS" "$PASSPHRASE"
+
+# Same BLS patch as fisherman's bootcrew-ci-test: console=ttyS0 so the
+# serial log in the artifact shows the kernel and systemd (without it the
+# log stops at GRUB's "Booting ..."), and enforcing=0 because the files the
+# SSH-enable step wrote from this Ubuntu runner carry no SELinux labels the
+# guest's policy would let sshd_t read. Permissive keeps the gap visible as
+# AVC denials in the journal instead of a silent boot-verify timeout.
+echo "=== patching BLS entries (serial console, permissive SELinux)"
+patch_bls() {
+  local part="$1" label="$2" mnt patched=0 conf
+  mnt=$(mktemp -d)
+  sudo mount "$part" "$mnt" 2>/dev/null || { rmdir "$mnt"; return; }
+  for conf in "$mnt"/loader/entries/*.conf; do
+    [ -f "$conf" ] || continue
+    if ! sudo grep -q "console=ttyS0" "$conf"; then
+      sudo sed -i 's/^options /options console=ttyS0,115200 console=tty0 /' "$conf"
+      patched=1
+    fi
+    if ! sudo grep -Eq "selinux=0|enforcing=0" "$conf"; then
+      sudo sed -i 's/^options /options enforcing=0 /' "$conf"
+      patched=1
+    fi
+    if [ "$patched" -eq 1 ]; then
+      echo "  patched ($label): $(basename "$conf")"
+      sudo grep "^options" "$conf"
+    fi
+  done
+  [ "$patched" -eq 0 ] && echo "  no BLS entries on $label (or already patched)"
+  sudo umount "$mnt"
+  rmdir "$mnt"
+}
+patch_bls "${LOOPDEV}p1" EFI
+if [ "$(sudo blkid -s TYPE -o value "${LOOPDEV}p2" 2>/dev/null)" != "crypto_LUKS" ]; then
+  patch_bls "${LOOPDEV}p2" boot
+fi
 
 echo "=== booting it"
 bash scripts/boot-verify.sh 2222 /tmp/bootcrew-ssh/id_rsa 600 2G "$LOOPDEV" "e2e-$FRONTEND" "$PASSPHRASE" 2>&1 | tee "$OUT/boot.log"

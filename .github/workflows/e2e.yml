@@ -264,7 +264,7 @@ jobs:
         working-directory: fisherman
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq just socat
+          sudo apt-get install -y -qq just socat attr   # attr: setfattr labels the injected SSH files
           just ci-install-tools
       - name: log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login -u "${{ github.actor }}" --password-stdin ghcr.io

@@ -34,6 +34,17 @@ in the result, verifies the layout and boots it in QEMU until `bootc status`
 answers over SSH. Only `disk` and `image` are rewritten (the loop device and
 the SSH-enabled canary that matches the recipe's boot stack).
 
+The SSH-enable step is fisherman's `scripts/enable-ssh-installed.sh` and
+needs the submodule at `7c3c738` or later: that revision writes root's
+`authorized_keys` into the stateroot `var/` the guest mounts (older ones
+wrote it into the deployment's own `var/`, which the guest never sees, so
+sshd rejected every probe) and adds an `sshd_config.d` drop-in. The BLS
+entries are then patched like fisherman's `bootcrew-ci-test` does
+(`console=ttyS0` so the serial log in the artifact shows the boot,
+`enforcing=0` because the injected files carry no SELinux labels). The
+artifact `e2e-install-<frontend>` holds the rewritten recipe, the install
+log and the boot log.
+
 ## Run it locally
 
 ```bash
