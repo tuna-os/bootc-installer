@@ -16,18 +16,9 @@
 
 """Data-only module — no GTK imports, safe for pure-Python unit tests."""
 
-from gettext import gettext as _
-
 _ENC_LABELS = {
     "none": "None",
     "luks-passphrase": "Encrypted with passphrase",
     "tpm2-luks": "Hardware-backed encryption",
     "tpm2-luks-passphrase": "Hardware-backed + passphrase fallback",
 }
-
-_SENNA_QUOTES = [
-    _('"If you have God on your side, everything becomes clear." — Ayrton Senna'),
-    _('"I am not designed to come second or third. I am designed to win." — Ayrton Senna'),
-    _('"Being second is to be the first of the ones who lose." — Ayrton Senna'),
-    _('"On a given day, a given circumstance, you think you have a limit — and you go beyond it." — Ayrton Senna'),
-]

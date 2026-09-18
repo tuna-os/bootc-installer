@@ -1,0 +1,27 @@
+{
+  "name": "Marlin",
+  "docs_url": "https://docs.example.org/marlin",
+  "default_image": "ghcr.io/example/marlin:latest",
+  "vendor": "",
+  "store_url": "https://store.example.org/",
+  "copy": {
+    "confirm_button": "Onward",
+    "confirm_subtitle": "\"Hold fast.\" — Someone",
+    "done_subtitle": ""
+  },
+  "assets": {
+    "store_qr": "/usr/share/example/store-qr.svg",
+    "welcome_image": ""
+  },
+  "confirm_quotes": {
+    "pt_BR": [
+      "\"Segue em frente.\" — Alguém"
+    ]
+  },
+  "unknown_extra": "ignored",
+  "extensions": {
+    "gnome": {
+      "video": "/usr/share/example/install.webm"
+    }
+  }
+}

@@ -23,6 +23,10 @@ E2E_DIR = os.environ.get("TUNA_E2E_DIR", "/tmp/tuna-e2e")
 BACKEND = os.environ.get("TUNA_BACKEND", os.path.join(REPO, "installer", "tuna-installer-niri"))
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# The branding the backend and the QML resolve from (shared/branding): this
+# frontend has no image chooser, so the image it installs is the branding's
+# default_image; on a runner that is the canary shared/e2e later rewrites.
+os.environ.setdefault("BOOTC_INSTALLER_BRANDING", os.path.join(REPO, "tests", "e2e", "branding.json"))
 os.environ["QML2_IMPORT_PATH"] = os.path.join(REPO, "tests", "qml-stubs")
 os.environ["QML_IMPORT_PATH"] = os.environ["QML2_IMPORT_PATH"]
 
@@ -64,6 +68,7 @@ def main():
 
     # Drive the wizard the way a user would reach Install: pick the disk,
     # walk to Confirm, press Install.
+    root.setProperty("branding", facts.get("branding") or {})
     root.setProperty("liveImage", facts.get("liveImage") or "")
     root.setProperty("offlineStores", facts.get("offlineStores") or [])
     root.setProperty("disks", disks)

@@ -32,7 +32,7 @@ TunaComponents.SetupModule {
             }
 
             Label {
-                text: "Installing " + InstallerController.productName + " onto " + InstallerController.disk + ". Do not power off the machine."
+                text: InstallerController.text("progress_title") + " " + InstallerController.disk + ". " + InstallerController.text("progress_note")
                 wrapMode: Text.Wrap
 
                 Layout.fillWidth: true

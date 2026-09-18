@@ -9,6 +9,7 @@ bootc-installer is the monorepo for every TunaOS / Bluefin bootc installer front
 | `bootc_installer/`, `data/`, `flatpak/`, `tests/` | GNOME frontend (this file's original subject) |
 | `frontends/kde|cosmic|niri|xfce/` | the other frontends, imported with history from `tuna-os/tuna-installer-*`; read their `AGENTS.md` first |
 | `shared/recipe/` | canonical recipe schema (KDE keeps a byte-identical copy; a unit test enforces it) |
+| `shared/branding/` | product identity contract: `branding.json` first, `os-release` second, neutral last; one resolver per language, all tested against `fixtures/` |
 | `shared/walkthrough/` | screen contract + parity report + `aggregate.py` that builds `docs/walkthrough/` |
 | `fisherman/` | backend submodule |
 
@@ -16,7 +17,7 @@ Workflows live only in the root `.github/workflows/`; per-frontend ones are name
 
 ## Release flow (read docs/RELEASE.md before touching CI)
 
-`dev` → every check green + soak → `promote.yml` fast-forwards `prod` → `release.yml` cuts the GitHub release and publishes all five Flatpaks. Nothing on `dev` reaches `/releases/latest/` or the Flatpak remote. `prod` is never pushed by hand. The checks include `e2e.yml` (`shared/e2e/`): every frontend drives its real backend path and the recipe it produced is installed and booted in a VM.
+`dev` → every check green + soak → `promote.yml` fast-forwards `prod` → `release.yml` cuts the GitHub release and publishes all five Flatpaks to the one package `ghcr.io/tuna-os/bootc-installer:<frontend>` (`publish-oci.yml`). Nothing on `dev` reaches `/releases/latest/` or the Flatpak remote. `prod` is never pushed by hand. The checks include `e2e.yml` (`shared/e2e/`): every frontend drives its real backend path and the recipe it produced is installed and booted in a VM.
 
 ## Build commands
 
@@ -79,6 +80,7 @@ Every frontend has a headless capture job (`screenshots-<name>.yml`) that render
 - **Don't pass recipe directly to fisherman from filesystem.** The Flatpak sandbox can't see it — use the host staging path.
 - **Don't push to `prod` or cut releases from `dev`.** `promote.yml` owns `prod`; `release.yml` owns tags and the Flatpak remote. Rolling release tags (`latest-stable`) are banned by ruleset history.
 - **Don't add a `.github/` under `frontends/<name>/`.** Workflows only run from the root.
+- **Don't hardcode a product.** No "TunaOS", "Bluefin", image ref, hostname, URL, vendor, quote, tagline, store or artwork in any frontend: read `shared/branding/README.md` and go through that frontend's branding resolver (`copy` keys for every rebrandable line, `assets` for artwork). The screenshot workflows set `BOOTC_INSTALLER_PRODUCT_NAME` for the docs; the bundled GNOME `recipe.json` carries no product strings; Bluefin's live in `shared/branding/examples/bluefin/`, which the live ISO ships. `docs/PARITY.md` says what each frontend renders.
 
 ## References
 - `fisherman/data/images.json` — recursive distro image catalog

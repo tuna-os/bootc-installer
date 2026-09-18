@@ -7,6 +7,8 @@ import shlex
 import subprocess
 import tempfile
 
+from tuna_installer_xfce import branding
+
 IN_FLATPAK = os.path.exists("/.flatpak-info")
 
 # Dry run: the wizard behaves normally but NEVER launches fisherman.
@@ -94,53 +96,23 @@ OFFLINE_STORE_DEFAULT = "/usr/share/tuna-installer/oci-store"
 
 # --- product branding --------------------------------------------------------
 #
-# tunaOS builds one image per variant (Skipjack, Bonito, Yellowfin, ...) and
-# its build_scripts/90-image-info.sh writes a per-variant PRETTY_NAME into
-# /etc/os-release. Every user-visible product name here comes from that, so a
-# Skipjack ISO says "Skipjack" and not the family name.
-#
-# Inside the flatpak sandbox (org.tunaos.InstallerXfce) /etc/os-release is the
-# RUNTIME's, not the host's — the host's is bind-mounted at /run/host/etc. Read
-# the host copy first and fall back to the sandbox one, then to "TunaOS".
-
-PRODUCT_NAME_FALLBACK = "TunaOS"
-
-OS_RELEASE_PATHS = ["/run/host/etc/os-release", "/etc/os-release"]
+# Nothing here names a product. shared/branding/README.md (monorepo) is the
+# contract: a branding.json under /etc/bootc-installer (host first, since this
+# ships as a Flatpak) names the product, seeds the hostname and the recipe's
+# distroID; keys it does not set come from os-release; the last resort is a
+# neutral "Linux". tuna_installer_xfce/branding.py is a byte-identical copy of
+# the shared resolver.
 
 
-def _read_pretty_name(path):
-    """PRETTY_NAME out of one os-release file, or "" if unusable."""
-    try:
-        with open(path) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line.startswith("PRETTY_NAME="):
-                    continue
-                value = line.split("=", 1)[1].strip()
-                # os-release values are usually quoted; shlex handles the
-                # escaping rules the format actually uses.
-                try:
-                    parts = shlex.split(value)
-                except ValueError:
-                    parts = [value.strip('"\'')]
-                return (parts[0] if parts else "").strip()
-    except OSError:
-        return ""
-    return ""
+def resolve_branding():
+    """Resolve once per call; the module-level BRANDING is the cached answer."""
+    return branding.resolve()
 
 
-def resolve_product_name():
-    """The name to show the user, host os-release first, fallback last."""
-    for path in OS_RELEASE_PATHS:
-        name = _read_pretty_name(path)
-        if name:
-            return name
-    return PRODUCT_NAME_FALLBACK
-
-
-# Resolved once at import: os-release does not change under a running
-# installer, and every page title needs the same answer.
-PRODUCT_NAME = resolve_product_name()
+# Resolved once at import: the files do not change under a running installer,
+# and every page title needs the same answer.
+BRANDING = resolve_branding()
+PRODUCT_NAME = BRANDING.name
 
 
 def host_run(argv, **kwargs):
@@ -285,7 +257,7 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
                  encryption_type="none", passphrase="", image="",
                  hostname="", bootloader="", composefs=False, flatpaks="",
                  stores=(), needs_user=True, username="", fullname="",
-                 password=""):
+                 password="", branding=None):
     """Assemble the fisherman recipe from already-resolved values.
 
     This is the contract with the install backend — the same document the KDE,
@@ -320,7 +292,8 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
         "image": image,
         "selinuxDisabled": True,
         "hostname": hostname,
-        "distroID": "tunaos",
+        # The branding's id, never a literal: see resolve_branding().
+        "distroID": (branding or BRANDING).id,
     }
     if "passphrase" in encryption_type:
         recipe["encryption"]["passphrase"] = passphrase

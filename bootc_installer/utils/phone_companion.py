@@ -29,13 +29,24 @@ def get_local_ip():
         except Exception:
             return "127.0.0.1"
 
+def render_companion_html(name=None, hostname=None):
+    """COMPANION_HTML with the product name and hostname stem filled in from
+    the branding contract (shared/branding/README.md); never a literal."""
+    if name is None or hostname is None:
+        from bootc_installer.utils import branding
+        b = branding.resolve()
+        name = name or b.name
+        hostname = hostname or b.default_hostname
+    return COMPANION_HTML.replace("__PRODUCT__", name).replace("__HOSTNAME__", hostname)
+
+
 # Premium Dark-Mode HTML Form to serve on mobile devices
 COMPANION_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bluefin Installer Companion</title>
+    <title>__PRODUCT__ Installer Companion</title>
     <style>
         :root {
             --bg-color: #0b0b0f;
@@ -169,7 +180,7 @@ COMPANION_HTML = """<!DOCTYPE html>
 <body>
     <div class="container">
         <div class="card" id="form-state">
-            <h1>Bluefin Setup</h1>
+            <h1>__PRODUCT__ Setup</h1>
             <p class="subtitle">Complete your installation settings from your phone</p>
             
             <div class="form-group">
@@ -189,7 +200,7 @@ COMPANION_HTML = """<!DOCTYPE html>
             
             <div class="form-group">
                 <label for="hostname">Hostname</label>
-                <input type="text" id="hostname" placeholder="e.g. bluefin-desktop" value="bluefin-desktop" required>
+                <input type="text" id="hostname" placeholder="e.g. __HOSTNAME__-desktop" value="__HOSTNAME__-desktop" required>
             </div>
             
             <div class="form-group">
@@ -282,7 +293,7 @@ class CompanionRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
             self.end_headers()
-            self.wfile.write(COMPANION_HTML.encode('utf-8'))
+            self.wfile.write(render_companion_html().encode('utf-8'))
         else:
             self.send_error(404, "Not Found")
 

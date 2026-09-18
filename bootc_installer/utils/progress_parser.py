@@ -47,6 +47,11 @@ def set_product_name(name: str) -> None:
         _PRODUCT_NAME = name
 
 
+def get_product_name() -> str:
+    """The product name step labels use; "the OS" until set_product_name()."""
+    return _PRODUCT_NAME
+
+
 def _friendly_label(step_name: str) -> str:
     """Human label for a fisherman step, with {product} filled in.
 

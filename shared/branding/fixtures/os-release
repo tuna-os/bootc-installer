@@ -1,0 +1,14 @@
+NAME="Example OS"
+VERSION="42 (Reef)"
+ID=exampleos
+ID_LIKE="fedora"
+VERSION_ID=42
+PRETTY_NAME="Example OS 42 (Reef)"
+ANSI_COLOR="0;34"
+CPE_NAME="cpe:/o:example:exampleos:42"
+HOME_URL="https://example.org/"
+DOCUMENTATION_URL='https://docs.example.org/'
+SUPPORT_URL="https://help.example.org/"
+BUG_REPORT_URL="https://bugs.example.org/"
+LOGO=exampleos-logo
+DEFAULT_HOSTNAME="reef"

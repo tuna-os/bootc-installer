@@ -35,9 +35,21 @@ TunaComponents.SetupModule {
                 Layout.bottomMargin: Kirigami.Units.gridUnit
             }
 
+            // Flavour text is branding copy (shared/branding): the product's
+            // welcome line and, when it sets one, a subtitle. Nothing here
+            // names a product.
             Kirigami.Heading {
-                text: "Install " + InstallerController.productName
+                text: InstallerController.text("welcome_title")
                 level: 1
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+
+                Layout.fillWidth: true
+            }
+
+            Label {
+                text: InstallerController.text("welcome_subtitle")
+                visible: text.length > 0
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
 

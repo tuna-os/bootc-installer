@@ -14,6 +14,9 @@
 #include <QTemporaryDir>
 #include <qqmlintegration.h>
 
+#include "branding.h"
+
+#include <QVariantMap>
 #include "recipe.h"
 
 class InstallerController : public QObject
@@ -35,11 +38,15 @@ class InstallerController : public QObject
     // machine without a TPM only fails later, at install time.
     Q_PROPERTY(bool hasTpm READ hasTpm CONSTANT)
 
-    // The variant's name — "Skipjack", "Bonito", … — resolved ONCE at startup
-    // from os-release (see src/productname.h). Every user-visible string that
-    // used to say "TunaOS" reads this instead, so a Skipjack ISO says
-    // Skipjack. CONSTANT: os-release cannot change under a running installer.
+    // The product name, resolved ONCE at startup from the branding contract
+    // (src/branding.h: branding.json, then os-release, then neutral). Every
+    // user-visible string reads this; nothing names a product. CONSTANT: the
+    // files cannot change under a running installer.
     Q_PROPERTY(QString productName READ productName CONSTANT)
+    // Flavour text from the branding contract (shared/branding copy keys),
+    // {name} already filled in; {disk} through text(). CONSTANT like the name.
+    Q_PROPERTY(QVariantMap copy READ copy CONSTANT)
+    Q_PROPERTY(QString storeUrl READ storeUrl CONSTANT)
 
     Q_PROPERTY(QString log READ log NOTIFY logChanged)
 
@@ -74,6 +81,15 @@ public:
 
     bool hasTpm() const { return m_hasTpm; }
     QString productName() const { return m_productName; }
+    QVariantMap copy() const { return m_branding.copyAsVariantMap(); }
+    QString storeUrl() const { return m_branding.storeUrl; }
+    // A copy line with {name} and {disk} filled in.
+    Q_INVOKABLE QString text(const QString &key, const QString &disk = QString()) const
+    {
+        return m_branding.text(key, {{QStringLiteral("disk"), disk.isEmpty() ? QStringLiteral("the selected disk") : disk}});
+    }
+    // The done page's Restart: systemctl reboot on the host.
+    Q_INVOKABLE void reboot();
     QString log() const { return m_log; }
     QString logPath() const { return m_logPath; }
     bool installing() const { return m_process != nullptr; }
@@ -119,5 +135,6 @@ private:
     bool m_finished = false;
     bool m_hasTpm = false;
     QString m_productName;
+    branding::Branding m_branding;
     int m_exitCode = 0;
 };

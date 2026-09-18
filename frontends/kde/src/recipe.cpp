@@ -50,9 +50,9 @@ Recipe Recipe::fromJson(const QJsonObject &obj)
     for (const auto &val : obj["additionalImageStores"].toArray()) {
         r.additionalImageStores.append(val.toString());
     }
-    r.distroID = obj["distroID"].toString("tunaos");
+    r.distroID = obj["distroID"].toString();
     r.selinuxDisabled = obj["selinuxDisabled"].toBool(true);
-    r.hostname = obj["hostname"].toString("tunaos");
+    r.hostname = obj["hostname"].toString();
     return r;
 }
 

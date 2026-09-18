@@ -94,7 +94,7 @@ jobs:
           # Generic documentation, not a Skipjack ISO's screenshots: render
           # with the neutral fallback name rather than the container's
           # PRETTY_NAME.
-          TUNA_INSTALLER_PRODUCT_NAME: TunaOS
+          BOOTC_INSTALLER_PRODUCT_NAME: TunaOS
         run: |
           mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
           ./build/tuna-installer-capture docs/screenshots

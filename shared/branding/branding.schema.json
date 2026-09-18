@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/tuna-os/bootc-installer/shared/branding/branding.schema.json",
+  "title": "bootc-installer branding",
+  "description": "Product identity and flavour text for every installer frontend. Every key is optional; a missing or empty scalar falls through to os-release, then to a neutral default; a missing copy key falls through to copy-defaults.json. See shared/branding/README.md.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Product name shown to the user, e.g. \"Skipjack\". Falls back to PRETTY_NAME then NAME."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9._-]*$",
+      "description": "Lower-case identifier written as the recipe's distroID. Falls back to ID."
+    },
+    "vendor": {
+      "type": "string",
+      "description": "Who makes the product; shown in about dialogs. Falls back to VENDOR_NAME then NAME."
+    },
+    "home_url": {
+      "type": "string",
+      "description": "Product website. Falls back to HOME_URL."
+    },
+    "docs_url": {
+      "type": "string",
+      "description": "Documentation site. Falls back to DOCUMENTATION_URL."
+    },
+    "support_url": {
+      "type": "string",
+      "description": "Support or community site. Falls back to SUPPORT_URL."
+    },
+    "store_url": {
+      "type": "string",
+      "description": "Merchandise store. No os-release fallback; empty hides every store element."
+    },
+    "logo": {
+      "type": "string",
+      "description": "Themed icon name or absolute path for welcome and done artwork. Falls back to LOGO."
+    },
+    "default_hostname": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$|^$",
+      "description": "Initial hostname. Falls back to DEFAULT_HOSTNAME then ID."
+    },
+    "default_image": {
+      "type": "string",
+      "description": "OCI reference installed when the frontend offers no catalog choice and is not on a live ISO. No os-release fallback."
+    },
+    "copy": {
+      "type": "object",
+      "description": "Flavour text every frontend renders. Any key of copy-defaults.json; a present key overrides (an empty string hides the line), a missing key keeps the neutral default. {name} and {disk} are substituted.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "confirm_quotes": {
+      "type": "object",
+      "description": "Optional locale-specific confirm subtitles: language tag (\"pt_BR\") to a list of lines, one chosen at random when the installer runs in that language. Frontends without locale-aware copy ignore it.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "assets": {
+      "type": "object",
+      "description": "Absolute paths on the host. Common to every frontend; empty or missing means the frontend hides or skips the element.",
+      "properties": {
+        "welcome_image": {
+          "type": "string",
+          "description": "Welcome artwork."
+        },
+        "complete_image": {
+          "type": "string",
+          "description": "Done-page artwork."
+        },
+        "store_qr": {
+          "type": "string",
+          "description": "QR image for store_url."
+        }
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Per-frontend extras outside the parity contract, keyed by frontend (\"gnome\"). Only that frontend reads its object. GNOME: tour_welcome_title, tour_welcome_description, tour_done_title, tour_done_description, video, credits (host paths).",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

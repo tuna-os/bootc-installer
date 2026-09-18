@@ -196,6 +196,7 @@ class TestBuilder(unittest.TestCase):
                 "logo": "logo.svg",
                 "default_image_icon": "default-icon",
                 "welcome_title": "Welcome to Bluefin",
+                "welcome_subtitle": "",
             },
         )
         find_icon.assert_called_with("ghcr.io/projectbluefin/bluefin:latest")
@@ -346,6 +347,7 @@ class TestBuilder(unittest.TestCase):
                 "logo": "logo.svg",
                 "default_image_icon": None,
                 "welcome_title": "",
+                "welcome_subtitle": "",
             },
         )
         find_icon.assert_not_called()

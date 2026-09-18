@@ -206,13 +206,18 @@ class Systeminfo:
         return Systeminfo._tpm2
 
     @staticmethod
-    def generate_hostname() -> str:
+    def generate_hostname(stem: str | None = None) -> str:
         """Generate a hardware-derived hostname like 'framework-13-a7c3'.
 
         Format: {vendor/model}-{4-char hex suffix}
         The suffix is derived from the machine serial for uniqueness.
-        Falls back to 'bluefin-XXXX' if DMI data is unavailable.
+        Falls back to '{stem}-XXXX' if DMI data is unavailable, where stem is
+        the branding contract's default_hostname (branding.json, else
+        os-release DEFAULT_HOSTNAME/ID) unless given.
         """
+        if stem is None:
+            from bootc_installer.utils import branding
+            stem = branding.resolve().default_hostname
         product = _read_dmi("product_name")
         vendor_raw = _read_dmi("sys_vendor")
 
@@ -236,7 +241,7 @@ class Systeminfo:
             model_part = model_part[:20].rstrip("-")
 
         if not model_part:
-            model_part = "bluefin"
+            model_part = stem
 
         # Generate 4-char hex suffix from hardware serial
         serial = (_read_dmi("product_serial")
@@ -248,6 +253,6 @@ class Systeminfo:
 
         # Final RFC 1123 validation
         if not re.match(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", hostname):
-            hostname = f"bluefin-{suffix}"
+            hostname = f"{stem}-{suffix}"
 
         return hostname

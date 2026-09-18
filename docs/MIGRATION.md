@@ -71,18 +71,14 @@ nothing is lost in the shuffle. Tracking epic:
 
 ## Follow-ups this migration creates
 
-1. **Give this repository write access to the GHCR packages of the four
-   frontends.** The first promotion (release `v2026.09.18-8bd109f1`) built
-   every frontend and published GNOME. The push of
-   `ghcr.io/tuna-os/tuna-installer-{kde,cosmic,niri,xfce}` failed with
-   `permission_denied: write_package`. Each package still belongs to its
-   old repository, so this repository's `GITHUB_TOKEN` cannot write it.
-   For each of the four packages: open *Package settings → Manage Actions
-   access*. Add `tuna-os/bootc-installer` with the *Write* role. Then
-   re-run the failed jobs of the release run, or dispatch *Publish Flatpak
-   (<name>)* on `prod`. Until then the tuna-os remote keeps the last builds
-   of those four frontends from the old repositories. Do not rename the
-   images instead: every live-ISO build pulls them by that name.
+1. ~~Give this repository write access to the GHCR packages of the four
+   frontends.~~ Resolved differently: every frontend now publishes to the
+   one package this repository owns, `ghcr.io/tuna-os/bootc-installer`.
+   The tags are `gnome`, `kde`, `cosmic`, `niri` and `xfce`, each also
+   with `-<arch>` and `-<tag>-<arch>`; GNOME keeps `latest`. The old
+   `ghcr.io/tuna-os/tuna-installer-{kde,cosmic,niri,xfce}` packages stay
+   at the last builds of the old repositories. Live-ISO builds that still
+   pull those names must move to the new tags.
 2. Re-file or transfer the open issues below against this repository (GitHub
    can transfer issues between repos in the same org; PRs cannot be
    transferred and must be re-opened against `frontends/<name>/`).

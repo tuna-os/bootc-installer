@@ -1,0 +1,6 @@
+{
+  "name": "E2E Product",
+  "id": "e2e",
+  "default_hostname": "niri-e2e",
+  "default_image": "quay.io/centos-bootc/centos-bootc:c10s"
+}

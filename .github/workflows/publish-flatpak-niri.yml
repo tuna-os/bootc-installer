@@ -1,13 +1,10 @@
 name: Publish Flatpak (niri)
 
-# Publishes frontends/niri to the tuna-os flatpak remote through the shared
-# reusable workflow in tuna-os/.github. The build body lives there; this file
-# only pins the app id, manifest and runtime image.
-#
-# Since the monorepo, publishing is driven by release.yml on promotion to
-# `prod` (see docs/RELEASE.md): this file is `workflow_call`-only plus a manual
-# dispatch escape hatch. It used to run on every push to the old repo's
-# `main`, which shipped unvalidated commits to every live ISO build.
+# Publishes the niri frontend as ghcr.io/tuna-os/bootc-installer:niri through
+# the local reusable publish-oci.yml (one package, one tag per frontend; see
+# that file for why not the tuna-os/.github reusable). release.yml calls this
+# after `prod` is promoted (docs/RELEASE.md); the manual dispatch is an
+# escape hatch.
 
 on:
   workflow_call:
@@ -37,20 +34,22 @@ on:
         default: '["x86_64", "aarch64"]'
 
 permissions:
-  contents: write
+  contents: read
   packages: write
 
 jobs:
   publish:
-    uses: tuna-os/.github/.github/workflows/publish-flatpak.yml@main
+    uses: ./.github/workflows/publish-oci.yml
     with:
+      frontend: niri
       app-id: org.tunaos.InstallerNiri
       manifest-path: frontends/niri/flatpak/org.tunaos.InstallerNiri.json
-      repo-name: tuna-os/tuna-installer-niri
+      # Must track "runtime-version" in the manifest.
+      flatpak-builder-image: kde-6.9
       # aarch64 alongside x86_64: the tunaOS live-ISO build installs this
       # Flatpak from the tuna-os remote on both architectures.
       archs: ${{ inputs.archs }}
-      # Must track "runtime-version" in the manifest.
-      flatpak-builder-image: kde-6.9
+      checkout-submodules: false
+      also-latest: false
       publish: ${{ inputs.publish }}
     secrets: inherit

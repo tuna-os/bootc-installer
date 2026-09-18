@@ -35,44 +35,26 @@ class TestDryRun:
 
 
 # ─── product name resolution ─────────────────────────────────────────────────
+# The resolver itself is tested against the shared fixtures in
+# tests/test_branding.py; here only core's use of it.
 
-class TestReadPrettyName:
-    def test_quoted_value(self, tmp_path):
-        f = tmp_path / "os-release"
-        f.write_text('ID=fedora\nPRETTY_NAME="TunaOS Skipjack"\n')
-        assert core._read_pretty_name(str(f)) == "TunaOS Skipjack"
+class TestBranding:
+    def test_product_name_is_the_branding_name(self):
+        assert core.PRODUCT_NAME == core.BRANDING.name
 
-    def test_unquoted_value(self, tmp_path):
-        f = tmp_path / "os-release"
-        f.write_text("PRETTY_NAME=Bonito\n")
-        assert core._read_pretty_name(str(f)) == "Bonito"
+    def test_resolve_branding_reads_env_file(self, tmp_path, monkeypatch):
+        f = tmp_path / "branding.json"
+        f.write_text('{"name": "Alpha", "id": "alpha"}')
+        monkeypatch.setenv("BOOTC_INSTALLER_BRANDING", str(f))
+        b = core.resolve_branding()
+        assert (b.name, b.id) == ("Alpha", "alpha")
 
-    def test_missing_file_returns_empty(self, tmp_path):
-        assert core._read_pretty_name(str(tmp_path / "nope")) == ""
-
-    def test_ignores_other_keys(self, tmp_path):
-        f = tmp_path / "os-release"
-        f.write_text("NAME=Something\nPRETTY_NAME=\nID=tunaos\n")
-        assert core._read_pretty_name(str(f)) == ""
-
-    def test_no_pretty_name_line_at_all(self, tmp_path):
-        f = tmp_path / "os-release"
-        f.write_text("NAME=Something\nID=tunaos\n")
-        assert core._read_pretty_name(str(f)) == ""
-
-
-class TestResolveProductName:
-    def test_first_path_wins(self, tmp_path, monkeypatch):
-        first = tmp_path / "a"
-        second = tmp_path / "b"
-        first.write_text('PRETTY_NAME="Alpha"\n')
-        second.write_text('PRETTY_NAME="Beta"\n')
-        monkeypatch.setattr(core, "OS_RELEASE_PATHS", [str(first), str(second)])
-        assert core.resolve_product_name() == "Alpha"
-
-    def test_falls_back_when_none_present(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(core, "OS_RELEASE_PATHS", [str(tmp_path / "missing")])
-        assert core.resolve_product_name() == core.PRODUCT_NAME_FALLBACK
+    def test_nothing_readable_is_neutral(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("BOOTC_INSTALLER_BRANDING", str(tmp_path / "missing"))
+        monkeypatch.setattr(core.branding, "OS_RELEASE_PATHS", [str(tmp_path / "missing")])
+        b = core.resolve_branding()
+        assert b.name == "Linux"
+        assert "tuna" not in b.name.lower() and "bluefin" not in b.name.lower()
 
 
 # ─── offline stores ──────────────────────────────────────────────────────────
@@ -237,11 +219,11 @@ MINIMAL = dict(disk="/dev/vda", filesystem="xfs")
 
 class TestBuildRecipe:
     def test_minimal_recipe_has_the_fixed_fields(self):
-        r = core.build_recipe(**MINIMAL, hostname="tunaos")
+        r = core.build_recipe(**MINIMAL, hostname="reef")
         assert r["disk"] == "/dev/vda"
         assert r["filesystem"] == "xfs"
-        assert r["hostname"] == "tunaos"
-        assert r["distroID"] == "tunaos"
+        assert r["hostname"] == "reef"
+        assert r["distroID"] == core.BRANDING.id
         assert r["selinuxDisabled"] is True
         assert r["encryption"] == {"type": "none"}
 
@@ -472,13 +454,6 @@ class TestHostRun:
         monkeypatch.setattr(subprocess, "run", fake_run)
         core.host_run(["echo", "hi"])
         assert calls == [["flatpak-spawn", "--host", "echo", "hi"]]
-
-
-class TestReadPrettyNameValueError:
-    def test_shlex_split_value_error(self, tmp_path):
-        f = tmp_path / "os-release"
-        f.write_text('PRETTY_NAME="Unmatched quote\n')
-        assert core._read_pretty_name(str(f)) == "Unmatched quote"
 
 
 class TestLoadCatalogFallback:

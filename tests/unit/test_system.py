@@ -386,7 +386,7 @@ class TestGenerateHostname:
 
         assert hostname == "framework-3e10"
 
-    def test_generate_hostname_falls_back_to_bluefin_when_dmi_missing(self):
+    def test_generate_hostname_falls_back_to_stem_when_dmi_missing(self):
         dmi = {
             "product_name": "",
             "sys_vendor": "",
@@ -394,17 +394,17 @@ class TestGenerateHostname:
             "board_serial": "BOARD123",
         }
         with patch("bootc_installer.core.system._read_dmi", side_effect=lambda field: dmi.get(field, "")):
-            hostname = Systeminfo.generate_hostname()
+            hostname = Systeminfo.generate_hostname(stem="reef")
 
-        assert hostname == "bluefin-27a3"
+        assert hostname == "reef-27a3"
 
     def test_generate_hostname_uses_random_suffix_when_serials_missing(self):
         with patch("bootc_installer.core.system._read_dmi", return_value=""), patch(
             "bootc_installer.core.system.os.urandom", return_value=b"\x01\x02\x03\x04"
         ):
-            hostname = Systeminfo.generate_hostname()
+            hostname = Systeminfo.generate_hostname(stem="reef")
 
-        assert hostname == "bluefin-34b8"
+        assert hostname == "reef-34b8"
 
     def test_generate_hostname_falls_back_when_sanitized_model_is_invalid(self):
         dmi = {
@@ -414,9 +414,21 @@ class TestGenerateHostname:
             "board_serial": "",
         }
         with patch("bootc_installer.core.system._read_dmi", side_effect=lambda field: dmi.get(field, "")):
+            hostname = Systeminfo.generate_hostname(stem="reef")
+
+        assert hostname == "reef-3e10"
+
+    def test_generate_hostname_stem_defaults_to_branding(self):
+        """No stem given: the branding contract's default_hostname, never a
+        product literal (shared/branding/README.md)."""
+        from bootc_installer.utils import branding as branding_mod
+        fake = branding_mod.Branding(default_hostname="marlin")
+        with patch("bootc_installer.core.system._read_dmi", return_value=""), patch(
+            "bootc_installer.core.system.os.urandom", return_value=b"\x01\x02\x03\x04"
+        ), patch.object(branding_mod, "resolve", return_value=fake):
             hostname = Systeminfo.generate_hostname()
 
-        assert hostname == "bluefin-3e10"
+        assert hostname == "marlin-34b8"
 
     def test_generate_hostname_uses_regex_fallback_when_validation_fails(self):
         dmi = {
@@ -428,6 +440,6 @@ class TestGenerateHostname:
         with patch("bootc_installer.core.system._read_dmi", side_effect=lambda field: dmi.get(field, "")), patch(
             "bootc_installer.core.system.re.match", return_value=None
         ):
-            hostname = Systeminfo.generate_hostname()
+            hostname = Systeminfo.generate_hostname(stem="reef")
 
-        assert hostname == "bluefin-3e10"
+        assert hostname == "reef-3e10"

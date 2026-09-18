@@ -91,3 +91,19 @@ every step offscreen, and checks the pixels for meaningful content. It also
 emits `docs/screenshots/walkthrough-kde.json`, the parity report the shared
 installer matrix consumes — so a UI change that breaks capture breaks the
 cross-installer report, not just this repo's screenshots.
+
+## Branding
+
+Nothing in this tree names a product. `src/branding.{h,cpp}` (`InstallerController` reads it once at startup) resolves the product name,
+the recipe's `distroID`, the hostname seed and the default image from a `branding.json`
+under `/etc/bootc-installer/` (host first), then `os-release`, then a
+neutral "Linux"; the contract and the fixtures it is tested against are in
+`shared/branding/` at the monorepo root. `BOOTC_INSTALLER_BRANDING` points
+tests at a file, `BOOTC_INSTALLER_PRODUCT_NAME` overrides the name for the
+screenshot harness.
+Flavour text (welcome, confirm, progress and done lines, the Install button)
+is branding copy too: every rebrandable line is a key of
+`shared/branding/copy-defaults.json`, read through the same resolver, and
+`docs/PARITY.md` records which keys this frontend renders. Add a new
+user-facing line the product might want to own as a copy key, not a
+literal.

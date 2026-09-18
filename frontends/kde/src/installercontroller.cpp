@@ -1,7 +1,7 @@
 #include "installercontroller.h"
 #include "log.h"
 #include "offline.h"
-#include "productname.h"
+#include "branding.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -15,7 +15,12 @@ InstallerController::InstallerController(QObject *parent)
     : QObject(parent)
 {
     m_hasTpm = QFileInfo::exists(QStringLiteral("/sys/class/tpm/tpm0"));
-    m_productName = product::resolve();
+    // Product identity per shared/branding/README.md: branding.json, then
+    // os-release, then neutral. Nothing in this frontend names a product.
+    m_branding = branding::resolve();
+    m_productName = m_branding.name;
+    m_recipe.distroID = m_branding.id;
+    m_recipe.hostname = m_branding.defaultHostname;
 }
 
 void InstallerController::setDisk(const QString &v)
@@ -198,6 +203,10 @@ void InstallerController::startInstall()
     // unhelpful ones.
     if (m_recipe.image.isEmpty() && !offline::liveIsoImage().isEmpty())
         m_recipe.liveMode = true;
+    // Not a live ISO and nothing chosen: the branding's default image. Empty
+    // stays empty and validation reports "No OS image specified".
+    if (m_recipe.image.isEmpty() && !m_recipe.liveMode)
+        m_recipe.image = m_branding.defaultImage;
     if (m_recipe.additionalImageStores.isEmpty())
         m_recipe.additionalImageStores = offline::offlineStores();
 
@@ -317,4 +326,12 @@ void InstallerController::startInstall()
 
     m_process->start();
     Q_EMIT installingChanged();
+}
+
+void InstallerController::reboot()
+{
+    // Same host path as the install: flatpak-spawn --host when sandboxed.
+    QStringList argv = offline::hostCommand({QStringLiteral("systemctl"), QStringLiteral("reboot")});
+    const QString program = argv.takeFirst();
+    QProcess::startDetached(program, argv);
 }

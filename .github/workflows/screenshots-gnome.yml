@@ -76,6 +76,9 @@ jobs:
         env:
           GTK_A11Y: none
           NO_AT_BRIDGE: "1"
+          # The runner's os-release would brand the walkthrough "Ubuntu";
+          # the docs product name (shared/branding/README.md) is set here.
+          BOOTC_INSTALLER_PRODUCT_NAME: TunaOS
         run: |
           rm -rf docs/screenshots
           xvfb-run -a -s "-screen 0 1400x1000x24" \

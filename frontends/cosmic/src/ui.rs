@@ -9,24 +9,24 @@ use cosmic::prelude::*;
 use cosmic::widget;
 
 use crate::{
-    available_encryption_choices, product, Message, Page, TunaInstaller, FILESYSTEMS,
+    available_encryption_choices, branding, Message, Page, TunaInstaller, FILESYSTEMS,
 };
 
 /// Every user-facing string of the wizard, in one place.
 ///
 /// The view functions below and [`page_text`] both read from here, so the
 /// text the capture harness reports for a page is, by construction, the text
-/// that page renders. `{product}` is substituted with [`product::name`].
+/// that page renders. `{product}` is substituted with [`branding::name`].
+/// Lines a product may rebrand are branding copy keys (shared/branding),
+/// read through [`t`] rather than constants here.
 pub mod copy {
     pub const BACK: &str = "Back";
     pub const CONTINUE: &str = "Continue";
 
-    pub const WELCOME_TITLE: &str = "Install {product}";
     pub const WELCOME_BODY: &str =
         "Welcome. This assistant will guide you through installing {product} onto this computer.";
     pub const WELCOME_CAPTION: &str = "You will choose a target disk and a few options. Nothing is \
          written to any disk until you confirm on the last step.";
-    pub const WELCOME_NEXT: &str = "Get started";
 
     pub const DISK_TITLE: &str = "Select a disk";
     pub const DISK_SUBTITLE: &str = "Everything on the disk you pick will be erased.";
@@ -45,31 +45,32 @@ pub mod copy {
     pub const OPTIONS_PASSPHRASE: &str = "Passphrase";
     pub const OPTIONS_PASSPHRASE_HINT: &str = "Required to unlock at boot";
 
-    pub const CONFIRM_TITLE: &str = "Confirm";
     pub const CONFIRM_SUBTITLE: &str = "The last screen before anything is written.";
     pub const CONFIRM_SUMMARY: &str = "Summary";
     pub const CONFIRM_TARGET_DISK: &str = "Target disk";
     pub const CONFIRM_IMAGE: &str = "Image";
     pub const CONFIRM_LIVE_SUFFIX: &str = " (this system \u{2014} no download)";
-    pub const CONFIRM_WARNING: &str =
-        "Everything on the target disk will be erased. This cannot be undone.";
-    pub const CONFIRM_INSTALL: &str = "Install";
-
-    pub const INSTALLING_TITLE: &str = "Installing {product}";
     pub const INSTALLING_SUBTITLE: &str = "fisherman is writing the image to disk.";
-    pub const INSTALLING_WARNING: &str = "Do not power off the computer.";
 
-    pub const DONE_OK_TITLE: &str = "Installation complete";
-    pub const DONE_OK_DETAIL: &str = "Remove the installation media and restart the computer.";
-    pub const DONE_FAIL_TITLE: &str = "Installation failed";
     pub const DONE_FAIL_DETAIL: &str = "The install log above has the details.";
     pub const DONE_CLOSE: &str = "Close";
 }
 
 use copy::*;
 
+/// A branding copy line (shared/branding/copy-defaults.json keys) with
+/// `{name}` filled in.
+fn t_line(key: &str) -> String {
+    branding::text(key)
+}
+
+/// The same with `{disk}` filled in.
+fn t_disk(key: &str, disk: &str) -> String {
+    branding::get().text_with(key, &[("disk", disk)])
+}
+
 fn with_product(s: &str) -> String {
-    s.replace("{product}", &product::name())
+    s.replace("{product}", branding::name())
 }
 
 /// The strings the current page shows, in reading order.
@@ -82,12 +83,16 @@ fn with_product(s: &str) -> String {
 pub fn page_text(app: &TunaInstaller) -> Vec<String> {
     let recipe = app.recipe();
     match app.page() {
-        Page::Welcome => vec![
-            with_product(WELCOME_TITLE),
-            with_product(WELCOME_BODY),
-            WELCOME_CAPTION.to_string(),
-            WELCOME_NEXT.to_string(),
-        ],
+        Page::Welcome => {
+            let mut t = vec![t_line("welcome_title"), with_product(WELCOME_BODY)];
+            let sub = t_line("welcome_subtitle");
+            if !sub.is_empty() {
+                t.push(sub);
+            }
+            t.push(WELCOME_CAPTION.to_string());
+            t.push(t_line("welcome_button"));
+            t
+        }
         Page::DiskSelect => {
             let mut t = vec![DISK_TITLE.to_string(), DISK_SUBTITLE.to_string()];
             if app.disks().is_empty() {
@@ -134,9 +139,10 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             t
         }
         Page::Confirm => vec![
-            CONFIRM_TITLE.to_string(),
-            CONFIRM_SUBTITLE.to_string(),
-            CONFIRM_WARNING.to_string(),
+            t_line("confirm_title"),
+            confirm_subtitle(),
+            t_disk("confirm_warning", &confirm_disk(app)),
+            t_line("confirm_body"),
             CONFIRM_SUMMARY.to_string(),
             CONFIRM_TARGET_DISK.to_string(),
             confirm_disk(app),
@@ -149,17 +155,25 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             CONFIRM_IMAGE.to_string(),
             confirm_image(app),
             BACK.to_string(),
-            CONFIRM_INSTALL.to_string(),
+            t_line("confirm_button"),
         ],
         Page::Installing => vec![
-            with_product(INSTALLING_TITLE),
+            t_line("progress_title"),
             INSTALLING_SUBTITLE.to_string(),
             app.install_log().to_string(),
-            INSTALLING_WARNING.to_string(),
+            t_line("progress_note"),
         ],
         Page::Done => {
             let (title, detail) = done_copy(app.install_ok());
-            vec![title.to_string(), detail.to_string(), DONE_CLOSE.to_string()]
+            let mut t = vec![title, detail];
+            if app.install_ok() {
+                if !branding::get().store_url.is_empty() {
+                    t.push(t_line("store_label"));
+                }
+                t.push(t_line("done_restart"));
+            }
+            t.push(DONE_CLOSE.to_string());
+            t
         }
     }
 }
@@ -194,11 +208,22 @@ fn confirm_image(app: &TunaInstaller) -> String {
     }
 }
 
-fn done_copy(ok: bool) -> (&'static str, &'static str) {
+fn done_copy(ok: bool) -> (String, String) {
     if ok {
-        (DONE_OK_TITLE, DONE_OK_DETAIL)
+        (t_line("done_title"), t_line("done_subtitle"))
     } else {
-        (DONE_FAIL_TITLE, DONE_FAIL_DETAIL)
+        (t_line("done_failed_title"), DONE_FAIL_DETAIL.to_string())
+    }
+}
+
+/// The confirm subtitle: the product's own line (CONFIRM_SUBTITLE is the
+/// neutral explanation, used when the branding sets none).
+fn confirm_subtitle() -> String {
+    let line = t_line("confirm_subtitle");
+    if line.is_empty() {
+        CONFIRM_SUBTITLE.to_string()
+    } else {
+        line
     }
 }
 
@@ -239,7 +264,7 @@ pub fn view(app: &TunaInstaller) -> Element<'_, Message> {
 /// Back / spacer / forward, the shape every COSMIC wizard uses.
 fn nav_row<'a>(
     back: Option<Message>,
-    forward: Option<(&'a str, Message, bool)>,
+    forward: Option<(String, Message, bool)>,
 ) -> Element<'a, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
     let mut row = widget::row::with_capacity(3).spacing(spacing.space_s);
@@ -267,19 +292,27 @@ fn welcome(_app: &TunaInstaller) -> Element<'_, Message> {
             .size(64)
             .icon()
             .into(),
-        widget::text::title1(with_product(WELCOME_TITLE)).into(),
+        widget::text::title1(t_line("welcome_title")).into(),
         widget::text::body(with_product(WELCOME_BODY)).into(),
-        widget::text::caption(WELCOME_CAPTION).into(),
-    ])
-    .spacing(spacing.space_s)
-    .align_x(Alignment::Center)
-    .width(Length::Fill);
+    ]);
+    let subtitle = t_line("welcome_subtitle");
+    let hero = if subtitle.is_empty() {
+        hero
+    } else {
+        hero.push(widget::text::body(subtitle))
+    };
+    let hero = hero
+        .push(widget::text::caption(WELCOME_CAPTION))
+        .spacing(spacing.space_s)
+        .align_x(Alignment::Center)
+        .width(Length::Fill);
 
+    let next = t_line("welcome_button");
     widget::column::with_children(vec![
         widget::space::vertical().into(),
         hero.into(),
         widget::space::vertical().into(),
-        nav_row(None, Some((WELCOME_NEXT, Message::NextPage, false))),
+        nav_row(None, Some((next, Message::NextPage, false))),
     ])
     .spacing(spacing.space_m)
     .height(Length::Fill)
@@ -335,7 +368,7 @@ fn disk_select(app: &TunaInstaller) -> Element<'_, Message> {
         nav_row(
             Some(Message::BackPage),
             app.selected_disk()
-                .map(|_| (CONTINUE, Message::NextPage, false)),
+                .map(|_| (CONTINUE.to_string(), Message::NextPage, false)),
         ),
     )
 }
@@ -370,7 +403,7 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
         .title(OPTIONS_SYSTEM)
         .add(widget::settings::item(
             OPTIONS_HOSTNAME,
-            widget::text_input("tunaos", &recipe.hostname)
+            widget::text_input(branding::get().default_hostname.as_str(), &recipe.hostname)
                 .on_input(Message::HostnameChanged)
                 .width(Length::Fixed(260.0)),
         ))
@@ -430,7 +463,7 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
             // passphrase, so this can never reach Confirm/Install and only
             // then discover fisherman rejects the recipe (tunaOS#734).
             app.encryption_ok()
-                .then_some((CONTINUE, Message::NextPage, false)),
+                .then_some((CONTINUE.to_string(), Message::NextPage, false)),
         ),
     )
 }
@@ -471,7 +504,7 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
                 .size(16)
                 .icon()
                 .into(),
-            widget::text::body(CONFIRM_WARNING)
+            widget::text::body(t_disk("confirm_warning", &confirm_disk(app)))
             .class(cosmic::theme::Text::Color(
                 theme.cosmic().warning_text_color().into(),
             ))
@@ -484,19 +517,23 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
     .padding(spacing.space_s)
     .width(Length::Fill);
 
+    let mut parts = vec![warning.into(), summary.into()];
+    let tagline = t_line("confirm_body");
+    if !tagline.is_empty() {
+        parts.push(widget::text::body(tagline).into());
+    }
     let body = widget::scrollable(
-        widget::column::with_children(vec![warning.into(), summary.into()])
-            .spacing(spacing.space_m),
+        widget::column::with_children(parts).spacing(spacing.space_m),
     )
     .height(Length::Fill);
 
     page_frame(
-        CONFIRM_TITLE,
-        CONFIRM_SUBTITLE,
+        t_line("confirm_title"),
+        confirm_subtitle(),
         body.into(),
         nav_row(
             Some(Message::BackPage),
-            Some((CONFIRM_INSTALL, Message::StartInstall, true)),
+            Some((t_line("confirm_button"), Message::StartInstall, true)),
         ),
     )
 }
@@ -524,7 +561,7 @@ fn installing(app: &TunaInstaller) -> Element<'_, Message> {
             .width(Length::Fill)
             .into(),
         log.into(),
-        widget::text::caption(INSTALLING_WARNING)
+        widget::text::caption(t_line("progress_note"))
             .class(cosmic::theme::Text::Color(cosmic_theme.warning_text_color().into()))
             .into(),
     ])
@@ -532,7 +569,7 @@ fn installing(app: &TunaInstaller) -> Element<'_, Message> {
     .height(Length::Fill);
 
     page_frame(
-        with_product(INSTALLING_TITLE),
+        t_line("progress_title"),
         INSTALLING_SUBTITLE,
         body.into(),
         widget::space::horizontal().into(),
@@ -551,22 +588,49 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
         ("dialog-error-symbolic", cosmic_theme.destructive_text_color())
     };
 
-    let hero = widget::column::with_children(vec![
+    let mut hero = widget::column::with_children(vec![
         widget::icon::from_name(icon).size(64).icon().into(),
         widget::text::title2(title)
             .class(cosmic::theme::Text::Color(colour.into()))
             .into(),
         widget::text::body(detail).into(),
-    ])
-    .spacing(spacing.space_s)
-    .align_x(Alignment::Center)
-    .width(Length::Fill);
+    ]);
+    // store_label -> store_url on every frontend when the branding sets a
+    // store (docs/PARITY.md).
+    let store_url = branding::get().store_url.clone();
+    if app.install_ok() && !store_url.is_empty() {
+        hero = hero.push(
+            widget::button::link(t_line("store_label")).on_press(Message::OpenUrl(store_url)),
+        );
+    }
+    let hero = hero
+        .spacing(spacing.space_s)
+        .align_x(Alignment::Center)
+        .width(Length::Fill);
+
+    // Restart is the primary action after a successful install (the same
+    // as the other frontends); Close stays available either way.
+    let actions: Element<'_, Message> = if app.install_ok() {
+        widget::row::with_children(vec![
+            widget::space::horizontal().into(),
+            widget::button::standard(DONE_CLOSE)
+                .on_press(Message::Quit)
+                .into(),
+            widget::button::suggested(t_line("done_restart"))
+                .on_press(Message::Reboot)
+                .into(),
+        ])
+        .spacing(spacing.space_s)
+        .into()
+    } else {
+        nav_row(None, Some((DONE_CLOSE.to_string(), Message::Quit, false)))
+    };
 
     widget::column::with_children(vec![
         widget::space::vertical().into(),
         hero.into(),
         widget::space::vertical().into(),
-        nav_row(None, Some((DONE_CLOSE, Message::Quit, false))),
+        actions,
     ])
     .spacing(spacing.space_m)
     .height(Length::Fill)

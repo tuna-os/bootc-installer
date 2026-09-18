@@ -2,7 +2,6 @@ pkgdatadir = join_paths(get_option('prefix'), get_option('datadir'), meson.proje
 datadir = join_paths(pkgdatadir, 'bootc_installer/data')
 
 install_data(
-  'credits.json',
   'dinosaurs.json',
   install_dir: datadir,
 )

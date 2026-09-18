@@ -287,7 +287,7 @@ Kirigami.Page {
                 // Hidden while fisherman runs: the progress step advances itself.
                 visible: root.currentStepId !== "progress"
 
-                text: isInstall ? "Install" : (isClose ? "Close" : "Next")
+                text: isInstall ? InstallerController.text("confirm_button") : (isClose ? "Close" : "Next")
                 icon.name: isInstall ? "install-symbolic"
                     : (isClose ? "window-close-symbolic" : "arrow-right-symbolic")
 

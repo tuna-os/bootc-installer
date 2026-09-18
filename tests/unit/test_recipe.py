@@ -67,10 +67,15 @@ class TestRecipeValidation(unittest.TestCase):
         with self.assertRaises(SystemExit):
             _load_with_custom_recipe(bad, exist_override=lambda p: p == "/fake/recipe.json")
 
-    def test_missing_distro_name_fails(self):
+    def test_missing_distro_name_is_filled_from_branding(self):
+        """distro_name is optional since the branding contract: a recipe that
+        leaves it out gets the branding.json / os-release name, never a
+        literal (shared/branding/README.md)."""
         bad = {k: v for k, v in _VALID_RECIPE.items() if k != "distro_name"}
-        with self.assertRaises(SystemExit):
-            _load_with_custom_recipe(bad, exist_override=lambda p: p == "/fake/recipe.json")
+        loader = _load_with_custom_recipe(bad, exist_override=lambda p: p == "/fake/recipe.json")
+        self.assertTrue(loader.raw.get("distro_name"))
+        self.assertIn("branding", loader.raw)
+        self.assertNotEqual(loader.raw["distro_name"], "Bluefin")
 
     def test_missing_steps_fails(self):
         bad = {k: v for k, v in _VALID_RECIPE.items() if k != "steps"}

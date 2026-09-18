@@ -18,7 +18,6 @@ import logging
 import os
 import pathlib
 import subprocess
-from gettext import gettext as _
 
 from gi.repository import Adw, GLib, Gtk
 
@@ -109,11 +108,14 @@ class BootcDefaultWelcome(Adw.Bin):
         # indistinguishable from having no recipe at all.
         #
         # Same source and same fallback as done.py's "{} is installed".
-        distro_name = self.__distro_info.get("name") or "the operating system"
-        self.row_install.set_title(_("Install {}").format(distro_name))
+        from bootc_installer.utils import copy as copy_text
+        distro_name = self.__distro_info.get("name") or copy_text.product_name(self.__window)
+        self.row_install.set_title(copy_text.text(self.__window, "welcome_install", name=distro_name))
+        install_subtitle = copy_text.text(self.__window, "welcome_install_subtitle", name=distro_name)
+        if install_subtitle:
+            self.row_install.set_subtitle(install_subtitle)
         welcome_subtitle = self.__distro_info.get("welcome_subtitle", "")
-        if welcome_subtitle:
-            self.page_header.subtitle = welcome_subtitle
+        self.page_header.subtitle = welcome_subtitle
 
         try:
             self.row_bluetooth.set_visible(_needs_bluetooth_pairing())

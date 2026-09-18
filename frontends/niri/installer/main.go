@@ -56,6 +56,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  detect             Report live-ISO image and offline stores as JSON")
 		fmt.Fprintln(os.Stderr, "  install <recipe>   Run fisherman with the given recipe JSON")
 		fmt.Fprintln(os.Stderr, "  readiness [page]   Record that the UI window presented a frame")
+		fmt.Fprintln(os.Stderr, "  reboot             Restart the host (the done page's action)")
 		os.Exit(1)
 	}
 
@@ -75,6 +76,13 @@ func main() {
 			os.Exit(1)
 		}
 		runInstall(string(recipeJSON))
+	case "reboot":
+		// The done page's Restart. On the host through flatpak-spawn when
+		// sandboxed, like every other frontend's reboot path.
+		if out, err := runHost("systemctl", "reboot"); err != nil {
+			fmt.Fprintf(os.Stderr, "reboot: %v\n%s", err, out)
+			os.Exit(1)
+		}
 	case "readiness":
 		// Called by the QML layer from ApplicationWindow.onFrameSwapped. See
 		// readiness.go for why the write lives on this side of the boundary.
@@ -143,10 +151,11 @@ func detectEnvironment() {
 		// than offering a choice that would fail later at install time. Same
 		// probe the XFCE and KDE frontends use.
 		"hasTpm": hasTPM(),
-		// Per-variant product name from os-release (PRETTY_NAME), so the UI
-		// reads "Skipjack Installer" on a Skipjack ISO. Empty when os-release
-		// is unreadable — the QML falls back to "TunaOS".
-		"productName": productName(),
+		// Product identity per shared/branding/README.md: branding.json,
+		// then os-release, then neutral. The QML takes its product name,
+		// hostname seed, distroID and default image from here; nothing in
+		// the frontend names a product.
+		"branding": resolveBranding(),
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
@@ -184,7 +193,7 @@ func runInstall(recipeJSON string) {
 		recipe.AdditionalImageStores = offlineStores()
 	}
 	if recipe.DistroID == "" {
-		recipe.DistroID = "tunaos"
+		recipe.DistroID = resolveBranding().ID
 	}
 
 	data, err := json.MarshalIndent(recipe, "", "  ")
