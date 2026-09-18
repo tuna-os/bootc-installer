@@ -58,7 +58,7 @@ echo "=== installing $FRONTEND's recipe onto $LOOPDEV"
 sudo /tmp/fisherman "$OUT/recipe.json" 2>&1 | tee "$OUT/install.log"
 
 echo "=== enabling SSH in the installed system"
-bash scripts/enable-ssh-installed.sh "$LOOPDEV" "$COMPOSEFS" /tmp/bootcrew-ssh/id_rsa.pub
+bash "$HERE/enable-ssh-installed.sh" "$LOOPDEV" "$COMPOSEFS" /tmp/bootcrew-ssh/id_rsa.pub
 just verify-installation "$LOOPDEV" "$COMPOSEFS" "$PASSPHRASE"
 
 echo "=== booting it"
