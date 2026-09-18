@@ -62,15 +62,16 @@ impl Default for Recipe {
             filesystem: "xfs".into(),
             btrfs_subvolumes: false,
             encryption: Encryption::default(),
-            image: "ghcr.io/tuna-os/albacore:gnome".into(),
+            // Neutral; init() fills these from the branding contract.
+            image: String::new(),
             target_imgref: String::new(),
             bootloader: String::new(),
             compose_fs_backend: false,
             flatpaks: Vec::new(),
             additional_image_stores: Vec::new(),
-            distro_id: "tunaos".into(),
+            distro_id: crate::branding::NEUTRAL_ID.into(),
             selinux_disabled: true,
-            hostname: "tunaos".into(),
+            hostname: crate::branding::NEUTRAL_ID.into(),
         }
     }
 }

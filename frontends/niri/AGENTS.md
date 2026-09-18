@@ -54,7 +54,7 @@ go test ./...
 
 `.golangci.yml` config lives at the repo root. The Go tests are real and cover
 the interesting parts — `offline_test.go`, `readiness_test.go`,
-`product_test.go` — so run them before pushing rather than relying on CI.
+`branding_test.go` — so run them before pushing rather than relying on CI.
 
 ## The QML stub is load-bearing
 
@@ -79,3 +79,13 @@ The recipe JSON and the screen sequence are shared with the other frontends
 [installer frontend contract](https://github.com/tuna-os/tunaos/blob/main/docs/INSTALLER-FRONTENDS.md).
 A field added here has to exist there too, or the installers diverge. All the
 real disk work belongs in fisherman — keep it there.
+
+## Branding
+
+Nothing in this tree names a product. the Go backend's `installer/branding.go`, reported under `detect`'s `branding` key and read by the QML resolves the product name,
+the recipe's `distroID`, the hostname seed and the default image from a `branding.json`
+under `/etc/bootc-installer/` (host first), then `os-release`, then a
+neutral "Linux"; the contract and the fixtures it is tested against are in
+`shared/branding/` at the monorepo root. `BOOTC_INSTALLER_BRANDING` points
+tests at a file, `BOOTC_INSTALLER_PRODUCT_NAME` overrides the name for the
+screenshot harness.

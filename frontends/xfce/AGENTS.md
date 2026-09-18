@@ -84,3 +84,13 @@ and `-cosmic` through the
 [installer frontend contract](https://github.com/tuna-os/tunaos/blob/main/docs/INSTALLER-FRONTENDS.md).
 A field added here must exist there too. All real disk work belongs in
 fisherman — keep it there.
+
+## Branding
+
+Nothing in this tree names a product. `tuna_installer_xfce/branding.py`, a byte-identical copy of the shared resolver that `core.BRANDING` exposes, resolves the product name,
+the recipe's `distroID`, the hostname seed from a `branding.json`
+under `/etc/bootc-installer/` (host first), then `os-release`, then a
+neutral "Linux"; the contract and the fixtures it is tested against are in
+`shared/branding/` at the monorepo root. `BOOTC_INSTALLER_BRANDING` points
+tests at a file, `BOOTC_INSTALLER_PRODUCT_NAME` overrides the name for the
+screenshot harness.

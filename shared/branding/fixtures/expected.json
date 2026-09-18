@@ -1,0 +1,69 @@
+{
+  "_comment": "Outcomes every resolver must reproduce. Inputs are the sibling files; 'name_override' is the BOOTC_INSTALLER_PRODUCT_NAME case.",
+  "file_and_os_release": {
+    "branding": "branding.json",
+    "os_release": "os-release",
+    "expect": {
+      "name": "Marlin",
+      "id": "exampleos",
+      "vendor": "Example OS",
+      "home_url": "https://example.org/",
+      "docs_url": "https://docs.example.org/marlin",
+      "support_url": "https://help.example.org/",
+      "logo": "exampleos-logo",
+      "default_hostname": "reef",
+      "default_image": "ghcr.io/example/marlin:latest"
+    }
+  },
+  "os_release_only": {
+    "branding": null,
+    "os_release": "os-release",
+    "expect": {
+      "name": "Example OS 42 (Reef)",
+      "id": "exampleos",
+      "vendor": "Example OS",
+      "home_url": "https://example.org/",
+      "docs_url": "https://docs.example.org/",
+      "support_url": "https://help.example.org/",
+      "logo": "exampleos-logo",
+      "default_hostname": "reef",
+      "default_image": ""
+    }
+  },
+  "os_release_minimal": {
+    "branding": null,
+    "os_release": "os-release-minimal",
+    "expect": {
+      "name": "Bare OS",
+      "id": "bareos",
+      "vendor": "Bare OS",
+      "home_url": "",
+      "docs_url": "",
+      "support_url": "",
+      "logo": "",
+      "default_hostname": "bareos",
+      "default_image": ""
+    }
+  },
+  "nothing": {
+    "branding": null,
+    "os_release": null,
+    "expect": {
+      "name": "Linux",
+      "id": "linux",
+      "vendor": "",
+      "home_url": "",
+      "docs_url": "",
+      "support_url": "",
+      "logo": "",
+      "default_hostname": "linux",
+      "default_image": ""
+    }
+  },
+  "name_override": {
+    "branding": "branding.json",
+    "os_release": "os-release",
+    "name_override": "Docs Product",
+    "expect_name": "Docs Product"
+  }
+}

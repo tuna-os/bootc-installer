@@ -45,7 +45,7 @@ _FISHERMAN_CACHE_DIR = os.path.join(_FISHERMAN_STAGE_BASE, ".cache", "bootc-inst
 _FISHERMAN_HOST_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman")
 _FISHERMAN_LOG_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman-output.log")
 
-from bootc_installer.utils.progress_parser import apply_progress_event, new_progress_state, set_product_name, _RE_LAYER_PROGRESS  # noqa: E402
+from bootc_installer.utils.progress_parser import apply_progress_event, new_progress_state, set_product_name, get_product_name, _RE_LAYER_PROGRESS  # noqa: E402
 from bootc_installer.utils.codec_check import check_codecs_present  # noqa: E402
 
 
@@ -631,6 +631,7 @@ class BootcProgress(Gtk.Box):
         No fisherman is launched. No disk is touched.
         """
         logger.info("start_demo() called")
+        installing = _("Installing {}\u2026").format(get_product_name())
         # Demo steps: (delay_seconds, bar_fraction, label)
         # Mirrors real-install proportions: disk prep is fast (<10%),
         # OS install dominates (~87% of bar, most of the time),
@@ -641,9 +642,9 @@ class BootcProgress(Gtk.Box):
             (0.9,  0.04, "Preparing the boot system\u2026"),
             (1.2,  0.05, "Formatting your drive\u2026"),
             (1.5,  0.06, "Mounting your drive\u2026"),
-            (2.0,  0.10, "Installing Bluefin\u2026"),
-            (3.5,  0.45, "Installing Bluefin\u2026"),
-            (5.2,  0.86, "Installing Bluefin\u2026"),
+            (2.0,  0.10, installing),
+            (3.5,  0.45, installing),
+            (5.2,  0.86, installing),
             (5.8,  0.93, "Installing your apps\u2026"),
             (6.3,  0.97, "Configuring your system\u2026"),
             (6.8,  0.99, "Finishing up\u2026"),

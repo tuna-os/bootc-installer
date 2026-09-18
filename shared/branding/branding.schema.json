@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/tuna-os/bootc-installer/shared/branding/branding.schema.json",
+  "title": "bootc-installer branding",
+  "description": "Product identity for every installer frontend. Every key is optional; a missing or empty value falls through to os-release, then to a neutral default. See shared/branding/README.md.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Product name shown to the user, e.g. \"Skipjack\". Falls back to PRETTY_NAME then NAME."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9._-]*$",
+      "description": "Lower-case identifier written as the recipe's distroID. Falls back to ID."
+    },
+    "vendor": {
+      "type": "string",
+      "description": "Who makes the product; shown in about dialogs. Falls back to VENDOR_NAME then NAME."
+    },
+    "home_url": {
+      "type": "string",
+      "description": "Product website. Falls back to HOME_URL."
+    },
+    "docs_url": {
+      "type": "string",
+      "description": "Documentation site. Falls back to DOCUMENTATION_URL."
+    },
+    "support_url": {
+      "type": "string",
+      "description": "Support or community site. Falls back to SUPPORT_URL."
+    },
+    "logo": {
+      "type": "string",
+      "description": "Themed icon name or absolute path for welcome and done artwork. Falls back to LOGO."
+    },
+    "default_hostname": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$|^$",
+      "description": "Initial hostname. Falls back to DEFAULT_HOSTNAME then ID."
+    },
+    "default_image": {
+      "type": "string",
+      "description": "OCI reference installed when the frontend offers no catalog choice and is not on a live ISO. No os-release fallback."
+    }
+  },
+  "additionalProperties": true
+}

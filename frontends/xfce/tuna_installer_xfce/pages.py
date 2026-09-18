@@ -264,7 +264,7 @@ class IdentityPage(Page):
     def __init__(self, win):
         super().__init__(win)
         grid = Gtk.Grid(column_spacing=12, row_spacing=6)
-        self.hostname = Gtk.Entry(text="tunaos")
+        self.hostname = Gtk.Entry(text=core.BRANDING.default_hostname)
         self.hostname.connect("changed", lambda *_: win.refresh_nav())
         grid.attach(Gtk.Label(label="Hostname", xalign=0), 0, 0, 1, 1)
         grid.attach(self.hostname, 1, 0, 1, 1)

@@ -1,11 +1,14 @@
 #include "offline.h"
-#include "productname.h"
+#include "branding.h"
 #include "readiness.h"
 #include "recipe.h"
 
 #include <QDir>
 #include <QFile>
+#include <QHash>
 #include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QProcessEnvironment>
 #include <QTemporaryDir>
 #include <QTest>
@@ -21,8 +24,8 @@ private slots:
     void recipeValidation_data();
     void recipeValidation();
     void recipeJsonRoundTrip();
-    void productNameParsing_data();
-    void productNameParsing();
+    void brandingFixtures();
+    void brandingNothingReadableIsNeutral();
     void offlineCommandHelpers();
     void readinessWriteStampFailsWithEmptyRuntimeDir();
     void readinessWriteStampWritesExpectedFields();
@@ -35,8 +38,9 @@ void BackendTest::recipeDefaults()
 
     QCOMPARE(recipe.filesystem, QStringLiteral("xfs"));
     QCOMPARE(recipe.encryption.type, QStringLiteral("none"));
-    QCOMPARE(recipe.distroID, QStringLiteral("tunaos"));
-    QCOMPARE(recipe.hostname, QStringLiteral("tunaos"));
+    // Neutral until InstallerController fills them from the branding contract.
+    QVERIFY(recipe.distroID.isEmpty());
+    QVERIFY(recipe.hostname.isEmpty());
     QVERIFY(recipe.selinuxDisabled);
     QVERIFY(!recipe.liveMode);
 }
@@ -168,25 +172,75 @@ void BackendTest::recipeJsonRoundTrip()
     QCOMPARE(restored.encryption.passphrase, original.encryption.passphrase);
 }
 
-void BackendTest::productNameParsing_data()
+static QJsonObject readJsonObject(const QString &path)
 {
-    QTest::addColumn<QString>("osRelease");
-    QTest::addColumn<QString>("expected");
-
-    QTest::newRow("double-quoted") << "NAME=TunaOS\nPRETTY_NAME=\"TunaOS KDE\"\n" << "TunaOS KDE";
-    QTest::newRow("single-quoted") << "PRETTY_NAME='TunaOS KDE'\n" << "TunaOS KDE";
-    QTest::newRow("unquoted") << "PRETTY_NAME=TunaOS\n" << "TunaOS";
-    QTest::newRow("trimmed") << "  PRETTY_NAME=  \"TunaOS\"  \n" << "TunaOS";
-    QTest::newRow("empty") << "PRETTY_NAME=\"\"\n" << "";
-    QTest::newRow("absent") << "NAME=TunaOS\nID=tunaos\n" << "";
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return {};
+    return QJsonDocument::fromJson(f.readAll()).object();
 }
 
-void BackendTest::productNameParsing()
+static QString readText(const QString &path)
 {
-    QFETCH(QString, osRelease);
-    QFETCH(QString, expected);
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return {};
+    return QString::fromUtf8(f.readAll());
+}
 
-    QCOMPARE(product::prettyNameFrom(osRelease), expected);
+// shared/branding/fixtures/expected.json: the same cases the Python, Go and
+// Rust resolvers are checked against.
+void BackendTest::brandingFixtures()
+{
+    const QString dir = QStringLiteral(BRANDING_FIXTURES_DIR);
+    const QJsonObject expected = readJsonObject(dir + QStringLiteral("/expected.json"));
+    if (expected.isEmpty())
+        QSKIP("shared branding fixtures not available");
+
+    for (auto it = expected.begin(); it != expected.end(); ++it) {
+        if (it.key().startsWith(QLatin1Char('_')))
+            continue;
+        const QJsonObject spec = it.value().toObject();
+        QJsonObject file;
+        if (spec.value(QStringLiteral("branding")).isString())
+            file = readJsonObject(dir + QLatin1Char('/') + spec.value(QStringLiteral("branding")).toString());
+        QString osRelease;
+        if (spec.value(QStringLiteral("os_release")).isString())
+            osRelease = readText(dir + QLatin1Char('/') + spec.value(QStringLiteral("os_release")).toString());
+        const branding::Branding got = branding::fromSources(
+            file, osRelease, spec.value(QStringLiteral("name_override")).toString());
+
+        const QHash<QString, QString> gotMap = {
+            {QStringLiteral("name"), got.name},
+            {QStringLiteral("id"), got.id},
+            {QStringLiteral("vendor"), got.vendor},
+            {QStringLiteral("home_url"), got.homeUrl},
+            {QStringLiteral("docs_url"), got.docsUrl},
+            {QStringLiteral("support_url"), got.supportUrl},
+            {QStringLiteral("logo"), got.logo},
+            {QStringLiteral("default_hostname"), got.defaultHostname},
+            {QStringLiteral("default_image"), got.defaultImage},
+        };
+        const QJsonObject expect = spec.value(QStringLiteral("expect")).toObject();
+        for (auto e = expect.begin(); e != expect.end(); ++e) {
+            QVERIFY2(gotMap.value(e.key()) == e.value().toString(),
+                     qPrintable(it.key() + QStringLiteral(": ") + e.key() + QStringLiteral(" got '")
+                                + gotMap.value(e.key()) + QStringLiteral("' want '")
+                                + e.value().toString() + QStringLiteral("'")));
+        }
+        if (spec.contains(QStringLiteral("expect_name")))
+            QCOMPARE(got.name, spec.value(QStringLiteral("expect_name")).toString());
+    }
+}
+
+void BackendTest::brandingNothingReadableIsNeutral()
+{
+    const branding::Branding b = branding::resolveFrom(
+        {QStringLiteral("/nonexistent/branding.json")}, {QStringLiteral("/nonexistent/os-release")}, QString());
+    QCOMPARE(b.name, QStringLiteral("Linux"));
+    QCOMPARE(b.id, QStringLiteral("linux"));
+    QCOMPARE(b.defaultHostname, QStringLiteral("linux"));
+    QVERIFY(b.defaultImage.isEmpty());
 }
 
 void BackendTest::offlineCommandHelpers()

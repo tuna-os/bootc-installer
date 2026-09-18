@@ -41,8 +41,8 @@ set(BACKEND_SOURCES
     src/recipe.h
     src/offline.cpp
     src/offline.h
-    src/productname.cpp
-    src/productname.h
+    src/branding.cpp
+    src/branding.h
     src/diskmodel.cpp
     src/diskmodel.h
     src/installercontroller.cpp
@@ -121,11 +121,15 @@ if(BUILD_TESTING)
         tests/test_backend.cpp
         src/log.cpp
         src/recipe.cpp
-        src/productname.cpp
+        src/branding.cpp
         src/offline.cpp
         src/readiness.cpp
     )
     target_include_directories(tuna-installer-backend-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    # The branding fixtures every frontend's resolver is judged by; the test
+    # skips when this tree is checked out without the monorepo around it.
+    target_compile_definitions(tuna-installer-backend-tests PRIVATE
+        BRANDING_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/branding/fixtures")
     # Qt6::Quick is needed to compile readiness.cpp: armStamp() takes a
     # QQuickWindow, so the type must be complete even though the tests below
     # only exercise writeStamp(), which has no Quick dependency of its own.

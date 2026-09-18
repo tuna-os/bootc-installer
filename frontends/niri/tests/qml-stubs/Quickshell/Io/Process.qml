@@ -31,7 +31,14 @@ QtObject {
         "detect": JSON.stringify({
             liveImage: "",
             hasTpm: true,
-            offlineStores: []
+            offlineStores: [],
+            // What a branding.json on the docs product would yield; the
+            // walkthrough is captured with this, not with the runner's
+            // os-release.
+            branding: {
+                name: "TunaOS", id: "tunaos", defaultHostname: "tunaos",
+                defaultImage: "ghcr.io/tuna-os/albacore:gnome"
+            }
         }),
         "discover-disks": JSON.stringify([
             { name: "nvme0n1", size: "476.9G", type: "disk", tran: "nvme" },

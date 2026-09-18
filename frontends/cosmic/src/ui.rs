@@ -9,14 +9,14 @@ use cosmic::prelude::*;
 use cosmic::widget;
 
 use crate::{
-    available_encryption_choices, product, Message, Page, TunaInstaller, FILESYSTEMS,
+    available_encryption_choices, branding, Message, Page, TunaInstaller, FILESYSTEMS,
 };
 
 /// Every user-facing string of the wizard, in one place.
 ///
 /// The view functions below and [`page_text`] both read from here, so the
 /// text the capture harness reports for a page is, by construction, the text
-/// that page renders. `{product}` is substituted with [`product::name`].
+/// that page renders. `{product}` is substituted with [`branding::name`].
 pub mod copy {
     pub const BACK: &str = "Back";
     pub const CONTINUE: &str = "Continue";
@@ -69,7 +69,7 @@ pub mod copy {
 use copy::*;
 
 fn with_product(s: &str) -> String {
-    s.replace("{product}", &product::name())
+    s.replace("{product}", branding::name())
 }
 
 /// The strings the current page shows, in reading order.
@@ -370,7 +370,7 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
         .title(OPTIONS_SYSTEM)
         .add(widget::settings::item(
             OPTIONS_HOSTNAME,
-            widget::text_input("tunaos", &recipe.hostname)
+            widget::text_input(branding::get().default_hostname.as_str(), &recipe.hostname)
                 .on_input(Message::HostnameChanged)
                 .width(Length::Fixed(260.0)),
         ))

@@ -143,10 +143,11 @@ func detectEnvironment() {
 		// than offering a choice that would fail later at install time. Same
 		// probe the XFCE and KDE frontends use.
 		"hasTpm": hasTPM(),
-		// Per-variant product name from os-release (PRETTY_NAME), so the UI
-		// reads "Skipjack Installer" on a Skipjack ISO. Empty when os-release
-		// is unreadable — the QML falls back to "TunaOS".
-		"productName": productName(),
+		// Product identity per shared/branding/README.md: branding.json,
+		// then os-release, then neutral. The QML takes its product name,
+		// hostname seed, distroID and default image from here; nothing in
+		// the frontend names a product.
+		"branding": resolveBranding(),
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
@@ -184,7 +185,7 @@ func runInstall(recipeJSON string) {
 		recipe.AdditionalImageStores = offlineStores()
 	}
 	if recipe.DistroID == "" {
-		recipe.DistroID = "tunaos"
+		recipe.DistroID = resolveBranding().ID
 	}
 
 	data, err := json.MarshalIndent(recipe, "", "  ")

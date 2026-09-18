@@ -20,9 +20,9 @@ struct Recipe {
     bool composeFsBackend = false;
     QStringList flatpaks;
     QStringList additionalImageStores; // embedded OCI stores for offline installs
-    QString distroID = "tunaos";
+    QString distroID;            // filled from the branding contract by the controller
     bool selinuxDisabled = true;
-    QString hostname = "tunaos";
+    QString hostname;            // likewise: branding default_hostname
     bool liveMode = false; // true when installing the running live system
 
     QJsonObject toJson() const;

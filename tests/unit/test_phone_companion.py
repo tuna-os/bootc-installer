@@ -8,6 +8,7 @@ import pytest
 from bootc_installer.utils import phone_companion
 from bootc_installer.utils.phone_companion import (
     COMPANION_HTML,
+    render_companion_html,
     CONFIG_RECEIVED_EVENT,
     CompanionRequestHandler,
     CompanionServer,
@@ -181,7 +182,19 @@ def test_handler_get_root_serves_html():
     handler.send_response.assert_called_once_with(200)
     handler.send_header.assert_called_once_with("Content-Type", "text/html")
     handler.end_headers.assert_called_once_with()
-    assert handler.wfile.getvalue() == COMPANION_HTML.encode("utf-8")
+    body = handler.wfile.getvalue().decode("utf-8")
+    assert body == render_companion_html()
+    # The served page names the branded product, never a placeholder or a
+    # hardcoded distro.
+    assert "__PRODUCT__" not in body and "__HOSTNAME__" not in body
+    assert "Bluefin" not in body
+    assert "__PRODUCT__" in COMPANION_HTML
+
+
+def test_render_companion_html_fills_branding():
+    body = render_companion_html(name="Marlin", hostname="reef")
+    assert "<title>Marlin Installer Companion</title>" in body
+    assert 'value="reef-desktop"' in body
 
 
 def test_handler_does_not_expose_current_config():

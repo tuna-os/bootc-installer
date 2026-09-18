@@ -42,14 +42,11 @@ ApplicationWindow {
 
     property string backendBin: Quickshell.env("TUNA_BACKEND") || "tuna-installer-backend"
 
-    // Per-variant product name. tunaOS's branding pipeline
-    // (build_scripts/90-image-info.sh) computes a PRETTY_NAME per variant and
-    // writes it into /etc/os-release, which is why GNOME's welcome screen reads
-    // "Welcome to Skipjack". The backend's `detect` reads it back (preferring
-    // /run/host/etc/os-release, since this ships as a flatpak) and reports it
-    // here, so a Skipjack ISO says Skipjack rather than a hardcoded "TunaOS".
-    // "TunaOS" stays the fallback for when os-release yields nothing.
-    property string productName: "TunaOS"
+    // Product identity from the backend's `detect` (shared/branding/README.md:
+    // branding.json first, os-release second, neutral last). The QML never
+    // names a product; before detect answers it shows the neutral name.
+    property var branding: ({})
+    readonly property string productName: branding.name || "Linux"
 
     // Wizard state
     property int currentPage: 0 // 0=welcome, 1=disk, 2=encryption, 3=confirm, 4=progress, 5=done
@@ -68,7 +65,7 @@ ApplicationWindow {
     property bool hasTpm: false
     property var disks: []
     property var selectedDisk: ({})
-    property string hostname: "tunaos"
+    property string hostname: branding.defaultHostname || "linux"
     property bool installSuccess: false
     property string installLog: ""
     // Recipe JSON awaiting the backend child's stdin channel (fed on
@@ -79,7 +76,10 @@ ApplicationWindow {
     // Offline facts from `detect` (spec §4)
     property string liveImage: ""
     property var offlineStores: []
-    property string defaultImage: "ghcr.io/tuna-os/albacore:gnome"
+    // The image installed off a live ISO: branding.json's default_image.
+    // Empty means the backend refuses ("image is required") rather than
+    // installing somebody else's product.
+    readonly property string defaultImage: branding.defaultImage || ""
 
     Component.onCompleted: detectProc.running = true
 
@@ -121,7 +121,7 @@ ApplicationWindow {
                     root.liveImage = facts.liveImage || ""
                     root.hasTpm = facts.hasTpm === true
                     root.offlineStores = facts.offlineStores || []
-                    if (facts.productName) root.productName = facts.productName
+                    if (facts.branding) root.branding = facts.branding
                 } catch (e) { /* detect is best-effort */ }
             }
         }
@@ -174,7 +174,7 @@ ApplicationWindow {
             // Empty image = live-ISO self-install (bootc uses the running container)
             image: liveImage !== "" ? "" : defaultImage,
             hostname: hostname,
-            distroID: "tunaos",
+            distroID: root.branding.id || "linux",
             selinuxDisabled: true,
             additionalImageStores: offlineStores
         }

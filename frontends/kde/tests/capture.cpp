@@ -35,7 +35,7 @@
 #include <QVariant>
 
 #include "installercontroller.h"
-#include "productname.h"
+#include "branding.h"
 #include "parity_report.h"
 
 using namespace Qt::StringLiterals;
@@ -424,7 +424,7 @@ int main(int argc, char *argv[])
     // documentation override below is applied. In CI this is the Fedora
     // container's own PRETTY_NAME, which is the only thing in the run that
     // exercises the file-reading path rather than the env override.
-    out << "product name from os-release: " << product::resolve() << "\n";
+    out << "product name from branding: " << branding::resolve().name << "\n";
 
     // NOTE: the harness deliberately does NOT force a product name of its own.
     // The first version defaulted it to "TunaOS" here, which silently overrode

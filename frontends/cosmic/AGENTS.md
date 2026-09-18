@@ -74,7 +74,7 @@ regenerate the sources file in the same commit.
 ## Layout
 
 `src/main.rs` (app + update loop), `ui.rs` (screens), `offline.rs`,
-`readiness.rs`, `product.rs`, `capture.rs` (the screenshot harness entry point).
+`readiness.rs`, `branding.rs`, `capture.rs` (the screenshot harness entry point).
 
 Every user-facing string lives in `ui::copy`. The views and `ui::page_text`
 both read from it, and the capture harness writes `page_text` to
@@ -89,3 +89,13 @@ frontends through the
 [installer frontend contract](https://github.com/tuna-os/tunaos/blob/main/docs/INSTALLER-FRONTENDS.md).
 A field added here must exist there too. The real disk work belongs in
 fisherman — keep it there.
+
+## Branding
+
+Nothing in this tree names a product. `src/branding.rs` (`branding::get()`, cached; `init()` seeds the recipe from it) resolves the product name,
+the recipe's `distroID`, the hostname seed and the default image from a `branding.json`
+under `/etc/bootc-installer/` (host first), then `os-release`, then a
+neutral "Linux"; the contract and the fixtures it is tested against are in
+`shared/branding/` at the monorepo root. `BOOTC_INSTALLER_BRANDING` points
+tests at a file, `BOOTC_INSTALLER_PRODUCT_NAME` overrides the name for the
+screenshot harness.

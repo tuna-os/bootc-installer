@@ -1,0 +1,7 @@
+{
+  "name": "Marlin",
+  "docs_url": "https://docs.example.org/marlin",
+  "default_image": "ghcr.io/example/marlin:latest",
+  "vendor": "",
+  "unknown_extra": "ignored"
+}

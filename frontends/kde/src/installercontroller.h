@@ -14,6 +14,7 @@
 #include <QTemporaryDir>
 #include <qqmlintegration.h>
 
+#include "branding.h"
 #include "recipe.h"
 
 class InstallerController : public QObject
@@ -35,10 +36,10 @@ class InstallerController : public QObject
     // machine without a TPM only fails later, at install time.
     Q_PROPERTY(bool hasTpm READ hasTpm CONSTANT)
 
-    // The variant's name — "Skipjack", "Bonito", … — resolved ONCE at startup
-    // from os-release (see src/productname.h). Every user-visible string that
-    // used to say "TunaOS" reads this instead, so a Skipjack ISO says
-    // Skipjack. CONSTANT: os-release cannot change under a running installer.
+    // The product name, resolved ONCE at startup from the branding contract
+    // (src/branding.h: branding.json, then os-release, then neutral). Every
+    // user-visible string reads this; nothing names a product. CONSTANT: the
+    // files cannot change under a running installer.
     Q_PROPERTY(QString productName READ productName CONSTANT)
 
     Q_PROPERTY(QString log READ log NOTIFY logChanged)
@@ -119,5 +120,6 @@ private:
     bool m_finished = false;
     bool m_hasTpm = false;
     QString m_productName;
+    branding::Branding m_branding;
     int m_exitCode = 0;
 };

@@ -257,7 +257,7 @@ func TestDetectEmitsTheEnvironmentContract(t *testing.T) {
 	if err := json.Unmarshal([]byte(got.stdout), &env); err != nil {
 		t.Fatalf("stdout is not the JSON object the frontend parses: %v\n%s", err, got.stdout)
 	}
-	for _, key := range []string{"liveImage", "offlineStores", "offlineImages", "hasTpm", "productName"} {
+	for _, key := range []string{"liveImage", "offlineStores", "offlineImages", "hasTpm", "branding"} {
 		if _, ok := env[key]; !ok {
 			t.Errorf("detect output is missing the %q key; got %v", key, env)
 		}
@@ -268,8 +268,19 @@ func TestDetectEmitsTheEnvironmentContract(t *testing.T) {
 	if _, ok := env["liveImage"].(string); !ok {
 		t.Errorf("liveImage = %v (%T), want a string", env["liveImage"], env["liveImage"])
 	}
-	if _, ok := env["productName"].(string); !ok {
-		t.Errorf("productName = %v (%T), want a string", env["productName"], env["productName"])
+	// The branding object per shared/branding/README.md; the QML reads its
+	// name, id, defaultHostname and defaultImage.
+	b, ok := env["branding"].(map[string]any)
+	if !ok {
+		t.Fatalf("branding = %v (%T), want an object", env["branding"], env["branding"])
+	}
+	for _, key := range []string{"name", "id", "defaultHostname", "defaultImage"} {
+		if _, ok := b[key].(string); !ok {
+			t.Errorf("branding.%s = %v (%T), want a string", key, b[key], b[key])
+		}
+	}
+	if b["name"] == "" || b["id"] == "" {
+		t.Errorf("branding must never be nameless: %v", b)
 	}
 }
 

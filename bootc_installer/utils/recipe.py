@@ -21,6 +21,8 @@ import subprocess
 import sys
 from gettext import gettext as _
 
+from bootc_installer.utils import branding
+
 logger = logging.getLogger("Installer::RecipeLoader")
 
 
@@ -60,6 +62,7 @@ class RecipeLoader:
                 with open(path, "r") as f:
                     self.__recipe = json.load(f)
                 if self.__validate():
+                    self.__apply_branding()
                     self.__enrich()
                     return
                 logger.warning(f"Recipe at {path} failed validation, trying next...")
@@ -75,6 +78,28 @@ class RecipeLoader:
             }
             return
         sys.exit(1)
+
+    def __apply_branding(self):
+        """Name the product from the branding contract, never from a literal.
+
+        shared/branding/README.md: a branding.json (host first) wins, then the
+        recipe's own `distro_name`/`welcome_title`/`distro_logo` (a custom
+        recipe is a config file too), then os-release, then a neutral name.
+        The resolved branding is exposed as recipe["branding"] for the about
+        dialog, the recovery dialog, the phone companion and the hostname
+        generator, so no other module reads os-release on its own.
+        """
+        b = branding.resolve()
+        r = self.__recipe
+        file_wins = b.source in ("env", "file")
+        if file_wins or not r.get("distro_name"):
+            r["distro_name"] = b.name
+        if not r.get("distro_logo"):
+            r["distro_logo"] = b.logo or "org.bootcinstaller.Installer"
+        if file_wins or not r.get("welcome_title"):
+            r["welcome_title"] = _("Welcome to {}").format(r["distro_name"])
+        r["branding"] = b.as_dict()
+        logger.info("Branding: %s (%s)", r["distro_name"], b.source)
 
     def __enrich(self):
         """Post-load enrichment: detect live ISO mode and inject local bootc image."""
@@ -138,7 +163,9 @@ class RecipeLoader:
         return ""
 
     def __validate(self):
-        essential_keys = ["log_file", "distro_name", "distro_logo", "steps"]
+        # distro_name/distro_logo are no longer essential: __apply_branding fills
+        # them from branding.json or os-release when the recipe leaves them out.
+        essential_keys = ["log_file", "steps"]
         if not isinstance(self.__recipe, dict):
             logger.error(_("Recipe is not a dictionary"))
             return False

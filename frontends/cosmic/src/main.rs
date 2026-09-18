@@ -13,7 +13,7 @@ mod capture;
 mod model;
 mod readiness;
 mod offline;
-mod product;
+mod branding;
 mod ui;
 
 use cosmic::app::{Core, Settings, Task};
@@ -309,7 +309,17 @@ impl cosmic::Application for TunaInstaller {
     fn init(core: Core, flags: Flags) -> (Self, Task<Message>) {
         let capturing = flags.capture.is_some();
 
+        // Recipe::default() is neutral; the product identity comes from the
+        // branding contract (shared/branding/README.md). The default image
+        // is what a non-live install writes when nothing else chooses one;
+        // live-ISO mode clears it below.
         let mut recipe = Recipe::default();
+        {
+            let b = branding::get();
+            recipe.distro_id = b.id.clone();
+            recipe.hostname = b.default_hostname.clone();
+            recipe.image = b.default_image.clone();
+        }
         let mut disks = Vec::new();
         let live;
         let mut init_tasks: Vec<Task<Message>> = Vec::new();
@@ -368,9 +378,9 @@ impl cosmic::Application for TunaInstaller {
             capture: flags.capture,
         };
 
-        // The variant name from /etc/os-release ("Skipjack"), not a hardcoded
-        // "TunaOS" — see `product`.
-        let window_title = format!("{} Installer", product::name());
+        // The product name from the branding contract (branding.json, then
+        // os-release), never a literal — see `branding`.
+        let window_title = format!("{} Installer", branding::name());
         let mut tasks = vec![app.set_window_title(window_title.clone())];
         tasks.append(&mut init_tasks);
         if app.capture.is_some() {
@@ -642,8 +652,10 @@ mod tests {
         let recipe = Recipe::default();
         assert_eq!(recipe.filesystem, "xfs");
         assert_eq!(recipe.encryption.enc_type, "none");
-        assert_eq!(recipe.distro_id, "tunaos");
-        assert_eq!(recipe.hostname, "tunaos");
+        // Neutral until the branding contract fills them in at init().
+        assert_eq!(recipe.distro_id, "linux");
+        assert_eq!(recipe.hostname, "linux");
+        assert!(recipe.image.is_empty());
         assert!(recipe.selinux_disabled);
 
         let json_str = serde_json::to_string(&recipe).unwrap();
@@ -651,10 +663,10 @@ mod tests {
 
         assert_eq!(json["filesystem"], "xfs");
         assert_eq!(json["encryption"]["type"], "none");
-        assert_eq!(json["distroID"], "tunaos");
-        assert_eq!(json["hostname"], "tunaos");
+        assert_eq!(json["distroID"], "linux");
+        assert_eq!(json["hostname"], "linux");
         assert_eq!(json["selinuxDisabled"], true);
-        assert!(json.get("image").is_some());
+        assert!(json.get("image").is_none());
         assert!(json.get("targetImgref").is_none());
         assert!(json.get("bootloader").is_none());
     }

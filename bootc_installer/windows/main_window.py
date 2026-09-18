@@ -422,14 +422,19 @@ class BootcWindow(Adw.ApplicationWindow):
         self.__go_to_page(self.__view_done)
 
     def __on_about_clicked(self, *args):
-        dialog = Adw.AboutDialog(
+        # Vendor and website come from the branding contract (branding.json,
+        # then os-release); nothing here names a product.
+        b = self.recipe.get("branding", {}) if hasattr(self, "recipe") else {}
+        kwargs = dict(
             application_name=_("bootc Installer"),
             version=_APP_VERSION,
-            website="https://projectbluefin.io",
-            copyright="© 2024–2026 Project Bluefin contributors",
             license_type=Gtk.License.GPL_3_0,
-            developer_name="Project Bluefin",
         )
+        if b.get("home_url"):
+            kwargs["website"] = b["home_url"]
+        if b.get("vendor"):
+            kwargs["developer_name"] = b["vendor"]
+        dialog = Adw.AboutDialog(**kwargs)
         dialog.present(self)
 
     def __on_credits_clicked(self, *args):
