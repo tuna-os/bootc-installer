@@ -59,7 +59,8 @@
         "04-confirm"
       ],
       "matched_keywords": [
-        "confirm installation"
+        "confirm installation",
+        "summary"
       ]
     },
     "install": {
@@ -69,8 +70,8 @@
         "05-progress"
       ],
       "matched_keywords": [
+        "do not power off",
         "installing image",
-        "installing\u2026",
         "partitioning"
       ]
     },
@@ -81,7 +82,7 @@
         "06-done"
       ],
       "matched_keywords": [
-        "installation complete",
+        "is installed",
         "remove the installation media"
       ]
     }
@@ -91,69 +92,69 @@
       "name": "01-welcome",
       "png": "docs/screenshots/01-welcome.png",
       "rendered": true,
-      "colours": 191,
-      "flat": 0.9805333333333334,
-      "ink": 0.01,
-      "stddev": 0.04308275538376269,
-      "text_excerpt": "Welcome to TunaOS This wizard will guide you through installing TunaOS onto your computer. Get Started Get Started Get Started"
+      "colours": 253,
+      "flat": 0.9539333333333333,
+      "ink": 0.0388,
+      "stddev": 0.10766094481720725,
+      "text_excerpt": "Step 1 of 6 \u00b7 Welcome \u2b22 Welcome to TunaOS This wizard will guide you through installing TunaOS onto your computer. Get started Get started Enter Continue Tab Next field"
     },
     {
       "name": "02-disk",
       "png": "docs/screenshots/02-disk.png",
       "rendered": true,
-      "colours": 127,
-      "flat": 0.9864,
-      "ink": 0.008766666666666667,
-      "stddev": 0.03532426403158768,
-      "text_excerpt": "Destination All data on the selected disk will be erased. Back Back Back Continue Continue Continue"
+      "colours": 257,
+      "flat": 0.9694333333333334,
+      "ink": 0.009666666666666667,
+      "stddev": 0.05269190816861404,
+      "text_excerpt": "Step 2 of 6 \u00b7 Disk Destination Everything on the selected disk will be erased. This cannot be undone. Scanning for disks\u2026 Back Back Continue Continue Enter Continue Shift+Enter Back Tab Next field"
     },
     {
       "name": "03-encryption",
       "png": "docs/screenshots/03-encryption.png",
       "rendered": true,
-      "colours": 272,
-      "flat": 0.9707666666666667,
-      "ink": 0.016566666666666667,
-      "stddev": 0.06835487071386871,
-      "text_excerpt": "Disk Encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at e"
+      "colours": 453,
+      "flat": 0.6161333333333333,
+      "ink": 0.11356666666666666,
+      "stddev": 0.11049312796175044,
+      "text_excerpt": "Step 3 of 6 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
       "name": "04-confirm",
       "png": "docs/screenshots/04-confirm.png",
       "rendered": true,
-      "colours": 173,
-      "flat": 0.9767333333333333,
-      "ink": 0.012366666666666666,
-      "stddev": 0.051006087776043325,
-      "text_excerpt": "Confirm Installation Target Disk: \u2014 Filesystem: xfs Encryption: none Hostname: tunaos Image: ghcr.io/tuna-os/albacore:gnome Back Back Back Install Install Install"
+      "colours": 385,
+      "flat": 0.6189,
+      "ink": 0.0209,
+      "stddev": 0.08056238996147015,
+      "text_excerpt": "Step 4 of 6 \u00b7 Confirm Confirm installation \u26a0  Everything on the selected disk will be erased. This cannot be undone. Summary Target disk \u2014 Filesystem xfs Encryption none Hostname tunaos Image ghcr.io/tuna-os/albacore:gnome Back Back Install"
     },
     {
       "name": "05-progress",
       "png": "docs/screenshots/05-progress.png",
       "rendered": true,
-      "colours": 173,
-      "flat": 0.9174666666666667,
-      "ink": 0.0104,
-      "stddev": 0.05259367334628963,
-      "text_excerpt": "Installing\u2026 [1/9] Partitioning /dev/nvme0n1\n[2/9] Formatting boot partitions\n[3/9] Setting up encryption\n[4/9] Formatting root filesystem (xfs)\n[5/9] Mounting target at /mnt\n[6/9] Installing image ghcr.io/tuna-os/albacore:gnome\n  pulling la"
+      "colours": 272,
+      "flat": 0.6304666666666666,
+      "ink": 0.0182,
+      "stddev": 0.07907322882807281,
+      "text_excerpt": "Step 5 of 6 \u00b7 Installing Installing TunaOS\u2026 Starting\u2026 [1/9] Partitioning /dev/nvme0n1\n[2/9] Formatting boot partitions\n[3/9] Setting up encryption\n[4/9] Formatting root filesystem (xfs)\n[5/9] Mounting target at /mnt\n[6/9] Installing image g"
     },
     {
       "name": "06-done",
       "png": "docs/screenshots/06-done.png",
       "rendered": true,
-      "colours": 147,
-      "flat": 0.9812333333333333,
-      "ink": 0.009266666666666666,
-      "stddev": 0.04213653402465916,
-      "text_excerpt": "\u2713 Installation Complete Remove the installation media and restart your computer. Close Close Close"
+      "colours": 197,
+      "flat": 0.9602666666666667,
+      "ink": 0.017766666666666667,
+      "stddev": 0.08847120912641952,
+      "text_excerpt": "Step 6 of 6 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. Close Close Restart now Restart now"
     }
   ],
   "transition_pixels": [
-    14218,
-    13126,
-    16024,
-    12883,
-    14272
+    30519,
+    56643,
+    188997,
+    210976,
+    308037
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
