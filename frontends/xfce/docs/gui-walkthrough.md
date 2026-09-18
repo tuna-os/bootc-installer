@@ -32,7 +32,7 @@ so picking a desktop is one choice rather than a search through tags.
 Only real, non-removable disks are offered, and the live medium you booted from
 is excluded — so the installer will not offer to overwrite itself.
 
-## 4. Filesystem and encryption
+## 4. Disk encryption
 
 ![Setup](screenshots/04-setup.png)
 

@@ -76,6 +76,12 @@ regenerate the sources file in the same commit.
 `src/main.rs` (app + update loop), `ui.rs` (screens), `offline.rs`,
 `readiness.rs`, `product.rs`, `capture.rs` (the screenshot harness entry point).
 
+Every user-facing string lives in `ui::copy`. The views and `ui::page_text`
+both read from it, and the capture harness writes `page_text` to
+`docs/screenshots/texts.json` for the shared parity report. Add a string to
+`copy` and to `page_text` when you add it to a view, or the parity matrix
+stops seeing that screen.
+
 ## Sibling contract
 
 It produces the same recipe JSON as the Qt/KDE installer, shared with all four

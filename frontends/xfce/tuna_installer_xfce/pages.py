@@ -183,7 +183,11 @@ class DestinationPage(Page):
 
 
 class SetupPage(Page):
-    title = "Filesystem and encryption"
+    # "Disk encryption" is a keyword of the shared screen contract
+    # (shared/walkthrough/parity_report.py). With the old title, "Filesystem
+    # and encryption", this page matched nothing and the parity matrix showed
+    # XFCE as the one frontend without an encryption screen it plainly has.
+    title = "Disk encryption"
 
     def __init__(self, win):
         super().__init__(win)
