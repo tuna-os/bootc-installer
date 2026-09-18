@@ -27,7 +27,7 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 | KDE Plasma | 6 | 6 | 5 | tests/capture.cpp (Kirigami/QML, offscreen) |
 | COSMIC | 6 | 6 | 5 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
 | Niri | 6 | 6 | 5 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
-| XFCE | 8 | 8 | 7 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
+| XFCE | 8 | 8 | 4 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
 
 ## GNOME
 
@@ -37,16 +37,16 @@ GTK4 / libadwaita (Python). Source: `bootc_installer/`.
 
 | | |
 |---|---|
-| <img src="gnome/01-welcome.png" width="360"> | **welcome** What the installer is about to do. <br><sub>Welcome to Bluefin Install Bluefin Installs to your internal disk. Takes about 5–10 minutes. Install Bluefin Installs to your internal disk.</sub> |
+| <img src="gnome/01-welcome.png" width="360"> | **welcome** What the installer is about to do. <br><sub>Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Connect Bluetooth Devices Pa</sub> |
 | <img src="gnome/02-qr_companion.png" width="360"> | **qr companion** Optional phone companion for typing on a laptop keyboard. <br><sub>Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.
 Both devices must be on the same local net</sub> |
 | <img src="gnome/03-disk.png" width="360"> | **disk** Choose the disk. Nothing is written yet. <br><sub>Computer is not plugged in — connect power before installing Install Location Select the disk where you want to install. All data on the sel</sub> |
 | <img src="gnome/04-slurp.png" width="360"> | **slurp** Bring documents and settings over from an existing Windows install. <br><sub>Bring Your Files We can copy documents, pictures, and other data from an existing Windows install. Windows data scanning is unavailable in d</sub> |
 | <img src="gnome/05-encryption.png" width="360"> | **encryption** Full-disk encryption, with or without TPM2. <br><sub>Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You will need a passphrase each time you turn on your compute</sub> |
-| <img src="gnome/06-confirm.png" width="360"> | **confirm** The last screen before anything is written. <br><sub>Confirm Installation "Indeed." — Commander Zavala Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with </sub> |
-| <img src="gnome/07-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installation Video Coming Soon! Installation will continue normally. Feel free to browse around. Rawr. Get Bluefin gear Installing Bluefin… </sub> |
+| <img src="gnome/06-confirm.png" width="360"> | **confirm** The last screen before anything is written. <br><sub>Confirm installation Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Install Install</sub> |
+| <img src="gnome/07-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installation Video Coming Soon! Installation will continue normally. Feel free to browse around. Rawr. Visit the store Installing TunaOS… De</sub> |
 | <img src="gnome/08-recovery-key.png" width="360"> | **recovery key** The LUKS recovery key, shown once after an encrypted install. <br><sub>Save Your Recovery Key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere sa</sub> |
-| <img src="gnome/09-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>Bluefin is installed Restart now to complete the installation. Show Log Show Log Try Again Try Again Reboot Now Reboot Now Close Close Get B</sub> |
+| <img src="gnome/09-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>TunaOS is installed Remove the installation media and restart the computer. Show Log Show Log Try Again Try Again Restart now Restart now Cl</sub> |
 
 ## KDE Plasma
 
@@ -88,15 +88,14 @@ Quickshell QML + Go backend. Source: `frontends/niri/`.
 
 | | |
 |---|---|
-| <img src="niri/01-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to TunaOS This wizard will guide you through installing TunaOS onto your computer. Get Started Get Started Get Started</sub> |
-| <img src="niri/02-disk.png" width="360"> | **disk**  <br><sub>Destination All data on the selected disk will be erased. Back Back Back Continue Continue Continue</sub> |
-| <img src="niri/03-encryption.png" width="360"> | **encryption**  <br><sub>Disk Encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encrypti</sub> |
-| <img src="niri/04-confirm.png" width="360"> | **confirm**  <br><sub>Confirm Installation Target Disk: — Filesystem: xfs Encryption: none Hostname: tunaos Image: ghcr.io/tuna-os/albacore:gnome Back Back Back I</sub> |
-| <img src="niri/05-progress.png" width="360"> | **progress**  <br><sub>Installing… [1/9] Partitioning /dev/nvme0n1
+| <img src="niri/01-welcome.png" width="360"> | **welcome**  <br><sub>Step 1 of 6 · Welcome ⬢ Welcome to TunaOS This wizard will guide you through installing TunaOS onto your computer. Get started Get started E</sub> |
+| <img src="niri/02-disk.png" width="360"> | **disk**  <br><sub>Step 2 of 6 · Disk Destination Everything on the selected disk will be erased. This cannot be undone. Scanning for disks… Back Back Continue</sub> |
+| <img src="niri/03-encryption.png" width="360"> | **encryption**  <br><sub>Step 3 of 6 · Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without </sub> |
+| <img src="niri/04-confirm.png" width="360"> | **confirm**  <br><sub>Step 4 of 6 · Confirm Confirm installation ⚠  Everything on the selected disk will be erased. This cannot be undone. Summary Target disk — F</sub> |
+| <img src="niri/05-progress.png" width="360"> | **progress**  <br><sub>Step 5 of 6 · Installing Installing TunaOS… Starting… [1/9] Partitioning /dev/nvme0n1
 [2/9] Formatting boot partitions
-[3/9] Setting up encryption
-[4/9] Formatting root filesystem (x</sub> |
-| <img src="niri/06-done.png" width="360"> | **done**  <br><sub>✓ Installation Complete Remove the installation media and restart your computer. Close Close Close</sub> |
+[3/9] Setting up encr</sub> |
+| <img src="niri/06-done.png" width="360"> | **done**  <br><sub>Step 6 of 6 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Close Close Restart now Restart now</sub> |
 
 ## XFCE
 
@@ -106,20 +105,20 @@ GTK3 / PyGObject. Source: `frontends/xfce/`.
 
 | | |
 |---|---|
-| <img src="xfce/01-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to TunaOS This assistant installs TunaOS on this computer.
+| <img src="xfce/01-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to Ubuntu 24.04.5 LTS This assistant installs TunaOS on this computer.
 
-You'll choose what to install and where; nothing is written to any disk </sub> |
+You'll choose what to install and where; nothing is written </sub> |
 | <img src="xfce/02-source.png" width="360"> | **source**  <br><sub>What do you want to install? Bluefin Bluefin ghcr.io/ublue-os/bluefin:latest GNOME GNOME ghcr.io/tuna-os/bonito:latest KDE Plasma KDE Plasma</sub> |
 | <img src="xfce/03-destination.png" width="360"> | **destination**  <br><sub>Where should TunaOS be installed? SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 WDC WD20SPZX    </sub> |
 | <img src="xfce/04-setup.png" width="360"> | **setup**  <br><sub>Disk encryption No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at every boot. Co</sub> |
 | <img src="xfce/05-identity.png" width="360"> | **identity**  <br><sub>Name this computer Hostname Password Full name Username Your account</sub> |
-| <img src="xfce/06-confirm.png" width="360"> | **confirm**  <br><sub>Ready to install Image:       ghcr.io/ublue-os/bluefin:latest
+| <img src="xfce/06-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation  Image:       ghcr.io/ublue-os/bluefin:latest
 Disk:        /dev/nvme0n1
 Filesystem:  xfs
 Encryption:  none
-Hostname:    tuna</sub> |
-| <img src="xfce/07-progress.png" width="360"> | **progress**  <br><sub>Installing TunaOS Installing image [1/9] Partitioning /dev/nvme0n1
+Hostname:   </sub> |
+| <img src="xfce/07-progress.png" width="360"> | **progress**  <br><sub>Installing Ubuntu 24.04.5 LTS… Installing image [1/9] Partitioning /dev/nvme0n1
   created EFI system partition (1.0 GiB, FAT32)
-  created root partition </sub> |
-| <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>Installation complete Remove the installation medium, then reboot into your new system. Reboot Reboot</sub> |
+  created ro</sub> |
+| <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>Ubuntu 24.04.5 LTS is installed Remove the installation media and restart the computer. Visit the store Visit the store Restart now Restart </sub> |
 

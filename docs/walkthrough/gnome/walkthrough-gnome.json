@@ -78,7 +78,8 @@
         "done"
       ],
       "matched_keywords": [
-        "is installed"
+        "is installed",
+        "remove the installation media"
       ]
     }
   },
@@ -87,20 +88,20 @@
       "name": "welcome",
       "png": "docs/screenshots/01-welcome.png",
       "rendered": true,
-      "colours": 533,
-      "flat": 0.9192239498090562,
-      "ink": 0.0050531914893617025,
-      "stddev": 0.05155068081084082,
-      "text_excerpt": "Welcome to Bluefin Install Bluefin Installs to your internal disk. Takes about 5\u201310 minutes. Install Bluefin Installs to your internal disk. Takes about 5\u201310 minutes. Connect Bluetooth Devices Pair your keyboard or mouse to continue Connect"
+      "colours": 300,
+      "flat": 0.9077127659574468,
+      "ink": 0.012650027277686852,
+      "stddev": 0.06306664887350331,
+      "text_excerpt": "Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Connect Bluetooth Devices Pair your keyboard or mouse to continue Connect Bluetooth Devices Pair your keyboard or mouse to conti"
     },
     {
       "name": "qr_companion",
       "png": "docs/screenshots/02-qr_companion.png",
       "rendered": true,
-      "colours": 528,
-      "flat": 0.9275095471903982,
-      "ink": 0.037145390070921984,
-      "stddev": 0.12112227779555808,
+      "colours": 531,
+      "flat": 0.9274004364429896,
+      "ink": 0.037193126022913255,
+      "stddev": 0.12116246844124853,
       "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
     },
     {
@@ -137,21 +138,21 @@
       "name": "confirm",
       "png": "docs/screenshots/06-confirm.png",
       "rendered": true,
-      "colours": 275,
-      "flat": 0.9144230769230769,
-      "ink": 0.008449263502454991,
-      "stddev": 0.055295331865805174,
-      "text_excerpt": "Confirm Installation \"Indeed.\" \u2014 Commander Zavala Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Whether we wanted it or not, we've stepped into a war with your old OS. Become Legend Bec"
+      "colours": 237,
+      "flat": 0.9183647026732134,
+      "ink": 0.006307965084560829,
+      "stddev": 0.04957730697640463,
+      "text_excerpt": "Confirm installation Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Install Install"
     },
     {
       "name": "progress",
       "png": "docs/screenshots/07-progress.png",
       "rendered": true,
-      "colours": 169,
-      "flat": 0.9619271685761047,
-      "ink": 0.006355701036552101,
-      "stddev": 0.04691646073495585,
-      "text_excerpt": "Installation Video Coming Soon! Installation will continue normally. Feel free to browse around. Rawr. Get Bluefin gear Installing Bluefin\u2026 Deploying image: writing layers 45% 0:00 elapsed"
+      "colours": 172,
+      "flat": 0.9618794326241135,
+      "ink": 0.006382978723404255,
+      "stddev": 0.04678733797697664,
+      "text_excerpt": "Installation Video Coming Soon! Installation will continue normally. Feel free to browse around. Rawr. Visit the store Installing TunaOS\u2026 Deploying image: writing layers 45% 0:00 elapsed"
     },
     {
       "name": "recovery-key",
@@ -167,22 +168,22 @@
       "name": "done",
       "png": "docs/screenshots/09-done.png",
       "rendered": true,
-      "colours": 262,
-      "flat": 0.9626841243862521,
-      "ink": 0.008742498636115658,
-      "stddev": 0.05954910616611796,
-      "text_excerpt": "Bluefin is installed Restart now to complete the installation. Show Log Show Log Try Again Try Again Reboot Now Reboot Now Close Close Get Bluefin gear at store.projectbluefin.io"
+      "colours": 269,
+      "flat": 0.9619885433715221,
+      "ink": 0.009035733769776323,
+      "stddev": 0.05996950743543311,
+      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Show Log Show Log Try Again Try Again Restart now Restart now Close Close Visit the store"
     }
   ],
   "transition_pixels": [
-    73345,
-    89714,
+    81075,
+    89820,
     51171,
     34536,
-    39452,
-    37333,
-    43496,
-    41297
+    37659,
+    31074,
+    43489,
+    41701
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
