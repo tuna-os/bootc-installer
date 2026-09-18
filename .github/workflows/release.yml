@@ -10,7 +10,9 @@ name: Release
 #   - org.bootcinstaller.Installer-aarch64.flatpak   GNOME, aarch64 (optional)
 #   - org.bootcinstaller.Installer.Devel.flatpak     GNOME devel app id
 #   - a Flatpak OCI publish + index update for each frontend whose tree
-#     changed since the previous release (gnome, kde, cosmic, niri, xfce)
+#     changed since the previous release, all into the one package
+#     ghcr.io/tuna-os/bootc-installer:{gnome,kde,cosmic,niri,xfce}
+#     (publish-oci.yml)
 #
 # Downstreams fetch /releases/latest/download/<asset>, so `--latest` is set
 # here and nowhere else. The tag is date + short sha: monotonic, unique, and

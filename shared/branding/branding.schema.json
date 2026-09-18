@@ -49,25 +49,51 @@
     },
     "copy": {
       "type": "object",
-      "description": "Flavour text. Any key of copy-defaults.json; a present key overrides (an empty string hides the line where the frontend can hide it), a missing key keeps the neutral default. {name} and {disk} are substituted.",
-      "additionalProperties": {"type": "string"}
+      "description": "Flavour text every frontend renders. Any key of copy-defaults.json; a present key overrides (an empty string hides the line), a missing key keeps the neutral default. {name} and {disk} are substituted.",
+      "additionalProperties": {
+        "type": "string"
+      }
     },
     "confirm_quotes": {
       "type": "object",
       "description": "Optional locale-specific confirm subtitles: language tag (\"pt_BR\") to a list of lines, one chosen at random when the installer runs in that language. Frontends without locale-aware copy ignore it.",
-      "additionalProperties": {"type": "array", "items": {"type": "string"}}
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
     },
     "assets": {
       "type": "object",
-      "description": "Absolute paths on the host (or GResource paths starting with /org/ for the GNOME frontend's own bundle). Empty or missing means the frontend hides or skips the element.",
+      "description": "Absolute paths on the host. Common to every frontend; empty or missing means the frontend hides or skips the element.",
       "properties": {
-        "welcome_image": {"type": "string", "description": "Welcome and tour artwork."},
-        "complete_image": {"type": "string", "description": "Done-page artwork."},
-        "store_qr": {"type": "string", "description": "QR image for store_url."},
-        "video": {"type": "string", "description": "Video played during the install (GNOME)."},
-        "credits": {"type": "string", "description": "credits.json for the Credits dialog (GNOME)."}
+        "welcome_image": {
+          "type": "string",
+          "description": "Welcome artwork."
+        },
+        "complete_image": {
+          "type": "string",
+          "description": "Done-page artwork."
+        },
+        "store_qr": {
+          "type": "string",
+          "description": "QR image for store_url."
+        }
       },
-      "additionalProperties": {"type": "string"}
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Per-frontend extras outside the parity contract, keyed by frontend (\"gnome\"). Only that frontend reads its object. GNOME: tour_welcome_title, tour_welcome_description, tour_done_title, tour_done_description, video, credits (host paths).",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
+      }
     }
   },
   "additionalProperties": true

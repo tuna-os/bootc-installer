@@ -388,6 +388,12 @@ class DonePage(Page):
         self.body = Gtk.Label(xalign=0)
         self.body.set_line_wrap(True)
         self.pack_start(self.body, False, False, 0)
+        # store_label -> store_url on every frontend when the branding sets a
+        # store (docs/PARITY.md); hidden otherwise.
+        self.store_btn = Gtk.LinkButton(uri=core.BRANDING.store_url,
+                                        label=core.BRANDING.text("store_label"))
+        self.store_btn.set_no_show_all(True)
+        self.pack_start(self.store_btn, False, False, 0)
         self.reboot_btn = Gtk.Button(label=core.BRANDING.text("done_restart") or "Restart now")
         self.reboot_btn.connect("clicked", lambda *_: core.host_run(["systemctl", "reboot"]))
         self.pack_start(self.reboot_btn, False, False, 8)
@@ -397,6 +403,7 @@ class DonePage(Page):
             self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
                 core.BRANDING.text("done_title")) + "</b></big>")
             self.body.set_text(core.BRANDING.text("done_subtitle"))
+            self.store_btn.set_visible(bool(core.BRANDING.store_url))
             self.reboot_btn.show()
         else:
             self.headline.set_markup("<big><b>" + GLib.markup_escape_text(

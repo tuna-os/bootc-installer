@@ -57,6 +57,20 @@ TunaComponents.SetupModule {
                 Layout.fillWidth: true
             }
 
+            // store_label -> store_url, on every frontend when the branding
+            // sets a store (docs/PARITY.md).
+            Label {
+                text: "<a href=\"" + InstallerController.storeUrl + "\">" + InstallerController.text("store_label") + "</a>"
+                visible: InstallerController.succeeded && InstallerController.storeUrl.length > 0
+                textFormat: Text.RichText
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+
+                Layout.fillWidth: true
+
+                onLinkActivated: link => Qt.openUrlExternally(link)
+            }
+
             // Restart is the primary action after a successful install, the
             // same as on the other frontends; Close stays in the footer.
             Button {

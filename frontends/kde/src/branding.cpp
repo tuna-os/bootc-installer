@@ -89,8 +89,8 @@ QString pick(const QJsonObject &file, const QHash<QString, QString> &osr, const 
 const QStringList &assetKeys()
 {
     static const QStringList keys = {
-        QStringLiteral("welcome_image"), QStringLiteral("complete_image"),
-        QStringLiteral("store_qr"), QStringLiteral("video"), QStringLiteral("credits"),
+        // Common to every frontend; desktop-specific keys live under extensions.<frontend>.
+        QStringLiteral("welcome_image"), QStringLiteral("complete_image"), QStringLiteral("store_qr"),
     };
     return keys;
 }

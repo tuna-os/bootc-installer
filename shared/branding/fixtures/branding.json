@@ -14,7 +14,14 @@
     "welcome_image": ""
   },
   "confirm_quotes": {
-    "pt_BR": ["\"Segue em frente.\" — Alguém"]
+    "pt_BR": [
+      "\"Segue em frente.\" — Alguém"
+    ]
   },
-  "unknown_extra": "ignored"
+  "unknown_extra": "ignored",
+  "extensions": {
+    "gnome": {
+      "video": "/usr/share/example/install.webm"
+    }
+  }
 }

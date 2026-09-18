@@ -52,11 +52,13 @@ KEYS = (
     "logo", "default_hostname", "default_image",
 )
 
-ASSET_KEYS = ("welcome_image", "complete_image", "store_qr", "video", "credits")
+# Common to every frontend. Anything one desktop alone can show goes under
+# extensions.<frontend> in the branding file.
+ASSET_KEYS = ("welcome_image", "complete_image", "store_qr")
 
 # shared/branding/copy-defaults.json, verbatim.
 COPY_DEFAULTS_JSON = r'''{
-  "_comment": "Neutral defaults for every user-facing line a product may rebrand. A branding.json `copy` object overrides any key; an empty string hides the line where the frontend can hide it. Placeholders: {name} = product name, {disk} = the disk that will be erased. Copies of this file in each frontend tree must stay byte-identical (tests/unit/test_shared_branding.py).",
+  "_comment": "Neutral defaults for every user-facing line a product may rebrand. Every frontend renders every key (docs/PARITY.md). A branding.json `copy` object overrides any key; an empty string hides the line. Placeholders: {name} = product name, {disk} = the disk that will be erased. Copies of this file in each frontend tree must stay byte-identical (tests/unit/test_shared_branding.py). Frontend-specific lines live under `extensions.<frontend>` in the branding file, never here.",
   "welcome_title": "Welcome to {name}",
   "welcome_subtitle": "",
   "welcome_install": "Install {name}",
@@ -73,11 +75,7 @@ COPY_DEFAULTS_JSON = r'''{
   "done_subtitle": "Remove the installation media and restart the computer.",
   "done_restart": "Restart now",
   "done_failed_title": "Installation failed",
-  "store_label": "Visit the store",
-  "tour_welcome_title": "Installing {name}",
-  "tour_welcome_description": "This will take a few minutes.",
-  "tour_done_title": "Installation complete",
-  "tour_done_description": "Your system is ready to use."
+  "store_label": "Visit the store"
 }
 '''
 COPY_DEFAULTS = {k: v for k, v in json.loads(COPY_DEFAULTS_JSON).items() if not k.startswith("_")}
@@ -98,6 +96,10 @@ class Branding:
     copy: dict = field(default_factory=lambda: dict(COPY_DEFAULTS))
     assets: dict = field(default_factory=lambda: {k: "" for k in ASSET_KEYS})
     confirm_quotes: dict = field(default_factory=dict)
+    # extensions.<frontend>: keys only that frontend renders (GNOME's tour
+    # pages, install video and credits). Not part of the parity contract;
+    # a frontend reads its own object and ignores the others.
+    extensions: dict = field(default_factory=dict)
     # Where `name` came from: "env", "file", "os-release" or "default".
     # Diagnostics only; not part of the cross-language contract.
     source: str = "default"
@@ -105,7 +107,7 @@ class Branding:
     def as_dict(self) -> dict:
         """The scalar identity keys only (what fixtures/expected.json `expect` lists)."""
         d = asdict(self)
-        for k in ("source", "store_url", "copy", "assets", "confirm_quotes"):
+        for k in ("source", "store_url", "copy", "assets", "confirm_quotes", "extensions"):
             d.pop(k)
         return d
 
@@ -208,6 +210,12 @@ def from_sources(file_data, os_release_text, name_override="") -> Branding:
         for k, v in file_assets.items():
             if isinstance(v, str):
                 assets[k] = v.strip()
+    extensions = {}
+    file_ext = file_data.get("extensions")
+    if isinstance(file_ext, dict):
+        for k, v in file_ext.items():
+            if isinstance(v, dict):
+                extensions[k] = {ek: ev for ek, ev in v.items() if isinstance(ev, str)}
     quotes = {}
     file_quotes = file_data.get("confirm_quotes")
     if isinstance(file_quotes, dict):
@@ -221,7 +229,7 @@ def from_sources(file_data, os_release_text, name_override="") -> Branding:
         name=name, id=id_, vendor=vendor, home_url=home_url, docs_url=docs_url,
         support_url=support_url, logo=logo, default_hostname=default_hostname,
         default_image=default_image, store_url=store_url, copy=copy, assets=assets,
-        confirm_quotes=quotes, source=source,
+        confirm_quotes=quotes, extensions=extensions, source=source,
     )
 
 

@@ -31,10 +31,14 @@ says; "hidden" means the frontend shows nothing for an empty value.
 | `done_subtitle` | header subtitle (+ elapsed time) | label | body | label | label |
 | `done_restart` | Reboot Now button | Restart button | suggested button | button | Reboot button |
 | `done_failed_title` | page header | heading | title2 | heading | headline |
-| `store_label` + `store_url` + `assets.store_qr` | done page (US locale) and progress fallback | no | no | no | no |
-| `tour_*` + `assets.welcome_image`/`complete_image` | tour pages | no | no | no | no |
-| `assets.video` | install video | no | no | no | no |
-| `assets.credits` | Credits dialog | no | no | no | no |
+| `store_label` + `store_url` | done page link (+ QR from `assets.store_qr`, US locale) | done page link | done page link | done page link | done page link |
+| `assets.welcome_image`, `assets.complete_image` | tour pages | no | no | welcome logo disc (`logo`) | no |
+
+Outside the contract, under `extensions.gnome`: the tour page text, the
+install video and the credits file. They are the last GNOME-only features;
+the plan is to port the tour artwork (welcome/complete images) to the other
+four and drop video and credits from the contract entirely rather than add
+them elsewhere.
 
 Identity keys (`name`, `id`, `default_hostname`, `default_image`, URLs) are
 rendered by all five; see `shared/branding/README.md`.
@@ -56,7 +60,7 @@ rendered by all five; see `shared/branding/README.md`.
 | Phone companion (QR) | yes | no | no | no | no |
 | Windows data migration (slurp) | yes | no | no | no | no |
 | Keyboard / language / timezone | yes | no | no | no | no |
-| Progress bar from fisherman steps | yes | no (log only) | indeterminate | no (log only) | yes |
+| Progress bar from fisherman steps | yes | no (log only) | indeterminate | yes | yes |
 | Restart from the done page | yes | yes | yes | yes | yes |
 | Show log after failure | yes | log path | log in page | log in page | log tail |
 | Screenshot walkthrough + parity report | yes | yes | yes | yes | yes |

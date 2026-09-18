@@ -112,26 +112,32 @@ class RecipeLoader:
             r["store_url"] = b.store_url
         if b.assets.get("store_qr") and (file_wins or not r.get("store_qr_resource")):
             r["store_qr_resource"] = b.assets["store_qr"]
-        if b.assets.get("credits") and (file_wins or not r.get("credits_data")):
-            r["credits_data"] = b.assets["credits"]
-        if b.assets.get("video") and (file_wins or not r.get("install_video")):
-            r["install_video"] = b.assets["video"]
+        # GNOME-only extras (tour pages, install video, credits) are outside
+        # the parity contract: they come from extensions.gnome in the
+        # branding file, never from the common copy or assets.
+        ext = b.extensions.get("gnome", {}) if isinstance(b.extensions, dict) else {}
+        def ext_text(key, default):
+            return (ext.get(key) if ext.get(key) is not None else default).replace("{name}", name)
+        if ext.get("credits") and (file_wins or not r.get("credits_data")):
+            r["credits_data"] = ext["credits"]
+        if ext.get("video") and (file_wins or not r.get("install_video")):
+            r["install_video"] = ext["video"]
         if file_wins or not isinstance(r.get("tour"), dict):
             r["tour"] = {
                 "welcome": {
                     "image": b.assets.get("welcome_image", ""),
-                    "title": b.text("tour_welcome_title", name=name),
-                    "description": b.text("tour_welcome_description", name=name),
+                    "title": ext_text("tour_welcome_title", _("Installing {name}")),
+                    "description": ext_text("tour_welcome_description", _("This will take a few minutes.")),
                 },
                 "completed": {
                     "image": b.assets.get("complete_image", ""),
-                    "title": b.text("tour_done_title", name=name),
-                    "description": b.text("tour_done_description", name=name),
+                    "title": ext_text("tour_done_title", _("Installation complete")),
+                    "description": ext_text("tour_done_description", _("Your system is ready to use.")),
                 },
             }
         d = b.as_dict()
         d.update({"store_url": b.store_url, "copy": dict(b.copy), "assets": dict(b.assets),
-                  "confirm_quotes": dict(b.confirm_quotes)})
+                  "confirm_quotes": dict(b.confirm_quotes), "extensions": dict(b.extensions)})
         r["branding"] = d
         logger.info("Branding: %s (%s)", r["distro_name"], b.source)
 

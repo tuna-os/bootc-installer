@@ -1,8 +1,10 @@
-"""Branding parity tests.
+"""Branding mechanism tests.
 
-Verifies that the generic recipe-driven branding paths produce the same
-observable behaviour as the previously hardcoded Dakota/Bluefin values.
-These tests run without a display (no GTK widgets are instantiated).
+Verifies the recipe-driven branding paths (store, credits, welcome title)
+behave the same for any product. The fixtures are an invented product; the
+pins for a real product's branding travel with that branding (for Bluefin,
+shared/branding/examples/bluefin/test_bluefin_branding.py, destined for
+dakota-iso). These tests run without a display.
 """
 
 import ast
@@ -97,20 +99,20 @@ for _mod in (
 # Test fixtures
 # ---------------------------------------------------------------------------
 
-DAKOTA_RECIPE = {
+BRANDED_RECIPE = {
     "log_file": "/var/log/bootc-installer.log",
-    "distro_name": "Dakota",
-    "distro_logo": "resource:///org/bootcinstaller/Installer/images/dakota.png",
-    "imgref": "ghcr.io/projectbluefin/dakota:latest",
-    "welcome_title": "Welcome to Dakota",
-    "welcome_subtitle": "A GNOME workstation built on GnomeOS.",
-    "store_url": "https://store.projectbluefin.io",
-    "store_qr_resource": "/org/bootcinstaller/Installer/assets/store-qr.svg",
-    "credits_data": "/org/bootcinstaller/Installer/data/credits.json",
+    "distro_name": "Marlin",
+    "distro_logo": "org.bootcinstaller.Installer",
+    "imgref": "ghcr.io/example/marlin:latest",
+    "welcome_title": "Welcome to Marlin",
+    "welcome_subtitle": "An example workstation.",
+    "store_url": "https://store.example.org",
+    "store_qr_resource": "/usr/share/bootc-installer/branding/store-qr.svg",
+    "credits_data": "/usr/share/bootc-installer/branding/credits.json",
     "images": [
         {
-            "name": "Dakota",
-            "imgref": "ghcr.io/projectbluefin/dakota:latest",
+            "name": "Marlin",
+            "imgref": "ghcr.io/example/marlin:latest",
             "bootloader": "systemd",
             "filesystem": "btrfs",
             "composefs": True,
@@ -203,17 +205,17 @@ class TestDoneStoreQR(unittest.TestCase):
             done_mod.BootcDone._BootcDone__maybe_show_store(obj)
         obj.store_group.set_visible.assert_not_called()
 
-    def test_store_shown_for_dakota_recipe_us_locale(self):
-        obj, done_mod = _make_done_obj(DAKOTA_RECIPE)
+    def test_store_shown_for_branded_recipe_us_locale(self):
+        obj, done_mod = _make_done_obj(BRANDED_RECIPE)
         with patch.object(done_mod.BootcDone, "_BootcDone__is_us_locale", return_value=True):
             done_mod.BootcDone._BootcDone__maybe_show_store(obj)
-        obj.store_qr.set_resource.assert_called_once_with(
-            DAKOTA_RECIPE["store_qr_resource"]
+        obj.store_qr.set_filename.assert_called_once_with(
+            BRANDED_RECIPE["store_qr_resource"]
         )
         obj.store_group.set_visible.assert_called_once_with(True)
 
-    def test_store_hidden_for_dakota_recipe_non_us_locale(self):
-        obj, done_mod = _make_done_obj(DAKOTA_RECIPE)
+    def test_store_hidden_for_branded_recipe_non_us_locale(self):
+        obj, done_mod = _make_done_obj(BRANDED_RECIPE)
         with patch.object(done_mod.BootcDone, "_BootcDone__is_us_locale", return_value=False):
             done_mod.BootcDone._BootcDone__maybe_show_store(obj)
         obj.store_group.set_visible.assert_not_called()
@@ -221,7 +223,7 @@ class TestDoneStoreQR(unittest.TestCase):
     def test_store_hidden_when_no_qr_asset(self):
         """store_url without a QR asset shows nothing: the installer bundles
         no product's QR any more (shared/branding/examples/bluefin has it)."""
-        recipe = {k: v for k, v in DAKOTA_RECIPE.items() if k != "store_qr_resource"}
+        recipe = {k: v for k, v in BRANDED_RECIPE.items() if k != "store_qr_resource"}
         obj, done_mod = _make_done_obj(recipe)
         with patch.object(done_mod.BootcDone, "_BootcDone__is_us_locale", return_value=True):
             done_mod.BootcDone._BootcDone__maybe_show_store(obj)
@@ -229,7 +231,7 @@ class TestDoneStoreQR(unittest.TestCase):
         obj.store_group.set_visible.assert_not_called()
 
     def test_store_qr_host_path_uses_set_filename(self):
-        recipe = dict(DAKOTA_RECIPE, store_qr_resource="/usr/share/bootc-installer/branding/store-qr.svg")
+        recipe = dict(BRANDED_RECIPE, store_qr_resource="/usr/share/bootc-installer/branding/store-qr.svg")
         obj, done_mod = _make_done_obj(recipe)
         with patch.object(done_mod.BootcDone, "_BootcDone__is_us_locale", return_value=True):
             done_mod.BootcDone._BootcDone__maybe_show_store(obj)
@@ -281,7 +283,7 @@ def _make_credits_obj(recipe):
 
 
 _SAMPLE_CREDITS = {
-    "header": {"title": "Dakota Credits", "subtitle": "sub", "quote": "q"},
+    "header": {"title": "Marlin Credits", "subtitle": "sub", "quote": "q"},
     "sections": [],
     "footer": {"quote": "fq", "closing": "fc"},
 }
@@ -295,12 +297,12 @@ class TestCreditsData(unittest.TestCase):
             json.dump(_SAMPLE_CREDITS, f)
             tmp_path = f.name
         try:
-            recipe = dict(DAKOTA_RECIPE, credits_data=tmp_path)
+            recipe = dict(BRANDED_RECIPE, credits_data=tmp_path)
             obj, dc_mod = _make_credits_obj(recipe)
             # GResource should not be reached
             dc_mod.Gio.File.new_for_uri = MagicMock(side_effect=Exception("no resource"))
             dc_mod.BootcCreditsWindow._load_credits(obj)
-            obj.header_title.set_label.assert_called_with("Dakota Credits")
+            obj.header_title.set_label.assert_called_with("Marlin Credits")
         finally:
             os.unlink(tmp_path)
 
@@ -314,16 +316,16 @@ class TestCreditsData(unittest.TestCase):
 
     def test_credits_data_gresource_path_is_tried_first(self):
         """A credits_data starting with /org/ is loaded via Gio.File GResource URI."""
-        recipe = dict(DAKOTA_RECIPE)  # credits_data = "/org/bootcinstaller/..."
+        recipe = dict(BRANDED_RECIPE, credits_data="/org/example/Installer/data/credits.json")
         obj, dc_mod = _make_credits_obj(recipe)
         mock_gfile = MagicMock()
         mock_gfile.load_contents.return_value = (True, json.dumps(_SAMPLE_CREDITS).encode())
         dc_mod.Gio.File.new_for_uri = MagicMock(return_value=mock_gfile)
         dc_mod.BootcCreditsWindow._load_credits(obj)
         dc_mod.Gio.File.new_for_uri.assert_called_with(
-            f"resource://{DAKOTA_RECIPE['credits_data']}"
+            f"resource://{recipe['credits_data']}"
         )
-        obj.header_title.set_label.assert_called_with("Dakota Credits")
+        obj.header_title.set_label.assert_called_with("Marlin Credits")
 
 
 # ---------------------------------------------------------------------------

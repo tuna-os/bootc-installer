@@ -167,6 +167,9 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             let (title, detail) = done_copy(app.install_ok());
             let mut t = vec![title, detail];
             if app.install_ok() {
+                if !branding::get().store_url.is_empty() {
+                    t.push(t_line("store_label"));
+                }
                 t.push(t_line("done_restart"));
             }
             t.push(DONE_CLOSE.to_string());
@@ -585,16 +588,25 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
         ("dialog-error-symbolic", cosmic_theme.destructive_text_color())
     };
 
-    let hero = widget::column::with_children(vec![
+    let mut hero = widget::column::with_children(vec![
         widget::icon::from_name(icon).size(64).icon().into(),
         widget::text::title2(title)
             .class(cosmic::theme::Text::Color(colour.into()))
             .into(),
         widget::text::body(detail).into(),
-    ])
-    .spacing(spacing.space_s)
-    .align_x(Alignment::Center)
-    .width(Length::Fill);
+    ]);
+    // store_label -> store_url on every frontend when the branding sets a
+    // store (docs/PARITY.md).
+    let store_url = branding::get().store_url.clone();
+    if app.install_ok() && !store_url.is_empty() {
+        hero = hero.push(
+            widget::button::link(t_line("store_label")).on_press(Message::OpenUrl(store_url)),
+        );
+    }
+    let hero = hero
+        .spacing(spacing.space_s)
+        .align_x(Alignment::Center)
+        .width(Length::Fill);
 
     // Restart is the primary action after a successful install (the same
     // as the other frontends); Close stays available either way.

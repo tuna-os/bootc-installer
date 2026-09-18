@@ -1,11 +1,14 @@
-// TunaOS Niri Installer — Quickshell + Go installer wizard
+// Niri installer — Quickshell + Go installer wizard
 //
 // QML (Quickshell) UI layer over the Go backend in ../installer, which wraps
 // fisherman. Backend binary is resolved from $TUNA_BACKEND or PATH
 // ("tuna-installer-backend"; the Flatpak installs it at /app/bin).
 //
-// Visual design target: ../DESIGN.md (scrolling column strip, instrument
-// panel). This file is the functional wizard; the strip treatment lands on top.
+// Visual design: DankMaterialShell (../DESIGN.md). Every surface, control and
+// type size comes from Theme.qml, which mirrors DMS's Style.qml tokens, and
+// the controls are the DMS widget set (DankButton, DankCard, DankListItem,
+// DankTextField, StyledText) rebuilt on plain Qt Quick so the installer draws
+// the same inside the DMS session and under the docs capture harness.
 
 import QtQuick
 import QtQuick.Controls
@@ -21,12 +24,11 @@ ApplicationWindow {
     height: 600
     visible: true
     color: Theme.surface
+    font.family: Theme.fontFamily
+    font.pixelSize: Theme.fontSizeMedium
 
-    // Every Text here was coloured from a bespoke palette while the CONTROLS
-    // kept Qt Quick Controls' light defaults — the install-progress log pane
-    // rendered 93% white on a near-black background. Setting the palette once
-    // from the DMS tokens fixes every control at once, and keeps the installer
-    // looking like the shell it runs inside.
+    // Qt Quick Controls that are not one of the Dank widgets (the log
+    // ScrollView) still pick up the DMS palette.
     palette.window: Theme.surface
     palette.windowText: Theme.surfaceText
     palette.base: Theme.surfaceContainerLow
@@ -47,6 +49,7 @@ ApplicationWindow {
     // names a product; before detect answers it shows the neutral name.
     property var branding: ({})
     readonly property string productName: branding.name || "Linux"
+    readonly property string storeUrl: branding.storeUrl || ""
 
     // Flavour text (shared/branding copy keys) with {name}/{disk} filled in.
     // Neutral until detect delivers the branding; never a product literal.
@@ -54,14 +57,16 @@ ApplicationWindow {
         const copy = root.branding.copy || {}
         let line = copy[key] !== undefined ? copy[key] : ({
             welcome_title: "Welcome to {name}", welcome_subtitle: "",
+            welcome_install: "Install {name}",
             welcome_button: "Get started", confirm_title: "Confirm installation",
             confirm_subtitle: "", confirm_body: "",
             confirm_warning: "Everything on {disk} will be erased. This cannot be undone.",
-            confirm_button: "Install", progress_title: "Installing {name}\u2026",
+            confirm_button: "Install", progress_title: "Installing {name}…",
             progress_note: "Do not power off the computer.",
             done_title: "{name} is installed",
             done_subtitle: "Remove the installation media and restart the computer.",
-            done_restart: "Restart now", done_failed_title: "Installation failed"
+            done_restart: "Restart now", done_failed_title: "Installation failed",
+            store_label: "Visit the store"
         })[key] || ""
         line = line.split("{name}").join(root.productName)
         for (const k in (values || {}))
@@ -71,6 +76,7 @@ ApplicationWindow {
 
     // Wizard state
     property int currentPage: 0 // 0=welcome, 1=disk, 2=encryption, 3=confirm, 4=progress, 5=done
+    readonly property var pageNames: ["Welcome", "Disk", "Encryption", "Confirm", "Installing", "Done"]
 
     // Slugs for the readiness stamp. Kept in the same order as currentPage
     // above, and matching the names the other frontends use so the tunaOS
@@ -89,6 +95,9 @@ ApplicationWindow {
     property string hostname: branding.defaultHostname || "linux"
     property bool installSuccess: false
     property string installLog: ""
+    // fisherman's "[n/9]" step lines drive the determinate bar.
+    property int installStep: 0
+    readonly property int installSteps: 9
     // Recipe JSON awaiting the backend child's stdin channel (fed on
     // Process.started). Kept on the root so the passphrase-bearing recipe
     // never appears in the install command argv (see #22).
@@ -172,10 +181,10 @@ ApplicationWindow {
             root.pendingRecipe = ""
         }
         stdout: SplitParser {
-            onRead: data => root.installLog += data + "\n"
+            onRead: data => root.appendLog(data)
         }
         stderr: SplitParser {
-            onRead: data => root.installLog += data + "\n"
+            onRead: data => root.appendLog(data)
         }
         onExited: (code, status) => {
             root.installSuccess = (code === 0)
@@ -183,8 +192,23 @@ ApplicationWindow {
         }
     }
 
+    function appendLog(line) {
+        installLog += line + "\n"
+        const m = /^\[(\d+)\/(\d+)\]/.exec(line)
+        if (m) installStep = parseInt(m[1])
+    }
+
+    // Restart from the done page: the backend runs `systemctl reboot` on the
+    // host (through flatpak-spawn when sandboxed), the same path the other
+    // frontends use.
+    Process {
+        id: rebootProc
+        command: [root.backendBin, "reboot"]
+    }
+
     function startInstall() {
         installLog = ""
+        installStep = 0
         currentPage = 4
         const recipe = {
             disk: "/dev/" + selectedDisk.name,
@@ -207,343 +231,517 @@ ApplicationWindow {
         // tuna-os/tuna-installer-niri#22.
     }
 
-    StackLayout {
-        anchors.fill: parent
-        currentIndex: currentPage
-
-        // Page 0: Welcome
-        Item {
-            ColumnLayout {
-                spacing: 20
-                anchors.centerIn: parent
-
-                Text {
-                    // "Welcome to <product>", matching the GNOME installer's
-                    // welcome screen. The leading "Welcome" is deliberate: the
-                    // screen-parity contract keys the welcome screen off
-                    // product-free words, and a bare "<product> Installer"
-                    // would match none of them.
-                    text: root.text("welcome_title")
-                    font.pixelSize: 28
-                    font.weight: Font.Light
-                    color: Theme.primary // --sonar
-                    Layout.alignment: Qt.AlignHCenter
-                }
-                Text {
-                    text: root.text("welcome_subtitle")
-                    visible: text !== ""
-                    font.pixelSize: 15
-                    color: Theme.surfaceText
-                    wrapMode: Text.WordWrap
-                    Layout.maximumWidth: 420
-                    Layout.alignment: Qt.AlignHCenter
-                }
-                Text {
-                    text: root.liveImage !== ""
-                        ? "Install this system — no download required."
-                        : "This wizard will guide you through installing " + root.productName + " onto your computer."
-                    font.pixelSize: 14
-                    color: Theme.surfaceVariantText // --fog
-                    wrapMode: Text.WordWrap
-                    Layout.maximumWidth: 420
-                    Layout.alignment: Qt.AlignHCenter
-                }
-                Button {
-                    text: root.text("welcome_button")
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: 200
-                    onClicked: {
-                        discoverProc.running = true
-                        root.currentPage = 1
-                    }
-                }
-            }
-        }
-
-        // Page 1: Disk Selection
-        ColumnLayout {
-            spacing: 16
-            anchors.margins: 40
-
-            Text {
-                text: "Destination"
-                font.pixelSize: 22
-                font.weight: Font.Light
-                color: Theme.surfaceVariantText
-            }
-            Text {
-                text: root.text("confirm_warning", { disk: root.selectedDisk.name !== undefined
-                    ? "/dev/" + root.selectedDisk.name : "the selected disk" })
-                font.pixelSize: 13
-                color: Theme.warning // --catch
-            }
-
-            ListView {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                model: root.disks
-                clip: true
-                delegate: ItemDelegate {
-                    width: ListView.view.width
-                    height: 48
-                    text: "/dev/" + modelData.name + "  (" + modelData.size + ")  [" + (modelData.tran || "?") + "]"
-                    font.family: "monospace"
-                    highlighted: root.selectedDisk.name === modelData.name
-                    onClicked: root.selectedDisk = modelData
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Button { text: "Back"; onClicked: root.currentPage = 0 }
-                Item { Layout.fillWidth: true }
-                Button {
-                    text: "Continue"
-                    enabled: root.selectedDisk.name !== undefined
-                    highlighted: true
-                    onClicked: root.currentPage = 2
-                }
-            }
-        }
-
-        // Page 2: Encryption
-        //
-        // Options mirror tuna-installer-xfce's ENCRYPTION_CHOICES, which is the
-        // reference implementation — same values, same wording, so the
-        // frontends describe the same choice identically. The tpm2 options are
-        // omitted entirely when the backend reports no TPM, rather than shown
-        // and then failing at install time.
-        ColumnLayout {
-            spacing: 12
-            anchors.margins: 40
-
-            Text {
-                text: "Disk Encryption"
-                font.pixelSize: 28; font.bold: true; color: Theme.surfaceText
-            }
-            Text {
-                text: "Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling."
-                wrapMode: Text.WordWrap
-                Layout.fillWidth: true
-                color: Theme.surfaceVariantText
-            }
-
-            ButtonGroup { id: encGroup }
-
-            Repeater {
-                model: [
-                    { value: "none",                 label: "No encryption",    explain: "Anyone with the disk can read your files." },
-                    { value: "luks-passphrase",      label: "Passphrase",       explain: "You'll type it at every boot." },
-                    { value: "tpm2-luks",            label: "TPM",              explain: "Unlocks automatically on this hardware." },
-                    { value: "tpm2-luks-passphrase", label: "TPM + passphrase", explain: "Automatic unlock, passphrase as fallback." }
-                ]
-                ColumnLayout {
-                    spacing: 2
-                    visible: !modelData.value.startsWith("tpm2") || root.hasTpm
-                    RadioButton {
-                        text: modelData.label
-                        ButtonGroup.group: encGroup
-                        checked: root.encType === modelData.value
-                        onClicked: root.encType = modelData.value
-                        palette.windowText: "white"
-                    }
-                    Text {
-                        text: modelData.explain
-                        color: Theme.outline; leftPadding: 32
-                    }
-                }
-            }
-
-            // Only meaningful for the *-passphrase modes.
-            ColumnLayout {
-                visible: root.encType.endsWith("passphrase")
-                spacing: 6
-                Layout.leftMargin: 32
-                TextField {
-                    id: passField
-                    placeholderText: "Enter passphrase"
-                    echoMode: TextInput.Password
-                    Layout.preferredWidth: 320
-                    onTextChanged: root.passphrase = text
-                }
-                TextField {
-                    id: passConfirm
-                    placeholderText: "Confirm passphrase"
-                    echoMode: TextInput.Password
-                    Layout.preferredWidth: 320
-                }
-                Text {
-                    id: passError
-                    color: Theme.error
-                    visible: text !== ""
-                }
-            }
-
-            Item { Layout.fillHeight: true }
-
-            RowLayout {
-                Button { text: "Back"; onClicked: root.currentPage = 1 }
-                Item { Layout.fillWidth: true }
-                Button {
-                    text: "Continue"
-                    onClicked: {
-                        // fisherman rejects a *-passphrase type with an empty
-                        // passphrase, but that only surfaces mid-install; catch
-                        // it here where it can still be corrected.
-                        if (root.encType.endsWith("passphrase")) {
-                            if (passField.text === "") {
-                                passError.text = "Enter a passphrase."
-                                return
-                            }
-                            if (passField.text !== passConfirm.text) {
-                                passError.text = "Passphrases do not match."
-                                return
-                            }
-                        }
-                        passError.text = ""
-                        root.passphrase = passField.text
-                        root.currentPage = 3
-                    }
-                }
-            }
-        }
-
-        // Page 3: Confirm
-        ColumnLayout {
-            spacing: 12
-            anchors.margins: 40
-
-            Text {
-                text: root.text("confirm_title")
-                font.pixelSize: 22
-                font.weight: Font.Light
-                color: Theme.surfaceVariantText
-            }
-            GridLayout {
-                columns: 2
-                columnSpacing: 24
-                rowSpacing: 8
-                Text {
-                    text: root.text("confirm_subtitle")
-                    visible: text !== ""
-                    font.pixelSize: 13
-                    color: Theme.surfaceVariantText
-                    Layout.columnSpan: 2
-                }
-                Text { text: "Target Disk:"; font.bold: true; color: Theme.surfaceVariantText }
-                Text {
-                    text: root.selectedDisk.name ? "/dev/" + root.selectedDisk.name : "—"
-                    font.family: "monospace"; color: Theme.surfaceText
-                }
-                Text { text: "Filesystem:"; font.bold: true; color: Theme.surfaceVariantText }
-                Text { text: "xfs"; font.family: "monospace"; color: Theme.surfaceText }
-                Text { text: "Encryption:"; font.bold: true; color: Theme.surfaceVariantText }
-                Text { text: root.encType; font.family: "monospace"; color: Theme.surfaceText }
-                Text { text: "Hostname:"; font.bold: true; color: Theme.surfaceVariantText }
-                TextField {
-                    text: root.hostname
-                    onTextEdited: root.hostname = text  // not onTextChanged: that fires at load and would pin the branding default
-                    font.family: "monospace"
-                }
-                Text { text: "Image:"; font.bold: true; color: Theme.surfaceVariantText }
-                Text {
-                    text: root.liveImage !== ""
-                        ? root.liveImage + "  (this system, no download)"
-                        : root.defaultImage
-                    color: Theme.surfaceVariantText; font.pixelSize: 12; font.family: "monospace"
-                }
-            }
-
-            Item { Layout.fillHeight: true }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Button { text: "Back"; onClicked: root.currentPage = 2 }
-                Text {
-                    text: root.text("confirm_body")
-                    visible: text !== ""
-                    font.pixelSize: 13
-                    color: Theme.surfaceVariantText
-                    Layout.fillWidth: true
-                    horizontalAlignment: Text.AlignHCenter
-                }
-                Item { Layout.fillWidth: true }
-                Button {
-                    text: root.text("confirm_button")
-                    highlighted: true
-                    onClicked: root.startInstall()
-                }
-            }
-        }
-
-        // Page 4: Install Progress
-        ColumnLayout {
-            spacing: 12
-            anchors.margins: 40
-
-            Text {
-                text: root.text("progress_title")
-                font.pixelSize: 22
-                font.weight: Font.Light
-                color: Theme.surfaceVariantText
-            }
-
-            ScrollView {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                TextArea {
-                    text: root.installLog === "" ? "Starting…" : root.installLog
-                    font.family: "monospace"
-                    font.pixelSize: 11
-                    readOnly: true
-                    wrapMode: TextEdit.Wrap
-                }
-            }
-        }
-
-        // Page 5: Done
-        Item {
-            ColumnLayout {
-                spacing: 20
-                anchors.centerIn: parent
-
-                Text {
-                    text: root.installSuccess ? "✓ " + root.text("done_title") : "✗ " + root.text("done_failed_title")
-                    font.pixelSize: 28
-                    font.weight: Font.Light
-                    color: root.installSuccess ? Theme.primary : Theme.warning
-                    Layout.alignment: Qt.AlignHCenter
-                }
-                Text {
-                    text: root.installSuccess
-                        ? root.text("done_subtitle")
-                        : "Check the installation log above for details."
-                    font.pixelSize: 14
-                    color: Theme.surfaceVariantText
-                    Layout.alignment: Qt.AlignHCenter
-                }
-                Button {
-                    text: root.text("done_restart")
-                    visible: root.installSuccess
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: 200
-                    onClicked: rebootProc.running = true
-                }
-                Button {
-                    text: "Close"
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: 200
-                    onClicked: Qt.quit()
-                }
-            }
+    // ── Keyboard: Enter advances, Shift+Enter goes back (the hint bar says so) ──
+    function advance() {
+        switch (currentPage) {
+        case 0: discoverProc.running = true; currentPage = 1; break
+        case 1: if (selectedDisk.name !== undefined) currentPage = 2; break
+        case 2: encryptionPage.next(); break
+        case 3: if (selectedDisk.name !== undefined) startInstall(); break
         }
     }
+    function back() {
+        if (currentPage >= 1 && currentPage <= 3) currentPage -= 1
+    }
+    Shortcut {
+        sequence: "Return"
+        enabled: !passField.activeFocus && !passConfirm.activeFocus && !hostField.activeFocus
+        onActivated: root.advance()
+    }
+    Shortcut { sequence: "Shift+Return"; onActivated: root.back() }
 
-    // Restart from the done page: the backend runs `systemctl reboot` on the
-    // host (through flatpak-spawn when sandboxed), the same path the other
-    // frontends use.
-    Process {
-        id: rebootProc
-        command: [root.backendBin, "reboot"]
+    // ── Layout: DMS top bar, page area, hint bar ─────────────────────────────
+    ColumnLayout {
+        anchors.fill: parent
+        anchors.margins: Theme.spacingXL
+        spacing: Theme.spacingL
+
+        // Top bar (DMS bar look): step counter left, step dots right.
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.spacingM
+            StyledText {
+                text: "Step " + (root.currentPage + 1) + " of " + root.pageNames.length + " · " + root.pageNames[root.currentPage]
+                color: Theme.surfaceVariantText
+                font.pixelSize: Theme.fontSizeSmall
+                font.weight: Theme.fontWeightMedium
+            }
+            Item { Layout.fillWidth: true }
+            Row {
+                spacing: Theme.spacingS
+                Repeater {
+                    model: root.pageNames.length
+                    Rectangle {
+                        required property int index
+                        width: index === root.currentPage ? 24 : 8
+                        height: 8
+                        radius: 4
+                        color: index <= root.currentPage ? Theme.primary : Theme.surfaceContainerHighest
+                        Behavior on width { NumberAnimation { duration: Theme.mediumDuration; easing.type: Theme.standardEasing } }
+                        Behavior on color { ColorAnimation { duration: Theme.mediumDuration } }
+                    }
+                }
+            }
+        }
+
+        StackLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            currentIndex: root.currentPage
+
+            // Page 0: Welcome
+            Item {
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width, 520)
+                    spacing: Theme.spacingL
+
+                    // The product logo (branding.logo, a path) in a
+                    // primaryContainer disc; a glyph otherwise.
+                    Rectangle {
+                        Layout.alignment: Qt.AlignHCenter
+                        width: 96; height: 96; radius: 48
+                        color: Theme.primaryContainer
+                        Image {
+                            anchors.centerIn: parent
+                            width: 56; height: 56
+                            source: (root.branding.logo || "").startsWith("/") ? "file://" + root.branding.logo : ""
+                            visible: source != ""
+                            fillMode: Image.PreserveAspectFit
+                        }
+                        StyledText {
+                            anchors.centerIn: parent
+                            text: "⬢"
+                            font.pixelSize: 40
+                            color: Theme.primaryContainerText
+                            visible: !(root.branding.logo || "").startsWith("/")
+                        }
+                    }
+                    StyledText {
+                        // "Welcome to <product>", matching the other frontends'
+                        // welcome screen: the screen-parity contract keys the
+                        // welcome screen off product-free words.
+                        text: root.text("welcome_title")
+                        font.pixelSize: Theme.fontSizeXXLarge
+                        font.weight: Theme.fontWeightMedium
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    StyledText {
+                        text: root.text("welcome_subtitle")
+                        visible: text !== ""
+                        font.pixelSize: Theme.fontSizeLarge
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    StyledText {
+                        text: root.liveImage !== ""
+                            ? "Install this system — no download required."
+                            : "This wizard will guide you through installing " + root.productName + " onto your computer."
+                        color: Theme.surfaceVariantText
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    DankButton {
+                        text: root.text("welcome_button")
+                        buttonHeight: Theme.buttonHeightM
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.topMargin: Theme.spacingS
+                        onClicked: root.advance()
+                    }
+                }
+            }
+
+            // Page 1: Disk selection — a grouped list of DankListItems.
+            ColumnLayout {
+                spacing: Theme.spacingM
+
+                StyledText {
+                    text: "Destination"
+                    font.pixelSize: Theme.fontSizeXLarge
+                    font.weight: Theme.fontWeightMedium
+                }
+                StyledText {
+                    text: root.text("confirm_warning", { disk: root.selectedDisk.name !== undefined
+                        ? "/dev/" + root.selectedDisk.name : "the selected disk" })
+                    color: Theme.warning
+                    Layout.fillWidth: true
+                }
+
+                ListView {
+                    id: diskList
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    model: root.disks
+                    clip: true
+                    spacing: Theme.groupedListGap
+                    delegate: DankListItem {
+                        required property var modelData
+                        required property int index
+                        width: diskList.width
+                        firstInGroup: index === 0
+                        lastInGroup: index === diskList.count - 1
+                        primaryText: (modelData.model ? modelData.model + "  ·  " : "") + "/dev/" + modelData.name
+                        secondaryText: (modelData.size || "?") + "  ·  " + (modelData.tran || "unknown bus")
+                        isSelected: root.selectedDisk.name === modelData.name
+                        onClicked: root.selectedDisk = modelData
+                    }
+                    StyledText {
+                        anchors.centerIn: parent
+                        visible: diskList.count === 0
+                        text: "Scanning for disks…"
+                        color: Theme.surfaceVariantText
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    DankButton { text: "Back"; tonal: true; onClicked: root.back() }
+                    Item { Layout.fillWidth: true }
+                    DankButton {
+                        text: "Continue"
+                        enabled: root.selectedDisk.name !== undefined
+                        onClicked: root.advance()
+                    }
+                }
+            }
+
+            // Page 2: Encryption — a grouped list of choices, a card of fields.
+            //
+            // Options mirror tuna-installer-xfce's ENCRYPTION_CHOICES, which is
+            // the reference implementation — same values, same wording, so the
+            // frontends describe the same choice identically. The tpm2 options
+            // are omitted entirely when the backend reports no TPM, rather than
+            // shown and then failing at install time.
+            ColumnLayout {
+                id: encryptionPage
+                spacing: Theme.spacingM
+
+                function next() {
+                    // fisherman rejects a *-passphrase type with an empty
+                    // passphrase, but that only surfaces mid-install; catch it
+                    // here where it can still be corrected.
+                    if (root.encType.endsWith("passphrase")) {
+                        if (passField.text === "") { passError.text = "Enter a passphrase."; return }
+                        if (passField.text !== passConfirm.text) { passError.text = "Passphrases do not match."; return }
+                    }
+                    passError.text = ""
+                    root.passphrase = passField.text
+                    root.currentPage = 3
+                }
+
+                StyledText {
+                    text: "Disk encryption"
+                    font.pixelSize: Theme.fontSizeXLarge
+                    font.weight: Theme.fontWeightMedium
+                }
+                StyledText {
+                    text: "Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling."
+                    color: Theme.surfaceVariantText
+                    Layout.fillWidth: true
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.groupedListGap
+                    Repeater {
+                        model: [
+                            { value: "none",                 label: "No encryption",    explain: "Anyone with the disk can read your files." },
+                            { value: "luks-passphrase",      label: "Passphrase",       explain: "You'll type it at every boot." },
+                            { value: "tpm2-luks",            label: "TPM",              explain: "Unlocks automatically on this hardware." },
+                            { value: "tpm2-luks-passphrase", label: "TPM + passphrase", explain: "Automatic unlock, passphrase as fallback." }
+                        ]
+                        DankListItem {
+                            required property var modelData
+                            required property int index
+                            Layout.fillWidth: true
+                            visible: !modelData.value.startsWith("tpm2") || root.hasTpm
+                            firstInGroup: index === 0
+                            lastInGroup: index === (root.hasTpm ? 3 : 1)
+                            primaryText: modelData.label
+                            secondaryText: modelData.explain
+                            isSelected: root.encType === modelData.value
+                            onClicked: root.encType = modelData.value
+                        }
+                    }
+                }
+
+                // Only meaningful for the *-passphrase modes.
+                DankCard {
+                    Layout.fillWidth: true
+                    visible: root.encType.endsWith("passphrase")
+                    title: "Passphrase"
+                    Column {
+                        width: parent.width
+                        spacing: Theme.spacingS
+                        DankTextField {
+                            id: passField
+                            placeholderText: "Enter passphrase"
+                            echoMode: TextInput.Password
+                            width: Math.min(parent.width, 360)
+                            onTextChanged: root.passphrase = text
+                        }
+                        DankTextField {
+                            id: passConfirm
+                            placeholderText: "Confirm passphrase"
+                            echoMode: TextInput.Password
+                            width: Math.min(parent.width, 360)
+                            isError: passError.text !== ""
+                        }
+                        StyledText {
+                            id: passError
+                            color: Theme.error
+                            visible: text !== ""
+                            font.pixelSize: Theme.fontSizeSmall
+                        }
+                    }
+                }
+
+                Item { Layout.fillHeight: true }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    DankButton { text: "Back"; tonal: true; onClicked: root.back() }
+                    Item { Layout.fillWidth: true }
+                    DankButton { text: "Continue"; onClicked: encryptionPage.next() }
+                }
+            }
+
+            // Page 3: Confirm — the summary on a card, the product's own lines
+            // around it, Install in the error tone (it erases a disk).
+            ColumnLayout {
+                spacing: Theme.spacingM
+
+                StyledText {
+                    text: root.text("confirm_title")
+                    font.pixelSize: Theme.fontSizeXLarge
+                    font.weight: Theme.fontWeightMedium
+                }
+                StyledText {
+                    text: root.text("confirm_subtitle")
+                    visible: text !== ""
+                    color: Theme.surfaceVariantText
+                    font.italic: true
+                    Layout.fillWidth: true
+                }
+                Rectangle {
+                    Layout.fillWidth: true
+                    radius: Theme.cornerRadiusM
+                    color: Theme.withAlpha(Theme.warning, 0.12)
+                    implicitHeight: warnText.implicitHeight + Theme.spacingM * 2
+                    StyledText {
+                        id: warnText
+                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: Theme.spacingM }
+                        text: "⚠  " + root.text("confirm_warning", { disk: root.selectedDisk.name ? "/dev/" + root.selectedDisk.name : "the selected disk" })
+                        color: Theme.warning
+                    }
+                }
+
+                DankCard {
+                    Layout.fillWidth: true
+                    title: "Summary"
+                    GridLayout {
+                        width: parent.width
+                        columns: 2
+                        columnSpacing: Theme.spacingXL
+                        rowSpacing: Theme.spacingS
+                        StyledText { text: "Target disk"; color: Theme.surfaceVariantText }
+                        StyledText { text: root.selectedDisk.name ? "/dev/" + root.selectedDisk.name : "—"; isMonospace: true }
+                        StyledText { text: "Filesystem"; color: Theme.surfaceVariantText }
+                        StyledText { text: "xfs"; isMonospace: true }
+                        StyledText { text: "Encryption"; color: Theme.surfaceVariantText }
+                        StyledText { text: root.encType; isMonospace: true }
+                        StyledText { text: "Hostname"; color: Theme.surfaceVariantText }
+                        DankTextField {
+                            id: hostField
+                            text: root.hostname
+                            onTextEdited: root.hostname = text  // not onTextChanged: that fires at load and would pin the branding default
+                            font.family: Theme.monoFontFamily
+                            implicitWidth: 260
+                        }
+                        StyledText { text: "Image"; color: Theme.surfaceVariantText }
+                        StyledText {
+                            text: root.liveImage !== ""
+                                ? root.liveImage + "  (this system, no download)"
+                                : (root.defaultImage || "—")
+                            isMonospace: true
+                            font.pixelSize: Theme.fontSizeSmall
+                            Layout.fillWidth: true
+                        }
+                    }
+                }
+
+                StyledText {
+                    text: root.text("confirm_body")
+                    visible: text !== ""
+                    color: Theme.surfaceVariantText
+                    horizontalAlignment: Text.AlignHCenter
+                    Layout.fillWidth: true
+                }
+
+                Item { Layout.fillHeight: true }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    DankButton { text: "Back"; tonal: true; onClicked: root.back() }
+                    Item { Layout.fillWidth: true }
+                    DankButton {
+                        text: root.text("confirm_button")
+                        destructive: true
+                        enabled: root.selectedDisk.name !== undefined
+                        onClicked: root.startInstall()
+                    }
+                }
+            }
+
+            // Page 4: Install progress — determinate bar from the [n/9] lines,
+            // the log on a card.
+            ColumnLayout {
+                spacing: Theme.spacingM
+
+                StyledText {
+                    text: root.text("progress_title")
+                    font.pixelSize: Theme.fontSizeXLarge
+                    font.weight: Theme.fontWeightMedium
+                }
+                StyledText {
+                    text: root.installStep > 0
+                        ? "Step " + root.installStep + " of " + root.installSteps
+                        : "Starting…"
+                    color: Theme.surfaceVariantText
+                }
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 8; radius: 4
+                    color: Theme.surfaceContainerHighest
+                    Rectangle {
+                        width: parent.width * (root.installStep / root.installSteps)
+                        height: parent.height; radius: 4
+                        color: Theme.primary
+                        Behavior on width { NumberAnimation { duration: Theme.mediumDuration; easing.type: Theme.standardEasing } }
+                    }
+                }
+
+                DankCard {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    pad: Theme.spacingS
+                    ScrollView {
+                        anchors.fill: parent
+                        clip: true
+                        TextArea {
+                            text: root.installLog === "" ? "Starting…" : root.installLog
+                            font.family: Theme.monoFontFamily
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceText
+                            readOnly: true
+                            wrapMode: TextEdit.Wrap
+                            background: null
+                        }
+                    }
+                }
+                StyledText {
+                    text: root.text("progress_note")
+                    color: Theme.warning
+                    font.pixelSize: Theme.fontSizeSmall
+                }
+            }
+
+            // Page 5: Done
+            Item {
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width, 520)
+                    spacing: Theme.spacingL
+
+                    Rectangle {
+                        Layout.alignment: Qt.AlignHCenter
+                        width: 96; height: 96; radius: 48
+                        color: root.installSuccess ? Theme.withAlpha(Theme.success, 0.2) : Theme.withAlpha(Theme.error, 0.2)
+                        StyledText {
+                            anchors.centerIn: parent
+                            text: root.installSuccess ? "✓" : "✗"
+                            font.pixelSize: 48
+                            color: root.installSuccess ? Theme.success : Theme.error
+                        }
+                    }
+                    StyledText {
+                        text: root.installSuccess ? root.text("done_title") : root.text("done_failed_title")
+                        font.pixelSize: Theme.fontSizeXXLarge
+                        font.weight: Theme.fontWeightMedium
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    StyledText {
+                        text: root.installSuccess
+                            ? root.text("done_subtitle")
+                            : "Check the installation log for details."
+                        color: Theme.surfaceVariantText
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    // store_label -> store_url: on every frontend when the
+                    // branding sets a store (docs/PARITY.md).
+                    StyledText {
+                        visible: root.installSuccess && root.storeUrl !== ""
+                        text: "<a href=\"" + root.storeUrl + "\">" + root.text("store_label") + "</a>"
+                        textFormat: Text.RichText
+                        linkColor: Theme.primary
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                        onLinkActivated: link => Qt.openUrlExternally(link)
+                    }
+                    RowLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        spacing: Theme.spacingM
+                        DankButton { text: "Close"; tonal: true; onClicked: Qt.quit() }
+                        DankButton {
+                            text: root.text("done_restart")
+                            visible: root.installSuccess
+                            onClicked: rebootProc.running = true
+                        }
+                    }
+                }
+            }
+        }
+
+        // Hint bar: the keybindings, the way a niri user expects from their bar.
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.spacingL
+            visible: root.currentPage <= 3
+            Repeater {
+                model: [
+                    { key: "Enter", what: root.currentPage === 3 ? root.text("confirm_button") : "Continue" },
+                    { key: "Shift+Enter", what: "Back" },
+                    { key: "Tab", what: "Next field" }
+                ]
+                RowLayout {
+                    required property var modelData
+                    spacing: Theme.spacingXS
+                    visible: !(modelData.key === "Shift+Enter" && root.currentPage === 0)
+                    Rectangle {
+                        radius: Theme.cornerRadiusXS
+                        color: Theme.surfaceContainerHigh
+                        implicitWidth: keyText.implicitWidth + Theme.spacingS * 2
+                        implicitHeight: keyText.implicitHeight + Theme.spacingXS * 2
+                        StyledText {
+                            id: keyText
+                            anchors.centerIn: parent
+                            text: modelData.key
+                            isMonospace: true
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceVariantText
+                        }
+                    }
+                    StyledText {
+                        text: modelData.what
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: Theme.surfaceVariantText
+                    }
+                }
+            }
+            Item { Layout.fillWidth: true }
+        }
     }
 }

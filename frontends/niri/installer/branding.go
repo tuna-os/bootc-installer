@@ -29,7 +29,8 @@ const (
 	neutralID       = "linux"
 )
 
-var assetKeys = []string{"welcome_image", "complete_image", "store_qr", "video", "credits"}
+// Common to every frontend; desktop-specific keys live under extensions.<frontend>.
+var assetKeys = []string{"welcome_image", "complete_image", "store_qr"}
 
 // Host first: this ships as a flatpak, where /etc is the runtime's and the
 // host's is under /run/host. The first readable file wins; no merging.

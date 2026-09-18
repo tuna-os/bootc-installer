@@ -21,7 +21,14 @@ keeps them elsewhere. `name`, `id` and the URLs may be left out entirely:
 the installer then takes them from the image's `os-release`, and only the
 copy, quotes, store and assets remain Bluefin's.
 
-`credits.json` is the Credits dialog's data (maintainers, artists, the
-quote); `installer-video.webm` plays while fisherman writes the disk;
-`welcome.png` and `complete.svg` are the tour artwork; `store-qr.svg`
-encodes `store_url`.
+`welcome.png`, `complete.svg` and `store-qr.svg` are the common assets
+every frontend may show. `extensions.gnome` carries what only the GNOME
+frontend renders: the tour page text, `installer-video.webm` (plays while
+fisherman writes the disk) and `credits.json` (the Credits dialog).
+
+`test_bluefin_branding.py` next to this file is the pin test for this
+branding: it validates the JSON against the schema and checks the lines
+Bluefin cares about resolve as written. It belongs with the branding, in
+dakota-iso, not in the installer repository; run it there with the shared
+resolver on the path (`python3 -m pytest shared/branding/examples/bluefin`
+works in the monorepo).

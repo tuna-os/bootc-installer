@@ -6,79 +6,90 @@ Wayland compositor. The shared flow and contract are defined in the
 
 ## Direction
 
-Niri's audience is keyboard-driven minimalists; the installer *is* the session
-(kiosk). So this frontend gets the boldest treatment of the four: a dark,
-instrument-panel aesthetic — closer to a ship's bridge console than a desktop
-dialog — and navigation that mimics Niri itself.
+The installer is the session (kiosk), and the desktop it installs ships
+[DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell) (DMS)
+as its shell. So the installer looks like a DMS surface: the same Material 3
+tokens, the same components, the same motion. A user who lands on the
+installed desktop sees the thing they just used, one step further in.
 
-## Signature element: the scrolling column strip
+There is no bespoke look here. Everything visual is a token or a component
+taken from DMS's `dank-qml-common` (`Style.qml`, `DankButton`, `DankCard`,
+`DankListItem`, `DankTextField`, `StyledText`). When DMS changes, the
+installer follows it; this page records which parts are borrowed, not a
+palette of its own.
 
-Wizard steps are **columns on an infinite horizontal strip**, exactly like
-Niri's scrollable tiling. The current step is centered at ~720 px wide;
-the previous and next steps peek in from the edges at 40 % opacity and 0.92
-scale. Advancing scrolls the strip left (280 ms, cubic ease; reduced-motion:
-instant). Users who know Niri feel at home in the first second — the
-installer speaks the compositor's native gesture.
+## Tokens (`ui/Theme.qml`)
 
-Keyboard is primary: `Tab`/arrows within a column, `Enter` advances,
-`Shift+Enter` goes back. A persistent hint bar at the bottom shows live
-keybindings (Niri users expect this from their bars).
+Mirrors DMS `Style` for a dark Material 3 scheme.
 
-## Tokens
+| Group | Values |
+|---|---|
+| Surfaces | `surface #141218`, `surfaceContainer #211F26`, `surfaceContainerHigh #2B2930`, `surfaceContainerHighest #36343B` |
+| Accent | `primary #D0BCFF` on `primaryText #381E72`, `primaryContainer #4F378B`, `secondary #CCC2DC` |
+| Signals | `error #F2B8B5`, `warning #FFB74D`, `success #81C995` |
+| Text | `surfaceText #E6E1E5`, secondary and disabled as 70 % / 38 % of it |
+| Radii | `cornerRadiusS 8`, `cornerRadius 12`, `cornerRadiusL 16`, `cornerRadiusXL 24` |
+| Sizes | `buttonHeightS 40`, `buttonHeightM 56`, `listItemHeight 56` |
+| Spacing | `spacingXS 4` … `spacingXXL 32` |
+| Motion | `shortDuration 150`, `mediumDuration 250`, standard easing; `pressScale 0.96` |
 
-| Token | Hex | Use |
-|---|---|---|
-| `--void` | `#0A0E12` | Backdrop (whole screen) |
-| `--panel` | `#131A21` | Column card background |
-| `--line` | `#22303C` | Hairline borders, dividers |
-| `--fog` | `#8FA3B0` | Secondary text |
-| `--sonar` | `#2EC4B6` | Focus ring, active elements, progress |
-| `--catch` | `#F4A259` | Destructive accent (Install, wipe warnings) |
-
-Dark only. This is a live-session kiosk, not a desktop app; committing to one
-look is correct here.
+Dark only, like the live-session shell it fronts. A future light scheme is a
+second token set, not a rewrite.
 
 ## Type
 
-- Body/UI: **Inter** (bundle in Flatpak), 15 px base.
-- Data (device names, sizes, image refs, log output): **JetBrains Mono**
-  13.5 px — data is the protagonist in an installer; setting it in mono makes
-  every value scannable and copy-exact.
-- Column titles: Inter, 28 px, weight 250 (light), tracking +0.02em — the one
-  typographic flourish.
+- Body/UI: **Google Sans Flex** (DMS's `Fonts.sans`), falling back to Inter
+  and the system sans. 14 px medium, 16 px large, 28 px page titles.
+- Data (device names, sizes, image refs, log): **Fira Code** (DMS's
+  `Fonts.mono`), falling back to JetBrains Mono and the system mono. Data is
+  the protagonist in an installer; mono keeps every value scannable.
+
+The fonts are not bundled in the Flatpak; the fallbacks render the same
+layout on a runner or a plain runtime, so screenshots do not depend on them.
 
 ## Layout
 
 ```
-        ┌─────────┐ ┌──────────────────────────────┐ ┌─────────┐
-        │ (source │ │  DESTINATION                 │ │ (setup  │
-        │  peeks) │ │                              │ │  peeks) │
-        │         │ │  nvme0n1  Samsung 990 PRO    │ │         │
-        │         │ │           1.0 TB    ● focus  │ │         │
-        │         │ │  sda      WD Blue    2.0 TB  │ │         │
-        │         │ │                              │ │         │
-        │         │ │  ⚠ erases everything on the  │ │         │
-        │         │ │    selected disk             │ │         │
-        └─────────┘ └──────────────────────────────┘ └─────────┘
-  ────────────────────────────────────────────────────────────────
-   ⏎ continue   ⇧⏎ back   ↑↓ select   /  search        3 / 8 steps
+  Step 3 of 6 · Encryption                              ● ● ━━ ● ● ●
+  ┌──────────────────────────────────────────────────────────────┐
+  │  Disk encryption                                             │
+  │  Encryption protects your files if the disk is lost…         │
+  │  ┌──────────────────────────────────────────────────────┐    │
+  │  │ No encryption   Anyone with the disk can read…    ◉  │    │  grouped
+  │  │ Passphrase      You'll type it at every boot.     ○  │    │  DankListItem
+  │  │ TPM             Unlocks automatically…            ○  │    │
+  │  └──────────────────────────────────────────────────────┘    │
+  │                                                              │
+  │  (Back)                                          (Continue)  │
+  └──────────────────────────────────────────────────────────────┘
+   Enter  Continue    Shift+Enter  Back    Tab  Next field
 ```
 
-- Progress page: the 9 fisherman steps render as a vertical rail of mono
-  labels; the active one pulses `--sonar`; raw log scrolls in a collapsed
-  drawer (`l` toggles).
-- Focus ring: 2 px `--sonar` outer glow — the *only* glow in the app.
+- **Top bar**: "Step n of 6 · name" on the left, the DMS step dots on the
+  right (the active one stretched to a pill).
+- **Pages** are a single column of DMS components: choices are grouped
+  `DankListItem` lists with the Material radio, text entry is a filled
+  `DankTextField`, the confirm summary is a `DankCard`.
+- **Buttons** are `DankButton`: pill at rest, squarer while pressed, a state
+  layer on hover, tonal for Back and Close, the error tone for the one
+  action that erases a disk.
+- **Progress** is a determinate bar fed by fisherman's `[n/9]` step markers
+  plus the current line beneath it; the raw log scrolls under that.
+- **Hint bar**: the live keybindings of the focused context, DMS keycap
+  style, always visible. Keyboard is primary: `Tab`/arrows within a page,
+  `Enter` advances, `Shift+Enter` goes back.
 
 ## Copy
 
-Terse, lowercase-tolerant, but complete sentences for anything consequential.
-Warnings always spell out the device: "erases everything on nvme0n1
-(Samsung 990 PRO)".
+Every line comes from the branding contract (`shared/branding`) through the
+Go `detect` output; nothing product-specific is written in QML. Warnings
+spell out the device.
 
 ## Quality floor
 
-Every interactive element reachable and operable by keyboard alone (mouse is
-optional hardware here). Hint bar always reflects the actual bindings of the
-focused context. Passphrase entry: mono bullets, reveal on `Ctrl+R`, caps-lock
-indicator in the hint bar. All animation gated on a reduced-motion setting
-(env `TUNA_REDUCED_MOTION=1`).
+Every interactive element reachable and operable by keyboard alone. Hint bar
+always reflects the actual bindings of the focused context. Focus ring is
+the `primary` outline on the focused component and nothing else glows. All
+animation gated on a reduced-motion setting (env `TUNA_REDUCED_MOTION=1`).
+Screenshots (`tests/gui/capture-screens.py`) are held to this page: a
+component that is not a DMS component is a design change, not a tweak.

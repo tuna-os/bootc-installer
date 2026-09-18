@@ -26,7 +26,8 @@ pub const NEUTRAL_NAME: &str = "Linux";
 pub const NEUTRAL_ID: &str = "linux";
 
 const COPY_DEFAULTS_JSON: &str = include_str!("copy-defaults.json");
-const ASSET_KEYS: [&str; 5] = ["welcome_image", "complete_image", "store_qr", "video", "credits"];
+/// Common to every frontend; desktop-specific keys live under `extensions.<frontend>`.
+const ASSET_KEYS: [&str; 3] = ["welcome_image", "complete_image", "store_qr"];
 
 /// Host first: this ships as a Flatpak, where `/etc` is the runtime's and the
 /// host's is bind-mounted under `/run/host`. First readable file wins.

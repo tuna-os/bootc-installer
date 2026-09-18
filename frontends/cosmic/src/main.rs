@@ -198,6 +198,8 @@ pub enum Message {
     Quit,
     /// The done page's Restart: `systemctl reboot` on the host.
     Reboot,
+    /// The done page's store link.
+    OpenUrl(String),
     /// Capture harness only — never reachable from the UI.
     Capture(capture::Message),
 }
@@ -538,6 +540,13 @@ impl cosmic::Application for TunaInstaller {
             }
             Message::Quit => {
                 std::process::exit(i32::from(!self.install_ok));
+            }
+            Message::OpenUrl(url) => {
+                let argv = offline::host_command(&["xdg-open", &url]);
+                if let Some((program, args)) = argv.split_first() {
+                    let _ = std::process::Command::new(program).args(args).spawn();
+                }
+                Task::none()
             }
             Message::Reboot => {
                 let argv = offline::host_command(&["systemctl", "reboot"]);

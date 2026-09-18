@@ -1,12 +1,10 @@
 name: Publish Flatpak (gnome)
 
-# Publishes the GNOME frontend (org.bootcinstaller.Installer) to the tuna-os
-# flatpak remote through the shared reusable workflow in tuna-os/.github.
-#
-# Since the promote/release flow (docs/RELEASE.md) this runs only when
-# release.yml calls it after `prod` has been promoted, plus a manual dispatch
-# escape hatch. It used to run on every push to `dev`, which meant every
-# unvalidated commit went straight to the remote every live ISO installs from.
+# Publishes the gnome frontend as ghcr.io/tuna-os/bootc-installer:gnome through
+# the local reusable publish-oci.yml (one package, one tag per frontend; see
+# that file for why not the tuna-os/.github reusable). release.yml calls this
+# after `prod` is promoted (docs/RELEASE.md); the manual dispatch is an
+# escape hatch.
 
 on:
   workflow_call:
@@ -36,20 +34,22 @@ on:
         default: '["x86_64", "aarch64"]'
 
 permissions:
-  contents: write
+  contents: read
   packages: write
 
 jobs:
   publish:
-    uses: tuna-os/.github/.github/workflows/publish-flatpak.yml@main
+    uses: ./.github/workflows/publish-oci.yml
     with:
+      frontend: gnome
       app-id: org.bootcinstaller.Installer
       manifest-path: flatpak/org.bootcinstaller.Installer.json
-      repo-name: tuna-os/bootc-installer
+      # Must track "runtime-version" in the manifest.
+      flatpak-builder-image: gnome-50
       # aarch64 alongside x86_64: the tunaOS live-ISO build installs this
-      # Flatpak from the tuna-os remote on both architectures, and the
-      # manifest's `go` module already carries both toolchains.
+      # Flatpak from the tuna-os remote on both architectures.
       archs: ${{ inputs.archs }}
       checkout-submodules: true
+      also-latest: true
       publish: ${{ inputs.publish }}
     secrets: inherit

@@ -1,5 +1,5 @@
 {
-  "_comment": "Neutral defaults for every user-facing line a product may rebrand. A branding.json `copy` object overrides any key; an empty string hides the line where the frontend can hide it. Placeholders: {name} = product name, {disk} = the disk that will be erased. Copies of this file in each frontend tree must stay byte-identical (tests/unit/test_shared_branding.py).",
+  "_comment": "Neutral defaults for every user-facing line a product may rebrand. Every frontend renders every key (docs/PARITY.md). A branding.json `copy` object overrides any key; an empty string hides the line. Placeholders: {name} = product name, {disk} = the disk that will be erased. Copies of this file in each frontend tree must stay byte-identical (tests/unit/test_shared_branding.py). Frontend-specific lines live under `extensions.<frontend>` in the branding file, never here.",
   "welcome_title": "Welcome to {name}",
   "welcome_subtitle": "",
   "welcome_install": "Install {name}",
@@ -16,9 +16,5 @@
   "done_subtitle": "Remove the installation media and restart the computer.",
   "done_restart": "Restart now",
   "done_failed_title": "Installation failed",
-  "store_label": "Visit the store",
-  "tour_welcome_title": "Installing {name}",
-  "tour_welcome_description": "This will take a few minutes.",
-  "tour_done_title": "Installation complete",
-  "tour_done_description": "Your system is ready to use."
+  "store_label": "Visit the store"
 }

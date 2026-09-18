@@ -24,8 +24,7 @@
     },
     "expect_assets": {
       "store_qr": "/usr/share/example/store-qr.svg",
-      "welcome_image": "",
-      "video": ""
+      "welcome_image": ""
     }
   },
   "os_release_only": {

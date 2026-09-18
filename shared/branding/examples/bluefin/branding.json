@@ -20,11 +20,7 @@
     "done_title": "{name} is installed",
     "done_subtitle": "Restart to begin your new experience.",
     "done_restart": "Reboot Now",
-    "store_label": "Get {name} gear at store.projectbluefin.io",
-    "tour_welcome_title": "Installing {name}",
-    "tour_welcome_description": "A GNOME workstation built on GnomeOS. This will take a few minutes.",
-    "tour_done_title": "Installation Complete",
-    "tour_done_description": "Your system is ready to use"
+    "store_label": "Get {name} gear at store.projectbluefin.io"
   },
   "confirm_quotes": {
     "pt_BR": [
@@ -37,8 +33,16 @@
   "assets": {
     "welcome_image": "/usr/share/bootc-installer/branding/welcome.png",
     "complete_image": "/usr/share/bootc-installer/branding/complete.svg",
-    "store_qr": "/usr/share/bootc-installer/branding/store-qr.svg",
-    "video": "/usr/share/bootc-installer/branding/installer-video.webm",
-    "credits": "/usr/share/bootc-installer/branding/credits.json"
+    "store_qr": "/usr/share/bootc-installer/branding/store-qr.svg"
+  },
+  "extensions": {
+    "gnome": {
+      "tour_welcome_title": "Installing {name}",
+      "tour_welcome_description": "A GNOME workstation built on GnomeOS. This will take a few minutes.",
+      "tour_done_title": "Installation Complete",
+      "tour_done_description": "Your system is ready to use",
+      "video": "/usr/share/bootc-installer/branding/installer-video.webm",
+      "credits": "/usr/share/bootc-installer/branding/credits.json"
+    }
   }
 }

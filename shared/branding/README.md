@@ -75,20 +75,21 @@ about to be erased.
 | `confirm_title`, `confirm_subtitle`, `confirm_body`, `confirm_warning`, `confirm_button` | the last page before the disk is written |
 | `progress_title`, `progress_note` | while fisherman runs |
 | `done_title`, `done_subtitle`, `done_restart`, `done_failed_title` | the done page |
-| `store_label` | the store link, shown only when `store_url` is set |
-| `tour_welcome_*`, `tour_done_*` | the GNOME tour pages |
+| `store_label` | the store link on the done page, shown only when `store_url` is set |
 
 `confirm_quotes` maps a language tag (`"pt_BR"`) to lines used as the
-confirm subtitle in that language; frontends without locale-aware copy
-ignore it. `assets` holds absolute host paths (`welcome_image`,
-`complete_image`, `store_qr`, `video`, `credits`); an empty or missing
-asset hides or skips the element. `store_url` has no os-release fallback.
+confirm subtitle in that language. `assets` holds absolute host paths
+(`welcome_image`, `complete_image`, `store_qr`); an empty or missing asset
+hides or skips the element. `store_url` has no os-release fallback.
 
-Every frontend renders the same keys it has a place for, so a product
-branded once looks and reads the same on GNOME, KDE, COSMIC, Niri and Xfce;
-`docs/PARITY.md` lists which keys each frontend shows. Each language embeds
-a byte-identical copy of `copy-defaults.json` (checked by the identity
-test), so no frontend needs a data file at runtime.
+Every key above is rendered by every frontend: a product branded once looks
+and reads the same on GNOME, KDE, COSMIC, Niri and Xfce (`docs/PARITY.md`
+is the matrix). Nothing one desktop alone can show is in the contract.
+What a single frontend renders on top goes under `extensions.<frontend>`
+in the branding file, read only by that frontend: today `extensions.gnome`
+carries the tour page text, the install video and the credits file. Each
+language embeds a byte-identical copy of `copy-defaults.json` (checked by
+the identity test), so no frontend needs a data file at runtime.
 
 `examples/bluefin/` is a complete branding for Bluefin, lifted from what
 the GNOME frontend used to hardcode; its README says how a live ISO ships
