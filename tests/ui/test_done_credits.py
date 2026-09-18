@@ -16,10 +16,11 @@ from bootc_installer.windows.dialog_credits import BootcCreditsWindow  # noqa: E
 
 # The installer bundles no credits of its own; a product supplies them
 # through the branding layer. Bluefin's example package is the sample.
-_CREDITS_JSON = (
+_BLUEFIN_ASSETS = (
     Path(__file__).resolve().parents[2]
-    / "shared" / "branding" / "examples" / "bluefin" / "assets" / "credits.json"
+    / "shared" / "branding" / "examples" / "bluefin" / "assets"
 )
+_CREDITS_JSON = _BLUEFIN_ASSETS / "credits.json"
 
 
 def _pump():
@@ -49,7 +50,13 @@ def host_window():
 
 def _make_done(window):
     controller = SimpleNamespace(
-        recipe={"distro_name": "Marlin", "store_url": "https://example.com"},
+        # The store group needs both the URL and a QR asset: the installer
+        # bundles no QR of its own any more, the branding layer supplies it.
+        recipe={
+            "distro_name": "Marlin",
+            "store_url": "https://example.com",
+            "store_qr_resource": str(_BLUEFIN_ASSETS / "store-qr.svg"),
+        },
         close=MagicMock(),
         on_installation_confirmed=MagicMock(),
     )
