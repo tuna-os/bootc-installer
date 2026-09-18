@@ -3,42 +3,42 @@
     "welcome": {
       "gnome": "yes",
       "kde": "yes",
-      "cosmic": "not measured",
+      "cosmic": "yes",
       "niri": "yes",
       "xfce": "yes"
     },
     "disk": {
       "gnome": "yes",
       "kde": "yes",
-      "cosmic": "not measured",
+      "cosmic": "yes",
       "niri": "yes",
       "xfce": "yes"
     },
     "encryption": {
       "gnome": "yes",
       "kde": "yes",
-      "cosmic": "not measured",
+      "cosmic": "yes",
       "niri": "yes",
       "xfce": "yes"
     },
     "summary": {
       "gnome": "yes",
       "kde": "yes",
-      "cosmic": "not measured",
+      "cosmic": "yes",
       "niri": "yes",
       "xfce": "yes"
     },
     "install": {
       "gnome": "yes",
       "kde": "yes",
-      "cosmic": "not measured",
+      "cosmic": "yes",
       "niri": "yes",
       "xfce": "yes"
     },
     "done": {
       "gnome": "yes",
       "kde": "yes",
-      "cosmic": "not measured",
+      "cosmic": "yes",
       "niri": "yes",
       "xfce": "yes"
     }

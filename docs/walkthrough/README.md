@@ -14,18 +14,18 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 
 | Screen | GNOME | KDE Plasma | COSMIC | Niri | XFCE |
 |---|---|---|---|---|---|
-| `welcome` (required) | ✅ | ✅ | ➖ | ✅ | ✅ |
-| `disk` (required) | ✅ | ✅ | ➖ | ✅ | ✅ |
-| `encryption` | ✅ | ✅ | ➖ | ✅ | ✅ |
-| `summary` (required) | ✅ | ✅ | ➖ | ✅ | ✅ |
-| `install` | ✅ | ✅ | ➖ | ✅ | ✅ |
-| `done` | ✅ | ✅ | ➖ | ✅ | ✅ |
+| `welcome` (required) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `disk` (required) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `encryption` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `summary` (required) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `install` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `done` | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 | Frontend | Pages | Rendered | Transitions | Harness |
 |---|---|---|---|---|
 | GNOME | 9 | 9 | 8 | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
 | KDE Plasma | 6 | 6 | 5 | tests/capture.cpp (Kirigami/QML, offscreen) |
-| COSMIC | 6 | 0 | 5 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
+| COSMIC | 6 | 6 | 5 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
 | Niri | 6 | 6 | 5 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
 | XFCE | 8 | 8 | 7 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
 
@@ -71,12 +71,14 @@ libcosmic / iced (Rust). Source: `frontends/cosmic/`.
 
 | | |
 |---|---|
-| <img src="cosmic/01-welcome.png" width="360"> | **welcome**  |
-| <img src="cosmic/02-disk.png" width="360"> | **disk**  |
-| <img src="cosmic/03-options.png" width="360"> | **options**  |
-| <img src="cosmic/04-confirm.png" width="360"> | **confirm**  |
-| <img src="cosmic/05-installing.png" width="360"> | **installing**  |
-| <img src="cosmic/06-done.png" width="360"> | **done**  |
+| <img src="cosmic/01-welcome.png" width="360"> | **welcome**  <br><sub>Install TunaOS Welcome. This assistant will guide you through installing TunaOS onto this computer. You will choose a target disk and a few </sub> |
+| <img src="cosmic/02-disk.png" width="360"> | **disk**  <br><sub>Select a disk Everything on the disk you pick will be erased. /dev/nvme0n1 476.9G · SAMSUNG MZVL2512HCJQ · nvme /dev/sda 1.8T · WDC WD20SPZX</sub> |
+| <img src="cosmic/03-options.png" width="360"> | **options**  <br><sub>Options Sensible defaults are already chosen. Change them only if you need to. System Computer name tunaos Filesystem xfs Encryption Disk en</sub> |
+| <img src="cosmic/04-confirm.png" width="360"> | **confirm**  <br><sub>Confirm The last screen before anything is written. Everything on the target disk will be erased. This cannot be undone. Summary Target disk</sub> |
+| <img src="cosmic/05-installing.png" width="360"> | **installing**  <br><sub>Installing TunaOS fisherman is writing the image to disk. [1/9] Partitioning /dev/nvme0n1
+  created EFI system partition (1.0 GiB, FAT32)
+  </sub> |
+| <img src="cosmic/06-done.png" width="360"> | **done**  <br><sub>Installation complete Remove the installation media and restart the computer. Close</sub> |
 
 ## Niri
 
