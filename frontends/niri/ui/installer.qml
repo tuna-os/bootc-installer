@@ -442,7 +442,7 @@ ApplicationWindow {
                 Text { text: "Hostname:"; font.bold: true; color: Theme.surfaceVariantText }
                 TextField {
                     text: root.hostname
-                    onTextChanged: root.hostname = text
+                    onTextEdited: root.hostname = text  // not onTextChanged: that fires at load and would pin the branding default
                     font.family: "monospace"
                 }
                 Text { text: "Image:"; font.bold: true; color: Theme.surfaceVariantText }
