@@ -151,7 +151,9 @@ jobs:
       - name: emit parity report
         if: always()
         run: |
-          sudo apt-get install -y -qq python3 >/dev/null 2>&1 || true
+          # Pillow for the per-page pixel audit; without it the report can
+          # only say rendered=null and the COSMIC "Rendered" count reads 0.
+          sudo apt-get install -y -qq python3 python3-pil >/dev/null 2>&1 || true
           python3 ../../shared/walkthrough/report_from_pngs.py cosmic docs/screenshots \
             --harness "src/capture.rs (libcosmic on lavapipe under Xvfb)"
 
