@@ -224,7 +224,13 @@ jobs:
             say false "still running: $(echo "$pending" | tr '\n' ',' | sed 's/,$//')"; exit 0
           fi
 
-          bad=$(awk -F'\t' '$3 == "failure" || $3 == "cancelled" || $3 == "timed_out" || $3 == "action_required" || $3 == "startup_failure" {print $1" ("$3")"}' /tmp/checks.tsv || true)
+          # `cancelled` is not red here: a run superseded inside its own
+          # concurrency group (Aggregate walkthroughs, cancel-in-progress,
+          # fed by [skip ci] docs commits) stays cancelled on the candidate
+          # forever and blocked every promotion after #98. The required
+          # checks below must still be `success`, so a cancelled required
+          # check is caught there, by name.
+          bad=$(awk -F'\t' '$3 == "failure" || $3 == "timed_out" || $3 == "action_required" || $3 == "startup_failure" {print $1" ("$3")"}' /tmp/checks.tsv || true)
           if [ -n "$bad" ]; then
             echo "::error::checks not green on $SHA: $(echo "$bad" | tr '\n' ';')"
             say false "red checks: $(echo "$bad" | tr '\n' ';')"; exit 0
