@@ -132,8 +132,21 @@ def verify_spec_matches_upstream(timeout=5):
 
     def parse_kw(blob):
         blob = blob.strip().lstrip("[").rstrip("]")
-        return [k.strip().strip('"\'').lower() for k in blob.split(",")
-                if k.strip()]
+        out = []
+        for k in blob.split(","):
+            k = k.strip()
+            if not k:
+                continue
+            quoted = k[:1] == '"'
+            k = k.strip('"\'')
+            if quoted:
+                # YAML double-quoted scalars carry escapes; upstream writes
+                # the Niri heading as "installing\u2026". Without decoding,
+                # every capture job warned that 'install' had drifted when
+                # the two lists were identical.
+                k = k.encode("utf-8").decode("unicode_escape")
+            out.append(k.lower())
+        return out
 
     diffs = []
     ours = {s["id"]: [k.lower() for k in s["keywords"]] for s in SCREENS}

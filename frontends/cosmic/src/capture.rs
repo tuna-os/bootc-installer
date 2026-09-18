@@ -78,6 +78,9 @@ pub struct Capture {
     pub dir: PathBuf,
     pub index: usize,
     pub findings: Vec<Finding>,
+    /// (page slug, the page's text) in capture order; written to
+    /// `texts.json` for `shared/walkthrough/report_from_pngs.py`.
+    pub texts: Vec<(String, String)>,
 }
 
 impl Capture {
@@ -88,6 +91,7 @@ impl Capture {
             dir: PathBuf::from(dir),
             index: 0,
             findings: Vec::new(),
+            texts: Vec::new(),
         })
     }
 }
@@ -176,6 +180,13 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                 std::process::exit(2);
             }
             capture.findings.push(audit(&shot, &name));
+            // The strings this page renders, from the same constants the
+            // view is built from (ui::page_text). iced has no widget-tree
+            // introspection, so this is how the COSMIC row of the parity
+            // matrix stops reading "not measured".
+            let text = crate::ui::page_text(app).join(" ");
+            let capture = app.capture.as_mut().unwrap();
+            capture.texts.push((name, text));
 
             cosmic::task::message(cosmic::action::app(crate::Message::Capture(Message::Show(
                 index + 1,
@@ -363,8 +374,22 @@ fn finish(app: &mut TunaInstaller) -> Task<crate::Message> {
         std::process::exit(1);
     }
 
+    let texts_path = capture.dir.join("texts.json");
+    let texts: serde_json::Map<String, serde_json::Value> = capture
+        .texts
+        .iter()
+        .map(|(name, text)| (name.clone(), serde_json::Value::String(text.clone())))
+        .collect();
+    if let Err(e) = std::fs::write(
+        &texts_path,
+        serde_json::to_string_pretty(&serde_json::Value::Object(texts)).unwrap() + "\n",
+    ) {
+        eprintln!("capture: failed writing {}: {e}", texts_path.display());
+        std::process::exit(2);
+    }
+
     println!(
-        "\n  wrote {} screens to {}",
+        "\n  wrote {} screens + texts.json to {}",
         capture.findings.len(),
         capture.dir.display()
     );

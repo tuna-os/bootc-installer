@@ -142,10 +142,12 @@ jobs:
             docs/screenshots/walkthrough.gif
           ls -la docs/screenshots
 
-      # The COSMIC harness does not yet read its own widget text, so the
-      # parity report is built from the PNGs alone: rendered/blank per page,
-      # screen matches left unmeasured rather than guessed. See
-      # shared/walkthrough/report_from_pngs.py.
+      # iced has no widget-tree introspection, so the harness writes
+      # texts.json (the strings each page was rendered from, see
+      # ui::page_text) next to the PNGs, and the shared report matches them
+      # against the screen contract like any other frontend's widget text.
+      # Without texts.json the report falls back to pixels only and the
+      # COSMIC row reads "not measured". See shared/walkthrough/report_from_pngs.py.
       - name: emit parity report
         if: always()
         run: |

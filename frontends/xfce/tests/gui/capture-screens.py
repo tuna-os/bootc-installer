@@ -163,7 +163,7 @@ CAPTIONS = {
     "welcome": "What the assistant is about to do.",
     "source": "Choose an image to install.",
     "destination": "Choose the disk. Nothing is written yet.",
-    "setup": "Filesystem and encryption.",
+    "setup": "Disk encryption; filesystem under Advanced.",
     "identity": "Your account and computer name.",
     "confirm": "The last screen before anything is written.",
     "progress": "The install, step by step.",

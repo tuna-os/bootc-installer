@@ -90,9 +90,11 @@ nothing is lost in the shuffle. Tracking epic:
 4. Fold `frontends/*/renovate.json` (notably COSMIC's Cargo.lock automerge)
    into the root `renovate.json`.
 5. Point the four imported Flatpak manifests at the fisherman submodule.
-6. Teach the COSMIC capture harness to read its widget text so its parity
-   row stops reading "not measured".
-7. Move the GNOME frontend under `frontends/gnome/`.
+6. Move the GNOME frontend under `frontends/gnome/`.
+
+Done since the move: the COSMIC capture writes the strings each page renders
+(`ui::page_text`) to `texts.json`, so its parity row is measured like the
+others.
 
 ---
 
