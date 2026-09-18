@@ -9,8 +9,10 @@
 # block early. The rest of the lines then run on the RUNNER (Permission
 # denied on its /etc/ssh/sshd_config) and bash reports "unexpected EOF
 # while looking for matching `'". The chroot body is a quoted heredoc here,
-# which cannot be ended by its own contents. Drop this copy once the
-# submodule carries the fix (tuna-os/fisherman PR "scripts: fix the quote").
+# which cannot be ended by its own contents. fisherman's dev branch already
+# carries a script that parses; drop this copy once the submodule pointer
+# moves past the pinned commit (the gate this file belongs to is what makes
+# that bump safe to take).
 set -e
 
 LOOPDEV="${1:?LOOPDEV required}"
