@@ -43,15 +43,19 @@ devel bundle. That is the only release-like thing `dev` does. Nothing on
 ### 2. Promote (`promote.yml`)
 
 Fires when any validation workflow completes on `dev`, every hour as a
-catch-up (the completion usually lands before the soak has elapsed, so the
-hourly tick is what actually ships most commits), and on demand. Each firing:
+catch-up, and on demand. Each firing:
 
 1. Picks the candidate: the newest `dev` commit that is not a bot
    `[skip ci]` commit (those carry no checks and must not stall promotion).
 2. Refuses to move `prod` anywhere but forward: the candidate must descend
    from the current `prod`. There is no rewind path in CI.
 3. Waits out the **soak window** (`SOAK_MINUTES`, 30 by default) so an
-   immediate fix-up push supersedes the commit before it ships.
+   immediate fix-up push supersedes the commit before it ships. The job
+   sleeps for the remainder of the window, then looks at `dev` again: a
+   newer commit that landed meanwhile supersedes the candidate, and this
+   run stops. The hourly schedule is not what ends the soak. GitHub runs
+   this repository's cron ticks hours late, and on the first day none
+   fired at all.
 4. Reads every check run on the candidate through the Checks API and
    requires: none still running, none failed/cancelled/timed out, and each
    name in `REQUIRED_CHECKS` present and successful. Path-filtered jobs are
@@ -60,7 +64,7 @@ hourly tick is what actually ships most commits), and on demand. Each firing:
 5. If all of that holds, fast-forwards `prod` to the candidate and
    dispatches `release.yml` on `prod`.
 
-Early firings (checks still running, soak not elapsed) exit green with the
+A firing that finds checks still running after the soak exits green with the
 reason in the job summary. Only the last workflow to finish on a commit sees
 "everything complete", and that firing promotes.
 
