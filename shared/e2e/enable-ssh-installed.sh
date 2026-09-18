@@ -21,10 +21,13 @@ SSH_PUBKEY_FILE="${3:?SSH_PUBKEY_FILE required}"
 
 echo "Enabling SSH in installed system..."
 
-if [[ "$LOOPDEV" == /dev/loop* ]]; then
-  ROOT_PART="${LOOPDEV}p3"
-else
-  ROOT_PART="${LOOPDEV}3"
+# Root is the LAST partition on both layouts fisherman produces: GRUB2 makes
+# three (EFI, /boot, root), systemd-boot/composefs makes two (EFI, root).
+# Hardcoding p3 fails every 2-partition install after it succeeded.
+ROOT_PART=$(sudo lsblk -nrpo NAME "$LOOPDEV" | tail -1)
+if [ -z "$ROOT_PART" ] || [ "$ROOT_PART" = "$LOOPDEV" ]; then
+  echo "WARNING: no partitions on $LOOPDEV"
+  exit 1
 fi
 
 MOUNT_DIR=$(mktemp -d)
