@@ -89,7 +89,6 @@ def do_reboot(in_flatpak):
     return False
 
 
-@Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/done.ui")
 def _set_picture(picture, spec: str) -> None:
     """A GResource path (/org/...) or a host file path onto a Gtk.Picture."""
     if spec.startswith("/org/"):
@@ -98,6 +97,7 @@ def _set_picture(picture, spec: str) -> None:
         picture.set_filename(spec)
 
 
+@Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/done.ui")
 class BootcDone(Adw.Bin):
     __gtype_name__ = "BootcDone"
 

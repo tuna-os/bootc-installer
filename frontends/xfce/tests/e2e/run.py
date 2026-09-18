@@ -103,7 +103,9 @@ def main():
         else:
             headline = win.pages["done"].headline.get_text()
             outcome["headline"] = headline
-            outcome["ok"] = "complete" in headline.lower()
+            # The headline is the branded done_title ("{name} is installed"),
+            # so compare against the resolved copy rather than a literal.
+            outcome["ok"] = headline == core.BRANDING.text("done_title")
         win.destroy()
         app.quit()
 

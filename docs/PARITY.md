@@ -1,10 +1,10 @@
 # Frontend parity
 
-The GNOME frontend is the reference: it is the one that has shipped and
-been tested end to end. This page records what each of the other four
-renders of the same contract, so a gap is a line here and not a surprise
-on an ISO. `docs/DESIGN-AUDIT.md` covers how each looks against its
-desktop; this page covers what each does.
+The GNOME frontend is the reference: it is the one that shipped and has
+end-to-end tests. This page records what each of the other four renders
+of the same contract. A gap is then a line here, not a surprise on an
+ISO. `docs/DESIGN-AUDIT.md` covers how each looks against its desktop;
+this page covers what each does.
 
 ## Branding copy keys
 
@@ -35,13 +35,13 @@ says; "hidden" means the frontend shows nothing for an empty value.
 | `assets.welcome_image`, `assets.complete_image` | tour pages | no | no | welcome logo disc (`logo`) | no |
 
 Outside the contract, under `extensions.gnome`: the tour page text, the
-install video and the credits file. They are the last GNOME-only features;
-the plan is to port the tour artwork (welcome/complete images) to the other
-four and drop video and credits from the contract entirely rather than add
-them elsewhere.
+install video and the credits file. They are the last GNOME-only features.
+The plan is to port the tour artwork (welcome and complete images) to the
+other four. Video and credits then leave the contract; nothing else gets
+them.
 
-Identity keys (`name`, `id`, `default_hostname`, `default_image`, URLs) are
-rendered by all five; see `shared/branding/README.md`.
+All five render the identity keys (`name`, `id`, `default_hostname`,
+`default_image`, URLs); see `shared/branding/README.md`.
 
 ## Features
 
@@ -68,8 +68,8 @@ rendered by all five; see `shared/branding/README.md`.
 
 ## Closing the gaps, in order
 
-1. **Encryption set** (KDE, XFCE): offer TPM and TPM + passphrase; the
-   recipe and fisherman already support them and the TPM probe exists in
+1. **Encryption set** (KDE, XFCE): offer TPM and TPM + passphrase. The
+   recipe and fisherman already support them, and the TPM probe exists in
    both frontends.
 2. **Progress bar** (KDE, Niri, COSMIC): fisherman emits `[n/9]` and a
    `cumulative_pct` field; the XFCE parser in `tuna_installer_xfce/core.py`
@@ -77,10 +77,10 @@ rendered by all five; see `shared/branding/README.md`.
 3. **Recovery key page** (all four): fisherman prints the key after TPM
    enrolment; GNOME's `views/recovery_key.py` is the reference.
 4. **User account** (KDE, COSMIC, Niri): a username, full name and
-   password step writing the recipe's `user` block, as XFCE does.
+   password step that writes the recipe's `user` block, as XFCE does.
 5. **Store and tour assets** (all four): only worth it where the desktop
-   has a place for artwork; the keys are already resolved by every
-   resolver, so this is view work only.
-6. **Companion, slurp, locale steps**: GNOME-only by design for now; the
-   contract keeps their copy keys out of `copy-defaults.json` so nothing
+   has a place for artwork. Every resolver already resolves the keys, so
+   this is view work only.
+6. **Companion, slurp, locale steps**: GNOME-only by design for now. The
+   contract keeps their copy keys out of `copy-defaults.json`, so nothing
    else pretends to have them.

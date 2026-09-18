@@ -73,13 +73,12 @@ nothing is lost in the shuffle. Tracking epic:
 
 1. ~~Give this repository write access to the GHCR packages of the four
    frontends.~~ Resolved differently: every frontend now publishes to the
-   one package this repository owns, `ghcr.io/tuna-os/bootc-installer`,
-   under the tags `gnome`, `kde`, `cosmic`, `niri` and `xfce` (each also
-   `-<arch>` and `-<tag>-<arch>`; GNOME keeps `latest`). The old
-   `ghcr.io/tuna-os/tuna-installer-{kde,cosmic,niri,xfce}` packages are
-   frozen at the last builds of the old repositories. Live-ISO builds that
-   still pull them by name must move to the new tags; until they do they
-   keep getting those last builds.
+   one package this repository owns, `ghcr.io/tuna-os/bootc-installer`.
+   The tags are `gnome`, `kde`, `cosmic`, `niri` and `xfce`, each also
+   with `-<arch>` and `-<tag>-<arch>`; GNOME keeps `latest`. The old
+   `ghcr.io/tuna-os/tuna-installer-{kde,cosmic,niri,xfce}` packages stay
+   at the last builds of the old repositories. Live-ISO builds that still
+   pull those names must move to the new tags.
 2. Re-file or transfer the open issues below against this repository (GitHub
    can transfer issues between repos in the same org; PRs cannot be
    transferred and must be re-opened against `frontends/<name>/`).
