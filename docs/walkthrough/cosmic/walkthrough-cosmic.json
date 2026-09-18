@@ -59,6 +59,7 @@
         "confirm"
       ],
       "matched_keywords": [
+        "confirm installation",
         "summary"
       ]
     },
@@ -81,7 +82,7 @@
         "done"
       ],
       "matched_keywords": [
-        "installation complete",
+        "is installed",
         "remove the installation media"
       ]
     }
@@ -91,11 +92,11 @@
       "name": "welcome",
       "png": "docs/screenshots/01-welcome.png",
       "rendered": true,
-      "colours": 186,
-      "flat": 0.9659655048876605,
-      "ink": 0.9885229540918163,
-      "stddev": 0.07291406631990316,
-      "text_excerpt": "Install TunaOS Welcome. This assistant will guide you through installing TunaOS onto this computer. You will choose a target disk and a few options. Nothing is written to any disk until you confirm on the last step. Get started"
+      "colours": 197,
+      "flat": 0.964545268437484,
+      "ink": 0.987857618097139,
+      "stddev": 0.07523797002921304,
+      "text_excerpt": "Welcome to TunaOS Welcome. This assistant will guide you through installing TunaOS onto this computer. You will choose a target disk and a few options. Nothing is written to any disk until you confirm on the last step. Get started"
     },
     {
       "name": "disk",
@@ -114,46 +115,46 @@
       "colours": 211,
       "flat": 0.7590843953119403,
       "ink": 0.9929755872869646,
-      "stddev": 0.06545220817179427,
-      "text_excerpt": "Options Sensible defaults are already chosen. Change them only if you need to. System Computer name tunaos Filesystem xfs Encryption Disk encryption No encryption Anyone with the disk can read your files. Back Continue"
+      "stddev": 0.06559876982978931,
+      "text_excerpt": "Options Sensible defaults are already chosen. Change them only if you need to. System Computer name ubuntu Filesystem xfs Encryption Disk encryption No encryption Anyone with the disk can read your files. Back Continue"
     },
     {
       "name": "confirm",
       "png": "docs/screenshots/04-confirm.png",
       "rendered": true,
-      "colours": 303,
-      "flat": 0.580057833051845,
-      "ink": 0.9920799426787451,
-      "stddev": 0.07045952423024181,
-      "text_excerpt": "Confirm The last screen before anything is written. Everything on the target disk will be erased. This cannot be undone. Summary Target disk /dev/nvme0n1 Filesystem xfs Encryption none Computer name tunaos Image ghcr.io/tuna-os/albacore:gno"
+      "colours": 317,
+      "flat": 0.5778954910691437,
+      "ink": 0.9907364757664159,
+      "stddev": 0.07426834277752636,
+      "text_excerpt": "Confirm installation The last screen before anything is written. Everything on /dev/nvme0n1 will be erased. This cannot be undone.  Summary Target disk /dev/nvme0n1 Filesystem xfs Encryption none Computer name ubuntu Image ghcr.io/tuna-os/a"
     },
     {
       "name": "installing",
       "png": "docs/screenshots/05-installing.png",
       "rendered": true,
-      "colours": 225,
+      "colours": 224,
       "flat": 0.5017656993704898,
-      "ink": 0.9879599774809356,
-      "stddev": 0.07985367853994742,
-      "text_excerpt": "Installing TunaOS fisherman is writing the image to disk. [1/9] Partitioning /dev/nvme0n1\n  created EFI system partition (1.0 GiB, FAT32)\n  created root partition (475.9 GiB)\n[2/9] Formatting boot partitions\n[3/9] Setting up encryption\n  en"
+      "ink": 0.9879727724039101,
+      "stddev": 0.0798775092435744,
+      "text_excerpt": "Installing TunaOS\u2026 fisherman is writing the image to disk. [1/9] Partitioning /dev/nvme0n1\n  created EFI system partition (1.0 GiB, FAT32)\n  created root partition (475.9 GiB)\n[2/9] Formatting boot partitions\n[3/9] Setting up encryption\n  e"
     },
     {
       "name": "done",
       "png": "docs/screenshots/06-done.png",
       "rendered": true,
-      "colours": 202,
-      "flat": 0.9747300271252367,
-      "ink": 0.9936025385127182,
-      "stddev": 0.0543209423288022,
-      "text_excerpt": "Installation complete Remove the installation media and restart the computer. Close"
+      "colours": 210,
+      "flat": 0.9706356517733763,
+      "ink": 0.9919264036030503,
+      "stddev": 0.05890976902205662,
+      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Restart now Close"
     }
   ],
   "transition_pixels": [
-    389271,
-    248855,
-    239053,
-    152227,
-    374337
+    389212,
+    248866,
+    240497,
+    152975,
+    377524
   ],
   "spec_drift": [],
   "notes": "Text comes from the strings the harness rendered each page from (the same constants the view reads), not from a widget tree or OCR, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
