@@ -97,10 +97,10 @@
       "name": "qr_companion",
       "png": "docs/screenshots/02-qr_companion.png",
       "rendered": true,
-      "colours": 529,
-      "flat": 0.9275095471903982,
-      "ink": 0.037159028914348066,
-      "stddev": 0.12116189571439277,
+      "colours": 528,
+      "flat": 0.9274481723949809,
+      "ink": 0.037240861974904525,
+      "stddev": 0.12121940769913855,
       "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
     },
     {
@@ -139,8 +139,8 @@
       "rendered": true,
       "colours": 275,
       "flat": 0.9144162575013639,
-      "ink": 0.008387888707037643,
-      "stddev": 0.055196111954875525,
+      "ink": 0.008421985815602837,
+      "stddev": 0.05523832301848348,
       "text_excerpt": "Confirm Installation \"Indeed.\" \u2014 Commander Zavala Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Whether we wanted it or not, we've stepped into a war with your old OS. Become Legend Bec"
     },
     {
@@ -175,17 +175,15 @@
     }
   ],
   "transition_pixels": [
-    73351,
-    89720,
+    73407,
+    89776,
     51171,
     34536,
-    39438,
-    37278,
+    39435,
+    37311,
     43496,
     41297
   ],
-  "spec_drift": [
-    "'install' keywords differ from upstream"
-  ],
+  "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
 }

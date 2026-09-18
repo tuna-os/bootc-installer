@@ -19,7 +19,7 @@
       "kde": "yes",
       "cosmic": "not measured",
       "niri": "yes",
-      "xfce": "no"
+      "xfce": "yes"
     },
     "summary": {
       "gnome": "yes",
