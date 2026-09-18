@@ -7,9 +7,16 @@ name: Promote dev → prod
 # tuna-os remote. docs/RELEASE.md is the human description.
 #
 # How it fires: whenever one of the validation workflows completes on dev
-# (workflow_run), hourly as a catch-up, and by hand. Only the LAST
-# workflow to finish on a commit sees "everything is complete", so early
-# firings simply report "not yet" and exit green.
+# (workflow_run), hourly as a catch-up, and by hand. A firing that arrives
+# before the soak window has elapsed sleeps out the remainder inside the
+# job and then evaluates the checks; it does not exit and hope a later
+# firing comes back. The hourly schedule is only a catch-up: GitHub runs
+# this repository's cron ticks hours late (the weekly 06:00 nightly has
+# fired between 06:44 and 11:32), and on the first day of the flow no
+# hourly tick fired at all, so both of the first promotions had to be
+# dispatched by hand. Only the LAST workflow to finish on a commit sees
+# "everything is complete", so early firings report "not yet" and exit
+# green.
 #
 # What it refuses to do:
 #   - move prod to a commit that is not a descendant of prod (never rewinds);
@@ -39,11 +46,9 @@ on:
       - Walkthrough
     types: [completed]
     branches: [dev]
-  # Hourly, not every six hours. The workflow_run triggers fire when a
-  # validation workflow finishes, which is usually BEFORE the soak window has
-  # elapsed for that commit; nothing else fires until this schedule does.
-  # Six-hourly meant a commit whose checks went green at 23:55 shipped at
-  # 06:17. The gate itself takes ten seconds, so hourly is cheap.
+  # Catch-up only. The gate sleeps out the soak itself (see the header), so
+  # this tick matters only when every workflow_run firing for a commit was
+  # lost, and GitHub may deliver it hours late.
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch:
@@ -141,6 +146,7 @@ jobs:
           PROD: ${{ steps.candidate.outputs.prod }}
           PROD_EXISTS: ${{ steps.candidate.outputs.prod_exists }}
           FORCE: ${{ inputs.force == true && 'true' || 'false' }}
+          INPUT_SHA: ${{ inputs.sha }}
           OWN_WORKFLOW: ${{ github.workflow }}
         run: |
           set -euo pipefail
@@ -161,10 +167,31 @@ jobs:
             say true "forced"; exit 0
           fi
 
-          # Soak window.
+          # Soak window. The workflow_run firings for a commit all arrive
+          # within minutes of the push, well before the soak has elapsed, and
+          # the hourly schedule that was meant to catch up runs hours late on
+          # GitHub's side (or not at all: no tick fired on 2026-09-18 between
+          # 00:17 and 02:17). So instead of exiting and waiting for a later
+          # firing, sleep out the remainder here. The concurrency group keeps
+          # one run in flight and one queued, so the firings that pile up
+          # behind this one collapse into a single re-check afterwards.
           age=$(( $(date -u +%s) - $(git show -s --format=%ct "$SHA") ))
-          if [ "$age" -lt $(( SOAK_MINUTES * 60 )) ]; then
-            say false "candidate is $((age / 60)) min old; soak is ${SOAK_MINUTES} min"; exit 0
+          remaining=$(( SOAK_MINUTES * 60 - age ))
+          if [ "$remaining" -gt 0 ]; then
+            echo "candidate is $((age / 60)) min old; soak is ${SOAK_MINUTES} min; sleeping $((remaining / 60 + 1)) min"
+            sleep "$remaining"
+            # A newer commit may have landed meanwhile. It becomes the
+            # candidate of its own firings; this run must not ship a
+            # superseded one.
+            git fetch -q origin "$DEV_BRANCH"
+            NEWEST=""
+            for c in $(git rev-list -n 50 "origin/$DEV_BRANCH"); do
+              if git show -s --format=%B "$c" | grep -q '\[skip ci\]'; then continue; fi
+              NEWEST="$c"; break
+            done
+            if [ -z "$INPUT_SHA" ] && [ -n "$NEWEST" ] && [ "$NEWEST" != "$SHA" ]; then
+              say false "superseded by $NEWEST while soaking"; exit 0
+            fi
           fi
 
           # Every check run on the candidate, excluding this workflow's own.
