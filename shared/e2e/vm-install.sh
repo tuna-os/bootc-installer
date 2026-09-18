@@ -16,7 +16,7 @@
 # composefs, encryption, hostname and user come from the frontend, and are
 # what fisherman installs.
 set -euo pipefail
-RECIPE_IN=${1:?recipe path}
+RECIPE_IN=$(readlink -f "${1:?recipe path}")   # absolute: the rest of this runs from fisherman/
 FRONTEND=${2:?frontend name}
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(cd "$HERE/../.." && pwd)
