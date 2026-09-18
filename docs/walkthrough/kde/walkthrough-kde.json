@@ -9,13 +9,13 @@
   "ocr": false,
   "pages": [
     {
-      "colours": 198,
-      "flat": 0.989994884602654,
-      "ink": 0.008951945355520116,
+      "colours": 207,
+      "flat": 0.9896037071585472,
+      "ink": 0.009433394517497667,
       "name": "01-welcome",
       "png": "docs/screenshots/01-welcome.png",
       "rendered": true,
-      "stddev": 0.05231341706725738
+      "stddev": 0.05351765674024214
     },
     {
       "colours": 280,
@@ -36,13 +36,13 @@
       "stddev": 0.05962075674388595
     },
     {
-      "colours": 207,
-      "flat": 0.6940992387085126,
-      "ink": 0.30122167724851806,
+      "colours": 218,
+      "flat": 0.6940841934222008,
+      "ink": 0.30135708482532425,
       "name": "04-confirm",
       "png": "docs/screenshots/04-confirm.png",
       "rendered": true,
-      "stddev": 0.05590510108028291
+      "stddev": 0.057463182214099386
     },
     {
       "colours": 244,
@@ -51,16 +51,16 @@
       "name": "05-progress",
       "png": "docs/screenshots/05-progress.png",
       "rendered": true,
-      "stddev": 0.08273019001915836
+      "stddev": 0.08242804074751767
     },
     {
-      "colours": 153,
-      "flat": 0.9946890139319351,
-      "ink": 0.004709174615592935,
+      "colours": 137,
+      "flat": 0.9934101645954323,
+      "ink": 0.0038515932958204193,
       "name": "06-done",
       "png": "docs/screenshots/06-done.png",
       "rendered": true,
-      "stddev": 0.05224268001335579
+      "stddev": 0.04626333206620222
     }
   ],
   "rendered_frames": 6,
@@ -86,10 +86,8 @@
     },
     "done": {
       "matched_keywords": [
-        "installation complete",
-        "has been installed",
-        "remove the installation media",
-        "restart to boot"
+        "is installed",
+        "remove the installation media"
       ],
       "on_pages": [
         "06-done"
@@ -143,11 +141,11 @@
   "strict": true,
   "text_source": "qml-item-tree",
   "transition_pixels": [
-    137873,
+    138055,
     86777,
-    50143,
-    403313,
-    540600
+    50139,
+    403269,
+    539420
   ],
   "visual_states": 6
 }
