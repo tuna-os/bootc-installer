@@ -71,16 +71,28 @@ nothing is lost in the shuffle. Tracking epic:
 
 ## Follow-ups this migration creates
 
-1. Re-file or transfer the open issues below against this repository (GitHub
+1. **Give this repository write access to the GHCR packages of the four
+   frontends.** The first promotion (release `v2026.09.18-8bd109f1`) built
+   every frontend and published GNOME. The push of
+   `ghcr.io/tuna-os/tuna-installer-{kde,cosmic,niri,xfce}` failed with
+   `permission_denied: write_package`. Each package still belongs to its
+   old repository, so this repository's `GITHUB_TOKEN` cannot write it.
+   For each of the four packages: open *Package settings → Manage Actions
+   access*. Add `tuna-os/bootc-installer` with the *Write* role. Then
+   re-run the failed jobs of the release run, or dispatch *Publish Flatpak
+   (<name>)* on `prod`. Until then the tuna-os remote keeps the last builds
+   of those four frontends from the old repositories. Do not rename the
+   images instead: every live-ISO build pulls them by that name.
+2. Re-file or transfer the open issues below against this repository (GitHub
    can transfer issues between repos in the same org; PRs cannot be
    transferred and must be re-opened against `frontends/<name>/`).
-2. Archive the four old repositories.
-3. Fold `frontends/*/renovate.json` (notably COSMIC's Cargo.lock automerge)
+3. Archive the four old repositories.
+4. Fold `frontends/*/renovate.json` (notably COSMIC's Cargo.lock automerge)
    into the root `renovate.json`.
-4. Point the four imported Flatpak manifests at the fisherman submodule.
-5. Teach the COSMIC capture harness to read its widget text so its parity
+5. Point the four imported Flatpak manifests at the fisherman submodule.
+6. Teach the COSMIC capture harness to read its widget text so its parity
    row stops reading "not measured".
-6. Move the GNOME frontend under `frontends/gnome/`.
+7. Move the GNOME frontend under `frontends/gnome/`.
 
 ---
 
