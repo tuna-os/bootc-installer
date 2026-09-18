@@ -19,8 +19,11 @@ QtObject {
 
     // Mirror the real Process: write() is fed on started(). The real
     // backend reads the recipe from stdin so the LUKS passphrase never
-    // lands in /proc/PID/cmdline; here it is simply discarded.
-    function write(data) { }
+    // lands in /proc/PID/cmdline. It is kept in `written` so the end-to-end
+    // driver (tests/e2e/run.py) can hand exactly what the QML wrote to the
+    // real backend; nothing here executes it.
+    property string written: ""
+    function write(data) { written = data }
 
     // Canned backend output. Shapes match installer/main.go: `detect` returns
     // offline facts, `discover-disks` returns parsed lsblk.

@@ -1,0 +1,5 @@
+#!/bin/bash
+# No live ISO on a CI runner: `bootc status` failing is how every frontend
+# learns it must install a named image rather than the running system.
+echo "bootc: not booted from a bootc image (e2e)" >&2
+exit 1

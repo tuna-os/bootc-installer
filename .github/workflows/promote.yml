@@ -44,6 +44,7 @@ on:
       - CI (niri backend)
       - cargo-sources (cosmic)
       - Walkthrough
+      - End to end
     types: [completed]
     branches: [dev]
   # Catch-up only. The gate sleeps out the soak itself (see the header), so
@@ -79,7 +80,10 @@ env:
   # Checks that must be present AND green on the candidate. Path-filtered
   # workflows (screenshots, frontend builds) are not listed: when they did
   # not run there is nothing to validate, and when they did run they are
-  # covered by the "nothing failed, nothing pending" rule.
+  # covered by the "nothing failed, nothing pending" rule. The E2E rows are
+  # e2e.yml: every frontend drives its real backend path, and the recipe
+  # each one produced is installed and booted in a VM. Nothing ships
+  # without all five installers having installed something that booted.
   REQUIRED_CHECKS: |
     Build (production)
     Build (production, aarch64)
@@ -87,6 +91,16 @@ env:
     Unit Tests (no display)
     UI Integration Tests (offscreen GTK)
     Unit Tests
+    E2E (gnome)
+    E2E (kde)
+    E2E (cosmic)
+    E2E (niri)
+    E2E (xfce)
+    E2E (install gnome)
+    E2E (install kde)
+    E2E (install cosmic)
+    E2E (install niri)
+    E2E (install xfce)
   # Minimum age of the candidate commit before it may ship.
   SOAK_MINUTES: "30"
 

@@ -34,6 +34,7 @@ on the actual `dev` commit, never the PR's.
 | `flatpak-frontends.yml` | kde / cosmic / niri / xfce Flatpaks build (publish=false) | when that frontend changed |
 | `screenshots-*.yml` | each frontend launches, renders every page, pixel audit passes | when that frontend changed |
 | `ci-niri.yml`, `cargo-sources-cosmic.yml` | frontend-specific checks | when relevant |
+| `e2e.yml` | every frontend drives its real backend path to Done, and the recipe each produced is installed by fisherman and booted in a VM | every push |
 | `walkthrough.yml` | cross-frontend parity page regenerates | after any screenshot job |
 
 A push to `dev` also refreshes the `latest-dev` **pre-release** with the GNOME
@@ -134,10 +135,10 @@ All in `.github/workflows/promote.yml`:
 
 ## Things the flow does not do
 
-- It does not run the VM install matrix. That lives in `tuna-os/fisherman`
-  (`bootcrew-vm.yml`) against the backend, and in `tuna-os/tunaOS`
-  (`installer-smoke.yml`) against the live ISOs. Widening the soak window is
-  the lever if those need time to run against a `dev` commit first.
+- It does not run fisherman's full image matrix. `e2e.yml` installs and
+  boots one canary per frontend recipe; the matrix over every supported
+  image lives in `tuna-os/fisherman` (`bootcrew-vm.yml`), and the live-ISO
+  smoke test in `tuna-os/tunaOS` (`installer-smoke.yml`).
 - It does not version the fisherman submodule. Bumping the pointer is a
   normal PR to `dev` and ships like any other change.
 - It does not need a personal access token. `GITHUB_TOKEN` pushes do not
