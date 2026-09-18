@@ -42,7 +42,7 @@ all_timezones = dict(sorted(regions.items()))
 def get_location(callback=None):
     logger.info("Trying to retrieve timezone automatically")
     try:
-        res = requests.get("http://ip-api.com/json?fields=49344", timeout=3).json()
+        res = requests.get("https://ip-api.com/json?fields=49344", timeout=3).json()
         if res["status"] != "success":
             raise Exception(f"get_location: request failed with message '{res['message']}'")
         nearest = world.find_nearest_city(res["lat"], res["lon"])
