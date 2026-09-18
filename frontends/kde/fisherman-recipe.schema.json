@@ -33,8 +33,7 @@
         },
         "passphrase": {
           "type": "string",
-          "minLength": 1,
-          "description": "LUKS passphrase; required for passphrase-based encryption types"
+          "description": "LUKS passphrase; required (and non-empty) for passphrase-based encryption types. Frontends may write an empty string for the other types: fisherman's Recipe struct has no omitempty on it."
         }
       },
       "allOf": [
@@ -48,7 +47,8 @@
             "required": ["type"]
           },
           "then": {
-            "required": ["passphrase"]
+            "required": ["passphrase"],
+            "properties": {"passphrase": {"minLength": 1}}
           }
         }
       ]

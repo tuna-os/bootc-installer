@@ -108,6 +108,12 @@ if(BUILD_CAPTURE)
     target_link_libraries(tuna-installer-capture PRIVATE tunainstallerapp tunainstallerappplugin)
 endif()
 
+option(BUILD_E2E "Build the end-to-end driver that launches the real backend path" OFF)
+if(BUILD_E2E)
+    qt_add_executable(tuna-installer-e2e tests/e2e.cpp)
+    target_link_libraries(tuna-installer-e2e PRIVATE tunainstallerapp tunainstallerappplugin)
+endif()
+
 if(BUILD_TESTING)
     find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 

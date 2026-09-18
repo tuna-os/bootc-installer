@@ -1,0 +1,25 @@
+#!/bin/bash
+# Stands in for lsblk in the end-to-end job so every frontend sees exactly one
+# installable disk: the loop device setup.sh created. Real lsblk would show
+# the runner's own disk, and a frontend that picks the first disk would then
+# hand fisherman /dev/sda.
+#
+# The fixture carries every column any frontend asks for (NAME, PATH, SIZE,
+# MODEL, TYPE, RM, MOUNTPOINTS, TRAN); the -o list is ignored. What is NOT
+# ignored is -b: with it real lsblk prints SIZE in bytes as a number (XFCE
+# parses that), without it as a human string such as "20G" (the Niri backend
+# and COSMIC unmarshal a string, and reject a number).
+bytes=0
+for a in "$@"; do
+  case "$a" in -b|--bytes) bytes=1 ;; -*b*) [[ "$a" == -[a-zA-Z]* ]] && bytes=1 ;; esac
+done
+if [ "$bytes" = 1 ]; then
+  exec cat /tmp/tuna-e2e/lsblk.json
+fi
+exec python3 - <<'PY'
+import json
+d = json.load(open("/tmp/tuna-e2e/lsblk.json"))
+for dev in d["blockdevices"]:
+    dev["size"] = "20G"
+print(json.dumps(d))
+PY

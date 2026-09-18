@@ -37,6 +37,7 @@ feature/xyz ──PR──▶ dev ──promote.yml (all checks green + soak)─
 | `screenshots-xfce.yml` | `Screenshots (xfce)` | Same for `frontends/xfce` (GTK3 under Xvfb), plus its pytest suite. |
 | `ci-niri.yml` | `Go backend (niri)` | gofmt / vet / build / test for `frontends/niri/installer`. |
 | `cargo-sources-cosmic.yml` | `cargo-sources matches Cargo.lock (cosmic)` | Offline cargo vendoring stays in sync with `Cargo.lock`. |
+| `e2e.yml` | `E2E (gnome)`, `E2E (kde)`, `E2E (cosmic)`, `E2E (niri)`, `E2E (xfce)`, `E2E (install <frontend>)` | The gate that proves the installers work: each frontend drives its real backend launch path to Done against the real fisherman's validation, then the recipe it produced is installed onto a loop disk and booted in QEMU. See `shared/e2e/README.md`. |
 | `validate-flatpak.yml` | `validate` | GNOME manifests are well-formed with required fields. |
 | `actionlint.yml` | `actionlint` | Workflow syntax. |
 | `ste.yml` | `ste` | Simplified Technical English over every `.md`, budget in `.ste-budget` (a ratchet; the monorepo budget is the sum of the five repos'). |

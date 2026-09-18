@@ -1,0 +1,5 @@
+#!/bin/bash
+# The GNOME frontend escalates with pkexec outside Flatpak. There is no
+# polkit agent on a headless runner, so escalate with the runner's
+# passwordless sudo instead; the target is still /usr/local/bin/fisherman.
+exec sudo -n "$@"

@@ -16,7 +16,7 @@ Workflows live only in the root `.github/workflows/`; per-frontend ones are name
 
 ## Release flow (read docs/RELEASE.md before touching CI)
 
-`dev` → every check green + soak → `promote.yml` fast-forwards `prod` → `release.yml` cuts the GitHub release and publishes all five Flatpaks. Nothing on `dev` reaches `/releases/latest/` or the Flatpak remote. `prod` is never pushed by hand.
+`dev` → every check green + soak → `promote.yml` fast-forwards `prod` → `release.yml` cuts the GitHub release and publishes all five Flatpaks. Nothing on `dev` reaches `/releases/latest/` or the Flatpak remote. `prod` is never pushed by hand. The checks include `e2e.yml` (`shared/e2e/`): every frontend drives its real backend path and the recipe it produced is installed and booted in a VM.
 
 ## Build commands
 

@@ -673,6 +673,40 @@ mod tests {
         assert_eq!(with_tpm[3].id, "tpm2-luks-passphrase");
     }
 
+    /// End to end: the Install button's code path against the real backend.
+    ///
+    /// `run_fisherman` is what `Message::StartInstall` performs: it writes
+    /// the 0600 recipe, runs `fisherman_command()` (sudo
+    /// /usr/local/bin/fisherman outside Flatpak), collects the output and
+    /// persists the log. In the end-to-end job shared/e2e/setup.sh has put
+    /// the validating shim at that path, so this exercises the real
+    /// fisherman's Validate() on the recipe this crate serialises. Ignored
+    /// by default: it needs TUNA_E2E_DISK and the shim.
+    ///
+    ///     TUNA_E2E_DISK=/dev/loopN cargo test --release -- --ignored e2e
+    #[test]
+    #[ignore]
+    fn e2e_install_path_reaches_fisherman() {
+        let disk = std::env::var("TUNA_E2E_DISK").expect("TUNA_E2E_DISK (run shared/e2e/setup.sh)");
+        let mut recipe = Recipe::default();
+        recipe.disk = disk;
+        recipe.filesystem = "xfs".into();
+        recipe.image = "quay.io/centos-bootc/centos-bootc:c10s".into();
+        recipe.hostname = "cosmic-e2e".into();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (code, log) = rt
+            .block_on(TunaInstaller::run_fisherman(recipe))
+            .expect("fisherman could not be launched");
+        println!("{log}");
+        assert_eq!(code, 0, "fisherman exit code");
+        assert!(log.contains("[9/9]"), "the log never reached step 9");
+        assert!(
+            std::path::Path::new("/tmp/tuna-e2e/recipe.json").exists(),
+            "the shim recorded no recipe"
+        );
+    }
+
     #[test]
     fn recipe_roundtrip_and_field_serialization() {
         let mut recipe = Recipe::default();
