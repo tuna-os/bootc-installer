@@ -51,11 +51,18 @@ jobs:
           # libgtk-4-bin ships gtk4-broadwayd and libgtk-3-bin ships
           # broadwayd; the backends themselves are compiled into libgdk, so
           # these two packages are the whole of what Broadway needs.
+          #
+          # The rest is the GNOME meson build, and is deliberately the same
+          # set screenshots-gnome.yml installs. gettext is not optional:
+          # data/meson.build calls i18n.merge_file for the .desktop and
+          # appdata files, which needs msgfmt, and meson setup fails at
+          # configure time without it.
           sudo apt-get install -y -qq \
             libgtk-4-bin libgtk-3-bin \
-            gir1.2-gtk-4.0 gir1.2-gtk-3.0 gir1.2-adw-1 \
+            gir1.2-gtk-4.0 gir1.2-gtk-3.0 gir1.2-adw-1 gir1.2-vte-3.91 \
             python3-gi python3-gi-cairo \
-            meson ninja-build blueprint-compiler \
+            meson ninja-build blueprint-compiler libglib2.0-dev \
+            desktop-file-utils appstream gettext \
             adwaita-icon-theme
 
       - uses: actions/setup-node@v4
