@@ -157,12 +157,20 @@ Feasible in principle, a large piece of work, and the Xvfb harness
 
 ### Niri (Go + QML)
 
-The hardest of the three. The UI is Qt Quick driven from Go through cgo.
-Qt for WebAssembly could in principle render the QML, but the Go side cannot
-come with it: cgo does not target `wasm32-unknown-unknown`, and the Go
-runtime and the Qt binding are exactly what would have to be compiled. There
-is no incremental path here — it would be a rewrite of the frontend's
-architecture, not a build-system change.
+The most promising of the three, which is not the obvious answer.
+
+The installer is a Go program and cgo cannot target wasm, so the shipped
+binary is not going anywhere. That does not matter, because the UI is not in
+the Go. `frontends/niri/tests/gui/capture-screens.py` already loads the same
+unmodified `ui/installer.qml` under a plain Qt Quick runtime, supplying stub
+implementations of the two Quickshell modules it imports. No Go participates
+in that path at all.
+
+So the browser version is the same trick against a different Qt platform:
+Qt Quick for WebAssembly in place of the offscreen plugin, with the QML and
+the stubs bundled into the package. It needs the Emscripten and Qt-for-wasm
+toolchain, which is the real cost and is shared with KDE, but it needs no
+architectural change. Tracked in #103.
 
 ### Summary
 
@@ -170,10 +178,19 @@ architecture, not a build-system change.
 |---|---|---|---|
 | GNOME | GTK4 / libadwaita | **works** | — |
 | XFCE | GTK3 | **works** | canvas only, so no DOM geometry |
-| COSMIC | libcosmic (Iced fork) | no | `tokio` full → `mio` has no wasm32 support |
-| KDE | Qt6 Widgets + Quick | no | needs Emscripten + a Qt-for-wasm build |
-| Niri | Go + QML via cgo | no | cgo cannot target wasm at all |
+| COSMIC | libcosmic (Iced fork) | not yet | `tokio` full → `mio` has no wasm32 support (#105) |
+| KDE | Qt6 Widgets + Quick | not yet | needs Emscripten + a Qt-for-wasm build (#104) |
+| Niri | Go + QML (Quickshell) | not yet | needs Qt-for-wasm; the UI itself is Go-free (#103) |
 
-Two of five, and the two that work are the two whose toolkit ships a browser
-backend in the box. That is the whole pattern: Broadway is a GTK feature, not
-a general technique.
+Two of five today, and the two that work are the two whose toolkit ships a
+browser backend in the box. That is the pattern: Broadway is a GTK feature,
+not a general technique, and everything else has to be compiled to wasm
+instead of streamed.
+
+The ordering above is by how much work each would take, and it is worth
+saying that it is the reverse of the intuitive one. COSMIC looks closest
+because Iced runs on the web, and is furthest because this frontend does not
+use upstream Iced and cannot even finish a dependency build. Niri looks
+furthest because it is written in Go, and is closest because its UI is pure
+QML that already renders without the Go. #103, #104 and #105 carry the
+detail.
