@@ -1,6 +1,6 @@
 # bootc-installer Pitfalls Reference
 
-Distilled engineering gotchas for `projectbluefin/bootc-installer`.  
+Distilled engineering gotchas for `tuna-os/bootc-installer`.  
 Load when debugging test failures, import errors, or GTK/GIO issues.
 
 ---
@@ -378,13 +378,13 @@ This repo uses GitHub **repository rulesets** (not classic branch protection). T
 
 ```bash
 # List rulesets
-gh api repos/projectbluefin/bootc-installer/rulesets
+gh api repos/tuna-os/bootc-installer/rulesets
 
 # Delete a ruleset (removes all its rules including required status checks)
-gh api --method DELETE repos/projectbluefin/bootc-installer/rulesets/<id>
+gh api --method DELETE repos/tuna-os/bootc-installer/rulesets/<id>
 
 # Classic branch protection (does NOT apply here — returns 404)
-gh api repos/projectbluefin/bootc-installer/branches/dev/protection
+gh api repos/tuna-os/bootc-installer/branches/dev/protection
 ```
 
 If direct pushes to `dev` are blocked with "2 of 2 required status checks expected", the block comes from a ruleset, not classic protection. Delete the ruleset to allow direct pushes.

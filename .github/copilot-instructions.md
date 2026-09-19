@@ -1,6 +1,6 @@
 # GitHub Copilot Instructions — bootc-installer
 
-This is `projectbluefin/bootc-installer`: a GTK4/Libadwaita Flatpak GUI installer for bootc images, backed by the `fisherman` Go backend.
+This is `tuna-os/bootc-installer`: a GTK4/Libadwaita Flatpak GUI installer for bootc images, backed by the `fisherman` Go backend.
 
 ## Read before doing any work
 
@@ -9,7 +9,7 @@ This is `projectbluefin/bootc-installer`: a GTK4/Libadwaita Flatpak GUI installe
 
 ## Key facts
 
-- **Repo:** `projectbluefin/bootc-installer` — work directly here, no fork
+- **Repo:** `tuna-os/bootc-installer` — work directly here, no fork
 - **fisherman:** git submodule at `fisherman/` → `tuna-os/fisherman`. Push changes there separately, then update the pointer here
 - **Branch strategy:** `feature/xyz → dev → prod`. All PRs target `dev`
 - **CI gate:** `--cov-fail-under=51` for Python unit tests; Go coverage gate: 20%
