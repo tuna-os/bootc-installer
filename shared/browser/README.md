@@ -137,11 +137,18 @@ error: could not compile `mio` (lib) due to 48 previous errors
 file descriptors that the target does not have. The build never reaches
 libcosmic, let alone its renderer.
 
-Getting there would mean cutting the frontend's async runtime down to
-something wasm-compatible and then finding out whether libcosmic's vendored
-winit and wgpu have a working web path at all — which its Wayland and
-freedesktop dependency tree suggests was never the intent. That is a project,
-not a harness.
+That is where the obvious reading stops, and it is wrong. Trimming `tokio`
+to the four features this crate actually uses, and dropping libcosmic's
+`desktop` feature (which forces `tokio?/net` on its own), removes mio from
+the graph entirely — and behind it **wgpu 28 and iced 0.14 compile for
+wasm32**. The blocker is now `atomicwrites`, a small pop-os crate with no
+wasm arm, reached through `cosmic-config`, which libcosmic depends on
+unconditionally. That is an upstream fix rather than a rewrite.
+
+`iced_winit` and `iced_wgpu` are still untested, because the build stops
+before them, so this is not "the renderer works" — it is "the renderer is
+now reachable". #105 has the build output, the dependency trace and the
+upstream state.
 
 ### KDE (C++, Qt6 Widgets + Quick)
 
@@ -178,7 +185,7 @@ architectural change. Tracked in #103.
 |---|---|---|---|
 | GNOME | GTK4 / libadwaita | **works** | — |
 | XFCE | GTK3 | **works** | canvas only, so no DOM geometry |
-| COSMIC | libcosmic (Iced fork) | not yet | `tokio` full → `mio` has no wasm32 support (#105) |
+| COSMIC | libcosmic (Iced fork) | not yet | `atomicwrites` has no wasm arm, via `cosmic-config` (#105) |
 | KDE | Qt6 Widgets + Quick | not yet | needs Emscripten + a Qt-for-wasm build (#104) |
 | Niri | Go + QML (Quickshell) | not yet | needs Qt-for-wasm; the UI itself is Go-free (#103) |
 
@@ -187,10 +194,9 @@ browser backend in the box. That is the pattern: Broadway is a GTK feature,
 not a general technique, and everything else has to be compiled to wasm
 instead of streamed.
 
-The ordering above is by how much work each would take, and it is worth
-saying that it is the reverse of the intuitive one. COSMIC looks closest
-because Iced runs on the web, and is furthest because this frontend does not
-use upstream Iced and cannot even finish a dependency build. Niri looks
-furthest because it is written in Go, and is closest because its UI is pure
-QML that already renders without the Go. #103, #104 and #105 carry the
-detail.
+Niri looks furthest because it is written in Go, and is closest because its
+UI is pure QML that already renders without the Go. COSMIC looks closest
+because Iced runs on the web, and is not — but it is nearer than its first
+error suggests, and its remaining blocker is a small upstream one rather
+than anything in this repository. #103, #104 and #105 carry the detail, and
+each records what was measured rather than what was assumed.
