@@ -1,6 +1,6 @@
 ---
 name: bootc-installer
-description: bootc-installer — GTK4/Adwaita Flatpak installer for bootc images. Dev setup, build loop, testing, CI/release, and dakota-iso integration. Load when working in projectbluefin/bootc-installer.
+description: bootc-installer — GTK4/Adwaita Flatpak installer for bootc images. Dev setup, build loop, testing, CI/release, and dakota-iso integration. Load when working in tuna-os/bootc-installer.
 ---
 
 # bootc-installer Skill
@@ -10,11 +10,11 @@ description: bootc-installer — GTK4/Adwaita Flatpak installer for bootc images
 - **Level:** 2
 
 
-Full dev, test, and release workflow for `projectbluefin/bootc-installer`.
+Full dev, test, and release workflow for `tuna-os/bootc-installer`.
 
 ## When to Use
 
-- Working in `~/src/bootc-installer` (`projectbluefin/bootc-installer`)
+- Working in `~/src/bootc-installer` (`tuna-os/bootc-installer`)
 - Adding or modifying a wizard step (defaults/, views/, windows/)
 - Changing the fisherman Go backend (submodule at `fisherman/`)
 - Debugging the install pipeline, progress parsing, or Flatpak sandbox

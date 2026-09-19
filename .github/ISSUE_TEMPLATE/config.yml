@@ -1,7 +1,7 @@
 blank_issues_enabled: true
 contact_links:
   - name: "bootc-installer documentation"
-    url: https://github.com/projectbluefin/bootc-installer/blob/dev/README.md
+    url: https://github.com/tuna-os/bootc-installer/blob/dev/README.md
     about: "Recipe format, image customisation, and autoinstall reference."
   - name: "fisherman backend"
     url: https://github.com/tuna-os/fisherman
