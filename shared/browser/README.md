@@ -137,18 +137,21 @@ error: could not compile `mio` (lib) due to 48 previous errors
 file descriptors that the target does not have. The build never reaches
 libcosmic, let alone its renderer.
 
-That is where the obvious reading stops, and it is wrong. Trimming `tokio`
-to the four features this crate actually uses, and dropping libcosmic's
-`desktop` feature (which forces `tokio?/net` on its own), removes mio from
-the graph entirely — and behind it **wgpu 28 and iced 0.14 compile for
-wasm32**. The blocker is now `atomicwrites`, a small pop-os crate with no
-wasm arm, reached through `cosmic-config`, which libcosmic depends on
-unconditionally. That is an upstream fix rather than a rewrite.
+That is where the obvious reading stops, and it is wrong. **The whole thing
+compiles for wasm32** — `wgpu` 28, iced 0.14 including `iced_winit`,
+`cosmic-config`, `cosmic-theme`, `libcosmic` and the installer crate — once
+five small patches are applied, totalling under 200 diff lines. They are in
+`wasm-patches/`, with the build output and the reasoning.
 
-`iced_winit` and `iced_wgpu` are still untested, because the build stops
-before them, so this is not "the renderer works" — it is "the renderer is
-now reachable". #105 has the build output, the dependency trace and the
-upstream state.
+The most useful thing found there: libcosmic's vendored `iced_winit`
+**already has a web path**, inherited from upstream iced, which attaches a
+canvas and spawns the event loop through `wasm_bindgen_futures`. It had
+simply never been compiled, so it drifted out of step with the winit it
+pins — renamed traits, a missing struct field, one lifetime bound. Nobody
+decided against the web; nobody built it.
+
+This is a type-check, not a running app: it says the code builds for the
+browser, not that anything draws. #105 tracks the rest.
 
 ### KDE (C++, Qt6 Widgets + Quick)
 

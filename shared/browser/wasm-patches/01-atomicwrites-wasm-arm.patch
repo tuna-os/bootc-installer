@@ -1,0 +1,36 @@
+--- /root/.cargo/git/checkouts/rust-atomicwrites-65d10ea72c60eb36/043ab48/src/lib.rs	2026-09-18 04:08:36.443714920 +0000
++++ /tmp/claude-0/-home-user/dd29bd63-5ac7-52f5-b9a1-1d7feb18b96f/scratchpad/atomicwrites/src/lib.rs	2026-09-19 08:42:36.846996305 +0000
+@@ -169,7 +169,7 @@
+     }
+ }
+ 
+-#[cfg(all(unix, not(target_os = "redox")))]
++#[cfg(all(unix, not(target_os = "redox"), not(target_family = "wasm")))]
+ mod imp {
+     use super::safe_parent;
+ 
+@@ -278,6 +278,24 @@
+     }
+ }
+ 
++// Added locally to answer one question: whether libcosmic's renderer builds
++// for wasm32 once cosmic-config stops being the thing that stops the build.
++// std::fs exists on wasm32-unknown-unknown and every call fails at runtime,
++// which is the honest behaviour for a target with no filesystem -- and is
++// fine here, because nothing writes config in a browser.
++#[cfg(target_family = "wasm")]
++mod imp {
++    use std::{fs, io, path};
++
++    pub fn replace_atomic(src: &path::Path, dst: &path::Path) -> io::Result<()> {
++        fs::rename(src, dst)
++    }
++
++    pub fn move_atomic(src: &path::Path, dst: &path::Path) -> io::Result<()> {
++        fs::rename(src, dst)
++    }
++}
++
+ #[cfg(target_os = "redox")]
+ mod imp {
+     use std::{fs, io, path};

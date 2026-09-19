@@ -1,0 +1,26 @@
+--- /root/.cargo/git/checkouts/libcosmic-41009aea1d72760b/43a50cb/cosmic-config/src/lib.rs	2026-09-18 04:08:30.342438341 +0000
++++ /tmp/claude-0/-home-user/dd29bd63-5ac7-52f5-b9a1-1d7feb18b96f/scratchpad/libcosmic/cosmic-config/src/lib.rs	2026-09-19 08:43:48.059861582 +0000
+@@ -207,6 +207,11 @@
+             known_folders::get_known_folder_path(known_folders::KnownFolder::ProgramFilesCommon)
+                 .map(|x| x.join("COSMIC").join(&path));
+ 
++        // Neither unix nor windows: there is no system config location, which
++        // is the truthful answer on wasm rather than an omission.
++        #[cfg(not(any(unix, windows)))]
++        let system_path: Option<PathBuf> = None;
++
+         Ok(Self {
+             system_path,
+             user_path: None,
+@@ -240,6 +245,11 @@
+             known_folders::get_known_folder_path(known_folders::KnownFolder::ProgramFilesCommon)
+                 .map(|x| x.join("COSMIC").join(&path));
+ 
++        // Neither unix nor windows: there is no system config location, which
++        // is the truthful answer on wasm rather than an omission.
++        #[cfg(not(any(unix, windows)))]
++        let system_path: Option<PathBuf> = None;
++
+         // Get libcosmic user configuration directory
+         let mut user_path = get_config_dir().ok_or(Error::NoConfigDirectory)?;
+         user_path.push("cosmic");
