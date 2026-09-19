@@ -1,0 +1,12 @@
+--- /root/.cargo/git/checkouts/libcosmic-41009aea1d72760b/43a50cb/Cargo.toml	2026-09-18 04:08:30.341335663 +0000
++++ /tmp/claude-0/-home-user/dd29bd63-5ac7-52f5-b9a1-1d7feb18b96f/scratchpad/libcosmic/Cargo.toml	2026-09-19 08:50:56.985750671 +0000
+@@ -101,6 +101,9 @@
+ wgpu = ["iced/wgpu", "iced_wgpu"]
+ # X11 window support via winit
+ winit = ["iced/winit", "iced_winit"]
++# Browser builds need wgpu's WebGL backend; WebGPU is not dependable in
++# headless Chromium. Passthrough only, off by default.
++webgl = ["iced/webgl"]
+ winit_debug = ["winit", "debug"]
+ winit_tokio = ["winit", "tokio"]
+ winit_wgpu = ["winit", "wgpu"]

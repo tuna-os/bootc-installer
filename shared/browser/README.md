@@ -137,11 +137,10 @@ error: could not compile `mio` (lib) due to 48 previous errors
 file descriptors that the target does not have. The build never reaches
 libcosmic, let alone its renderer.
 
-That is where the obvious reading stops, and it is wrong. **The whole thing
-compiles for wasm32** — `wgpu` 28, iced 0.14 including `iced_winit`,
-`cosmic-config`, `cosmic-theme`, `libcosmic` and the installer crate — once
-five small patches are applied, totalling under 200 diff lines. They are in
-`wasm-patches/`, with the build output and the reasoning.
+That is where the obvious reading stops, and it is wrong. **The COSMIC
+installer renders in a browser**, and Playwright can click through it —
+eight patches, 278 diff lines, five of them upstream. `wasm-patches/` has
+them, the screenshots and the commands.
 
 The most useful thing found there: libcosmic's vendored `iced_winit`
 **already has a web path**, inherited from upstream iced, which attaches a
@@ -150,8 +149,12 @@ simply never been compiled, so it drifted out of step with the winit it
 pins — renamed traits, a missing struct field, one lifetime bound. Nobody
 decided against the web; nobody built it.
 
-This is a type-check, not a running app: it says the code builds for the
-browser, not that anything draws. #105 tracks the rest.
+The single most costly line is in `iced_wgpu`: it sets
+`VK_LOADER_DRIVERS_DISABLE` under `cfg(wayland_platform)` and unsets it
+ungated. wasm panics on `remove_var`, so no libcosmic app can reach its
+first frame in a browser until that cfg is matched up. One line.
+
+#105 tracks the upstream conversation.
 
 ### KDE (C++, Qt6 Widgets + Quick)
 
