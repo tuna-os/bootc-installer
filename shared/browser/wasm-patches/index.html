@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>COSMIC installer — wasm</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #141218; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<script type="module">
+  window.__log = [];
+  for (const level of ['log', 'warn', 'error']) {
+    const orig = console[level].bind(console);
+    console[level] = (...a) => { window.__log.push(level + ': ' + a.join(' ')); orig(...a); };
+  }
+  window.addEventListener('error', e => window.__log.push('window.error: ' + e.message));
+  window.addEventListener('unhandledrejection', e => window.__log.push('unhandled: ' + e.reason));
+
+  import init from './tuna_installer_cosmic.js';
+  window.__status = 'importing';
+  init()
+    .then(() => { window.__status = 'init-returned'; })
+    .catch(e => {
+      // winit's run_app throws to unwind the Rust stack on the web; that is
+      // the success path, not a failure. Anything else is real.
+      const msg = String(e);
+      window.__status = msg.includes('Using exceptions for control flow')
+        ? 'running (control-flow unwind)' : 'init-threw';
+      window.__log.push('init rejected: ' + msg);
+    });
+</script>
+</body>
+</html>

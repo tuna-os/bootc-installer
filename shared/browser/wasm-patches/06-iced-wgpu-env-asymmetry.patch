@@ -1,0 +1,14 @@
+--- /root/.cargo/git/checkouts/libcosmic-41009aea1d72760b/43a50cb/iced/wgpu/src/window/compositor.rs	2026-09-18 04:08:33.112064965 +0000
++++ /tmp/claude-0/-home-user/dd29bd63-5ac7-52f5-b9a1-1d7feb18b96f/scratchpad/libcosmic/iced/wgpu/src/window/compositor.rs	2026-09-19 08:57:29.145748030 +0000
+@@ -102,6 +102,11 @@
+ 
+         log::info!("{settings:#?}");
+ 
++        // Only the wayland_platform arm above ever sets this, and wasm cannot
++        // unset an environment variable at all -- std panics rather than
++        // failing softly -- so the removal has to carry the same cfg as the
++        // set. Without it, every browser build dies here.
++        #[cfg(wayland_platform)]
+         unsafe {
+             std::env::remove_var("VK_LOADER_DRIVERS_DISABLE");
+         }

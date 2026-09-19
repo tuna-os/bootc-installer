@@ -1,0 +1,99 @@
+name: Browser walkthrough
+
+# Renders the GTK frontends in a real browser (GTK Broadway) and walks every
+# wizard page with Playwright. See shared/browser/README.md, including why
+# only the GTK frontends are here: COSMIC, KDE and Niri have no browser
+# backend, and that file records what each one would take.
+#
+# This does not replace the screenshots-*.yml jobs. Those capture the docs
+# images in-process and can read the widget tree for text; this one proves the
+# wizard still advances under a driver that can click it.
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "bootc_installer/**"
+      - "frontends/xfce/**"
+      - "shared/browser/**"
+      - ".github/workflows/browser-walkthrough.yml"
+  pull_request:
+    paths:
+      - "bootc_installer/**"
+      - "frontends/xfce/**"
+      - "shared/browser/**"
+      - ".github/workflows/browser-walkthrough.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-walkthrough-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  walk:
+    name: Browser walkthrough (${{ matrix.frontend }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        frontend: [gnome, xfce]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: install GTK, Broadway daemons and introspection
+        run: |
+          sudo apt-get update -qq
+          # libgtk-4-bin ships gtk4-broadwayd and libgtk-3-bin ships
+          # broadwayd; the backends themselves are compiled into libgdk, so
+          # these two packages are the whole of what Broadway needs.
+          #
+          # The rest is the GNOME meson build, and is deliberately the same
+          # set screenshots-gnome.yml installs. gettext is not optional:
+          # data/meson.build calls i18n.merge_file for the .desktop and
+          # appdata files, which needs msgfmt, and meson setup fails at
+          # configure time without it.
+          sudo apt-get install -y -qq \
+            libgtk-4-bin libgtk-3-bin \
+            gir1.2-gtk-4.0 gir1.2-gtk-3.0 gir1.2-adw-1 gir1.2-vte-3.91 \
+            python3-gi python3-gi-cairo \
+            meson ninja-build blueprint-compiler libglib2.0-dev \
+            desktop-file-utils appstream gettext \
+            adwaita-icon-theme
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: install Playwright and its Chromium
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: build the GNOME GResource bundle
+        if: matrix.frontend == 'gnome'
+        run: |
+          # The GTK templates are compiled from .blp into the bundle, and the
+          # Python that binds their children is checked against it at runtime.
+          # A stale bundle fails as a missing template child, so this is built
+          # fresh rather than cached.
+          meson setup build -Dbuild-fisherman=false --prefix=/tmp/install
+          ninja -C build
+
+      - name: walk ${{ matrix.frontend }} in a browser
+        env:
+          BOOTC_RESOURCE: build/bootc_installer/bootc-installer.gresource
+          PLAYWRIGHT_MODULE: ${{ github.workspace }}/node_modules/playwright
+        run: shared/browser/run.sh "${{ matrix.frontend }}" "docs/browser/${{ matrix.frontend }}"
+
+      - name: upload what the browser saw
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-walkthrough-${{ matrix.frontend }}
+          path: docs/browser/${{ matrix.frontend }}
+          if-no-files-found: warn

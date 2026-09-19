@@ -67,6 +67,15 @@ CI checks out submodules recursively — always verify CI passes after both push
 
 Every frontend has a headless capture job (`screenshots-<name>.yml`) that renders each page, audits the pixels, and emits `walkthrough-<name>.json` against the shared screen contract. `walkthrough.yml` folds them into `docs/walkthrough/README.md`. GNOME: `xvfb-run -a python3 tests/gui/capture-screens.py docs/screenshots` after a meson build.
 
+The two GTK frontends can also be rendered in a real browser and driven with
+Playwright — `shared/browser/run.sh gnome|xfce`, wired up as
+`browser-walkthrough.yml`. This is GTK's own Broadway backend, so the widgets
+are real; it clicks and types where the Xvfb harnesses can only look. It does
+not replace them: Broadway ships text as textures, so there is no
+accessibility tree and no text assertions. COSMIC, KDE and Niri have no
+browser backend at all — `shared/browser/README.md` records what each one
+would take, with the failing build output for COSMIC.
+
 ## Known issues
 
 - **UI freeze during blob download**: `__on_vte_contents_changed` in `progress.py` scrapes the entire VTE buffer on every character change.
