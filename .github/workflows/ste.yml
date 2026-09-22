@@ -34,6 +34,9 @@ on:
       - .github/workflows/ste.yml
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   ste:
     uses: tuna-os/.github/.github/workflows/ste-lint.yml@main
