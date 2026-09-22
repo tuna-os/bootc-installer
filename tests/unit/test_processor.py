@@ -257,19 +257,114 @@ class TestUserSpec:
         r = _load(path)
         assert r["user"]["username"] == "alice"
         assert r["user"]["fullname"] == "Alice Smith"
-        assert r["user"]["password"] == "pass1"
+        # Plaintext must never reach the recipe: fisherman would then hash it
+        # itself via chpasswd's PAM path, which fails on composefs targets.
+        assert r["user"]["password"] != "pass1"
+        assert r["user"]["password"].startswith("$6$")
         assert r["user"]["groups"] == ["wheel"]
 
     def test_empty_user_when_not_provided(self):
         path = Processor.gen_install_recipe("log", _auto_finals(), _SYS_RECIPE)
         r = _load(path)
         assert r["user"]["username"] == ""
+        # No password requested: stays empty, not a hash of "" (fisherman
+        # treats "" as "leave the account unset").
+        assert r["user"]["password"] == ""
 
     def test_user_groups_default_empty(self):
         user = {"username": "bob", "password": "p"}
         path = Processor.gen_install_recipe("log", _auto_finals(user=user), _SYS_RECIPE)
         r = _load(path)
         assert r["user"]["groups"] == []
+
+    def test_sys_recipe_groups_override_ui_groups(self):
+        # An operator-pinned group list (e.g. an image without libvirt)
+        # wins over the UI defaults.
+        user = {"username": "bob", "password": "p",
+                "groups": ["wheel", "docker", "incus-admin", "libvirt", "dialout"]}
+        sys = {**_SYS_RECIPE, "user": {"groups": ["wheel", "dialout"]}}
+        path = Processor.gen_install_recipe("log", _auto_finals(user=user), sys)
+        r = _load(path)
+        assert r["user"]["groups"] == ["wheel", "dialout"]
+
+    def test_sys_recipe_without_groups_keeps_ui_groups(self):
+        user = {"username": "bob", "password": "p", "groups": ["wheel"]}
+        sys = {**_SYS_RECIPE, "user": {"username": "ignored"}}
+        path = Processor.gen_install_recipe("log", _auto_finals(user=user), sys)
+        r = _load(path)
+        assert r["user"]["groups"] == ["wheel"]
+
+    def test_already_hashed_password_passed_through(self):
+        # A companion config may already supply a crypt(3) hash. Re-hashing
+        # it would make the literal hash text the account's real password.
+        prehashed = "$6$abcdsalt$" + "x" * 86
+        user = {"username": "carol", "password": prehashed}
+        path = Processor.gen_install_recipe("log", _auto_finals(user=user), _SYS_RECIPE)
+        r = _load(path)
+        assert r["user"]["password"] == prehashed
+
+
+class TestHashUserPassword:
+    def test_empty_password_untouched(self):
+        from bootc_installer.utils.processor import _hash_user_password
+        assert _hash_user_password("") == ""
+
+    def test_already_hashed_password_untouched(self):
+        from bootc_installer.utils.processor import _hash_user_password
+        assert _hash_user_password("$6$salt$hash") == "$6$salt$hash"
+        assert _hash_user_password("$y$j9T$salt$hash") == "$y$j9T$salt$hash"
+
+    def test_uses_stdlib_crypt_when_available(self, monkeypatch):
+        import types
+        import bootc_installer.utils.processor as mod
+        fake = types.ModuleType("crypt")
+        fake.METHOD_SHA512 = "fake-sha512"
+        fake.mksalt = lambda method: f"salt-for-{method}"
+        fake.crypt = lambda pw, salt: f"$6${salt}${pw}-hashed"
+        monkeypatch.setitem(sys.modules, "crypt", fake)
+        assert mod._hash_user_password("hunter2") == "$6$salt-for-fake-sha512$hunter2-hashed"
+
+    def test_falls_back_to_plaintext_when_hashing_unavailable(self, monkeypatch):
+        import subprocess as _subprocess
+        import bootc_installer.utils.processor as mod
+
+        def _boom(*a, **k):
+            raise _subprocess.CalledProcessError(1, "openssl")
+
+        # Simulate stdlib crypt gone (Python >= 3.13) AND openssl failing:
+        # must not raise, must not fabricate a value.
+        monkeypatch.setitem(sys.modules, "crypt", None)
+        monkeypatch.setattr(mod.subprocess, "run", _boom)
+        assert mod._hash_user_password("hunter2") == "hunter2"
+
+    def test_newline_password_never_truncated(self, monkeypatch):
+        # openssl reads one stdin line: hashing "a\nb" would hash only "a".
+        # With stdlib crypt missing this must pass through, not hash a prefix.
+        import bootc_installer.utils.processor as mod
+        monkeypatch.setitem(sys.modules, "crypt", None)
+        assert mod._hash_user_password("a\nb") == "a\nb"
+
+    def test_two_calls_use_different_salts(self):
+        from bootc_installer.utils.processor import _hash_user_password
+        first = _hash_user_password("hunter2")
+        if not first.startswith("$"):
+            pytest.skip("no crypt backend in this environment")
+        assert _hash_user_password("hunter2") != first
+
+    def test_real_hash_verifies_against_openssl(self):
+        import shutil
+        if shutil.which("openssl") is None:
+            pytest.skip("openssl not available")
+        import subprocess as _subprocess
+        from bootc_installer.utils.processor import _hash_user_password
+        hashed = _hash_user_password("correct horse")
+        assert hashed.startswith("$6$")
+        salt = hashed.split("$")[2]
+        check = _subprocess.run(
+            ["openssl", "passwd", "-6", "-salt", salt, "correct horse"],
+            capture_output=True, text=True, check=True,
+        )
+        assert check.stdout.strip() == hashed
 
 
 # ── unified storage tests ─────────────────────────────────────────────────────
