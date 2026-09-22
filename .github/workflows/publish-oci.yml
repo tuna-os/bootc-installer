@@ -162,7 +162,9 @@ jobs:
             fi
             if [ "$ALSO_LATEST" = "true" ]; then
               skopeo copy "oci:${dir}" "docker://${REGISTRY}/${PACKAGE}:latest-${arch}"
-              [ -n "$version_tag" ] && skopeo copy "oci:${dir}" "docker://${REGISTRY}/${PACKAGE}:${version_tag}-${arch}"
+              if [ -n "$version_tag" ]; then
+                skopeo copy "oci:${dir}" "docker://${REGISTRY}/${PACKAGE}:${version_tag}-${arch}"
+              fi
             fi
           done
           skopeo copy "oci:oci-${FRONTEND}-${primary}" "docker://${REGISTRY}/${PACKAGE}:${FRONTEND}"
@@ -172,7 +174,9 @@ jobs:
           {
             echo "## ${REGISTRY}/${PACKAGE}:${FRONTEND}"
             for arch in "${archs[@]}"; do echo "- \`${FRONTEND}-${arch}\`"; done
-            [ -n "$version_tag" ] && echo "- \`${FRONTEND}-${version_tag}-<arch>\`"
+            if [ -n "$version_tag" ]; then
+              echo "- \`${FRONTEND}-${version_tag}-<arch>\`"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       # The central Flatpak index (tuna-os/docs) keys entries by repo name;
