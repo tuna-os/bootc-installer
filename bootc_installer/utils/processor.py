@@ -258,6 +258,15 @@ class Processor:
         user_password = user_info.get("password", "")
         user_groups   = user_info.get("groups", [])
 
+        # For non-composefs (ostree/bootcDirect) live ISO installs, fisherman
+        # expects an empty "image" and populated "targetImgref" so that it invokes
+        # bootc install directly against host storage without containerized scratch export.
+        fisherman_image = image
+        # When the live ISO recipe explicitly sets image="" for non-composefs (bootcDirect),
+        # honor the empty image so fisherman invokes host-direct bootc install.
+        if not composefs_backend and image_type == "bootc" and sys_recipe.get("image") == "":
+            fisherman_image = ""
+
         # Build the fisherman recipe
         recipe = {
             "disk": disk_device,
@@ -267,7 +276,7 @@ class Processor:
                 "type": encryption_type,
                 "passphrase": encryption_passphrase,
             },
-            "image": image,
+            "image": fisherman_image,
             "targetImgref": target_imgref,
             "selinuxDisabled": selinux_disabled,
             "unifiedStorage": unified_storage,
