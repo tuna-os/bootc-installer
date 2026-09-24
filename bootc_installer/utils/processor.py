@@ -17,9 +17,61 @@
 import json
 import logging
 import os
+import subprocess
 import tempfile
 
 logger = logging.getLogger("Installer::Processor")
+
+
+def _hash_user_password(password: str) -> str:
+    """Hash a plaintext user password into a crypt(3) string ("$6$salt$hash").
+
+    fisherman writes a "$"-prefixed password verbatim via `chpasswd -e`.
+    Passing plaintext through forces fisherman to hash it itself via
+    `chpasswd` without -e, which invokes the target's PAM stack to do so.
+    On a composefs-native deploy fisherman only has `chpasswd --root <dir>`
+    (no real chroot), so PAM module resolution fails against the target and
+    the install aborts ("pam_chauthtok() failed", or plain "exit status 1"
+    on EL10). Hashing here means fisherman never invokes PAM at all.
+
+    Already-hashed input (anything starting with "$", e.g. from a companion
+    config) is returned unchanged: re-hashing a hash would make the literal
+    hash text the account's real password. Empty input is returned unchanged:
+    fisherman treats "" as "leave the account unset".
+    """
+    if not password or password.startswith("$"):
+        return password
+
+    try:
+        import crypt  # stdlib; deprecated since 3.11, removed in 3.13.
+        return crypt.crypt(password, crypt.mksalt(crypt.METHOD_SHA512))
+    except ImportError:
+        pass
+
+    # crypt module unavailable (Python >= 3.13): fall back to openssl, which
+    # ships on every host/runtime this app runs on. openssl reads one line
+    # from stdin, so a password containing a newline cannot be hashed this
+    # way — fall through to the plaintext path rather than hashing a prefix.
+    if "\n" not in password:
+        try:
+            result = subprocess.run(
+                ["openssl", "passwd", "-6", "-stdin"],
+                input=password, capture_output=True, text=True, check=True,
+            )
+            hashed = result.stdout.strip()
+            if hashed.startswith("$"):
+                return hashed
+            logger.warning("openssl produced unexpected output; passing password through unhashed")
+        except (OSError, subprocess.CalledProcessError) as e:
+            logger.warning("Could not hash user password (%s); passing through unhashed", e)
+    else:
+        logger.warning("Password contains a newline and stdlib crypt is missing; passing through unhashed")
+
+    # Hashing failed entirely: surface the plaintext rather than silently
+    # producing an unusable recipe field. fisherman falls back to its own
+    # PAM-based chpasswd path (the behavior before this fix) — the previous
+    # outcome, not a new failure mode.
+    return password
 
 
 def _find_nvidia_imgref_for(imgref: str) -> str:
@@ -255,8 +307,16 @@ class Processor:
         user_info = merged.get("user", {})
         user_username = user_info.get("username", "")
         user_fullname = user_info.get("fullname", "")
-        user_password = user_info.get("password", "")
+        user_password = _hash_user_password(user_info.get("password", ""))
         user_groups   = user_info.get("groups", [])
+        # A live-ISO builder may pin the supplementary groups in
+        # /etc/bootc-installer/recipe.json (e.g. an image without
+        # libvirt/docker): an explicit operator list wins over the UI
+        # defaults, which target a generic image.
+        sys_user = sys_recipe.get("user", {})
+        if isinstance(sys_user, dict) and isinstance(sys_user.get("groups"), list):
+            user_groups = sys_user["groups"]
+            logger.info("User groups overridden from system recipe: %s", user_groups)
 
         # Build the fisherman recipe
         recipe = {
