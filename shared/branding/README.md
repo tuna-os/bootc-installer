@@ -95,6 +95,27 @@ the identity test), so no frontend needs a data file at runtime.
 the GNOME frontend used to hardcode; its README says how a live ISO ships
 it.
 
+## Pinning branding for screenshots
+
+A capture resolves branding exactly as the installer does, so an unpinned
+capture is branded by the machine that took it. `shared/walkthrough/capture-branding.json`
+is the pin, and both GTK capture harnesses point `BOOTC_INSTALLER_BRANDING`
+at it (with `setdefault`, so a workflow naming a real product's file wins).
+
+Pin the **whole object**, not `BOOTC_INSTALLER_PRODUCT_NAME`. That variable
+covers `name` and nothing else, which is how the committed
+`docs/screenshots/01-welcome.png` came to show the Ubuntu logo above
+"Welcome to TunaOS" — os-release's `LOGO=ubuntu-logo` was never overridden.
+XFCE showed the same fault in text: its heading read "Welcome to Ubuntu
+24.04.5 LTS" next to a body reading "installs TunaOS", because only the one
+f-string that reads `core.PRODUCT_NAME` had been pinned and every copy key
+still came from the host.
+
+`tests/unit/test_shared_branding.py::CaptureBrandingPinTest` resolves the pin
+against a deliberately foreign os-release and fails if any host value
+survives. Niri needs no env pin — its capture stubs the whole branding object
+in `tests/qml-stubs`, which is why its walkthrough was always right.
+
 ## Implementations
 
 One per language, each reading the same fixtures under `fixtures/`:
