@@ -1,0 +1,77 @@
+{
+  "app-id": "org.tunaos.InstallerXfce",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "49",
+  "sdk": "org.gnome.Sdk",
+  "command": "tuna-installer-xfce",
+  "finish-args": [
+    "--share=network",
+    "--share=ipc",
+    "--socket=wayland",
+    "--socket=fallback-x11",
+    "--device=all",
+    "--filesystem=host",
+    "--talk-name=org.freedesktop.Flatpak",
+    "--system-talk-name=org.freedesktop.PolicyKit1"
+  ],
+  "build-options": {
+    "env": {
+      "GOPATH": "/run/build/go-path",
+      "GOCACHE": "/run/build/go-cache",
+      "GOPROXY": "off"
+    }
+  },
+  "modules": [
+    {
+      "name": "go",
+      "buildsystem": "simple",
+      "build-commands": ["cp -r go /app/go"],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://go.dev/dl/go1.26.1.linux-amd64.tar.gz",
+          "sha256": "031f088e5d955bab8657ede27ad4e3bc5b7c1ba281f05f245bcc304f327c987a",
+          "strip-components": 0,
+          "only-arches": ["x86_64"]
+        },
+        {
+          "type": "archive",
+          "url": "https://go.dev/dl/go1.26.1.linux-arm64.tar.gz",
+          "sha256": "a290581cfe4fe28ddd737dde3095f3dbeb7f2e4065cab4eae44dfc53b760c2f7",
+          "strip-components": 0,
+          "only-arches": ["aarch64"]
+        }
+      ]
+    },
+    {
+      "name": "fisherman",
+      "buildsystem": "simple",
+      "build-commands": [
+        "PATH=/app/go/bin:$PATH go build -C fisherman -o /app/bin/fisherman ./cmd/fisherman",
+        "install -Dm644 data/images.json /app/share/fisherman/data/images.json",
+        "cp -r data/images /app/share/fisherman/data/images",
+        "install -Dm644 data/polkit/org.tunaos.Installer.policy /app/share/polkit-1/actions/org.tunaos.Installer.policy"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/tuna-os/fisherman.git",
+          "commit": "027fa25c1d8bc01e2ac97d119cda9e8bb9c99ac7"
+        }
+      ]
+    },
+    {
+      "name": "tuna-installer-xfce",
+      "buildsystem": "simple",
+      "build-commands": [
+        "mkdir -p /app/lib/tuna-installer-xfce",
+        "cp -r tuna_installer_xfce /app/lib/tuna-installer-xfce/",
+        "install -Dm755 tuna-installer-xfce /app/bin/tuna-installer-xfce",
+        "install -Dm644 data/org.tunaos.InstallerXfce.desktop /app/share/applications/org.tunaos.InstallerXfce.desktop",
+        "install -Dm644 data/org.tunaos.InstallerXfce.metainfo.xml /app/share/metainfo/org.tunaos.InstallerXfce.metainfo.xml",
+        "install -Dm644 data/icons/hicolor/scalable/apps/org.tunaos.InstallerXfce.svg /app/share/icons/hicolor/scalable/apps/org.tunaos.InstallerXfce.svg"
+      ],
+      "sources": [{ "type": "dir", "path": ".." }]
+    }
+  ]
+}

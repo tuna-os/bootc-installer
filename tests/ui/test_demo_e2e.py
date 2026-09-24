@@ -11,6 +11,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib  # noqa: E402
 
+from bootc_installer.utils.branding import COPY_DEFAULTS  # noqa: E402
 from bootc_installer.windows.main_window import BootcWindow  # noqa: E402
 
 _RECIPE_PATH = Path(__file__).resolve().parents[2] / "recipe.json"
@@ -128,7 +129,13 @@ def _view(window, name):
 
 class TestDemoEndToEnd:
     def test_bootc_demo_and_bootc_test_reach_done_screen(self):
-        window, scheduler, patchers = _make_window({"BOOTC_DEMO": "1", "BOOTC_TEST": "1"})
+        # The product name comes from branding.json, then os-release; pin it
+        # so the assertion does not depend on the runner's distribution.
+        window, scheduler, patchers = _make_window({
+            "BOOTC_DEMO": "1",
+            "BOOTC_TEST": "1",
+            "BOOTC_INSTALLER_PRODUCT_NAME": "Marlin",
+        })
 
         try:
             builder = getattr(window, "_BootcWindow__builder")
@@ -142,11 +149,8 @@ class TestDemoEndToEnd:
             scheduler.drain()
 
             done = _view(window, "done")
-            assert done.page_header.title == "Bluefin is installed"
-            assert (
-                done.page_header.subtitle
-                == "Restart now to complete the installation."
-            )
+            assert done.page_header.title == "Marlin is installed"
+            assert done.page_header.subtitle == COPY_DEFAULTS["done_subtitle"]
         finally:
             window.destroy()
             _pump()

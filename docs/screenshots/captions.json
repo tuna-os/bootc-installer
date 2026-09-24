@@ -1,0 +1,11 @@
+{
+  "01-welcome.png": "What the installer is about to do.",
+  "02-qr_companion.png": "Optional phone companion for typing on a laptop keyboard.",
+  "03-disk.png": "Choose the disk. Nothing is written yet.",
+  "04-slurp.png": "Bring documents and settings over from an existing Windows install.",
+  "05-encryption.png": "Full-disk encryption, with or without TPM2.",
+  "06-confirm.png": "The last screen before anything is written.",
+  "07-progress.png": "The install, step by step.",
+  "08-recovery-key.png": "The LUKS recovery key, shown once after an encrypted install.",
+  "09-done.png": "Finished. Restart into the new system."
+}

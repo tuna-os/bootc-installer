@@ -67,23 +67,24 @@ class TestRecipeLoaderValidate(unittest.TestCase):
         })
         self.assertFalse(self.loader._RecipeLoader__validate())
 
-    def test_missing_distro_name(self):
-        """A recipe missing 'distro_name' should fail validation."""
+    def test_missing_distro_name_is_allowed(self):
+        """distro_name is optional: the branding contract fills it in
+        (shared/branding/README.md), so validation must not reject it."""
         self.set_recipe({
             "log_file": "/tmp/test.log",
             "distro_logo": "logo.png",
             "steps": {}
         })
-        self.assertFalse(self.loader._RecipeLoader__validate())
+        self.assertTrue(self.loader._RecipeLoader__validate())
 
-    def test_missing_distro_logo(self):
-        """A recipe missing 'distro_logo' should fail validation."""
+    def test_missing_distro_logo_is_allowed(self):
+        """distro_logo is optional for the same reason as distro_name."""
         self.set_recipe({
             "log_file": "/tmp/test.log",
             "distro_name": "Test OS",
             "steps": {}
         })
-        self.assertFalse(self.loader._RecipeLoader__validate())
+        self.assertTrue(self.loader._RecipeLoader__validate())
 
     def test_missing_steps(self):
         """A recipe missing 'steps' should fail validation."""

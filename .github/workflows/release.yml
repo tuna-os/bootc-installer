@@ -1,0 +1,240 @@
+name: Release
+
+# Cuts the GitHub release for a promoted `prod` commit and publishes every
+# frontend's Flatpak to the tuna-os remote. Dispatched by promote.yml after the
+# gate passes; also runs for a hand-pushed `v*` tag (hotfix path) and by hand
+# on `prod`. It refuses to run from any other branch.
+#
+# What a release carries (all built from the same commit):
+#   - org.bootcinstaller.Installer.flatpak           GNOME, x86_64
+#   - org.bootcinstaller.Installer-aarch64.flatpak   GNOME, aarch64 (optional)
+#   - org.bootcinstaller.Installer.Devel.flatpak     GNOME devel app id
+#   - a Flatpak OCI publish + index update for each frontend whose tree
+#     changed since the previous release, all into the one package
+#     ghcr.io/tuna-os/bootc-installer:{gnome,kde,cosmic,niri,xfce}
+#     (publish-oci.yml)
+#
+# Downstreams fetch /releases/latest/download/<asset>, so `--latest` is set
+# here and nowhere else. The tag is date + short sha: monotonic, unique, and
+# never a rolling name an immutable-release ruleset can ban.
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Refuse unless prod HEAD is this commit (set by promote.yml)
+        required: false
+        type: string
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  packages: write
+  actions: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Guard
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      gnome: ${{ steps.changes.outputs.gnome }}
+      kde: ${{ steps.changes.outputs.kde }}
+      cosmic: ${{ steps.changes.outputs.cosmic }}
+      niri: ${{ steps.changes.outputs.niri }}
+      xfce: ${{ steps.changes.outputs.xfce }}
+    steps:
+      - name: Only prod or a tag
+        env:
+          REF: ${{ github.ref }}
+          EXPECTED: ${{ inputs.expected_sha }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          case "$REF" in
+            refs/heads/prod|refs/tags/v*) ;;
+            *) echo "::error::release.yml only runs on prod or a v* tag (got $REF)"; exit 1 ;;
+          esac
+          if [ -n "$EXPECTED" ] && [ "$EXPECTED" != "$SHA" ]; then
+            echo "::error::prod HEAD is $SHA but promote.yml expected $EXPECTED; another promotion raced this one"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pick the tag
+        id: tag
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$REF_TYPE" = "tag" ]; then
+            TAG="$REF_NAME"
+          else
+            TAG="v$(date -u +%Y.%m.%d)-$(git rev-parse --short HEAD)"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "release tag: $TAG"
+
+      # Which frontends changed since the previous non-prerelease release.
+      # A frontend whose tree did not change is not republished: the remote
+      # already carries that exact source.
+      - name: Detect changed frontends
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          prev=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-pre-releases --exclude-drafts \
+                   --limit 1 --json tagName --jq '.[0].tagName // empty' || true)
+          prev_sha=""
+          if [ -n "$prev" ]; then
+            prev_sha=$(git rev-list -n1 "$prev" 2>/dev/null || true)
+          fi
+          if [ -z "$prev_sha" ] || ! git merge-base --is-ancestor "$prev_sha" HEAD 2>/dev/null; then
+            echo "no comparable previous release (prev=${prev:-none}); publishing every frontend"
+            for n in gnome kde cosmic niri xfce; do echo "$n=true" >> "$GITHUB_OUTPUT"; done
+            exit 0
+          fi
+          echo "previous release: $prev ($prev_sha)"
+          changed=$(git diff --name-only "$prev_sha" HEAD)
+          gnome=false
+          if echo "$changed" | grep -qvE '^(frontends/|docs/|README\.md|[^/]+\.md$)'; then gnome=true; fi
+          echo "gnome=$gnome" >> "$GITHUB_OUTPUT"
+          for n in kde cosmic niri xfce; do
+            if echo "$changed" | grep -qE "^frontends/$n/"; then
+              echo "$n=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$n=false" >> "$GITHUB_OUTPUT"
+            fi
+          done
+          cat "$GITHUB_OUTPUT"
+
+  build:
+    name: Build GNOME bundles
+    needs: guard
+    uses: ./.github/workflows/flatpak.yml
+    secrets: inherit
+
+  release:
+    name: Cut release
+    needs: [guard, build]
+    # `build` is the whole flatpak.yml, aarch64 leg included, so its result is
+    # red whenever that leg is red. The release must not become contingent on
+    # a newer arch (tests/unit/test_release_bundle_is_multi_arch.py): run
+    # regardless, and let the REQUIRED downloads below (x86_64 + devel) fail
+    # the job if those bundles are what is missing.
+    if: ${{ !cancelled() && needs.guard.result == 'success' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: org.bootcinstaller.Installer.flatpak
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: org.bootcinstaller.Installer.Devel.flatpak
+
+      # Optional: releasing x86_64 alone must stay possible.
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: org.bootcinstaller.Installer-aarch64.flatpak
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.guard.outputs.tag }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          assets=(
+            org.bootcinstaller.Installer.flatpak
+            org.bootcinstaller.Installer.Devel.flatpak
+          )
+          if [ -f org.bootcinstaller.Installer-aarch64.flatpak ]; then
+            assets+=(org.bootcinstaller.Installer-aarch64.flatpak)
+          else
+            echo "::warning::no aarch64 bundle; releasing x86_64 only"
+          fi
+          prev=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-pre-releases --exclude-drafts \
+                   --limit 1 --json tagName --jq '.[0].tagName // empty' || true)
+          {
+            echo "Promoted from \`dev\` to \`prod\` at ${SHA} after every check passed."
+            echo
+            if [ -n "$prev" ]; then
+              echo "**Changes:** https://github.com/${GITHUB_REPOSITORY}/compare/${prev}...${TAG}"
+            fi
+          } > /tmp/notes.md
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # A hand-pushed tag may already have a release; add assets to it.
+            gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "${assets[@]}"
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --latest
+          else
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$SHA" \
+              --title "bootc-installer $TAG" \
+              --notes-file /tmp/notes.md \
+              --latest \
+              "${assets[@]}"
+          fi
+
+          # A release that exists but serves no asset is the same outage as
+          # no release; fail loudly rather than read as success.
+          for URL in \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/org.bootcinstaller.Installer.flatpak" \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/org.bootcinstaller.Installer.Devel.flatpak"; do
+            ok=0
+            for _ in $(seq 1 12); do
+              if curl -sfIL -o /dev/null "${URL}"; then echo "verified: ${URL}"; ok=1; break; fi
+              sleep 5
+            done
+            [ "$ok" -eq 1 ] || { echo "::error::${URL} not reachable after release"; exit 1; }
+          done
+          echo "## Release $TAG" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}" >> "$GITHUB_STEP_SUMMARY"
+
+  publish-gnome:
+    name: Publish (gnome)
+    needs: [guard, release]
+    if: needs.guard.outputs.gnome == 'true'
+    uses: ./.github/workflows/publish-flatpak.yml
+    secrets: inherit
+
+  publish-kde:
+    name: Publish (kde)
+    needs: [guard, release]
+    if: needs.guard.outputs.kde == 'true'
+    uses: ./.github/workflows/publish-flatpak-kde.yml
+    secrets: inherit
+
+  publish-cosmic:
+    name: Publish (cosmic)
+    needs: [guard, release]
+    if: needs.guard.outputs.cosmic == 'true'
+    uses: ./.github/workflows/publish-flatpak-cosmic.yml
+    secrets: inherit
+
+  publish-niri:
+    name: Publish (niri)
+    needs: [guard, release]
+    if: needs.guard.outputs.niri == 'true'
+    uses: ./.github/workflows/publish-flatpak-niri.yml
+    secrets: inherit
+
+  publish-xfce:
+    name: Publish (xfce)
+    needs: [guard, release]
+    if: needs.guard.outputs.xfce == 'true'
+    uses: ./.github/workflows/publish-flatpak-xfce.yml
+    secrets: inherit

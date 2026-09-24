@@ -1,0 +1,40 @@
+name: cargo-sources (cosmic)
+
+# flatpak-builder runs `cargo --offline build`, so
+# frontends/cosmic/flatpak/cargo-sources.json must vendor every package in
+# Cargo.lock. Renovate automerges lockfile bumps and nothing regenerates the
+# sources file, so the two drift with nobody in the loop. This structural
+# check runs in about a second from the two committed files alone.
+#
+# Moved here from tuna-os/tuna-installer-cosmic's cargo-sources.yml. Not
+# path-filtered, for the reason its predecessor was not: a filter that misses
+# a case is a filter that silently stops gating.
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: cargo-sources matches Cargo.lock (cosmic)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontends/cosmic
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Just
+        uses: extractions/setup-just@v4
+
+      - name: check flatpak/cargo-sources.json is in sync with Cargo.lock
+        run: just check-cargo-sources
+
+      # Guards the guard.
+      - name: verify the check rejects a desynced cargo-sources.json
+        run: just check-cargo-sources-selftest

@@ -1,0 +1,40 @@
+--- /home/user/bootc-installer/frontends/cosmic/Cargo.toml	2026-09-17 17:19:43.893552867 +0000
++++ /tmp/claude-0/-home-user/dd29bd63-5ac7-52f5-b9a1-1d7feb18b96f/scratchpad/cosmic-wasm/Cargo.toml	2026-09-19 08:50:56.998049731 +0000
+@@ -25,15 +25,34 @@
+ libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = [
+     "winit",
+     "wgpu",
+-    "tokio",
++    "webgl",
+     "a11y",
+-    "desktop",
+ ] }
+ serde = { version = "1", features = ["derive"] }
+ serde_json = "1"
+-tokio = { version = "1", features = ["full"] }
++tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
+ anyhow = "1"
+ tracing = "0.1"
+ tracing-subscriber = "0.3"
+ png = "0.18"
+ tempfile = "3"
++
++[target.'cfg(target_arch = "wasm32")'.dependencies]
++wasm-bindgen = "0.2.126"
++console_error_panic_hook = "0.1"
++
++[lib]
++name = "tuna_installer_cosmic"
++path = "src/main.rs"
++crate-type = ["cdylib", "rlib"]
++
++# Local experiment only — see tuna-os/bootc-installer#105. atomicwrites has no
++# wasm arm, and it is the one thing standing between this build and finding
++# out whether iced_winit and iced_wgpu compile for wasm32.
++[patch."https://github.com/jackpot51/rust-atomicwrites"]
++atomicwrites = { path = "../atomicwrites" }
++
++[patch."https://github.com/pop-os/libcosmic"]
++libcosmic = { path = "../libcosmic" }
++cosmic-config = { path = "../libcosmic/cosmic-config" }
++cosmic-theme = { path = "../libcosmic/cosmic-theme" }

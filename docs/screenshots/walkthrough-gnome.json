@@ -1,0 +1,190 @@
+{
+  "flavor": "gnome",
+  "frames": 9,
+  "rendered_frames": 9,
+  "advanced_transitions": 8,
+  "visual_states": 9,
+  "activation_key": null,
+  "ocr": false,
+  "screens": {
+    "welcome": true,
+    "disk": true,
+    "encryption": true,
+    "summary": true,
+    "install": true,
+    "done": true
+  },
+  "strict": true,
+  "failures": 0,
+  "source": "offscreen-capture",
+  "harness": "tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb)",
+  "text_source": "widget-tree",
+  "screens_detail": {
+    "welcome": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "welcome"
+      ],
+      "matched_keywords": [
+        "welcome"
+      ]
+    },
+    "disk": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "disk"
+      ],
+      "matched_keywords": [
+        "install location"
+      ]
+    },
+    "encryption": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "encryption"
+      ],
+      "matched_keywords": [
+        "disk encryption",
+        "encrypt this disk"
+      ]
+    },
+    "summary": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "confirm"
+      ],
+      "matched_keywords": [
+        "confirm installation"
+      ]
+    },
+    "install": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "progress"
+      ],
+      "matched_keywords": [
+        "deploying"
+      ]
+    },
+    "done": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "done"
+      ],
+      "matched_keywords": [
+        "is installed",
+        "remove the installation media"
+      ]
+    }
+  },
+  "pages": [
+    {
+      "name": "welcome",
+      "png": "docs/screenshots/01-welcome.png",
+      "rendered": true,
+      "colours": 300,
+      "flat": 0.9077127659574468,
+      "ink": 0.012650027277686852,
+      "stddev": 0.06306664887350331,
+      "text_excerpt": "Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Connect Bluetooth Devices Pair your keyboard or mouse to continue Connect Bluetooth Devices Pair your keyboard or mouse to conti"
+    },
+    {
+      "name": "qr_companion",
+      "png": "docs/screenshots/02-qr_companion.png",
+      "rendered": true,
+      "colours": 530,
+      "flat": 0.9274413529732679,
+      "ink": 0.03711811238406983,
+      "stddev": 0.12114062551912169,
+      "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
+    },
+    {
+      "name": "disk",
+      "png": "docs/screenshots/03-disk.png",
+      "rendered": true,
+      "colours": 505,
+      "flat": 0.8479609929078015,
+      "ink": 0.004698581560283688,
+      "stddev": 0.051484606594132766,
+      "text_excerpt": "Computer is not plugged in \u2014 connect power before installing Install Location Select the disk where you want to install. All data on the selected disk will be permanently erased. SAMSUNG MZVL2512 /dev/nvme0n1 \u00b7 476.9 GB SAMSUNG MZVL2512 /de"
+    },
+    {
+      "name": "slurp",
+      "png": "docs/screenshots/04-slurp.png",
+      "rendered": true,
+      "colours": 223,
+      "flat": 0.9590561920349154,
+      "ink": 0.010270049099836333,
+      "stddev": 0.07270071791646815,
+      "text_excerpt": "Bring Your Files We can copy documents, pictures, and other data from an existing Windows install. Windows data scanning is unavailable in demo mode. Skip Skip Continue Continue"
+    },
+    {
+      "name": "encryption",
+      "png": "docs/screenshots/05-encryption.png",
+      "rendered": true,
+      "colours": 249,
+      "flat": 0.8610679214402619,
+      "ink": 0.009772231314784507,
+      "stddev": 0.07404258619241541,
+      "text_excerpt": "Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You will need a passphrase each time you turn on your computer. Encrypt this disk You will need a passphrase each time you turn on your computer. Password Passwo"
+    },
+    {
+      "name": "confirm",
+      "png": "docs/screenshots/06-confirm.png",
+      "rendered": true,
+      "colours": 237,
+      "flat": 0.9183647026732134,
+      "ink": 0.006260229132569558,
+      "stddev": 0.04945303470403793,
+      "text_excerpt": "Confirm installation Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Install Install"
+    },
+    {
+      "name": "progress",
+      "png": "docs/screenshots/07-progress.png",
+      "rendered": true,
+      "colours": 172,
+      "flat": 0.9618794326241135,
+      "ink": 0.006382978723404255,
+      "stddev": 0.04678733797697664,
+      "text_excerpt": "Installation Video Coming Soon! Installation will continue normally. Feel free to browse around. Rawr. Visit the store Installing TunaOS\u2026 Deploying image: writing layers 45% 0:00 elapsed"
+    },
+    {
+      "name": "recovery-key",
+      "png": "docs/screenshots/08-recovery-key.png",
+      "rendered": true,
+      "colours": 261,
+      "flat": 0.931512547735952,
+      "ink": 0.007610474631751228,
+      "stddev": 0.06382268653722975,
+      "text_excerpt": "Save Your Recovery Key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf I have saved "
+    },
+    {
+      "name": "done",
+      "png": "docs/screenshots/09-done.png",
+      "rendered": true,
+      "colours": 269,
+      "flat": 0.9619885433715221,
+      "ink": 0.009035733769776323,
+      "stddev": 0.05996950743543311,
+      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Show Log Show Log Try Again Try Again Restart now Restart now Close Close Visit the store"
+    }
+  ],
+  "transition_pixels": [
+    81003,
+    89748,
+    51171,
+    34536,
+    37631,
+    31046,
+    43489,
+    41701
+  ],
+  "spec_drift": [],
+  "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
+}

@@ -45,6 +45,14 @@ class BootcRecoveryDialog(Adw.Window):
     def __init__(self, window, **kwargs):
         super().__init__(**kwargs)
         self.set_transient_for(window)
+        # docs/support/home come from the branding contract; a row whose URL
+        # is empty is hidden rather than pointed at somebody else's site.
+        recipe = getattr(window, "recipe", None) or {}
+        self.__urls = recipe.get("branding", {}) if isinstance(recipe, dict) else {}
+        for row, key in ((self.row_documentation, "docs_url"),
+                         (self.row_handbook, "support_url"),
+                         (self.row_web, "home_url")):
+            row.set_visible(bool(self.__urls.get(key)))
 
         # Show the disk-manager row only when gnome-disks is present on the host
         if _host_binary_exists("gnome-disks"):
@@ -62,13 +70,13 @@ class BootcRecoveryDialog(Adw.Window):
         GLib.spawn_command_line_async("flatpak-spawn --host /usr/bin/xdg-terminal-exec")
 
     def __on_documentation_activated(self, row):
-        Gtk.show_uri(self, "https://docs.projectbluefin.io/", GLib.CURRENT_TIME)
+        Gtk.show_uri(self, self.__urls.get("docs_url", ""), GLib.CURRENT_TIME)
 
     def __on_partition_activated(self, row):
         GLib.spawn_command_line_async("flatpak-spawn --host /usr/bin/gnome-disks")
 
     def __on_handbook_activated(self, row):
-        Gtk.show_uri(self, "https://app.dosu.dev/e3630b91-3a35-46b9-a8d3-b0c1b3ef6331/ask", GLib.CURRENT_TIME)
+        Gtk.show_uri(self, self.__urls.get("support_url", ""), GLib.CURRENT_TIME)
 
     def __on_web_activated(self, row):
-        Gtk.show_uri(self, "https://universal-blue.org/", GLib.CURRENT_TIME)
+        Gtk.show_uri(self, self.__urls.get("home_url", ""), GLib.CURRENT_TIME)

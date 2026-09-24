@@ -162,4 +162,5 @@ class Builder:
             "logo": self.__recipe.raw["distro_logo"],
             "default_image_icon": default_image_icon,
             "welcome_title": self.__recipe.raw.get("welcome_title", ""),
+            "welcome_subtitle": self.__recipe.raw.get("welcome_subtitle", ""),
         }

@@ -1,0 +1,175 @@
+name: Screenshots (kde)
+
+# Builds the Kirigami/QML installer in frontends/kde and renders every wizard
+# step from the REAL QML module (only main.cpp is swapped for
+# tests/capture.cpp), then publishes the walkthrough.
+#
+# Runs in a Fedora container because the UI is Plasma 6 / KF6: Kirigami,
+# Kirigami Addons (FormCard) and the org.kde.desktop Controls style resolve at
+# runtime from the QML import path, and Ubuntu runners have no KF6 packages. It
+# is also the only thing in CI that actually starts this app.
+#
+# Moved here from tuna-os/tuna-installer-kde's screenshots.yml when that repo
+# became frontends/kde; the body is unchanged apart from paths.
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "frontends/kde/src/**"
+      - "frontends/kde/modules/**"
+      - "frontends/kde/tests/**"
+      - "frontends/kde/CMakeLists.txt"
+      - ".github/workflows/screenshots-kde.yml"
+  pull_request:
+    paths:
+      - "frontends/kde/src/**"
+      - "frontends/kde/modules/**"
+      - "frontends/kde/tests/**"
+      - "frontends/kde/CMakeLists.txt"
+      - ".github/workflows/screenshots-kde.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screenshots-kde-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    name: Screenshots (kde)
+    runs-on: ubuntu-24.04
+    container: quay.io/fedora/fedora:45
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: frontends/kde
+    steps:
+      # Runs before checkout: the fedora image has no git, so
+      # actions/checkout would fall back to the slower REST tarball path.
+      - name: install Qt6 + KF6 runtime
+        working-directory: /
+        run: |
+          dnf -y install --setopt=install_weak_deps=False \
+            git tar findutils which \
+            cmake ninja-build gcc-c++ \
+            qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg \
+            kf6-kirigami kf6-kirigami-addons kf6-qqc2-desktop-style \
+            kf6-breeze-icons dejavu-sans-fonts dejavu-sans-mono-fonts \
+            ImageMagick
+          # Fatal on purpose: the KF6 icon theme the UI needs is
+          # kf6-breeze-icons, and dnf will happily resolve "breeze-icons" to
+          # something else.
+          rpm -q qt6-qtbase kf6-kirigami kf6-kirigami-addons \
+                 kf6-qqc2-desktop-style kf6-breeze-icons
+          test -f /usr/share/icons/breeze/index.theme
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Before the BUILD, not before the capture, so a build failure uploads
+      # nothing rather than last run's committed PNGs.
+      - name: drop the committed screenshots so only this run's output ships
+        run: rm -rf docs/screenshots
+
+      - name: build installer + capture harness
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_CAPTURE=ON -DBUILD_TESTING=ON
+          cmake --build build -j"$(nproc)"
+
+      - name: run unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      # Qt's offscreen platform plugin and the software scenegraph: no X
+      # server, no compositor, no GPU.
+      - name: capture every screen
+        env:
+          XDG_RUNTIME_DIR: /tmp/runtime
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+          # Generic documentation, not a Skipjack ISO's screenshots: render
+          # with the neutral fallback name rather than the container's
+          # PRETTY_NAME.
+          BOOTC_INSTALLER_PRODUCT_NAME: TunaOS
+        run: |
+          mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+          ./build/tuna-installer-capture docs/screenshots
+          rm -f docs/screenshots/.lsblk-fixture.json
+          if command -v magick >/dev/null; then IM=magick; else IM=convert; fi
+          $IM -delay 240 -loop 0 docs/screenshots/0*.png docs/screenshots/walkthrough.gif
+          ls -l docs/screenshots
+
+      # Proves the branding resolves from the host os-release rather than
+      # being hardcoded. Rendered into a scratch directory, never committed.
+      - name: render a variant ISO's branding (verification only)
+        env:
+          XDG_RUNTIME_DIR: /tmp/runtime
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+        run: |
+          mkdir -p /run/host/etc
+          printf 'NAME="Skipjack"\nPRETTY_NAME="Skipjack"\nID=skipjack\n' \
+            > /run/host/etc/os-release
+          mkdir -p /tmp/branding-check
+          ./build/tuna-installer-capture /tmp/branding-check
+          rm -f /tmp/branding-check/.lsblk-fixture.json
+          grep PRETTY_NAME /etc/os-release
+          ls -l /tmp/branding-check
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: branding-check-kde
+          path: /tmp/branding-check/
+
+      # Warns if the screen contract vendored into tests/parity_report.h has
+      # fallen behind the shared spec. Never fails the build.
+      - name: check screen spec has not drifted
+        if: always()
+        continue-on-error: true
+        run: |
+          python3 - <<'EOF' || true
+          import sys
+          sys.path.insert(0, "../../shared/walkthrough")
+          import parity_report
+          vendored = open("tests/parity_report.h").read().lower()
+          for screen in parity_report.SCREENS:
+              for kw in screen["keywords"]:
+                  if kw.lower() not in vendored:
+                      print(f"::warning::shared keyword missing from vendored spec: {kw}")
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gui-screenshots-kde
+          path: frontends/kde/docs/screenshots/
+
+      - name: commit refreshed screenshots
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "docs(kde): refresh GUI screenshots [skip ci]"
+          # Five capture jobs and the walkthrough all push small commits to dev
+          # within seconds of each other, and a plain push loses the race with
+          # a non-fast-forward rejection (runs 35281231391/462/400 on the
+          # first dev push after the monorepo merge). Rebase onto whatever
+          # landed meanwhile and retry; these commits never touch the same
+          # files, so the rebase is always clean.
+          for attempt in 1 2 3 4 5 6; do
+            git fetch -q origin dev
+            git rebase -q origin/dev || { git rebase --abort; echo "::error::rebase onto dev failed"; exit 1; }
+            if git push origin HEAD:dev; then exit 0; fi
+            echo "push rejected (attempt $attempt); retrying"
+            sleep $((attempt * 5))
+          done
+          echo "::error::could not push after 6 attempts"
+          exit 1

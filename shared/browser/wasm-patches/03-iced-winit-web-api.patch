@@ -1,0 +1,63 @@
+--- /root/.cargo/git/checkouts/libcosmic-41009aea1d72760b/43a50cb/iced/winit/src/lib.rs	2026-09-18 04:08:33.130677984 +0000
++++ /tmp/claude-0/-home-user/dd29bd63-5ac7-52f5-b9a1-1d7feb18b96f/scratchpad/libcosmic/iced/winit/src/lib.rs	2026-09-19 08:46:33.433793212 +0000
+@@ -219,6 +219,8 @@
+         adapters: Default::default(),
+ 
+         #[cfg(target_arch = "wasm32")]
++        is_booted: std::rc::Rc::new(std::cell::RefCell::new(false)),
++        #[cfg(target_arch = "wasm32")]
+         canvas: None,
+     };
+ 
+@@ -424,9 +426,13 @@
+ 
+                                 #[cfg(target_arch = "wasm32")]
+                                 let window_attributes = {
+-                                    use winit::platform::web::WindowAttributesExtWebSys;
+-                                    window_attributes
+-                                        .with_canvas(self.canvas.take())
++                                    use winit::platform::web::WindowAttributesWeb;
++                                    window_attributes.with_platform_attributes(
++                                        Box::new(
++                                            WindowAttributesWeb::default()
++                                                .with_canvas(self.canvas.take()),
++                                        ),
++                                    )
+                                 };
+ 
+                                 log::info!(
+@@ -454,11 +460,12 @@
+ 
+                                 #[cfg(target_arch = "wasm32")]
+                                 {
+-                                    use winit::platform::web::WindowExtWebSys;
++                                    use winit::platform::web::WindowExtWeb;
+ 
+                                     let canvas = window
+                                         .canvas()
+-                                        .expect("Get window canvas");
++                                        .expect("Get window canvas")
++                                        .clone();
+ 
+                                     let _ = canvas.set_attribute(
+                                         "style",
+@@ -686,8 +693,7 @@
+ 
+     #[cfg(target_arch = "wasm32")]
+     {
+-        use winit::platform::web::EventLoopExtWebSys;
+-        let _ = event_loop.spawn_app(runner);
++        let _ = event_loop.run_app(runner);
+ 
+         Ok(())
+     }
+@@ -1923,6 +1929,9 @@
+ >
+ where
+     P: Program,
++    // wasm_bindgen_futures::spawn_local wants a 'static future, and the
++    // compositor is part of what the spawned block produces.
++    <<P as Program>::Renderer as compositor::Default>::Compositor: 'static,
+ {
+     let (compositor_sender, compositor_receiver) = oneshot::channel();
+ 

@@ -1,0 +1,120 @@
+name: Screenshots (gnome)
+
+# Renders every page of the GNOME (GTK4 / libadwaita) installer from the real
+# BootcWindow under Xvfb, audits the pixels, and emits the parity report
+# (walkthrough-gnome.json) that shared/walkthrough/aggregate.py folds into
+# docs/walkthrough/. Same contract as the four sibling frontends'
+# screenshots-*.yml; this one just arrived last, because until the monorepo
+# the GNOME frontend was the only one nobody rendered in CI.
+#
+# It is also the only job that starts the wizard end to end: tests/ui drives
+# individual pages, this drives the whole carousel through the same window
+# class the Flatpak presents.
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "bootc_installer/**"
+      - "data/**"
+      - "recipe.json"
+      - "tests/gui/**"
+      - "shared/walkthrough/**"
+      - "meson.build"
+      - ".github/workflows/screenshots-gnome.yml"
+  pull_request:
+    paths:
+      - "bootc_installer/**"
+      - "data/**"
+      - "recipe.json"
+      - "tests/gui/**"
+      - "shared/walkthrough/**"
+      - "meson.build"
+      - ".github/workflows/screenshots-gnome.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screenshots-gnome-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    name: Screenshots (gnome)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      # Same package set as python-test.yml's UI job, plus ImageMagick for the
+      # gif and the transition metric.
+      - name: install GTK4, libadwaita, VTE and Xvfb
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            python3-gi python3-gi-cairo \
+            gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-vte-3.91 \
+            blueprint-compiler meson ninja-build libglib2.0-dev \
+            desktop-file-utils appstream gettext \
+            xvfb imagemagick
+
+      - name: build GResources
+        run: |
+          meson setup build -Dbuild-fisherman=false --prefix=/tmp/tuna-install
+          ninja -C build
+          echo "BOOTC_RESOURCE=$(find build -name bootc-installer.gresource | head -1)" >> "$GITHUB_ENV"
+
+      # Emptied before the capture so a failed run uploads nothing stale: the
+      # committed copies are regenerated below, never read.
+      - name: capture every screen
+        env:
+          GTK_A11Y: none
+          NO_AT_BRIDGE: "1"
+          # The runner's os-release would brand the walkthrough "Ubuntu";
+          # the docs product name (shared/branding/README.md) is set here.
+          BOOTC_INSTALLER_PRODUCT_NAME: TunaOS
+        run: |
+          rm -rf docs/screenshots
+          xvfb-run -a -s "-screen 0 1400x1000x24" \
+            python3 tests/gui/capture-screens.py docs/screenshots
+          ls -l docs/screenshots
+
+      - uses: actions/upload-artifact@v4
+        # always(): the capture fails when a screen renders wrong, which is
+        # exactly when the picture is needed.
+        if: always()
+        with:
+          name: gui-screenshots-gnome
+          path: docs/screenshots/
+          if-no-files-found: warn
+
+      # Only dev pushes. On a PR the artifact is the deliverable.
+      - name: commit refreshed screenshots
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "docs(gnome): refresh GUI screenshots [skip ci]"
+          # Five capture jobs and the walkthrough all push small commits to dev
+          # within seconds of each other, and a plain push loses the race with
+          # a non-fast-forward rejection (runs 35281231391/462/400 on the
+          # first dev push after the monorepo merge). Rebase onto whatever
+          # landed meanwhile and retry; these commits never touch the same
+          # files, so the rebase is always clean.
+          for attempt in 1 2 3 4 5 6; do
+            git fetch -q origin dev
+            git rebase -q origin/dev || { git rebase --abort; echo "::error::rebase onto dev failed"; exit 1; }
+            if git push origin HEAD:dev; then exit 0; fi
+            echo "push rejected (attempt $attempt); retrying"
+            sleep $((attempt * 5))
+          done
+          echo "::error::could not push after 6 attempts"
+          exit 1

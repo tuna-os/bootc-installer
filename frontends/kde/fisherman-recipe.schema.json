@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Fisherman Install Recipe",
+  "description": "JSON recipe for the fisherman bootc install backend",
+  "type": "object",
+  "required": ["disk", "hostname"],
+  "properties": {
+    "disk": {
+      "type": "string",
+      "description": "Target block device, e.g. /dev/sda or /dev/nvme0n1"
+    },
+    "filesystem": {
+      "type": "string",
+      "enum": ["xfs", "btrfs"],
+      "default": "xfs"
+    },
+    "btrfsSubvolumes": {
+      "type": "boolean",
+      "default": false
+    },
+    "encryption": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "none",
+            "luks-passphrase",
+            "tpm2-luks",
+            "tpm2-luks-passphrase"
+          ],
+          "default": "none"
+        },
+        "passphrase": {
+          "type": "string",
+          "description": "LUKS passphrase; required (and non-empty) for passphrase-based encryption types. Frontends may write an empty string for the other types: fisherman's Recipe struct has no omitempty on it."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": ["luks-passphrase", "tpm2-luks-passphrase"]
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["passphrase"],
+            "properties": {"passphrase": {"minLength": 1}}
+          }
+        }
+      ]
+    },
+    "image": {
+      "type": "string",
+      "description": "OCI image reference; omitted when installing the running live-ISO image"
+    },
+    "targetImgref": {
+      "type": "string",
+      "description": "Override the installed image reference in the bootloader"
+    },
+    "bootloader": {
+      "type": "string",
+      "enum": ["grub2", "systemd"],
+      "description": "Explicit bootloader selection"
+    },
+    "composeFsBackend": {
+      "type": "boolean",
+      "default": false
+    },
+    "flatpaks": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "additionalImageStores": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Local OCI stores available during an offline install"
+    },
+    "distroID": {
+      "type": "string",
+      "default": "tunaos"
+    },
+    "selinuxDisabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "hostname": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$",
+      "description": "Hostname for the installed system"
+    },
+    "unifiedStorage": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pass --experimental-unified-storage to bootc install."
+    },
+    "genericImage": {
+      "type": "boolean",
+      "default": false,
+      "description": "Pass --generic-image to bootc install (skips the bootupd check). For ostree images that ship no bootupd."
+    },
+    "zfsPoolName": {
+      "type": "string",
+      "description": "ZFS pool name; only read when filesystem is \"zfs\". Defaults to \"rpool\"."
+    },
+    "imageType": {
+      "type": "string",
+      "enum": [
+        "bootc",
+        "ostree"
+      ],
+      "default": "bootc",
+      "description": "Install backend. \"ostree\" is not implemented yet and is rejected."
+    },
+    "flatpakVarPath": {
+      "type": "string",
+      "description": "Path, relative to the target root, of the writable /var for flatpaks. Empty = fisherman auto-detects."
+    },
+    "user": {
+      "type": "object",
+      "description": "Account to create. An empty username skips the step.",
+      "properties": {
+        "username": {
+          "type": "string"
+        },
+        "fullname": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "customMounts": {
+      "type": "array",
+      "description": "Manual partitioning. When non-empty, disk/filesystem/btrfsSubvolumes and auto-partitioning are skipped.",
+      "items": {
+        "type": "object",
+        "required": [
+          "partition",
+          "target",
+          "fstype"
+        ],
+        "properties": {
+          "partition": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "fstype": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "varDisk": {
+      "type": "object",
+      "description": "A separate disk to mount at /var.",
+      "required": [
+        "disk"
+      ],
+      "properties": {
+        "disk": {
+          "type": "string"
+        },
+        "keepExisting": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "slurpWallpapers": {
+      "type": "boolean",
+      "default": false,
+      "description": "Rescue wallpapers from an existing Windows partition on the target disk. Never fatal."
+    },
+    "slurp": {
+      "type": "object",
+      "description": "Full user-data migration from an existing Windows partition. Takes priority over slurpWallpapers.",
+      "required": [
+        "sourcePartition",
+        "users"
+      ],
+      "properties": {
+        "sourcePartition": {
+          "type": "string"
+        },
+        "users": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "categories": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "targetMount": {
+      "type": "string",
+      "description": "Host path where the target hierarchy is assembled. Defaults to /mnt/fisherman-target. For parallel test installs."
+    },
+    "luksMapperName": {
+      "type": "string",
+      "description": "cryptsetup mapper name for the LUKS root. Defaults to fisherman-root; production installs leave it."
+    },
+    "brewTap": {
+      "type": "string",
+      "description": "Homebrew tap to add before OEM packages, e.g. ublue-os/tap."
+    }
+  }
+}

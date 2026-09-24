@@ -1,0 +1,31 @@
+--- /home/user/bootc-installer/frontends/cosmic/src/offline.rs	2026-09-17 17:19:43.898613432 +0000
++++ /tmp/claude-0/-home-user/dd29bd63-5ac7-52f5-b9a1-1d7feb18b96f/scratchpad/cosmic-wasm/src/offline.rs	2026-09-19 08:47:48.589119288 +0000
+@@ -2,6 +2,7 @@
+ //! Contract: ../../INSTALLER-FRONTENDS.md §3 (privileges) and §4 (offline).
+ 
+ use std::collections::HashSet;
++#[cfg(unix)]
+ use std::os::unix::fs::OpenOptionsExt;
+ use std::path::Path;
+ use std::process::Command;
+@@ -76,12 +77,14 @@
+ 
+     let path = dir.join("install.log");
+     let write = || -> std::io::Result<()> {
+-        let mut f = std::fs::OpenOptions::new()
+-            .create(true)
+-            .write(true)
+-            .truncate(true)
+-            .mode(0o600)
+-            .open(&path)?;
++        let mut opts = std::fs::OpenOptions::new();
++        opts.create(true).write(true).truncate(true);
++        // The install log can name a disk, so it stays private to root. mode()
++        // is a unix extension and does not exist on wasm, where this whole
++        // path is unreachable anyway.
++        #[cfg(unix)]
++        opts.mode(0o600);
++        let mut f = opts.open(&path)?;
+         f.write_all(log.as_bytes())
+     };
+     if let Err(e) = write() {

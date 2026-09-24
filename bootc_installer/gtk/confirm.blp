@@ -17,8 +17,8 @@ template $BootcConfirm: Adw.Bin {
       Adw.PreferencesGroup {
         $BootcPageHeader page_header {
           margin-top: 24;
-          title: _("Confirm Installation");
-          subtitle: _("\"Indeed.\" — Commander Zavala");
+          title: _("Confirm installation");
+          subtitle: "";
         }
       }
 
@@ -30,8 +30,9 @@ template $BootcConfirm: Adw.Bin {
           halign: center;
           spacing: 8;
 
-          Label {
-            label: _("Whether we wanted it or not, we've stepped into a war with your old OS.");
+          Label lbl_body {
+            label: "";
+            visible: false;
             halign: center;
 
             styles [
@@ -40,7 +41,7 @@ template $BootcConfirm: Adw.Bin {
           }
 
           Button btn_confirm {
-            label: _("Become Legend");
+            label: _("Install");
             valign: center;
             halign: center;
 

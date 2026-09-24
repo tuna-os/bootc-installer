@@ -1,0 +1,56 @@
+--- /home/user/bootc-installer/frontends/cosmic/src/main.rs	2026-09-18 07:28:42.659954686 +0000
++++ /tmp/claude-0/-home-user/dd29bd63-5ac7-52f5-b9a1-1d7feb18b96f/scratchpad/cosmic-wasm/src/main.rs	2026-09-19 08:59:41.397828411 +0000
+@@ -26,6 +26,27 @@
+ 
+ pub const APP_ID: &str = "org.tunaos.InstallerCosmic";
+ 
++/// Browser entry point. The desktop `main` below reads the environment and
++/// the filesystem before it starts; in a browser there is neither, so this
++/// starts the same `cosmic::Application` against the capture fixtures.
++///
++/// `cosmic::app::run` does not return on the web: winit's `run_app` hands
++/// control to the browser event loop and throws to unwind the Rust stack.
++#[cfg(target_arch = "wasm32")]
++#[wasm_bindgen::prelude::wasm_bindgen(start)]
++pub fn wasm_main() {
++    console_error_panic_hook::set_once();
++
++    let flags = Flags { capture: None };
++    let settings = Settings::default()
++        .default_icon_theme("Adwaita")
++        .size(Size::new(1000.0, 700.0))
++        .theme(cosmic::theme::Theme::dark());
++
++    let _ = cosmic::app::run::<TunaInstaller>(settings, flags);
++}
++
++#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+ fn main() -> Result<(), Box<dyn std::error::Error>> {
+     tracing_subscriber::fmt::init();
+ 
+@@ -347,6 +368,10 @@
+             // Defer it to an async task and start with `live_image = None`;
+             // the Confirm page handles `None` gracefully (it just shows the
+             // default image ref).
++            // In a browser there is no host to shell out to and no tokio
++            // reactor to defer onto; the Confirm page already handles a
++            // `None` image ref, which is what this would have resolved to.
++            #[cfg(not(target_arch = "wasm32"))]
+             init_tasks.push(Task::perform(
+                 tokio::task::spawn_blocking(offline::live_iso_image),
+                 |r| cosmic::action::app(Message::LiveImageResolved(r.unwrap_or(None))),
+@@ -572,6 +597,14 @@
+ // -------------------------------------------------------- async helpers ----
+ 
+ impl TunaInstaller {
++    /// A browser has no lsblk and no tokio reactor, so it gets the same
++    /// fixtures the capture harness uses and the wizard stays walkable.
++    #[cfg(target_arch = "wasm32")]
++    async fn scan_disks() -> Result<Vec<DiskInfo>, String> {
++        Ok(capture::fixture_disks())
++    }
++
++    #[cfg(not(target_arch = "wasm32"))]
+     async fn scan_disks() -> Result<Vec<DiskInfo>, String> {
+         let output = tokio::task::spawn_blocking(|| {
+             SysCommand::new("lsblk")

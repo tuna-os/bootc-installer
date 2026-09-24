@@ -1,0 +1,69 @@
+{
+  "screens": {
+    "welcome": {
+      "gnome": "yes",
+      "kde": "yes",
+      "cosmic": "yes",
+      "niri": "yes",
+      "xfce": "yes"
+    },
+    "disk": {
+      "gnome": "yes",
+      "kde": "yes",
+      "cosmic": "yes",
+      "niri": "yes",
+      "xfce": "yes"
+    },
+    "encryption": {
+      "gnome": "yes",
+      "kde": "yes",
+      "cosmic": "yes",
+      "niri": "yes",
+      "xfce": "yes"
+    },
+    "summary": {
+      "gnome": "yes",
+      "kde": "yes",
+      "cosmic": "yes",
+      "niri": "yes",
+      "xfce": "yes"
+    },
+    "install": {
+      "gnome": "yes",
+      "kde": "yes",
+      "cosmic": "yes",
+      "niri": "yes",
+      "xfce": "yes"
+    },
+    "done": {
+      "gnome": "yes",
+      "kde": "yes",
+      "cosmic": "yes",
+      "niri": "yes",
+      "xfce": "yes"
+    }
+  },
+  "frontends": {
+    "gnome": {
+      "frames": 8,
+      "report": true
+    },
+    "kde": {
+      "frames": 8,
+      "report": true
+    },
+    "cosmic": {
+      "frames": 8,
+      "report": true
+    },
+    "niri": {
+      "frames": 8,
+      "report": true
+    },
+    "xfce": {
+      "frames": 8,
+      "report": true
+    }
+  },
+  "problems": []
+}

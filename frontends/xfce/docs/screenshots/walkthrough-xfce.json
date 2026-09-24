@@ -1,0 +1,171 @@
+{
+  "flavor": "xfce",
+  "frames": 8,
+  "rendered_frames": 8,
+  "advanced_transitions": 4,
+  "visual_states": 5,
+  "activation_key": null,
+  "ocr": false,
+  "screens": {
+    "welcome": true,
+    "disk": true,
+    "encryption": true,
+    "summary": true,
+    "install": true,
+    "done": true
+  },
+  "strict": true,
+  "failures": 0,
+  "source": "offscreen-capture",
+  "harness": "tests/gui/capture-screens.py (GTK3 under Xvfb)",
+  "text_source": "widget-tree",
+  "screens_detail": {
+    "welcome": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "welcome"
+      ],
+      "matched_keywords": [
+        "welcome"
+      ]
+    },
+    "disk": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "destination"
+      ],
+      "matched_keywords": [
+        "be installed"
+      ]
+    },
+    "encryption": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "setup"
+      ],
+      "matched_keywords": [
+        "disk encryption"
+      ]
+    },
+    "summary": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "confirm"
+      ],
+      "matched_keywords": [
+        "confirm installation"
+      ]
+    },
+    "install": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "progress"
+      ],
+      "matched_keywords": [
+        "installing image",
+        "partitioning"
+      ]
+    },
+    "done": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "done"
+      ],
+      "matched_keywords": [
+        "is installed",
+        "remove the installation media"
+      ]
+    }
+  },
+  "pages": [
+    {
+      "name": "welcome",
+      "png": "docs/screenshots/01-welcome.png",
+      "rendered": true,
+      "colours": 244,
+      "ink": 0.012863895155226126,
+      "stddev": 0.07735727541495531,
+      "text_excerpt": "Welcome to Ubuntu 24.04.5 LTS This assistant installs TunaOS on this computer.\n\nYou'll choose what to install and where; nothing is written to any disk until you confirm on the final step."
+    },
+    {
+      "name": "source",
+      "png": "docs/screenshots/02-source.png",
+      "rendered": true,
+      "colours": 269,
+      "ink": 0.009802341819744334,
+      "stddev": 0.06518286237886257,
+      "text_excerpt": "What do you want to install? Bluefin Bluefin ghcr.io/ublue-os/bluefin:latest GNOME GNOME ghcr.io/tuna-os/bonito:latest KDE Plasma KDE Plasma ghcr.io/tuna-os/bonito:kde"
+    },
+    {
+      "name": "destination",
+      "png": "docs/screenshots/03-destination.png",
+      "rendered": true,
+      "colours": 269,
+      "ink": 0.009802341819744334,
+      "stddev": 0.06518286237886257,
+      "text_excerpt": "Where should TunaOS be installed? SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 WDC WD20SPZX    2 TB    /dev/sda WDC WD20SPZX    2 TB    /dev/sda Everything on SAMSUNG MZVL2512 (/dev/nvme0n1) will"
+    },
+    {
+      "name": "setup",
+      "png": "docs/screenshots/04-setup.png",
+      "rendered": true,
+      "colours": 277,
+      "ink": 0.008110430765925448,
+      "stddev": 0.06075251957529112,
+      "text_excerpt": "Disk encryption No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at every boot. Confirm Passphrase Filesystem Create btrfs subvolumes (@, @home, @snapshots) Create btrfs subvolumes ("
+    },
+    {
+      "name": "identity",
+      "png": "docs/screenshots/05-identity.png",
+      "rendered": true,
+      "colours": 216,
+      "ink": 0.006337952519067569,
+      "stddev": 0.05610073650312836,
+      "text_excerpt": "Name this computer Hostname Password Full name Username Your account"
+    },
+    {
+      "name": "confirm",
+      "png": "docs/screenshots/06-confirm.png",
+      "rendered": true,
+      "colours": 216,
+      "ink": 0.006337952519067569,
+      "stddev": 0.05610073650312836,
+      "text_excerpt": "Confirm installation  Image:       ghcr.io/ublue-os/bluefin:latest\nDisk:        /dev/nvme0n1\nFilesystem:  xfs\nEncryption:  none\nHostname:    ubuntu  Everything on the selected disk will be erased. This cannot be undone."
+    },
+    {
+      "name": "progress",
+      "png": "docs/screenshots/07-progress.png",
+      "rendered": true,
+      "colours": 313,
+      "ink": 0.036872918680846495,
+      "stddev": 0.1487721271103145,
+      "text_excerpt": "Installing Ubuntu 24.04.5 LTS\u2026 Installing image [1/9] Partitioning /dev/nvme0n1\n  created EFI system partition (1.0 GiB, FAT32)\n  created root partition (511.1 GiB)\n[2/9] Formatting boot partitions\n[3/9] Setting up encryption\n  encryption: "
+    },
+    {
+      "name": "done",
+      "png": "docs/screenshots/08-done.png",
+      "rendered": true,
+      "colours": 313,
+      "ink": 0.036872918680846495,
+      "stddev": 0.1487721271103145,
+      "text_excerpt": "Ubuntu 24.04.5 LTS is installed Remove the installation media and restart the computer. Visit the store Visit the store Restart now Restart now"
+    }
+  ],
+  "transition_pixels": [
+    9671,
+    0,
+    8563,
+    9642,
+    0,
+    20004,
+    0
+  ],
+  "spec_drift": [],
+  "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
+}

@@ -35,6 +35,10 @@ from gi.repository import Adw, GObject, Gtk
 
 from bootc_installer.core.disks import DisksManager, Diskutils, Partition
 from bootc_installer.core.system import Systeminfo
+from bootc_installer.defaults.disk_plan import (
+    build_auto_partition_recipe,
+    build_disk_finals,
+)
 
 logger = logging.getLogger("Installer::Disk")
 
@@ -946,15 +950,7 @@ class BootcDefaultDisk(Adw.Bin):
         return context.get("disk_count", 2) > 1
 
     def _set_auto_partition_recipe(self, disk):
-        self.__partition_recipe = {
-            "auto": {
-                "disk": disk.disk,
-                "pretty_size": disk.pretty_size,
-                "size": disk.size,
-                "vgs_to_remove": [],
-                "pvs_to_remove": [],
-            }
-        }
+        self.__partition_recipe = build_auto_partition_recipe(disk)
         self.__update_next_button()
 
     def auto_select_single_disk(self):
@@ -1072,24 +1068,27 @@ class BootcDefaultDisk(Adw.Bin):
 
     def get_finals(self):
         fs = self.__get_selected_filesystem()
-        disk = dict(self.__partition_recipe) if self.__partition_recipe else {}
-        if "auto" in disk:
-            disk["filesystem"] = fs
-            disk["btrfsSubvolumes"] = (fs == "btrfs")
-        result = {
-            "disk": disk,
-            "hostname": self.hostname_entry.get_text().strip() or "",
-        }
+        virtual_disk = None
         if self.__use_virtual_disk:
-            result["virtual_disk_img"] = self._VIRTUAL_DISK_IMG
-            result["virtual_disk_loop"] = getattr(self, "_BootcDefaultDisk__loop_device", None)
+            virtual_disk = (
+                self._VIRTUAL_DISK_IMG,
+                getattr(self, "_BootcDefaultDisk__loop_device", None),
+            )
+        var_disk = None
         if self.var_disk_switch.get_active() and self.__var_disk_selected:
-            result["var_disk"] = {
-                "disk": self.__var_disk_selected.disk,
-                "keep_existing": self.var_disk_keep_switch.get_active()
-                if self.group_var_disk_existing.get_visible() else False,
-            }
-        return result
+            var_disk = (
+                self.__var_disk_selected.disk,
+                self.var_disk_keep_switch.get_active()
+                if self.group_var_disk_existing.get_visible()
+                else False,
+            )
+        return build_disk_finals(
+            self.__partition_recipe,
+            fs,
+            self.hostname_entry.get_text(),
+            virtual_disk=virtual_disk,
+            var_disk=var_disk,
+        )
 
     def __on_btn_all_disks(self, widget):
         self.__all_disks_button.set_visible(False)

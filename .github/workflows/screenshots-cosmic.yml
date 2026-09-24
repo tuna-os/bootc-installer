@@ -1,0 +1,189 @@
+name: Screenshots (cosmic)
+
+# Regenerates frontends/cosmic/docs/screenshots from the real libcosmic UI.
+# This is the ONLY CI job that compiles the COSMIC crate, which is the reason
+# it exists: before it nothing ran cargo build, and the crate did not build.
+#
+# Headless rendering: libcosmic is iced-on-wgpu and needs a real graphics
+# device, so Xvfb alone is not enough. Mesa's lavapipe gives wgpu a CPU Vulkan
+# adapter; winit runs on the X11 backend under Xvfb.
+#
+# Moved here from tuna-os/tuna-installer-cosmic's screenshots.yml when that
+# repo became frontends/cosmic; the body is unchanged apart from paths and the
+# parity-report step at the end.
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "frontends/cosmic/src/**"
+      - "frontends/cosmic/Cargo.toml"
+      - "frontends/cosmic/Cargo.lock"
+      - ".github/workflows/screenshots-cosmic.yml"
+  pull_request:
+    paths:
+      - "frontends/cosmic/src/**"
+      - "frontends/cosmic/Cargo.toml"
+      - "frontends/cosmic/Cargo.lock"
+      - ".github/workflows/screenshots-cosmic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screenshots-cosmic-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    name: Screenshots (cosmic)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: frontends/cosmic
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: install build and render dependencies
+        run: |
+          sudo apt-get update -qq
+          # libxkbcommon-x11-dev is NOT redundant with libxkbcommon-dev:
+          # winit's X11 backend dlopens libxkbcommon-x11.so at runtime and the
+          # -dev package is what ships the unversioned symlink.
+          sudo apt-get install -y -qq \
+            pkg-config cmake clang \
+            libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libfontconfig-dev libfreetype-dev \
+            libinput-dev libudev-dev libgbm-dev libegl1-mesa-dev libssl-dev \
+            mesa-vulkan-drivers libvulkan1 \
+            adwaita-icon-theme \
+            xvfb imagemagick
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: frontends/cosmic
+
+      - name: build
+        run: cargo build --release
+
+      - name: capture every screen
+        env:
+          TUNA_CAPTURE_DIR: docs/screenshots
+          RUST_LOG: warn
+          # The installer names the variant from PRETTY_NAME in /etc/os-release,
+          # which on this runner is Ubuntu. Pin the neutral product name for
+          # the committed walkthrough; the step below exercises the real path.
+          BOOTC_INSTALLER_PRODUCT_NAME: TunaOS
+        run: |
+          # Force the software Vulkan ICD; the filename differs between Mesa
+          # builds, so pick whichever exists.
+          for f in /usr/share/vulkan/icd.d/lvp_icd*.json; do
+            [ -e "$f" ] && export VK_ICD_FILENAMES="$f" && break
+          done
+          echo "using ICD $VK_ICD_FILENAMES"
+          export XDG_RUNTIME_DIR="$(mktemp -d)"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          mkdir -p docs/screenshots
+          # Exits non-zero if any screen failed its pixel audit.
+          xvfb-run -a -s "-screen 0 1400x1000x24" ./target/release/tuna-installer-cosmic
+
+      - name: capture with a variant os-release
+        env:
+          RUST_LOG: warn
+        run: |
+          for f in /usr/share/vulkan/icd.d/lvp_icd*.json; do
+            [ -e "$f" ] && export VK_ICD_FILENAMES="$f" && break
+          done
+          export XDG_RUNTIME_DIR="$(mktemp -d)"; chmod 700 "$XDG_RUNTIME_DIR"
+          sudo mkdir -p /run/host/etc
+          printf 'ID=tunaos\nPRETTY_NAME="Skipjack"\n' \
+            | sudo tee /run/host/etc/os-release >/dev/null
+          export TUNA_CAPTURE_DIR=variant-screenshots
+          mkdir -p "$TUNA_CAPTURE_DIR"
+          xvfb-run -a -s "-screen 0 1400x1000x24" ./target/release/tuna-installer-cosmic
+          sudo rm -rf /run/host
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gui-screenshots-cosmic-variant
+          path: frontends/cosmic/variant-screenshots/
+          if-no-files-found: warn
+
+      # Guards the guard: the pixel gate must still reject a blank render.
+      - name: verify the pixel gate rejects a blank render
+        env:
+          TUNA_BLANK_SELFTEST: "1"
+          RUST_LOG: warn
+        run: |
+          for f in /usr/share/vulkan/icd.d/lvp_icd*.json; do
+            [ -e "$f" ] && export VK_ICD_FILENAMES="$f" && break
+          done
+          export XDG_RUNTIME_DIR="$(mktemp -d)"; chmod 700 "$XDG_RUNTIME_DIR"
+          export TUNA_CAPTURE_DIR="$(mktemp -d)"
+          if xvfb-run -a -s "-screen 0 1400x1000x24" \
+               ./target/release/tuna-installer-cosmic; then
+            echo "::error::pixel gate accepted a blank render" >&2
+            exit 1
+          fi
+          echo "ok: gate rejected the blank render"
+
+      - name: build the animated walkthrough
+        run: |
+          convert -delay 240 -loop 0 \
+            $(ls docs/screenshots/[0-9][0-9]-*.png | sort) \
+            docs/screenshots/walkthrough.gif
+          ls -la docs/screenshots
+
+      # iced has no widget-tree introspection, so the harness writes
+      # texts.json (the strings each page was rendered from, see
+      # ui::page_text) next to the PNGs, and the shared report matches them
+      # against the screen contract like any other frontend's widget text.
+      # Without texts.json the report falls back to pixels only and the
+      # COSMIC row reads "not measured". See shared/walkthrough/report_from_pngs.py.
+      - name: emit parity report
+        if: always()
+        run: |
+          # Pillow for the per-page pixel audit; without it the report can
+          # only say rendered=null and the COSMIC "Rendered" count reads 0.
+          sudo apt-get install -y -qq python3 python3-pil >/dev/null 2>&1 || true
+          python3 ../../shared/walkthrough/report_from_pngs.py cosmic docs/screenshots \
+            --harness "src/capture.rs (libcosmic on lavapipe under Xvfb)"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gui-screenshots-cosmic
+          path: frontends/cosmic/docs/screenshots/
+          if-no-files-found: warn
+
+      - name: commit refreshed screenshots
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots
+          if git diff --cached --quiet; then echo "no screenshot changes"; exit 0; fi
+          git commit -m "docs(cosmic): refresh GUI screenshots [skip ci]"
+          # Five capture jobs and the walkthrough all push small commits to dev
+          # within seconds of each other, and a plain push loses the race with
+          # a non-fast-forward rejection (runs 35281231391/462/400 on the
+          # first dev push after the monorepo merge). Rebase onto whatever
+          # landed meanwhile and retry; these commits never touch the same
+          # files, so the rebase is always clean.
+          for attempt in 1 2 3 4 5 6; do
+            git fetch -q origin dev
+            git rebase -q origin/dev || { git rebase --abort; echo "::error::rebase onto dev failed"; exit 1; }
+            if git push origin HEAD:dev; then exit 0; fi
+            echo "push rejected (attempt $attempt); retrying"
+            sleep $((attempt * 5))
+          done
+          echo "::error::could not push after 6 attempts"
+          exit 1

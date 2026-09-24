@@ -1,0 +1,299 @@
+name: Promote dev → prod
+
+# The auto-promotion gate. `dev` is where work lands; `prod` is what ships.
+# This workflow moves `prod` forward to a `dev` commit only once every check
+# on that commit has finished green, then dispatches release.yml on `prod`,
+# which cuts the GitHub release and publishes every frontend's Flatpak to the
+# tuna-os remote. docs/RELEASE.md is the human description.
+#
+# How it fires: whenever one of the validation workflows completes on dev
+# (workflow_run), hourly as a catch-up, and by hand. A firing that arrives
+# before the soak window has elapsed sleeps out the remainder inside the
+# job and then evaluates the checks; it does not exit and hope a later
+# firing comes back. The hourly schedule is only a catch-up: GitHub runs
+# this repository's cron ticks hours late (the weekly 06:00 nightly has
+# fired between 06:44 and 11:32), and on the first day of the flow no
+# hourly tick fired at all, so both of the first promotions had to be
+# dispatched by hand. Only the LAST workflow to finish on a commit sees
+# "everything is complete", so early firings report "not yet" and exit
+# green.
+#
+# What it refuses to do:
+#   - move prod to a commit that is not a descendant of prod (never rewinds);
+#   - promote while any check is still running or any check failed;
+#   - promote a commit younger than SOAK_MINUTES, so a fix-up push has time to
+#     land before the previous commit ships;
+#   - rely on push-triggered workflows on prod. GITHUB_TOKEN pushes never
+#     trigger workflows, so release.yml is dispatched explicitly instead.
+#
+# `force: true` skips the soak and the check gate. It exists for the day the
+# gate is wrong; it is not the normal path.
+
+on:
+  workflow_run:
+    workflows:
+      - Flatpak
+      - Flatpak (frontends)
+      - Python Tests
+      - Go Tests
+      - Screenshots (gnome)
+      - Screenshots (kde)
+      - Screenshots (cosmic)
+      - Screenshots (niri)
+      - Screenshots (xfce)
+      - CI (niri backend)
+      - cargo-sources (cosmic)
+      - Walkthrough
+      - End to end
+    types: [completed]
+    branches: [dev]
+  # Catch-up only. The gate sleeps out the soak itself (see the header), so
+  # this tick matters only when every workflow_run firing for a commit was
+  # lost, and GitHub may deliver it hours late.
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit on dev to promote (default: dev HEAD)"
+        required: false
+        type: string
+      force:
+        description: Skip the soak window and the check gate
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+  checks: read
+
+# One promotion at a time, and never cancel one that is mid-push.
+concurrency:
+  group: promote-dev-to-prod
+  cancel-in-progress: false
+
+env:
+  DEV_BRANCH: dev
+  PROD_BRANCH: prod
+  # Checks that must be present AND green on the candidate. Path-filtered
+  # workflows (screenshots, frontend builds) are not listed: when they did
+  # not run there is nothing to validate, and when they did run they are
+  # covered by the "nothing failed, nothing pending" rule. The E2E rows are
+  # e2e.yml: every frontend drives its real backend path, and the recipe
+  # each one produced is installed and booted in a VM. Nothing ships
+  # without all five installers having installed something that booted.
+  REQUIRED_CHECKS: |
+    Build (production)
+    Build (production, aarch64)
+    Build (devel)
+    Unit Tests (no display)
+    UI Integration Tests (offscreen GTK)
+    Unit Tests
+    E2E (gnome)
+    E2E (kde)
+    E2E (cosmic)
+    E2E (niri)
+    E2E (xfce)
+    E2E (install gnome)
+    E2E (install kde)
+    E2E (install cosmic)
+    E2E (install niri)
+    E2E (install xfce)
+  # Minimum age of the candidate commit before it may ship.
+  SOAK_MINUTES: "30"
+
+jobs:
+  gate:
+    name: Gate
+    runs-on: ubuntu-24.04
+    outputs:
+      promote: ${{ steps.decide.outputs.promote }}
+      sha: ${{ steps.candidate.outputs.sha }}
+      reason: ${{ steps.decide.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEV_BRANCH }}
+          fetch-depth: 0
+
+      - name: Pick the candidate
+        id: candidate
+        env:
+          INPUT_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          git fetch origin "$PROD_BRANCH" 2>/dev/null || true
+          if [ -n "$INPUT_SHA" ]; then
+            SHA=$(git rev-parse --verify "$INPUT_SHA^{commit}")
+            git merge-base --is-ancestor "$SHA" "origin/$DEV_BRANCH" \
+              || { echo "::error::$SHA is not on $DEV_BRANCH"; exit 1; }
+          else
+            # Newest dev commit that CI actually ran on. The screenshot and
+            # walkthrough jobs push "[skip ci]" commits to dev; those carry no
+            # check runs and must not stall promotion behind them.
+            SHA=""
+            for c in $(git rev-list -n 50 "origin/$DEV_BRANCH"); do
+              if git show -s --format=%B "$c" | grep -q '\[skip ci\]'; then continue; fi
+              SHA="$c"; break
+            done
+            [ -n "$SHA" ] || SHA=$(git rev-parse "origin/$DEV_BRANCH")
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          if git rev-parse --verify -q "origin/$PROD_BRANCH" >/dev/null; then
+            PROD=$(git rev-parse "origin/$PROD_BRANCH")
+            echo "prod=$PROD" >> "$GITHUB_OUTPUT"
+            echo "prod_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prod=" >> "$GITHUB_OUTPUT"
+            echo "prod_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "candidate: $SHA"
+          echo "prod:      ${PROD:-<none yet>}"
+
+      - name: Decide
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.candidate.outputs.sha }}
+          PROD: ${{ steps.candidate.outputs.prod }}
+          PROD_EXISTS: ${{ steps.candidate.outputs.prod_exists }}
+          FORCE: ${{ inputs.force == true && 'true' || 'false' }}
+          INPUT_SHA: ${{ inputs.sha }}
+          OWN_WORKFLOW: ${{ github.workflow }}
+        run: |
+          set -euo pipefail
+          say() { echo "promote=$1" >> "$GITHUB_OUTPUT"; echo "reason=$2" >> "$GITHUB_OUTPUT"; echo "$2"; }
+
+          if [ "$PROD_EXISTS" = "true" ]; then
+            if [ "$PROD" = "$SHA" ]; then
+              say false "prod is already at $SHA"; exit 0
+            fi
+            if ! git merge-base --is-ancestor "$PROD" "$SHA"; then
+              echo "::error::prod ($PROD) is not an ancestor of $SHA; refusing to rewind or fork prod"
+              say false "prod is not an ancestor of the candidate"; exit 1
+            fi
+          fi
+
+          if [ "$FORCE" = "true" ]; then
+            echo "::warning::force=true: skipping soak and check gate"
+            say true "forced"; exit 0
+          fi
+
+          # Soak window. The workflow_run firings for a commit all arrive
+          # within minutes of the push, well before the soak has elapsed, and
+          # the hourly schedule that was meant to catch up runs hours late on
+          # GitHub's side (or not at all: no tick fired on 2026-09-18 between
+          # 00:17 and 02:17). So instead of exiting and waiting for a later
+          # firing, sleep out the remainder here. The concurrency group keeps
+          # one run in flight and one queued, so the firings that pile up
+          # behind this one collapse into a single re-check afterwards.
+          age=$(( $(date -u +%s) - $(git show -s --format=%ct "$SHA") ))
+          remaining=$(( SOAK_MINUTES * 60 - age ))
+          if [ "$remaining" -gt 0 ]; then
+            echo "candidate is $((age / 60)) min old; soak is ${SOAK_MINUTES} min; sleeping $((remaining / 60 + 1)) min"
+            sleep "$remaining"
+            # A newer commit may have landed meanwhile. It becomes the
+            # candidate of its own firings; this run must not ship a
+            # superseded one.
+            git fetch -q origin "$DEV_BRANCH"
+            NEWEST=""
+            for c in $(git rev-list -n 50 "origin/$DEV_BRANCH"); do
+              if git show -s --format=%B "$c" | grep -q '\[skip ci\]'; then continue; fi
+              NEWEST="$c"; break
+            done
+            if [ -z "$INPUT_SHA" ] && [ -n "$NEWEST" ] && [ "$NEWEST" != "$SHA" ]; then
+              say false "superseded by $NEWEST while soaking"; exit 0
+            fi
+          fi
+
+          # Every check run on the candidate, excluding this workflow's own.
+          gh api --paginate -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/commits/${SHA}/check-runs?per_page=100" \
+            --jq '.check_runs[] | [.name, .status, (.conclusion // "")] | @tsv' \
+            | grep -v -F "$OWN_WORKFLOW" | grep -v -E '^(Gate|Promote)\b' > /tmp/checks.tsv || true
+
+          if [ ! -s /tmp/checks.tsv ]; then
+            say false "no check runs recorded on $SHA yet"; exit 0
+          fi
+          echo "--- check runs on $SHA ---"; cat /tmp/checks.tsv
+
+          pending=$(awk -F'\t' '$2 != "completed" {print $1}' /tmp/checks.tsv || true)
+          if [ -n "$pending" ]; then
+            say false "still running: $(echo "$pending" | tr '\n' ',' | sed 's/,$//')"; exit 0
+          fi
+
+          # `cancelled` is not red here: a run superseded inside its own
+          # concurrency group (Aggregate walkthroughs, cancel-in-progress,
+          # fed by [skip ci] docs commits) stays cancelled on the candidate
+          # forever and blocked every promotion after #98. The required
+          # checks below must still be `success`, so a cancelled required
+          # check is caught there, by name.
+          bad=$(awk -F'\t' '$3 == "failure" || $3 == "timed_out" || $3 == "action_required" || $3 == "startup_failure" {print $1" ("$3")"}' /tmp/checks.tsv || true)
+          if [ -n "$bad" ]; then
+            echo "::error::checks not green on $SHA: $(echo "$bad" | tr '\n' ';')"
+            say false "red checks: $(echo "$bad" | tr '\n' ';')"; exit 0
+          fi
+
+          missing=""
+          while IFS= read -r name; do
+            [ -z "$name" ] && continue
+            if ! awk -F'\t' -v n="$name" '$1 == n && $3 == "success"' /tmp/checks.tsv | grep -q .; then
+              missing="$missing$name; "
+            fi
+          done <<< "$REQUIRED_CHECKS"
+          if [ -n "$missing" ]; then
+            say false "required checks not green/present: $missing"; exit 0
+          fi
+
+          say true "all checks green, soak elapsed"
+
+      - name: Summary
+        if: always()
+        env:
+          REASON: ${{ steps.decide.outputs.reason }}
+          SHA: ${{ steps.candidate.outputs.sha }}
+          PROMOTE: ${{ steps.decide.outputs.promote }}
+        run: |
+          {
+            echo "## Promote dev → prod"
+            echo
+            echo "- candidate: \`$SHA\`"
+            echo "- decision: **${PROMOTE:-false}** — $REASON"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  promote:
+    name: Promote
+    needs: gate
+    if: needs.gate.outputs.promote == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+          fetch-depth: 0
+
+      # Fast-forward only. The branch is created on the first promotion.
+      - name: Fast-forward prod
+        env:
+          SHA: ${{ needs.gate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git push origin "$SHA:refs/heads/$PROD_BRANCH"
+          echo "prod -> $SHA"
+
+      # GITHUB_TOKEN pushes do not trigger push workflows, by design, so the
+      # release is dispatched explicitly. release.yml checks out prod HEAD,
+      # which is now the candidate.
+      - name: Dispatch release on prod
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.gate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          gh workflow run release.yml --ref "$PROD_BRANCH" -f expected_sha="$SHA"
+          echo "dispatched release.yml on $PROD_BRANCH for $SHA"
+          {
+            echo "- promoted \`$SHA\` to \`$PROD_BRANCH\` and dispatched release.yml"
+          } >> "$GITHUB_STEP_SUMMARY"

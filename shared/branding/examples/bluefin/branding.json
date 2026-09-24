@@ -1,0 +1,48 @@
+{
+  "name": "Bluefin",
+  "id": "bluefin",
+  "vendor": "Project Bluefin",
+  "home_url": "https://projectbluefin.io",
+  "docs_url": "https://docs.projectbluefin.io/",
+  "support_url": "https://app.dosu.dev/e3630b91-3a35-46b9-a8d3-b0c1b3ef6331/ask",
+  "store_url": "https://store.projectbluefin.io",
+  "default_hostname": "bluefin",
+  "default_image": "ghcr.io/projectbluefin/dakota:latest",
+  "copy": {
+    "welcome_title": "Welcome to {name}",
+    "welcome_subtitle": "A GNOME workstation built on GnomeOS — composefs, atomic updates, no package manager.",
+    "welcome_install": "Install {name}",
+    "welcome_install_subtitle": "Installs to your internal disk. Takes about 5–10 minutes.",
+    "confirm_title": "Confirm Installation",
+    "confirm_subtitle": "\"Indeed.\" — Commander Zavala",
+    "confirm_body": "Whether we wanted it or not, we've stepped into a war with your old OS.",
+    "confirm_button": "Become Legend",
+    "done_title": "{name} is installed",
+    "done_subtitle": "Restart to begin your new experience.",
+    "done_restart": "Reboot Now",
+    "store_label": "Get {name} gear at store.projectbluefin.io"
+  },
+  "confirm_quotes": {
+    "pt_BR": [
+      "\"If you have God on your side, everything becomes clear.\" — Ayrton Senna",
+      "\"I am not designed to come second or third. I am designed to win.\" — Ayrton Senna",
+      "\"Being second is to be the first of the ones who lose.\" — Ayrton Senna",
+      "\"On a given day, a given circumstance, you think you have a limit — and you go beyond it.\" — Ayrton Senna"
+    ]
+  },
+  "assets": {
+    "welcome_image": "/usr/share/bootc-installer/branding/welcome.png",
+    "complete_image": "/usr/share/bootc-installer/branding/complete.svg",
+    "store_qr": "/usr/share/bootc-installer/branding/store-qr.svg"
+  },
+  "extensions": {
+    "gnome": {
+      "tour_welcome_title": "Installing {name}",
+      "tour_welcome_description": "A GNOME workstation built on GnomeOS. This will take a few minutes.",
+      "tour_done_title": "Installation Complete",
+      "tour_done_description": "Your system is ready to use",
+      "video": "/usr/share/bootc-installer/branding/installer-video.webm",
+      "credits": "/usr/share/bootc-installer/branding/credits.json"
+    }
+  }
+}

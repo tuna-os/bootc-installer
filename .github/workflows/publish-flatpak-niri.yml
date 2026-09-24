@@ -1,0 +1,55 @@
+name: Publish Flatpak (niri)
+
+# Publishes the niri frontend as ghcr.io/tuna-os/bootc-installer:niri through
+# the local reusable publish-oci.yml (one package, one tag per frontend; see
+# that file for why not the tuna-os/.github reusable). release.yml calls this
+# after `prod` is promoted (docs/RELEASE.md); the manual dispatch is an
+# escape hatch.
+
+on:
+  workflow_call:
+    inputs:
+      publish:
+        description: Push to GHCR and the central index (false = build-only validation)
+        required: false
+        type: boolean
+        default: true
+      archs:
+        required: false
+        type: string
+        default: '["x86_64", "aarch64"]'
+    secrets:
+      FLATPAK_INDEX_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Push to GHCR and the central index (false = build-only validation)
+        required: false
+        type: boolean
+        default: true
+      archs:
+        required: false
+        type: string
+        default: '["x86_64", "aarch64"]'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    uses: ./.github/workflows/publish-oci.yml
+    with:
+      frontend: niri
+      app-id: org.tunaos.InstallerNiri
+      manifest-path: frontends/niri/flatpak/org.tunaos.InstallerNiri.json
+      # Must track "runtime-version" in the manifest.
+      flatpak-builder-image: kde-6.9
+      # aarch64 alongside x86_64: the tunaOS live-ISO build installs this
+      # Flatpak from the tuna-os remote on both architectures.
+      archs: ${{ inputs.archs }}
+      checkout-submodules: false
+      also-latest: false
+      publish: ${{ inputs.publish }}
+    secrets: inherit

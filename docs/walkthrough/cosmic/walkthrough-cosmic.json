@@ -1,0 +1,161 @@
+{
+  "flavor": "cosmic",
+  "frames": 6,
+  "rendered_frames": 6,
+  "advanced_transitions": 5,
+  "visual_states": 6,
+  "activation_key": null,
+  "ocr": false,
+  "screens": {
+    "welcome": true,
+    "disk": true,
+    "encryption": true,
+    "summary": true,
+    "install": true,
+    "done": true
+  },
+  "strict": true,
+  "failures": 0,
+  "source": "offscreen-capture",
+  "harness": "src/capture.rs (libcosmic on lavapipe under Xvfb)",
+  "text_source": "rendered-strings",
+  "screens_detail": {
+    "welcome": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "welcome"
+      ],
+      "matched_keywords": [
+        "get started",
+        "welcome",
+        "will guide you through"
+      ]
+    },
+    "disk": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "disk"
+      ],
+      "matched_keywords": [
+        "select a disk"
+      ]
+    },
+    "encryption": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "options"
+      ],
+      "matched_keywords": [
+        "disk encryption"
+      ]
+    },
+    "summary": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "confirm"
+      ],
+      "matched_keywords": [
+        "confirm installation",
+        "summary"
+      ]
+    },
+    "install": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "installing"
+      ],
+      "matched_keywords": [
+        "do not power off",
+        "installing image",
+        "partitioning"
+      ]
+    },
+    "done": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "done"
+      ],
+      "matched_keywords": [
+        "is installed",
+        "remove the installation media"
+      ]
+    }
+  },
+  "pages": [
+    {
+      "name": "welcome",
+      "png": "docs/screenshots/01-welcome.png",
+      "rendered": true,
+      "colours": 197,
+      "flat": 0.964545268437484,
+      "ink": 0.987857618097139,
+      "stddev": 0.07523797002921304,
+      "text_excerpt": "Welcome to TunaOS Welcome. This assistant will guide you through installing TunaOS onto this computer. You will choose a target disk and a few options. Nothing is written to any disk until you confirm on the last step. Get started"
+    },
+    {
+      "name": "disk",
+      "png": "docs/screenshots/02-disk.png",
+      "rendered": true,
+      "colours": 196,
+      "flat": 0.5412124469010696,
+      "ink": 0.993052356824812,
+      "stddev": 0.06435257985623488,
+      "text_excerpt": "Select a disk Everything on the disk you pick will be erased. /dev/nvme0n1 476.9G \u00b7 SAMSUNG MZVL2512HCJQ \u00b7 nvme /dev/sda 1.8T \u00b7 WDC WD20SPZX-22UA7 \u00b7 sata Back Continue"
+    },
+    {
+      "name": "options",
+      "png": "docs/screenshots/03-options.png",
+      "rendered": true,
+      "colours": 211,
+      "flat": 0.7590843953119403,
+      "ink": 0.9929755872869646,
+      "stddev": 0.06559876982978931,
+      "text_excerpt": "Options Sensible defaults are already chosen. Change them only if you need to. System Computer name ubuntu Filesystem xfs Encryption Disk encryption No encryption Anyone with the disk can read your files. Back Continue"
+    },
+    {
+      "name": "confirm",
+      "png": "docs/screenshots/04-confirm.png",
+      "rendered": true,
+      "colours": 317,
+      "flat": 0.5778954910691437,
+      "ink": 0.9907364757664159,
+      "stddev": 0.07426834277752636,
+      "text_excerpt": "Confirm installation The last screen before anything is written. Everything on /dev/nvme0n1 will be erased. This cannot be undone.  Summary Target disk /dev/nvme0n1 Filesystem xfs Encryption none Computer name ubuntu Image ghcr.io/tuna-os/a"
+    },
+    {
+      "name": "installing",
+      "png": "docs/screenshots/05-installing.png",
+      "rendered": true,
+      "colours": 224,
+      "flat": 0.5017656993704898,
+      "ink": 0.9879727724039101,
+      "stddev": 0.0798775092435744,
+      "text_excerpt": "Installing TunaOS\u2026 fisherman is writing the image to disk. [1/9] Partitioning /dev/nvme0n1\n  created EFI system partition (1.0 GiB, FAT32)\n  created root partition (475.9 GiB)\n[2/9] Formatting boot partitions\n[3/9] Setting up encryption\n  e"
+    },
+    {
+      "name": "done",
+      "png": "docs/screenshots/06-done.png",
+      "rendered": true,
+      "colours": 210,
+      "flat": 0.9706356517733763,
+      "ink": 0.9919264036030503,
+      "stddev": 0.05890976902205662,
+      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Restart now Close"
+    }
+  ],
+  "transition_pixels": [
+    389212,
+    248866,
+    240497,
+    152975,
+    377524
+  ],
+  "spec_drift": [],
+  "notes": "Text comes from the strings the harness rendered each page from (the same constants the view reads), not from a widget tree or OCR, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
+}

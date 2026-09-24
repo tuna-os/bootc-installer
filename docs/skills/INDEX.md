@@ -1,6 +1,6 @@
 # docs/skills — Index
 
-Agent skill docs for `projectbluefin/bootc-installer`. Any agent (Copilot,
+Agent skill docs for `tuna-os/bootc-installer`. Any agent (Copilot,
 Claude, etc.) working in this repo should load the relevant files.
 
 ## What belongs here

@@ -1,0 +1,10 @@
+build/
+*.o
+*.pro.user
+moc_*
+ui_*
+qrc_*
+.idea/
+.vscode/
+CMakeUserPresets.json
+.flatpak-builder/

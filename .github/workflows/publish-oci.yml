@@ -1,0 +1,198 @@
+name: Publish OCI (frontend)
+
+# Builds one frontend's Flatpak as an OCI image per architecture and pushes
+# it to the ONE package every frontend shares:
+#
+#   ghcr.io/tuna-os/bootc-installer:<frontend>            (primary arch)
+#   ghcr.io/tuna-os/bootc-installer:<frontend>-<arch>
+#   ghcr.io/tuna-os/bootc-installer:<frontend>-<tag>-<arch>   (v* tags)
+#
+# plus, for the GNOME frontend only, the historical `latest` aliases that
+# existing live-ISO builds still pull. The old per-frontend packages
+# (tuna-installer-kde/-cosmic/-niri/-xfce) belonged to the archived repos
+# and every publish to them failed with `permission_denied: write_package`
+# (docs/RELEASE.md); this workflow never touches them.
+#
+# Why not tuna-os/.github's reusable publish-flatpak.yml: it names its OCI
+# artifacts `oci-<arch>` with no app in the name, so five frontends
+# publishing in one release run upload five artifacts of the same name and
+# its publish job downloads whichever one the API returns first. The build
+# steps below are the same ones; the artifact and the tags carry the
+# frontend.
+#
+# Called by the five publish-flatpak*.yml wrappers, which release.yml runs
+# after `prod` is promoted (docs/RELEASE.md).
+
+on:
+  workflow_call:
+    inputs:
+      frontend:
+        description: gnome | kde | cosmic | niri | xfce (the tag)
+        required: true
+        type: string
+      app-id:
+        required: true
+        type: string
+      manifest-path:
+        required: true
+        type: string
+      flatpak-builder-image:
+        description: flathub-infra/flatpak-github-actions image tag matching the manifest's runtime-version
+        required: true
+        type: string
+      archs:
+        required: false
+        type: string
+        default: '["x86_64", "aarch64"]'
+      checkout-submodules:
+        required: false
+        type: boolean
+        default: false
+      also-latest:
+        description: Also push the unqualified `latest` aliases (GNOME, for existing consumers)
+        required: false
+        type: boolean
+        default: false
+      publish:
+        description: Push to GHCR and the central index (false = build-only validation)
+        required: false
+        type: boolean
+        default: true
+      registry:
+        required: false
+        type: string
+        default: ghcr.io
+      package:
+        required: false
+        type: string
+        default: tuna-os/bootc-installer
+    secrets:
+      FLATPAK_INDEX_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-oci:
+    name: Build OCI (${{ matrix.arch }})
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON(inputs.archs) }}
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:${{ inputs.flatpak-builder-image }}
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: ${{ inputs.checkout-submodules && 'recursive' || 'false' }}
+
+      # `arch` is required on the arm runner: the action's default is the
+      # literal x86_64, not the runner's architecture (see flatpak.yml).
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          arch: ${{ matrix.arch }}
+          bundle: ${{ inputs.app-id }}-${{ matrix.arch }}.flatpak
+          manifest-path: ${{ inputs.manifest-path }}
+          cache-key: flatpak-builder-${{ inputs.frontend }}-${{ matrix.arch }}-${{ github.sha }}
+          upload-artifact: false
+
+      - name: Export OCI
+        env:
+          ARCH: ${{ matrix.arch }}
+          FRONTEND: ${{ inputs.frontend }}
+          APP_ID: ${{ inputs.app-id }}
+        run: |
+          set -euo pipefail
+          flatpak build-bundle --oci --arch="$ARCH" repo "oci-${FRONTEND}-${ARCH}" "$APP_ID"
+          ls -l "oci-${FRONTEND}-${ARCH}"
+
+      # The frontend is in the artifact name: five frontends publish in one
+      # release run, and the name is the only thing that tells them apart.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oci-${{ inputs.frontend }}-${{ matrix.arch }}
+          path: oci-${{ inputs.frontend }}-${{ matrix.arch }}/
+          retention-days: 1
+
+  publish:
+    name: Publish
+    needs: build-oci
+    if: inputs.publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: oci-${{ inputs.frontend }}-*
+          path: .
+
+      - name: Log in to GHCR
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+          REGISTRY: ${{ inputs.registry }}
+        run: echo "$TOKEN" | skopeo login -u "$ACTOR" --password-stdin "$REGISTRY"
+
+      - name: Push OCI to the shared package
+        env:
+          REGISTRY: ${{ inputs.registry }}
+          PACKAGE: ${{ inputs.package }}
+          FRONTEND: ${{ inputs.frontend }}
+          ARCHS: ${{ inputs.archs }}
+          ALSO_LATEST: ${{ inputs.also-latest }}
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          read -ra archs <<<"$(python3 -c 'import json,sys; print(*json.loads(sys.argv[1]))' "$ARCHS")"
+          primary="${archs[0]}"
+          version_tag=""
+          case "$REF" in refs/tags/*) version_tag="$REF_NAME" ;; esac
+          for arch in "${archs[@]}"; do
+            dir="oci-${FRONTEND}-${arch}"
+            [ -d "$dir" ] || { echo "::error::missing $dir"; exit 1; }
+            skopeo copy "oci:${dir}" "docker://${REGISTRY}/${PACKAGE}:${FRONTEND}-${arch}"
+            if [ -n "$version_tag" ]; then
+              skopeo copy "oci:${dir}" "docker://${REGISTRY}/${PACKAGE}:${FRONTEND}-${version_tag}-${arch}"
+            fi
+            if [ "$ALSO_LATEST" = "true" ]; then
+              skopeo copy "oci:${dir}" "docker://${REGISTRY}/${PACKAGE}:latest-${arch}"
+              [ -n "$version_tag" ] && skopeo copy "oci:${dir}" "docker://${REGISTRY}/${PACKAGE}:${version_tag}-${arch}"
+            fi
+          done
+          skopeo copy "oci:oci-${FRONTEND}-${primary}" "docker://${REGISTRY}/${PACKAGE}:${FRONTEND}"
+          if [ "$ALSO_LATEST" = "true" ]; then
+            skopeo copy "oci:oci-${FRONTEND}-${primary}" "docker://${REGISTRY}/${PACKAGE}:latest"
+          fi
+          {
+            echo "## ${REGISTRY}/${PACKAGE}:${FRONTEND}"
+            for arch in "${archs[@]}"; do echo "- \`${FRONTEND}-${arch}\`"; done
+            [ -n "$version_tag" ] && echo "- \`${FRONTEND}-${version_tag}-<arch>\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The central Flatpak index (tuna-os/docs) keys entries by repo name;
+      # the frontend goes in the tags so five entries under one package do
+      # not overwrite each other's tag list.
+      - name: Update central index (x86_64)
+        if: contains(fromJSON(inputs.archs), 'x86_64')
+        uses: tuna-os/.github/.github/actions/publish-flatpak-index@main
+        with:
+          oci-dir: oci-${{ inputs.frontend }}-x86_64
+          repo-name: ${{ inputs.package }}
+          registry: ${{ inputs.registry }}
+          tags: ${{ inputs.frontend }}${{ inputs.also-latest && ' latest' || '' }}
+          token: ${{ secrets.FLATPAK_INDEX_TOKEN }}
+      - name: Update central index (aarch64)
+        if: contains(fromJSON(inputs.archs), 'aarch64')
+        uses: tuna-os/.github/.github/actions/publish-flatpak-index@main
+        with:
+          oci-dir: oci-${{ inputs.frontend }}-aarch64
+          repo-name: ${{ inputs.package }}
+          registry: ${{ inputs.registry }}
+          tags: ${{ inputs.frontend }}${{ inputs.also-latest && ' latest' || '' }}
+          token: ${{ secrets.FLATPAK_INDEX_TOKEN }}

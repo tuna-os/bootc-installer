@@ -1,0 +1,99 @@
+name: Flatpak (frontends)
+
+# Build-only validation of the four imported frontends' Flatpaks on pull
+# requests and dev pushes. Nothing is published here: the reusable workflow
+# runs with publish=false, so a manifest that no longer builds fails the PR
+# instead of failing the promotion (or, as before the monorepo, failing on the
+# old repos' `main` after the merge, on a branch nobody was looking at).
+#
+# Each frontend builds only when its own tree changed, on x86_64 only. The
+# full two-arch publish happens in release.yml.
+
+on:
+  pull_request:
+  push:
+    branches: [dev]
+  merge_group:
+  workflow_dispatch:
+
+# A called reusable workflow may only narrow the permissions its caller
+# passes, never widen them, and publish-flatpak-<name>.yml declares
+# contents/packages write for its publishing path. Granting less here is a
+# startup failure of the whole workflow (run 35254136098), not a skipped
+# publish. The build-only path never uses the write scopes.
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: flatpak-frontends-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changed frontends
+    runs-on: ubuntu-24.04
+    outputs:
+      kde: ${{ steps.filter.outputs.kde }}
+      cosmic: ${{ steps.filter.outputs.cosmic }}
+      niri: ${{ steps.filter.outputs.niri }}
+      xfce: ${{ steps.filter.outputs.xfce }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            changed=$(git diff --name-only "${HEAD}~1" "$HEAD" 2>/dev/null || git ls-files)
+          else
+            changed=$(git diff --name-only "$BASE" "$HEAD")
+          fi
+          for n in kde cosmic niri xfce; do
+            if echo "$changed" | grep -qE "^(frontends/$n/|\.github/workflows/(flatpak-frontends|publish-flatpak-$n)\.yml)"; then
+              echo "$n=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$n=false" >> "$GITHUB_OUTPUT"
+            fi
+          done
+          cat "$GITHUB_OUTPUT"
+
+  kde:
+    needs: changes
+    if: needs.changes.outputs.kde == 'true'
+    uses: ./.github/workflows/publish-flatpak-kde.yml
+    with:
+      publish: false
+      archs: '["x86_64"]'
+    secrets: inherit
+
+  cosmic:
+    needs: changes
+    if: needs.changes.outputs.cosmic == 'true'
+    uses: ./.github/workflows/publish-flatpak-cosmic.yml
+    with:
+      publish: false
+      archs: '["x86_64"]'
+    secrets: inherit
+
+  niri:
+    needs: changes
+    if: needs.changes.outputs.niri == 'true'
+    uses: ./.github/workflows/publish-flatpak-niri.yml
+    with:
+      publish: false
+      archs: '["x86_64"]'
+    secrets: inherit
+
+  xfce:
+    needs: changes
+    if: needs.changes.outputs.xfce == 'true'
+    uses: ./.github/workflows/publish-flatpak-xfce.yml
+    with:
+      publish: false
+      archs: '["x86_64"]'
+    secrets: inherit

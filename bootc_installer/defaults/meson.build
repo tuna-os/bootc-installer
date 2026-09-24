@@ -8,6 +8,7 @@ sources = [
   'keyboard.py',
   'timezone.py',
   'disk.py',
+  'disk_plan.py',
   'slurp.py',
   'encryption.py',
   'image.py',
