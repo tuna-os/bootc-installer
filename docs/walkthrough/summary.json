@@ -45,23 +45,23 @@
   },
   "frontends": {
     "gnome": {
-      "frames": 8,
+      "frames": 9,
       "report": true
     },
     "kde": {
-      "frames": 8,
+      "frames": 9,
       "report": true
     },
     "cosmic": {
-      "frames": 8,
+      "frames": 9,
       "report": true
     },
     "niri": {
-      "frames": 8,
+      "frames": 9,
       "report": true
     },
     "xfce": {
-      "frames": 8,
+      "frames": 9,
       "report": true
     }
   },
