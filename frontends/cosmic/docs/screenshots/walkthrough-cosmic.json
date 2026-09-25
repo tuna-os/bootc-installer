@@ -1,9 +1,9 @@
 {
   "flavor": "cosmic",
-  "frames": 6,
-  "rendered_frames": 6,
-  "advanced_transitions": 5,
-  "visual_states": 6,
+  "frames": 7,
+  "rendered_frames": 7,
+  "advanced_transitions": 6,
+  "visual_states": 7,
   "activation_key": null,
   "ocr": false,
   "screens": {
@@ -78,7 +78,8 @@
       "required": false,
       "reached": true,
       "on_pages": [
-        "done"
+        "done",
+        "recovery"
       ],
       "matched_keywords": [
         "is installed",
@@ -146,6 +147,16 @@
       "ink": 0.9919264036030503,
       "stddev": 0.05890976902205662,
       "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Restart now Close"
+    },
+    {
+      "name": "recovery",
+      "png": "docs/screenshots/07-recovery.png",
+      "rendered": true,
+      "colours": 269,
+      "flat": 0.9534264803725881,
+      "ink": 0.991580940682737,
+      "stddev": 0.06861763196467403,
+      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password mana"
     }
   ],
   "transition_pixels": [
@@ -153,7 +164,8 @@
     248866,
     240497,
     177419,
-    347534
+    347534,
+    24670
   ],
   "spec_drift": [],
   "notes": "Text comes from the strings the harness rendered each page from (the same constants the view reads), not from a widget tree or OCR, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
