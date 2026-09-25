@@ -53,10 +53,10 @@ TunaComponents.SetupModule {
             Layout.fillWidth: true
 
             ProgressBar {
+                id: installBar
+
                 // The capture harness looks this up by name and fails when it
-                // is missing or draws nothing (tests/capture.cpp). It is an
-                // objectName rather than an id because findChild() cannot see
-                // QML ids.
+                // is missing or draws nothing (tests/capture.cpp).
                 objectName: "installProgressBar"
 
                 // Indeterminate only before the first event arrives, so the
@@ -68,6 +68,42 @@ TunaComponents.SetupModule {
                 to: 1
 
                 Layout.fillWidth: true
+
+                // Drawn here rather than by the style.
+                //
+                // With the stock delegates this control laid out at 964x16,
+                // visible, opacity 1, value and position both 0.586, range
+                // 0..1, not indeterminate, enabled, nothing clipping it --
+                // and painted not one pixel. Measured, not guessed: see
+                // tests/capture.cpp. It is not the style failing wholesale,
+                // because the same org.kde.desktop style paints the Breeze
+                // radio indicators, text fields and buttons on the other
+                // steps; it is this control's painting path specifically.
+                //
+                // Two Rectangles in Kirigami theme colours paint under any
+                // style and any backend. The control stays a real
+                // ProgressBar -- its value, range and semantics are
+                // untouched -- so only the groove's appearance changes, and
+                // it now follows the colour scheme rather than the widget
+                // style. If someone on a real Breeze desktop confirms the
+                // native delegates paint there, these can go.
+                background: Rectangle {
+                    implicitWidth: 200
+                    implicitHeight: 6
+                    radius: height / 2
+                    color: Kirigami.Theme.alternateBackgroundColor
+                }
+
+                contentItem: Item {
+                    implicitHeight: 6
+
+                    Rectangle {
+                        width: installBar.visualPosition * parent.width
+                        height: parent.height
+                        radius: height / 2
+                        color: Kirigami.Theme.highlightColor
+                    }
+                }
             }
 
             Label {
