@@ -14,6 +14,7 @@ partitions a disk.
     QT_QPA_PLATFORM=offscreen python3 tests/gui/capture-screens.py [outdir]
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -44,7 +45,22 @@ PAGES = [
     ("04-confirm", 3, "The last screen before anything is written."),
     ("05-progress", 4, "The install, with live log."),
     ("06-done", 5, "Finished."),
+    ("07-recovery", 5, "A TPM install: the recovery key, and restart held "
+                       "until it is acknowledged."),
 ]
+
+# fisherman emits this once, after TPM enrolment, and for a tpm2-luks install
+# it is the only way back into the disk if the TPM state changes (#129). No CI
+# runner does a TPM install, so it is synthesised -- but it goes in through
+# appendLog(), the function a real install calls, so this frame exercises the
+# parse rather than a property assignment that would keep passing if the parse
+# broke.
+RECOVERY_EVENT = json.dumps({
+    "type": "recovery_key",
+    "key": "mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf",
+    "timestamp": "2026-01-01T00:00:00Z",
+    "elapsed_ms": 1000,
+})
 
 # The install screen, caught in flight: fisherman's real newline-delimited
 # JSON transcript (shared/progress/), truncated part-way through the image
@@ -245,6 +261,13 @@ def main():
             settle(700)
         if page == 5:
             root.setProperty("installSuccess", True)
+        if name == "07-recovery":
+            QMetaObject.invokeMethod(root, "appendLog",
+                                     Q_ARG(QVariant, RECOVERY_EVENT))
+            if not root.property("recoveryKey"):
+                print("  !! the recovery_key event did not parse",
+                      file=sys.stderr)
+                sys.exit(1)
         settle(300)
         image = window.grabWindow()
         path = os.path.join(out, f"{name}.png")
@@ -260,6 +283,60 @@ def main():
         finding = audit(image, name)
         finding["png"] = path
         finding["text"] = " ".join(page_text(window.contentItem()))
+
+        # The recovery frame is the one screen where a correct-looking render
+        # can still be wrong: the panel can draw without the key in it, and
+        # Restart can be live before the acknowledgement. Neither shows up in
+        # a pixel histogram.
+        if name == "07-recovery":
+            key = root.property("recoveryKey")
+            if key not in finding["text"]:
+                print("  !! the recovery key is not in the rendered text — "
+                      "the panel did not draw (#129)", file=sys.stderr)
+                sys.exit(1)
+            # The key alone is not enough. On the first run of this frame
+            # every LABEL was empty -- installer.qml keeps its own copy of
+            # the contract defaults and had not been given the recovery
+            # keys -- and the check still passed, because the key is set
+            # from the event rather than from the copy table. Assert on a
+            # contract-sourced string too, or this frame photographs a
+            # panel of blank buttons and calls it covered.
+            # Read from the canonical contract, not from the QML: that is
+            # what makes this catch drift between installer.qml's own copy
+            # table and shared/branding/copy-defaults.json.
+            # REPO is frontends/niri; the contract lives two levels up.
+            contract_path = os.path.join(
+                os.path.dirname(os.path.dirname(REPO)),
+                "shared", "branding", "copy-defaults.json")
+            if not os.path.exists(contract_path):
+                print("  .. shared/branding is absent; this tree is checked "
+                      "out without the monorepo, so the copy-table check is "
+                      "skipped", file=sys.stderr)
+                findings.append(finding)
+                continue
+            with open(contract_path) as fh:
+                contract = json.load(fh)
+            for key in ("recovery_key_title", "recovery_key_ack",
+                        "recovery_key_copy"):
+                want = contract[key]
+                if want not in finding["text"]:
+                    print(f"  !! {key} is not in the rendered text. The copy "
+                          "table in installer.qml is a hand-written duplicate "
+                          "of copy-defaults.json and nothing enforces it; a "
+                          "key added to the contract and not to that table "
+                          "renders as an empty string (#129).",
+                          file=sys.stderr)
+                    sys.exit(1)
+            restart = find_item(window.contentItem(), "doneRestartButton")
+            if restart is None:
+                print("  !! no doneRestartButton in the visual tree",
+                      file=sys.stderr)
+                sys.exit(1)
+            if restart.property("enabled"):
+                print("  !! Restart is live before the recovery key was "
+                      "acknowledged (#129)", file=sys.stderr)
+                sys.exit(1)
+
         findings.append(finding)
 
     failures = []
