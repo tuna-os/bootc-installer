@@ -104,7 +104,7 @@
       "colours": 257,
       "flat": 0.9694333333333334,
       "ink": 0.009666666666666667,
-      "stddev": 0.05269190816861404,
+      "stddev": 0.052709923393785496,
       "text_excerpt": "Step 2 of 6 \u00b7 Disk Destination Everything on the selected disk will be erased. This cannot be undone. Scanning for disks\u2026 Back Back Continue Continue Enter Continue Shift+Enter Back Tab Next field"
     },
     {
@@ -124,17 +124,17 @@
       "colours": 385,
       "flat": 0.6189,
       "ink": 0.0209,
-      "stddev": 0.08056238996147015,
+      "stddev": 0.08055122397772398,
       "text_excerpt": "Step 4 of 6 \u00b7 Confirm Confirm installation \u26a0  Everything on the selected disk will be erased. This cannot be undone. Summary Target disk \u2014 Filesystem xfs Encryption none Hostname tunaos Image ghcr.io/tuna-os/albacore:gnome Back Back Install"
     },
     {
       "name": "05-progress",
       "png": "docs/screenshots/05-progress.png",
       "rendered": true,
-      "colours": 265,
+      "colours": 262,
       "flat": 0.6350333333333333,
-      "ink": 0.021666666666666667,
-      "stddev": 0.09105218950452224,
+      "ink": 0.021633333333333334,
+      "stddev": 0.09108137579786926,
       "text_excerpt": "Step 5 of 6 \u00b7 Installing Installing TunaOS\u2026 Step 5 of 8 \u2014 Installing OS [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pul"
     },
     {
@@ -144,7 +144,7 @@
       "colours": 197,
       "flat": 0.9602666666666667,
       "ink": 0.017766666666666667,
-      "stddev": 0.08848182910054132,
+      "stddev": 0.08847120912641952,
       "text_excerpt": "Step 6 of 6 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. Close Close Restart now Restart now"
     }
   ],
@@ -152,8 +152,8 @@
     30519,
     56643,
     188997,
-    209592,
-    308501
+    209598,
+    308479
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
