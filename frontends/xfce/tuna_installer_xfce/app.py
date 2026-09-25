@@ -147,7 +147,9 @@ class InstallerWindow(Gtk.ApplicationWindow):
 
         def pump():
             if not lines:
-                self.pages["done"].set_result(True, "".join(self._log_tail))
+                self.pages["done"].set_result(
+                    True, "".join(self._log_tail),
+                    progress_page.recovery_key())
                 self._enter(PAGE_ORDER.index("done"))
                 return False
             text = lines.pop(0)
@@ -177,7 +179,9 @@ class InstallerWindow(Gtk.ApplicationWindow):
             self._install_log.write(f"=== fisherman exited: {outcome} ===\n")
             self._install_log.close()
             self._install_log = None
-        self.pages["done"].set_result(ok, "".join(self._log_tail))
+        self.pages["done"].set_result(
+            ok, "".join(self._log_tail),
+            self.pages["progress"].recovery_key())
         self._enter(PAGE_ORDER.index("done"))
 
 
