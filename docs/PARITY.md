@@ -10,28 +10,41 @@ this page covers what each does.
 
 Every key in `shared/branding/copy-defaults.json` is a line a product may
 rebrand. A frontend "renders" a key when the line appears where the table
-says; "hidden" means the frontend shows nothing for an empty value.
+says. "Hidden" means the frontend shows nothing for an empty value. "No"
+means the frontend shows its own hardcoded text, so a product cannot
+rebrand that line.
+
+`tests/unit/test_copy_coverage.py` enforces the "no" cells. It scans each
+frontend for every key and compares what it finds against its own
+`KNOWN_GAPS` table. An unlisted gap fails the test. So does a listed gap
+that the frontend has since closed. Before that check, four cells here
+claimed a render that nobody had wired up.
 
 | Key | GNOME | KDE | COSMIC | Niri | XFCE |
 |---|---|---|---|---|---|
 | `welcome_title` | page header | heading | title1 | heading | page title |
 | `welcome_subtitle` | header subtitle, hidden | label, hidden | body, hidden | label, hidden | label, hidden |
-| `welcome_install` | install row title | live-system radio | (no row: single image) | (no row) | live-system radio |
+| `welcome_install` | install row title | no (own body text) | no (no install row) | no (no install row) | live-system radio |
 | `welcome_install_subtitle` | install row subtitle | no | no | no | no |
-| `welcome_button` | (row activates) | Next | forward button | button | Next |
-| `confirm_title` | page header | step heading unchanged; body heading | page title | heading | page title |
+| `welcome_button` | no (row activates, own label) | no (wizard's Next) | forward button | button | no (wizard's Next) |
+| `confirm_title` | page header | no (header from the module name) | page title | heading | page title |
 | `confirm_subtitle` | header subtitle | italic label, hidden | page subtitle | label, hidden | label, hidden |
 | `confirm_body` | dim label, hidden | label, hidden | body, hidden | label, hidden | label, hidden |
-| `confirm_warning` | (summary warning row, own text) | inline message | warning card | warning line | warning row |
+| `confirm_warning` | no (summary row, own text) | inline message | warning card | warning line | warning row |
 | `confirm_button` | pill button | Next button | forward button | button | Next button |
 | `confirm_quotes` | random line per language | no | no | no | no |
-| `progress_title` | step label via `{product}` | label | page title | heading | page title |
-| `progress_note` | no | label | warning caption | no | no |
+| `progress_title` | no (own string + product name) | label | page title | heading | page title |
+| `progress_note` | no | label | warning caption | caption | no |
+| `recovery_key_title` | no (own string in `recovery-key.blp`) | heading | heading | heading | heading |
+| `recovery_key_body` | no (own string in `recovery-key.blp`) | label | body | label | label |
+| `recovery_key_copy` | no (own string in `recovery-key.blp`) | copy button | copy button | copy button | copy button |
+| `recovery_key_ack` | no (own string in `recovery-key.blp`) | checkbox | checkbox | checkbox | checkbox |
+| `recovery_key_button` | no (own string in `recovery-key.blp`) | no (gates Restart) | no (gates Restart) | no (gates Restart) | no (gates Restart) |
 | `done_title` | page header | heading | title2 | heading | headline |
 | `done_subtitle` | header subtitle (+ elapsed time) | label | body | label | label |
 | `done_restart` | Reboot Now button | Restart button | suggested button | button | Reboot button |
-| `done_failed_title` | page header | heading | title2 | heading | headline |
-| `store_label` + `store_url` | done page link (+ QR from `assets.store_qr`, US locale) | done page link | done page link | done page link | done page link |
+| `done_failed_title` | no (own string) | heading | title2 | heading | headline |
+| `store_label` | done page link to `store_url` (+ QR from `assets.store_qr`, US locale) | done page link | done page link | done page link | done page link |
 | `assets.welcome_image`, `assets.complete_image` | tour pages | no | no | welcome logo disc (`logo`) | no |
 
 Outside the contract, under `extensions.gnome`: the tour page text, the
