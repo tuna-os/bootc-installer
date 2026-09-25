@@ -72,24 +72,34 @@ def has_tpm():
         return True
     return os.path.exists("/sys/class/tpm/tpm0")
 
-# One line per fisherman step, in fisherman's own "[n/9] " prefix format so
-# ProgressPage.append_log's step parser drives the bar exactly as it would on a
-# real install. The wording tracks fisherman's actual step names; if they
-# drift, the tunaOS screen contract (tests/installer-screens.yaml, which keys
-# the `install` screen off "partitioning" and "installing image") is what will
-# notice.
-DRY_RUN_TRANSCRIPT = [
-    "[1/9] Partitioning /dev/vda\n",
-    "[2/9] Creating filesystems\n",
-    "[3/9] Mounting target\n",
-    "[4/9] Installing image\n",
-    "[5/9] Configuring bootloader\n",
-    "[6/9] Writing fstab\n",
-    "[7/9] Installing flatpaks\n",
-    "[8/9] Running post-install hooks\n",
-    "[9/9] Finalizing\n",
-    "Install complete (dry run — no disk was written)\n",
-]
+# A representative fisherman transcript for the dry run, in fisherman's real
+# wire format: newline-delimited JSON on stdout, one event per line
+# (shared/progress/README.md). ProgressPage.append_log parses it with exactly
+# the parser a real install goes through, so the dry run exercises the real
+# code path rather than a private one.
+#
+# It used to be nine hand-written "[n/9] Partitioning /dev/vda" lines,
+# described in this comment as "fisherman's own prefix format". It is not:
+# fisherman has never written that prefix, and the step COUNT is not fixed at
+# nine either (cmd/fisherman/main.go computes total_steps from the recipe).
+# The transcript matched the frontend's own regex rather than the backend, so
+# the screenshot harness photographed a moving bar that no real install could
+# produce.
+#
+# This file is generated from fisherman's own progress emitter and weight
+# profile, not written by hand, so the percentages are the ones a real
+# uncached auto-layout install emits. `timestamp` and `elapsed_ms` are frozen
+# to keep the fixture stable; nothing in the parser reads either.
+_TRANSCRIPT_PATH = os.path.join(os.path.dirname(__file__), "dry-run-transcript.ndjson")
+
+
+def _load_dry_run_transcript():
+    """The dry-run transcript as a list of lines, each ending in a newline."""
+    with open(_TRANSCRIPT_PATH, encoding="utf-8") as fh:
+        return [line for line in fh.read().splitlines(keepends=True) if line.strip()]
+
+
+DRY_RUN_TRANSCRIPT = _load_dry_run_transcript()
 
 # Flatpak runtimes ship no pkexec; escalate host-side. The live ISO symlinks
 # the flatpak-bundled fisherman to /usr/local/bin and installs the polkit

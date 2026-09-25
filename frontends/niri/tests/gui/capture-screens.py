@@ -27,7 +27,8 @@ os.environ.setdefault("QT_QUICK_BACKEND", "software")
 os.environ["QML2_IMPORT_PATH"] = os.path.join(REPO, "tests", "qml-stubs")
 os.environ["QML_IMPORT_PATH"] = os.environ["QML2_IMPORT_PATH"]
 
-from PyQt6.QtCore import QUrl, QTimer, QEventLoop  # noqa: E402
+from PyQt6.QtCore import (QUrl, QTimer, QEventLoop, QMetaObject, Q_ARG,  # noqa: E402
+                          QVariant)
 from PyQt6.QtGui import QGuiApplication  # noqa: E402
 from PyQt6.QtQml import QQmlApplicationEngine  # noqa: E402
 from PyQt6.QtQuick import QQuickWindow  # noqa: E402
@@ -45,15 +46,30 @@ PAGES = [
     ("06-done", 5, "Finished."),
 ]
 
-FIXTURE_LOG = "\n".join([
-    "[1/9] Partitioning /dev/nvme0n1",
-    "[2/9] Formatting boot partitions",
-    "[3/9] Setting up encryption",
-    "[4/9] Formatting root filesystem (xfs)",
-    "[5/9] Mounting target at /mnt",
-    "[6/9] Installing image ghcr.io/tuna-os/albacore:gnome",
-    "  pulling layers... 1.9 GiB",
-])
+# The install screen, caught in flight: fisherman's real newline-delimited
+# JSON transcript (shared/progress/), truncated part-way through the image
+# pull so the bar sits mid-way rather than at either end.
+#
+# This was seven hand-written "[n/9] " lines naming a specific image ref, and
+# it was assigned straight to the `installLog` property — so the capture
+# painted text into the log pane and never called appendLog() at all. The bar
+# and the step caption were therefore never exercised by this harness in
+# either direction, while docs/PARITY.md credited this frontend with a
+# working progress bar. (fisherman does not emit that prefix, so the parser
+# it was feeding could not have matched it anyway.)
+#
+# Naming a product in a fixture was the second problem: it put that product's
+# image ref into the rendered docs for everyone who rebrands this installer.
+_TRANSCRIPT = os.path.join(REPO, "..", "..", "shared", "progress",
+                           "dry-run-transcript.ndjson")
+
+
+def fixture_lines():
+    """Transcript lines up to the middle of the image pull."""
+    with open(os.path.normpath(_TRANSCRIPT), encoding="utf-8") as fh:
+        lines = [l for l in fh.read().splitlines() if l.strip()]
+    cut = next(i for i, l in enumerate(lines) if "47/71" in l) + 1
+    return lines[:cut]
 
 
 def settle(ms=250):
@@ -140,7 +156,13 @@ def main():
     for name, page, _caption in PAGES:
         root.setProperty("currentPage", page)
         if page == 4:
-            root.setProperty("installLog", FIXTURE_LOG)
+            # Through appendLog(), the function a real install calls — so the
+            # bar, the step caption and the log rendering are all the live
+            # code path. Assigning installLog directly, as this used to, is
+            # how a screen can be "captured" without running any of it.
+            for line in fixture_lines():
+                QMetaObject.invokeMethod(root, "appendLog",
+                                         Q_ARG(QVariant, line))
         if page == 5:
             root.setProperty("installSuccess", True)
         settle(300)

@@ -9,15 +9,9 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk, Pango
 
-from . import core
+from . import core, progress_parser
 
 HOSTNAME_RE = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$")
-
-PIPELINE_STEPS = [
-    "Partitioning disk", "Formatting boot partitions", "Setting up encryption",
-    "Formatting root filesystem", "Mounting target", "Installing image",
-    "Copying Flatpaks", "Writing hostname", "Finalizing boot entries",
-]
 
 ENCRYPTION_CHOICES = [
     ("none", "No encryption", "Anyone with the disk can read your files."),
@@ -352,6 +346,12 @@ class ProgressPage(Page):
         self.pack_start(self.steplabel, False, False, 0)
         self.bar = Gtk.ProgressBar(show_text=True)
         self.pack_start(self.bar, False, False, 0)
+        # Multi-line parser context (current step, weight, seen substeps).
+        self._progress = progress_parser.new_progress_state()
+        # The one step label that names the product ("Installing {product}…")
+        # must say what this build installs, not a hardcoded distro. The
+        # parser defaults to a neutral "the OS" until told otherwise.
+        progress_parser.set_product_name(core.PRODUCT_NAME)
         # Log visible by default — XFCE users want the output (DESIGN.md).
         self.logview = Gtk.TextView(editable=False, monospace=True)
         self.logview.modify_font(Pango.FontDescription("monospace 9"))
@@ -364,17 +364,51 @@ class ProgressPage(Page):
 
     def append_log(self, text):
         buf = self.logview.get_buffer()
-        buf.insert(buf.get_end_iter(), text)
+        for line in text.splitlines():
+            # fisherman's protocol is machine-readable; this pane is not. The
+            # raw line still goes to the log FILE (app.py) — that is what gets
+            # pasted into bug reports — but a human reads this one.
+            shown = progress_parser.render_event(line)
+            if shown is None:
+                shown = line
+            buf.insert(buf.get_end_iter(), shown + "\n")
         mark = buf.create_mark(None, buf.get_end_iter(), False)
         self.logview.scroll_mark_onscreen(mark)
-        # crude step mapping: fisherman prefixes steps as "[n/9]"
-        m = re.search(r"\[(\d)/9\]", text)
-        if m:
-            step = int(m.group(1))
-            self.steplabel.set_text(PIPELINE_STEPS[step - 1])
-            frac = step / 9.0
-            self.bar.set_fraction(frac)
-            self.win.trawl.set_fill(frac)
+        # The bar is driven by fisherman's newline-delimited JSON progress
+        # protocol (shared/progress/README.md), parsed by the shared parser.
+        #
+        # This used to be `re.search(r"\[(\d)/9\]", text)` against a
+        # hardcoded nine-entry step table. fisherman has never written that
+        # prefix — it emits JSON on stdout and nothing else — so the bar sat
+        # at zero and the step label stayed empty for the whole of every real
+        # install. The screenshot harness did not catch it because the dry-run
+        # transcript in core.py was itself written in the "[n/9]" shape, so
+        # the only thing the parser ever matched was the fixture written to
+        # match the parser.
+        #
+        # The step COUNT was wrong too, independently: fisherman computes
+        # total_steps (8, adjusted for manual layout, LUKS, TPM2 enrolment and
+        # a separate /var disk — cmd/fisherman/main.go), so it is 9 only by
+        # coincidence. The protocol carries cumulative_pct precisely so no
+        # frontend has to model the pipeline; this reads it instead of
+        # counting steps.
+        for line in text.splitlines():
+            update = progress_parser.apply_progress_event(line, self._progress)
+            if update is None:
+                continue
+            if update["label"] is not None:
+                # The step label sits directly under the page title, and for
+                # the install step the branding's "progress_title" and the
+                # parser's "Installing {product}…" are the same sentence — so
+                # the screen said it twice, for the 87% of the install that
+                # step covers. Blank rather than stale: repeating the previous
+                # step's name would be a lie about what is running.
+                dup = update["label"].rstrip("…. ") == self.title.rstrip("…. ")
+                self.steplabel.set_text("" if dup else update["label"])
+            if update["fraction"] is not None:
+                frac = update["fraction"]
+                self.bar.set_fraction(frac)
+                self.win.trawl.set_fill(frac)
 
     def can_continue(self):
         return False  # navigation unlocked by install completion
