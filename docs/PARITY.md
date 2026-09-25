@@ -33,7 +33,7 @@ claimed a render that nobody had wired up.
 | `confirm_warning` | no (summary row, own text) | inline message | warning card | warning line | warning row |
 | `confirm_button` | pill button | Next button | forward button | button | Next button |
 | `confirm_quotes` | random line per language | no | no | no | no |
-| `progress_title` | no (own string + product name) | label | page title | heading | page title |
+| `progress_title` | image-writing step label | label | page title | heading | page title |
 | `progress_note` | no | label | warning caption | caption | no |
 | `recovery_key_title` | page heading | heading | heading | heading | heading |
 | `recovery_key_body` | label | label | body | label | label |
@@ -43,7 +43,7 @@ claimed a render that nobody had wired up.
 | `done_title` | page header | heading | title2 | heading | headline |
 | `done_subtitle` | header subtitle (+ elapsed time) | label | body | label | label |
 | `done_restart` | Reboot Now button | Restart button | suggested button | button | Reboot button |
-| `done_failed_title` | no (own string) | heading | title2 | heading | headline |
+| `done_failed_title` | page header | heading | title2 | heading | headline |
 | `store_label` | done page link to `store_url` (+ QR from `assets.store_qr`, US locale) | done page link | done page link | done page link | done page link |
 | `assets.welcome_image`, `assets.complete_image` | tour pages | no | no | welcome logo disc (`logo`) | no |
 

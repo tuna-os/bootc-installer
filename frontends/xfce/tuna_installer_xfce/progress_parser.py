@@ -58,17 +58,28 @@ def get_product_name() -> str:
     return _PRODUCT_NAME
 
 
+def set_install_label(label: str) -> None:
+    """Replace the label for the step that writes the OS image.
+
+    That step is the one a user watches for most of the install, and its
+    label is the branding contract's `progress_title` ("Installing {name}…"),
+    so a frontend passes that line here to make it rebrandable. `{product}`
+    and `{name}` are both filled with the product name. Empty values are
+    ignored, keeping the neutral default.
+    """
+    if label:
+        _FRIENDLY_STEP_LABELS["Installing OS"] = label.replace("{name}", "{product}")
+
+
 def _friendly_label(step_name: str) -> str:
     """Human label for a fisherman step, with {product} filled in.
 
     Falls back to the raw step name, which is what unknown steps already did.
-    Only labels containing the placeholder are formatted, so a future label
-    with a literal brace cannot raise here.
+    A plain replace, not str.format: set_install_label() takes a line from a
+    product's branding file, and a stray brace in it must not raise here.
     """
     label = _FRIENDLY_STEP_LABELS.get(step_name, step_name)
-    if "{product}" in label:
-        return label.format(product=_PRODUCT_NAME)
-    return label
+    return label.replace("{product}", _PRODUCT_NAME)
 
 
 # Matches "Pulling image: layer 23/71" substep messages from fisherman.
