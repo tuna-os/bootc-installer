@@ -171,6 +171,19 @@ pub static ENCRYPTION_CHOICES: [EncryptionChoice; 4] = [
 /// and not self.has_tpm: continue`), and for the same reason: a dropdown entry
 /// that silently produces an unenrollable recipe is worse than one that isn't
 /// offered.
+/// Whether the TPM encryption choices should be offered.
+///
+/// `BOOTC_INSTALLER_FAKE_TPM` only ever forces this ON, and exists so a
+/// capture can show what the installer offers rather than what the runner's
+/// hardware allows. Empty and "0" do not count as set, so an exported but
+/// blank variable cannot silently turn the choices on everywhere.
+pub fn tpm_available() -> bool {
+    match std::env::var("BOOTC_INSTALLER_FAKE_TPM") {
+        Ok(v) if !v.is_empty() && v != "0" => true,
+        _ => std::path::Path::new("/sys/class/tpm/tpm0").exists(),
+    }
+}
+
 pub fn available_encryption_choices(has_tpm: bool) -> Vec<&'static EncryptionChoice> {
     ENCRYPTION_CHOICES
         .iter()
@@ -359,13 +372,18 @@ impl cosmic::Application for TunaInstaller {
             recipe.disk = format!("/dev/{}", first.name);
         }
 
-        // Same probe as tuna-installer-xfce (`os.path.exists("/sys/class/tpm/tpm0")`).
-        // A read-only sysfs check, not a shell-out, so it runs unconditionally —
-        // including under capture: the Xvfb CI runner has no TPM, so this comes
-        // back false there and the tpm2-* choices simply don't appear in the
-        // captured "options" screenshot, same as they wouldn't on real hardware
-        // without a chip.
-        let has_tpm = std::path::Path::new("/sys/class/tpm/tpm0").exists();
+        // Same probe as the XFCE frontend's `core.has_tpm()` and KDE's
+        // InstallerController, and the same override for the same reason.
+        //
+        // The Xvfb CI runner has no TPM, so an unset capture renders an
+        // encryption page with only two of the four choices. docs/PARITY.md is
+        // read off those screenshots, which is how KDE and XFCE came to be
+        // recorded as having no TPM support at all when both have offered it
+        // all along. BOOTC_INSTALLER_FAKE_TPM=1 makes the choices VISIBLE for
+        // captures only; picking one still writes an ordinary recipe, and
+        // fisherman is what fails, later and loudly, with no chip to enrol
+        // against.
+        let has_tpm = tpm_available();
 
         let mut app = Self {
             core,
@@ -663,6 +681,46 @@ impl TunaInstaller {
 
 #[cfg(test)]
 mod tests {
+    // The capture override. Without it the Xvfb runner's missing TPM decides
+    // what the screenshots show, and docs/PARITY.md is read off those.
+    // Serialised with a mutex: these mutate process-wide environment, and
+    // cargo runs tests in threads.
+    #[test]
+    fn tpm_available_honours_the_capture_override() {
+        use std::sync::Mutex;
+        static ENV_LOCK: Mutex<()> = Mutex::new(());
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        let real = std::path::Path::new("/sys/class/tpm/tpm0").exists();
+
+        unsafe { std::env::remove_var("BOOTC_INSTALLER_FAKE_TPM") };
+        assert_eq!(super::tpm_available(), real, "unset must fall through to the probe");
+
+        unsafe { std::env::set_var("BOOTC_INSTALLER_FAKE_TPM", "1") };
+        assert!(super::tpm_available(), "the override must force it on");
+
+        // Empty and "0" must not count as set.
+        for value in ["", "0"] {
+            unsafe { std::env::set_var("BOOTC_INSTALLER_FAKE_TPM", value) };
+            assert_eq!(
+                super::tpm_available(), real,
+                "{value:?} must not force the choices on"
+            );
+        }
+
+        unsafe { std::env::remove_var("BOOTC_INSTALLER_FAKE_TPM") };
+    }
+
+    #[test]
+    fn override_makes_all_four_choices_available() {
+        use std::sync::Mutex;
+        static ENV_LOCK: Mutex<()> = Mutex::new(());
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        assert_eq!(super::available_encryption_choices(false).len(), 2);
+        assert_eq!(super::available_encryption_choices(true).len(), 4);
+    }
+
     use super::*;
 
     #[test]

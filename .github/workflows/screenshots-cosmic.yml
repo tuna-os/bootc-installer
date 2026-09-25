@@ -81,6 +81,12 @@ jobs:
           # which on this runner is Ubuntu. Pin the neutral product name for
           # the committed walkthrough; the step below exercises the real path.
           BOOTC_INSTALLER_PRODUCT_NAME: TunaOS
+          # Show the TPM encryption choices. This frontend filters them out
+          # when /sys/class/tpm/tpm0 is absent, which it is on every runner,
+          # so an unset capture renders two of the four choices -- the same
+          # blind spot that had docs/PARITY.md recording KDE and XFCE as
+          # having no TPM support at all.
+          BOOTC_INSTALLER_FAKE_TPM: "1"
         run: |
           # Force the software Vulkan ICD; the filename differs between Mesa
           # builds, so pick whichever exists.
