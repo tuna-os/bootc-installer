@@ -185,12 +185,23 @@ static QString friendlyStep(const QString &name, const QString &product)
     return label.contains(QLatin1String("%1")) ? label.arg(product) : label;
 }
 
+void InstallerController::setRecoveryAck(bool v)
+{
+    if (m_recoveryAck == v)
+        return;
+    m_recoveryAck = v;
+    Q_EMIT recoveryChanged();
+}
+
 void InstallerController::resetProgress()
 {
     m_step = 0;
     m_totalSteps = 0;
     m_fraction = 0.0;
     m_stepName.clear();
+    m_recoveryKey.clear();
+    m_recoveryAck = false;
+    Q_EMIT recoveryChanged();
     m_cumulativePct = 0;
     m_weightPct = 0;
     Q_EMIT progressChanged();
@@ -249,9 +260,13 @@ QString InstallerController::consumeProgress(const QString &line)
     if (type == QLatin1String("error"))
         return QStringLiteral("ERROR: ") + event.value(QStringLiteral("message")).toString();
     if (type == QLatin1String("recovery_key")) {
-        // KDE has no recovery-key screen (docs/PARITY.md), so this is the
-        // only place the user can read a key they cannot recover later.
-        return QStringLiteral("Recovery key: ") + event.value(QStringLiteral("key")).toString();
+        // Kept in the log as well as on the done page: the log is what gets
+        // pasted into a bug report, and a key that only ever existed on a
+        // screen the user already dismissed is no better than one that was
+        // never shown (#129).
+        m_recoveryKey = event.value(QStringLiteral("key")).toString();
+        Q_EMIT recoveryChanged();
+        return QStringLiteral("Recovery key: ") + m_recoveryKey;
     }
     return QString();
 }

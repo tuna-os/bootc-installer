@@ -78,6 +78,15 @@ class InstallerController : public QObject
     Q_PROPERTY(int exitCode READ exitCode NOTIFY installCompleted)
     Q_PROPERTY(bool succeeded READ succeeded NOTIFY installCompleted)
 
+    // The key fisherman emits once, after TPM enrolment (#129). The
+    // "recovery_key" branch in consumeProgress() used to format a log line
+    // and keep nothing, so after the install there was nothing left to show.
+    Q_PROPERTY(QString recoveryKey READ recoveryKey NOTIFY recoveryChanged)
+    Q_PROPERTY(bool recoveryAck READ recoveryAck WRITE setRecoveryAck NOTIFY recoveryChanged)
+    // Restart is held while an unacknowledged key is on screen: leaving the
+    // done page is what ends the chance to read it.
+    Q_PROPERTY(bool recoveryKeyPending READ recoveryKeyPending NOTIFY recoveryChanged)
+
 public:
     explicit InstallerController(QObject *parent = nullptr);
 
@@ -117,6 +126,16 @@ public:
     bool installFinishedFlag() const { return m_finished; }
     int exitCode() const { return m_exitCode; }
     bool succeeded() const { return m_finished && m_exitCode == 0; }
+    QString recoveryKey() const { return m_recoveryKey; }
+    bool recoveryAck() const { return m_recoveryAck; }
+    void setRecoveryAck(bool v);
+    // A failed install enrolled nothing, and a non-TPM install was never
+    // given a key, so neither is held: a user must not be asked to tick a
+    // box about a key they do not have.
+    bool recoveryKeyPending() const
+    {
+        return succeeded() && !m_recoveryKey.isEmpty() && !m_recoveryAck;
+    }
 
     // Human-readable label for an encryption type, shared by the encryption
     // and confirm steps so they cannot drift apart.
@@ -137,6 +156,7 @@ Q_SIGNALS:
     void logPathChanged();
     void installingChanged();
     void progressChanged();
+    void recoveryChanged();
     void installCompleted(int exitCode);
 
 private:
@@ -165,6 +185,8 @@ private:
     int m_totalSteps = 0;
     qreal m_fraction = 0.0;
     QString m_stepName;
+    QString m_recoveryKey;
+    bool m_recoveryAck = false;
     // Carried across lines so a substep can interpolate inside its step.
     int m_cumulativePct = 0;
     int m_weightPct = 0;
