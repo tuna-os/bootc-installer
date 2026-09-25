@@ -53,6 +53,14 @@ ApplicationWindow {
 
     // Flavour text (shared/branding copy keys) with {name}/{disk} filled in.
     // Neutral until detect delivers the branding; never a product literal.
+    // NOTE: the object below is a SEVENTH copy of
+    // shared/branding/copy-defaults.json, hand-written in JS, and nothing
+    // checks it against the canonical file. The identity test covers the
+    // three JSON copies and the resolver that embeds the JSON; this literal
+    // is outside all of it. It is reached whenever branding.copy is absent,
+    // which is every capture run -- so a key added to the contract and not
+    // added here renders as an empty string in the walkthrough, and that is
+    // exactly what the recovery panel did on its first run (#129).
     function text(key, values) {
         const copy = root.branding.copy || {}
         let line = copy[key] !== undefined ? copy[key] : ({
@@ -66,6 +74,11 @@ ApplicationWindow {
             done_title: "{name} is installed",
             done_subtitle: "Remove the installation media and restart the computer.",
             done_restart: "Restart now", done_failed_title: "Installation failed",
+            recovery_key_title: "Save your recovery key",
+            recovery_key_body: "If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy.",
+            recovery_key_copy: "Copy to clipboard",
+            recovery_key_ack: "I have saved my recovery key",
+            recovery_key_button: "Continue",
             store_label: "Visit the store"
         })[key] || ""
         line = line.split("{name}").join(root.productName)
@@ -94,6 +107,16 @@ ApplicationWindow {
     property var selectedDisk: ({})
     property string hostname: branding.defaultHostname || "linux"
     property bool installSuccess: false
+    // The key fisherman emits once, after TPM enrolment (#129). The
+    // "recovery_key" case in renderEvent used to format a log line and keep
+    // nothing, so after the install there was nothing left to show.
+    property string recoveryKey: ""
+    property bool recoveryAck: false
+    // Restart is held while an unacknowledged key is on screen: leaving the
+    // done page is what ends the chance to read it. A failed install enrolled
+    // nothing, and a non-TPM install was never given a key, so neither is held.
+    readonly property bool recoveryKeyPending:
+        installSuccess && recoveryKey !== "" && !recoveryAck
     property string installLog: ""
     // The determinate bar is driven by fisherman's newline-delimited JSON
     // progress protocol (shared/progress/README.md).
@@ -267,6 +290,8 @@ ApplicationWindow {
             // cumulative_pct only ever reaches 99; `complete` is what fills
             // the bar.
             installFraction = 1
+        } else if (event.type === "recovery_key") {
+            recoveryKey = event.key || ""
         }
     }
 
@@ -775,13 +800,76 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         onLinkActivated: link => Qt.openUrlExternally(link)
                     }
+                    // Recovery key (#129). A panel rather than a dialog, as
+                    // on the other frontends: a dialog is dismissed and then
+                    // the key is gone, while this stays on screen for as long
+                    // as it takes to write down.
+                    ColumnLayout {
+                        visible: root.installSuccess && root.recoveryKey !== ""
+                        Layout.fillWidth: true
+                        Layout.topMargin: Theme.spacingM
+                        spacing: Theme.spacingS
+                        StyledText {
+                            text: root.text("recovery_key_title")
+                            font.pixelSize: Theme.fontSizeLarge
+                            font.weight: Theme.fontWeightMedium
+                            horizontalAlignment: Text.AlignHCenter
+                            Layout.fillWidth: true
+                        }
+                        StyledText {
+                            text: root.text("recovery_key_body")
+                            color: Theme.surfaceVariantText
+                            wrapMode: Text.WordWrap
+                            horizontalAlignment: Text.AlignHCenter
+                            Layout.fillWidth: true
+                        }
+                        StyledText {
+                            objectName: "recoveryKeyLabel"
+                            text: root.recoveryKey
+                            font.family: Theme.monoFontFamily
+                            horizontalAlignment: Text.AlignHCenter
+                            Layout.fillWidth: true
+                        }
+                        // Plain Qt Quick has no clipboard object; a hidden
+                        // TextEdit is the standard way to reach one.
+                        TextEdit {
+                            id: recoveryClip
+                            visible: false
+                            text: root.recoveryKey
+                        }
+                        RowLayout {
+                            Layout.alignment: Qt.AlignHCenter
+                            spacing: Theme.spacingM
+                            DankButton {
+                                text: root.text("recovery_key_copy")
+                                tonal: true
+                                onClicked: {
+                                    recoveryClip.selectAll()
+                                    recoveryClip.copy()
+                                    recoveryClip.deselect()
+                                }
+                            }
+                            DankButton {
+                                objectName: "recoveryAckButton"
+                                text: (root.recoveryAck ? "\u2713  " : "")
+                                    + root.text("recovery_key_ack")
+                                tonal: !root.recoveryAck
+                                checkable: true
+                                checked: root.recoveryAck
+                                onToggled: root.recoveryAck = checked
+                            }
+                        }
+                    }
                     RowLayout {
                         Layout.alignment: Qt.AlignHCenter
                         spacing: Theme.spacingM
                         DankButton { text: "Close"; tonal: true; onClicked: Qt.quit() }
                         DankButton {
+                            objectName: "doneRestartButton"
                             text: root.text("done_restart")
                             visible: root.installSuccess
+                            // Held until the key is acknowledged.
+                            enabled: !root.recoveryKeyPending
                             onClicked: rebootProc.running = true
                         }
                     }
