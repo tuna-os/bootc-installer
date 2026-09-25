@@ -88,20 +88,20 @@
       "name": "welcome",
       "png": "docs/screenshots/01-welcome.png",
       "rendered": true,
-      "colours": 300,
-      "flat": 0.9077127659574468,
-      "ink": 0.012650027277686852,
-      "stddev": 0.06306664887350331,
+      "colours": 487,
+      "flat": 0.9139866339334425,
+      "ink": 0.007515002727768685,
+      "stddev": 0.05863359634784381,
       "text_excerpt": "Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Connect Bluetooth Devices Pair your keyboard or mouse to continue Connect Bluetooth Devices Pair your keyboard or mouse to conti"
     },
     {
       "name": "qr_companion",
       "png": "docs/screenshots/02-qr_companion.png",
       "rendered": true,
-      "colours": 528,
-      "flat": 0.9275436442989634,
-      "ink": 0.03712493180578287,
-      "stddev": 0.12110260625213465,
+      "colours": 530,
+      "flat": 0.92746863066012,
+      "ink": 0.03723404255319149,
+      "stddev": 0.12119697669088658,
       "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
     },
     {
@@ -139,9 +139,9 @@
       "png": "docs/screenshots/06-confirm.png",
       "rendered": true,
       "colours": 237,
-      "flat": 0.9183647026732134,
-      "ink": 0.006260229132569558,
-      "stddev": 0.04940145719523461,
+      "flat": 0.9183715220949263,
+      "ink": 0.006267048554282597,
+      "stddev": 0.04942365688663311,
       "text_excerpt": "Confirm installation Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Install Install"
     },
     {
@@ -176,12 +176,12 @@
     }
   ],
   "transition_pixels": [
-    80916,
-    89661,
+    75865,
+    89767,
     51171,
     34536,
-    37628,
-    31039,
+    37640,
+    31053,
     43489,
     41701
   ],

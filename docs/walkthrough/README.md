@@ -27,7 +27,7 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 | KDE Plasma | 6 | 6 | 5 | tests/capture.cpp (Kirigami/QML, offscreen) |
 | COSMIC | 6 | 6 | 5 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
 | Niri | 6 | 6 | 5 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
-| XFCE | 8 | 8 | 4 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
+| XFCE | 8 | 8 | 7 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
 
 ## GNOME
 
@@ -105,9 +105,9 @@ GTK3 / PyGObject. Source: `frontends/xfce/`.
 
 | | |
 |---|---|
-| <img src="xfce/01-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to Ubuntu 24.04.5 LTS This assistant installs TunaOS on this computer.
+| <img src="xfce/01-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to TunaOS This assistant installs TunaOS on this computer.
 
-You'll choose what to install and where; nothing is written </sub> |
+You'll choose what to install and where; nothing is written to any disk </sub> |
 | <img src="xfce/02-source.png" width="360"> | **source**  <br><sub>What do you want to install? Bluefin Bluefin ghcr.io/ublue-os/bluefin:latest GNOME GNOME ghcr.io/tuna-os/bonito:latest KDE Plasma KDE Plasma</sub> |
 | <img src="xfce/03-destination.png" width="360"> | **destination**  <br><sub>Where should TunaOS be installed? SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 WDC WD20SPZX    </sub> |
 | <img src="xfce/04-setup.png" width="360"> | **setup**  <br><sub>Disk encryption No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at every boot. Co</sub> |
@@ -117,8 +117,8 @@ Disk:        /dev/nvme0n1
 Filesystem:  xfs
 Encryption:  none
 Hostname:   </sub> |
-| <img src="xfce/07-progress.png" width="360"> | **progress**  <br><sub>Installing Ubuntu 24.04.5 LTS… Installing image [1/9] Partitioning /dev/nvme0n1
+| <img src="xfce/07-progress.png" width="360"> | **progress**  <br><sub>Installing TunaOS… Installing image [1/9] Partitioning /dev/nvme0n1
   created EFI system partition (1.0 GiB, FAT32)
-  created ro</sub> |
-| <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>Ubuntu 24.04.5 LTS is installed Remove the installation media and restart the computer. Visit the store Visit the store Restart now Restart </sub> |
+  created root partition</sub> |
+| <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Visit the store Visit the store Restart now Restart now</sub> |
 

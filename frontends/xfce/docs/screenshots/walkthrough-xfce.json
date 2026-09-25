@@ -86,7 +86,7 @@
   "pages": [
     {
       "name": "welcome",
-      "png": "/tmp/caps3/xfce/01-welcome.png",
+      "png": "/tmp/caps4/xfce/01-welcome.png",
       "rendered": true,
       "colours": 221,
       "ink": 0.011521108604576216,
@@ -95,7 +95,7 @@
     },
     {
       "name": "source",
-      "png": "/tmp/caps3/xfce/02-source.png",
+      "png": "/tmp/caps4/xfce/02-source.png",
       "rendered": true,
       "colours": 267,
       "ink": 0.009936620474809324,
@@ -104,7 +104,7 @@
     },
     {
       "name": "destination",
-      "png": "/tmp/caps3/xfce/03-destination.png",
+      "png": "/tmp/caps4/xfce/03-destination.png",
       "rendered": true,
       "colours": 277,
       "ink": 0.014797507788161994,
@@ -113,47 +113,47 @@
     },
     {
       "name": "setup",
-      "png": "/tmp/caps3/xfce/04-setup.png",
+      "png": "/tmp/caps4/xfce/04-setup.png",
       "rendered": true,
-      "colours": 317,
+      "colours": 318,
       "ink": 0.013132452465356107,
-      "stddev": 0.07500962898809557,
+      "stddev": 0.07500378956018267,
       "text_excerpt": "Disk encryption No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at every boot. TPM TPM Unlocks automatically on this hardware. TPM + passphrase TPM + passphrase Automatic unlock, pa"
     },
     {
       "name": "identity",
-      "png": "/tmp/caps3/xfce/05-identity.png",
+      "png": "/tmp/caps4/xfce/05-identity.png",
       "rendered": true,
       "colours": 221,
       "ink": 0.006579654098184552,
-      "stddev": 0.05631084234033694,
+      "stddev": 0.05632463426579471,
       "text_excerpt": "Name this computer Hostname Password Full name Username Your account"
     },
     {
       "name": "confirm",
-      "png": "/tmp/caps3/xfce/06-confirm.png",
+      "png": "/tmp/caps4/xfce/06-confirm.png",
       "rendered": true,
-      "colours": 250,
+      "colours": 255,
       "ink": 0.014206681705876033,
-      "stddev": 0.07540265624796663,
+      "stddev": 0.07541503703378269,
       "text_excerpt": "Confirm installation  Image:       ghcr.io/ublue-os/bluefin:latest\nDisk:        /dev/nvme0n1\nFilesystem:  xfs\nEncryption:  none\nHostname:    tunaos  Everything on the selected disk will be erased. This cannot be undone."
     },
     {
       "name": "progress",
-      "png": "/tmp/caps3/xfce/07-progress.png",
+      "png": "/tmp/caps4/xfce/07-progress.png",
       "rendered": true,
-      "colours": 297,
+      "colours": 298,
       "ink": 0.03536899774411859,
-      "stddev": 0.146317055939768,
+      "stddev": 0.14631069197623178,
       "text_excerpt": "Installing TunaOS\u2026 Installing image [1/9] Partitioning /dev/nvme0n1\n  created EFI system partition (1.0 GiB, FAT32)\n  created root partition (511.1 GiB)\n[2/9] Formatting boot partitions\n[3/9] Setting up encryption\n  encryption: none\n[4/9] F"
     },
     {
       "name": "done",
-      "png": "/tmp/caps3/xfce/08-done.png",
+      "png": "/tmp/caps4/xfce/08-done.png",
       "rendered": true,
-      "colours": 218,
+      "colours": 219,
       "ink": 0.006418519712106564,
-      "stddev": 0.05684290257116974,
+      "stddev": 0.05682848596738674,
       "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Visit the store Visit the store Restart now Restart now"
     }
   ],
@@ -162,9 +162,9 @@
     9268,
     12261,
     12045,
-    11897,
-    19688,
-    23411
+    11898,
+    19689,
+    23417
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
