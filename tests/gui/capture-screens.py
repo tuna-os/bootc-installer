@@ -200,13 +200,28 @@ def _grab(widget, path):
 
 
 def _page_text(widget, acc=None):
-    """Every string the page actually put in its widget tree.
+    """Every string the page actually put on screen.
 
     Read from the VISIBLE carousel page only: walking the whole window would
     credit every screen on every frame, the false-parity failure the screen
     spec warns about.
+
+    Hidden widgets are skipped for the same reason, one level down. A page
+    can hide a row on a runtime probe -- welcome.py hides the Bluetooth row
+    when /sys/class/bluetooth has no adapter, which no runner does -- and
+    without this the row's title and subtitle still landed in the text the
+    parity report reads. The screenshot showed no Bluetooth row while
+    walkthrough-gnome.json claimed "Connect Bluetooth Devices"; the report
+    credited a screen for a row nobody can see.
+
+    get_visible(), not get_mapped(): the offscreen render never maps
+    anything, so get_mapped() would return False for the whole tree and the
+    report would go empty. get_visible() is the property set_visible() sets,
+    which is what these pages actually use.
     """
     acc = [] if acc is None else acc
+    if not widget.get_visible():
+        return acc
     if isinstance(widget, Gtk.Label):
         acc.append(widget.get_text() or "")
     elif isinstance(widget, Gtk.Button):

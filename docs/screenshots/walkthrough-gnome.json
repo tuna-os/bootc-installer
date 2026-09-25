@@ -86,27 +86,27 @@
   "pages": [
     {
       "name": "welcome",
-      "png": "docs/screenshots/01-welcome.png",
+      "png": "/tmp/caps6/gnome/01-welcome.png",
       "rendered": true,
       "colours": 487,
       "flat": 0.9139866339334425,
       "ink": 0.007515002727768685,
       "stddev": 0.05863359634784381,
-      "text_excerpt": "Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Connect Bluetooth Devices Pair your keyboard or mouse to continue Connect Bluetooth Devices Pair your keyboard or mouse to conti"
+      "text_excerpt": "Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Power Off Power Off Press Super+Alt+S to enable the screen reader Credits Credits"
     },
     {
       "name": "qr_companion",
-      "png": "docs/screenshots/02-qr_companion.png",
+      "png": "/tmp/caps6/gnome/02-qr_companion.png",
       "rendered": true,
-      "colours": 530,
-      "flat": 0.92746863066012,
-      "ink": 0.03723404255319149,
-      "stddev": 0.12119697669088658,
+      "colours": 528,
+      "flat": 0.9275231860338243,
+      "ink": 0.03718630660120022,
+      "stddev": 0.12116062710110431,
       "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
     },
     {
       "name": "disk",
-      "png": "docs/screenshots/03-disk.png",
+      "png": "/tmp/caps6/gnome/03-disk.png",
       "rendered": true,
       "colours": 505,
       "flat": 0.8479609929078015,
@@ -116,17 +116,17 @@
     },
     {
       "name": "slurp",
-      "png": "docs/screenshots/04-slurp.png",
+      "png": "/tmp/caps6/gnome/04-slurp.png",
       "rendered": true,
       "colours": 223,
       "flat": 0.9590561920349154,
       "ink": 0.010270049099836333,
       "stddev": 0.07270071791646815,
-      "text_excerpt": "Bring Your Files We can copy documents, pictures, and other data from an existing Windows install. Windows data scanning is unavailable in demo mode. Skip Skip Continue Continue"
+      "text_excerpt": "Bring Your Files We can copy documents, pictures, and other data from an existing Windows install. Windows data scanning is unavailable in demo mode. Skip Skip"
     },
     {
       "name": "encryption",
-      "png": "docs/screenshots/05-encryption.png",
+      "png": "/tmp/caps6/gnome/05-encryption.png",
       "rendered": true,
       "colours": 249,
       "flat": 0.8610679214402619,
@@ -136,27 +136,27 @@
     },
     {
       "name": "confirm",
-      "png": "docs/screenshots/06-confirm.png",
+      "png": "/tmp/caps6/gnome/06-confirm.png",
       "rendered": true,
-      "colours": 237,
-      "flat": 0.9183715220949263,
-      "ink": 0.006267048554282597,
-      "stddev": 0.04942365688663311,
+      "colours": 231,
+      "flat": 0.9183647026732134,
+      "ink": 0.0059669939989088925,
+      "stddev": 0.04855604957164381,
       "text_excerpt": "Confirm installation Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Install Install"
     },
     {
       "name": "progress",
-      "png": "docs/screenshots/07-progress.png",
+      "png": "/tmp/caps6/gnome/07-progress.png",
       "rendered": true,
       "colours": 172,
       "flat": 0.9618794326241135,
       "ink": 0.006382978723404255,
       "stddev": 0.04678733797697664,
-      "text_excerpt": "Installation Video Coming Soon! Installation will continue normally. Feel free to browse around. Rawr. Visit the store Installing TunaOS\u2026 Deploying image: writing layers 45% 0:00 elapsed"
+      "text_excerpt": "Installing TunaOS\u2026 Deploying image: writing layers 45% 0:00 elapsed"
     },
     {
       "name": "recovery-key",
-      "png": "docs/screenshots/08-recovery-key.png",
+      "png": "/tmp/caps6/gnome/08-recovery-key.png",
       "rendered": true,
       "colours": 261,
       "flat": 0.931512547735952,
@@ -166,22 +166,22 @@
     },
     {
       "name": "done",
-      "png": "docs/screenshots/09-done.png",
+      "png": "/tmp/caps6/gnome/09-done.png",
       "rendered": true,
       "colours": 269,
       "flat": 0.9619885433715221,
       "ink": 0.009035733769776323,
       "stddev": 0.05996950743543311,
-      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Show Log Show Log Try Again Try Again Restart now Restart now Close Close Visit the store"
+      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now"
     }
   ],
   "transition_pixels": [
-    75865,
-    89767,
+    75793,
+    89695,
     51171,
     34536,
-    37640,
-    31053,
+    37190,
+    30584,
     43489,
     41701
   ],
