@@ -167,6 +167,16 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             let (title, detail) = done_copy(app.install_ok());
             let mut t = vec![title, detail];
             if app.install_ok() {
+                // The recovery panel, when there is a key (#129). The key
+                // itself goes in too: the capture asserts on it, and a
+                // panel drawn without it is the failure worth catching.
+                if !app.progress.recovery_key.is_empty() {
+                    t.push(t_line("recovery_key_title"));
+                    t.push(t_line("recovery_key_body"));
+                    t.push(app.progress.recovery_key.clone());
+                    t.push(t_line("recovery_key_copy"));
+                    t.push(t_line("recovery_key_ack"));
+                }
                 if !branding::get().store_url.is_empty() {
                     t.push(t_line("store_label"));
                 }
@@ -641,17 +651,54 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
         .align_x(Alignment::Center)
         .width(Length::Fill);
 
+    // The recovery key (#129). fisherman emits it once, after TPM enrolment,
+    // and for a tpm2-luks install it is the only way back into the disk if
+    // the TPM state changes. It used to go to the log pane and nowhere else:
+    // the log scrolls, nothing pauses, and a user could reach this page and
+    // restart having never seen it.
+    //
+    // A panel rather than a dialog, for the same reason XFCE uses one: a
+    // dialog is dismissed and then the key is gone, while this stays on
+    // screen for as long as it takes to write down.
+    let key = app.progress.recovery_key.clone();
+    let show_recovery = app.install_ok() && !key.is_empty();
+    let recovery: Option<Element<'_, Message>> = show_recovery.then(|| {
+        widget::column::with_children(vec![
+            widget::text::title4(t_line("recovery_key_title")).into(),
+            widget::text::body(t_line("recovery_key_body")).into(),
+            widget::text::monotext(key.clone()).into(),
+            widget::button::standard(t_line("recovery_key_copy"))
+                .on_press(Message::CopyRecoveryKey)
+                .into(),
+            widget::checkbox(app.recovery_ack)
+                .label(t_line("recovery_key_ack"))
+                .on_toggle(Message::RecoveryAckToggled)
+                .into(),
+        ])
+        .spacing(spacing.space_xs)
+        .align_x(Alignment::Center)
+        .width(Length::Fill)
+        .into()
+    });
+
     // Restart is the primary action after a successful install (the same
     // as the other frontends); Close stays available either way.
+    //
+    // While a recovery key is on screen it stays dead until the box is
+    // ticked: leaving this page is what ends the chance to read the key. An
+    // iced button with no on_press IS the disabled state.
+    let restart_ready = !app.recovery_key_pending();
     let actions: Element<'_, Message> = if app.install_ok() {
+        let mut restart = widget::button::suggested(t_line("done_restart"));
+        if restart_ready {
+            restart = restart.on_press(Message::Reboot);
+        }
         widget::row::with_children(vec![
             widget::space::horizontal().into(),
             widget::button::standard(DONE_CLOSE)
                 .on_press(Message::Quit)
                 .into(),
-            widget::button::suggested(t_line("done_restart"))
-                .on_press(Message::Reboot)
-                .into(),
+            restart.into(),
         ])
         .spacing(spacing.space_s)
         .into()
@@ -659,15 +706,20 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
         nav_row(None, Some((DONE_CLOSE.to_string(), Message::Quit, false)))
     };
 
-    widget::column::with_children(vec![
+    let mut children: Vec<Element<'_, Message>> = vec![
         widget::space::vertical().into(),
         hero.into(),
-        widget::space::vertical().into(),
-        actions,
-    ])
-    .spacing(spacing.space_m)
-    .height(Length::Fill)
-    .into()
+    ];
+    if let Some(panel) = recovery {
+        children.push(panel);
+    }
+    children.push(widget::space::vertical().into());
+    children.push(actions);
+
+    widget::column::with_children(children)
+        .spacing(spacing.space_m)
+        .height(Length::Fill)
+        .into()
 }
 
 /// Title, subtitle, scrolling body, navigation footer.

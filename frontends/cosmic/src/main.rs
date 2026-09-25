@@ -233,6 +233,10 @@ pub enum Message {
     EncryptionChanged(usize),
     PassphraseChanged(String),
     TogglePassphraseVisible,
+    /// The done page's "I have saved my recovery key" box.
+    RecoveryAckToggled(bool),
+    /// Put the recovery key on the clipboard.
+    CopyRecoveryKey,
     StartInstall,
     /// One line of fisherman's stdout, as it arrives.
     ///
@@ -268,6 +272,9 @@ pub struct TunaInstaller {
     install_ok: bool,
     installing: bool,
     passphrase_hidden: bool,
+    /// Ticked by the user on the done page once they have written the
+    /// recovery key down. It gates Restart (#129).
+    recovery_ack: bool,
     /// `/sys/class/tpm/tpm0` existence, checked once at startup — same probe
     /// `tuna-installer-xfce` uses. Gates the two `tpm2-*` encryption choices.
     has_tpm: bool,
@@ -280,6 +287,20 @@ impl TunaInstaller {
     pub fn page(&self) -> Page {
         self.page
     }
+
+    /// True while a recovery key is on screen that the user has not yet
+    /// acknowledged (#129). The done page holds Restart until this clears:
+    /// leaving that page is what ends the chance to read the key.
+    ///
+    /// A failed install enrolled nothing, so there is no key to hold for.
+    pub fn recovery_key_pending(&self) -> bool {
+        progress::holds_restart(
+            self.install_ok,
+            &self.progress.recovery_key,
+            self.recovery_ack,
+        )
+    }
+
     pub fn recipe(&self) -> &Recipe {
         &self.recipe
     }
@@ -441,6 +462,7 @@ impl cosmic::Application for TunaInstaller {
             install_ok: false,
             installing: false,
             passphrase_hidden: true,
+            recovery_ack: false,
             has_tpm,
             capture: flags.capture,
         };
@@ -565,6 +587,13 @@ impl cosmic::Application for TunaInstaller {
             Message::TogglePassphraseVisible => {
                 self.passphrase_hidden = !self.passphrase_hidden;
                 Task::none()
+            }
+            Message::RecoveryAckToggled(v) => {
+                self.recovery_ack = v;
+                Task::none()
+            }
+            Message::CopyRecoveryKey => {
+                cosmic::iced::clipboard::write(self.progress.recovery_key.clone())
             }
             Message::StartInstall => {
                 // SAFETY INTERLOCK. Driving the wizard to the progress page
