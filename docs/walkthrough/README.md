@@ -25,7 +25,7 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 |---|---|---|---|---|
 | GNOME | 9 | 9 | 8 | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
 | KDE Plasma | 6 | 6 | 5 | tests/capture.cpp (Kirigami/QML, offscreen) |
-| COSMIC | 6 | 6 | 5 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
+| COSMIC | 7 | 7 | 6 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
 | Niri | 6 | 6 | 5 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
 | XFCE | 9 | 9 | 7 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
 
@@ -79,6 +79,7 @@ libcosmic / iced (Rust). Source: `frontends/cosmic/`.
 [2/8] Formatting EFI partition
 [3/8] Formatting root file</sub> |
 | <img src="cosmic/06-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Restart now Close</sub> |
+| <img src="cosmic/07-recovery.png" width="360"> | **recovery**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automaticall</sub> |
 
 ## Niri
 
