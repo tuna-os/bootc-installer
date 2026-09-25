@@ -112,13 +112,13 @@ You'll choose what to install and where; nothing is written to any disk </sub> |
 | <img src="xfce/03-destination.png" width="360"> | **destination**  <br><sub>Where should TunaOS be installed? SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 WDC WD20SPZX    </sub> |
 | <img src="xfce/04-setup.png" width="360"> | **setup**  <br><sub>Disk encryption No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at every boot. TP</sub> |
 | <img src="xfce/05-identity.png" width="360"> | **identity**  <br><sub>Name this computer Hostname Password Full name Username Your account</sub> |
-| <img src="xfce/06-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation  Image:       ghcr.io/ublue-os/bluefin:latest
+| <img src="xfce/06-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation Image:       ghcr.io/ublue-os/bluefin:latest
 Disk:        /dev/nvme0n1
 Filesystem:  xfs
 Encryption:  none
-Hostname:   </sub> |
+Hostname:    </sub> |
 | <img src="xfce/07-progress.png" width="360"> | **progress**  <br><sub>Installing TunaOS… Installing image [1/9] Partitioning /dev/nvme0n1
   created EFI system partition (1.0 GiB, FAT32)
   created root partition</sub> |
-| <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Visit the store Visit the store Restart now Restart now</sub> |
+| <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Restart now Restart now</sub> |
 
