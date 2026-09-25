@@ -81,8 +81,7 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
    `cumulative_pct`, never `step / total_steps` — `total_steps` varies with
    the recipe and one step carries 87% of the time.
 3. **Recovery key page** (all four): fisherman prints the key after TPM
-   enrolment; GNOME's `views/recovery_key.py` is the reference. The four
-   write it to the install log only (#129).
+   enrolment; GNOME's `views/recovery_key.py` is the reference.
 4. **User account** (KDE, COSMIC, Niri): a username, full name and
    password step that writes the recipe's `user` block, as XFCE does.
 5. **Store and tour assets** (all four): only worth it where the desktop
