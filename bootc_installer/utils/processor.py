@@ -257,6 +257,14 @@ class Processor:
         user_fullname = user_info.get("fullname", "")
         user_password = user_info.get("password", "")
         user_groups   = user_info.get("groups", [])
+        # A live-ISO builder may pin the supplementary groups in
+        # /etc/bootc-installer/recipe.json (e.g. an image without
+        # libvirt/docker): an explicit operator list wins over the UI
+        # defaults, which target a generic image.
+        sys_user = sys_recipe.get("user", {})
+        if isinstance(sys_user, dict) and isinstance(sys_user.get("groups"), list):
+            user_groups = sys_user["groups"]
+            logger.info("User groups overridden from system recipe: %s", user_groups)
 
         # Build the fisherman recipe
         recipe = {

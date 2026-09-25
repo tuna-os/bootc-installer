@@ -273,6 +273,21 @@ class TestGetFinals(unittest.TestCase):
                 },
             )
 
+    def test_sys_recipe_groups_override_in_user_step(self):
+        with _import_user_module_fresh() as mod:
+            step = _make_user_step(
+                mod,
+                fullname="Jane Doe",
+                username="jane",
+                password="Valid1!A",
+            )
+            mock_window = SimpleNamespace(recipe={"user": {"groups": ["wheel", "dialout"]}})
+            setattr(step, "_BootcDefaultUsers__window", mock_window)
+            self.assertEqual(
+                step.get_finals()["user"]["groups"],
+                ["wheel", "dialout"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

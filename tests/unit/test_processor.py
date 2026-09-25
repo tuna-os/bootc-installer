@@ -271,6 +271,23 @@ class TestUserSpec:
         r = _load(path)
         assert r["user"]["groups"] == []
 
+    def test_sys_recipe_groups_override_ui_groups(self):
+        # An operator-pinned group list (e.g. an image without libvirt)
+        # wins over the UI defaults.
+        user = {"username": "bob", "password": "p",
+                "groups": ["wheel", "docker", "incus-admin", "libvirt", "dialout"]}
+        sys = {**_SYS_RECIPE, "user": {"groups": ["wheel", "dialout"]}}
+        path = Processor.gen_install_recipe("log", _auto_finals(user=user), sys)
+        r = _load(path)
+        assert r["user"]["groups"] == ["wheel", "dialout"]
+
+    def test_sys_recipe_without_groups_keeps_ui_groups(self):
+        user = {"username": "bob", "password": "p", "groups": ["wheel"]}
+        sys = {**_SYS_RECIPE, "user": {"username": "ignored"}}
+        path = Processor.gen_install_recipe("log", _auto_finals(user=user), sys)
+        r = _load(path)
+        assert r["user"]["groups"] == ["wheel"]
+
 
 # ── unified storage tests ─────────────────────────────────────────────────────
 
