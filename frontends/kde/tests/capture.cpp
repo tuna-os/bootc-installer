@@ -304,6 +304,114 @@ QString itemText(QQuickItem *item)
     return parts.join(QLatin1Char('\n'));
 }
 
+
+// Is the progress bar actually DRAWN?
+//
+// This exists because the first version of the KDE progress bar passed every
+// check in this repository — 37 of them, including this capture job, the
+// backend tests and the end-to-end install — while painting nothing at all.
+// The parity report credited `install` to a screen whose bar was 32 pixels of
+// background, because a report counts widgets and a screenshot audit counts
+// ink over the whole frame, and neither looks at the one region that matters.
+//
+// So this looks there: the bar's own rectangle, compared against the page
+// background. A bar that is missing, zero-sized, transparent or empty fails
+// the job rather than shipping a documentation image of a feature that is not
+// on screen.
+// findChild() walks the QObject tree, which does not reach here.
+//
+// The first version of this check used window->findChild() — the same call
+// stepContentRect() uses for "stepsContainer" — and reported the bar missing
+// on a screen that was rendering the caption right beside it. stepsContainer
+// lives in Wizard.qml, part of the window's own object tree; a step module's
+// contents are loaded into a Kirigami page, and those items are not QObject
+// children of the window. So the lookup was answering a different question
+// from the one it looked like it was asking.
+//
+// Walking childItems() instead follows the VISUAL tree, which is what "on the
+// screen" means and what this check is about.
+QQuickItem *findItemByName(QQuickItem *root, const QString &name)
+{
+    if (!root)
+        return nullptr;
+    if (root->objectName() == name)
+        return root;
+    const QList<QQuickItem *> children = root->childItems();
+    for (QQuickItem *child : children) {
+        if (QQuickItem *found = findItemByName(child, name))
+            return found;
+    }
+    return nullptr;
+}
+
+bool progressBarIsDrawn(QQuickWindow *window, const QImage &image, QTextStream &out)
+{
+    QQuickItem *bar = findItemByName(window->contentItem(), u"installProgressBar"_s);
+    if (!bar)
+        bar = window->findChild<QQuickItem *>(u"installProgressBar"_s);
+    if (!bar) {
+        out << "FAIL: no item named installProgressBar in the visual tree "
+               "of the progress step\n";
+        return false;
+    }
+    out << "    bar: " << bar->width() << "x" << bar->height()
+        << " visible=" << bar->isVisible() << " opacity=" << bar->opacity() << "\n";
+
+    // Read through the property system rather than the Controls headers, so
+    // this needs no extra link dependency. 964x16, visible and opaque, and
+    // still not painted, means the answer is in these values or in an
+    // ancestor that is clipping it -- guessing between those cost a round
+    // already.
+    const char *props[] = {"value", "position", "from", "to", "indeterminate",
+                           "implicitHeight", "clip", "z", "enabled"};
+    out << "    bar props:";
+    for (const char *name : props)
+        out << " " << name << "=" << bar->property(name).toString();
+    out << "\n";
+
+    for (QQuickItem *p = bar->parentItem(); p; p = p->parentItem()) {
+        out << "    ancestor " << (p->metaObject() ? p->metaObject()->className() : "?")
+            << " name=\"" << p->objectName() << "\""
+            << " " << p->width() << "x" << p->height()
+            << " visible=" << p->isVisible() << " opacity=" << p->opacity()
+            << " clip=" << p->clip() << "\n";
+    }
+    if (bar->width() <= 0 || bar->height() <= 0 || !bar->isVisible() || bar->opacity() <= 0.0) {
+        out << "FAIL: the progress bar has no drawable geometry\n";
+        return false;
+    }
+
+    const qreal scale = qreal(image.width()) / window->width();
+    const QPointF topLeft = bar->mapToScene(QPointF(0, 0)) * scale;
+    const QRect rect = QRectF(topLeft, QSizeF(bar->width() * scale, bar->height() * scale))
+                           .toRect()
+                           .intersected(QRect(QPoint(0, 0), image.size()));
+    if (rect.isEmpty()) {
+        out << "FAIL: the progress bar maps to no pixels in the frame\n";
+        return false;
+    }
+
+    // The page background, sampled well clear of the bar.
+    const QRgb background = image.pixel(2, 2);
+    int ink = 0;
+    for (int y = rect.top(); y <= rect.bottom(); ++y) {
+        for (int x = rect.left(); x <= rect.right(); ++x) {
+            if (image.pixel(x, y) != background)
+                ++ink;
+        }
+    }
+    const double share = 100.0 * ink / (rect.width() * rect.height());
+    out << "    bar ink: " << QString::number(share, 'f', 1) << "% of "
+        << rect.width() << "x" << rect.height() << "\n";
+    if (ink == 0) {
+        out << "FAIL: the progress bar occupies " << rect.width() << "x" << rect.height()
+            << " pixels and every one of them is the page background — it is laid out "
+               "but not painted\n";
+        return false;
+    }
+    return true;
+}
+
 // Where the current step draws, in image coordinates.
 //
 // Returned empty if the item is missing, and the caller treats that as fatal:
@@ -341,22 +449,31 @@ QRect stepContentRect(QQuickWindow *window, const QImage &image)
 // It also made a misleading documentation image: 05-progress is meant to show
 // an install UNDER WAY. So the progress screen gets a log that stops mid-run,
 // and the finished log is loaded just before the done screen is captured.
+// fisherman's real transcript (shared/progress/dry-run-transcript.ndjson),
+// split at the same point: newline-delimited JSON, one event per line, which
+// is the only thing fisherman writes.
+//
+// These were hand-written "[n/9] " lines naming a specific image ref and
+// hostname. fisherman has never emitted that prefix, so the controller now
+// passes those lines through to the log pane unparsed and the bar stays
+// empty — which is what this fixture would show if it were left alone. The
+// product names were the second problem: a fixture is rendered into the
+// docs, so they shipped one product's branding to everyone who rebrands.
 const char *kFixtureLogRunning =
-    "[1/9] Partitioning /dev/nvme0n1\n"
-    "  created EFI system partition (1.0 GiB, FAT32)\n"
-    "  created root partition (511.1 GiB)\n"
-    "[2/9] Formatting boot partitions\n"
-    "[3/9] Setting up encryption (luks-passphrase)\n"
-    "[4/9] Formatting root filesystem (xfs)\n"
-    "[5/9] Mounting target at /mnt\n"
-    "[6/9] Installing image ghcr.io/tuna-os/albacore:kde\n"
-    "  pulling layers... 1.9 GiB\n";
+    "{\"cumulative_pct\": 0, \"elapsed_ms\": 0, \"step\": 1, \"step_name\": \"Partitioning disk\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 0}\n"
+    "{\"cumulative_pct\": 0, \"elapsed_ms\": 400, \"step\": 2, \"step_name\": \"Formatting EFI partition\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 1}\n"
+    "{\"cumulative_pct\": 1, \"elapsed_ms\": 800, \"step\": 3, \"step_name\": \"Formatting root filesystem\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 0}\n"
+    "{\"cumulative_pct\": 1, \"elapsed_ms\": 1200, \"step\": 4, \"step_name\": \"Mounting filesystem\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 0}\n"
+    "{\"cumulative_pct\": 1, \"elapsed_ms\": 1600, \"step\": 5, \"step_name\": \"Installing OS\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 87}\n"
+    "{\"elapsed_ms\": 2000, \"message\": \"Pulling image: layer 18/71\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"type\": \"substep\"}\n"
+    "{\"elapsed_ms\": 2400, \"message\": \"Pulling image: layer 47/71\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"type\": \"substep\"}\n";
 
 const char *kFixtureLogFinished =
-    "[7/9] Writing bootloader entries\n"
-    "[8/9] Setting hostname tunaos\n"
-    "[9/9] Finalising\n"
-    "\n\xE2\x9C\x93 Installation complete!\n";
+    "{\"elapsed_ms\": 2800, \"message\": \"Pulling image: layer 71/71\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"type\": \"substep\"}\n"
+    "{\"cumulative_pct\": 88, \"elapsed_ms\": 3200, \"step\": 6, \"step_name\": \"Copying system Flatpaks\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 11}\n"
+    "{\"cumulative_pct\": 99, \"elapsed_ms\": 3600, \"step\": 7, \"step_name\": \"Configuring installed system\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 0}\n"
+    "{\"cumulative_pct\": 99, \"elapsed_ms\": 4000, \"step\": 8, \"step_name\": \"Finalizing installation\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 1}\n"
+    "{\"boot_id\": \"0001\", \"elapsed_ms\": 4400, \"message\": \"Installation complete\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"type\": \"complete\"}\n";
 
 const char *kFixtureDisks = R"({"blockdevices":[
   {"name":"nvme0n1","size":"512G","type":"disk","model":"Samsung SSD 990 PRO","tran":"nvme"},
@@ -573,6 +690,8 @@ int main(int argc, char *argv[])
             out << "FAIL: could not locate the step content area for " << step.second << "\n";
             return 1;
         }
+        if (step.second == u"05-progress"_s && !progressBarIsDrawn(window, image, out))
+            return 1;
         Finding f = audit(image, content, step.second);
         f.png = path;
         f.hero = isHeroStep(step.second);

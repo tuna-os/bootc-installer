@@ -56,6 +56,21 @@ class InstallerController : public QObject
     // ask for help, or attach the output to a bug report.
     Q_PROPERTY(QString logPath READ logPath NOTIFY logPathChanged)
 
+    // Install progress, from fisherman's newline-delimited JSON protocol
+    // (shared/progress/README.md). KDE had no progress bar at all: the
+    // step showed a BusyIndicator and a log pane for the whole install,
+    // which docs/PARITY.md listed as gap #2.
+    //
+    // installFraction, not step/totalSteps: fisherman computes total_steps
+    // from the recipe, and the weights are wildly unequal — "Installing OS"
+    // alone is 87% of a cold install while five other steps are 0% — so a
+    // bar advanced one-nth per step sits near empty for the whole visible
+    // install and then jumps.
+    Q_PROPERTY(int installStep READ installStep NOTIFY progressChanged)
+    Q_PROPERTY(int installTotalSteps READ installTotalSteps NOTIFY progressChanged)
+    Q_PROPERTY(qreal installFraction READ installFraction NOTIFY progressChanged)
+    Q_PROPERTY(QString installStepName READ installStepName NOTIFY progressChanged)
+
     Q_PROPERTY(bool installing READ installing NOTIFY installingChanged)
     Q_PROPERTY(bool installFinished READ installFinishedFlag NOTIFY installCompleted)
     Q_PROPERTY(int exitCode READ exitCode NOTIFY installCompleted)
@@ -92,6 +107,10 @@ public:
     Q_INVOKABLE void reboot();
     QString log() const { return m_log; }
     QString logPath() const { return m_logPath; }
+    int installStep() const { return m_step; }
+    int installTotalSteps() const { return m_totalSteps; }
+    qreal installFraction() const { return m_fraction; }
+    QString installStepName() const { return m_stepName; }
     bool installing() const { return m_process != nullptr; }
     bool installFinishedFlag() const { return m_finished; }
     int exitCode() const { return m_exitCode; }
@@ -115,12 +134,19 @@ Q_SIGNALS:
     void logChanged();
     void logPathChanged();
     void installingChanged();
+    void progressChanged();
     void installCompleted(int exitCode);
 
 private:
     void openLogFile();
     void closeLogFile();
     void appendLine(const QString &line);
+    // Parses one fisherman event and updates the progress properties.
+    // Returns the text to show in the log pane: the event rendered for a
+    // person, or the line unchanged when it is not an event (fisherman's
+    // stderr is interleaved into the same stream and is already readable).
+    QString consumeProgress(const QString &line);
+    void resetProgress();
     void drainBuffer(const QString &prefix);
     void fail(const QString &message);
 
@@ -133,6 +159,13 @@ private:
     QString m_buffer;
     QProcess *m_process = nullptr;
     bool m_finished = false;
+    int m_step = 0;
+    int m_totalSteps = 0;
+    qreal m_fraction = 0.0;
+    QString m_stepName;
+    // Carried across lines so a substep can interpolate inside its step.
+    int m_cumulativePct = 0;
+    int m_weightPct = 0;
     bool m_hasTpm = false;
     QString m_productName;
     branding::Branding m_branding;
