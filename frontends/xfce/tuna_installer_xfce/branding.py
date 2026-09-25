@@ -58,7 +58,7 @@ ASSET_KEYS = ("welcome_image", "complete_image", "store_qr")
 
 # shared/branding/copy-defaults.json, verbatim.
 COPY_DEFAULTS_JSON = r'''{
-  "_comment": "Neutral defaults for every user-facing line a product may rebrand. Every frontend renders every key (docs/PARITY.md). A branding.json `copy` object overrides any key; an empty string hides the line. Placeholders: {name} = product name, {disk} = the disk that will be erased. Copies of this file in each frontend tree must stay byte-identical (tests/unit/test_shared_branding.py). Frontend-specific lines live under `extensions.<frontend>` in the branding file, never here.",
+  "_comment": "Neutral defaults for every user-facing line a product may rebrand. tests/unit/test_copy_coverage.py records which frontend renders which key; the keys still unwired are listed there as KNOWN_GAPS (docs/PARITY.md). A branding.json `copy` object overrides any key; an empty string hides the line. Placeholders: {name} = product name, {disk} = the disk that will be erased. Copies of this file in each frontend tree must stay byte-identical (tests/unit/test_shared_branding.py), and Niri's QML table is generated from it by shared/branding/generate-qml-defaults.py. Frontend-specific lines live under `extensions.<frontend>` in the branding file, never here.",
   "welcome_title": "Welcome to {name}",
   "welcome_subtitle": "",
   "welcome_install": "Install {name}",
