@@ -341,22 +341,31 @@ QRect stepContentRect(QQuickWindow *window, const QImage &image)
 // It also made a misleading documentation image: 05-progress is meant to show
 // an install UNDER WAY. So the progress screen gets a log that stops mid-run,
 // and the finished log is loaded just before the done screen is captured.
+// fisherman's real transcript (shared/progress/dry-run-transcript.ndjson),
+// split at the same point: newline-delimited JSON, one event per line, which
+// is the only thing fisherman writes.
+//
+// These were hand-written "[n/9] " lines naming a specific image ref and
+// hostname. fisherman has never emitted that prefix, so the controller now
+// passes those lines through to the log pane unparsed and the bar stays
+// empty — which is what this fixture would show if it were left alone. The
+// product names were the second problem: a fixture is rendered into the
+// docs, so they shipped one product's branding to everyone who rebrands.
 const char *kFixtureLogRunning =
-    "[1/9] Partitioning /dev/nvme0n1\n"
-    "  created EFI system partition (1.0 GiB, FAT32)\n"
-    "  created root partition (511.1 GiB)\n"
-    "[2/9] Formatting boot partitions\n"
-    "[3/9] Setting up encryption (luks-passphrase)\n"
-    "[4/9] Formatting root filesystem (xfs)\n"
-    "[5/9] Mounting target at /mnt\n"
-    "[6/9] Installing image ghcr.io/tuna-os/albacore:kde\n"
-    "  pulling layers... 1.9 GiB\n";
+    "{\"cumulative_pct\": 0, \"elapsed_ms\": 0, \"step\": 1, \"step_name\": \"Partitioning disk\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 0}\n"
+    "{\"cumulative_pct\": 0, \"elapsed_ms\": 400, \"step\": 2, \"step_name\": \"Formatting EFI partition\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 1}\n"
+    "{\"cumulative_pct\": 1, \"elapsed_ms\": 800, \"step\": 3, \"step_name\": \"Formatting root filesystem\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 0}\n"
+    "{\"cumulative_pct\": 1, \"elapsed_ms\": 1200, \"step\": 4, \"step_name\": \"Mounting filesystem\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 0}\n"
+    "{\"cumulative_pct\": 1, \"elapsed_ms\": 1600, \"step\": 5, \"step_name\": \"Installing OS\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 87}\n"
+    "{\"elapsed_ms\": 2000, \"message\": \"Pulling image: layer 18/71\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"type\": \"substep\"}\n"
+    "{\"elapsed_ms\": 2400, \"message\": \"Pulling image: layer 47/71\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"type\": \"substep\"}\n";
 
 const char *kFixtureLogFinished =
-    "[7/9] Writing bootloader entries\n"
-    "[8/9] Setting hostname tunaos\n"
-    "[9/9] Finalising\n"
-    "\n\xE2\x9C\x93 Installation complete!\n";
+    "{\"elapsed_ms\": 2800, \"message\": \"Pulling image: layer 71/71\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"type\": \"substep\"}\n"
+    "{\"cumulative_pct\": 88, \"elapsed_ms\": 3200, \"step\": 6, \"step_name\": \"Copying system Flatpaks\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 11}\n"
+    "{\"cumulative_pct\": 99, \"elapsed_ms\": 3600, \"step\": 7, \"step_name\": \"Configuring installed system\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 0}\n"
+    "{\"cumulative_pct\": 99, \"elapsed_ms\": 4000, \"step\": 8, \"step_name\": \"Finalizing installation\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 1}\n"
+    "{\"boot_id\": \"0001\", \"elapsed_ms\": 4400, \"message\": \"Installation complete\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"type\": \"complete\"}\n";
 
 const char *kFixtureDisks = R"({"blockdevices":[
   {"name":"nvme0n1","size":"512G","type":"disk","model":"Samsung SSD 990 PRO","tran":"nvme"},

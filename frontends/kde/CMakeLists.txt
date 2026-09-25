@@ -129,6 +129,11 @@ if(BUILD_TESTING)
         src/branding.cpp
         src/offline.cpp
         src/readiness.cpp
+        # For the fisherman progress protocol parse. The controller's other
+        # halves (QProcess, the recipe file) are not exercised here; the
+        # tests below feed appendLine() directly, which is the same entry
+        # point readyReadStandardOutput uses.
+        src/installercontroller.cpp
     )
     target_include_directories(tuna-installer-backend-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR})
     # The branding fixtures every frontend's resolver is judged by; the test

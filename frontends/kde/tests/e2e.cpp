@@ -63,13 +63,23 @@ int main(int argc, char *argv[])
         out << "FAIL: controller does not report success\n";
         return 1;
     }
-    // fisherman's terminal event, in its real wire format: it writes
-    // newline-delimited JSON on stdout and nothing else
-    // (shared/progress/README.md). This was
-    // `contains(QLatin1String("[9/9]"))`, a prefix fisherman has never
-    // written — the e2e shim invented it to satisfy assertions like this
-    // one, so the check compared the harness with itself.
-    if (!controller.log().contains(QLatin1String("\"type\":\"complete\""))) {
+    // Where the progress bar ended up. This checked the log text for
+    // fisherman's raw `"type":"complete"` event, which worked only while the
+    // controller stored the protocol verbatim; it now renders events for the
+    // log pane and keeps the raw lines in the log FILE, so that string is no
+    // longer in log().
+    //
+    // Asserting the bar instead is the stronger check anyway, and matches
+    // what the XFCE and Niri drivers do: a controller that does not parse
+    // fisherman's protocol still reaches installCompleted(0) and still
+    // reports success, and only the bar shows the difference.
+    if (controller.installFraction() != 1.0) {
+        out << "FAIL: the progress bar ended at " << controller.installFraction()
+            << ", not 1.0 — the controller is not parsing fisherman's progress "
+               "protocol (shared/progress/README.md)\n";
+        return 1;
+    }
+    if (!controller.log().contains(QLatin1String("Installation complete"))) {
         out << "FAIL: the log carried no completion event\n";
         return 1;
     }
