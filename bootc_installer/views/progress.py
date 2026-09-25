@@ -147,6 +147,7 @@ class BootcProgress(Gtk.Box):
     progress_elapsed = Gtk.Template.Child()
     progress_eta = Gtk.Template.Child()
     progress_substep = Gtk.Template.Child()
+    progress_note = Gtk.Template.Child()
     console_button = Gtk.Template.Child()
     media_button = Gtk.Template.Child()
     console_box = Gtk.Template.Child()
@@ -189,6 +190,10 @@ class BootcProgress(Gtk.Box):
 
         self.__build_ui()
         self.__log_buf = self.log_view.get_buffer()
+        # "Do not power off the computer." Empty hides it.
+        note = copy_text.text(window, "progress_note")
+        self.progress_note.set_label(note)
+        self.progress_note.set_visible(bool(note))
 
         self.console_button.connect("clicked", self.__on_console_button)
         self.media_button.connect("clicked", self.__on_media_button)

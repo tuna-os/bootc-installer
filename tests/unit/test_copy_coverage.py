@@ -61,8 +61,6 @@ RESOLVERS = re.compile(r"^(branding\.(py|rs|cpp|h|go)|branding_defaults\.h\.in|c
 KNOWN_GAPS = {
     "gnome": {
         "welcome_button": "bootc_installer/gtk/default-welcome.blp hardcodes the button label",
-        "confirm_warning": "bootc_installer/gtk/dialog-disk-confirm.blp hardcodes the warning",
-        "progress_note": "bootc_installer/gtk/progress.blp hardcodes the do-not-power-off line",
     },
     "kde": {
         "welcome_install": "modules/welcome hardcodes its two body sentences",

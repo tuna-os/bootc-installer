@@ -117,10 +117,17 @@ class BootcConfirm(Adw.Bin):
                                 "drive-harddisk-system-symbolic",
                             )
                         )
-                        # Destructive action warning
+                        # Destructive action warning: the branding
+                        # contract's confirm_warning, with {disk} filled in.
+                        # Plain text, not markup -- the line can come from a
+                        # product's branding file.
                         warning = Adw.ActionRow()
-                        warning.set_title(_("⚠️ ALL DATA ON THIS DISK WILL BE ERASED"))
-                        warning.set_subtitle(_("This action cannot be undone"))
+                        warning.set_use_markup(False)
+                        warning.set_title(
+                            copy_text.text(self.__window, "confirm_warning",
+                                           disk=value["auto"]["disk"])
+                            or _("All data on this disk will be erased. This cannot be undone."))
+                        warning.set_title_lines(0)
                         warning.add_css_class("error")
                         self.active_widgets.append(warning)
                     else:
