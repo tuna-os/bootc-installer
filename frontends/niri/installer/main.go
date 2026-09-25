@@ -173,7 +173,7 @@ func detectEnvironment() {
 // install failed at enrolment, after fisherman had partitioned the disk.
 // shared/tpm/README.md is the contract; probeTPM2 implements it.
 func hasTPM() bool {
-	return probeTPM2("/")
+	return fakeTPMRequested() || probeTPM2("/")
 }
 
 func runInstall(recipeJSON string) {

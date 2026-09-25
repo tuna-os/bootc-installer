@@ -211,6 +211,12 @@ class Systeminfo:
         Only the real root is cached; a test passing a fixture tree gets a
         fresh answer each call.
         """
+        # Checked per call, never cached: the capture harness sets it, and a
+        # value read once at import would not see it. Forces the answer ON
+        # only -- it makes the choices visible for a screenshot, and does not
+        # make them work. fisherman still fails at enrolment.
+        if tpm_probe.fake_tpm_requested():
+            return True
         if root != "/":
             return tpm_probe.probe_tpm2(root)
         if Systeminfo._tpm2 is not None:

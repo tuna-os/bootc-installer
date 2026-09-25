@@ -37,3 +37,37 @@ func TestTpmDirectoryAloneIsNotEnough(t *testing.T) {
 		t.Fatal("a TPM 1.2 device must not report as TPM 2.0")
 	}
 }
+
+// The override the other four frontends have had, for parity of the
+// contract in shared/tpm/README.md.
+//
+// It changes nothing about the walkthrough: the capture harness never runs
+// this binary. capture-screens.py points QML2_IMPORT_PATH at
+// tests/qml-stubs/, whose canned detect output already says hasTpm: true,
+// so Niri's screenshots have always shown all four choices.
+func TestFakeTPMOverride(t *testing.T) {
+	for _, v := range []string{"1", "true", "yes"} {
+		t.Setenv("BOOTC_INSTALLER_FAKE_TPM", v)
+		if !fakeTPMRequested() {
+			t.Errorf("%q must force the choices on", v)
+		}
+	}
+	for _, v := range []string{"", "0"} {
+		t.Setenv("BOOTC_INSTALLER_FAKE_TPM", v)
+		if fakeTPMRequested() {
+			t.Errorf("%q must not force the choices on", v)
+		}
+	}
+}
+
+// It makes the choices VISIBLE. It does not make them work: fisherman still
+// fails at enrolment on a machine with no TPM 2.0.
+func TestFakeTPMIsACaptureAidNotAHardwareClaim(t *testing.T) {
+	t.Setenv("BOOTC_INSTALLER_FAKE_TPM", "1")
+	if !hasTPM() {
+		t.Fatal("the override must show the choices")
+	}
+	if probeTPM2(filepath.Join(tpmFixtures, "tpm12")) {
+		t.Fatal("the probe itself must stay honest about the hardware")
+	}
+}

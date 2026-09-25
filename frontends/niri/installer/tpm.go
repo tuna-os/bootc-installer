@@ -17,6 +17,17 @@ const tpmVersionFile = "sys/class/tpm/tpm0/tpm_version_major"
 // fallback for kernels older than 5.5, which have no tpmVersionFile.
 const tpmResourceManager = "dev/tpmrm0"
 
+// fakeTPMRequested reports whether BOOTC_INSTALLER_FAKE_TPM forces the answer
+// to true. It only ever forces it ON, so a capture can show what the installer
+// offers rather than what the runner's hardware allows. An exported but blank
+// value does not count, so it cannot turn the choices on by accident.
+//
+// Same variable and same meaning as the other four frontends use.
+func fakeTPMRequested() bool {
+	v := os.Getenv("BOOTC_INSTALLER_FAKE_TPM")
+	return v != "" && v != "0"
+}
+
 // probeTPM2 reports whether root holds a TPM 2.0 device.
 //
 // The root parameter exists because no CI runner has a TPM of any version,
