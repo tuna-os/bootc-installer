@@ -74,7 +74,7 @@ about to be erased.
 | `welcome_install`, `welcome_install_subtitle`, `welcome_button` | the install row (GNOME) or the forward button |
 | `confirm_title`, `confirm_subtitle`, `confirm_body`, `confirm_warning`, `confirm_button` | the last page before the disk is written |
 | `progress_title`, `progress_note` | while fisherman runs |
-| `recovery_key_title`, `recovery_key_body`, `recovery_key_copy`, `recovery_key_ack`, `recovery_key_button` | the recovery-key panel after a TPM enrolment |
+| `recovery_key_title`, `recovery_key_body`, `recovery_key_copy`, `recovery_key_ack` | the recovery-key panel after a TPM enrolment |
 | `done_title`, `done_subtitle`, `done_restart`, `done_failed_title` | the done page |
 | `store_label` | the store link on the done page, shown only when `store_url` is set |
 

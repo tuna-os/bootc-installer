@@ -40,6 +40,14 @@ Kirigami.Page {
 
     readonly property bool onFinalPage: currentIndex === stepCount - 1
 
+    // The heading over each step. The confirm step's is the branding
+    // contract's confirm_title, so a product can word the last page before
+    // the disk is written; the others are structural step names.
+    function stepTitle(index) {
+        const step = stepsModel.get(index)
+        return step.stepId === "confirm" ? InstallerController.text("confirm_title") : step.name
+    }
+
     ListModel {
         id: stepsModel
 
@@ -99,7 +107,7 @@ Kirigami.Page {
         activate(currentIndex + 1);
 
         currentIndex++;
-        stepHeading.changeText(stepsModel.get(currentIndex).name);
+        stepHeading.changeText(stepTitle(currentIndex));
 
         currentStepItemX = root.width;
         currentStepItem.visible = true;
@@ -119,7 +127,7 @@ Kirigami.Page {
         activate(currentIndex - 1);
 
         currentIndex--;
-        stepHeading.changeText(stepsModel.get(currentIndex).name);
+        stepHeading.changeText(stepTitle(currentIndex));
 
         currentStepItemX = -root.width;
         currentStepItem.visible = true;
@@ -162,7 +170,7 @@ Kirigami.Page {
                 item.visible = (i === index);
             }
         }
-        stepHeading.text = stepsModel.get(index).name;
+        stepHeading.text = stepTitle(index);
         stepHeading.opacity = 1;
     }
 
@@ -287,7 +295,13 @@ Kirigami.Page {
                 // Hidden while fisherman runs: the progress step advances itself.
                 visible: root.currentStepId !== "progress"
 
-                text: isInstall ? InstallerController.text("confirm_button") : (isClose ? "Close" : "Next")
+                readonly property bool isWelcome: root.currentStepId === "welcome"
+
+                // Branding copy on the two buttons that carry a product's voice:
+                // leaving the welcome page and starting the install.
+                text: isInstall ? InstallerController.text("confirm_button")
+                    : isWelcome ? InstallerController.text("welcome_button")
+                    : (isClose ? "Close" : "Next")
                 icon.name: isInstall ? "install-symbolic"
                     : (isClose ? "window-close-symbolic" : "arrow-right-symbolic")
 

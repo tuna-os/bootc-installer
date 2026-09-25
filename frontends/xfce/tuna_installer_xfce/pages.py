@@ -99,7 +99,7 @@ class SourcePage(Page):
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             box.pack_start(radio, False, False, 0)
             subline = Gtk.Label(xalign=0)
-            tagged = f"{sub}   [available offline]" if offline else sub
+            tagged = f"{sub}   [available offline]".strip() if offline else sub
             subline.set_markup(
                 f"<small><tt>{GLib.markup_escape_text(tagged)}</tt></small>")
             subline.set_margin_start(26)
@@ -113,8 +113,10 @@ class SourcePage(Page):
         self.pack_start(scroll, True, True, 0)
 
         if self.live_ref:
+            # The same row GNOME shows: welcome_install and its subtitle. The
+            # "[available offline]" tag already says no download is needed.
             add_radio(core.BRANDING.text("welcome_install") + " (this system)",
-                      "no download required", {"live": True}, True)
+                      core.BRANDING.text("welcome_install_subtitle"), {"live": True}, True)
 
         def sort_key(leaf):
             return (leaf.imgref not in self.offline_refs, leaf.name)
@@ -346,12 +348,19 @@ class ProgressPage(Page):
         self.pack_start(self.steplabel, False, False, 0)
         self.bar = Gtk.ProgressBar(show_text=True)
         self.pack_start(self.bar, False, False, 0)
+        # progress_note ("Do not power off the computer.") -- the one warning
+        # that matters while the disk is being written. Empty hides it.
+        self.note = Gtk.Label(label=core.BRANDING.text("progress_note"), xalign=0)
+        self.note.get_style_context().add_class("dim-label")
+        self.note.set_no_show_all(not self.note.get_text())
+        self.pack_start(self.note, False, False, 0)
         # Multi-line parser context (current step, weight, seen substeps).
         self._progress = progress_parser.new_progress_state()
         # The one step label that names the product ("Installing {product}…")
         # must say what this build installs, not a hardcoded distro. The
         # parser defaults to a neutral "the OS" until told otherwise.
         progress_parser.set_product_name(core.PRODUCT_NAME)
+        progress_parser.set_install_label(core.BRANDING.text("progress_title"))
         # Log visible by default — XFCE users want the output (DESIGN.md).
         self.logview = Gtk.TextView(editable=False, monospace=True)
         self.logview.modify_font(Pango.FontDescription("monospace 9"))
