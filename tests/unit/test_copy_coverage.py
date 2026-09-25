@@ -62,9 +62,7 @@ KNOWN_GAPS = {
     "gnome": {
         "welcome_button": "bootc_installer/gtk/default-welcome.blp hardcodes the button label",
         "confirm_warning": "bootc_installer/gtk/dialog-disk-confirm.blp hardcodes the warning",
-        "progress_title": "bootc_installer/gtk/progress.blp hardcodes 'Installing'",
         "progress_note": "bootc_installer/gtk/progress.blp hardcodes the do-not-power-off line",
-        "done_failed_title": "bootc_installer/views/done.py hardcodes 'Installation failed'",
     },
     "kde": {
         "welcome_install": "modules/welcome hardcodes its two body sentences",
