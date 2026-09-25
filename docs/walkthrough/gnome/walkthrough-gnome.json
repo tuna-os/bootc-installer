@@ -92,16 +92,16 @@
       "flat": 0.9139866339334425,
       "ink": 0.007515002727768685,
       "stddev": 0.05863359634784381,
-      "text_excerpt": "Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Connect Bluetooth Devices Pair your keyboard or mouse to continue Connect Bluetooth Devices Pair your keyboard or mouse to conti"
+      "text_excerpt": "Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Power Off Power Off Press Super+Alt+S to enable the screen reader Credits Credits"
     },
     {
       "name": "qr_companion",
       "png": "docs/screenshots/02-qr_companion.png",
       "rendered": true,
-      "colours": 530,
-      "flat": 0.92746863066012,
+      "colours": 527,
+      "flat": 0.9275981996726678,
       "ink": 0.03723404255319149,
-      "stddev": 0.12119697669088658,
+      "stddev": 0.12119775714755661,
       "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
     },
     {
@@ -122,7 +122,7 @@
       "flat": 0.9590561920349154,
       "ink": 0.010270049099836333,
       "stddev": 0.07270071791646815,
-      "text_excerpt": "Bring Your Files We can copy documents, pictures, and other data from an existing Windows install. Windows data scanning is unavailable in demo mode. Skip Skip Continue Continue"
+      "text_excerpt": "Bring Your Files We can copy documents, pictures, and other data from an existing Windows install. Windows data scanning is unavailable in demo mode. Skip Skip"
     },
     {
       "name": "encryption",
@@ -139,9 +139,9 @@
       "png": "docs/screenshots/06-confirm.png",
       "rendered": true,
       "colours": 237,
-      "flat": 0.9183715220949263,
-      "ink": 0.006267048554282597,
-      "stddev": 0.04942365688663311,
+      "flat": 0.9183647026732134,
+      "ink": 0.006260229132569558,
+      "stddev": 0.04943286504465176,
       "text_excerpt": "Confirm installation Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Install Install"
     },
     {
@@ -152,7 +152,7 @@
       "flat": 0.9618794326241135,
       "ink": 0.006382978723404255,
       "stddev": 0.04678733797697664,
-      "text_excerpt": "Installation Video Coming Soon! Installation will continue normally. Feel free to browse around. Rawr. Visit the store Installing TunaOS\u2026 Deploying image: writing layers 45% 0:00 elapsed"
+      "text_excerpt": "Installing TunaOS\u2026 Deploying image: writing layers 45% 0:00 elapsed"
     },
     {
       "name": "recovery-key",
@@ -172,16 +172,16 @@
       "flat": 0.9619885433715221,
       "ink": 0.009035733769776323,
       "stddev": 0.05996950743543311,
-      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Show Log Show Log Try Again Try Again Restart now Restart now Close Close Visit the store"
+      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now"
     }
   ],
   "transition_pixels": [
-    75865,
-    89767,
+    75803,
+    89705,
     51171,
     34536,
-    37640,
-    31053,
+    37626,
+    31036,
     43489,
     41701
   ],
