@@ -556,15 +556,48 @@ fn installing(app: &TunaInstaller) -> Element<'_, Message> {
     .width(Length::Fill)
     .height(Length::Fill);
 
-    let body = widget::column::with_children(vec![
+    // The install's real position, from fisherman's protocol
+    // (shared/progress/README.md). This was indeterminate_linear() for the
+    // whole install — docs/PARITY.md gap #2 — which told the user only that
+    // something was happening, for the twenty minutes it takes.
+    //
+    // Indeterminate is kept for the window before the first event lands, so
+    // the page never looks stalled while fisherman starts up; that is the one
+    // moment when "something is happening" really is all that is known.
+    let progress = app.progress();
+    let bar: Element<'_, Message> = if progress.started() {
+        widget::progress_bar::determinate_linear(progress.fraction)
+            .width(Length::Fill)
+            .into()
+    } else {
         widget::progress_bar::indeterminate_linear()
             .width(Length::Fill)
+            .into()
+    };
+
+    let mut children: Vec<Element<'_, Message>> = vec![bar];
+    if progress.started() {
+        // "Step 5 of 8 — Installing <product>…". The count comes from the
+        // event, never a constant: fisherman computes total_steps from the
+        // recipe.
+        children.push(
+            widget::text::caption(format!(
+                "Step {} of {} — {}",
+                progress.step, progress.total_steps, progress.step_name
+            ))
             .into(),
+        );
+    }
+
+    let body = widget::column::with_children({
+        children.extend(vec![
         log.into(),
         widget::text::caption(t_line("progress_note"))
             .class(cosmic::theme::Text::Color(cosmic_theme.warning_text_color().into()))
             .into(),
-    ])
+        ]);
+        children
+    })
     .spacing(spacing.space_s)
     .height(Length::Fill);
 

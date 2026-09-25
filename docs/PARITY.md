@@ -60,7 +60,7 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
 | Phone companion (QR) | yes | no | no | no | no |
 | Windows data migration (slurp) | yes | no | no | no | no |
 | Keyboard / language / timezone | yes | no | no | no | no |
-| Progress bar from fisherman's protocol | yes | yes | indeterminate | yes | yes |
+| Progress bar from fisherman's protocol | yes | yes | yes | yes | yes |
 | Restart from the done page | yes | yes | yes | yes | yes |
 | Show log after failure | yes | log path | log in page | log in page | log tail |
 | Screenshot walkthrough + parity report | yes | yes | yes | yes | yes |
@@ -73,13 +73,13 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
    `/sys/class/tpm/tpm0` is missing. No CI runner has a TPM, so the capture
    showed two choices and this table copied it. Set
    `BOOTC_INSTALLER_FAKE_TPM=1` to capture all four.
-2. **Progress bar** (COSMIC): its bar is indeterminate — it spins rather
-   than tracking the install. `shared/progress/README.md` is the contract;
-   drive it from `cumulative_pct`, not `step / total_steps`, because
-   `total_steps` varies with the recipe and one step carries 87% of the
-   time. GNOME, XFCE, Niri and KDE all read the protocol now. This entry
-   used to say fisherman emits `[n/9]`, which it never has, and three
-   frontends were built on that claim.
+2. ~~**Progress bar**~~ — **closed.** All five read
+   `shared/progress/README.md` now. This entry used to say fisherman emits
+   `[n/9]`, which it never has: three frontends were built on that claim and
+   their bars sat at zero for every real install, while fixtures written in
+   the same invented shape photographed one moving. Drive the bar from
+   `cumulative_pct`, never `step / total_steps` — `total_steps` varies with
+   the recipe and one step carries 87% of the time.
 3. **Recovery key page** (all four): fisherman prints the key after TPM
    enrolment; GNOME's `views/recovery_key.py` is the reference.
 4. **User account** (KDE, COSMIC, Niri): a username, full name and
