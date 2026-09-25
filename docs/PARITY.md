@@ -54,7 +54,7 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
 | Filesystem choice | yes | yes | yes | no (xfs) | yes (Advanced) |
 | Encryption: none / passphrase | yes | yes | yes | yes | yes |
 | Encryption: TPM / TPM + passphrase | yes | yes | yes | yes | yes |
-| Recovery key page after TPM enrolment | yes | log only | log only | log only | log only |
+| Recovery key page after TPM enrolment | yes | log only | log only | log only | yes |
 | Hostname | generated, editable on confirm | field | field | field on confirm | field |
 | User account | yes (companion or wizard) | no | no | no | yes |
 | Phone companion (QR) | yes | no | no | no | no |
@@ -80,9 +80,10 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
    showed a bar that moved. Drive the bar from `cumulative_pct`, not from
    `step / total_steps`: `total_steps` changes with the recipe, and one
    step takes 87% of the time.
-3. **Recovery key page** (all four): fisherman prints the key after TPM
-   enrolment; GNOME's `views/recovery_key.py` is the reference. The four
-   write it to the install log only (#129).
+3. **Recovery key page** (KDE, COSMIC, Niri): fisherman prints the key
+   after TPM enrolment. GNOME shows a page. XFCE now shows a panel on its
+   done screen. It holds the reboot button until the user acknowledges the
+   key. The other three write it to the install log only (#129).
 4. **User account** (KDE, COSMIC, Niri): a username, full name and
    password step that writes the recipe's `user` block, as XFCE does.
 5. **Store and tour assets** (all four): only worth it where the desktop

@@ -7,7 +7,7 @@ import re
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import GLib, Gtk, Pango
+from gi.repository import Gdk, GLib, Gtk, Pango
 
 from . import core, progress_parser
 
@@ -410,6 +410,14 @@ class ProgressPage(Page):
                 self.bar.set_fraction(frac)
                 self.win.trawl.set_fill(frac)
 
+    def recovery_key(self):
+        """The key fisherman emitted, or "" for a non-TPM install.
+
+        The parser has tracked this all along (shared/progress/README.md);
+        nothing read it, which is how it stayed a log line only.
+        """
+        return self._progress.get("recovery_key", "")
+
     def can_continue(self):
         return False  # navigation unlocked by install completion
 
@@ -428,11 +436,77 @@ class DonePage(Page):
                                         label=core.BRANDING.text("store_label"))
         self.store_btn.set_no_show_all(True)
         self.pack_start(self.store_btn, False, False, 0)
+        # Recovery key (#129). fisherman emits it once, after TPM enrolment,
+        # and for a tpm2-luks install it is the only way back into the disk
+        # if the TPM state changes. Writing it to the log pane was the
+        # mitigation; the log scrolls and nothing pauses, so a user could
+        # reach this page and reboot having never seen it.
+        #
+        # This is a panel rather than the modal #129 suggested: a dialog is
+        # dismissed and then the key is gone, while this keeps it on screen
+        # for as long as it takes to write down. The gate is on the reboot
+        # button, which is the action that ends the chance to read it.
+        self.recovery_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.recovery_box.set_no_show_all(True)
+        self.recovery_title = _page_title("")
+        self.recovery_box.pack_start(self.recovery_title, False, False, 0)
+        self.recovery_body = Gtk.Label(xalign=0)
+        self.recovery_body.set_line_wrap(True)
+        self.recovery_box.pack_start(self.recovery_body, False, False, 0)
+        self.recovery_key_label = Gtk.Label(xalign=0, selectable=True)
+        self.recovery_key_label.set_line_wrap(True)
+        self.recovery_key_label.modify_font(Pango.FontDescription("monospace 11"))
+        self.recovery_box.pack_start(self.recovery_key_label, False, False, 0)
+        self.recovery_copy_btn = Gtk.Button(
+            label=core.BRANDING.text("recovery_key_copy"))
+        self.recovery_copy_btn.connect("clicked", self.__on_copy)
+        self.recovery_box.pack_start(self.recovery_copy_btn, False, False, 0)
+        self.recovery_ack = Gtk.CheckButton(
+            label=core.BRANDING.text("recovery_key_ack"))
+        self.recovery_ack.connect("toggled", self.__on_ack)
+        self.recovery_box.pack_start(self.recovery_ack, False, False, 0)
+        self.pack_start(self.recovery_box, False, False, 8)
+
         self.reboot_btn = Gtk.Button(label=core.BRANDING.text("done_restart") or "Restart now")
         self.reboot_btn.connect("clicked", lambda *_: core.host_run(["systemctl", "reboot"]))
         self.pack_start(self.reboot_btn, False, False, 8)
 
-    def set_result(self, ok, log_tail):
+    def __on_copy(self, *_):
+        clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+        clipboard.set_text(self.recovery_key_label.get_text(), -1)
+
+    def __on_ack(self, check):
+        self.reboot_btn.set_sensitive(check.get_active())
+
+    def show_recovery_key(self, key):
+        """Reveal the panel and gate reboot behind the acknowledgement.
+
+        No key means no panel and no gate: a non-TPM install must not be
+        asked to tick a box about a key it was never given.
+        """
+        key = (key or "").strip()
+        self.recovery_box.set_visible(bool(key))
+        if not key:
+            self.reboot_btn.set_sensitive(True)
+            return
+        self.recovery_title.set_markup("<big><b>" + GLib.markup_escape_text(
+            core.BRANDING.text("recovery_key_title")) + "</b></big>")
+        self.recovery_body.set_text(core.BRANDING.text("recovery_key_body"))
+        self.recovery_key_label.set_text(key)
+        self.recovery_ack.set_active(False)
+        self.reboot_btn.set_sensitive(False)
+        # show_all() is a no-op while no_show_all is set -- that flag exists
+        # to stop the window's own show_all() revealing the panel on a
+        # non-TPM install. Lift it for this one call, or the box appears with
+        # none of its children in it: the capture drew an empty panel and the
+        # key never reached the screen.
+        self.recovery_box.set_no_show_all(False)
+        self.recovery_box.show_all()
+        self.recovery_box.set_no_show_all(True)
+
+    def set_result(self, ok, log_tail, recovery_key=""):
+        # A failed install never enrolled a TPM, so there is no key to show.
+        self.show_recovery_key(recovery_key if ok else "")
         if ok:
             self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
                 core.BRANDING.text("done_title")) + "</b></big>")

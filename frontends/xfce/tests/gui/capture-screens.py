@@ -190,7 +190,22 @@ CAPTIONS = {
     "confirm": "The last screen before anything is written.",
     "progress": "The install, step by step.",
     "done": "Finished — restart into the new system.",
+    "recovery": "A TPM install: the recovery key, and reboot held until it "
+                "is acknowledged.",
 }
+
+# fisherman emits this once, after TPM enrolment, and it is the only way back
+# into the disk if the TPM state changes (#129). No CI runner does a TPM
+# install, so the event is synthesised here -- but it is fed through the SAME
+# parser a real install goes through, not written into the widget. A capture
+# that seeded the label directly would keep passing if the parse broke, which
+# is the failure this harness has spent four PRs removing.
+RECOVERY_EVENT = json.dumps({
+    "type": "recovery_key",
+    "key": "mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf",
+    "timestamp": "2026-01-01T00:00:00Z",
+    "elapsed_ms": 1000,
+})
 
 
 # The install screen, caught in flight: the real dry-run transcript
@@ -399,6 +414,43 @@ def main():
             visible = win.stack.get_visible_child()
             finding["text"] = " ".join(_page_text(visible)) if visible else ""
             findings.append(finding)
+
+        # The done page again, this time as a TPM install leaves it. The key
+        # goes in through the progress page's parser, so this frame proves the
+        # event is understood end to end rather than that a label can be set.
+        win.pages["progress"].append_log(RECOVERY_EVENT + "\n")
+        key = win.pages["progress"].recovery_key()
+        if not key:
+            print("  !! the parser did not yield a recovery key", file=sys.stderr)
+            findings.append({"name": "recovery", "fatal":
+                             "recovery_key event was not parsed"})
+        else:
+            win.index = PAGE_ORDER.index("done")
+            win.stack.set_visible_child_name("done")
+            win.pages["done"].set_result(True, "", key)
+            win.refresh_nav()
+            _settle()
+            pixbuf = _grab(win)
+            if pixbuf is not None:
+                path = os.path.join(out, f"{len(PAGE_ORDER) + 1:02d}-recovery.png")
+                pixbuf.savev(path, "png", [], [])
+                frames.append(path)
+                finding = _audit(pixbuf, "recovery")
+                finding["png"] = path
+                visible = win.stack.get_visible_child()
+                text = " ".join(_page_text(visible)) if visible else ""
+                finding["text"] = text
+                # The point of the frame: the key itself must be on screen,
+                # and reboot must still be held.
+                if key not in text:
+                    finding["fatal"] = (
+                        "the recovery key is not in the rendered text; the "
+                        "panel did not draw")
+                elif win.pages["done"].reboot_btn.get_sensitive():
+                    finding["fatal"] = (
+                        "reboot is live before the key was acknowledged")
+                findings.append(finding)
+
         win.destroy()
         app.quit()
 
@@ -407,6 +459,12 @@ def main():
 
     failures = []
     for f in findings:
+        # A finding that never got as far as a pixel audit (the recovery frame
+        # when the event did not parse) carries "fatal" and nothing else.
+        if "colours" not in f:
+            failures.append(f"{f['name']}: {f.get('fatal', 'not captured')}")
+            f["rendered"] = False
+            continue
         print(f"  {f['name']:12s} {f['w']}x{f['h']}  colours {f['colours']:5d}  "
               f"largest-flat {f['background']*100:5.1f}%  ink {f['ink']*100:5.1f}%")
         # A window that never drew is one flat colour: few distinct values and a
@@ -434,11 +492,19 @@ def main():
         # Same verdict, same thresholds — just also recorded per page so the
         # parity report can say WHICH screen was blank instead of only how
         # many were.
+        # A frame can render perfectly and still be wrong: the recovery frame
+        # asserts the key is in the text and that reboot is still held, and
+        # neither shows up in a pixel histogram.
+        if f.get("fatal"):
+            page_failures.append(f"{f['name']}: {f['fatal']}")
         f["rendered"] = not page_failures
         failures.extend(page_failures)
 
-    if len(findings) != len(PAGE_ORDER):
-        failures.append(f"captured {len(findings)} of {len(PAGE_ORDER)} pages")
+    # PAGE_ORDER plus the recovery frame, which is the done page in its other
+    # state rather than a page of its own.
+    expected_frames = len(PAGE_ORDER) + 1
+    if len(findings) != expected_frames:
+        failures.append(f"captured {len(findings)} of {expected_frames} frames")
 
     # Emitted before the failure gate on purpose: a frontend that renders a
     # blank page is exactly the case the parity matrix most needs a row for.
