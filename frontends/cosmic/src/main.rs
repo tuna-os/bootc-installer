@@ -931,5 +931,39 @@ mod tests {
         assert_eq!(restored.additional_image_stores, recipe.additional_image_stores);
         assert_eq!(restored.encryption.enc_type, recipe.encryption.enc_type);
         assert_eq!(restored.encryption.passphrase, recipe.encryption.passphrase);
+        // The field whose absence broke this round trip. It was never
+        // asserted, so the test failed on the unwrap rather than on a claim.
+        assert_eq!(restored.image, recipe.image);
+    }
+
+    /// The live-ISO recipe is the one that omits `image` on the wire, so it
+    /// is the shape that cannot be read back if the field loses `default`.
+    #[test]
+    fn live_iso_recipe_with_no_image_survives_the_round_trip() {
+        let mut recipe = Recipe::default();
+        recipe.disk = "/dev/sda".into();
+        assert!(recipe.image.is_empty());
+
+        let json_str = serde_json::to_string(&recipe).unwrap();
+        assert!(
+            !json_str.contains("\"image\""),
+            "an empty image should not be serialized: {json_str}"
+        );
+
+        let restored: Recipe = serde_json::from_str(&json_str).unwrap();
+        assert!(restored.image.is_empty());
+        assert_eq!(restored.disk, recipe.disk);
+    }
+
+    /// A populated image must still make the trip, so `default` is not
+    /// quietly swallowing a value that was present.
+    #[test]
+    fn a_populated_image_round_trips_unchanged() {
+        let mut recipe = Recipe::default();
+        recipe.image = "ghcr.io/tuna-os/albacore:latest".into();
+
+        let json_str = serde_json::to_string(&recipe).unwrap();
+        let restored: Recipe = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(restored.image, "ghcr.io/tuna-os/albacore:latest");
     }
 }
