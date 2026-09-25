@@ -98,10 +98,10 @@
       "name": "qr_companion",
       "png": "docs/screenshots/02-qr_companion.png",
       "rendered": true,
-      "colours": 525,
-      "flat": 0.9274413529732679,
-      "ink": 0.03724768139661757,
-      "stddev": 0.12119270363133419,
+      "colours": 528,
+      "flat": 0.9274890889252592,
+      "ink": 0.037159028914348066,
+      "stddev": 0.12111824625462295,
       "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
     },
     {
@@ -138,10 +138,10 @@
       "name": "confirm",
       "png": "docs/screenshots/06-confirm.png",
       "rendered": true,
-      "colours": 237,
-      "flat": 0.9183715220949263,
+      "colours": 236,
+      "flat": 0.9183647026732134,
       "ink": 0.006280687397708674,
-      "stddev": 0.04951835424662227,
+      "stddev": 0.04946744578745169,
       "text_excerpt": "Confirm installation Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Install Install"
     },
     {
@@ -158,11 +158,11 @@
       "name": "recovery-key",
       "png": "docs/screenshots/08-recovery-key.png",
       "rendered": true,
-      "colours": 261,
-      "flat": 0.931512547735952,
-      "ink": 0.007610474631751228,
-      "stddev": 0.06382268653722975,
-      "text_excerpt": "Save Your Recovery Key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf I have saved "
+      "colours": 260,
+      "flat": 0.9317239498090562,
+      "ink": 0.007474086197490452,
+      "stddev": 0.06336662797177701,
+      "text_excerpt": "Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf I have saved "
     },
     {
       "name": "done",
@@ -176,14 +176,14 @@
     }
   ],
   "transition_pixels": [
-    75899,
-    89801,
+    75828,
+    89730,
     51171,
     34536,
-    37656,
-    31068,
-    43489,
-    41701
+    37664,
+    31079,
+    43287,
+    41647
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
