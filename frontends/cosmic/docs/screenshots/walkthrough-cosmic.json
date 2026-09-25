@@ -71,7 +71,6 @@
       ],
       "matched_keywords": [
         "do not power off",
-        "installing image",
         "partitioning"
       ]
     },
@@ -132,11 +131,11 @@
       "name": "installing",
       "png": "docs/screenshots/05-installing.png",
       "rendered": true,
-      "colours": 224,
-      "flat": 0.5017656993704898,
-      "ink": 0.987947182557961,
-      "stddev": 0.07991440422320435,
-      "text_excerpt": "Installing TunaOS\u2026 fisherman is writing the image to disk. [1/9] Partitioning /dev/nvme0n1\n  created EFI system partition (1.0 GiB, FAT32)\n  created root partition (475.9 GiB)\n[2/9] Formatting boot partitions\n[3/9] Setting up encryption\n  e"
+      "colours": 221,
+      "flat": 0.4952530835764369,
+      "ink": 0.9893674190081375,
+      "stddev": 0.07565332330499626,
+      "text_excerpt": "Installing TunaOS\u2026 fisherman is writing the image to disk. [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pulling image: l"
     },
     {
       "name": "done",
@@ -153,8 +152,8 @@
     389212,
     248866,
     240497,
-    152975,
-    377524
+    177419,
+    347534
   ],
   "spec_drift": [],
   "notes": "Text comes from the strings the harness rendered each page from (the same constants the view reads), not from a widget tree or OCR, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
