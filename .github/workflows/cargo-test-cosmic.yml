@@ -1,0 +1,69 @@
+name: Cargo Tests (cosmic)
+
+# Runs the COSMIC crate's unit suite.
+#
+# Until this job existed nothing ran `cargo test` for frontends/cosmic, so the
+# suite drifted: recipe_roundtrip_and_field_serialization failed on dev while
+# every COSMIC job stayed green (#120). screenshots-cosmic.yml compiles the
+# crate, which is why a build break is caught, but compiling is not testing.
+#
+# The render dependencies (Xvfb, lavapipe, an icon theme) are deliberately
+# absent: these tests do not open a window. The e2e test that does is
+# #[ignore]d and runs from e2e.yml instead.
+
+on:
+  push:
+    branches: [prod, dev]
+    paths:
+      - "frontends/cosmic/src/**"
+      - "frontends/cosmic/Cargo.toml"
+      - "frontends/cosmic/Cargo.lock"
+      - ".github/workflows/cargo-test-cosmic.yml"
+  pull_request:
+    paths:
+      - "frontends/cosmic/src/**"
+      - "frontends/cosmic/Cargo.toml"
+      - "frontends/cosmic/Cargo.lock"
+      - ".github/workflows/cargo-test-cosmic.yml"
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cargo-test-cosmic-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Cargo Tests (cosmic)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontends/cosmic
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: install build dependencies
+        run: |
+          sudo apt-get update -qq
+          # libxkbcommon-x11-dev is NOT redundant with libxkbcommon-dev:
+          # winit's X11 backend dlopens libxkbcommon-x11.so at runtime and the
+          # -dev package is what ships the unversioned symlink.
+          sudo apt-get install -y -qq \
+            pkg-config cmake clang \
+            libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libfontconfig-dev libfreetype-dev \
+            libinput-dev libudev-dev libgbm-dev libegl1-mesa-dev libssl-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: frontends/cosmic
+
+      - name: cargo test
+        run: cargo test -- --nocapture
