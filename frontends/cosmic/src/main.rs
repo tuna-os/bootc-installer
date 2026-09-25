@@ -13,6 +13,7 @@ mod capture;
 mod model;
 mod readiness;
 mod offline;
+mod progress;
 mod branding;
 mod ui;
 
@@ -20,7 +21,11 @@ use cosmic::app::{Core, Settings, Task};
 use cosmic::iced::{Length, Size};
 use cosmic::prelude::*;
 use cosmic::widget;
+use cosmic::iced::futures::{SinkExt, Stream, StreamExt};
 use std::process::Command as SysCommand;
+use std::process::Stdio;
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command as TokioCommand;
 
 pub use model::{DiskInfo, Recipe, FILESYSTEMS};
 
@@ -207,7 +212,16 @@ pub enum Message {
     PassphraseChanged(String),
     TogglePassphraseVisible,
     StartInstall,
-    InstallFinished(Result<(i32, String), String>),
+    /// One line of fisherman's stdout, as it arrives.
+    ///
+    /// run_fisherman() used to be `.output()`: it waited for the process to
+    /// exit and handed back everything at once, so the log appeared only when
+    /// the install was already over and any progress bar fed from it would
+    /// have jumped from nothing to done. Parsing alone would not have given
+    /// this frontend a working bar; it needed the output to arrive while the
+    /// install is running.
+    InstallLine(String),
+    InstallFinished(Result<i32, String>),
     Quit,
     /// The done page's Restart: `systemctl reboot` on the host.
     Reboot,
@@ -225,6 +239,10 @@ pub struct TunaInstaller {
     disks: Vec<DiskInfo>,
     selected_disk: Option<usize>,
     install_log: String,
+    /// The install's position, parsed from fisherman's protocol
+    /// (shared/progress/README.md). Before this the install page showed an
+    /// indeterminate bar for the whole install — docs/PARITY.md gap #2.
+    progress: progress::Progress,
     install_ok: bool,
     installing: bool,
     passphrase_hidden: bool,
@@ -254,6 +272,10 @@ impl TunaInstaller {
     }
     pub fn install_log(&self) -> &str {
         &self.install_log
+    }
+
+    pub fn progress(&self) -> &progress::Progress {
+        &self.progress
     }
     pub fn install_ok(&self) -> bool {
         self.install_ok
@@ -393,6 +415,7 @@ impl cosmic::Application for TunaInstaller {
             selected_disk: (!disks.is_empty()).then_some(0),
             disks,
             install_log: String::new(),
+            progress: progress::Progress::new(branding::name()),
             install_ok: false,
             installing: false,
             passphrase_hidden: true,
@@ -534,18 +557,25 @@ impl cosmic::Application for TunaInstaller {
                 }
                 self.page = Page::Installing;
                 self.installing = true;
+                self.progress.reset();
                 let recipe = self.recipe.clone();
-                Task::perform(Self::run_fisherman(recipe), |r| {
-                    cosmic::action::app(Message::InstallFinished(r))
-                })
+                Task::stream(Self::stream_fisherman(recipe).map(cosmic::action::app))
+            }
+            Message::InstallLine(line) => {
+                // Through the same parser the capture harness drives, so the
+                // bar on the screenshot is the bar a real install shows.
+                if let Some(shown) = self.progress.consume(&line) {
+                    self.install_log.push_str(&shown);
+                    self.install_log.push('\n');
+                }
+                Task::none()
             }
             Message::InstallFinished(result) => {
                 self.page = Page::Done;
                 self.installing = false;
                 match result {
-                    Ok((code, log)) => {
+                    Ok(code) => {
                         self.install_ok = code == 0;
-                        self.install_log.push_str(&log);
                         self.install_log
                             .push_str(&format!("\n=== fisherman exited with code {code} ===\n"));
                     }
@@ -554,6 +584,7 @@ impl cosmic::Application for TunaInstaller {
                         self.install_log.push_str(&format!("\n=== Error: {e} ===\n"));
                     }
                 }
+                offline::persist_install_log(&self.install_log);
                 Task::none()
             }
             Message::Quit => {
@@ -629,53 +660,96 @@ impl TunaInstaller {
         Ok(disks)
     }
 
-    /// Runs fisherman and returns its exit code plus the combined
-    /// stdout+stderr it emitted (fisherman's structured step/substep/error/
-    /// recovery_key JSON-lines protocol — see internal/progress in the
-    /// fisherman repo). Previously this used `.output()` only to read the
-    /// exit code and threw the captured bytes away entirely, so a
-    /// successful OR failed install left `install_log` with nothing but an
-    /// exit code, even though the Done page tells the user "The install log
-    /// above has the details." Any recovery key fisherman emits for an
-    /// encrypted install was silently dropped the same way.
-    async fn run_fisherman(recipe: Recipe) -> Result<(i32, String), String> {
-        let json = serde_json::to_string_pretty(&recipe).map_err(|e| e.to_string())?;
-        // 0600 under XDG_RUNTIME_DIR — the recipe may hold a passphrase.
-        let path = offline::write_recipe(&json).map_err(|e| e.to_string())?;
+    /// Runs fisherman and yields its output a line at a time, then the exit
+    /// code.
+    ///
+    /// This was `.output()`, which waits for the process to exit and returns
+    /// everything at once. That was already a problem for the log — the Done
+    /// page tells the user "the install log above has the details" and the
+    /// log only existed once there was nothing left to watch — and it makes a
+    /// progress bar impossible on its own terms: every event would arrive
+    /// after the install had finished. Parsing fisherman's protocol was
+    /// necessary for a working bar here but not sufficient; the output has to
+    /// arrive while the install is running.
+    ///
+    /// stdout carries the newline-delimited JSON protocol
+    /// (shared/progress/README.md); stderr is plain text and is interleaved
+    /// into the same stream, which the parser passes through untouched.
+    fn stream_fisherman(recipe: Recipe) -> impl Stream<Item = Message> {
+        cosmic::iced::stream::channel(64, async move |mut output| {
+            let json = match serde_json::to_string_pretty(&recipe) {
+                Ok(json) => json,
+                Err(e) => {
+                    let _ = output.send(Message::InstallFinished(Err(e.to_string()))).await;
+                    return;
+                }
+            };
+            // 0600 under XDG_RUNTIME_DIR — the recipe may hold a passphrase.
+            let path = match offline::write_recipe(&json) {
+                Ok(path) => path,
+                Err(e) => {
+                    let _ = output.send(Message::InstallFinished(Err(e.to_string()))).await;
+                    return;
+                }
+            };
 
-        let result = tokio::task::spawn_blocking({
-            let path = path.clone();
-            move || {
-                // pkexec /app/bin/fisherman in Flatpak, sudo otherwise.
-                let cmd = offline::fisherman_command();
-                SysCommand::new(&cmd[0])
-                    .args(&cmd[1..])
-                    .arg(&path)
-                    .output()
-                    .map_err(|e| format!("Failed to run fisherman: {e}"))
+            // pkexec /app/bin/fisherman in Flatpak, sudo otherwise.
+            let cmd = offline::fisherman_command();
+            let mut child = match TokioCommand::new(&cmd[0])
+                .args(&cmd[1..])
+                .arg(&path)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+            {
+                Ok(child) => child,
+                Err(e) => {
+                    let _ = std::fs::remove_file(&path);
+                    let _ = output
+                        .send(Message::InstallFinished(Err(format!(
+                            "Failed to run fisherman: {e}"
+                        ))))
+                        .await;
+                    return;
+                }
+            };
+
+            let stdout = child.stdout.take();
+            let stderr = child.stderr.take();
+            if let Some(stdout) = stdout {
+                let mut lines = BufReader::new(stdout).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    if output.send(Message::InstallLine(line)).await.is_err() {
+                        break;
+                    }
+                }
             }
+            // Drained after stdout: fisherman writes its failure summary
+            // there, and dropping it is how a failed install used to reach
+            // the Done page with nothing to show.
+            if let Some(stderr) = stderr {
+                let mut lines = BufReader::new(stderr).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    if output.send(Message::InstallLine(line)).await.is_err() {
+                        break;
+                    }
+                }
+            }
+
+            let code = match child.wait().await {
+                Ok(status) => status.code().unwrap_or(-1),
+                Err(e) => {
+                    let _ = std::fs::remove_file(&path);
+                    let _ = output.send(Message::InstallFinished(Err(e.to_string()))).await;
+                    return;
+                }
+            };
+            let _ = std::fs::remove_file(&path);
+            if code != 0 {
+                tracing::error!("fisherman exited with code {code}");
+            }
+            let _ = output.send(Message::InstallFinished(Ok(code))).await;
         })
-        .await
-        .map_err(|e| format!("Task join error: {e}"))?;
-
-        let _ = std::fs::remove_file(&path);
-
-        let output = result.map_err(|e| {
-            tracing::error!("fisherman spawn failed: {e}");
-            e
-        })?;
-
-        let code = output.status.code().unwrap_or(-1);
-        let mut log = String::from_utf8_lossy(&output.stdout).into_owned();
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        if !stderr.is_empty() {
-            log.push_str(&stderr);
-        }
-        if code != 0 {
-            tracing::error!("fisherman exited with code {code}");
-        }
-        offline::persist_install_log(&log);
-        Ok((code, log))
     }
 }
 
@@ -782,20 +856,46 @@ mod tests {
         recipe.image = "quay.io/centos-bootc/centos-bootc:c10s".into();
         recipe.hostname = "cosmic-e2e".into();
 
+        // Drive the real stream and feed it through the real parser, which
+        // is what the install page does. The old form called run_fisherman()
+        // and matched a string in its returned log; that function no longer
+        // exists, because collecting the output after the process exits is
+        // precisely what stopped this frontend having a progress bar.
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (code, log) = rt
-            .block_on(TunaInstaller::run_fisherman(recipe))
-            .expect("fisherman could not be launched");
+        let (code, log, fraction) = rt.block_on(async {
+            use cosmic::iced::futures::StreamExt;
+            let mut stream = Box::pin(TunaInstaller::stream_fisherman(recipe));
+            let mut progress = super::progress::Progress::new("ExampleOS");
+            let mut log = String::new();
+            let mut code = None;
+            while let Some(message) = stream.next().await {
+                match message {
+                    Message::InstallLine(line) => {
+                        if let Some(shown) = progress.consume(&line) {
+                            log.push_str(&shown);
+                            log.push('\n');
+                        }
+                    }
+                    Message::InstallFinished(result) => {
+                        code = Some(result.expect("fisherman could not be launched"));
+                    }
+                    _ => {}
+                }
+            }
+            (code.expect("the stream ended without a result"), log, progress.fraction)
+        });
         println!("{log}");
         assert_eq!(code, 0, "fisherman exit code");
-        // fisherman's terminal event, in its real wire format: it writes
-        // newline-delimited JSON on stdout and nothing else
-        // (shared/progress/README.md). This was
-        // `log.contains("[9/9]")`, a prefix fisherman has never written —
-        // the e2e shim invented it to satisfy assertions like this one, so
-        // the check compared the harness with itself.
+        // Where the bar ended up, which is the property that was broken and
+        // the one no string match could see: a frontend that does not parse
+        // fisherman's protocol still reaches the Done page and still reports
+        // success, and only the bar shows the difference.
+        assert_eq!(
+            fraction, 1.0,
+            "the progress bar ended at {fraction}, not 1.0 — the install page              is not parsing fisherman's progress protocol              (shared/progress/README.md)"
+        );
         assert!(
-            log.contains(r#""type":"complete""#),
+            log.contains("Installation complete"),
             "the log carried no completion event"
         );
         assert!(

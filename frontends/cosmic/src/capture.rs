@@ -59,20 +59,26 @@ pub fn fixture_disks() -> Vec<DiskInfo> {
     ]
 }
 
-const FIXTURE_LOG: &str = "\
-[1/9] Partitioning /dev/nvme0n1
-  created EFI system partition (1.0 GiB, FAT32)
-  created root partition (475.9 GiB)
-[2/9] Formatting boot partitions
-[3/9] Setting up encryption
-  encryption: none
-[4/9] Formatting root filesystem (xfs)
-[5/9] Mounting target at /mnt
-[6/9] Installing image ghcr.io/tuna-os/albacore:gnome
-  pulling layers... 1.9 GiB
-  applying ostree commit
-[7/9] Installing bootloader
-";
+// fisherman's real transcript (shared/progress/dry-run-transcript.ndjson),
+// cut part-way through the image pull so the bar sits mid-way rather than at
+// either end: newline-delimited JSON, one event per line, which is the only
+// thing fisherman writes.
+//
+// This was hand-written "[n/9] " lines naming a specific image ref.
+// fisherman has never emitted that prefix, so the parser now passes those
+// lines through to the log unparsed and the bar stays at zero — which is
+// what this fixture would show if it were left alone. The product name was
+// the second problem: a fixture is rendered into the docs, so it shipped one
+// product's branding to everyone who rebrands this installer.
+const FIXTURE_LOG_RUNNING: &[&str] = &[
+    r#"{"cumulative_pct": 0, "elapsed_ms": 0, "step": 1, "step_name": "Partitioning disk", "timestamp": "1970-01-01T00:00:00Z", "total_steps": 8, "type": "step", "weight_pct": 0}"#,
+    r#"{"cumulative_pct": 0, "elapsed_ms": 400, "step": 2, "step_name": "Formatting EFI partition", "timestamp": "1970-01-01T00:00:00Z", "total_steps": 8, "type": "step", "weight_pct": 1}"#,
+    r#"{"cumulative_pct": 1, "elapsed_ms": 800, "step": 3, "step_name": "Formatting root filesystem", "timestamp": "1970-01-01T00:00:00Z", "total_steps": 8, "type": "step", "weight_pct": 0}"#,
+    r#"{"cumulative_pct": 1, "elapsed_ms": 1200, "step": 4, "step_name": "Mounting filesystem", "timestamp": "1970-01-01T00:00:00Z", "total_steps": 8, "type": "step", "weight_pct": 0}"#,
+    r#"{"cumulative_pct": 1, "elapsed_ms": 1600, "step": 5, "step_name": "Installing OS", "timestamp": "1970-01-01T00:00:00Z", "total_steps": 8, "type": "step", "weight_pct": 87}"#,
+    r#"{"elapsed_ms": 2000, "message": "Pulling image: layer 18/71", "timestamp": "1970-01-01T00:00:00Z", "type": "substep"}"#,
+    r#"{"elapsed_ms": 2400, "message": "Pulling image: layer 47/71", "timestamp": "1970-01-01T00:00:00Z", "type": "substep"}"#,
+];
 
 pub struct Capture {
     pub dir: PathBuf,
@@ -147,7 +153,19 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
             match page {
                 Page::Installing => {
                     app.installing = true;
-                    app.install_log = FIXTURE_LOG.to_string();
+                    // Through the parser, the way a real install feeds it,
+                    // so this screenshot exercises the live code path rather
+                    // than a private one. Assigning install_log directly, as
+                    // this used to, is how a progress screen can be
+                    // photographed without running any of what it shows.
+                    app.install_log.clear();
+                    app.progress.reset();
+                    for line in FIXTURE_LOG_RUNNING {
+                        if let Some(shown) = app.progress.consume(line) {
+                            app.install_log.push_str(&shown);
+                            app.install_log.push('\n');
+                        }
+                    }
                 }
                 Page::Done => {
                     app.installing = false;
