@@ -165,11 +165,15 @@ func detectEnvironment() {
 	}
 }
 
-// hasTPM reports whether the machine exposes a TPM device, which is what the
-// tpm2-luks encryption modes require.
+// hasTPM reports whether the machine exposes a TPM 2.0 device, which is what
+// the tpm2-luks encryption modes require.
+//
+// It used to stat /sys/class/tpm/tpm0, which the kernel also creates for a
+// TPM 1.2 device. A 1.2 machine was therefore offered tpm2-luks, and the
+// install failed at enrolment, after fisherman had partitioned the disk.
+// shared/tpm/README.md is the contract; probeTPM2 implements it.
 func hasTPM() bool {
-	_, err := os.Stat("/sys/class/tpm/tpm0")
-	return err == nil
+	return probeTPM2("/")
 }
 
 func runInstall(recipeJSON string) {

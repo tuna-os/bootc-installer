@@ -10,7 +10,8 @@ sources = [
   'keymaps.py',
   'timezones.py',
   'disks.py',
-  'system.py'
+  'system.py',
+  'tpm_probe.py'
 ]
 
 install_data(sources, install_dir: coredir)

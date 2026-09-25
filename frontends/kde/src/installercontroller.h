@@ -33,9 +33,11 @@ class InstallerController : public QObject
     Q_PROPERTY(QString hostname READ hostname WRITE setHostname NOTIFY recipeChanged)
     Q_PROPERTY(QString image READ image WRITE setImage NOTIFY recipeChanged)
 
-    // /sys/class/tpm/tpm0 — the same probe the XFCE frontend uses. TPM
-    // options are hidden, not disabled, when absent: offering them on a
-    // machine without a TPM only fails later, at install time.
+    // A TPM 2.0 device, per shared/tpm/README.md — the same probe every
+    // other frontend uses. TPM options are hidden, not disabled, when
+    // absent: offering them on a machine without one only fails later, at
+    // install time. This used to test /sys/class/tpm/tpm0 for existence,
+    // which is true for a TPM 1.2 device the tpm2-luks modes cannot use.
     Q_PROPERTY(bool hasTpm READ hasTpm CONSTANT)
 
     // The product name, resolved ONCE at startup from the branding contract
