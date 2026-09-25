@@ -94,6 +94,9 @@ class TestSetRecoveryKey(unittest.TestCase):
         self.mod = _import_recovery_key()
         cls = self.mod.BootcRecoveryKey
         self.obj = cls.__new__(cls)
+        self.obj._BootcRecoveryKey__window = types.SimpleNamespace(recipe={})
+        self.obj.title_label = MagicMock()
+        self.obj.body_label = MagicMock()
         self.obj.key_label = MagicMock()
         self.obj.copy_button = MagicMock()
         self.obj.ack_check = MagicMock()
@@ -193,6 +196,68 @@ class TestSetRecoveryKey(unittest.TestCase):
         clipboard.set.assert_called_once_with("ABC-123")
         self.obj.copy_button.set_icon_name.assert_called_with("emblem-ok-symbolic")
         mod.GLib.timeout_add.assert_called_once()
+
+
+class TestPanelTextComesFromTheContract(unittest.TestCase):
+    """The panel's five strings are branding copy keys, not .blp literals.
+
+    Before this, recovery-key.blp hardcoded all five, so GNOME -- the
+    reference frontend -- was the one frontend a product could not rebrand
+    here (tests/unit/test_copy_coverage.py listed it as a gap).
+    """
+
+    def setUp(self):
+        self.mod = _import_recovery_key()
+        cls = self.mod.BootcRecoveryKey
+        self.obj = cls.__new__(cls)
+        for name in ("title_label", "body_label", "key_label",
+                     "copy_button", "ack_check", "btn_continue"):
+            setattr(self.obj, name, MagicMock())
+
+    def _show(self, branding):
+        self.obj._BootcRecoveryKey__window = types.SimpleNamespace(
+            recipe={"branding": branding})
+        self.mod.BootcRecoveryKey.set_recovery_key(self.obj, "ABC-123")
+
+    def test_neutral_defaults(self):
+        from bootc_installer.utils.branding import COPY_DEFAULTS
+        self._show({})
+        self.obj.title_label.set_label.assert_called_with(COPY_DEFAULTS["recovery_key_title"])
+        self.obj.body_label.set_label.assert_called_with(COPY_DEFAULTS["recovery_key_body"])
+        self.obj.copy_button.set_tooltip_text.assert_called_with(COPY_DEFAULTS["recovery_key_copy"])
+        self.obj.ack_check.set_label.assert_called_with(COPY_DEFAULTS["recovery_key_ack"])
+        self.obj.btn_continue.set_label.assert_called_with(COPY_DEFAULTS["recovery_key_button"])
+
+    def test_a_product_can_rebrand_every_line(self):
+        self._show({"name": "Marlin", "copy": {
+            "recovery_key_title": "Keep this for {name}",
+            "recovery_key_body": "B",
+            "recovery_key_copy": "C",
+            "recovery_key_ack": "D",
+            "recovery_key_button": "E",
+        }})
+        self.obj.title_label.set_label.assert_called_with("Keep this for Marlin")
+        self.obj.body_label.set_label.assert_called_with("B")
+        self.obj.copy_button.set_tooltip_text.assert_called_with("C")
+        self.obj.ack_check.set_label.assert_called_with("D")
+        self.obj.btn_continue.set_label.assert_called_with("E")
+
+    def test_an_empty_title_hides_it_but_controls_keep_a_label(self):
+        self._show({"copy": {"recovery_key_title": "", "recovery_key_ack": "",
+                             "recovery_key_button": ""}})
+        self.obj.title_label.set_visible.assert_called_with(False)
+        self.obj.body_label.set_visible.assert_called_with(True)
+        self.assertTrue(self.obj.ack_check.set_label.call_args[0][0])
+        self.assertTrue(self.obj.btn_continue.set_label.call_args[0][0])
+
+    def test_the_blueprint_carries_no_panel_strings(self):
+        blp = os.path.join(os.path.dirname(__file__), "..", "..",
+                           "bootc_installer", "gtk", "recovery-key.blp")
+        with open(blp, encoding="utf-8") as fh:
+            text = fh.read()
+        for line in ("Save Your Recovery Key", "If your disk fails",
+                     "I have saved", "Copy to clipboard", '_("Continue")'):
+            self.assertNotIn(line, text)
 
 
 class TestRecoveryKeyIntegration(unittest.TestCase):

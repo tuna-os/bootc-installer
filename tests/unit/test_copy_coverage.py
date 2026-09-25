@@ -65,11 +65,6 @@ KNOWN_GAPS = {
         "progress_title": "bootc_installer/gtk/progress.blp hardcodes 'Installing'",
         "progress_note": "bootc_installer/gtk/progress.blp hardcodes the do-not-power-off line",
         "done_failed_title": "bootc_installer/views/done.py hardcodes 'Installation failed'",
-        "recovery_key_title": "bootc_installer/gtk/recovery-key.blp hardcodes all five panel strings",
-        "recovery_key_ack": "bootc_installer/gtk/recovery-key.blp hardcodes all five panel strings",
-        "recovery_key_body": "bootc_installer/gtk/recovery-key.blp hardcodes all five panel strings",
-        "recovery_key_copy": "bootc_installer/gtk/recovery-key.blp hardcodes all five panel strings",
-        "recovery_key_button": "bootc_installer/gtk/recovery-key.blp hardcodes all five panel strings",
     },
     "kde": {
         "welcome_install": "modules/welcome hardcodes its two body sentences",

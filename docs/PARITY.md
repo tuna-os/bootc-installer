@@ -35,11 +35,11 @@ claimed a render that nobody had wired up.
 | `confirm_quotes` | random line per language | no | no | no | no |
 | `progress_title` | no (own string + product name) | label | page title | heading | page title |
 | `progress_note` | no | label | warning caption | caption | no |
-| `recovery_key_title` | no (own string in `recovery-key.blp`) | heading | heading | heading | heading |
-| `recovery_key_body` | no (own string in `recovery-key.blp`) | label | body | label | label |
-| `recovery_key_copy` | no (own string in `recovery-key.blp`) | copy button | copy button | copy button | copy button |
-| `recovery_key_ack` | no (own string in `recovery-key.blp`) | checkbox | checkbox | checkbox | checkbox |
-| `recovery_key_button` | no (own string in `recovery-key.blp`) | no (gates Restart) | no (gates Restart) | no (gates Restart) | no (gates Restart) |
+| `recovery_key_title` | page heading | heading | heading | heading | heading |
+| `recovery_key_body` | label | label | body | label | label |
+| `recovery_key_copy` | copy button tooltip | copy button | copy button | copy button | copy button |
+| `recovery_key_ack` | checkbox | checkbox | checkbox | checkbox | checkbox |
+| `recovery_key_button` | Continue button | no (gates Restart) | no (gates Restart) | no (gates Restart) | no (gates Restart) |
 | `done_title` | page header | heading | title2 | heading | headline |
 | `done_subtitle` | header subtitle (+ elapsed time) | label | body | label | label |
 | `done_restart` | Reboot Now button | Restart button | suggested button | button | Reboot button |
