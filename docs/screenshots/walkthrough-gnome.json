@@ -68,7 +68,8 @@
         "progress"
       ],
       "matched_keywords": [
-        "deploying"
+        "deploying",
+        "do not power off"
       ]
     },
     "done": {
@@ -88,102 +89,102 @@
       "name": "welcome",
       "png": "docs/screenshots/01-welcome.png",
       "rendered": true,
-      "colours": 487,
-      "flat": 0.9139866339334425,
-      "ink": 0.007515002727768685,
-      "stddev": 0.05863359634784381,
+      "colours": 479,
+      "flat": 0.9158001386444835,
+      "ink": 0.007332160187703301,
+      "stddev": 0.058016223619199905,
       "text_excerpt": "Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Power Off Power Off Press Super+Alt+S to enable the screen reader Credits Credits"
     },
     {
       "name": "qr_companion",
       "png": "docs/screenshots/02-qr_companion.png",
       "rendered": true,
-      "colours": 528,
-      "flat": 0.9276050190943808,
-      "ink": 0.037159028914348066,
-      "stddev": 0.12112843913345184,
+      "colours": 513,
+      "flat": 0.9278715405535114,
+      "ink": 0.03744734175865195,
+      "stddev": 0.12187772079192198,
       "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
     },
     {
       "name": "disk",
       "png": "docs/screenshots/03-disk.png",
       "rendered": true,
-      "colours": 505,
-      "flat": 0.8479609929078015,
-      "ink": 0.004698581560283688,
-      "stddev": 0.051484606594132766,
+      "colours": 500,
+      "flat": 0.8502372953660747,
+      "ink": 0.004959206526955687,
+      "stddev": 0.052813739584381784,
       "text_excerpt": "Computer is not plugged in \u2014 connect power before installing Install Location Select the disk where you want to install. All data on the selected disk will be permanently erased. SAMSUNG MZVL2512 /dev/nvme0n1 \u00b7 476.9 GB SAMSUNG MZVL2512 /de"
     },
     {
       "name": "slurp",
       "png": "docs/screenshots/04-slurp.png",
       "rendered": true,
-      "colours": 223,
-      "flat": 0.9590561920349154,
-      "ink": 0.010270049099836333,
-      "stddev": 0.07270071791646815,
+      "colours": 222,
+      "flat": 0.9597864341705327,
+      "ink": 0.010011731456300325,
+      "stddev": 0.07179881677978242,
       "text_excerpt": "Bring Your Files We can copy documents, pictures, and other data from an existing Windows install. Windows data scanning is unavailable in demo mode. Skip Skip"
     },
     {
       "name": "encryption",
       "png": "docs/screenshots/05-encryption.png",
       "rendered": true,
-      "colours": 249,
-      "flat": 0.8610679214402619,
-      "ink": 0.009772231314784507,
-      "stddev": 0.07404258619241541,
+      "colours": 250,
+      "flat": 0.8641084093211753,
+      "ink": 0.009551805044526209,
+      "stddev": 0.0732648510351436,
       "text_excerpt": "Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You will need a passphrase each time you turn on your computer. Encrypt this disk You will need a passphrase each time you turn on your computer. Password Passwo"
     },
     {
       "name": "confirm",
       "png": "docs/screenshots/06-confirm.png",
       "rendered": true,
-      "colours": 237,
-      "flat": 0.9183647026732134,
-      "ink": 0.006267048554282597,
-      "stddev": 0.049492986035523406,
+      "colours": 236,
+      "flat": 0.9200727883538634,
+      "ink": 0.0061256865568175755,
+      "stddev": 0.04919948055402727,
       "text_excerpt": "Confirm installation Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Install Install"
     },
     {
       "name": "progress",
       "png": "docs/screenshots/07-progress.png",
       "rendered": true,
-      "colours": 172,
-      "flat": 0.9618794326241135,
-      "ink": 0.006382978723404255,
-      "stddev": 0.04678733797697664,
-      "text_excerpt": "Installing TunaOS\u2026 Deploying image: writing layers 45% 0:00 elapsed"
+      "colours": 163,
+      "flat": 0.9653655415133578,
+      "ink": 0.004625926518423719,
+      "stddev": 0.04158934044641252,
+      "text_excerpt": "Installing TunaOS\u2026 Deploying image: writing layers Do not power off the computer. 45% 0:00 elapsed"
     },
     {
       "name": "recovery-key",
       "png": "docs/screenshots/08-recovery-key.png",
       "rendered": true,
-      "colours": 260,
-      "flat": 0.9317239498090562,
-      "ink": 0.007474086197490452,
-      "stddev": 0.06336662797177701,
+      "colours": 257,
+      "flat": 0.9330707086866101,
+      "ink": 0.007305497787020743,
+      "stddev": 0.06271597501907249,
       "text_excerpt": "Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf I have saved "
     },
     {
       "name": "done",
       "png": "docs/screenshots/09-done.png",
       "rendered": true,
-      "colours": 269,
-      "flat": 0.9619885433715221,
-      "ink": 0.009035733769776323,
-      "stddev": 0.05996950743543311,
+      "colours": 275,
+      "flat": 0.9626726390444196,
+      "ink": 0.008765264224390765,
+      "stddev": 0.05919872667796244,
       "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now"
     }
   ],
   "transition_pixels": [
-    75722,
-    89624,
-    51171,
-    34536,
-    37630,
-    31045,
-    43287,
-    41647
+    77132,
+    90681,
+    51432,
+    34984,
+    38179,
+    31833,
+    44105,
+    41947
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
