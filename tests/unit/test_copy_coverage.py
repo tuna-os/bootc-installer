@@ -67,25 +67,16 @@ KNOWN_GAPS = {
     "kde": {
         "welcome_install": "modules/welcome hardcodes its two body sentences",
         "welcome_install_subtitle": "modules/welcome hardcodes its two body sentences",
-        "welcome_button": "the Kirigami wizard supplies its own Next button",
-        "confirm_title": "the step header comes from the module name, not the contract",
-        "recovery_key_button": "the panel gates the existing Restart button instead",
     },
     "cosmic": {
         "welcome_install": "the welcome page has no install row to label",
         "welcome_install_subtitle": "the welcome page has no install row to label",
-        "recovery_key_button": "the panel gates the existing Restart button instead",
     },
     "niri": {
         "welcome_install": "the welcome page has no install row to label",
         "welcome_install_subtitle": "the welcome page has no install row to label",
-        "recovery_key_button": "the panel gates the existing Restart button instead",
     },
     "xfce": {
-        "welcome_install_subtitle": "the install radio row carries no subtitle",
-        "welcome_button": "the wizard's Next button is not branded",
-        "progress_note": "the progress page shows no do-not-power-off line",
-        "recovery_key_button": "the panel gates the existing Restart button instead",
     },
 }
 

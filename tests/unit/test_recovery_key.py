@@ -199,7 +199,7 @@ class TestSetRecoveryKey(unittest.TestCase):
 
 
 class TestPanelTextComesFromTheContract(unittest.TestCase):
-    """The panel's five strings are branding copy keys, not .blp literals.
+    """The panel's text lines are branding copy keys, not .blp literals.
 
     Before this, recovery-key.blp hardcoded all five, so GNOME -- the
     reference frontend -- was the one frontend a product could not rebrand
@@ -226,7 +226,7 @@ class TestPanelTextComesFromTheContract(unittest.TestCase):
         self.obj.body_label.set_label.assert_called_with(COPY_DEFAULTS["recovery_key_body"])
         self.obj.copy_button.set_tooltip_text.assert_called_with(COPY_DEFAULTS["recovery_key_copy"])
         self.obj.ack_check.set_label.assert_called_with(COPY_DEFAULTS["recovery_key_ack"])
-        self.obj.btn_continue.set_label.assert_called_with(COPY_DEFAULTS["recovery_key_button"])
+        self.assertNotIn("recovery_key_button", COPY_DEFAULTS)
 
     def test_a_product_can_rebrand_every_line(self):
         self._show({"name": "Marlin", "copy": {
@@ -234,17 +234,14 @@ class TestPanelTextComesFromTheContract(unittest.TestCase):
             "recovery_key_body": "B",
             "recovery_key_copy": "C",
             "recovery_key_ack": "D",
-            "recovery_key_button": "E",
         }})
         self.obj.title_label.set_label.assert_called_with("Keep this for Marlin")
         self.obj.body_label.set_label.assert_called_with("B")
         self.obj.copy_button.set_tooltip_text.assert_called_with("C")
         self.obj.ack_check.set_label.assert_called_with("D")
-        self.obj.btn_continue.set_label.assert_called_with("E")
 
     def test_an_empty_title_hides_it_but_controls_keep_a_label(self):
-        self._show({"copy": {"recovery_key_title": "", "recovery_key_ack": "",
-                             "recovery_key_button": ""}})
+        self._show({"copy": {"recovery_key_title": "", "recovery_key_ack": ""}})
         self.obj.title_label.set_visible.assert_called_with(False)
         self.obj.body_label.set_visible.assert_called_with(True)
         self.assertTrue(self.obj.ack_check.set_label.call_args[0][0])

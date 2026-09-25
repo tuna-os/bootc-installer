@@ -25,21 +25,20 @@ claimed a render that nobody had wired up.
 | `welcome_title` | page header | heading | title1 | heading | page title |
 | `welcome_subtitle` | header subtitle, hidden | label, hidden | body, hidden | label, hidden | label, hidden |
 | `welcome_install` | install row title | no (own body text) | no (no install row) | no (no install row) | live-system radio |
-| `welcome_install_subtitle` | install row subtitle | no | no | no | no |
-| `welcome_button` | no (row activates, own label) | no (wizard's Next) | forward button | button | no (wizard's Next) |
-| `confirm_title` | page header | no (header from the module name) | page title | heading | page title |
+| `welcome_install_subtitle` | install row subtitle | no | no | no | live-system radio subtitle |
+| `welcome_button` | no (row activates, own label) | Next button on welcome | forward button | button | Next button on welcome |
+| `confirm_title` | page header | step heading | page title | heading | page title |
 | `confirm_subtitle` | header subtitle | italic label, hidden | page subtitle | label, hidden | label, hidden |
 | `confirm_body` | dim label, hidden | label, hidden | body, hidden | label, hidden | label, hidden |
 | `confirm_warning` | no (summary row, own text) | inline message | warning card | warning line | warning row |
 | `confirm_button` | pill button | Next button | forward button | button | Next button |
 | `confirm_quotes` | random line per language | no | no | no | no |
 | `progress_title` | image-writing step label | label | page title | heading | page title |
-| `progress_note` | no | label | warning caption | caption | no |
+| `progress_note` | no | label | warning caption | caption | dim label under the bar |
 | `recovery_key_title` | page heading | heading | heading | heading | heading |
 | `recovery_key_body` | label | label | body | label | label |
 | `recovery_key_copy` | copy button tooltip | copy button | copy button | copy button | copy button |
 | `recovery_key_ack` | checkbox | checkbox | checkbox | checkbox | checkbox |
-| `recovery_key_button` | Continue button | no (gates Restart) | no (gates Restart) | no (gates Restart) | no (gates Restart) |
 | `done_title` | page header | heading | title2 | heading | headline |
 | `done_subtitle` | header subtitle (+ elapsed time) | label | body | label | label |
 | `done_restart` | Reboot Now button | Restart button | suggested button | button | Reboot button |

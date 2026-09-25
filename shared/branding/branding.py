@@ -75,7 +75,6 @@ COPY_DEFAULTS_JSON = r'''{
   "recovery_key_body": "If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy.",
   "recovery_key_copy": "Copy to clipboard",
   "recovery_key_ack": "I have saved my recovery key",
-  "recovery_key_button": "Continue",
   "done_title": "{name} is installed",
   "done_subtitle": "Remove the installation media and restart the computer.",
   "done_restart": "Restart now",

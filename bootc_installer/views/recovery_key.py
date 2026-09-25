@@ -39,9 +39,9 @@ class BootcRecoveryKey(Adw.Bin):
 
         Applied on each set_recovery_key() rather than once in __init__: the
         branding lands on window.recipe after the views are built. An empty
-        title or body hides that line, as elsewhere; the three controls fall
-        back to their neutral wording instead, because an unlabelled
-        checkbox or button cannot be used.
+        title or body hides that line, as elsewhere; the copy tooltip and
+        the checkbox fall back to their neutral wording instead, because an
+        unlabelled control cannot be used.
         """
         w = self.__window
         title = copy_text.text(w, "recovery_key_title")
@@ -54,8 +54,10 @@ class BootcRecoveryKey(Adw.Bin):
             copy_text.text(w, "recovery_key_copy") or _("Copy to clipboard"))
         self.ack_check.set_label(
             copy_text.text(w, "recovery_key_ack") or _("I have saved my recovery key"))
-        self.btn_continue.set_label(
-            copy_text.text(w, "recovery_key_button") or _("Continue"))
+        # Continue is a plain control label, not a line in the product's
+        # voice, and GNOME is the one frontend with this button (the others
+        # gate their Restart button instead), so it is not a contract key.
+        self.btn_continue.set_label(_("Continue"))
 
     def set_recovery_key(self, key: str):
         self.__apply_copy()
