@@ -30,11 +30,11 @@ claimed a render that nobody had wired up.
 | `confirm_title` | page header | step heading | page title | heading | page title |
 | `confirm_subtitle` | header subtitle | italic label, hidden | page subtitle | label, hidden | label, hidden |
 | `confirm_body` | dim label, hidden | label, hidden | body, hidden | label, hidden | label, hidden |
-| `confirm_warning` | no (summary row, own text) | inline message | warning card | warning line | warning row |
+| `confirm_warning` | summary warning row | inline message | warning card | warning line | warning row |
 | `confirm_button` | pill button | Next button | forward button | button | Next button |
 | `confirm_quotes` | random line per language | no | no | no | no |
 | `progress_title` | image-writing step label | label | page title | heading | page title |
-| `progress_note` | no | label | warning caption | caption | dim label under the bar |
+| `progress_note` | caption under the step label | label | warning caption | caption | dim label under the bar |
 | `recovery_key_title` | page heading | heading | heading | heading | heading |
 | `recovery_key_body` | label | label | body | label | label |
 | `recovery_key_copy` | copy button tooltip | copy button | copy button | copy button | copy button |
