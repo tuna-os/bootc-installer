@@ -24,7 +24,7 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 | Frontend | Pages | Rendered | Transitions | Harness |
 |---|---|---|---|---|
 | GNOME | 9 | 9 | 8 | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
-| KDE Plasma | 6 | 6 | 5 | tests/capture.cpp (Kirigami/QML, offscreen) |
+| KDE Plasma | 7 | 7 | 6 | tests/capture.cpp (Kirigami/QML, offscreen) |
 | COSMIC | 7 | 7 | 6 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
 | Niri | 7 | 7 | 6 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
 | XFCE | 9 | 9 | 7 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
@@ -62,6 +62,7 @@ Qt 6 / Kirigami (C++ + QML). Source: `frontends/kde/`.
 | <img src="kde/04-confirm.png" width="360"> | **confirm**  |
 | <img src="kde/05-progress.png" width="360"> | **progress**  |
 | <img src="kde/06-done.png" width="360"> | **done**  |
+| <img src="kde/07-recovery.png" width="360"> | **recovery**  |
 
 ## COSMIC
 

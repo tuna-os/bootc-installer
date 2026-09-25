@@ -1,9 +1,9 @@
 {
   "activation_key": null,
-  "advanced_transitions": 5,
+  "advanced_transitions": 6,
   "failures": 0,
   "flavor": "kde",
-  "frames": 6,
+  "frames": 7,
   "harness": "tests/capture.cpp (Kirigami/QML, offscreen)",
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the item tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job.",
   "ocr": false,
@@ -61,9 +61,18 @@
       "png": "docs/screenshots/06-done.png",
       "rendered": true,
       "stddev": 0.04626333206620222
+    },
+    {
+      "colours": 234,
+      "flat": 0.9743778774110071,
+      "ink": 0.021394397135377486,
+      "name": "07-recovery",
+      "png": "docs/screenshots/07-recovery.png",
+      "rendered": true,
+      "stddev": 0.06489823133611919
     }
   ],
-  "rendered_frames": 6,
+  "rendered_frames": 7,
   "screens": {
     "disk": true,
     "done": true,
@@ -90,7 +99,8 @@
         "remove the installation media"
       ],
       "on_pages": [
-        "06-done"
+        "06-done",
+        "07-recovery"
       ],
       "reached": true,
       "required": false
@@ -144,7 +154,8 @@
     144539,
     119368,
     393168,
-    503599
+    503599,
+    13215
   ],
-  "visual_states": 6
+  "visual_states": 7
 }
