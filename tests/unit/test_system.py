@@ -343,8 +343,10 @@ class TestSysteminfoGpuAndTpmCaching:
     def test_fake_tpm_override_shows_the_choices(self, monkeypatch):
         """The override the other four frontends have had (#133).
 
-        GNOME did not, so its capture rendered a two-option encryption page
-        on every runner -- the blind spot the override exists to close.
+        It reveals nothing here: GNOME's encryption page is a plain Switch
+        with no visibility binding, so has_tpm2() only picks its default
+        state and the page renders the same either way. This is parity of
+        the contract in shared/tpm/README.md, not a capture fix.
         """
         monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", "1")
         assert Systeminfo.has_tpm2(

@@ -38,9 +38,13 @@ func TestTpmDirectoryAloneIsNotEnough(t *testing.T) {
 	}
 }
 
-// The override the other four frontends have had. Niri did not, so its
-// capture rendered a two-option encryption page on every runner -- exactly
-// the blind spot the override exists to close.
+// The override the other four frontends have had, for parity of the
+// contract in shared/tpm/README.md.
+//
+// It changes nothing about the walkthrough: the capture harness never runs
+// this binary. capture-screens.py points QML2_IMPORT_PATH at
+// tests/qml-stubs/, whose canned detect output already says hasTpm: true,
+// so Niri's screenshots have always shown all four choices.
 func TestFakeTPMOverride(t *testing.T) {
 	for _, v := range []string{"1", "true", "yes"} {
 		t.Setenv("BOOTC_INSTALLER_FAKE_TPM", v)
