@@ -71,7 +71,6 @@
       ],
       "matched_keywords": [
         "do not power off",
-        "installing image",
         "partitioning"
       ]
     },
@@ -115,7 +114,7 @@
       "colours": 453,
       "flat": 0.6161333333333333,
       "ink": 0.11356666666666666,
-      "stddev": 0.11048502176346062,
+      "stddev": 0.11049312796175044,
       "text_excerpt": "Step 3 of 6 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
@@ -132,11 +131,11 @@
       "name": "05-progress",
       "png": "docs/screenshots/05-progress.png",
       "rendered": true,
-      "colours": 272,
-      "flat": 0.6304666666666666,
-      "ink": 0.0182,
-      "stddev": 0.07906234140943866,
-      "text_excerpt": "Step 5 of 6 \u00b7 Installing Installing TunaOS\u2026 Starting\u2026 [1/9] Partitioning /dev/nvme0n1\n[2/9] Formatting boot partitions\n[3/9] Setting up encryption\n[4/9] Formatting root filesystem (xfs)\n[5/9] Mounting target at /mnt\n[6/9] Installing image g"
+      "colours": 265,
+      "flat": 0.6350333333333333,
+      "ink": 0.021666666666666667,
+      "stddev": 0.09105218950452224,
+      "text_excerpt": "Step 5 of 6 \u00b7 Installing Installing TunaOS\u2026 Step 5 of 8 \u2014 Installing OS [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pul"
     },
     {
       "name": "06-done",
@@ -153,8 +152,8 @@
     30519,
     56643,
     188997,
-    210976,
-    308037
+    209592,
+    308501
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
