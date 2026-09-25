@@ -45,13 +45,13 @@
             "stddev": 0.057463182214099386
         },
         {
-            "colours": 244,
-            "flat": 0.8453817003673811,
-            "ink": 0.1533888744250629,
+            "colours": 236,
+            "flat": 0.7743643148485637,
+            "ink": 0.22475339176719025,
             "name": "05-progress",
             "png": "docs/screenshots/05-progress.png",
             "rendered": true,
-            "stddev": 0.08242804074751767
+            "stddev": 0.0994989274143532
         },
         {
             "colours": 137,
@@ -107,8 +107,7 @@
         },
         "install": {
             "matched_keywords": [
-                "partitioning",
-                "installing image"
+                "partitioning"
             ],
             "on_pages": [
                 "05-progress"
@@ -144,8 +143,8 @@
         138055,
         144539,
         119368,
-        403269,
-        539420
+        393168,
+        503599
     ],
     "visual_states": 6
 }
