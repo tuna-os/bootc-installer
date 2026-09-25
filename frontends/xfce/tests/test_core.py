@@ -536,3 +536,46 @@ class TestLiveIsoImage:
         monkeypatch.setattr(os.path, "exists", lambda p: False)
         assert core.live_iso_image() is None
 
+
+
+class TestHasTpm:
+    """core.has_tpm() decides whether the two TPM encryption choices render.
+
+    The probe is /sys/class/tpm/tpm0, which no CI runner has, so a capture
+    taken without the override shows a two-option encryption page. That is
+    what docs/PARITY.md was read off, and it is why this frontend was
+    recorded as having no TPM support when it has offered both TPM modes
+    since the encryption page was written.
+    """
+
+    def test_false_without_tpm_or_override(self, monkeypatch):
+        monkeypatch.delenv("BOOTC_INSTALLER_FAKE_TPM", raising=False)
+        monkeypatch.setattr(core.os.path, "exists", lambda p: False)
+        assert core.has_tpm() is False
+
+    def test_true_when_the_device_node_exists(self, monkeypatch):
+        monkeypatch.delenv("BOOTC_INSTALLER_FAKE_TPM", raising=False)
+        monkeypatch.setattr(
+            core.os.path, "exists", lambda p: p == "/sys/class/tpm/tpm0")
+        assert core.has_tpm() is True
+
+    def test_override_shows_the_choices_on_a_machine_without_a_tpm(
+            self, monkeypatch):
+        monkeypatch.setattr(core.os.path, "exists", lambda p: False)
+        monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", "1")
+        assert core.has_tpm() is True
+
+    def test_override_is_off_when_empty_or_zero(self, monkeypatch):
+        monkeypatch.setattr(core.os.path, "exists", lambda p: False)
+        for value in ("", "0"):
+            monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", value)
+            assert core.has_tpm() is False, f"{value!r} must not force it on"
+
+    def test_read_per_call_not_at_import(self, monkeypatch):
+        # Same reasoning as dry_run(): an import-time read would make the
+        # answer depend on module import ORDER, which no caller can see.
+        monkeypatch.setattr(core.os.path, "exists", lambda p: False)
+        monkeypatch.delenv("BOOTC_INSTALLER_FAKE_TPM", raising=False)
+        assert core.has_tpm() is False
+        monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", "1")
+        assert core.has_tpm() is True

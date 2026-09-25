@@ -198,7 +198,7 @@ class SetupPage(Page):
 
     def __init__(self, win):
         super().__init__(win)
-        self.has_tpm = os.path.exists("/sys/class/tpm/tpm0")
+        self.has_tpm = core.has_tpm()
 
         self.enc_radios = []
         group = None

@@ -105,6 +105,13 @@ os.environ.setdefault("BOOTC_INSTALLER_BRANDING", os.path.normpath(os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..", "..", "..", "..", "shared", "walkthrough", "capture-branding.json")))
 
+# Show the TPM encryption choices. They are hidden when /sys/class/tpm/tpm0 is
+# absent, which it is on every CI runner, so an unset capture renders a
+# two-option encryption page and docs/PARITY.md -- which is read off these
+# screenshots -- recorded this frontend as having no TPM support at all. It
+# has offered both TPM modes since the page was written. See core.has_tpm().
+os.environ.setdefault("BOOTC_INSTALLER_FAKE_TPM", "1")
+
 # SAFETY, and not a small one. ProgressPage.on_enter() calls
 # win.start_install(), so simply navigating the wizard to the progress page
 # LAUNCHES A REAL INSTALL — there is no confirmation between the two. A capture

@@ -52,6 +52,26 @@ IN_FLATPAK = os.path.exists("/.flatpak-info")
 def dry_run():
     return os.environ.get("TUNA_INSTALLER_DRY_RUN", "") not in ("", "0")
 
+
+# The TPM probe, as a function for the same reason dry_run() is one, and with
+# an override for the same reason BOOTC_DEMO exists.
+#
+# The two TPM encryption choices are hidden when this is false, so a capture
+# taken on a machine without a TPM -- every CI runner -- silently renders a
+# two-option encryption page. The screenshots are what docs/PARITY.md is read
+# off, so this frontend was recorded as having no TPM support at all, when in
+# fact it offers both TPM modes and has since the encryption page was written.
+# The capture harness sets the override so the walkthrough shows what the
+# installer can actually do rather than what the runner's hardware allows.
+#
+# It only ever makes the options VISIBLE. Choosing one still writes an ordinary
+# recipe, and fisherman is what fails, later and loudly, if there is no TPM to
+# enrol against.
+def has_tpm():
+    if os.environ.get("BOOTC_INSTALLER_FAKE_TPM", "") not in ("", "0"):
+        return True
+    return os.path.exists("/sys/class/tpm/tpm0")
+
 # One line per fisherman step, in fisherman's own "[n/9] " prefix format so
 # ProgressPage.append_log's step parser drives the bar exactly as it would on a
 # real install. The wording tracks fisherman's actual step names; if they
