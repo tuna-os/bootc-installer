@@ -223,6 +223,27 @@ def _seed_progress(page):
     for line in FIXTURE_LOG.splitlines(keepends=True):
         page.append_log(line)
 
+    # Did the transcript actually reach the bar?
+    #
+    # The pixel audit cannot answer this: it measures ink over the whole
+    # frame, and this page has a title and a log full of text regardless. The
+    # KDE frontend shipped a progress bar that laid out at full width,
+    # reported itself visible and opaque, painted nothing, and passed every
+    # check in this repository including its own capture job — because a page
+    # with a populated log looks populated either way.
+    #
+    # A fraction of zero here means append_log() stopped driving the bar,
+    # which is the bug that had this frontend and Niri rendering an empty bar
+    # for every real install while their fixtures, written in the same
+    # invented shape, photographed one moving.
+    fraction = page.bar.get_fraction()
+    print(f"    progress bar at {fraction:.1%}")
+    if fraction <= 0.0:
+        sys.exit("FAIL: the progress bar is at 0% after the whole transcript "
+                 "— append_log is not driving it (shared/progress/README.md)")
+    if not page.bar.get_visible():
+        sys.exit("FAIL: the progress bar is not visible")
+
 
 def _settle():
     """Let GTK finish layout and drawing before the grab.
