@@ -54,7 +54,7 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
 | Filesystem choice | yes | yes | yes | no (xfs) | yes (Advanced) |
 | Encryption: none / passphrase | yes | yes | yes | yes | yes |
 | Encryption: TPM / TPM + passphrase | yes | yes | yes | yes | yes |
-| Recovery key page after TPM enrolment | yes | log only | log only | log only | log only |
+| Recovery key page after TPM enrolment | yes | log | log | log | log |
 | Hostname | generated, editable on confirm | field | field | field on confirm | field |
 | User account | yes (companion or wizard) | no | no | no | yes |
 | Phone companion (QR) | yes | no | no | no | no |
