@@ -44,7 +44,7 @@ Both devices must be on the same local net</sub> |
 | <img src="gnome/04-slurp.png" width="360"> | **slurp** Bring documents and settings over from an existing Windows install. <br><sub>Bring Your Files We can copy documents, pictures, and other data from an existing Windows install. Windows data scanning is unavailable in d</sub> |
 | <img src="gnome/05-encryption.png" width="360"> | **encryption** Full-disk encryption, with or without TPM2. <br><sub>Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You will need a passphrase each time you turn on your compute</sub> |
 | <img src="gnome/06-confirm.png" width="360"> | **confirm** The last screen before anything is written. <br><sub>Confirm installation Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Install Install</sub> |
-| <img src="gnome/07-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installing TunaOS… Deploying image: writing layers 45% 0:00 elapsed</sub> |
+| <img src="gnome/07-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installing TunaOS… Deploying image: writing layers Do not power off the computer. 45% 0:00 elapsed</sub> |
 | <img src="gnome/08-recovery-key.png" width="360"> | **recovery key** The LUKS recovery key, shown once after an encrypted install. <br><sub>Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere sa</sub> |
 | <img src="gnome/09-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>TunaOS is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now</sub> |
 
