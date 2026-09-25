@@ -88,12 +88,19 @@ class BootcDefaultUsers(Adw.Bin):
         username = self.username_entry.get_text().strip()
         if not username:
             return {"user": {"username": "", "fullname": "", "password": "", "groups": []}}
+        groups = _DEFAULT_GROUPS
+        window = getattr(self, "_BootcDefaultUsers__window", None)
+        recipe = getattr(window, "recipe", {}) if window else {}
+        if isinstance(recipe, dict):
+            sys_user = recipe.get("user", {})
+            if isinstance(sys_user, dict) and isinstance(sys_user.get("groups"), list):
+                groups = sys_user["groups"]
         return {
             "user": {
                 "username": username,
                 "fullname": self.fullname_entry.get_text().strip(),
                 "password": self.password_entry.get_text(),
-                "groups": _DEFAULT_GROUPS,
+                "groups": groups,
             }
         }
 
