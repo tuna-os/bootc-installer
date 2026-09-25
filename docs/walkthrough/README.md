@@ -75,9 +75,9 @@ libcosmic / iced (Rust). Source: `frontends/cosmic/`.
 | <img src="cosmic/02-disk.png" width="360"> | **disk**  <br><sub>Select a disk Everything on the disk you pick will be erased. /dev/nvme0n1 476.9G · SAMSUNG MZVL2512HCJQ · nvme /dev/sda 1.8T · WDC WD20SPZX</sub> |
 | <img src="cosmic/03-options.png" width="360"> | **options**  <br><sub>Options Sensible defaults are already chosen. Change them only if you need to. System Computer name ubuntu Filesystem xfs Encryption Disk en</sub> |
 | <img src="cosmic/04-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation The last screen before anything is written. Everything on /dev/nvme0n1 will be erased. This cannot be undone.  Summary </sub> |
-| <img src="cosmic/05-installing.png" width="360"> | **installing**  <br><sub>Installing TunaOS… fisherman is writing the image to disk. [1/9] Partitioning /dev/nvme0n1
-  created EFI system partition (1.0 GiB, FAT32)
- </sub> |
+| <img src="cosmic/05-installing.png" width="360"> | **installing**  <br><sub>Installing TunaOS… fisherman is writing the image to disk. [1/8] Partitioning disk
+[2/8] Formatting EFI partition
+[3/8] Formatting root file</sub> |
 | <img src="cosmic/06-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Restart now Close</sub> |
 
 ## Niri
