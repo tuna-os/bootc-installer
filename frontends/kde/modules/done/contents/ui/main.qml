@@ -71,13 +71,82 @@ TunaComponents.SetupModule {
                 onLinkActivated: link => Qt.openUrlExternally(link)
             }
 
+            // Recovery key (#129). fisherman emits it once, after TPM
+            // enrolment, and for a tpm2-luks install it is the only way back
+            // into the disk if the TPM state changes. It used to go to the
+            // log pane and nowhere else: the log scrolls, nothing pauses, and
+            // a user could reach this page and restart having never seen it.
+            //
+            // A panel rather than a dialog, as on the other frontends: a
+            // dialog is dismissed and then the key is gone, while this stays
+            // on screen for as long as it takes to write down.
+            ColumnLayout {
+                objectName: "recoveryPanel"
+                visible: InstallerController.succeeded
+                    && InstallerController.recoveryKey.length > 0
+                spacing: Kirigami.Units.smallSpacing
+
+                Layout.fillWidth: true
+                Layout.topMargin: Kirigami.Units.largeSpacing
+
+                Kirigami.Heading {
+                    text: InstallerController.text("recovery_key_title")
+                    level: 3
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.Wrap
+                    Layout.fillWidth: true
+                }
+                Label {
+                    text: InstallerController.text("recovery_key_body")
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.Wrap
+                    Layout.fillWidth: true
+                }
+                Label {
+                    objectName: "recoveryKeyLabel"
+                    text: InstallerController.recoveryKey
+                    font.family: "monospace"
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WrapAnywhere
+                    Layout.fillWidth: true
+                }
+                RowLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    spacing: Kirigami.Units.smallSpacing
+
+                    Button {
+                        text: InstallerController.text("recovery_key_copy")
+                        icon.name: "edit-copy-symbolic"
+                        onClicked: recoveryClip.selectAll(),
+                                   recoveryClip.copy(),
+                                   recoveryClip.deselect()
+                    }
+                    CheckBox {
+                        objectName: "recoveryAckCheck"
+                        text: InstallerController.text("recovery_key_ack")
+                        checked: InstallerController.recoveryAck
+                        onToggled: InstallerController.recoveryAck = checked
+                    }
+                }
+                // QtQuick has no clipboard object; a hidden TextEdit is the
+                // standard way to reach one.
+                TextEdit {
+                    id: recoveryClip
+                    visible: false
+                    text: InstallerController.recoveryKey
+                }
+            }
+
             // Restart is the primary action after a successful install, the
             // same as on the other frontends; Close stays in the footer.
             Button {
+                objectName: "doneRestartButton"
                 text: InstallerController.text("done_restart")
                 icon.name: "system-reboot-symbolic"
                 visible: InstallerController.succeeded
                 highlighted: true
+                // Held until the key is acknowledged.
+                enabled: !InstallerController.recoveryKeyPending
 
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: Kirigami.Units.largeSpacing

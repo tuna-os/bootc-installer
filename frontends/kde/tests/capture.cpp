@@ -475,6 +475,16 @@ const char *kFixtureLogFinished =
     "{\"cumulative_pct\": 99, \"elapsed_ms\": 4000, \"step\": 8, \"step_name\": \"Finalizing installation\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 1}\n"
     "{\"boot_id\": \"0001\", \"elapsed_ms\": 4400, \"message\": \"Installation complete\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"type\": \"complete\"}\n";
 
+// fisherman emits this once, after TPM enrolment, and for a tpm2-luks
+// install it is the only way back into the disk if the TPM state changes
+// (#129). No CI runner does a TPM install, so it is synthesised -- but it
+// goes through loadDemoState() -> appendLine(), the path a real install
+// takes, so the frame exercises the parse rather than a property assignment
+// that would keep passing if the parse broke.
+const char *kFixtureRecoveryEvent =
+    "{\"type\": \"recovery_key\", \"key\": \"mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf\", "
+    "\"timestamp\": \"1970-01-01T00:00:00Z\", \"elapsed_ms\": 4800}\n";
+
 const char *kFixtureDisks = R"({"blockdevices":[
   {"name":"nvme0n1","size":"512G","type":"disk","model":"Samsung SSD 990 PRO","tran":"nvme"},
   {"name":"sda","size":"1.8T","type":"disk","model":"WDC WD20EZBX","tran":"sata"},
@@ -650,6 +660,9 @@ int main(int argc, char *argv[])
         {3, u"04-confirm"_s},
         {4, u"05-progress"_s},
         {5, u"06-done"_s},
+        // The done page again, as a TPM install leaves it. Same step, other
+        // state -- not a step of its own.
+        {5, u"07-recovery"_s},
     };
 
     QVector<Finding> findings;
@@ -667,6 +680,17 @@ int main(int argc, char *argv[])
                 QString::fromUtf8(kFixtureLogRunning)
                     + QString::fromUtf8(kFixtureLogFinished),
                 0);
+        }
+        if (step.second == u"07-recovery"_s) {
+            controller->loadDemoState(
+                QString::fromUtf8(kFixtureLogRunning)
+                    + QString::fromUtf8(kFixtureLogFinished)
+                    + QString::fromUtf8(kFixtureRecoveryEvent),
+                0);
+            if (controller->recoveryKey().isEmpty()) {
+                out << "FAIL: the recovery_key event did not parse\n";
+                return 1;
+            }
         }
 
         if (!callGoToStep(step.first)) {
@@ -692,6 +716,47 @@ int main(int argc, char *argv[])
         }
         if (step.second == u"05-progress"_s && !progressBarIsDrawn(window, image, out))
             return 1;
+        // The recovery frame is the one screen where a correct-looking render
+        // can still be wrong: the panel can draw with the key missing or its
+        // labels empty, and Restart can be live before the acknowledgement.
+        // None of that shows up in a pixel histogram.
+        //
+        // The label check reads the branding contract, not the QML: on the
+        // Niri frontend the same panel first drew with an empty title and two
+        // blank buttons because that frontend keeps its own copy of the
+        // defaults, and an assertion that only looked for the KEY passed it.
+        // KDE compiles copy-defaults.json in (branding.cpp), so this should
+        // hold -- which is why it is worth asserting rather than assuming.
+        if (step.second == u"07-recovery"_s) {
+            const QString shown = itemText(window->contentItem());
+            if (!shown.contains(controller->recoveryKey())) {
+                out << "FAIL: the recovery key is not in the rendered text -- "
+                       "the panel did not draw (#129)\n";
+                return 1;
+            }
+            for (const auto &key : {u"recovery_key_title"_s, u"recovery_key_ack"_s}) {
+                const QString line = controller->text(key);
+                if (line.isEmpty()) {
+                    out << "FAIL: " << key << " resolved to an empty string\n";
+                    return 1;
+                }
+                if (!shown.contains(line)) {
+                    out << "FAIL: " << key << " is not in the rendered text\n";
+                    return 1;
+                }
+            }
+            QQuickItem *restart =
+                findItemByName(window->contentItem(), u"doneRestartButton"_s);
+            if (!restart) {
+                out << "FAIL: no doneRestartButton in the visual tree\n";
+                return 1;
+            }
+            if (restart->property("enabled").toBool()) {
+                out << "FAIL: Restart is live before the recovery key was "
+                       "acknowledged (#129)\n";
+                return 1;
+            }
+        }
         Finding f = audit(image, content, step.second);
         f.png = path;
         f.hero = isHeroStep(step.second);

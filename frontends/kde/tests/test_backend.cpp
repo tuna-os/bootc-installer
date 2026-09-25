@@ -50,6 +50,12 @@ private slots:
     void progressIgnoresNonProtocolLines();
     void progressRejectsTheInventedStepPrefix();
     void progressUnknownStepNameFallsBackToTheRawName();
+
+    // Recovery key (#129). The event used to be formatted into a log line
+    // and dropped, so nothing could show it after the install.
+    void recoveryKeyIsKeptNotJustPrinted();
+    void recoveryKeyHoldsRestartUntilAcknowledged();
+    void recoveryKeyAbsentMeansNoGate();
     void progressRendersEventsForTheLogPane();
 };
 
@@ -472,6 +478,54 @@ void BackendTest::progressRendersEventsForTheLogPane()
 
     QVERIFY(c.log().contains(QStringLiteral("[5/8] Installing OS")));
     QVERIFY(!c.log().contains(QStringLiteral("cumulative_pct")));
+}
+
+static QString recoveryEvent(const QString &key)
+{
+    return QStringLiteral(
+        R"({"type":"recovery_key","key":"%1",)"
+        R"("timestamp":"2026-01-01T00:00:00Z","elapsed_ms":1000})").arg(key);
+}
+
+void BackendTest::recoveryKeyIsKeptNotJustPrinted()
+{
+    InstallerController c;
+    QVERIFY(c.recoveryKey().isEmpty());
+
+    feed(c, {recoveryEvent(QStringLiteral("abcd-efgh"))});
+
+    QCOMPARE(c.recoveryKey(), QStringLiteral("abcd-efgh"));
+    // Still in the log, which is what gets pasted into a bug report.
+    QVERIFY(c.log().contains(QStringLiteral("abcd-efgh")));
+}
+
+void BackendTest::recoveryKeyHoldsRestartUntilAcknowledged()
+{
+    InstallerController c;
+    // exitCode 0: loadDemoState() marks the install finished, so succeeded()
+    // is true and the gate is live.
+    feed(c, {recoveryEvent(QStringLiteral("abcd-efgh"))});
+
+    QVERIFY2(c.recoveryKeyPending(), "an unacknowledged key must hold restart");
+    c.setRecoveryAck(true);
+    QVERIFY2(!c.recoveryKeyPending(), "ticking the box must release restart");
+}
+
+void BackendTest::recoveryKeyAbsentMeansNoGate()
+{
+    // No key means no panel and no gate: a non-TPM install must not be asked
+    // to tick a box about a key it was never given.
+    InstallerController c;
+    c.loadDemoState(QStringLiteral("some log line"), 0);
+    QVERIFY(c.succeeded());
+    QVERIFY(!c.recoveryKeyPending());
+
+    // A failed install enrolled nothing, so there is nothing to write down.
+    InstallerController failed;
+    failed.loadDemoState(recoveryEvent(QStringLiteral("abcd-efgh")), 1);
+    QCOMPARE(failed.recoveryKey(), QStringLiteral("abcd-efgh"));
+    QVERIFY(!failed.succeeded());
+    QVERIFY(!failed.recoveryKeyPending());
 }
 
 void BackendTest::tpmProbeReadsTheVersionNotTheDirectory_data()
