@@ -15,7 +15,7 @@
             "name": "01-welcome",
             "png": "docs/screenshots/01-welcome.png",
             "rendered": true,
-            "stddev": 0.05351765674024214
+            "stddev": 0.05404897092417829
         },
         {
             "colours": 280,
@@ -42,7 +42,7 @@
             "name": "04-confirm",
             "png": "docs/screenshots/04-confirm.png",
             "rendered": true,
-            "stddev": 0.057463182214099386
+            "stddev": 0.05797385421577167
         },
         {
             "colours": 236,
@@ -137,7 +137,8 @@
         },
         "welcome": {
             "matched_keywords": [
-                "welcome"
+                "welcome",
+                "get started"
             ],
             "on_pages": [
                 "01-welcome"
@@ -150,10 +151,10 @@
     "strict": true,
     "text_source": "qml-item-tree",
     "transition_pixels": [
-        138055,
+        138497,
         144539,
-        119368,
-        393168,
+        119331,
+        393160,
         503599,
         13215
     ],
