@@ -22,6 +22,10 @@ pub struct Progress {
     pub total_steps: u64,
     pub fraction: f32,
     pub step_name: String,
+    /// The key fisherman emits once, after TPM enrolment (#129). It used to
+    /// be formatted into a log line and dropped: the event was rendered but
+    /// never stored, so nothing could show it after the install finished.
+    pub recovery_key: String,
     cumulative_pct: f32,
     weight_pct: f32,
     product: String,
@@ -34,6 +38,7 @@ impl Progress {
             total_steps: 0,
             fraction: 0.0,
             step_name: String::new(),
+            recovery_key: String::new(),
             cumulative_pct: 0.0,
             weight_pct: 0.0,
             product: product.into(),
@@ -105,13 +110,32 @@ impl Progress {
                 })
             }
             "error" => Some(format!("ERROR: {}", str_field("message"))),
-            // COSMIC has no recovery-key screen (docs/PARITY.md), so this is
-            // the only place the user can read a key they cannot recover
-            // later. Hiding it here would lose it outright.
-            "recovery_key" => Some(format!("Recovery key: {}", str_field("key"))),
+            // Kept in the log as well as on the done page: the log is what
+            // gets pasted into a bug report, and a key that only ever
+            // existed on a screen the user already dismissed is no better
+            // than one that was never shown.
+            "recovery_key" => {
+                self.recovery_key = str_field("key").to_string();
+                Some(format!("Recovery key: {}", str_field("key")))
+            }
             _ => None,
         }
     }
+}
+
+/// Whether the done page must hold its Restart button (#129).
+///
+/// A recovery key on screen that nobody has acknowledged is the one reason:
+/// leaving that page is what ends the chance to read it. A failed install
+/// enrolled nothing, and a non-TPM install was never given a key, so neither
+/// is held -- a user must not be asked to tick a box about a key they do not
+/// have.
+///
+/// Free function because TunaInstaller carries a cosmic Core, which cannot
+/// be built in a unit test; the render itself is covered by the capture
+/// harness, which asserts on the real frame.
+pub fn holds_restart(install_ok: bool, recovery_key: &str, acknowledged: bool) -> bool {
+    install_ok && !recovery_key.is_empty() && !acknowledged
 }
 
 /// `Pulling image: layer 23/71` -> (23.0, 71.0).
@@ -237,5 +261,62 @@ mod tests {
         let shown = p.consume(&step_event(5, 8, "Installing OS", 1, 87)).unwrap();
         assert_eq!(shown, "[5/8] Installing OS");
         assert!(!shown.contains("cumulative_pct"));
+    }
+
+    fn recovery_event(key: &str) -> String {
+        serde_json::json!({
+            "type": "recovery_key",
+            "key": key,
+            "timestamp": "2026-01-01T00:00:00Z",
+            "elapsed_ms": 1000,
+        })
+        .to_string()
+    }
+
+    /// The event was rendered and dropped: this branch formatted a log line
+    /// and kept nothing, so after the install nothing could show the key.
+    #[test]
+    fn a_recovery_key_event_is_kept_not_just_printed() {
+        let mut p = Progress::new("TunaOS");
+        assert!(p.recovery_key.is_empty());
+
+        let shown = p.consume(&recovery_event("abcd-efgh")).unwrap();
+
+        assert_eq!(p.recovery_key, "abcd-efgh");
+        // Still in the log, which is what gets pasted into a bug report.
+        assert!(shown.contains("abcd-efgh"), "{shown}");
+    }
+
+    #[test]
+    fn other_events_leave_the_key_alone() {
+        let mut p = Progress::new("TunaOS");
+        p.consume(&recovery_event("abcd-efgh"));
+        p.consume(&step_event(5, 8, "Installing OS", 1, 87));
+        assert_eq!(p.recovery_key, "abcd-efgh");
+    }
+
+    #[test]
+    fn reset_forgets_the_key() {
+        let mut p = Progress::new("TunaOS");
+        p.consume(&recovery_event("abcd-efgh"));
+        p.reset();
+        assert!(p.recovery_key.is_empty());
+    }
+
+    #[test]
+    fn restart_is_held_only_for_an_unacknowledged_key() {
+        assert!(holds_restart(true, "abcd-efgh", false), "key, not ticked");
+        assert!(!holds_restart(true, "abcd-efgh", true), "ticked");
+        assert!(!holds_restart(true, "", false), "no key, so no gate");
+        assert!(!holds_restart(false, "abcd-efgh", false), "install failed");
+    }
+
+    /// The old mitigation wrote "Recovery key: ..." into the pane. That text
+    /// must not be parsed back out as an event.
+    #[test]
+    fn a_plain_log_line_is_not_an_event() {
+        let mut p = Progress::new("TunaOS");
+        p.consume("Recovery key: not-a-real-event");
+        assert!(p.recovery_key.is_empty());
     }
 }

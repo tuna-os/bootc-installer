@@ -70,6 +70,16 @@ pub fn fixture_disks() -> Vec<DiskInfo> {
 // what this fixture would show if it were left alone. The product name was
 // the second problem: a fixture is rendered into the docs, so it shipped one
 // product's branding to everyone who rebrands this installer.
+/// fisherman emits this once, after TPM enrolment, and for a tpm2-luks
+/// install it is the only way back into the disk if the TPM state changes
+/// (#129). No CI runner does a TPM install, so it is synthesised -- but fed
+/// through the SAME parser a real install uses. Assigning the key to the
+/// view directly would keep passing if the parse broke.
+const FIXTURE_RECOVERY_EVENT: &str = concat!(
+    r#"{"type":"recovery_key","key":"mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf","#,
+    r#""timestamp":"2026-01-01T00:00:00Z","elapsed_ms":1000}"#,
+);
+
 const FIXTURE_LOG_RUNNING: &[&str] = &[
     r#"{"cumulative_pct": 0, "elapsed_ms": 0, "step": 1, "step_name": "Partitioning disk", "timestamp": "1970-01-01T00:00:00Z", "total_steps": 8, "type": "step", "weight_pct": 0}"#,
     r#"{"cumulative_pct": 0, "elapsed_ms": 400, "step": 2, "step_name": "Formatting EFI partition", "timestamp": "1970-01-01T00:00:00Z", "total_steps": 8, "type": "step", "weight_pct": 1}"#,
@@ -141,7 +151,23 @@ fn settle_then(msg: Message) -> Task<crate::Message> {
 pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message> {
     match message {
         Message::Show(index) => {
+            // One frame past the page list: the done page as a TPM install
+            // leaves it. It is the same page in another state, not a page of
+            // its own, so it is not in Page::ORDER.
             let Some(page) = Page::ORDER.get(index).copied() else {
+                if index == Page::ORDER.len() {
+                    app.page = Page::Done;
+                    app.installing = false;
+                    app.install_ok = true;
+                    app.recovery_ack = false;
+                    app.progress.consume(FIXTURE_RECOVERY_EVENT);
+                    if app.progress.recovery_key.is_empty() {
+                        eprintln!("capture: the recovery_key event did not parse");
+                        std::process::exit(2);
+                    }
+                    app.capture.as_mut().unwrap().index = index;
+                    return settle_then(Message::Shoot);
+                }
                 return finish(app);
             };
 
@@ -187,8 +213,11 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
         Message::Shot(shot) => {
             let capture = app.capture.as_mut().unwrap();
             let index = capture.index;
-            let page = Page::ORDER[index];
-            let name = page.slug().to_string();
+            let page = Page::ORDER.get(index).copied();
+            let name = match page {
+                Some(p) => p.slug().to_string(),
+                None => "recovery".to_string(),
+            };
 
             let path = capture
                 .dir
@@ -203,7 +232,7 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
             // bar that lays out but paints nothing is invisible to the audit
             // above (see widest_accent_run). Fail the capture rather than
             // publish a documentation image of a bar that is not there.
-            if page == Page::Installing {
+            if page == Some(Page::Installing) {
                 let run = widest_accent_run(&shot);
                 eprintln!("  installing: widest accent run {:.1}% of width", run * 100.0);
                 // The fixture stops part-way through the image pull, so the
@@ -225,6 +254,27 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
             // introspection, so this is how the COSMIC row of the parity
             // matrix stops reading "not measured".
             let text = crate::ui::page_text(app).join(" ");
+
+            // The recovery frame is the one screen where a correct-looking
+            // render can still be wrong: the panel can draw with the key
+            // missing, and Restart can be live before the key is
+            // acknowledged. Neither shows up in a pixel histogram.
+            if page.is_none() {
+                let key = app.progress.recovery_key.clone();
+                if !text.contains(&key) {
+                    eprintln!(
+                        "capture: the recovery key is not in the rendered text -- the panel did not draw (#129)"
+                    );
+                    std::process::exit(2);
+                }
+                if !app.recovery_key_pending() {
+                    eprintln!(
+                        "capture: Restart is live before the recovery key was acknowledged (#129)"
+                    );
+                    std::process::exit(2);
+                }
+            }
+
             let capture = app.capture.as_mut().unwrap();
             capture.texts.push((name, text));
 
@@ -450,11 +500,14 @@ fn finish(app: &mut TunaInstaller) -> Task<crate::Message> {
         }
     }
 
-    if capture.findings.len() != Page::ORDER.len() {
+    // Page::ORDER plus the recovery frame, which is the done page in its
+    // other state rather than a page of its own.
+    let expected_frames = Page::ORDER.len() + 1;
+    if capture.findings.len() != expected_frames {
         failures.push(format!(
-            "captured {} of {} pages",
+            "captured {} of {} frames",
             capture.findings.len(),
-            Page::ORDER.len()
+            expected_frames
         ));
     }
 
