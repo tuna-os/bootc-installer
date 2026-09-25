@@ -134,8 +134,8 @@
       "rendered": true,
       "colours": 224,
       "flat": 0.5017656993704898,
-      "ink": 0.9879727724039101,
-      "stddev": 0.0798775092435744,
+      "ink": 0.987947182557961,
+      "stddev": 0.07991440422320435,
       "text_excerpt": "Installing TunaOS\u2026 fisherman is writing the image to disk. [1/9] Partitioning /dev/nvme0n1\n  created EFI system partition (1.0 GiB, FAT32)\n  created root partition (475.9 GiB)\n[2/9] Formatting boot partitions\n[3/9] Setting up encryption\n  e"
     },
     {
