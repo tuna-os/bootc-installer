@@ -198,6 +198,28 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                 std::process::exit(2);
             }
             capture.findings.push(audit(&shot, &name));
+
+            // The install page is the one screen with a progress bar, and a
+            // bar that lays out but paints nothing is invisible to the audit
+            // above (see widest_accent_run). Fail the capture rather than
+            // publish a documentation image of a bar that is not there.
+            if page == Page::Installing {
+                let run = widest_accent_run(&shot);
+                eprintln!("  installing: widest accent run {:.1}% of width", run * 100.0);
+                // The fixture stops part-way through the image pull, so the
+                // bar is a little over half full across a nearly full-width
+                // track. A third of the window is clear of that and nowhere
+                // near what an unpainted bar (0%) gives.
+                if run < 0.33 {
+                    eprintln!(
+                        "capture: the progress bar on the install page is {:.1}% of the \
+                         window wide — it is laid out but not painted \
+                         (shared/progress/README.md)",
+                        run * 100.0
+                    );
+                    std::process::exit(2);
+                }
+            }
             // The strings this page renders, from the same constants the
             // view is built from (ui::page_text). iced has no widget-tree
             // introspection, so this is how the COSMIC row of the parity
@@ -232,6 +254,58 @@ fn write_png(path: &std::path::Path, shot: &Screenshot) -> std::io::Result<()> {
         .write_image_data(&shot.rgba)
         .map_err(|e| std::io::Error::other(e.to_string()))?;
     Ok(())
+}
+
+/// Is the install page's progress bar actually PAINTED?
+///
+/// The audit above cannot answer this and was never meant to: it measures ink
+/// over the content region, and the install page supplies plenty of that from
+/// the log text alone. The sibling KDE frontend shipped a progress bar that
+/// laid out at full width, reported itself visible and opaque, and painted not
+/// one pixel — and passed every check in this repository, this audit's
+/// equivalent among them, because a page with a populated log looks populated
+/// whether or not the bar drew.
+///
+/// So this looks for the bar specifically. A determinate bar is the only
+/// accent-coloured thing in the content region — the wizard's step indicator
+/// is accent too but lives in the header, above HEADER_SKIP_PX — so the
+/// longest horizontal run of accent pixels on any row IS the filled part of
+/// the bar. An unpainted bar gives a longest run of zero.
+///
+/// Returns the run length in pixels, as a share of the window width.
+fn widest_accent_run(shot: &Screenshot) -> f64 {
+    let accent = cosmic::theme::active().cosmic().accent_color();
+    let (ar, ag, ab) = (
+        (accent.red * 255.0) as i32,
+        (accent.green * 255.0) as i32,
+        (accent.blue * 255.0) as i32,
+    );
+    let (w, h) = (shot.size.width, shot.size.height);
+    let top = HEADER_SKIP_PX.min(h);
+    let mut widest: u32 = 0;
+
+    for y in top..h {
+        let mut run: u32 = 0;
+        for x in 0..w {
+            let i = ((y as usize * w as usize) + x as usize) * 4;
+            if i + 2 >= shot.rgba.len() {
+                break;
+            }
+            // Chebyshev distance, matching the audit's own notion of "the
+            // same colour" rather than inventing a second one.
+            let d = (shot.rgba[i] as i32 - ar)
+                .abs()
+                .max((shot.rgba[i + 1] as i32 - ag).abs())
+                .max((shot.rgba[i + 2] as i32 - ab).abs());
+            if d <= 24 {
+                run += 1;
+                widest = widest.max(run);
+            } else {
+                run = 0;
+            }
+        }
+    }
+    f64::from(widest) / f64::from(w.max(1))
 }
 
 /// Measure what only holds when the UI really rendered.

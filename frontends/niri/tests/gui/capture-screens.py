@@ -28,7 +28,7 @@ os.environ["QML2_IMPORT_PATH"] = os.path.join(REPO, "tests", "qml-stubs")
 os.environ["QML_IMPORT_PATH"] = os.environ["QML2_IMPORT_PATH"]
 
 from PyQt6.QtCore import (QUrl, QTimer, QEventLoop, QMetaObject, Q_ARG,  # noqa: E402
-                          QVariant)
+                          QVariant, QPointF, QRect, QRectF, QSizeF)
 from PyQt6.QtGui import QGuiApplication  # noqa: E402
 from PyQt6.QtQml import QQmlApplicationEngine  # noqa: E402
 from PyQt6.QtQuick import QQuickWindow  # noqa: E402
@@ -67,9 +67,84 @@ _TRANSCRIPT = os.path.join(REPO, "..", "..", "shared", "progress",
 def fixture_lines():
     """Transcript lines up to the middle of the image pull."""
     with open(os.path.normpath(_TRANSCRIPT), encoding="utf-8") as fh:
-        lines = [l for l in fh.read().splitlines() if l.strip()]
-    cut = next(i for i, l in enumerate(lines) if "47/71" in l) + 1
+        lines = [ln for ln in fh.read().splitlines() if ln.strip()]
+    cut = next(i for i, ln in enumerate(lines) if "47/71" in ln) + 1
     return lines[:cut]
+
+
+
+def find_item(root, name):
+    """The QQuickItem with this objectName, searched down the VISUAL tree.
+
+    findChild() walks the QObject tree, which does not reach items a QML
+    component parents visually rather than by ownership — the sibling KDE
+    harness reported its progress bar missing on a screen that was rendering
+    beside it for exactly that reason. childItems() is what "on the screen"
+    means.
+    """
+    if root is None:
+        return None
+    if root.objectName() == name:
+        return root
+    for child in root.childItems():
+        found = find_item(child, name)
+        if found is not None:
+            return found
+    return None
+
+
+def assert_progress_bar_drawn(window, image, out=sys.stderr):
+    """Is the progress bar's filled part actually on the screen?
+
+    The pixel audit cannot answer this and was never meant to: it measures ink
+    over the whole frame, and the install screen supplies plenty from the log
+    text alone. The KDE frontend shipped a bar that laid out at full width,
+    reported itself visible and opaque, and painted nothing — and passed every
+    check in this repository, its capture job included, because a page with a
+    populated log looks populated either way.
+
+    This frontend is the one whose harness used to set `installLog` directly
+    instead of calling appendLog(), so its bar was never exercised here at
+    all. That is fixed; this stops it coming back.
+    """
+    fill = find_item(window.contentItem(), "installProgressFill")
+    if fill is None:
+        print("FAIL: no item named installProgressFill in the visual tree",
+              file=out)
+        return False
+
+    track = fill.parentItem()
+    share = fill.width() / track.width() if track and track.width() > 0 else 0.0
+    print(f"    bar fill: {fill.width():.0f}x{fill.height():.0f} "
+          f"({share:.1%} of track) visible={fill.isVisible()} "
+          f"opacity={fill.opacity():.2f}", file=out)
+
+    if fill.width() <= 0 or fill.height() <= 0 or not fill.isVisible():
+        print("FAIL: the progress bar's fill has no drawable geometry", file=out)
+        return False
+
+    scale = image.width() / window.width()
+    top_left = fill.mapToScene(QPointF(0, 0)) * scale
+    rect = QRectF(top_left,
+                  QSizeF(fill.width() * scale, fill.height() * scale)).toRect()
+    rect = rect.intersected(QRect(0, 0, image.width(), image.height()))
+    if rect.isEmpty():
+        print("FAIL: the progress bar's fill maps to no pixels", file=out)
+        return False
+
+    background = image.pixel(2, 2)
+    ink = sum(
+        1
+        for y in range(rect.top(), rect.bottom() + 1)
+        for x in range(rect.left(), rect.right() + 1)
+        if image.pixel(x, y) != background
+    )
+    if ink == 0:
+        print(f"FAIL: the progress bar's fill covers {rect.width()}x"
+              f"{rect.height()} pixels and every one is the page background "
+              "— it is laid out but not painted", file=out)
+        return False
+    return True
 
 
 def settle(ms=250):
@@ -163,6 +238,11 @@ def main():
             for line in fixture_lines():
                 QMetaObject.invokeMethod(root, "appendLog",
                                          Q_ARG(QVariant, line))
+            # The fill has `Behavior on width { NumberAnimation }`, so it
+            # arrives at its final width over a few hundred milliseconds.
+            # Grabbing on the usual 300ms settle can catch it part-way and
+            # photograph a bar narrower than the install really is.
+            settle(700)
         if page == 5:
             root.setProperty("installSuccess", True)
         settle(300)
@@ -170,6 +250,13 @@ def main():
         path = os.path.join(out, f"{name}.png")
         image.save(path)
         frames.append(path)
+
+        # The install screen is the one with a progress bar, and a bar that
+        # lays out but paints nothing is invisible to the pixel audit. Fail
+        # rather than publish a documentation image of a bar that is not
+        # there.
+        if page == 4 and not assert_progress_bar_drawn(window, image):
+            sys.exit(1)
         finding = audit(image, name)
         finding["png"] = path
         finding["text"] = " ".join(page_text(window.contentItem()))

@@ -693,6 +693,12 @@ ApplicationWindow {
                     height: 8; radius: 4
                     color: Theme.surfaceContainerHighest
                     Rectangle {
+                        // The capture harness finds this by name and fails
+                        // when it is missing, zero-width or unpainted
+                        // (tests/gui/capture-screens.py). findChild() cannot
+                        // see QML ids, hence an objectName.
+                        objectName: "installProgressFill"
+
                         width: parent.width * root.installFraction
                         height: parent.height; radius: 4
                         color: Theme.primary
