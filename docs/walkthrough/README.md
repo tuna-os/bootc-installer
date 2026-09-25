@@ -92,9 +92,9 @@ Quickshell QML + Go backend. Source: `frontends/niri/`.
 | <img src="niri/02-disk.png" width="360"> | **disk**  <br><sub>Step 2 of 6 · Disk Destination Everything on the selected disk will be erased. This cannot be undone. Scanning for disks… Back Back Continue</sub> |
 | <img src="niri/03-encryption.png" width="360"> | **encryption**  <br><sub>Step 3 of 6 · Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without </sub> |
 | <img src="niri/04-confirm.png" width="360"> | **confirm**  <br><sub>Step 4 of 6 · Confirm Confirm installation ⚠  Everything on the selected disk will be erased. This cannot be undone. Summary Target disk — F</sub> |
-| <img src="niri/05-progress.png" width="360"> | **progress**  <br><sub>Step 5 of 6 · Installing Installing TunaOS… Starting… [1/9] Partitioning /dev/nvme0n1
-[2/9] Formatting boot partitions
-[3/9] Setting up encr</sub> |
+| <img src="niri/05-progress.png" width="360"> | **progress**  <br><sub>Step 5 of 6 · Installing Installing TunaOS… Step 5 of 8 — Installing OS [1/8] Partitioning disk
+[2/8] Formatting EFI partition
+[3/8] Formatt</sub> |
 | <img src="niri/06-done.png" width="360"> | **done**  <br><sub>Step 6 of 6 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Close Close Restart now Restart now</sub> |
 
 ## XFCE
@@ -117,8 +117,10 @@ Disk:        /dev/nvme0n1
 Filesystem:  xfs
 Encryption:  none
 Hostname:    </sub> |
-| <img src="xfce/07-progress.png" width="360"> | **progress**  <br><sub>Installing TunaOS… Installing image [1/9] Partitioning /dev/nvme0n1
-  created EFI system partition (1.0 GiB, FAT32)
-  created root partition</sub> |
+| <img src="xfce/07-progress.png" width="360"> | **progress**  <br><sub>Installing TunaOS…  [1/8] Partitioning disk
+[2/8] Formatting EFI partition
+[3/8] Formatting root filesystem
+[4/8] Mounting filesystem
+[5/8] </sub> |
 | <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Restart now Restart now</sub> |
 
