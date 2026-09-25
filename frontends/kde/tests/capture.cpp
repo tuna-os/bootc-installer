@@ -304,6 +304,65 @@ QString itemText(QQuickItem *item)
     return parts.join(QLatin1Char('\n'));
 }
 
+
+// Is the progress bar actually DRAWN?
+//
+// This exists because the first version of the KDE progress bar passed every
+// check in this repository — 37 of them, including this capture job, the
+// backend tests and the end-to-end install — while painting nothing at all.
+// The parity report credited `install` to a screen whose bar was 32 pixels of
+// background, because a report counts widgets and a screenshot audit counts
+// ink over the whole frame, and neither looks at the one region that matters.
+//
+// So this looks there: the bar's own rectangle, compared against the page
+// background. A bar that is missing, zero-sized, transparent or empty fails
+// the job rather than shipping a documentation image of a feature that is not
+// on screen.
+bool progressBarIsDrawn(QQuickWindow *window, const QImage &image, QTextStream &out)
+{
+    auto *bar = window->findChild<QQuickItem *>(u"installProgressBar"_s);
+    if (!bar) {
+        out << "FAIL: no item named installProgressBar on the progress step\n";
+        return false;
+    }
+    out << "    bar: " << bar->width() << "x" << bar->height()
+        << " visible=" << bar->isVisible() << " opacity=" << bar->opacity() << "\n";
+    if (bar->width() <= 0 || bar->height() <= 0 || !bar->isVisible() || bar->opacity() <= 0.0) {
+        out << "FAIL: the progress bar has no drawable geometry\n";
+        return false;
+    }
+
+    const qreal scale = qreal(image.width()) / window->width();
+    const QPointF topLeft = bar->mapToScene(QPointF(0, 0)) * scale;
+    const QRect rect = QRectF(topLeft, QSizeF(bar->width() * scale, bar->height() * scale))
+                           .toRect()
+                           .intersected(QRect(QPoint(0, 0), image.size()));
+    if (rect.isEmpty()) {
+        out << "FAIL: the progress bar maps to no pixels in the frame\n";
+        return false;
+    }
+
+    // The page background, sampled well clear of the bar.
+    const QRgb background = image.pixel(2, 2);
+    int ink = 0;
+    for (int y = rect.top(); y <= rect.bottom(); ++y) {
+        for (int x = rect.left(); x <= rect.right(); ++x) {
+            if (image.pixel(x, y) != background)
+                ++ink;
+        }
+    }
+    const double share = 100.0 * ink / (rect.width() * rect.height());
+    out << "    bar ink: " << QString::number(share, 'f', 1) << "% of "
+        << rect.width() << "x" << rect.height() << "\n";
+    if (ink == 0) {
+        out << "FAIL: the progress bar occupies " << rect.width() << "x" << rect.height()
+            << " pixels and every one of them is the page background — it is laid out "
+               "but not painted\n";
+        return false;
+    }
+    return true;
+}
+
 // Where the current step draws, in image coordinates.
 //
 // Returned empty if the item is missing, and the caller treats that as fatal:
@@ -582,6 +641,8 @@ int main(int argc, char *argv[])
             out << "FAIL: could not locate the step content area for " << step.second << "\n";
             return 1;
         }
+        if (step.second == u"05-progress"_s && !progressBarIsDrawn(window, image, out))
+            return 1;
         Finding f = audit(image, content, step.second);
         f.png = path;
         f.hero = isHeroStep(step.second);

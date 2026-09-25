@@ -53,6 +53,12 @@ TunaComponents.SetupModule {
             Layout.fillWidth: true
 
             ProgressBar {
+                // The capture harness looks this up by name and fails when it
+                // is missing or draws nothing (tests/capture.cpp). It is an
+                // objectName rather than an id because findChild() cannot see
+                // QML ids.
+                objectName: "installProgressBar"
+
                 // Indeterminate only before the first event arrives, so the
                 // step never looks stalled while fisherman starts up.
                 indeterminate: InstallerController.installStep === 0
