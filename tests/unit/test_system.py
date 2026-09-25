@@ -340,6 +340,33 @@ class TestSysteminfoGpuAndTpmCaching:
         assert Systeminfo.has_tpm2(
             os.path.join(self.TPM_FIXTURES, "tpm2")) is True
 
+    def test_fake_tpm_override_shows_the_choices(self, monkeypatch):
+        """The override the other four frontends have had (#133).
+
+        GNOME did not, so its capture rendered a two-option encryption page
+        on every runner -- the blind spot the override exists to close.
+        """
+        monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", "1")
+        assert Systeminfo.has_tpm2(
+            os.path.join(self.TPM_FIXTURES, "legacy-none")) is True
+
+    def test_fake_tpm_override_is_off_when_empty_or_zero(self, monkeypatch):
+        for value in ("", "0"):
+            monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", value)
+            assert Systeminfo.has_tpm2(
+                os.path.join(self.TPM_FIXTURES, "legacy-none")) is False, value
+
+    def test_fake_tpm_beats_the_cache(self, monkeypatch):
+        """Read per call, so a capture that sets it is not defeated by a
+        cached False from an earlier probe of the real root."""
+        monkeypatch.delenv("BOOTC_INSTALLER_FAKE_TPM", raising=False)
+        monkeypatch.setattr(
+            "bootc_installer.core.system.tpm_probe.probe_tpm2",
+            lambda root: False)
+        assert Systeminfo.has_tpm2() is False
+        monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", "1")
+        assert Systeminfo.has_tpm2() is True
+
     def test_has_tpm2_false_for_a_tpm12_device(self):
         """A TPM 1.2 machine cannot do tpm2-luks.
 
