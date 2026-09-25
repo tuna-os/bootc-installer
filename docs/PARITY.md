@@ -54,7 +54,7 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
 | Filesystem choice | yes | yes | yes | no (xfs) | yes (Advanced) |
 | Encryption: none / passphrase | yes | yes | yes | yes | yes |
 | Encryption: TPM / TPM + passphrase | yes | yes | yes | yes | yes |
-| Recovery key page after TPM enrolment | yes | no | no | no | no |
+| Recovery key page after TPM enrolment | yes | log only | log only | log only | log only |
 | Hostname | generated, editable on confirm | field | field | field on confirm | field |
 | User account | yes (companion or wizard) | no | no | no | yes |
 | Phone companion (QR) | yes | no | no | no | no |
@@ -70,18 +70,19 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
 
 1. ~~**Encryption set** (KDE, XFCE)~~ — **not a gap.** Both offer TPM and
    TPM + passphrase today. Each hides the two choices when
-   `/sys/class/tpm/tpm0` is missing. No CI runner has a TPM, so the capture
-   showed two choices and this table copied it. Set
+   `/sys/class/tpm/tpm0` is missing. No CI runner has a TPM. The capture
+   thus showed only two of the choices, and this table copied it. Set
    `BOOTC_INSTALLER_FAKE_TPM=1` to capture all four.
 2. ~~**Progress bar**~~ — **closed.** All five read
-   `shared/progress/README.md` now. This entry used to say fisherman emits
-   `[n/9]`, which it never has: three frontends were built on that claim and
-   their bars sat at zero for every real install, while fixtures written in
-   the same invented shape photographed one moving. Drive the bar from
-   `cumulative_pct`, never `step / total_steps` — `total_steps` varies with
-   the recipe and one step carries 87% of the time.
+   `shared/progress/README.md` now. This entry said that fisherman emits
+   `[n/9]`. It does not. Three frontends used that claim, so their bars
+   stayed at zero. Their fixtures used the same shape, so the pictures
+   showed a bar that moved. Drive the bar from `cumulative_pct`, not from
+   `step / total_steps`: `total_steps` changes with the recipe, and one
+   step takes 87% of the time.
 3. **Recovery key page** (all four): fisherman prints the key after TPM
-   enrolment; GNOME's `views/recovery_key.py` is the reference.
+   enrolment; GNOME's `views/recovery_key.py` is the reference. The four
+   write it to the install log only (#129).
 4. **User account** (KDE, COSMIC, Niri): a username, full name and
    password step that writes the recipe's `user` block, as XFCE does.
 5. **Store and tour assets** (all four): only worth it where the desktop
