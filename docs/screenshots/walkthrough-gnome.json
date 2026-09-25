@@ -86,7 +86,7 @@
   "pages": [
     {
       "name": "welcome",
-      "png": "/tmp/caps/gnome/01-welcome.png",
+      "png": "/tmp/caps2/gnome/01-welcome.png",
       "rendered": true,
       "colours": 487,
       "flat": 0.9139866339334425,
@@ -96,17 +96,17 @@
     },
     {
       "name": "qr_companion",
-      "png": "/tmp/caps/gnome/02-qr_companion.png",
+      "png": "/tmp/caps2/gnome/02-qr_companion.png",
       "rendered": true,
-      "colours": 528,
-      "flat": 0.9276050190943808,
-      "ink": 0.037159028914348066,
-      "stddev": 0.12112405750529917,
+      "colours": 530,
+      "flat": 0.9275504637206765,
+      "ink": 0.03719994544462629,
+      "stddev": 0.12116037076687075,
       "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
     },
     {
       "name": "disk",
-      "png": "/tmp/caps/gnome/03-disk.png",
+      "png": "/tmp/caps2/gnome/03-disk.png",
       "rendered": true,
       "colours": 505,
       "flat": 0.8479609929078015,
@@ -116,7 +116,7 @@
     },
     {
       "name": "slurp",
-      "png": "/tmp/caps/gnome/04-slurp.png",
+      "png": "/tmp/caps2/gnome/04-slurp.png",
       "rendered": true,
       "colours": 223,
       "flat": 0.9590561920349154,
@@ -126,7 +126,7 @@
     },
     {
       "name": "encryption",
-      "png": "/tmp/caps/gnome/05-encryption.png",
+      "png": "/tmp/caps2/gnome/05-encryption.png",
       "rendered": true,
       "colours": 249,
       "flat": 0.8610679214402619,
@@ -136,17 +136,17 @@
     },
     {
       "name": "confirm",
-      "png": "/tmp/caps/gnome/06-confirm.png",
+      "png": "/tmp/caps2/gnome/06-confirm.png",
       "rendered": true,
-      "colours": 229,
+      "colours": 232,
       "flat": 0.9183647026732134,
-      "ink": 0.005987452264048009,
-      "stddev": 0.04859858033273673,
+      "ink": 0.00598063284233497,
+      "stddev": 0.0485829347545585,
       "text_excerpt": "Confirm installation Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Install Install"
     },
     {
       "name": "progress",
-      "png": "/tmp/caps/gnome/07-progress.png",
+      "png": "/tmp/caps2/gnome/07-progress.png",
       "rendered": true,
       "colours": 172,
       "flat": 0.9618794326241135,
@@ -156,7 +156,7 @@
     },
     {
       "name": "recovery-key",
-      "png": "/tmp/caps/gnome/08-recovery-key.png",
+      "png": "/tmp/caps2/gnome/08-recovery-key.png",
       "rendered": true,
       "colours": 261,
       "flat": 0.931512547735952,
@@ -166,7 +166,7 @@
     },
     {
       "name": "done",
-      "png": "/tmp/caps/gnome/09-done.png",
+      "png": "/tmp/caps2/gnome/09-done.png",
       "rendered": true,
       "colours": 269,
       "flat": 0.9619885433715221,
@@ -176,12 +176,12 @@
     }
   ],
   "transition_pixels": [
-    75722,
-    89624,
+    75803,
+    89705,
     51171,
     34536,
-    37215,
-    30606,
+    37218,
+    30623,
     43489,
     41701
   ],
