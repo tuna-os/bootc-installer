@@ -251,8 +251,21 @@ def _page_text(widget, acc=None):
     collect all eight pages' text at once and credit every screen on every
     frame, which is precisely the false-parity failure tunaOS's spec file
     warns about in its comments.
+
+    Hidden widgets are skipped for that same reason, one level down. Several
+    widgets here are set_no_show_all(True) or hidden when their value is
+    empty (the welcome subtitle, the done page's body and store button, the
+    reboot button), and without this their text still reached the parity
+    report — crediting a screen for a line nobody can see. The GNOME harness
+    had the same hole, where it credited a Bluetooth row that only appears
+    on a machine with an adapter.
+
+    get_visible(), not get_mapped(): the offscreen render never maps
+    anything, so get_mapped() would empty the report.
     """
     acc = [] if acc is None else acc
+    if not widget.get_visible():
+        return acc
     if isinstance(widget, Gtk.Label):
         acc.append(widget.get_text() or "")
     elif isinstance(widget, Gtk.Button):
