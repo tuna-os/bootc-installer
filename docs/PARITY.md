@@ -53,7 +53,7 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
 | Disk choice with erase warning | yes | yes | yes | yes | yes |
 | Filesystem choice | yes | yes | yes | no (xfs) | yes (Advanced) |
 | Encryption: none / passphrase | yes | yes | yes | yes | yes |
-| Encryption: TPM / TPM + passphrase | yes | no | yes | yes | no |
+| Encryption: TPM / TPM + passphrase | yes | yes | yes | yes | yes |
 | Recovery key page after TPM enrolment | yes | no | no | no | no |
 | Hostname | generated, editable on confirm | field | field | field on confirm | field |
 | User account | yes (companion or wizard) | no | no | no | yes |
@@ -68,9 +68,11 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
 
 ## Closing the gaps, in order
 
-1. **Encryption set** (KDE, XFCE): offer TPM and TPM + passphrase. The
-   recipe and fisherman already support them, and the TPM probe exists in
-   both frontends.
+1. ~~**Encryption set** (KDE, XFCE)~~ — **not a gap.** Both offer TPM and
+   TPM + passphrase today. Each hides the two choices when
+   `/sys/class/tpm/tpm0` is missing. No CI runner has a TPM, so the capture
+   showed two choices and this table copied it. Set
+   `BOOTC_INSTALLER_FAKE_TPM=1` to capture all four.
 2. **Progress bar** (KDE, Niri, COSMIC): fisherman emits `[n/9]` and a
    `cumulative_pct` field; the XFCE parser in `tuna_installer_xfce/core.py`
    is the smallest reference.

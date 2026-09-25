@@ -63,6 +63,25 @@ widget tree in-process.
 So `walk.mjs` asserts geometry on GTK4 only, and says `canvas` rather than
 silently reporting nothing for GTK3.
 
+### Its geometry does not match the Xvfb capture
+
+The same page, same build, lays out differently in the two harnesses: under
+Xvfb the GNOME welcome content is centred in a 1691x732 window, and under
+Broadway it sits hard against the right edge of a window whose chrome draws
+about 1000px wide. The DOM reports a 1691px-wide surface at x=61 while the
+frame ends near x=1060, and the content is centred for the former.
+
+Which of the two is showing real geometry is not established. Chasing it
+produced two confident wrong answers -- a viewport crop (the window fits the
+1200px viewport, so there was none) and a stale Broadway repaint after a
+mid-run resize (sizing the viewport up front changes nothing) -- so the honest
+statement is that nobody has explained it yet.
+
+So: use this harness for content, branding, copy keys and interaction, which
+is what it is good at and how it found the branding leak fixed in #117. Do
+**not** read layout or spacing off it, and do not use it to compare styling
+between frontends. The Xvfb captures remain the reference for geometry.
+
 ## What the checks actually catch
 
 A blank window still writes a valid PNG, so file size alone proves nothing.

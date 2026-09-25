@@ -14,7 +14,17 @@
 InstallerController::InstallerController(QObject *parent)
     : QObject(parent)
 {
-    m_hasTpm = QFileInfo::exists(QStringLiteral("/sys/class/tpm/tpm0"));
+    // BOOTC_INSTALLER_FAKE_TPM only ever makes the two TPM choices VISIBLE,
+    // and exists because hiding them means a capture taken on a machine
+    // without a TPM -- every CI runner -- renders a two-option encryption
+    // page. docs/PARITY.md is read off those screenshots, so this frontend
+    // was recorded as having no TPM support when it has offered both TPM
+    // modes all along. Picking one still writes an ordinary recipe; fisherman
+    // is what fails, later and loudly, if there is no TPM to enrol against.
+    // Same variable and same meaning as the XFCE frontend's core.has_tpm().
+    const QByteArray fakeTpm = qgetenv("BOOTC_INSTALLER_FAKE_TPM");
+    m_hasTpm = (!fakeTpm.isEmpty() && fakeTpm != "0")
+        || QFileInfo::exists(QStringLiteral("/sys/class/tpm/tpm0"));
     // Product identity per shared/branding/README.md: branding.json, then
     // os-release, then neutral. Nothing in this frontend names a product.
     m_branding = branding::resolve();

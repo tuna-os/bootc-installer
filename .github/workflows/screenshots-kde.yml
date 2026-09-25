@@ -95,6 +95,13 @@ jobs:
           # with the neutral fallback name rather than the container's
           # PRETTY_NAME.
           BOOTC_INSTALLER_PRODUCT_NAME: TunaOS
+          # Show the TPM encryption choices. They are hidden when
+          # /sys/class/tpm/tpm0 is absent, which it is on every runner, so an
+          # unset capture renders a two-option encryption page -- and
+          # docs/PARITY.md, which is read off these screenshots, recorded this
+          # frontend as having no TPM support when it has offered both TPM
+          # modes all along.
+          BOOTC_INSTALLER_FAKE_TPM: "1"
         run: |
           mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
           ./build/tuna-installer-capture docs/screenshots
