@@ -115,7 +115,7 @@
       "colours": 453,
       "flat": 0.6161333333333333,
       "ink": 0.11356666666666666,
-      "stddev": 0.11049312796175044,
+      "stddev": 0.11048502176346062,
       "text_excerpt": "Step 3 of 6 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
@@ -135,7 +135,7 @@
       "colours": 272,
       "flat": 0.6304666666666666,
       "ink": 0.0182,
-      "stddev": 0.07907322882807281,
+      "stddev": 0.07906234140943866,
       "text_excerpt": "Step 5 of 6 \u00b7 Installing Installing TunaOS\u2026 Starting\u2026 [1/9] Partitioning /dev/nvme0n1\n[2/9] Formatting boot partitions\n[3/9] Setting up encryption\n[4/9] Formatting root filesystem (xfs)\n[5/9] Mounting target at /mnt\n[6/9] Installing image g"
     },
     {
@@ -145,7 +145,7 @@
       "colours": 197,
       "flat": 0.9602666666666667,
       "ink": 0.017766666666666667,
-      "stddev": 0.08847120912641952,
+      "stddev": 0.08848182910054132,
       "text_excerpt": "Step 6 of 6 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. Close Close Restart now Restart now"
     }
   ],
