@@ -318,11 +318,40 @@ QString itemText(QQuickItem *item)
 // background. A bar that is missing, zero-sized, transparent or empty fails
 // the job rather than shipping a documentation image of a feature that is not
 // on screen.
+// findChild() walks the QObject tree, which does not reach here.
+//
+// The first version of this check used window->findChild() — the same call
+// stepContentRect() uses for "stepsContainer" — and reported the bar missing
+// on a screen that was rendering the caption right beside it. stepsContainer
+// lives in Wizard.qml, part of the window's own object tree; a step module's
+// contents are loaded into a Kirigami page, and those items are not QObject
+// children of the window. So the lookup was answering a different question
+// from the one it looked like it was asking.
+//
+// Walking childItems() instead follows the VISUAL tree, which is what "on the
+// screen" means and what this check is about.
+QQuickItem *findItemByName(QQuickItem *root, const QString &name)
+{
+    if (!root)
+        return nullptr;
+    if (root->objectName() == name)
+        return root;
+    const QList<QQuickItem *> children = root->childItems();
+    for (QQuickItem *child : children) {
+        if (QQuickItem *found = findItemByName(child, name))
+            return found;
+    }
+    return nullptr;
+}
+
 bool progressBarIsDrawn(QQuickWindow *window, const QImage &image, QTextStream &out)
 {
-    auto *bar = window->findChild<QQuickItem *>(u"installProgressBar"_s);
+    QQuickItem *bar = findItemByName(window->contentItem(), u"installProgressBar"_s);
+    if (!bar)
+        bar = window->findChild<QQuickItem *>(u"installProgressBar"_s);
     if (!bar) {
-        out << "FAIL: no item named installProgressBar on the progress step\n";
+        out << "FAIL: no item named installProgressBar in the visual tree "
+               "of the progress step\n";
         return false;
     }
     out << "    bar: " << bar->width() << "x" << bar->height()
