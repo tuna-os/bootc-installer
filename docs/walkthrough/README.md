@@ -27,7 +27,7 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 | KDE Plasma | 7 | 7 | 6 | tests/capture.cpp (Kirigami/QML, offscreen) |
 | COSMIC | 7 | 7 | 6 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
 | Niri | 7 | 7 | 6 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
-| XFCE | 9 | 9 | 7 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
+| XFCE | 9 | 9 | 8 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
 
 ## GNOME
 
@@ -120,11 +120,10 @@ Disk:        /dev/nvme0n1
 Filesystem:  xfs
 Encryption:  none
 Hostname:    </sub> |
-| <img src="xfce/07-progress.png" width="360"> | **progress**  <br><sub>Installing TunaOS…  [1/8] Partitioning disk
+| <img src="xfce/07-progress.png" width="360"> | **progress**  <br><sub>Installing TunaOS…  Do not power off the computer. [1/8] Partitioning disk
 [2/8] Formatting EFI partition
 [3/8] Formatting root filesystem
-[4/8] Mounting filesystem
-[5/8] </sub> |
+[</sub> |
 | <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Restart now Restart now</sub> |
 | <img src="xfce/09-recovery.png" width="360"> | **recovery**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automaticall</sub> |
 
