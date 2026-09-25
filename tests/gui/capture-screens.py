@@ -48,6 +48,26 @@ os.environ.setdefault("BOOTC_DEMO", "1")
 # branding therefore follows recipe.json (distro_name / welcome_title); a
 # downstream ISO that overrides the recipe brands itself the same way.
 os.environ.setdefault("BOOTC_CUSTOM_RECIPE", os.path.join(REPO, "recipe.json"))
+# recipe.json carries no product strings, so branding still resolves from the
+# host's os-release and an unpinned capture is BRANDED BY THE RUNNER -- on an
+# ubuntu-24.04 box the wizard renders "Welcome to Ubuntu 24.04.4 LTS".
+#
+# Pin the whole branding object, not just the name. BOOTC_INSTALLER_PRODUCT_NAME
+# (which screenshots-gnome.yml passes) covers `name` and nothing else, so the
+# committed docs/screenshots/01-welcome.png reads "Welcome to TunaOS" under the
+# runner's Ubuntu LOGO: os-release `LOGO=ubuntu-logo` was never overridden.
+# setdefault, so a workflow pointing at a real product's file still wins.
+os.environ.setdefault(
+    "BOOTC_INSTALLER_BRANDING",
+    os.path.join(REPO, "shared", "walkthrough", "capture-branding.json"))
+# That branding names the app's own icon, which meson installs into the icon
+# theme but a from-source run has never seen -- it would render as the broken
+# -image glyph. data/ is laid out as a datadir (icons/hicolor/...), so putting
+# it on XDG_DATA_DIRS makes the theme find it without installing anything.
+os.environ["XDG_DATA_DIRS"] = os.pathsep.join([
+    os.path.join(REPO, "data"),
+    os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share",
+])
 # Skip the RAM / CPU / UEFI gate windows: this is a render of the wizard.
 os.environ.setdefault("IGNORE_RAM", "1")
 os.environ.setdefault("IGNORE_CPU", "1")

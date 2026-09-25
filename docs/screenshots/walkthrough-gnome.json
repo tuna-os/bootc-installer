@@ -86,27 +86,27 @@
   "pages": [
     {
       "name": "welcome",
-      "png": "docs/screenshots/01-welcome.png",
+      "png": "/tmp/caps2/gnome/01-welcome.png",
       "rendered": true,
-      "colours": 300,
-      "flat": 0.9077127659574468,
-      "ink": 0.012650027277686852,
-      "stddev": 0.06306664887350331,
+      "colours": 487,
+      "flat": 0.9139866339334425,
+      "ink": 0.007515002727768685,
+      "stddev": 0.05863359634784381,
       "text_excerpt": "Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Connect Bluetooth Devices Pair your keyboard or mouse to continue Connect Bluetooth Devices Pair your keyboard or mouse to conti"
     },
     {
       "name": "qr_companion",
-      "png": "docs/screenshots/02-qr_companion.png",
+      "png": "/tmp/caps2/gnome/02-qr_companion.png",
       "rendered": true,
-      "colours": 528,
-      "flat": 0.9275436442989634,
-      "ink": 0.03712493180578287,
-      "stddev": 0.12110260625213465,
+      "colours": 530,
+      "flat": 0.9275504637206765,
+      "ink": 0.03719994544462629,
+      "stddev": 0.12116037076687075,
       "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
     },
     {
       "name": "disk",
-      "png": "docs/screenshots/03-disk.png",
+      "png": "/tmp/caps2/gnome/03-disk.png",
       "rendered": true,
       "colours": 505,
       "flat": 0.8479609929078015,
@@ -116,7 +116,7 @@
     },
     {
       "name": "slurp",
-      "png": "docs/screenshots/04-slurp.png",
+      "png": "/tmp/caps2/gnome/04-slurp.png",
       "rendered": true,
       "colours": 223,
       "flat": 0.9590561920349154,
@@ -126,7 +126,7 @@
     },
     {
       "name": "encryption",
-      "png": "docs/screenshots/05-encryption.png",
+      "png": "/tmp/caps2/gnome/05-encryption.png",
       "rendered": true,
       "colours": 249,
       "flat": 0.8610679214402619,
@@ -136,17 +136,17 @@
     },
     {
       "name": "confirm",
-      "png": "docs/screenshots/06-confirm.png",
+      "png": "/tmp/caps2/gnome/06-confirm.png",
       "rendered": true,
-      "colours": 237,
+      "colours": 232,
       "flat": 0.9183647026732134,
-      "ink": 0.006260229132569558,
-      "stddev": 0.04940145719523461,
+      "ink": 0.00598063284233497,
+      "stddev": 0.0485829347545585,
       "text_excerpt": "Confirm installation Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Install Install"
     },
     {
       "name": "progress",
-      "png": "docs/screenshots/07-progress.png",
+      "png": "/tmp/caps2/gnome/07-progress.png",
       "rendered": true,
       "colours": 172,
       "flat": 0.9618794326241135,
@@ -156,7 +156,7 @@
     },
     {
       "name": "recovery-key",
-      "png": "docs/screenshots/08-recovery-key.png",
+      "png": "/tmp/caps2/gnome/08-recovery-key.png",
       "rendered": true,
       "colours": 261,
       "flat": 0.931512547735952,
@@ -166,7 +166,7 @@
     },
     {
       "name": "done",
-      "png": "docs/screenshots/09-done.png",
+      "png": "/tmp/caps2/gnome/09-done.png",
       "rendered": true,
       "colours": 269,
       "flat": 0.9619885433715221,
@@ -176,12 +176,12 @@
     }
   ],
   "transition_pixels": [
-    80916,
-    89661,
+    75803,
+    89705,
     51171,
     34536,
-    37628,
-    31039,
+    37218,
+    30623,
     43489,
     41701
   ],

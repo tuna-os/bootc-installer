@@ -82,6 +82,29 @@ os.environ["FISHERMAN_IMAGES_PATH"] = _catalog_path
 os.environ.setdefault("XDG_RUNTIME_DIR", _tmp)
 os.environ.setdefault("GTK_A11Y", "none")
 
+# Product branding is resolved from the host's os-release, so an unpinned
+# capture is BRANDED BY THE RUNNER: on a GitHub ubuntu-24.04 box the wizard
+# renders "Welcome to Ubuntu 24.04.4 LTS", and the main-branch job commits
+# those PNGs into docs/. Pin it so the committed walkthrough is stable and
+# says the family name, exactly as it did before branding became dynamic.
+# On a real Skipjack ISO the same attributes read "Skipjack" instead.
+#
+# This has to happen BEFORE tuna_installer_xfce.core is imported: core
+# resolves the whole Branding object once at import and every copy key is
+# formatted from it. Setting core.PRODUCT_NAME afterwards pinned only the
+# one f-string that reads it, which is why the committed walkthrough said
+# "Welcome to Ubuntu 24.04.5 LTS This assistant installs TunaOS" -- the
+# runner's name and the pinned one, in the same sentence.
+#
+# Pin the whole object rather than BOOTC_INSTALLER_PRODUCT_NAME, which covers
+# `name` alone and leaves os-release's LOGO and assets showing through.
+# setdefault, so a workflow pointing at a real product's file still wins.
+# REPO here is the frontend tree, not the monorepo root, so reach the shared
+# file the same way tests/gui/parity_report.py does.
+os.environ.setdefault("BOOTC_INSTALLER_BRANDING", os.path.normpath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "..", "..", "..", "..", "shared", "walkthrough", "capture-branding.json")))
+
 # SAFETY, and not a small one. ProgressPage.on_enter() calls
 # win.start_install(), so simply navigating the wizard to the progress page
 # LAUNCHES A REAL INSTALL — there is no confirmation between the two. A capture
@@ -127,14 +150,6 @@ def _fake_host_run(argv, **kwargs):
 core.host_run = _fake_host_run
 core.live_iso_image = lambda: None
 core.offline_stores = lambda: []
-
-# Product branding is resolved from the host's os-release, so an unpinned
-# capture is BRANDED BY THE RUNNER: on a GitHub ubuntu-24.04 box the wizard
-# renders "Welcome to Ubuntu 24.04.4 LTS", and the main-branch job commits
-# those PNGs into docs/. Pin it so the committed walkthrough is stable and
-# says the family name, exactly as it did before branding became dynamic.
-# On a real Skipjack ISO the same attributes read "Skipjack" instead.
-core.PRODUCT_NAME = "TunaOS"
 
 from tuna_installer_xfce.app import PAGE_ORDER, InstallerWindow  # noqa: E402,F401
 
