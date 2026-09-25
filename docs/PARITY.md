@@ -68,15 +68,11 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
 
 ## Closing the gaps, in order
 
-1. ~~**Encryption set** (KDE, XFCE)~~ — **not a gap.** Both already offer
-   TPM and TPM + passphrase, and always did. They hide the two choices when
-   `/sys/class/tpm/tpm0` is absent, which it is on every CI runner, so the
-   captured encryption page showed two options and this table was read off
-   that. `BOOTC_INSTALLER_FAKE_TPM=1` makes the capture render all four; the
-   screenshots now show what the installer can do rather than what the
-   runner's hardware allows. Hiding rather than disabling is deliberate:
-   offering a TPM mode on a machine without a TPM only fails later, at
-   install time.
+1. ~~**Encryption set** (KDE, XFCE)~~ — **not a gap.** Both offer TPM and
+   TPM + passphrase today. Each hides the two choices when
+   `/sys/class/tpm/tpm0` is missing. No CI runner has a TPM, so the capture
+   showed two choices and this table copied it. Set
+   `BOOTC_INSTALLER_FAKE_TPM=1` to capture all four.
 2. **Progress bar** (KDE, Niri, COSMIC): fisherman emits `[n/9]` and a
    `cumulative_pct` field; the XFCE parser in `tuna_installer_xfce/core.py`
    is the smallest reference.
