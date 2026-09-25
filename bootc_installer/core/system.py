@@ -4,6 +4,8 @@ import os
 import re
 import subprocess
 
+from . import tpm_probe
+
 
 # Vendor name normalization: raw DMI vendor → clean short name.
 _VENDOR_MAP = {
@@ -198,11 +200,22 @@ class Systeminfo:
         return f"gpu-{primary}-symbolic"
 
     @staticmethod
-    def has_tpm2() -> bool:
-        """Detect TPM2 chip via sysfs."""
+    def has_tpm2(root: str = "/") -> bool:
+        """Detect a TPM 2.0 chip, per shared/tpm/README.md.
+
+        This used to test `/sys/class/tpm/tpm0` for existence, which the
+        kernel also creates for a TPM 1.2 device -- so a 1.2 machine was
+        offered tpm2-luks and the install failed at enrolment, after the
+        disk had been partitioned.
+
+        Only the real root is cached; a test passing a fixture tree gets a
+        fresh answer each call.
+        """
+        if root != "/":
+            return tpm_probe.probe_tpm2(root)
         if Systeminfo._tpm2 is not None:
             return Systeminfo._tpm2
-        Systeminfo._tpm2 = os.path.exists("/sys/class/tpm/tpm0")
+        Systeminfo._tpm2 = tpm_probe.probe_tpm2(root)
         return Systeminfo._tpm2
 
     @staticmethod

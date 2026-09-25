@@ -4,9 +4,11 @@
 #include "readiness.h"
 #include "recipe.h"
 #include "installercontroller.h"
+#include "tpm.h"
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -33,6 +35,11 @@ private slots:
     void readinessWriteStampFailsWithEmptyRuntimeDir();
     void readinessWriteStampWritesExpectedFields();
     void readinessWriteStampBlankPageBecomesUnknown();
+
+    // TPM 2.0 detection (shared/tpm/README.md). The probe used to be the
+    // existence of /sys/class/tpm/tpm0, which a TPM 1.2 device has too.
+    void tpmProbeReadsTheVersionNotTheDirectory_data();
+    void tpmProbeReadsTheVersionNotTheDirectory();
 
     // fisherman's progress protocol (shared/progress/README.md). KDE had no
     // progress bar; these pin the parse that now drives one.
@@ -465,6 +472,32 @@ void BackendTest::progressRendersEventsForTheLogPane()
 
     QVERIFY(c.log().contains(QStringLiteral("[5/8] Installing OS")));
     QVERIFY(!c.log().contains(QStringLiteral("cumulative_pct")));
+}
+
+void BackendTest::tpmProbeReadsTheVersionNotTheDirectory_data()
+{
+    QTest::addColumn<QString>("tree");
+    QTest::addColumn<bool>("expected");
+
+    // shared/tpm/fixtures/ -- the same trees every frontend's probe is
+    // pointed at, so all five agree.
+    QTest::newRow("tpm2: version reads 2") << QStringLiteral("tpm2") << true;
+    QTest::newRow("tpm12: 1.2 cannot do tpm2-luks") << QStringLiteral("tpm12") << false;
+    QTest::newRow("legacy-tpm2: no version file, tpmrm0 is TPM2-only")
+        << QStringLiteral("legacy-tpm2") << true;
+    QTest::newRow("legacy-none: neither signal") << QStringLiteral("legacy-none") << false;
+}
+
+void BackendTest::tpmProbeReadsTheVersionNotTheDirectory()
+{
+    QFETCH(QString, tree);
+    QFETCH(bool, expected);
+
+    const QString root = QDir(QStringLiteral(TPM_FIXTURES_DIR)).filePath(tree);
+    if (!QFileInfo::exists(root)) {
+        QSKIP("shared/tpm/fixtures is absent; this tree is checked out alone");
+    }
+    QCOMPARE(tpm::probe2(root), expected);
 }
 
 QTEST_APPLESS_MAIN(BackendTest)

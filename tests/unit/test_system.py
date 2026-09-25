@@ -317,23 +317,38 @@ class TestSysteminfoGpuAndTpmCaching:
 
         assert Systeminfo.has_nvidia_gpu() is False
 
-    def test_has_tpm2_false_when_sysfs_missing(self, monkeypatch):
+    # shared/tpm/fixtures — the trees every frontend's probe is judged by.
+    TPM_FIXTURES = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "shared", "tpm", "fixtures")
+
+    def test_has_tpm2_caches_only_the_real_root(self, monkeypatch):
         calls = []
 
-        def fake_exists(path):
-            calls.append(path)
+        def fake_probe(root):
+            calls.append(root)
             return False
 
-        monkeypatch.setattr("bootc_installer.core.system.os.path.exists", fake_exists)
+        monkeypatch.setattr(
+            "bootc_installer.core.system.tpm_probe.probe_tpm2", fake_probe)
 
         assert Systeminfo.has_tpm2() is False
         assert Systeminfo.has_tpm2() is False
-        assert calls == ["/sys/class/tpm/tpm0"]
+        assert calls == ["/"], "the real root is probed once and cached"
 
-    def test_has_tpm2_true_when_sysfs_exists(self, monkeypatch):
-        monkeypatch.setattr("bootc_installer.core.system.os.path.exists", lambda path: True)
+    def test_has_tpm2_true_for_a_tpm2_device(self):
+        assert Systeminfo.has_tpm2(
+            os.path.join(self.TPM_FIXTURES, "tpm2")) is True
 
-        assert Systeminfo.has_tpm2() is True
+    def test_has_tpm2_false_for_a_tpm12_device(self):
+        """A TPM 1.2 machine cannot do tpm2-luks.
+
+        This used to test /sys/class/tpm/tpm0 for existence, which this
+        fixture has, so the old probe said True and the install failed at
+        enrolment -- after the disk had been partitioned.
+        """
+        assert Systeminfo.has_tpm2(
+            os.path.join(self.TPM_FIXTURES, "tpm12")) is False
 
 
 class TestGenerateHostname:

@@ -49,6 +49,8 @@ set(BACKEND_SOURCES
     src/installercontroller.h
     src/readiness.cpp
     src/readiness.h
+    src/tpm.cpp
+    src/tpm.h
 )
 
 # copy-defaults.json compiled into branding.cpp as a raw string literal. The
@@ -129,6 +131,7 @@ if(BUILD_TESTING)
         src/branding.cpp
         src/offline.cpp
         src/readiness.cpp
+        src/tpm.cpp
         # For the fisherman progress protocol parse. The controller's other
         # halves (QProcess, the recipe file) are not exercised here; the
         # tests below feed appendLine() directly, which is the same entry
@@ -139,7 +142,8 @@ if(BUILD_TESTING)
     # The branding fixtures every frontend's resolver is judged by; the test
     # skips when this tree is checked out without the monorepo around it.
     target_compile_definitions(tuna-installer-backend-tests PRIVATE
-        BRANDING_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/branding/fixtures")
+        BRANDING_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/branding/fixtures"
+        TPM_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/tpm/fixtures")
     # Qt6::Quick is needed to compile readiness.cpp: armStamp() takes a
     # QQuickWindow, so the type must be complete even though the tests below
     # only exercise writeStamp(), which has no Quick dependency of its own.

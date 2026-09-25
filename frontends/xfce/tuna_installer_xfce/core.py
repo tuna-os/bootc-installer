@@ -7,7 +7,7 @@ import shlex
 import subprocess
 import tempfile
 
-from tuna_installer_xfce import branding
+from tuna_installer_xfce import branding, tpm_probe
 
 IN_FLATPAK = os.path.exists("/.flatpak-info")
 
@@ -67,10 +67,14 @@ def dry_run():
 # It only ever makes the options VISIBLE. Choosing one still writes an ordinary
 # recipe, and fisherman is what fails, later and loudly, if there is no TPM to
 # enrol against.
-def has_tpm():
-    if os.environ.get("BOOTC_INSTALLER_FAKE_TPM", "") not in ("", "0"):
+# The probe itself is shared/tpm/README.md: read tpm_version_major and accept
+# only "2". Testing /sys/class/tpm/tpm0 for existence, which this did, is true
+# for a TPM 1.2 device too, so a 1.2 machine was offered tpm2-luks and the
+# install failed at enrolment -- after the disk had been partitioned.
+def has_tpm(root="/"):
+    if tpm_probe.fake_tpm_requested():
         return True
-    return os.path.exists("/sys/class/tpm/tpm0")
+    return tpm_probe.probe_tpm2(root)
 
 # A representative fisherman transcript for the dry run, in fisherman's real
 # wire format: newline-delimited JSON on stdout, one event per line

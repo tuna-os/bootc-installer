@@ -1,4 +1,5 @@
 #include "installercontroller.h"
+#include "tpm.h"
 #include "log.h"
 #include "offline.h"
 #include "branding.h"
@@ -26,7 +27,7 @@ InstallerController::InstallerController(QObject *parent)
     // Same variable and same meaning as the XFCE frontend's core.has_tpm().
     const QByteArray fakeTpm = qgetenv("BOOTC_INSTALLER_FAKE_TPM");
     m_hasTpm = (!fakeTpm.isEmpty() && fakeTpm != "0")
-        || QFileInfo::exists(QStringLiteral("/sys/class/tpm/tpm0"));
+        || tpm::probe2(QStringLiteral("/"));
     // Product identity per shared/branding/README.md: branding.json, then
     // os-release, then neutral. Nothing in this frontend names a product.
     m_branding = branding::resolve();

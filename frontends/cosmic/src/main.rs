@@ -185,7 +185,29 @@ pub static ENCRYPTION_CHOICES: [EncryptionChoice; 4] = [
 pub fn tpm_available() -> bool {
     match std::env::var("BOOTC_INSTALLER_FAKE_TPM") {
         Ok(v) if !v.is_empty() && v != "0" => true,
-        _ => std::path::Path::new("/sys/class/tpm/tpm0").exists(),
+        _ => probe_tpm2(std::path::Path::new("/")),
+    }
+}
+
+/// The kernel writes the TCG spec major version here: "2" for TPM 2.0, "1"
+/// for TPM 1.2. Added in Linux 5.5.
+const TPM_VERSION_FILE: &str = "sys/class/tpm/tpm0/tpm_version_major";
+
+/// The in-kernel resource manager is a TPM 2.0 feature, so the kernel makes
+/// this node only for a 2.0 device. Fallback for kernels older than 5.5.
+const TPM_RESOURCE_MANAGER: &str = "dev/tpmrm0";
+
+/// Whether `root` holds a TPM 2.0 device, per shared/tpm/README.md.
+///
+/// This used to test `/sys/class/tpm/tpm0` for existence, which the kernel
+/// also creates for a TPM 1.2 device -- so a 1.2 machine was offered
+/// tpm2-luks and the install failed at enrolment, after the disk had been
+/// partitioned. The `root` parameter is what makes this testable: no CI
+/// runner has a TPM of any version, so the tests point it at a fixture tree.
+pub fn probe_tpm2(root: &std::path::Path) -> bool {
+    match std::fs::read_to_string(root.join(TPM_VERSION_FILE)) {
+        Ok(v) => v.trim() == "2",
+        Err(_) => root.join(TPM_RESOURCE_MANAGER).exists(),
     }
 }
 
@@ -819,6 +841,24 @@ mod tests {
         assert!(json.get("image").is_none());
         assert!(json.get("targetImgref").is_none());
         assert!(json.get("bootloader").is_none());
+    }
+
+    /// shared/tpm/fixtures/ -- the same trees every frontend's probe is
+    /// pointed at, so all five agree. See shared/tpm/README.md.
+    fn tpm_fixture(tree: &str) -> std::path::PathBuf {
+        std::path::Path::new("../../shared/tpm/fixtures").join(tree)
+    }
+
+    #[test]
+    fn probe_tpm2_reads_the_version_rather_than_the_directory() {
+        for (tree, want, why) in [
+            ("tpm2", true, "tpm_version_major reads 2"),
+            ("tpm12", false, "a TPM 1.2 device cannot do tpm2-luks"),
+            ("legacy-tpm2", true, "no version file, but /dev/tpmrm0 is TPM2-only"),
+            ("legacy-none", false, "no version file and no resource manager"),
+        ] {
+            assert_eq!(probe_tpm2(&tpm_fixture(tree)), want, "{tree}: {why}");
+        }
     }
 
     #[test]
