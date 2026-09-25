@@ -60,7 +60,7 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
 | Phone companion (QR) | yes | no | no | no | no |
 | Windows data migration (slurp) | yes | no | no | no | no |
 | Keyboard / language / timezone | yes | no | no | no | no |
-| Progress bar from fisherman steps | yes | no (log only) | indeterminate | yes | yes |
+| Progress bar from fisherman's protocol | yes | no (log only) | indeterminate | yes | yes |
 | Restart from the done page | yes | yes | yes | yes | yes |
 | Show log after failure | yes | log path | log in page | log in page | log tail |
 | Screenshot walkthrough + parity report | yes | yes | yes | yes | yes |
@@ -73,9 +73,14 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
    `/sys/class/tpm/tpm0` is missing. No CI runner has a TPM, so the capture
    showed two choices and this table copied it. Set
    `BOOTC_INSTALLER_FAKE_TPM=1` to capture all four.
-2. **Progress bar** (KDE, Niri, COSMIC): fisherman emits `[n/9]` and a
-   `cumulative_pct` field; the XFCE parser in `tuna_installer_xfce/core.py`
-   is the smallest reference.
+2. **Progress bar** (KDE, COSMIC): fisherman emits newline-delimited JSON,
+   never a `[n/9]` step prefix — this entry used to say otherwise, and Niri
+   and XFCE both parsed the prefix it described, so their bars sat at zero
+   for every real install while their capture fixtures, written in the same
+   invented shape, photographed one moving. Both now read the protocol.
+   `shared/progress/README.md` is the contract; drive the bar from
+   `cumulative_pct`, not `step / total_steps` — `total_steps` varies with the
+   recipe and one step carries 87% of the time.
 3. **Recovery key page** (all four): fisherman prints the key after TPM
    enrolment; GNOME's `views/recovery_key.py` is the reference.
 4. **User account** (KDE, COSMIC, Niri): a username, full name and

@@ -193,25 +193,32 @@ CAPTIONS = {
 }
 
 
-FIXTURE_LOG = """[1/9] Partitioning /dev/nvme0n1
-  created EFI system partition (1.0 GiB, FAT32)
-  created root partition (511.1 GiB)
-[2/9] Formatting boot partitions
-[3/9] Setting up encryption
-  encryption: none
-[4/9] Formatting root filesystem (btrfs)
-[5/9] Mounting target at /mnt
-[6/9] Installing image ghcr.io/tuna-os/bonito:latest
-  pulling layers... 1.9 GiB
-"""
+# The install screen, caught in flight: the real dry-run transcript
+# (tuna_installer_xfce/dry-run-transcript.ndjson) truncated part-way through
+# the image pull, so the bar sits mid-way rather than at either end.
+#
+# This was nine hand-written "[n/9] " lines naming a specific image ref. Both
+# were wrong: fisherman emits newline-delimited JSON and never that prefix
+# (so the bar in the captured screenshot moved only because the fixture was
+# written to match the frontend's own regex), and naming a product in a
+# fixture puts that product's image ref in the rendered docs for every
+# downstream that rebrands this installer.
+def _fixture_log():
+    lines = core.DRY_RUN_TRANSCRIPT
+    cut = next(i for i, ln in enumerate(lines) if "47/71" in ln) + 1
+    return "".join(lines[:cut])
+
+
+FIXTURE_LOG = _fixture_log()
 
 
 def _seed_progress(page):
     """Fill the progress screen with a believable install in flight.
 
-    append_log() also drives the step label and progress bar off the "[n/9]"
-    prefixes, so feeding it real-shaped lines exercises the same code path a
-    live install would.
+    append_log() drives the step label and progress bar by parsing fisherman's
+    JSON progress protocol (shared/progress/README.md), so feeding it the real
+    transcript exercises the same code path a live install would — which is
+    the whole point of capturing this screen.
     """
     for line in FIXTURE_LOG.splitlines(keepends=True):
         page.append_log(line)

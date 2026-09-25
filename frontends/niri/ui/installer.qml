@@ -95,9 +95,27 @@ ApplicationWindow {
     property string hostname: branding.defaultHostname || "linux"
     property bool installSuccess: false
     property string installLog: ""
-    // fisherman's "[n/9]" step lines drive the determinate bar.
+    // The determinate bar is driven by fisherman's newline-delimited JSON
+    // progress protocol (shared/progress/README.md).
+    //
+    // This used to be `/^\[(\d+)\/(\d+)\]/` against a fixed nine steps.
+    // fisherman has never emitted that prefix — it writes JSON on stdout and
+    // nothing else — so the bar stayed at zero and the caption read
+    // "Starting…" for the whole of every install. The step count was wrong
+    // independently: fisherman computes total_steps from the recipe (8,
+    // adjusted for manual layout, LUKS, TPM2 enrolment and a separate /var
+    // disk), so nine was never right either.
+    //
+    // installFraction, not step/total: "Installing OS" alone is 87% of a cold
+    // install and five other steps are 0%, so a bar advanced one-nth per step
+    // sits near empty for the whole visible install and then jumps.
     property int installStep: 0
-    readonly property int installSteps: 9
+    property int installSteps: 0
+    property real installFraction: 0
+    property string installStepName: ""
+    // Parser context carried across lines, for substep interpolation.
+    property int installCumulativePct: 0
+    property int installWeightPct: 0
     // Recipe JSON awaiting the backend child's stdin channel (fed on
     // Process.started). Kept on the root so the passphrase-bearing recipe
     // never appears in the install command argv (see #22).
@@ -192,10 +210,64 @@ ApplicationWindow {
         }
     }
 
+    // One fisherman event, or a plain stderr line. Returns the text to show;
+    // the protocol is machine-readable and this pane is not, so events are
+    // rendered rather than dumped as JSON.
+    function renderEvent(event) {
+        switch (event.type) {
+        case "step":
+            return "[" + event.step + "/" + event.total_steps + "] " + (event.step_name || "")
+        case "substep":
+        case "info":
+            return event.message ? "  " + event.message : ""
+        case "complete":
+            return event.message || "Installation complete"
+        case "error":
+            return "ERROR: " + (event.message || "")
+        case "recovery_key":
+            // Niri has no recovery-key screen (docs/PARITY.md), so this is
+            // the only place the user can read a key they cannot recover
+            // later. Hiding it here would lose it outright.
+            return "Recovery key: " + (event.key || "")
+        }
+        return ""
+    }
+
     function appendLog(line) {
-        installLog += line + "\n"
-        const m = /^\[(\d+)\/(\d+)\]/.exec(line)
-        if (m) installStep = parseInt(m[1])
+        let event = null
+        if (line.charAt(0) === "{") {
+            try { event = JSON.parse(line) } catch (e) { event = null }
+        }
+        if (event === null || typeof event !== "object") {
+            installLog += line + "\n"
+            return
+        }
+
+        const shown = renderEvent(event)
+        if (shown !== "")
+            installLog += shown + "\n"
+
+        if (event.type === "step") {
+            installStep = event.step
+            installSteps = event.total_steps
+            installStepName = event.step_name || ""
+            installCumulativePct = event.cumulative_pct || 0
+            installWeightPct = event.weight_pct || 0
+            installFraction = installCumulativePct / 100
+        } else if (event.type === "substep") {
+            // Inside the long image pull, interpolate across layers so the
+            // bar keeps moving for the 87% of the install that step covers.
+            const m = /Pulling image: layer (\d+)\/(\d+)/.exec(event.message || "")
+            if (m && installWeightPct > 0) {
+                const sub = parseInt(m[1]) / parseInt(m[2])
+                installFraction = Math.min(
+                    (installCumulativePct + sub * installWeightPct) / 100, 1)
+            }
+        } else if (event.type === "complete") {
+            // cumulative_pct only ever reaches 99; `complete` is what fills
+            // the bar.
+            installFraction = 1
+        }
     }
 
     // Restart from the done page: the backend runs `systemctl reboot` on the
@@ -209,6 +281,11 @@ ApplicationWindow {
     function startInstall() {
         installLog = ""
         installStep = 0
+        installSteps = 0
+        installFraction = 0
+        installStepName = ""
+        installCumulativePct = 0
+        installWeightPct = 0
         currentPage = 4
         const recipe = {
             disk: "/dev/" + selectedDisk.name,
@@ -607,6 +684,7 @@ ApplicationWindow {
                 StyledText {
                     text: root.installStep > 0
                         ? "Step " + root.installStep + " of " + root.installSteps
+                          + (root.installStepName ? " — " + root.installStepName : "")
                         : "Starting…"
                     color: Theme.surfaceVariantText
                 }
@@ -615,7 +693,7 @@ ApplicationWindow {
                     height: 8; radius: 4
                     color: Theme.surfaceContainerHighest
                     Rectangle {
-                        width: parent.width * (root.installStep / root.installSteps)
+                        width: parent.width * root.installFraction
                         height: parent.height; radius: 4
                         color: Theme.primary
                         Behavior on width { NumberAnimation { duration: Theme.mediumDuration; easing.type: Theme.standardEasing } }

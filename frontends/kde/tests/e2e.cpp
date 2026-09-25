@@ -10,7 +10,7 @@
 // controller produced.
 //
 // Built with -DBUILD_E2E=ON as tuna-installer-e2e. Exit 0 only when the
-// controller reports success and its log reached step 9.
+// controller reports success and its log carried fisherman's completion event.
 
 #include "installercontroller.h"
 
@@ -63,8 +63,14 @@ int main(int argc, char *argv[])
         out << "FAIL: controller does not report success\n";
         return 1;
     }
-    if (!controller.log().contains(QLatin1String("[9/9]"))) {
-        out << "FAIL: the log never reached step 9\n";
+    // fisherman's terminal event, in its real wire format: it writes
+    // newline-delimited JSON on stdout and nothing else
+    // (shared/progress/README.md). This was
+    // `contains(QLatin1String("[9/9]"))`, a prefix fisherman has never
+    // written — the e2e shim invented it to satisfy assertions like this
+    // one, so the check compared the harness with itself.
+    if (!controller.log().contains(QLatin1String("\"type\":\"complete\""))) {
+        out << "FAIL: the log carried no completion event\n";
         return 1;
     }
     out << "OK: KDE controller reached installCompleted(0) through sudo /usr/local/bin/fisherman\n";

@@ -18,7 +18,7 @@ installed and booted.
 `setup.sh` prepares the runner:
 
 - builds the real fisherman from the submodule to `/usr/local/lib/tuna-e2e/fisherman.real`;
-- installs `fisherman-shim.sh` at `/usr/local/bin/fisherman`, the path all frontends run. The shim keeps the recipe, runs the real `fisherman validate` on it, then streams the nine `[n/9]` step lines. It never partitions the runner;
+- installs `fisherman-shim.sh` at `/usr/local/bin/fisherman`, the path all frontends run. The shim keeps the recipe, runs the real `fisherman validate` on it, then streams fisherman's real progress protocol — newline-delimited JSON, `total_steps` computed from the recipe (`shared/progress/README.md`). It used to stream nine invented `[n/9] ` lines, which is how two frontends could parse a format fisherman never emits and still pass this gate. It never partitions the runner;
 - creates a loop disk and writes the `lsblk` fixture that names it;
 - puts `fake-bin/` first on `PATH`: `lsblk` (one disk, the loop device), `bootc` (fails, so no live-ISO mode), `pkexec` (`sudo -n`, there is no polkit agent).
 

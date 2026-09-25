@@ -788,7 +788,16 @@ mod tests {
             .expect("fisherman could not be launched");
         println!("{log}");
         assert_eq!(code, 0, "fisherman exit code");
-        assert!(log.contains("[9/9]"), "the log never reached step 9");
+        // fisherman's terminal event, in its real wire format: it writes
+        // newline-delimited JSON on stdout and nothing else
+        // (shared/progress/README.md). This was
+        // `log.contains("[9/9]")`, a prefix fisherman has never written —
+        // the e2e shim invented it to satisfy assertions like this one, so
+        // the check compared the harness with itself.
+        assert!(
+            log.contains(r#""type":"complete""#),
+            "the log carried no completion event"
+        );
         assert!(
             std::path::Path::new("/tmp/tuna-e2e/recipe.json").exists(),
             "the shim recorded no recipe"

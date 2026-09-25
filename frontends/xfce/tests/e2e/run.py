@@ -106,6 +106,12 @@ def main():
             # The headline is the branded done_title ("{name} is installed"),
             # so compare against the resolved copy rather than a literal.
             outcome["ok"] = headline == core.BRANDING.text("done_title")
+        # Read the bar BEFORE the window goes: this is the property the
+        # string match below could never see. A frontend that parses
+        # fisherman's protocol ends at 1.0; one that does not ends at 0.0
+        # while every other assertion here still passes, which is exactly
+        # how a bar that never moved kept this gate green.
+        outcome["fraction"] = win.pages["progress"].bar.get_fraction()
         win.destroy()
         app.quit()
 
@@ -121,11 +127,23 @@ def main():
         with open(log) as fh:
             text = fh.read()
         print("[e2e] install log:\n" + text)
-        if "[9/9]" not in text:
-            print("FAIL: the log never reached step 9", file=sys.stderr)
+        # fisherman's terminal event, in its real wire format. This was
+        # `if "[9/9]" not in text`, a prefix fisherman has never written:
+        # the shim invented it to satisfy this line, so the assertion was
+        # checking the test harness against itself.
+        if '"type":"complete"' not in text:
+            print("FAIL: the log never carried a completion event",
+                  file=sys.stderr)
             return 1
     if not outcome.get("ok"):
         print("FAIL: the Done page reported failure", file=sys.stderr)
+        return 1
+    fraction = outcome.get("fraction")
+    print(f"[e2e] progress bar ended at {fraction:.0%}")
+    if fraction != 1.0:
+        print(f"FAIL: the progress bar ended at {fraction:.0%}, not 100% — "
+              "the frontend is not parsing fisherman's progress protocol "
+              "(shared/progress/README.md)", file=sys.stderr)
         return 1
     if not os.path.exists(os.path.join(E2E_DIR, "recipe.json")):
         print("FAIL: the shim recorded no recipe", file=sys.stderr)
