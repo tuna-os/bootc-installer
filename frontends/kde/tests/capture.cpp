@@ -356,6 +356,26 @@ bool progressBarIsDrawn(QQuickWindow *window, const QImage &image, QTextStream &
     }
     out << "    bar: " << bar->width() << "x" << bar->height()
         << " visible=" << bar->isVisible() << " opacity=" << bar->opacity() << "\n";
+
+    // Read through the property system rather than the Controls headers, so
+    // this needs no extra link dependency. 964x16, visible and opaque, and
+    // still not painted, means the answer is in these values or in an
+    // ancestor that is clipping it -- guessing between those cost a round
+    // already.
+    const char *props[] = {"value", "position", "from", "to", "indeterminate",
+                           "implicitHeight", "clip", "z", "enabled"};
+    out << "    bar props:";
+    for (const char *name : props)
+        out << " " << name << "=" << bar->property(name).toString();
+    out << "\n";
+
+    for (QQuickItem *p = bar->parentItem(); p; p = p->parentItem()) {
+        out << "    ancestor " << (p->metaObject() ? p->metaObject()->className() : "?")
+            << " name=\"" << p->objectName() << "\""
+            << " " << p->width() << "x" << p->height()
+            << " visible=" << p->isVisible() << " opacity=" << p->opacity()
+            << " clip=" << p->clip() << "\n";
+    }
     if (bar->width() <= 0 || bar->height() <= 0 || !bar->isVisible() || bar->opacity() <= 0.0) {
         out << "FAIL: the progress bar has no drawable geometry\n";
         return false;
