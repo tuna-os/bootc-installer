@@ -12,6 +12,7 @@ sources = [
   'codec_check.py',
   'phone_companion.py',
   'fisherman_runner.py',
+  'fisherman_session.py',
   'branding.py',
   'copy.py',
 ]
