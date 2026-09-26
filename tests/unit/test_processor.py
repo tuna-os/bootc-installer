@@ -59,6 +59,29 @@ class TestAutoDisk:
         assert r["filesystem"] == "xfs"
         assert "customMounts" not in r or r.get("customMounts") == []
 
+    def test_non_composefs_live_iso_mode_emits_empty_image(self, tmp_path):
+        sys_recipe = {
+            "image": "",
+            "local_imgref": "containers-storage:ghcr.io/projectbluefin/utah:testing",
+            "imgref": "ghcr.io/projectbluefin/utah:testing",
+        }
+        path = Processor.gen_install_recipe("log", _auto_finals(image="ghcr.io/projectbluefin/utah:testing", composefs=False, image_type="bootc"), sys_recipe)
+        r = _load(path)
+        assert r["image"] == ""
+        assert r["targetImgref"] == "ghcr.io/projectbluefin/utah:testing"
+        assert r["composeFsBackend"] is False
+
+    def test_composefs_live_iso_mode_keeps_local_imgref(self, tmp_path):
+        sys_recipe = {
+            "local_imgref": "containers-storage:ghcr.io/projectbluefin/dakota-nvidia:stable",
+            "imgref": "ghcr.io/projectbluefin/dakota:stable",
+        }
+        path = Processor.gen_install_recipe("log", _auto_finals(image="ghcr.io/projectbluefin/dakota:stable", composefs=True, image_type="bootc"), sys_recipe)
+        r = _load(path)
+        assert r["image"] == "containers-storage:ghcr.io/projectbluefin/dakota-nvidia:stable"
+        assert r["targetImgref"] == "ghcr.io/projectbluefin/dakota:stable"
+        assert r["composeFsBackend"] is True
+
     def test_selects_disk(self, tmp_path):
         path = Processor.gen_install_recipe("log", _auto_finals(disk="/dev/nvme0n1"), _SYS_RECIPE)
         r = _load(path)
