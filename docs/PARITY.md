@@ -78,6 +78,34 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
 | Screenshot walkthrough + parity report | yes | yes | yes | yes | yes |
 | End-to-end gate (real install and boot) | yes | yes | yes | yes | yes |
 
+## Governance: Feature gates and release sync
+
+This section ensures parity remains intentional as new features land.
+
+### Feature gate policy
+
+**New copy keys or branding fields**: must be added to `shared/branding/copy-defaults.json` and rendered by all five frontends before release. Exceptions (GNOME-only features like phone companion) are pre-approved in `docs/PARITY.md` and live outside the contract.
+
+**New fisherman capabilities** (recipe fields, new step, partition layout change): propose in a GitHub issue labeled `[parity]` at least one sprint before merge. The parity owner (@see below) reviews for impact on each backend. If a backend cannot implement within that sprint, the feature is delayed until all backends can ship together.
+
+**Desktop-specific UI enhancements** (e.g., KDE's user account field): permitted without parity hold, provided the recipe field and fisherman support are already general.
+
+### Release sync strategy
+
+- **Lockstep releases**: all five Flatpaks ship in the same release (one `ghcr.io/tuna-os/bootc-installer:<frontend>` tag per sprint).
+- **Per-frontend patch releases**: emergency fixes (CVE, data loss, boot failure) can land in one frontend's Flatpak without waiting for the others. Patch releases are named `<version>+<frontend>-patch.<n>` (e.g., `1.2.0+gnome-patch.1`).
+- **Breaking changes to fisherman or recipe format**: lock all frontends to the old version for one release before deploying. Update this document before cut.
+
+### Parity owner
+
+**Current owner**: @assigned in AGENTS.md (this is a role, not a person). Responsibilities:
+- Review all issues tagged `[parity]` and flag conflicts early
+- Maintain this document; update gaps as they close
+- Decide which GNOME-only features remain and which ports are worth doing
+- Approve exceptions to the feature gate policy
+
+---
+
 ## Closing the gaps, in order
 
 1. ~~**Encryption set** (KDE, XFCE)~~ — **not a gap.** Both offer TPM and
