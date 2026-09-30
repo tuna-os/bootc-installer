@@ -46,7 +46,7 @@ _FISHERMAN_CACHE_DIR = os.path.join(_FISHERMAN_STAGE_BASE, ".cache", "bootc-inst
 _FISHERMAN_HOST_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman")
 _FISHERMAN_LOG_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman-output.log")
 
-from bootc_installer.utils.progress_parser import apply_progress_event, new_progress_state, set_product_name, set_install_label, get_product_name, _RE_LAYER_PROGRESS  # noqa: E402
+from shared.progress.progress_parser import apply_progress_event, new_progress_state, set_product_name, set_install_label, get_product_name, _RE_LAYER_PROGRESS  # noqa: E402
 from bootc_installer.utils.codec_check import check_codecs_present  # noqa: E402
 
 

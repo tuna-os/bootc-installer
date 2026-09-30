@@ -12,8 +12,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from bootc_installer.utils import progress_parser
-from bootc_installer.utils.progress_parser import (
+from shared.progress import progress_parser
+from shared.progress.progress_parser import (
     apply_progress_event, new_progress_state, set_product_name)
 
 
