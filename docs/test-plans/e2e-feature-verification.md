@@ -1,6 +1,6 @@
 # End-to-End Feature Verification Test Plan
 
-Software-level test plan (demo mode + automated). Complements hardware lab testing (#42), encryption testing (#45), and failure path testing (#44).
+Software-level test plan (demo mode + automated). Other plans cover the hardware lab (#42), encryption (#45), and failure paths (#44).
 
 Refs: #41|Closes
 
@@ -19,35 +19,35 @@ Refs: #41|Closes
 
 ### Welcome Screen
 - [ ] App launches without crashes or tracebacks
-- [ ] Welcome text displays correctly
+- [ ] The welcome text shows correctly
 - [ ] Credits button opens credits window with hero cards
 - [ ] Credits window shows all sections from credits.json
-- [ ] Bluetooth pairing row visible (if BT adapter present)
+- [ ] Row to pair Bluetooth devices is visible (if BT adapter present)
 - [ ] Power off row opens confirmation dialog
 - [ ] "Install" row advances to next step
 
 ### Wizard Steps
 - [ ] Image selection shows images from images.json with logos
 - [ ] Custom image entry works (paste URL)
-- [ ] Disk selection lists available disks with size/model
+- [ ] The disk list shows the available disks with size/model
 - [ ] Battery warning banner shows when on battery power
 - [ ] Encryption type selector shows all 4 options
-- [ ] Passphrase field accepts input, shows/hides password
+- [ ] You can type in the passphrase field, and show/hide the password
 - [ ] Timezone map/list works
-- [ ] Dinosaur fact shows when country is selected
+- [ ] Dinosaur fact shows when the user selects a country
 - [ ] Language/keyboard selection works with search
-- [ ] User creation fields validate (username format, password match)
+- [ ] The fields for the new user validate input (username format, password match)
 
 ### Confirm Screen
 - [ ] Summary shows all selected options as rows
-- [ ] Disk info formatted correctly (device + size)
+- [ ] The disk info has the correct format (device + size)
 - [ ] Encryption type shown if selected
 - [ ] Image name/ref shown
 - [ ] "( Become Legend )" button text is correct
 
 ### Progress Screen
 - [ ] Video plays (not black rectangle, not frozen frame)
-- [ ] Video is muted and loops continuously
+- [ ] Video has no sound and loops continuously
 - [ ] Soundtrack toggle button is clickable
 - [ ] QR codes render as actual QR images
 - [ ] QR codes are scannable with phone

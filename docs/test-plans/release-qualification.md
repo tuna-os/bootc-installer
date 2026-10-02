@@ -22,7 +22,7 @@ Refs: #42|Closes
 - **Access:** SSH or IPMI/remote KVM for headless observation
 - **Target disk:** Identified by model/serial, NOT by `/dev/nvmeXnY` alone
 - **Live ISO:** Boot from USB with installer Flatpak pre-installed
-- **Secondary:** Machine with dual-boot Windows (NTFS) for slurp testing
+- **Secondary:** Machine with dual-boot Windows (NTFS) for slurp tests
 
 ## Procedure
 
