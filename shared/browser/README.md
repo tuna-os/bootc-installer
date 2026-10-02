@@ -177,15 +177,37 @@ first frame in a browser until that cfg is matched up. One line.
 
 ### KDE (C++, Qt6 Widgets + Quick)
 
-Qt has no Broadway equivalent. The WebGL streaming platform plugin that would
-have been the closest match was a Qt 5.12–5.15 feature and is gone in Qt6, so
-the only route is Qt for WebAssembly: an Emscripten toolchain plus a
-wasm-targeted Qt build, neither of which is a package install. The frontend
-also links `Qt6::Widgets`, and the capture path would need every system call
-it makes stubbed before it could run in a sandbox with no processes.
+Qt has no Broadway equivalent. Qt 5.12 to 5.15 had a WebGL streaming
+platform plugin, but Qt 6 does not have it. The only route is Qt for
+WebAssembly, which compiles the app with Emscripten. #104 tracks this work.
 
-Feasible in principle, a large piece of work, and the Xvfb harness
-(`frontends/kde/tests/capture.cpp`) already covers the screenshots.
+**The C++ compiles and links for wasm.** Qt for WebAssembly has no
+`QProcess`. The four places that start a process now have a
+`QT_CONFIG(process)` branch, and on wasm they log a warning and do nothing.
+The installer and the capture harness link against the Qt 6.9.3
+`wasm_singlethread` and `wasm_multithread` builds with Emscripten 3.1.70.
+`wasm-kde.yml` builds them, and the backend tests, on each change.
+
+**The page stops at the first KF6 import.** Served to Chromium, the
+installer starts and the QML engine reports:
+
+```
+qrc:/qt/qml/org/tunaos/installer/Main.qml:4:1: module "org.kde.kirigami" is not installed
+```
+
+The KF6 QML stack is the work that remains:
+
+| Module | For wasm |
+|---|---|
+| Kirigami 6.18 | builds with `-DUSE_DBUS=OFF -DKF_IGNORE_PLATFORM_CHECK=ON`. It needs the `wasm_multithread` Qt, because it uses `QtConcurrent`. Its metainfo does not list WebAssembly, so the platform check stops it without the flag. |
+| Kirigami Addons (FormCard) | not tried. FormCard needs KI18n, KConfig, KCoreAddons, KGuiAddons and KColorScheme, and three other Kirigami Addons modules. KI18n needs gettext. |
+| `org.kde.desktop` style | not tried. It paints through `QStyle` and the Plasma platform theme, and a browser has neither. |
+
+To build it locally, install the Qt host and wasm builds with `aqtinstall`
+and activate Emscripten 3.1.70. Then run the commands in `wasm-kde.yml`.
+
+The Xvfb harness (`frontends/kde/tests/capture.cpp`) continues to make the
+screenshots.
 
 ### Niri (Go + QML)
 
@@ -211,7 +233,7 @@ architectural change. Tracked in #103.
 | GNOME | GTK4 / libadwaita | **works** | — |
 | XFCE | GTK3 | **works** | canvas only, so no DOM geometry |
 | COSMIC | libcosmic (Iced fork) | not yet | `atomicwrites` has no wasm arm, via `cosmic-config` (#105) |
-| KDE | Qt6 Widgets + Quick | not yet | needs Emscripten + a Qt-for-wasm build (#104) |
+| KDE | Qt6 Widgets + Quick | not yet | C++ builds for wasm; the KF6 QML stack does not yet (#104) |
 | Niri | Go + QML (Quickshell) | not yet | needs Qt-for-wasm; the UI itself is Go-free (#103) |
 
 Two of five today, and the two that work are the two whose toolkit ships a

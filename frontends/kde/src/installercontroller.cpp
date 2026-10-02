@@ -396,6 +396,14 @@ void InstallerController::startInstall()
     f.write(QJsonDocument(m_recipe.toJson()).toJson(QJsonDocument::Indented));
     f.close();
 
+#if !QT_CONFIG(process)
+    // Qt for WebAssembly: there is no process to start. Only the browser
+    // harness builds this, and nothing there presses Install; if something
+    // ever does, it gets the ordinary failure path rather than a silent hang.
+    // The recipe may hold secrets, so it goes as it would after fisherman.
+    QFile::remove(m_recipePath);
+    fail(QStringLiteral("This build cannot start fisherman"));
+#else
     // pkexec /app/bin/fisherman in Flatpak, sudo /usr/local/bin/fisherman otherwise.
     QStringList cmd = offline::fishermanCommand();
     cmd << m_recipePath;
@@ -467,6 +475,7 @@ void InstallerController::startInstall()
 
     m_process->start();
     Q_EMIT installingChanged();
+#endif
 }
 
 void InstallerController::reboot()
@@ -474,5 +483,9 @@ void InstallerController::reboot()
     // Same host path as the install: flatpak-spawn --host when sandboxed.
     QStringList argv = offline::hostCommand({QStringLiteral("systemctl"), QStringLiteral("reboot")});
     const QString program = argv.takeFirst();
+#if QT_CONFIG(process)
     QProcess::startDetached(program, argv);
+#else
+    qCWarning(logInstaller) << "this build cannot start processes, not running" << program;
+#endif
 }
