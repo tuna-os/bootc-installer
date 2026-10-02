@@ -12,7 +12,10 @@ Flatpak presents, drawn by GTK's own renderer, delivered over a socket.
 ```bash
 shared/browser/run.sh gnome            # GTK4 + libadwaita
 shared/browser/run.sh xfce             # GTK3
+shared/browser/run.sh niri             # QML, compiled to WebAssembly
 ```
+
+Niri does not use Broadway. Refer to [Niri](#niri-go--qml) below.
 
 Output lands in `docs/browser/<frontend>/`: one PNG per wizard page plus
 `browser-walkthrough-<frontend>.json`.
@@ -189,20 +192,32 @@ Feasible in principle, a large piece of work, and the Xvfb harness
 
 ### Niri (Go + QML)
 
-The most promising of the three, which is not the obvious answer.
+**Niri works.** `shared/browser/run.sh niri` shows every wizard page in
+Chromium, and `walk.mjs` applies the same checks as for GNOME and XFCE.
 
-The installer is a Go program and cgo cannot target wasm, so the shipped
-binary is not going anywhere. That does not matter, because the UI is not in
-the Go. `frontends/niri/tests/gui/capture-screens.py` already loads the same
-unmodified `ui/installer.qml` under a plain Qt Quick runtime, supplying stub
-implementations of the two Quickshell modules it imports. No Go participates
-in that path at all.
+The installer is a Go program, and cgo cannot compile to wasm. But the UI is
+not in the Go. `frontends/niri/tests/gui/capture-screens.py` loads the
+unmodified `ui/installer.qml` under plain Qt Quick, with stubs for the two
+Quickshell modules. No Go is in that path.
 
-So the browser version is the same trick against a different Qt platform:
-Qt Quick for WebAssembly in place of the offscreen plugin, with the QML and
-the stubs bundled into the package. It needs the Emscripten and Qt-for-wasm
-toolchain, which is the real cost and is shared with KDE, but it needs no
-architectural change. Tracked in #103.
+`frontends/niri/tests/wasm/` uses the same method with a different Qt
+platform. A small C++ host loads the QML and the stubs from the binary, and
+Qt for WebAssembly draws the window into a `<canvas>`. The page itself is the
+app, so no daemon is necessary. `walk.mjs` requests pages through
+`window.niri`, not through the two files that `present.py` uses.
+
+This path gives more than Broadway does:
+
+- The host reads its own scene. Thus `walk.mjs` gets the text of each page,
+  and it fails a page that has no text.
+- The host runs two checks from the capture harness. The progress bar fill
+  must have a size. Restart must stay disabled until the user acknowledges
+  the recovery key.
+- Qt Quick's software scene graph works in wasm. Thus the run needs no
+  WebGL and no GPU.
+
+The canvas gives no DOM geometry, the same as GTK3. The build steps and the
+page interface are in `frontends/niri/tests/wasm/README.md` (#103).
 
 ### Summary
 
@@ -212,16 +227,9 @@ architectural change. Tracked in #103.
 | XFCE | GTK3 | **works** | canvas only, so no DOM geometry |
 | COSMIC | libcosmic (Iced fork) | not yet | `atomicwrites` has no wasm arm, via `cosmic-config` (#105) |
 | KDE | Qt6 Widgets + Quick | not yet | needs Emscripten + a Qt-for-wasm build (#104) |
-| Niri | Go + QML (Quickshell) | not yet | needs Qt-for-wasm; the UI itself is Go-free (#103) |
+| Niri | Go + QML (Quickshell) | **works** | canvas only; Qt for WebAssembly, not Broadway (#103) |
 
-Two of five today, and the two that work are the two whose toolkit ships a
-browser backend in the box. That is the pattern: Broadway is a GTK feature,
-not a general technique, and everything else has to be compiled to wasm
-instead of streamed.
-
-Niri looks furthest because it is written in Go, and is closest because its
-UI is pure QML that already renders without the Go. COSMIC looks closest
-because Iced runs on the web, and is not — but it is nearer than its first
-error suggests, and its remaining blocker is a small upstream one rather
-than anything in this repository. #103, #104 and #105 carry the detail, and
-each records what was measured rather than what was assumed.
+Three of five work today. GNOME and XFCE use Broadway, which is part of GTK.
+Niri uses Qt for WebAssembly, because its UI is QML that runs without the Go.
+COSMIC and KDE also need a wasm build. #104 and #105 record the measurements
+for each of them.
