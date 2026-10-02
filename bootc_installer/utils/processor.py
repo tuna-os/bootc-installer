@@ -303,6 +303,31 @@ class Processor:
                 "disk": var_disk["disk"],
                 "keepExisting": bool(var_disk.get("keep_existing", False)),
             }
+        
+        # Schema-defined optional fields that may come from merged finals or sys_recipe
+        distro_id = merged.get("distro_id", "") or sys_recipe.get("distroID", "")
+        if distro_id:
+            recipe["distroID"] = distro_id
+        
+        brew_tap = merged.get("brew_tap", "") or sys_recipe.get("brewTap", "")
+        if brew_tap:
+            recipe["brewTap"] = brew_tap
+        
+        generic_image = merged.get("generic_image", False) or sys_recipe.get("genericImage", False)
+        if generic_image:
+            recipe["genericImage"] = True
+        
+        zfs_pool_name = merged.get("zfs_pool_name", "") or sys_recipe.get("zfsPoolName", "")
+        if zfs_pool_name and filesystem == "zfs":
+            recipe["zfsPoolName"] = zfs_pool_name
+        
+        target_mount = merged.get("target_mount", "") or sys_recipe.get("targetMount", "")
+        if target_mount:
+            recipe["targetMount"] = target_mount
+        
+        luks_mapper_name = merged.get("luks_mapper_name", "") or sys_recipe.get("luksMapperName", "")
+        if luks_mapper_name:
+            recipe["luksMapperName"] = luks_mapper_name
 
         logger.info(f"Generated fisherman recipe: disk={disk_device}, image={image}, encryption={encryption_type}")
 

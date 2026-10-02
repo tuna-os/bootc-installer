@@ -1,0 +1,197 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Fisherman Installation Recipe",
+  "description": "Schema for bootc-installer GUI-generated fisherman installation recipes",
+  "type": "object",
+  "required": [
+    "disk",
+    "filesystem",
+    "encryption",
+    "image",
+    "hostname",
+    "user",
+    "flatpaks"
+  ],
+  "properties": {
+    "disk": {
+      "type": "string",
+      "description": "Block device path (e.g. /dev/sda) for auto-partition, or empty for manual partitioning"
+    },
+    "filesystem": {
+      "type": "string",
+      "enum": ["xfs", "ext4", "btrfs", "zfs"],
+      "description": "Root filesystem type"
+    },
+    "btrfsSubvolumes": {
+      "type": "boolean",
+      "description": "Create btrfs subvolumes (@, @home, @snapshots) when filesystem is btrfs"
+    },
+    "encryption": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["none", "luks-passphrase", "luks-recovery-key"],
+          "description": "LUKS encryption type"
+        },
+        "passphrase": {
+          "type": "string",
+          "description": "Passphrase for LUKS encryption (required when type is luks-passphrase)"
+        }
+      }
+    },
+    "image": {
+      "type": "string",
+      "description": "Source OCI image reference for installation"
+    },
+    "targetImgref": {
+      "type": "string",
+      "description": "Update-tracking image reference (optional; defaults to image if unset)"
+    },
+    "selinuxDisabled": {
+      "type": "boolean",
+      "description": "Disable SELinux in the installed system"
+    },
+    "unifiedStorage": {
+      "type": "boolean",
+      "description": "Pass --experimental-unified-storage to bootc install"
+    },
+    "composeFsBackend": {
+      "type": "boolean",
+      "description": "Pass --composefs-backend to bootc install (requires fs-verity filesystem)"
+    },
+    "genericImage": {
+      "type": "boolean",
+      "description": "Pass --generic-image to bootc install (skip bootupd checks)"
+    },
+    "zfsPoolName": {
+      "type": "string",
+      "description": "ZFS pool name to create (only when filesystem is zfs)"
+    },
+    "bootloader": {
+      "type": "string",
+      "enum": ["grub2", "systemd"],
+      "description": "Bootloader selection"
+    },
+    "imageType": {
+      "type": "string",
+      "enum": ["bootc", "ostree"],
+      "description": "Install backend (default: bootc)"
+    },
+    "flatpakVarPath": {
+      "type": "string",
+      "description": "Path relative to root where flatpak /var lives"
+    },
+    "hostname": {
+      "type": "string",
+      "description": "System hostname"
+    },
+    "flatpaks": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Flatpak app IDs to install"
+    },
+    "user": {
+      "type": "object",
+      "required": ["username"],
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "Username for the primary user account"
+        },
+        "fullname": {
+          "type": "string",
+          "description": "Full name of the user"
+        },
+        "password": {
+          "type": "string",
+          "description": "Password for the user account"
+        },
+        "groups": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Additional groups for the user"
+        }
+      }
+    },
+    "customMounts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["device", "mount", "fstype"],
+        "properties": {
+          "device": {
+            "type": "string",
+            "description": "Block device path"
+          },
+          "mount": {
+            "type": "string",
+            "description": "Mount point"
+          },
+          "fstype": {
+            "type": "string",
+            "description": "Filesystem type"
+          },
+          "opts": {
+            "type": "string",
+            "description": "Mount options"
+          }
+        }
+      },
+      "description": "Manual partition configuration (skips auto-partitioning)"
+    },
+    "varDisk": {
+      "type": "object",
+      "required": ["disk"],
+      "properties": {
+        "disk": {
+          "type": "string",
+          "description": "Block device for /var mount"
+        },
+        "keepExisting": {
+          "type": "boolean",
+          "description": "Mount existing filesystem instead of formatting"
+        }
+      },
+      "description": "Optional separate disk for /var"
+    },
+    "additionalImageStores": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Host paths to expose to bootc as additional image stores (for offline installs)"
+    },
+    "slurpWallpapers": {
+      "type": "boolean",
+      "description": "Extract wallpapers from existing Windows partition"
+    },
+    "slurp": {
+      "type": "object",
+      "properties": {
+        "categories": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Windows user data categories to migrate"
+        }
+      },
+      "description": "Full user-data migration from Windows"
+    },
+    "targetMount": {
+      "type": "string",
+      "description": "Host path where fisherman assembles the target filesystem (default: /mnt/fisherman-target)"
+    },
+    "luksMapperName": {
+      "type": "string",
+      "description": "cryptsetup mapper name for LUKS root device (default: fisherman-root)"
+    },
+    "distroID": {
+      "type": "string",
+      "description": "Short lowercase distro identifier for OEM paths/services (default: bootc)"
+    },
+    "brewTap": {
+      "type": "string",
+      "description": "Homebrew tap to add before OEM package installation"
+    }
+  },
+  "additionalProperties": false
+}
