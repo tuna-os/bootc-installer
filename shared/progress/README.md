@@ -48,8 +48,15 @@ covers the long pull:
 fraction = (cumulative_pct + (done / total) * weight_pct) / 100
 ```
 
-The canonical parser does exactly this. `complete` is what takes the bar to
-100%: `cumulative_pct` only reaches 99 on the last step.
+The canonical parser does this, but gives the pull only the first 60% of
+the step (`_PULL_SHARE`). The rest of the step is for the phases after the
+pull: OCI export, deploy and bootloader. They have no counter, so the parser
+gives each phase message a fixed position in what is left of the step
+(`_PHASE_MILESTONES`). An offline install pulls nothing, so these phases get
+the whole step. Before this change, the bar stayed at 1% for about ten
+minutes on an offline install (#115). The bar never moves backwards inside a
+step. `complete` is what takes the bar to 100%: `cumulative_pct` only
+reaches 99 on the last step.
 
 ## Step names
 
