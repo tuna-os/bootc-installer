@@ -1,82 +1,84 @@
 # bootc-installer Roadmap
 
-**Last updated**: 2026-08-13 | **Maintainer**: tuna-os (hanthor) / architect agent
+**Last updated**: 2026-10-06 | **Maintainer**: tuna-os (hanthor)
 
 ---
 
 ## Mission
 
-bootc-installer is the org's install UX front door: a GTK 4 / Libadwaita
-Flatpak installer that guides a user from ISO to a booted, personalized
-[bootc](https://containers.github.io/bootc/) image. The `fisherman` Go backend
-executes a 9-step pipeline (partition → format → LUKS → mount → `bootc
-install` → post-install → Windows migration → finalize) from a single JSON
-recipe, supporting both the systemd-boot/UKI stack (Dakota) and the GRUB2
-stack (Bluefin, Bluefin-LTS, Bazzite).
+bootc-installer is the org's install front door: the monorepo for every TunaOS/Bluefin installer frontend. Five frontends (GNOME at the root; KDE, COSMIC, Niri and XFCE under `frontends/`) render one shared screen contract and write one shared recipe for the `fisherman` Go backend, which executes the 9-step pipeline (partition → format → LUKS → mount → `bootc install` → post-install → Windows migration → finalize) on both the systemd-boot/UKI stack (Dakota) and the GRUB2 stack (Bluefin, Bluefin-LTS, Bazzite).
 
 ---
 
-## Current Status (August 2026)
+## Current Status (October 2026)
 
-- Young, active repo: production Flatpak auto-released on every push to `dev`
-  (#5); TunaOS project-baseline CI adopted (#11, merged).
-- 9-step fisherman pipeline covers both boot stacks; Windows data migration
-  (documents/photos/music/bookmarks/fonts/wallpapers) is a differentiator.
-- ✅ The supply-chain issue this doc previously flagged as open —
-  `FLATPAK_INDEX_TOKEN`/`GITHUB_TOKEN` embedded in git clone URLs — is fixed
-  (#12, merged). Unit-test coverage has also grown substantially since this
-  doc was first written (coverage gate raised across several PRs on `dev`).
-- Org context: per-desktop installers (`tuna-installer-cosmic|kde|niri|xfce`)
-  and Apple Silicon (`bootc-installer-asahi`) share this backend's concepts;
-  parity between them is not yet tracked in this repo.
-- No milestones yet; work tracked ad-hoc via issues.
-- ⚠️ This file previously lived only on the non-default `main` branch
-  (tunaos#1361) — landed here on `dev`, the repo's actual default branch, so
-  it's visible from the repo root.
+**Monorepo consolidation (2026-09-17)**: Four separate desktop-specific repositories (`tuna-installer-kde|cosmic|niri|xfce`) were imported via `git subtree add` and frozen (epic #83, closed). Parity moved from a cross-repo goal to an in-repo invariant.
+
+| Subsystem | State | Evidence |
+|---|---|---|
+| Frontend parity | All five frontends reach all six contract screens (`welcome`, `disk`, `encryption`, `summary`, `install`, `done`). | [docs/walkthrough/README.md](docs/walkthrough/README.md); [docs/PARITY.md](docs/PARITY.md) |
+| Shared core | Recipe schema, parity report and walkthrough aggregator in `shared/`; KDE and COSMIC still vendor copies, drift-checked in CI. | [docs/MIGRATION.md](docs/MIGRATION.md) |
+| CI validation | Flatpak, Python, Go, per-frontend Flatpak, screenshots ×5, E2E (every frontend drives fisherman to booted VM), walkthrough: all green. | Actions on `dev` |
+| Promotion | `promote.yml` fast-forwards `prod` from `dev` when all checks pass; `prod` is at `dev` (0 commits behind). | [docs/RELEASE.md](docs/RELEASE.md) |
+| **Publishing** | **RED since 09-18.** Every `release.yml` run fails at "Push OCI to shared registry"; Flatpak remote has no `org.bootcinstaller.Installer` apps since 09-18; docs smoke test red daily. | #100; fix pending review in PR #107 (open 09-22) |
+| Browser rendering | GTK frontends render in browser via Broadway, driven by Playwright (#102); Niri (#103), KDE (#104), COSMIC (#105, working) follow. | `shared/browser/`; five upstream libcosmic patches pending |
+| Activity | 172 commits on `dev` last 30 days (70 maintainer, 41 hive agents, 36 bot, 24 Claude sessions). | Recent momentum is high |
+
+✅ Supply-chain fix: `FLATPAK_INDEX_TOKEN`/`GITHUB_TOKEN` not embedded in clone URLs (#12, merged).
+⚠️ Per-frontend ROADMAP.md files cite deleted standalone repositories — needs update.
 
 ### Priorities
 
 | Priority | Item | Tracking | Status |
 |----------|------|----------|--------|
-| P0 | Stop embedding FLATPAK_INDEX_TOKEN / GITHUB_TOKEN in clone URLs | #12 | ✅ Done |
-| P0 | Live-ISO flow documented + tested end-to-end | docs/live-iso.md | 🟡 Docs exist |
-| P1 | tuna-installer-* family parity — single backend, per-desktop skins | tunaos#1294 (context) | ⬜ Not started |
-| P1 | E2E test plans for both boot stacks (systemd-boot + GRUB2) | docs/test-plans/ | 🟡 In progress |
+| P0 | Restore Flatpak publishing on `prod` — unblock Flatpak remote and smoke test | #100, PR #107 | 🔴 Blocked on #107 review (open 09-22) |
+| P0 | Live-ISO flow tested end-to-end (not just documented) | docs/live-iso.md, `e2e.yml` | 🟢 E2E runs every push |
+| P1 | Consolidate shared core: KDE and COSMIC consume `shared/` instead of vendored copies | [docs/MIGRATION.md](docs/MIGRATION.md) | 🟡 Drift-checked, not consolidated |
+| P1 | Browser rendering for Niri and KDE frontends (COSMIC rendering works) | #103, #104 | 🟡 COSMIC done; Niri/KDE open |
+| P1 | Update per-frontend ROADMAP.md files — retire standalone repo references | — | ⬜ Not started |
 | P2 | Windows migration QA matrix (Win10/11, FAT32/NTFS/exFAT) | docs/features/ | ⬜ Not started |
+| P2 | Unify version identity: `meson.build` (3.0.0) vs `VERSION` (1.0.0) vs tags (legacy v3.0.x + authoritative vYYYY.MM.DD) | [docs/RELEASE.md](docs/RELEASE.md) | ⬜ Not started |
+| P3 | Record what has been sent upstream to Vanilla OS installer vs fork-only code | #23 | ⬜ No record |
 
 ---
 
 ## Quarterly Goals
 
-### Current Quarter (2026 Q3 — July–September)
+### 2026 Q3 (July–September) — closed
 
-**Theme**: Stable, token-safe install UX
+**Theme was**: Stable, token-safe install UX. **What happened**: Monorepo consolidation (#83 epic) reshaped the project.
 
 | Goal | Owner | Tracking | Status |
 |------|-------|----------|--------|
 | Land #12 token fix + verify no secrets in recipe/clone paths | sec-check | #12 | ✅ Done |
-| Baseline CI green on both boot-stack test plans | ci-maintainer | #11 (baseline) | ✅ Baseline adopted; coverage gate rising |
-| Publish install-UX guide for tunaos.org (download → installed) | guide | docs site | ⬜ Not started |
-| Define tuna-installer-* parity contract (backend reuse) | architect | — | ⬜ Not started |
+| Baseline CI green on both boot-stack test plans | ci-maintainer | #11 | ✅ Adopted; coverage gate rising |
+| Consolidate per-desktop installers into one repo with shared backend | architect | #83 | ✅ Done (2026-09-17) |
+| Ship Q3 with five frontends at feature parity | — | epic #83 | ✅ Done |
 
-### Next Quarter (2026 Q4 — October–December)
+### 2026 Q4 (October–December) — current
 
-**Theme**: Enterprise-ready installs
+**Theme**: Stabilize post-consolidation, unblock publishing, ship enterprise features
 
-- LUKS-first + dual-boot scenarios validated on Redfin/RHEL track (#1123)
-- Signed Flatpak releases + SBOM aligned with org Q4 supply chain (#1187)
-- Windows-migration QA matrix shipped; recovery/rollback path documented
-- Installer telemetry hook (opt-in) feeding ADOPTION-METRICS.md install tier
+| Goal | Owner | Tracking | Status |
+|------|-------|----------|--------|
+| **Triage & merge PR #107** (fix OCI publishing). Restore Flatpak remote and docs smoke test. | tuna-os | #100, PR #107 | 🔴 **CRITICAL** — review needed |
+| Finish shared core parity (KDE + COSMIC consume `shared/`, not vendored copies) | architect | [docs/MIGRATION.md](docs/MIGRATION.md) #67 | 🟡 Planned; not yet sequenced |
+| Browser rendering for Niri + KDE; ship COSMIC's patches upstream to libcosmic | ci-maintainer | #103, #104, #105 | 🟡 COSMIC renders; others pending |
+| LUKS-first + dual-boot scenarios validated on Redfin/RHEL; signed Flatpak + SBOM | — | tunaos#1123, #1187 | ⬜ Not started |
+| Installer telemetry hook (opt-in) + adoption signal feed | — | — | ⬜ Not started |
 
 ---
 
-## Technical Debt Backlog
+## Technical Debt & Known Issues
 
 | Item | Issue | Priority | Effort |
 |------|-------|----------|--------|
+| Per-frontend ROADMAP.md files cite deleted standalone repositories | — | P1 | S |
+| Shared core vendoring in KDE + COSMIC creates drift surface | #67 | P1 | M |
+| Version identity split: `meson.build` (3.0.0), `VERSION` (1.0.0), tags (legacy + YYYY.MM.DD) | — | P2 | M |
 | Scratch-space constraints (`/var/fisherman-tmp` vs tmpfs `/run`) | README | P2 | S |
-| `VERSION` / recipe drift across tuna-installer-* forks | — | P2 | M |
 | Single JSON recipe error-handling transparency | — | P3 | S |
+| Upstream sync record: what's sent to Vanilla OS vs fork-only | #23 | P3 | S |
 
 ---
 
@@ -88,8 +90,6 @@ boot stack, live-ISO docs, Windows-migration QA fixtures.
 
 ## Roadmap Governance
 
-Maintained by the strategist agent; updates after major milestones or
-quarterly. Propose changes via PR to this file with an issue reference.
+Maintained by the strategist agent; updates after major milestones or quarterly checkpoints. Propose changes via PR with an issue reference. Per-frontend ROADMAP.md files under `frontends/*/` should be updated simultaneously.
 
 ---
-*Generated by strategist agent at ACMM L6 — full mode (ISSUES_AND_PRS).*
