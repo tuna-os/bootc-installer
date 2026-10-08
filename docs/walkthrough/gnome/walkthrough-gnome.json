@@ -101,18 +101,18 @@
       "rendered": true,
       "colours": 514,
       "flat": 0.9278115501519757,
-      "ink": 0.03748066975950515,
-      "stddev": 0.12190327518227051,
+      "ink": 0.03747400415933451,
+      "stddev": 0.12187662933107418,
       "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
     },
     {
       "name": "disk",
       "png": "docs/screenshots/03-disk.png",
       "rendered": true,
-      "colours": 500,
-      "flat": 0.8502372953660747,
-      "ink": 0.004959206526955687,
-      "stddev": 0.052813739584381784,
+      "colours": 502,
+      "flat": 0.8612821948488242,
+      "ink": 0.004592598517570522,
+      "stddev": 0.05196156188667451,
       "text_excerpt": "Computer is not plugged in \u2014 connect power before installing Install Location Select the disk where you want to install. All data on the selected disk will be permanently erased. SAMSUNG MZVL2512 /dev/nvme0n1 \u00b7 476.9 GB SAMSUNG MZVL2512 /de"
     },
     {
@@ -139,10 +139,10 @@
       "name": "confirm",
       "png": "docs/screenshots/06-confirm.png",
       "rendered": true,
-      "colours": 235,
+      "colours": 236,
       "flat": 0.9200594571535221,
-      "ink": 0.006132352156988216,
-      "stddev": 0.04923606231474374,
+      "ink": 0.006105689756305658,
+      "stddev": 0.04918349474231833,
       "text_excerpt": "Confirm installation Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Install Install"
     },
     {
@@ -177,12 +177,12 @@
     }
   ],
   "transition_pixels": [
-    77228,
-    90777,
-    51432,
+    77171,
+    89185,
+    52188,
     34984,
-    38187,
-    31835,
+    38225,
+    31876,
     44105,
     41947
   ],
