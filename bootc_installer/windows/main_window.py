@@ -23,9 +23,9 @@ from gettext import gettext as _
 
 from gi.repository import Adw, GLib, Gtk
 
+from bootc_installer.core.system import Systeminfo
 from bootc_installer.utils.builder import Builder
 from bootc_installer.utils.finals import _extract_icon_and_name
-
 from bootc_installer.utils.processor import Processor
 from bootc_installer.views.confirm import BootcConfirm
 from bootc_installer.views.done import BootcDone
@@ -178,7 +178,12 @@ class BootcWindow(Adw.ApplicationWindow):
     def __step_context(self, current_widget=None):
         context = {
             "offline_install": self._is_offline_install(),
-            "has_tpm2": os.path.exists("/dev/tpmrm0"),
+            # shared/tpm/README.md, not an inline probe. This was a third
+            # copy of the TPM check, and #132's sweep grepped for
+            # "class/tpm" so it did not turn up. It happened to be right --
+            # /dev/tpmrm0 is TPM2-only -- but it bypassed the contract and
+            # ignored BOOTC_INSTALLER_FAKE_TPM.
+            "has_tpm2": Systeminfo.has_tpm2(),
             "live_iso": not os.path.exists("/.flatpak-info") and os.path.exists("/run/ostree-booted"),
             "sys_recipe": self.recipe if hasattr(self, "recipe") else {},
             "leaf_count": getattr(self, "_image_leaf_count", 2),

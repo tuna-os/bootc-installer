@@ -24,10 +24,10 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 | Frontend | Pages | Rendered | Transitions | Harness |
 |---|---|---|---|---|
 | GNOME | 9 | 9 | 8 | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
-| KDE Plasma | 6 | 6 | 5 | tests/capture.cpp (Kirigami/QML, offscreen) |
-| COSMIC | 6 | 6 | 5 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
-| Niri | 6 | 6 | 5 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
-| XFCE | 8 | 8 | 4 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
+| KDE Plasma | 7 | 7 | 6 | tests/capture.cpp (Kirigami/QML, offscreen) |
+| COSMIC | 7 | 7 | 6 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
+| Niri | 7 | 7 | 6 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
+| XFCE | 9 | 9 | 8 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
 
 ## GNOME
 
@@ -37,16 +37,16 @@ GTK4 / libadwaita (Python). Source: `bootc_installer/`.
 
 | | |
 |---|---|
-| <img src="gnome/01-welcome.png" width="360"> | **welcome** What the installer is about to do. <br><sub>Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Connect Bluetooth Devices Pa</sub> |
+| <img src="gnome/01-welcome.png" width="360"> | **welcome** What the installer is about to do. <br><sub>Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Power Off Power Off Press Su</sub> |
 | <img src="gnome/02-qr_companion.png" width="360"> | **qr companion** Optional phone companion for typing on a laptop keyboard. <br><sub>Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.
 Both devices must be on the same local net</sub> |
 | <img src="gnome/03-disk.png" width="360"> | **disk** Choose the disk. Nothing is written yet. <br><sub>Computer is not plugged in — connect power before installing Install Location Select the disk where you want to install. All data on the sel</sub> |
 | <img src="gnome/04-slurp.png" width="360"> | **slurp** Bring documents and settings over from an existing Windows install. <br><sub>Bring Your Files We can copy documents, pictures, and other data from an existing Windows install. Windows data scanning is unavailable in d</sub> |
 | <img src="gnome/05-encryption.png" width="360"> | **encryption** Full-disk encryption, with or without TPM2. <br><sub>Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You will need a passphrase each time you turn on your compute</sub> |
 | <img src="gnome/06-confirm.png" width="360"> | **confirm** The last screen before anything is written. <br><sub>Confirm installation Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Install Install</sub> |
-| <img src="gnome/07-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installation Video Coming Soon! Installation will continue normally. Feel free to browse around. Rawr. Visit the store Installing TunaOS… De</sub> |
-| <img src="gnome/08-recovery-key.png" width="360"> | **recovery key** The LUKS recovery key, shown once after an encrypted install. <br><sub>Save Your Recovery Key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere sa</sub> |
-| <img src="gnome/09-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>TunaOS is installed Remove the installation media and restart the computer. Show Log Show Log Try Again Try Again Restart now Restart now Cl</sub> |
+| <img src="gnome/07-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installing TunaOS… Deploying image: writing layers Do not power off the computer. 45% 0:00 elapsed</sub> |
+| <img src="gnome/08-recovery-key.png" width="360"> | **recovery key** The LUKS recovery key, shown once after an encrypted install. <br><sub>Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere sa</sub> |
+| <img src="gnome/09-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>TunaOS is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now</sub> |
 
 ## KDE Plasma
 
@@ -62,6 +62,7 @@ Qt 6 / Kirigami (C++ + QML). Source: `frontends/kde/`.
 | <img src="kde/04-confirm.png" width="360"> | **confirm**  |
 | <img src="kde/05-progress.png" width="360"> | **progress**  |
 | <img src="kde/06-done.png" width="360"> | **done**  |
+| <img src="kde/07-recovery.png" width="360"> | **recovery**  |
 
 ## COSMIC
 
@@ -75,10 +76,11 @@ libcosmic / iced (Rust). Source: `frontends/cosmic/`.
 | <img src="cosmic/02-disk.png" width="360"> | **disk**  <br><sub>Select a disk Everything on the disk you pick will be erased. /dev/nvme0n1 476.9G · SAMSUNG MZVL2512HCJQ · nvme /dev/sda 1.8T · WDC WD20SPZX</sub> |
 | <img src="cosmic/03-options.png" width="360"> | **options**  <br><sub>Options Sensible defaults are already chosen. Change them only if you need to. System Computer name ubuntu Filesystem xfs Encryption Disk en</sub> |
 | <img src="cosmic/04-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation The last screen before anything is written. Everything on /dev/nvme0n1 will be erased. This cannot be undone.  Summary </sub> |
-| <img src="cosmic/05-installing.png" width="360"> | **installing**  <br><sub>Installing TunaOS… fisherman is writing the image to disk. [1/9] Partitioning /dev/nvme0n1
-  created EFI system partition (1.0 GiB, FAT32)
- </sub> |
+| <img src="cosmic/05-installing.png" width="360"> | **installing**  <br><sub>Installing TunaOS… fisherman is writing the image to disk. [1/8] Partitioning disk
+[2/8] Formatting EFI partition
+[3/8] Formatting root file</sub> |
 | <img src="cosmic/06-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Restart now Close</sub> |
+| <img src="cosmic/07-recovery.png" width="360"> | **recovery**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automaticall</sub> |
 
 ## Niri
 
@@ -92,10 +94,11 @@ Quickshell QML + Go backend. Source: `frontends/niri/`.
 | <img src="niri/02-disk.png" width="360"> | **disk**  <br><sub>Step 2 of 6 · Disk Destination Everything on the selected disk will be erased. This cannot be undone. Scanning for disks… Back Back Continue</sub> |
 | <img src="niri/03-encryption.png" width="360"> | **encryption**  <br><sub>Step 3 of 6 · Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without </sub> |
 | <img src="niri/04-confirm.png" width="360"> | **confirm**  <br><sub>Step 4 of 6 · Confirm Confirm installation ⚠  Everything on the selected disk will be erased. This cannot be undone. Summary Target disk — F</sub> |
-| <img src="niri/05-progress.png" width="360"> | **progress**  <br><sub>Step 5 of 6 · Installing Installing TunaOS… Starting… [1/9] Partitioning /dev/nvme0n1
-[2/9] Formatting boot partitions
-[3/9] Setting up encr</sub> |
+| <img src="niri/05-progress.png" width="360"> | **progress**  <br><sub>Step 5 of 6 · Installing Installing TunaOS… Step 5 of 8 — Installing OS [1/8] Partitioning disk
+[2/8] Formatting EFI partition
+[3/8] Formatt</sub> |
 | <img src="niri/06-done.png" width="360"> | **done**  <br><sub>Step 6 of 6 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Close Close Restart now Restart now</sub> |
+| <img src="niri/07-recovery.png" width="360"> | **recovery**  <br><sub>Step 6 of 6 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails t</sub> |
 
 ## XFCE
 
@@ -105,20 +108,22 @@ GTK3 / PyGObject. Source: `frontends/xfce/`.
 
 | | |
 |---|---|
-| <img src="xfce/01-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to Ubuntu 24.04.5 LTS This assistant installs TunaOS on this computer.
+| <img src="xfce/01-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to TunaOS This assistant installs TunaOS on this computer.
 
-You'll choose what to install and where; nothing is written </sub> |
+You'll choose what to install and where; nothing is written to any disk </sub> |
 | <img src="xfce/02-source.png" width="360"> | **source**  <br><sub>What do you want to install? Bluefin Bluefin ghcr.io/ublue-os/bluefin:latest GNOME GNOME ghcr.io/tuna-os/bonito:latest KDE Plasma KDE Plasma</sub> |
 | <img src="xfce/03-destination.png" width="360"> | **destination**  <br><sub>Where should TunaOS be installed? SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 WDC WD20SPZX    </sub> |
-| <img src="xfce/04-setup.png" width="360"> | **setup**  <br><sub>Disk encryption No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at every boot. Co</sub> |
+| <img src="xfce/04-setup.png" width="360"> | **setup**  <br><sub>Disk encryption No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at every boot. TP</sub> |
 | <img src="xfce/05-identity.png" width="360"> | **identity**  <br><sub>Name this computer Hostname Password Full name Username Your account</sub> |
-| <img src="xfce/06-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation  Image:       ghcr.io/ublue-os/bluefin:latest
+| <img src="xfce/06-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation Image:       ghcr.io/ublue-os/bluefin:latest
 Disk:        /dev/nvme0n1
 Filesystem:  xfs
 Encryption:  none
-Hostname:   </sub> |
-| <img src="xfce/07-progress.png" width="360"> | **progress**  <br><sub>Installing Ubuntu 24.04.5 LTS… Installing image [1/9] Partitioning /dev/nvme0n1
-  created EFI system partition (1.0 GiB, FAT32)
-  created ro</sub> |
-| <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>Ubuntu 24.04.5 LTS is installed Remove the installation media and restart the computer. Visit the store Visit the store Restart now Restart </sub> |
+Hostname:    </sub> |
+| <img src="xfce/07-progress.png" width="360"> | **progress**  <br><sub>Installing TunaOS…  Do not power off the computer. [1/8] Partitioning disk
+[2/8] Formatting EFI partition
+[3/8] Formatting root filesystem
+[</sub> |
+| <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Restart now Restart now</sub> |
+| <img src="xfce/09-recovery.png" width="360"> | **recovery**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automaticall</sub> |
 

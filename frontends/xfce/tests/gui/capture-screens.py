@@ -82,6 +82,36 @@ os.environ["FISHERMAN_IMAGES_PATH"] = _catalog_path
 os.environ.setdefault("XDG_RUNTIME_DIR", _tmp)
 os.environ.setdefault("GTK_A11Y", "none")
 
+# Product branding is resolved from the host's os-release, so an unpinned
+# capture is BRANDED BY THE RUNNER: on a GitHub ubuntu-24.04 box the wizard
+# renders "Welcome to Ubuntu 24.04.4 LTS", and the main-branch job commits
+# those PNGs into docs/. Pin it so the committed walkthrough is stable and
+# says the family name, exactly as it did before branding became dynamic.
+# On a real Skipjack ISO the same attributes read "Skipjack" instead.
+#
+# This has to happen BEFORE tuna_installer_xfce.core is imported: core
+# resolves the whole Branding object once at import and every copy key is
+# formatted from it. Setting core.PRODUCT_NAME afterwards pinned only the
+# one f-string that reads it, which is why the committed walkthrough said
+# "Welcome to Ubuntu 24.04.5 LTS This assistant installs TunaOS" -- the
+# runner's name and the pinned one, in the same sentence.
+#
+# Pin the whole object rather than BOOTC_INSTALLER_PRODUCT_NAME, which covers
+# `name` alone and leaves os-release's LOGO and assets showing through.
+# setdefault, so a workflow pointing at a real product's file still wins.
+# REPO here is the frontend tree, not the monorepo root, so reach the shared
+# file the same way tests/gui/parity_report.py does.
+os.environ.setdefault("BOOTC_INSTALLER_BRANDING", os.path.normpath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "..", "..", "..", "..", "shared", "walkthrough", "capture-branding.json")))
+
+# Show the TPM encryption choices. They are hidden when /sys/class/tpm/tpm0 is
+# absent, which it is on every CI runner, so an unset capture renders a
+# two-option encryption page and docs/PARITY.md -- which is read off these
+# screenshots -- recorded this frontend as having no TPM support at all. It
+# has offered both TPM modes since the page was written. See core.has_tpm().
+os.environ.setdefault("BOOTC_INSTALLER_FAKE_TPM", "1")
+
 # SAFETY, and not a small one. ProgressPage.on_enter() calls
 # win.start_install(), so simply navigating the wizard to the progress page
 # LAUNCHES A REAL INSTALL — there is no confirmation between the two. A capture
@@ -128,14 +158,6 @@ core.host_run = _fake_host_run
 core.live_iso_image = lambda: None
 core.offline_stores = lambda: []
 
-# Product branding is resolved from the host's os-release, so an unpinned
-# capture is BRANDED BY THE RUNNER: on a GitHub ubuntu-24.04 box the wizard
-# renders "Welcome to Ubuntu 24.04.4 LTS", and the main-branch job commits
-# those PNGs into docs/. Pin it so the committed walkthrough is stable and
-# says the family name, exactly as it did before branding became dynamic.
-# On a real Skipjack ISO the same attributes read "Skipjack" instead.
-core.PRODUCT_NAME = "TunaOS"
-
 from tuna_installer_xfce.app import PAGE_ORDER, InstallerWindow  # noqa: E402,F401
 
 # Guard on the guard, in the spirit of tuna-installer-cosmic's
@@ -168,31 +190,74 @@ CAPTIONS = {
     "confirm": "The last screen before anything is written.",
     "progress": "The install, step by step.",
     "done": "Finished — restart into the new system.",
+    "recovery": "A TPM install: the recovery key, and reboot held until it "
+                "is acknowledged.",
 }
 
+# fisherman emits this once, after TPM enrolment, and it is the only way back
+# into the disk if the TPM state changes (#129). No CI runner does a TPM
+# install, so the event is synthesised here -- but it is fed through the SAME
+# parser a real install goes through, not written into the widget. A capture
+# that seeded the label directly would keep passing if the parse broke, which
+# is the failure this harness has spent four PRs removing.
+RECOVERY_EVENT = json.dumps({
+    "type": "recovery_key",
+    "key": "mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf",
+    "timestamp": "2026-01-01T00:00:00Z",
+    "elapsed_ms": 1000,
+})
 
-FIXTURE_LOG = """[1/9] Partitioning /dev/nvme0n1
-  created EFI system partition (1.0 GiB, FAT32)
-  created root partition (511.1 GiB)
-[2/9] Formatting boot partitions
-[3/9] Setting up encryption
-  encryption: none
-[4/9] Formatting root filesystem (btrfs)
-[5/9] Mounting target at /mnt
-[6/9] Installing image ghcr.io/tuna-os/bonito:latest
-  pulling layers... 1.9 GiB
-"""
+
+# The install screen, caught in flight: the real dry-run transcript
+# (tuna_installer_xfce/dry-run-transcript.ndjson) truncated part-way through
+# the image pull, so the bar sits mid-way rather than at either end.
+#
+# This was nine hand-written "[n/9] " lines naming a specific image ref. Both
+# were wrong: fisherman emits newline-delimited JSON and never that prefix
+# (so the bar in the captured screenshot moved only because the fixture was
+# written to match the frontend's own regex), and naming a product in a
+# fixture puts that product's image ref in the rendered docs for every
+# downstream that rebrands this installer.
+def _fixture_log():
+    lines = core.DRY_RUN_TRANSCRIPT
+    cut = next(i for i, ln in enumerate(lines) if "47/71" in ln) + 1
+    return "".join(lines[:cut])
+
+
+FIXTURE_LOG = _fixture_log()
 
 
 def _seed_progress(page):
     """Fill the progress screen with a believable install in flight.
 
-    append_log() also drives the step label and progress bar off the "[n/9]"
-    prefixes, so feeding it real-shaped lines exercises the same code path a
-    live install would.
+    append_log() drives the step label and progress bar by parsing fisherman's
+    JSON progress protocol (shared/progress/README.md), so feeding it the real
+    transcript exercises the same code path a live install would — which is
+    the whole point of capturing this screen.
     """
     for line in FIXTURE_LOG.splitlines(keepends=True):
         page.append_log(line)
+
+    # Did the transcript actually reach the bar?
+    #
+    # The pixel audit cannot answer this: it measures ink over the whole
+    # frame, and this page has a title and a log full of text regardless. The
+    # KDE frontend shipped a progress bar that laid out at full width,
+    # reported itself visible and opaque, painted nothing, and passed every
+    # check in this repository including its own capture job — because a page
+    # with a populated log looks populated either way.
+    #
+    # A fraction of zero here means append_log() stopped driving the bar,
+    # which is the bug that had this frontend and Niri rendering an empty bar
+    # for every real install while their fixtures, written in the same
+    # invented shape, photographed one moving.
+    fraction = page.bar.get_fraction()
+    print(f"    progress bar at {fraction:.1%}")
+    if fraction <= 0.0:
+        sys.exit("FAIL: the progress bar is at 0% after the whole transcript "
+                 "— append_log is not driving it (shared/progress/README.md)")
+    if not page.bar.get_visible():
+        sys.exit("FAIL: the progress bar is not visible")
 
 
 def _settle():
@@ -229,8 +294,21 @@ def _page_text(widget, acc=None):
     collect all eight pages' text at once and credit every screen on every
     frame, which is precisely the false-parity failure tunaOS's spec file
     warns about in its comments.
+
+    Hidden widgets are skipped for that same reason, one level down. Several
+    widgets here are set_no_show_all(True) or hidden when their value is
+    empty (the welcome subtitle, the done page's body and store button, the
+    reboot button), and without this their text still reached the parity
+    report — crediting a screen for a line nobody can see. The GNOME harness
+    had the same hole, where it credited a Bluetooth row that only appears
+    on a machine with an adapter.
+
+    get_visible(), not get_mapped(): the offscreen render never maps
+    anything, so get_mapped() would empty the report.
     """
     acc = [] if acc is None else acc
+    if not widget.get_visible():
+        return acc
     if isinstance(widget, Gtk.Label):
         acc.append(widget.get_text() or "")
     elif isinstance(widget, Gtk.Button):
@@ -336,6 +414,43 @@ def main():
             visible = win.stack.get_visible_child()
             finding["text"] = " ".join(_page_text(visible)) if visible else ""
             findings.append(finding)
+
+        # The done page again, this time as a TPM install leaves it. The key
+        # goes in through the progress page's parser, so this frame proves the
+        # event is understood end to end rather than that a label can be set.
+        win.pages["progress"].append_log(RECOVERY_EVENT + "\n")
+        key = win.pages["progress"].recovery_key()
+        if not key:
+            print("  !! the parser did not yield a recovery key", file=sys.stderr)
+            findings.append({"name": "recovery", "fatal":
+                             "recovery_key event was not parsed"})
+        else:
+            win.index = PAGE_ORDER.index("done")
+            win.stack.set_visible_child_name("done")
+            win.pages["done"].set_result(True, "", key)
+            win.refresh_nav()
+            _settle()
+            pixbuf = _grab(win)
+            if pixbuf is not None:
+                path = os.path.join(out, f"{len(PAGE_ORDER) + 1:02d}-recovery.png")
+                pixbuf.savev(path, "png", [], [])
+                frames.append(path)
+                finding = _audit(pixbuf, "recovery")
+                finding["png"] = path
+                visible = win.stack.get_visible_child()
+                text = " ".join(_page_text(visible)) if visible else ""
+                finding["text"] = text
+                # The point of the frame: the key itself must be on screen,
+                # and reboot must still be held.
+                if key not in text:
+                    finding["fatal"] = (
+                        "the recovery key is not in the rendered text; the "
+                        "panel did not draw")
+                elif win.pages["done"].reboot_btn.get_sensitive():
+                    finding["fatal"] = (
+                        "reboot is live before the key was acknowledged")
+                findings.append(finding)
+
         win.destroy()
         app.quit()
 
@@ -344,6 +459,12 @@ def main():
 
     failures = []
     for f in findings:
+        # A finding that never got as far as a pixel audit (the recovery frame
+        # when the event did not parse) carries "fatal" and nothing else.
+        if "colours" not in f:
+            failures.append(f"{f['name']}: {f.get('fatal', 'not captured')}")
+            f["rendered"] = False
+            continue
         print(f"  {f['name']:12s} {f['w']}x{f['h']}  colours {f['colours']:5d}  "
               f"largest-flat {f['background']*100:5.1f}%  ink {f['ink']*100:5.1f}%")
         # A window that never drew is one flat colour: few distinct values and a
@@ -371,11 +492,19 @@ def main():
         # Same verdict, same thresholds — just also recorded per page so the
         # parity report can say WHICH screen was blank instead of only how
         # many were.
+        # A frame can render perfectly and still be wrong: the recovery frame
+        # asserts the key is in the text and that reboot is still held, and
+        # neither shows up in a pixel histogram.
+        if f.get("fatal"):
+            page_failures.append(f"{f['name']}: {f['fatal']}")
         f["rendered"] = not page_failures
         failures.extend(page_failures)
 
-    if len(findings) != len(PAGE_ORDER):
-        failures.append(f"captured {len(findings)} of {len(PAGE_ORDER)} pages")
+    # PAGE_ORDER plus the recovery frame, which is the done page in its other
+    # state rather than a page of its own.
+    expected_frames = len(PAGE_ORDER) + 1
+    if len(findings) != expected_frames:
+        failures.append(f"captured {len(findings)} of {expected_frames} frames")
 
     # Emitted before the failure gate on purpose: a frontend that renders a
     # blank page is exactly the case the parity matrix most needs a row for.

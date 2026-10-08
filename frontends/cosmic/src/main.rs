@@ -13,6 +13,7 @@ mod capture;
 mod model;
 mod readiness;
 mod offline;
+mod progress;
 mod branding;
 mod ui;
 
@@ -20,7 +21,11 @@ use cosmic::app::{Core, Settings, Task};
 use cosmic::iced::{Length, Size};
 use cosmic::prelude::*;
 use cosmic::widget;
+use cosmic::iced::futures::{SinkExt, Stream, StreamExt};
 use std::process::Command as SysCommand;
+use std::process::Stdio;
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command as TokioCommand;
 
 pub use model::{DiskInfo, Recipe, FILESYSTEMS};
 
@@ -171,6 +176,41 @@ pub static ENCRYPTION_CHOICES: [EncryptionChoice; 4] = [
 /// and not self.has_tpm: continue`), and for the same reason: a dropdown entry
 /// that silently produces an unenrollable recipe is worse than one that isn't
 /// offered.
+/// Whether the TPM encryption choices should be offered.
+///
+/// `BOOTC_INSTALLER_FAKE_TPM` only ever forces this ON, and exists so a
+/// capture can show what the installer offers rather than what the runner's
+/// hardware allows. Empty and "0" do not count as set, so an exported but
+/// blank variable cannot silently turn the choices on everywhere.
+pub fn tpm_available() -> bool {
+    match std::env::var("BOOTC_INSTALLER_FAKE_TPM") {
+        Ok(v) if !v.is_empty() && v != "0" => true,
+        _ => probe_tpm2(std::path::Path::new("/")),
+    }
+}
+
+/// The kernel writes the TCG spec major version here: "2" for TPM 2.0, "1"
+/// for TPM 1.2. Added in Linux 5.5.
+const TPM_VERSION_FILE: &str = "sys/class/tpm/tpm0/tpm_version_major";
+
+/// The in-kernel resource manager is a TPM 2.0 feature, so the kernel makes
+/// this node only for a 2.0 device. Fallback for kernels older than 5.5.
+const TPM_RESOURCE_MANAGER: &str = "dev/tpmrm0";
+
+/// Whether `root` holds a TPM 2.0 device, per shared/tpm/README.md.
+///
+/// This used to test `/sys/class/tpm/tpm0` for existence, which the kernel
+/// also creates for a TPM 1.2 device -- so a 1.2 machine was offered
+/// tpm2-luks and the install failed at enrolment, after the disk had been
+/// partitioned. The `root` parameter is what makes this testable: no CI
+/// runner has a TPM of any version, so the tests point it at a fixture tree.
+pub fn probe_tpm2(root: &std::path::Path) -> bool {
+    match std::fs::read_to_string(root.join(TPM_VERSION_FILE)) {
+        Ok(v) => v.trim() == "2",
+        Err(_) => root.join(TPM_RESOURCE_MANAGER).exists(),
+    }
+}
+
 pub fn available_encryption_choices(has_tpm: bool) -> Vec<&'static EncryptionChoice> {
     ENCRYPTION_CHOICES
         .iter()
@@ -193,8 +233,21 @@ pub enum Message {
     EncryptionChanged(usize),
     PassphraseChanged(String),
     TogglePassphraseVisible,
+    /// The done page's "I have saved my recovery key" box.
+    RecoveryAckToggled(bool),
+    /// Put the recovery key on the clipboard.
+    CopyRecoveryKey,
     StartInstall,
-    InstallFinished(Result<(i32, String), String>),
+    /// One line of fisherman's stdout, as it arrives.
+    ///
+    /// run_fisherman() used to be `.output()`: it waited for the process to
+    /// exit and handed back everything at once, so the log appeared only when
+    /// the install was already over and any progress bar fed from it would
+    /// have jumped from nothing to done. Parsing alone would not have given
+    /// this frontend a working bar; it needed the output to arrive while the
+    /// install is running.
+    InstallLine(String),
+    InstallFinished(Result<i32, String>),
     Quit,
     /// The done page's Restart: `systemctl reboot` on the host.
     Reboot,
@@ -212,9 +265,16 @@ pub struct TunaInstaller {
     disks: Vec<DiskInfo>,
     selected_disk: Option<usize>,
     install_log: String,
+    /// The install's position, parsed from fisherman's protocol
+    /// (shared/progress/README.md). Before this the install page showed an
+    /// indeterminate bar for the whole install — docs/PARITY.md gap #2.
+    progress: progress::Progress,
     install_ok: bool,
     installing: bool,
     passphrase_hidden: bool,
+    /// Ticked by the user on the done page once they have written the
+    /// recovery key down. It gates Restart (#129).
+    recovery_ack: bool,
     /// `/sys/class/tpm/tpm0` existence, checked once at startup — same probe
     /// `tuna-installer-xfce` uses. Gates the two `tpm2-*` encryption choices.
     has_tpm: bool,
@@ -227,6 +287,20 @@ impl TunaInstaller {
     pub fn page(&self) -> Page {
         self.page
     }
+
+    /// True while a recovery key is on screen that the user has not yet
+    /// acknowledged (#129). The done page holds Restart until this clears:
+    /// leaving that page is what ends the chance to read the key.
+    ///
+    /// A failed install enrolled nothing, so there is no key to hold for.
+    pub fn recovery_key_pending(&self) -> bool {
+        progress::holds_restart(
+            self.install_ok,
+            &self.progress.recovery_key,
+            self.recovery_ack,
+        )
+    }
+
     pub fn recipe(&self) -> &Recipe {
         &self.recipe
     }
@@ -241,6 +315,10 @@ impl TunaInstaller {
     }
     pub fn install_log(&self) -> &str {
         &self.install_log
+    }
+
+    pub fn progress(&self) -> &progress::Progress {
+        &self.progress
     }
     pub fn install_ok(&self) -> bool {
         self.install_ok
@@ -359,13 +437,18 @@ impl cosmic::Application for TunaInstaller {
             recipe.disk = format!("/dev/{}", first.name);
         }
 
-        // Same probe as tuna-installer-xfce (`os.path.exists("/sys/class/tpm/tpm0")`).
-        // A read-only sysfs check, not a shell-out, so it runs unconditionally —
-        // including under capture: the Xvfb CI runner has no TPM, so this comes
-        // back false there and the tpm2-* choices simply don't appear in the
-        // captured "options" screenshot, same as they wouldn't on real hardware
-        // without a chip.
-        let has_tpm = std::path::Path::new("/sys/class/tpm/tpm0").exists();
+        // Same probe as the XFCE frontend's `core.has_tpm()` and KDE's
+        // InstallerController, and the same override for the same reason.
+        //
+        // The Xvfb CI runner has no TPM, so an unset capture renders an
+        // encryption page with only two of the four choices. docs/PARITY.md is
+        // read off those screenshots, which is how KDE and XFCE came to be
+        // recorded as having no TPM support at all when both have offered it
+        // all along. BOOTC_INSTALLER_FAKE_TPM=1 makes the choices VISIBLE for
+        // captures only; picking one still writes an ordinary recipe, and
+        // fisherman is what fails, later and loudly, with no chip to enrol
+        // against.
+        let has_tpm = tpm_available();
 
         let mut app = Self {
             core,
@@ -375,9 +458,11 @@ impl cosmic::Application for TunaInstaller {
             selected_disk: (!disks.is_empty()).then_some(0),
             disks,
             install_log: String::new(),
+            progress: progress::Progress::new(branding::name()),
             install_ok: false,
             installing: false,
             passphrase_hidden: true,
+            recovery_ack: false,
             has_tpm,
             capture: flags.capture,
         };
@@ -503,6 +588,13 @@ impl cosmic::Application for TunaInstaller {
                 self.passphrase_hidden = !self.passphrase_hidden;
                 Task::none()
             }
+            Message::RecoveryAckToggled(v) => {
+                self.recovery_ack = v;
+                Task::none()
+            }
+            Message::CopyRecoveryKey => {
+                cosmic::iced::clipboard::write(self.progress.recovery_key.clone())
+            }
             Message::StartInstall => {
                 // SAFETY INTERLOCK. Driving the wizard to the progress page
                 // must never partition the CI runner's disk. A sibling repo
@@ -516,18 +608,25 @@ impl cosmic::Application for TunaInstaller {
                 }
                 self.page = Page::Installing;
                 self.installing = true;
+                self.progress.reset();
                 let recipe = self.recipe.clone();
-                Task::perform(Self::run_fisherman(recipe), |r| {
-                    cosmic::action::app(Message::InstallFinished(r))
-                })
+                Task::stream(Self::stream_fisherman(recipe).map(cosmic::action::app))
+            }
+            Message::InstallLine(line) => {
+                // Through the same parser the capture harness drives, so the
+                // bar on the screenshot is the bar a real install shows.
+                if let Some(shown) = self.progress.consume(&line) {
+                    self.install_log.push_str(&shown);
+                    self.install_log.push('\n');
+                }
+                Task::none()
             }
             Message::InstallFinished(result) => {
                 self.page = Page::Done;
                 self.installing = false;
                 match result {
-                    Ok((code, log)) => {
+                    Ok(code) => {
                         self.install_ok = code == 0;
-                        self.install_log.push_str(&log);
                         self.install_log
                             .push_str(&format!("\n=== fisherman exited with code {code} ===\n"));
                     }
@@ -536,6 +635,7 @@ impl cosmic::Application for TunaInstaller {
                         self.install_log.push_str(&format!("\n=== Error: {e} ===\n"));
                     }
                 }
+                offline::persist_install_log(&self.install_log);
                 Task::none()
             }
             Message::Quit => {
@@ -611,58 +711,141 @@ impl TunaInstaller {
         Ok(disks)
     }
 
-    /// Runs fisherman and returns its exit code plus the combined
-    /// stdout+stderr it emitted (fisherman's structured step/substep/error/
-    /// recovery_key JSON-lines protocol — see internal/progress in the
-    /// fisherman repo). Previously this used `.output()` only to read the
-    /// exit code and threw the captured bytes away entirely, so a
-    /// successful OR failed install left `install_log` with nothing but an
-    /// exit code, even though the Done page tells the user "The install log
-    /// above has the details." Any recovery key fisherman emits for an
-    /// encrypted install was silently dropped the same way.
-    async fn run_fisherman(recipe: Recipe) -> Result<(i32, String), String> {
-        let json = serde_json::to_string_pretty(&recipe).map_err(|e| e.to_string())?;
-        // 0600 under XDG_RUNTIME_DIR — the recipe may hold a passphrase.
-        let path = offline::write_recipe(&json).map_err(|e| e.to_string())?;
+    /// Runs fisherman and yields its output a line at a time, then the exit
+    /// code.
+    ///
+    /// This was `.output()`, which waits for the process to exit and returns
+    /// everything at once. That was already a problem for the log — the Done
+    /// page tells the user "the install log above has the details" and the
+    /// log only existed once there was nothing left to watch — and it makes a
+    /// progress bar impossible on its own terms: every event would arrive
+    /// after the install had finished. Parsing fisherman's protocol was
+    /// necessary for a working bar here but not sufficient; the output has to
+    /// arrive while the install is running.
+    ///
+    /// stdout carries the newline-delimited JSON protocol
+    /// (shared/progress/README.md); stderr is plain text and is interleaved
+    /// into the same stream, which the parser passes through untouched.
+    fn stream_fisherman(recipe: Recipe) -> impl Stream<Item = Message> {
+        cosmic::iced::stream::channel(64, async move |mut output| {
+            let json = match serde_json::to_string_pretty(&recipe) {
+                Ok(json) => json,
+                Err(e) => {
+                    let _ = output.send(Message::InstallFinished(Err(e.to_string()))).await;
+                    return;
+                }
+            };
+            // 0600 under XDG_RUNTIME_DIR — the recipe may hold a passphrase.
+            let path = match offline::write_recipe(&json) {
+                Ok(path) => path,
+                Err(e) => {
+                    let _ = output.send(Message::InstallFinished(Err(e.to_string()))).await;
+                    return;
+                }
+            };
 
-        let result = tokio::task::spawn_blocking({
-            let path = path.clone();
-            move || {
-                // pkexec /app/bin/fisherman in Flatpak, sudo otherwise.
-                let cmd = offline::fisherman_command();
-                SysCommand::new(&cmd[0])
-                    .args(&cmd[1..])
-                    .arg(&path)
-                    .output()
-                    .map_err(|e| format!("Failed to run fisherman: {e}"))
+            // pkexec /app/bin/fisherman in Flatpak, sudo otherwise.
+            let cmd = offline::fisherman_command();
+            let mut child = match TokioCommand::new(&cmd[0])
+                .args(&cmd[1..])
+                .arg(&path)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+            {
+                Ok(child) => child,
+                Err(e) => {
+                    let _ = std::fs::remove_file(&path);
+                    let _ = output
+                        .send(Message::InstallFinished(Err(format!(
+                            "Failed to run fisherman: {e}"
+                        ))))
+                        .await;
+                    return;
+                }
+            };
+
+            let stdout = child.stdout.take();
+            let stderr = child.stderr.take();
+            if let Some(stdout) = stdout {
+                let mut lines = BufReader::new(stdout).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    if output.send(Message::InstallLine(line)).await.is_err() {
+                        break;
+                    }
+                }
             }
+            // Drained after stdout: fisherman writes its failure summary
+            // there, and dropping it is how a failed install used to reach
+            // the Done page with nothing to show.
+            if let Some(stderr) = stderr {
+                let mut lines = BufReader::new(stderr).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    if output.send(Message::InstallLine(line)).await.is_err() {
+                        break;
+                    }
+                }
+            }
+
+            let code = match child.wait().await {
+                Ok(status) => status.code().unwrap_or(-1),
+                Err(e) => {
+                    let _ = std::fs::remove_file(&path);
+                    let _ = output.send(Message::InstallFinished(Err(e.to_string()))).await;
+                    return;
+                }
+            };
+            let _ = std::fs::remove_file(&path);
+            if code != 0 {
+                tracing::error!("fisherman exited with code {code}");
+            }
+            let _ = output.send(Message::InstallFinished(Ok(code))).await;
         })
-        .await
-        .map_err(|e| format!("Task join error: {e}"))?;
-
-        let _ = std::fs::remove_file(&path);
-
-        let output = result.map_err(|e| {
-            tracing::error!("fisherman spawn failed: {e}");
-            e
-        })?;
-
-        let code = output.status.code().unwrap_or(-1);
-        let mut log = String::from_utf8_lossy(&output.stdout).into_owned();
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        if !stderr.is_empty() {
-            log.push_str(&stderr);
-        }
-        if code != 0 {
-            tracing::error!("fisherman exited with code {code}");
-        }
-        offline::persist_install_log(&log);
-        Ok((code, log))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    // The capture override. Without it the Xvfb runner's missing TPM decides
+    // what the screenshots show, and docs/PARITY.md is read off those.
+    // Serialised with a mutex: these mutate process-wide environment, and
+    // cargo runs tests in threads.
+    #[test]
+    fn tpm_available_honours_the_capture_override() {
+        use std::sync::Mutex;
+        static ENV_LOCK: Mutex<()> = Mutex::new(());
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        let real = std::path::Path::new("/sys/class/tpm/tpm0").exists();
+
+        unsafe { std::env::remove_var("BOOTC_INSTALLER_FAKE_TPM") };
+        assert_eq!(super::tpm_available(), real, "unset must fall through to the probe");
+
+        unsafe { std::env::set_var("BOOTC_INSTALLER_FAKE_TPM", "1") };
+        assert!(super::tpm_available(), "the override must force it on");
+
+        // Empty and "0" must not count as set.
+        for value in ["", "0"] {
+            unsafe { std::env::set_var("BOOTC_INSTALLER_FAKE_TPM", value) };
+            assert_eq!(
+                super::tpm_available(), real,
+                "{value:?} must not force the choices on"
+            );
+        }
+
+        unsafe { std::env::remove_var("BOOTC_INSTALLER_FAKE_TPM") };
+    }
+
+    #[test]
+    fn override_makes_all_four_choices_available() {
+        use std::sync::Mutex;
+        static ENV_LOCK: Mutex<()> = Mutex::new(());
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        assert_eq!(super::available_encryption_choices(false).len(), 2);
+        assert_eq!(super::available_encryption_choices(true).len(), 4);
+    }
+
     use super::*;
 
     #[test]
@@ -687,6 +870,24 @@ mod tests {
         assert!(json.get("image").is_none());
         assert!(json.get("targetImgref").is_none());
         assert!(json.get("bootloader").is_none());
+    }
+
+    /// shared/tpm/fixtures/ -- the same trees every frontend's probe is
+    /// pointed at, so all five agree. See shared/tpm/README.md.
+    fn tpm_fixture(tree: &str) -> std::path::PathBuf {
+        std::path::Path::new("../../shared/tpm/fixtures").join(tree)
+    }
+
+    #[test]
+    fn probe_tpm2_reads_the_version_rather_than_the_directory() {
+        for (tree, want, why) in [
+            ("tpm2", true, "tpm_version_major reads 2"),
+            ("tpm12", false, "a TPM 1.2 device cannot do tpm2-luks"),
+            ("legacy-tpm2", true, "no version file, but /dev/tpmrm0 is TPM2-only"),
+            ("legacy-none", false, "no version file and no resource manager"),
+        ] {
+            assert_eq!(probe_tpm2(&tpm_fixture(tree)), want, "{tree}: {why}");
+        }
     }
 
     #[test]
@@ -724,13 +925,48 @@ mod tests {
         recipe.image = "quay.io/centos-bootc/centos-bootc:c10s".into();
         recipe.hostname = "cosmic-e2e".into();
 
+        // Drive the real stream and feed it through the real parser, which
+        // is what the install page does. The old form called run_fisherman()
+        // and matched a string in its returned log; that function no longer
+        // exists, because collecting the output after the process exits is
+        // precisely what stopped this frontend having a progress bar.
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (code, log) = rt
-            .block_on(TunaInstaller::run_fisherman(recipe))
-            .expect("fisherman could not be launched");
+        let (code, log, fraction) = rt.block_on(async {
+            use cosmic::iced::futures::StreamExt;
+            let mut stream = Box::pin(TunaInstaller::stream_fisherman(recipe));
+            let mut progress = super::progress::Progress::new("ExampleOS");
+            let mut log = String::new();
+            let mut code = None;
+            while let Some(message) = stream.next().await {
+                match message {
+                    Message::InstallLine(line) => {
+                        if let Some(shown) = progress.consume(&line) {
+                            log.push_str(&shown);
+                            log.push('\n');
+                        }
+                    }
+                    Message::InstallFinished(result) => {
+                        code = Some(result.expect("fisherman could not be launched"));
+                    }
+                    _ => {}
+                }
+            }
+            (code.expect("the stream ended without a result"), log, progress.fraction)
+        });
         println!("{log}");
         assert_eq!(code, 0, "fisherman exit code");
-        assert!(log.contains("[9/9]"), "the log never reached step 9");
+        // Where the bar ended up, which is the property that was broken and
+        // the one no string match could see: a frontend that does not parse
+        // fisherman's protocol still reaches the Done page and still reports
+        // success, and only the bar shows the difference.
+        assert_eq!(
+            fraction, 1.0,
+            "the progress bar ended at {fraction}, not 1.0 — the install page              is not parsing fisherman's progress protocol              (shared/progress/README.md)"
+        );
+        assert!(
+            log.contains("Installation complete"),
+            "the log carried no completion event"
+        );
         assert!(
             std::path::Path::new("/tmp/tuna-e2e/recipe.json").exists(),
             "the shim recorded no recipe"
@@ -764,5 +1000,39 @@ mod tests {
         assert_eq!(restored.additional_image_stores, recipe.additional_image_stores);
         assert_eq!(restored.encryption.enc_type, recipe.encryption.enc_type);
         assert_eq!(restored.encryption.passphrase, recipe.encryption.passphrase);
+        // The field whose absence broke this round trip. It was never
+        // asserted, so the test failed on the unwrap rather than on a claim.
+        assert_eq!(restored.image, recipe.image);
+    }
+
+    /// The live-ISO recipe is the one that omits `image` on the wire, so it
+    /// is the shape that cannot be read back if the field loses `default`.
+    #[test]
+    fn live_iso_recipe_with_no_image_survives_the_round_trip() {
+        let mut recipe = Recipe::default();
+        recipe.disk = "/dev/sda".into();
+        assert!(recipe.image.is_empty());
+
+        let json_str = serde_json::to_string(&recipe).unwrap();
+        assert!(
+            !json_str.contains("\"image\""),
+            "an empty image should not be serialized: {json_str}"
+        );
+
+        let restored: Recipe = serde_json::from_str(&json_str).unwrap();
+        assert!(restored.image.is_empty());
+        assert_eq!(restored.disk, recipe.disk);
+    }
+
+    /// A populated image must still make the trip, so `default` is not
+    /// quietly swallowing a value that was present.
+    #[test]
+    fn a_populated_image_round_trips_unchanged() {
+        let mut recipe = Recipe::default();
+        recipe.image = "ghcr.io/tuna-os/albacore:latest".into();
+
+        let json_str = serde_json::to_string(&recipe).unwrap();
+        let restored: Recipe = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(restored.image, "ghcr.io/tuna-os/albacore:latest");
     }
 }

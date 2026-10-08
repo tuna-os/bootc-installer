@@ -48,6 +48,26 @@ os.environ.setdefault("BOOTC_DEMO", "1")
 # branding therefore follows recipe.json (distro_name / welcome_title); a
 # downstream ISO that overrides the recipe brands itself the same way.
 os.environ.setdefault("BOOTC_CUSTOM_RECIPE", os.path.join(REPO, "recipe.json"))
+# recipe.json carries no product strings, so branding still resolves from the
+# host's os-release and an unpinned capture is BRANDED BY THE RUNNER -- on an
+# ubuntu-24.04 box the wizard renders "Welcome to Ubuntu 24.04.4 LTS".
+#
+# Pin the whole branding object, not just the name. BOOTC_INSTALLER_PRODUCT_NAME
+# (which screenshots-gnome.yml passes) covers `name` and nothing else, so the
+# committed docs/screenshots/01-welcome.png reads "Welcome to TunaOS" under the
+# runner's Ubuntu LOGO: os-release `LOGO=ubuntu-logo` was never overridden.
+# setdefault, so a workflow pointing at a real product's file still wins.
+os.environ.setdefault(
+    "BOOTC_INSTALLER_BRANDING",
+    os.path.join(REPO, "shared", "walkthrough", "capture-branding.json"))
+# That branding names the app's own icon, which meson installs into the icon
+# theme but a from-source run has never seen -- it would render as the broken
+# -image glyph. data/ is laid out as a datadir (icons/hicolor/...), so putting
+# it on XDG_DATA_DIRS makes the theme find it without installing anything.
+os.environ["XDG_DATA_DIRS"] = os.pathsep.join([
+    os.path.join(REPO, "data"),
+    os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share",
+])
 # Skip the RAM / CPU / UEFI gate windows: this is a render of the wizard.
 os.environ.setdefault("IGNORE_RAM", "1")
 os.environ.setdefault("IGNORE_CPU", "1")
@@ -180,13 +200,28 @@ def _grab(widget, path):
 
 
 def _page_text(widget, acc=None):
-    """Every string the page actually put in its widget tree.
+    """Every string the page actually put on screen.
 
     Read from the VISIBLE carousel page only: walking the whole window would
     credit every screen on every frame, the false-parity failure the screen
     spec warns about.
+
+    Hidden widgets are skipped for the same reason, one level down. A page
+    can hide a row on a runtime probe -- welcome.py hides the Bluetooth row
+    when /sys/class/bluetooth has no adapter, which no runner does -- and
+    without this the row's title and subtitle still landed in the text the
+    parity report reads. The screenshot showed no Bluetooth row while
+    walkthrough-gnome.json claimed "Connect Bluetooth Devices"; the report
+    credited a screen for a row nobody can see.
+
+    get_visible(), not get_mapped(): the offscreen render never maps
+    anything, so get_mapped() would return False for the whole tree and the
+    report would go empty. get_visible() is the property set_visible() sets,
+    which is what these pages actually use.
     """
     acc = [] if acc is None else acc
+    if not widget.get_visible():
+        return acc
     if isinstance(widget, Gtk.Label):
         acc.append(widget.get_text() or "")
     elif isinstance(widget, Gtk.Button):

@@ -80,7 +80,10 @@ class InstallerWindow(Gtk.ApplicationWindow):
         self.back_btn.set_sensitive(name not in ("progress", "done") and self.index > 0)
         self.next_btn.set_visible(name not in ("progress", "done"))
         self.next_btn.set_sensitive(page.can_continue())
-        self.next_btn.set_label(core.BRANDING.text("confirm_button") if name == "confirm" else "Next")
+        # Branding copy on the two buttons that carry a product's voice:
+        # leaving the welcome page and starting the install.
+        branded = {"welcome": "welcome_button", "confirm": "confirm_button"}.get(name)
+        self.next_btn.set_label(core.BRANDING.text(branded) if branded else "Next")
         ctx = self.next_btn.get_style_context()
         if name == "confirm":
             ctx.add_class("destructive-action")
@@ -147,7 +150,9 @@ class InstallerWindow(Gtk.ApplicationWindow):
 
         def pump():
             if not lines:
-                self.pages["done"].set_result(True, "".join(self._log_tail))
+                self.pages["done"].set_result(
+                    True, "".join(self._log_tail),
+                    progress_page.recovery_key())
                 self._enter(PAGE_ORDER.index("done"))
                 return False
             text = lines.pop(0)
@@ -177,7 +182,9 @@ class InstallerWindow(Gtk.ApplicationWindow):
             self._install_log.write(f"=== fisherman exited: {outcome} ===\n")
             self._install_log.close()
             self._install_log = None
-        self.pages["done"].set_result(ok, "".join(self._log_tail))
+        self.pages["done"].set_result(
+            ok, "".join(self._log_tail),
+            self.pages["progress"].recovery_key())
         self._enter(PAGE_ORDER.index("done"))
 
 

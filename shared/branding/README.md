@@ -74,6 +74,7 @@ about to be erased.
 | `welcome_install`, `welcome_install_subtitle`, `welcome_button` | the install row (GNOME) or the forward button |
 | `confirm_title`, `confirm_subtitle`, `confirm_body`, `confirm_warning`, `confirm_button` | the last page before the disk is written |
 | `progress_title`, `progress_note` | while fisherman runs |
+| `recovery_key_title`, `recovery_key_body`, `recovery_key_copy`, `recovery_key_ack` | the recovery-key panel after a TPM enrolment |
 | `done_title`, `done_subtitle`, `done_restart`, `done_failed_title` | the done page |
 | `store_label` | the store link on the done page, shown only when `store_url` is set |
 
@@ -82,18 +83,46 @@ confirm subtitle in that language. `assets` holds absolute host paths
 (`welcome_image`, `complete_image`, `store_qr`); an empty or missing asset
 hides or skips the element. `store_url` has no os-release fallback.
 
-Every key above is rendered by every frontend: a product branded once looks
-and reads the same on GNOME, KDE, COSMIC, Niri and Xfce (`docs/PARITY.md`
-is the matrix). Nothing one desktop alone can show is in the contract.
+The aim is that every key above is rendered by every frontend, so a
+product branded once reads the same on GNOME, KDE, COSMIC, Niri and Xfce.
+`docs/PARITY.md` is the matrix and it is not all yes yet: the keys a
+frontend still hardcodes are listed as `KNOWN_GAPS` in
+`tests/unit/test_copy_coverage.py`, which fails both on a gap that is not
+listed and on a listed gap that has since been closed. Nothing one desktop
+alone can show is in the contract.
 What a single frontend renders on top goes under `extensions.<frontend>`
 in the branding file, read only by that frontend: today `extensions.gnome`
 carries the tour page text, the install video and the credits file. Each
 language embeds a byte-identical copy of `copy-defaults.json` (checked by
-the identity test), so no frontend needs a data file at runtime.
+the identity test), so no frontend needs a data file at runtime. Niri's QML
+cannot read a file at all, so its fallback table is generated into
+`frontends/niri/ui/installer.qml` by `generate-qml-defaults.py`; run it
+after any edit here, alongside the other copies.
 
 `examples/bluefin/` is a complete branding for Bluefin, lifted from what
 the GNOME frontend used to hardcode; its README says how a live ISO ships
 it.
+
+## Pinning branding for screenshots
+
+A capture resolves branding exactly as the installer does, so an unpinned
+capture is branded by the machine that took it. `shared/walkthrough/capture-branding.json`
+is the pin, and both GTK capture harnesses point `BOOTC_INSTALLER_BRANDING`
+at it (with `setdefault`, so a workflow naming a real product's file wins).
+
+Pin the **whole object**, not `BOOTC_INSTALLER_PRODUCT_NAME`. That variable
+covers `name` and nothing else, which is how the committed
+`docs/screenshots/01-welcome.png` came to show the Ubuntu logo above
+"Welcome to TunaOS" — os-release's `LOGO=ubuntu-logo` was never overridden.
+XFCE showed the same fault in text: its heading read "Welcome to Ubuntu
+24.04.5 LTS" next to a body reading "installs TunaOS", because only the one
+f-string that reads `core.PRODUCT_NAME` had been pinned and every copy key
+still came from the host.
+
+`tests/unit/test_shared_branding.py::CaptureBrandingPinTest` resolves the pin
+against a deliberately foreign os-release and fails if any host value
+survives. Niri needs no env pin — its capture stubs the whole branding object
+in `tests/qml-stubs`, which is why its walkthrough was always right.
 
 ## Implementations
 

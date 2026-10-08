@@ -1,0 +1,8 @@
+{
+  "name": "TunaOS",
+  "id": "tunaos",
+  "vendor": "TunaOS",
+  "logo": "org.bootcinstaller.Installer",
+  "default_hostname": "tunaos",
+  "default_image": "ghcr.io/tuna-os/tunaos:latest"
+}

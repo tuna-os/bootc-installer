@@ -158,6 +158,35 @@ class TestSubstepEvent:
         set_product_name("")
         assert progress_parser._PRODUCT_NAME == "the OS"
 
+    def test_install_label_comes_from_progress_title(self):
+        """A product's progress_title replaces the image-writing step label."""
+        original = progress_parser._FRIENDLY_STEP_LABELS["Installing OS"]
+        set_product_name("Skipjack")
+        try:
+            progress_parser.set_install_label("Setting up {name} for you")
+            state = new_progress_state()
+            apply_progress_event(
+                _step(step=5, name="Installing OS", cumulative_pct=1, weight_pct=87), state)
+            update = apply_progress_event(_substep("Pulling container image"), state)
+            assert "Setting up Skipjack for you" in update["label"]
+        finally:
+            progress_parser._FRIENDLY_STEP_LABELS["Installing OS"] = original
+            progress_parser._PRODUCT_NAME = "the OS"
+
+    def test_empty_install_label_keeps_the_default(self):
+        original = progress_parser._FRIENDLY_STEP_LABELS["Installing OS"]
+        progress_parser.set_install_label("")
+        assert progress_parser._FRIENDLY_STEP_LABELS["Installing OS"] == original
+
+    def test_a_stray_brace_in_a_branded_label_does_not_raise(self):
+        """The label comes from a branding file; str.format would raise."""
+        original = progress_parser._FRIENDLY_STEP_LABELS["Installing OS"]
+        try:
+            progress_parser.set_install_label("Installing {name} {oops")
+            assert "{oops" in progress_parser._friendly_label("Installing OS")
+        finally:
+            progress_parser._FRIENDLY_STEP_LABELS["Installing OS"] = original
+
     def test_duplicate_substep_no_label(self):
         state = new_progress_state()
         apply_progress_event(_step(step=1), state)

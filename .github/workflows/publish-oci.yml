@@ -172,7 +172,9 @@ jobs:
           {
             echo "## ${REGISTRY}/${PACKAGE}:${FRONTEND}"
             for arch in "${archs[@]}"; do echo "- \`${FRONTEND}-${arch}\`"; done
-            [ -n "$version_tag" ] && echo "- \`${FRONTEND}-${version_tag}-<arch>\`"
+            # `if`, not `&&`: as the block's last command a false test would
+            # fail the step on every non-tag publish, after the push landed.
+            if [ -n "$version_tag" ]; then echo "- \`${FRONTEND}-${version_tag}-<arch>\`"; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       # The central Flatpak index (tuna-os/docs) keys entries by repo name;
