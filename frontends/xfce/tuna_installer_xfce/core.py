@@ -324,7 +324,8 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
         "btrfsSubvolumes": filesystem == "btrfs" and btrfs_subvolumes,
         "encryption": {"type": encryption_type},
         "image": image,
-        "selinuxDisabled": True,
+        # True makes bootc boot the installed system with selinux=0.
+        "selinuxDisabled": False,
         "hostname": hostname,
         # The branding's id, never a literal: see resolve_branding().
         "distroID": (branding or BRANDING).id,

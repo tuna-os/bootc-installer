@@ -21,7 +21,8 @@ struct Recipe {
     QStringList flatpaks;
     QStringList additionalImageStores; // embedded OCI stores for offline installs
     QString distroID;            // filled from the branding contract by the controller
-    bool selinuxDisabled = true;
+    // true makes bootc boot the installed system with selinux=0. Keep SELinux on.
+    bool selinuxDisabled = false;
     QString hostname;            // likewise: branding default_hostname
     bool liveMode = false; // true when installing the running live system
 

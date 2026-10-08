@@ -285,17 +285,53 @@ def _page_name(page):
         type(page).__name__, type(page).__name__.lower())
 
 
+# The install screen, caught in flight: the shared dry-run transcript cut
+# part-way through the image pull, so the bar sits mid-way rather than at
+# either end. KDE, COSMIC, Niri and XFCE cut at the same line and render the
+# same fraction.
+TRANSCRIPT = os.path.join(REPO, "shared", "progress", "dry-run-transcript.ndjson")
+
+# Seeding failures, reported alongside the pixel audit by main().
+SEED_FAILURES = []
+
+
+def _seed_progress(page):
+    """Feed fisherman's own output through the parser a live install uses.
+
+    This screen used to set the bar to 0.45 and write the labels by hand, so
+    it showed nothing about whether this frontend can parse fisherman's JSON
+    progress protocol (shared/progress/README.md): a parser regression would
+    have left the screenshot unchanged. start_demo() is not an option either:
+    it runs on timers and configures the install video, which a runner has no
+    codec for.
+    """
+    with open(TRANSCRIPT, encoding="utf-8") as fh:
+        lines = fh.readlines()
+    cut = next(i for i, ln in enumerate(lines) if "47/71" in ln) + 1
+    for line in lines[:cut]:
+        page._BootcProgress__parse_progress_line(line.strip())
+
+    # Did the transcript actually reach the bar?
+    #
+    # The pixel audit cannot answer this: it measures ink over the whole
+    # frame, and this page has a title, labels and a substep line regardless.
+    # A fraction of zero here means the parser stopped driving the bar.
+    fraction = page.progressbar.get_fraction()
+    print(f"    progress bar at {fraction:.1%}")
+    if fraction <= 0.0:
+        SEED_FAILURES.append(
+            "progress: the bar is at 0% after the transcript -- "
+            "__parse_progress_line is not driving it (shared/progress/README.md)")
+    if not page.progressbar.get_visible():
+        SEED_FAILURES.append("progress: the progress bar is not visible")
+
+
 def _seed(win, page, name):
     """Put each page into the state a user would see it in."""
     if name == "confirm":
         win.update_finals()
     elif name == "progress":
-        # The same labels the demo mode shows, set directly so no timer has
-        # to fire. start_demo() also configures the install video, which a
-        # runner has no codec for.
-        page._BootcProgress__set_progress_fraction(0.45)
-        page.progressbar_text.set_label("Installing %s…" % win.recipe.get("distro_name", ""))
-        page.progress_substep.set_label("Deploying image: writing layers")
+        _seed_progress(page)
     elif name == "recovery-key":
         page.set_recovery_key("mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf")
     elif name == "done":
@@ -345,7 +381,7 @@ def main():
     for p in reversed(PATCHERS):
         p.stop()
 
-    failures = []
+    failures = list(SEED_FAILURES)
     for f in findings:
         print(f"  {f['name']:14s} {f['w']}x{f['h']}  colours {f['colours']:5d}  "
               f"largest-flat {f['flat']*100:5.1f}%  ink {f['ink']*100:5.1f}%")

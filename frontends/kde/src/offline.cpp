@@ -6,7 +6,9 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#if QT_CONFIG(process)
 #include <QProcess>
+#endif
 #include <QProcessEnvironment>
 
 namespace offline {
@@ -45,6 +47,13 @@ QStringList hostCommand(const QStringList &argv)
 static QString runHost(const QStringList &argv, int timeoutMs = 10000)
 {
     const QStringList cmd = hostCommand(argv);
+#if !QT_CONFIG(process)
+    // Qt for WebAssembly: no helper can run, which every caller already
+    // reads as "nothing there".
+    Q_UNUSED(timeoutMs);
+    qCWarning(logInstaller) << "this build cannot start processes, treating output as empty:" << cmd;
+    return {};
+#else
     QProcess p;
     p.start(cmd.first(), cmd.mid(1));
 
@@ -69,6 +78,7 @@ static QString runHost(const QStringList &argv, int timeoutMs = 10000)
     }
 
     return QString::fromUtf8(p.readAllStandardOutput());
+#endif
 }
 
 QString liveIsoImage()

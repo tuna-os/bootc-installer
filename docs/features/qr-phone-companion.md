@@ -10,7 +10,7 @@ Local HTTPS server + preferences page accessible from phone during install for a
 2. Serve a captive-portal-like page with:
    - Account creation / sign-in (optional)
    - Preferences: hostname, user account, SSH keys, wallpaper
-3. Display QR code on installer screen linking to the local server
+3. Display a QR code on the installer screen with a link to the local server
 4. Accept completed preferences as JSON, feed into recipe/finals
 
 ### Files to touch
@@ -22,4 +22,4 @@ Local HTTPS server + preferences page accessible from phone during install for a
 ### Open questions
 - Self-signed cert generation — openssl on live ISO or `cryptography` module?
 - mDNS for .local discovery?
-- Same-network requirement vs hotspot?
+- Must the phone be on the same network, or can it use a hotspot?

@@ -1,7 +1,7 @@
 # docs/skills — Index
 
 Agent skill docs for `tuna-os/bootc-installer`. Any agent (Copilot,
-Claude, etc.) working in this repo should load the relevant files.
+Claude, etc.) that works in this repo should load the relevant files.
 
 ## What belongs here
 
@@ -10,8 +10,8 @@ gotchas that any agent needs to work effectively in this repo.
 
 ## What does NOT belong here
 
-Agent-specific instruction files (`AGENTS.md`, `.github/copilot-instructions.md`)
-are loaded separately and must not be listed here.
+Each agent loads its own instruction files (`AGENTS.md`, `.github/copilot-instructions.md`)
+separately. Do not list them here.
 
 ## Skill docs
 
@@ -29,4 +29,4 @@ are loaded separately and must not be listed here.
 - **Dev loop**: `./run-dev.sh` — builds via `flatpak run org.flatpak.Builder --ccache` into `_build/`, runs with `flatpak-builder --run` (no user/system install). `/app/bin` not in PATH by default; use `/app/bin/bootc-installer`.
 - **Debug log (in `--run` mode)**: `~/.var/app/org.bootcinstaller.Installer.Devel/cache/bootc-installer/installer-debug.log`
 - **Branch protection**: no classic branch protection on `dev` — uses repository rulesets. Remove via `gh api --method DELETE repos/org/repo/rulesets/<id>`.
-- **composefs-native layout**: writable `/etc` = `state/deploy/<HASH>/etc/`, writable `/var` = `state/os/default/var/`. Never write to `$TARGET/etc/` or `$TARGET/var/` for post-install state — those are orphaned ghost dirs. See PITFALLS.md for full details.
+- **composefs-native layout**: writable `/etc` = `state/deploy/<HASH>/etc/`, writable `/var` = `state/os/default/var/`. Never write to `$TARGET/etc/` or `$TARGET/var/` for post-install state — those are orphan ghost dirs. See PITFALLS.md for full details.

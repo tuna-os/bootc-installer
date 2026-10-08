@@ -3,7 +3,7 @@
 Refs: #36|Draft
 
 ### Goal
-Validate that GStreamer VP9 and AV1 codecs are present in the Flatpak runtime before attempting video playback, with graceful fallback.
+Validate that GStreamer VP9 and AV1 codecs are present in the Flatpak runtime before the video plays, with graceful fallback.
 
 ### Proposed approach
 1. Add codec detection at startup using GStreamer `GstRegistry` or `gst-inspect-1.0`
@@ -14,7 +14,7 @@ Validate that GStreamer VP9 and AV1 codecs are present in the Flatpak runtime be
 ### Files to touch
 - `bootc_installer/utils/codec_check.py` (new — GStreamer codec detection)
 - `bootc_installer/views/progress.py` (codec check before video init)
-- `org.bootcinstaller.Installer.json` (ensure GStreamer codec plugins)
+- `org.bootcinstaller.Installer.json` (make sure that the runtime has the codec plugins for GStreamer)
 
 ### Open questions
 - Which GStreamer plugins provide VP9/AV1? (gst-plugins-good, gst-plugins-bad?)

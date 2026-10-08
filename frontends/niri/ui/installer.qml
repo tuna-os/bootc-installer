@@ -319,7 +319,8 @@ ApplicationWindow {
             image: liveImage !== "" ? "" : defaultImage,
             hostname: hostname,
             distroID: root.branding.id || "linux",
-            selinuxDisabled: true,
+            // true makes bootc boot the installed system with selinux=0.
+            selinuxDisabled: false,
             additionalImageStores: offlineStores
         }
         installProc.command = [root.backendBin, "install"]

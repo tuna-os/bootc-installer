@@ -4,7 +4,9 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#if QT_CONFIG(process)
 #include <QProcess>
+#endif
 #include <QDebug>
 
 DiskModel::DiskModel(QObject *parent)
@@ -80,12 +82,18 @@ void DiskModel::refresh()
         else
             qWarning() << "TUNA_INSTALLER_FAKE_LSBLK set but unreadable:" << fake;
     } else {
+#if QT_CONFIG(process)
         QProcess proc;
         proc.start(QStringLiteral("lsblk"),
                {QStringLiteral("-J"), QStringLiteral("-o"),
                     QStringLiteral("NAME,SIZE,TYPE,MODEL,TRAN")});
         proc.waitForFinished(5000);
         raw = proc.readAllStandardOutput();
+#else
+        // Qt for WebAssembly: no lsblk to run. The browser harness always
+        // sets the variable above, so reaching here means it was left out.
+        qWarning() << "no TUNA_INSTALLER_FAKE_LSBLK and this build cannot run lsblk";
+#endif
     }
 
     QJsonParseError err;

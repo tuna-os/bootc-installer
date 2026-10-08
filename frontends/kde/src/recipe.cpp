@@ -51,7 +51,7 @@ Recipe Recipe::fromJson(const QJsonObject &obj)
         r.additionalImageStores.append(val.toString());
     }
     r.distroID = obj["distroID"].toString();
-    r.selinuxDisabled = obj["selinuxDisabled"].toBool(true);
+    r.selinuxDisabled = obj["selinuxDisabled"].toBool(false);
     r.hostname = obj["hostname"].toString();
     return r;
 }

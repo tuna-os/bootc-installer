@@ -24,6 +24,7 @@
         "type": {
           "type": "string",
           "enum": [
+            "",
             "none",
             "luks-passphrase",
             "tpm2-luks",
@@ -63,7 +64,7 @@
     },
     "bootloader": {
       "type": "string",
-      "enum": ["grub2", "systemd"],
+      "enum": ["", "grub2", "systemd"],
       "description": "Explicit bootloader selection"
     },
     "composeFsBackend": {
@@ -85,7 +86,8 @@
     },
     "selinuxDisabled": {
       "type": "boolean",
-      "default": true
+      "default": false,
+      "description": "true passes --disable-selinux to bootc, which adds selinux=0 to the installed system's kernel arguments. Leave false: bootc labels the target from its own policy."
     },
     "hostname": {
       "type": "string",
