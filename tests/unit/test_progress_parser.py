@@ -202,8 +202,9 @@ class TestSubstepEvent:
         update = apply_progress_event(_substep("Pulling image: layer 32/64"), state)
         assert update is not None
         assert update["fraction"] is not None
-        # 1% + (32/64)*87% = 1% + 43.5% = 44.5%
-        assert update["fraction"] == pytest.approx(0.445, abs=0.01)
+        # The pull covers the first 60% of the step:
+        # 1% + (32/64)*0.6*87% = 1% + 26.1% = 27.1%
+        assert update["fraction"] == pytest.approx(0.271, abs=0.01)
 
     def test_layer_progress_clamped_to_1(self):
         state = new_progress_state()
@@ -338,3 +339,86 @@ def test_duplicate_layer_substep_returns_fraction():
     assert result["label"] is None
     assert result["pulse"] is False
     assert result["complete"] is False
+
+
+# ---------------------------------------------------------------------------
+# Silent phases after the pull (#115)
+# ---------------------------------------------------------------------------
+
+def _install_os(state, cumulative_pct=1, weight_pct=68):
+    apply_progress_event(
+        _step(step=5, name="Installing OS", cumulative_pct=cumulative_pct, weight_pct=weight_pct),
+        state)
+
+
+def test_offline_install_phases_move_the_bar():
+    """An offline install has no layer counter, but each phase still moves the bar.
+
+    This is the sequence from #115, where the bar sat at 1% for ten minutes.
+    """
+    state = new_progress_state()
+    _install_os(state)
+    fractions = []
+    for msg in (
+        "Image already up to date, skipping pull",
+        "Exporting image to OCI layout for composefs install",
+        "OCI export complete",
+        "Using overlay storage driver with OCI layout",
+        "Writing 64 (3.7 GB) to disk — this may take several minutes",
+        "Deploying image",
+        "OS deployed, installing bootloader",
+        "Installing bootloader",
+        "bootc installation complete",
+    ):
+        update = apply_progress_event(_substep(msg), state)
+        fractions.append(update["fraction"] if update else None)
+
+    assert fractions[0] is None  # not a phase milestone
+    moving = [f for f in fractions if f is not None]
+    assert moving == sorted(moving)
+    assert moving[0] > 0.01
+    # Deploying sits about a third of the way through the step.
+    assert fractions[5] == pytest.approx((1 + 0.35 * 68) / 100, abs=0.001)
+    # The bootc phase ends at the end of the step's weight.
+    assert fractions[-1] == pytest.approx(0.69, abs=0.001)
+
+
+def test_phases_after_pull_fill_the_rest_of_the_step():
+    """After a cold pull, the post-pull phases use what is left of the step."""
+    state = new_progress_state()
+    _install_os(state, cumulative_pct=1, weight_pct=87)
+    pulled = apply_progress_event(_substep("Pulling image: layer 71/71"), state)
+    assert pulled["fraction"] == pytest.approx((1 + 0.6 * 87) / 100, abs=0.001)
+
+    deploy = apply_progress_event(_substep("Deploying image"), state)
+    base = 0.6
+    assert deploy["fraction"] == pytest.approx(
+        (1 + (base + 0.35 * (1 - base)) * 87) / 100, abs=0.001)
+    done = apply_progress_event(_substep("bootc installation complete"), state)
+    assert done["fraction"] == pytest.approx(0.88, abs=0.001)
+
+
+def test_bar_never_moves_backwards():
+    """A retried pull restarts its layer count; the bar keeps its position."""
+    state = new_progress_state()
+    _install_os(state)
+    first = apply_progress_event(_substep("Pulling image: layer 30/40"), state)
+    retry = apply_progress_event(_substep("Pulling image: layer 2/40"), state)
+    assert retry["fraction"] == first["fraction"]
+
+
+def test_milestones_reset_on_a_new_step():
+    state = new_progress_state()
+    _install_os(state)
+    apply_progress_event(_substep("Deploying image"), state)
+    apply_progress_event(
+        _step(step=6, name="Copying system Flatpaks", cumulative_pct=69, weight_pct=29), state)
+    assert state["step_frac"] == 0.0
+    assert state["post_pull_base"] is None
+
+
+def test_milestone_ignored_in_unweighted_step():
+    state = new_progress_state()
+    apply_progress_event(_step(step=4, name="Mounting filesystem", weight_pct=0), state)
+    update = apply_progress_event(_substep("Deploying image"), state)
+    assert update["fraction"] is None

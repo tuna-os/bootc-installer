@@ -34,13 +34,29 @@ _VENDOR_MAP = {
 }
 
 
+# Firmware fills unset DMI strings with vendor placeholders. Taken literally
+# they become the hostname: a KubeVirt guest reports product_name "None" and
+# was offered "none-1378"; whitebox boards say "To Be Filled By O.E.M.".
+_DMI_PLACEHOLDERS = frozenset({
+    "", "none", "null", "n/a", "na", "unknown", "not specified",
+    "not applicable", "default string", "system product name",
+    "system manufacturer", "system serial number", "to be filled by o.e.m.",
+    "to be filled by oem", "o.e.m.", "oem", "0", "0123456789",
+})
+
+
 def _read_dmi(field: str) -> str:
-    """Read a DMI field from sysfs, returning empty string on failure."""
+    """Read a DMI field from sysfs, returning empty string on failure.
+
+    Firmware placeholder values ("None", "To Be Filled By O.E.M.", ...) read
+    as empty, so callers fall back as if the field were absent.
+    """
     try:
         with open(f"/sys/devices/virtual/dmi/id/{field}") as f:
-            return f.read().strip()
+            value = f.read().strip()
     except OSError:
         return ""
+    return "" if value.lower() in _DMI_PLACEHOLDERS else value
 
 
 def _sanitize_hostname_part(s: str) -> str:

@@ -18,12 +18,14 @@ on:
       - "frontends/cosmic/src/**"
       - "frontends/cosmic/Cargo.toml"
       - "frontends/cosmic/Cargo.lock"
+      - "shared/progress/**"
       - ".github/workflows/cargo-test-cosmic.yml"
   pull_request:
     paths:
       - "frontends/cosmic/src/**"
       - "frontends/cosmic/Cargo.toml"
       - "frontends/cosmic/Cargo.lock"
+      - "shared/progress/**"
       - ".github/workflows/cargo-test-cosmic.yml"
   merge_group:
   workflow_dispatch:

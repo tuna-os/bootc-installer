@@ -39,13 +39,40 @@ while True:
 all_timezones = dict(sorted(regions.items()))
 
 
+# HTTPS, and free without a key. This was http://ip-api.com, which sends
+# the user's location in clear text (#184). ip-api.com's free tier does not
+# serve HTTPS at all ("SSL unavailable for this endpoint, order a key"), so
+# the obvious one-letter fix would have turned auto-detection off. Fedora's
+# GeoIP service is what Anaconda uses for the same purpose.
+GEOIP_URL = "https://geoip.fedoraproject.org/city"
+
+
+def parse_geoip(payload) -> tuple[float, float] | None:
+    """(latitude, longitude) from a GeoIP response, or None if unusable.
+
+    The response comes from the network, so only two finite numbers in
+    range are taken from it. Anything else means no auto-detection, never
+    an exception and never a wrong guess.
+    """
+    if not isinstance(payload, dict):
+        return None
+    try:
+        lat = float(payload["latitude"])
+        lon = float(payload["longitude"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+        return None  # also rejects NaN, which fails every comparison
+    return lat, lon
+
+
 def get_location(callback=None):
     logger.info("Trying to retrieve timezone automatically")
     try:
-        res = requests.get("http://ip-api.com/json?fields=49344", timeout=3).json()
-        if res["status"] != "success":
-            raise Exception(f"get_location: request failed with message '{res['message']}'")
-        nearest = world.find_nearest_city(res["lat"], res["lon"])
+        coords = parse_geoip(requests.get(GEOIP_URL, timeout=3).json())
+        if coords is None:
+            raise ValueError("GeoIP response had no usable coordinates")
+        nearest = world.find_nearest_city(*coords)
     except Exception as e:
         logger.error(f"Failed to retrieve timezone: {e}")
         nearest = None
