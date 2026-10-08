@@ -36,8 +36,9 @@ pub struct Recipe {
     pub hostname: String,
 }
 
+// true makes bootc boot the installed system with selinux=0. Keep SELinux on.
 fn default_selinux() -> bool {
-    true
+    false
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,7 +73,7 @@ impl Default for Recipe {
             flatpaks: Vec::new(),
             additional_image_stores: Vec::new(),
             distro_id: crate::branding::NEUTRAL_ID.into(),
-            selinux_disabled: true,
+            selinux_disabled: false,
             hostname: crate::branding::NEUTRAL_ID.into(),
         }
     }

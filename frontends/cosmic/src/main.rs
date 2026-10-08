@@ -857,7 +857,7 @@ mod tests {
         assert_eq!(recipe.distro_id, "linux");
         assert_eq!(recipe.hostname, "linux");
         assert!(recipe.image.is_empty());
-        assert!(recipe.selinux_disabled);
+        assert!(!recipe.selinux_disabled);
 
         let json_str = serde_json::to_string(&recipe).unwrap();
         let json: serde_json::Value = serde_json::from_str(&json_str).unwrap();
@@ -866,7 +866,7 @@ mod tests {
         assert_eq!(json["encryption"]["type"], "none");
         assert_eq!(json["distroID"], "linux");
         assert_eq!(json["hostname"], "linux");
-        assert_eq!(json["selinuxDisabled"], true);
+        assert_eq!(json["selinuxDisabled"], false);
         assert!(json.get("image").is_none());
         assert!(json.get("targetImgref").is_none());
         assert!(json.get("bootloader").is_none());
