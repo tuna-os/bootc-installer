@@ -6,14 +6,14 @@ Refs: #20|Closes
 
 ## Context
 
-Dakota uses composefs + systemd-boot (not GRUB). The fisherman pipeline already handles this combination:
+Dakota uses composefs + systemd-boot (not GRUB). The pipeline in fisherman already handles this combination:
 
 1. `isSystemdBoot = true` when `r.Bootloader == "systemd"`
 2. `PartitionSystemdBoot()` creates 2-partition layout (2 GiB FAT32 ESP + root)
 3. LUKS (if requested) wraps the root partition; ESP stays unencrypted
 4. `EnsureLuksArgs()` injects `rd.luks.name=<UUID>=root` into BLS loader entries
 5. `EnrollTPM2()` runs after install — non-fatal if TPM2 hardware is absent
-6. GPT auto-discovery retag correctly skips when `hasEncryption` is true
+6. fisherman correctly skips the retag for GPT auto-discovery when `hasEncryption` is true
 
 ## Testing Checklist
 
@@ -21,7 +21,7 @@ Dakota uses composefs + systemd-boot (not GRUB). The fisherman pipeline already 
 - [ ] Verify system boots and auto-unlocks via TPM2
 - [ ] Verify passphrase fallback works when TPM2 is unavailable (e.g. after firmware update changes PCR 7)
 - [ ] Install Dakota with `tpm2-luks-passphrase` in a VM (no TPM2) — confirm non-fatal warning and passphrase-only unlock works
-- [ ] Verify `rd.luks.name` is correctly injected into systemd-boot BLS entries (not GRUB configs)
+- [ ] Verify that fisherman correctly injects `rd.luks.name` into systemd-boot BLS entries (not GRUB configs)
 
 ## Dakota-Specific Recipe
 
@@ -44,4 +44,4 @@ Dakota uses composefs + systemd-boot (not GRUB). The fisherman pipeline already 
 
 ## Known Issue
 
-`systemd-cryptenroll --unlock-key-file=-` fails with "Reading keyfile /var/roothome/- failed". May be a systemd version issue on the live ISO vs installed system. Non-fatal since passphrase still works.
+`systemd-cryptenroll --unlock-key-file=-` fails with `Reading keyfile /var/roothome/- failed`. The cause can be a difference in the systemd version between the live ISO and the installed system. Non-fatal since passphrase still works.
