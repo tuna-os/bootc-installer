@@ -9,7 +9,13 @@
 
 #include <QFile>
 #include <QObject>
+#if QT_CONFIG(process)
 #include <QProcess>
+#else
+// Qt for WebAssembly builds without QProcess. The browser harness never
+// starts an install, so the pointer only has to exist; it stays null.
+class QProcess;
+#endif
 #include <QString>
 #include <QTemporaryDir>
 #include <qqmlintegration.h>
