@@ -9,13 +9,24 @@ git clone --recurse-submodules https://github.com/tuna-os/bootc-installer
 cd bootc-installer
 ```
 
-> **Important:** `fisherman` is a git submodule. Always clone with `--recurse-submodules`, or run `git submodule update --init --recursive` after a plain clone. Without this, `fisherman/` is empty and all build paths fail immediately.
-
 ## Prerequisites
+
+### Submodule (required first)
+
+**`fisherman` is a git submodule.** The install backend lives in `fisherman/` as a separate repository.
+
+If you cloned without `--recurse-submodules`, run:
+```bash
+git submodule update --init --recursive
+```
+
+If `fisherman/` is empty after cloning or checking out, you forgot this step — all builds will fail immediately.
+
+### Build dependencies
 
 - `flatpak` + `org.flatpak.Builder` — for the recommended Flatpak build
 - `meson`, `ninja` — for native (non-Flatpak) builds
-- Go ≥ 1.22 — for `fisherman` (the install backend, in the submodule)
+- Go ≥ 1.22 — for `fisherman` backend code
 - Python ≥ 3.10 — for the GUI codebase
 - `libadwaita-1-dev`, `gettext`, `desktop-file-utils`, `libgnome-desktop-4-dev`
 
@@ -56,6 +67,14 @@ python3 -m ruff check bootc_installer/ tests/   # Lint
 ```
 
 CI gate: `--cov-fail-under=51` (the minimum coverage for unit tests).
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `fisherman/` is empty after clone | Run `git submodule update --init --recursive` |
+| Build fails with "fisherman not found" | The submodule is not initialized — see above |
+| Tests fail with import errors | Ensure you ran `git submodule update` *before* running tests |
 
 ## Branch workflow
 
