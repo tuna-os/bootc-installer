@@ -27,8 +27,11 @@ qt_add_executable(niri-wasm main.cpp)
 # go into the binary. BASE keeps their relative layout: installer.qml still
 # finds Theme through its own qmldir and `import "."`, and the stubs keep the
 # Quickshell/ and Quickshell/Io/ directories that `import Quickshell` needs.
+# ui/*.js too: installer.qml imports progress.js, and a script missing from
+# the binary fails the whole load ("Script qrc:/niri/ui/progress.js
+# unavailable").
 file(GLOB NIRI_UI RELATIVE "${NIRI_ROOT}" CONFIGURE_DEPENDS
-     "${NIRI_ROOT}/ui/*.qml" "${NIRI_ROOT}/ui/qmldir")
+     "${NIRI_ROOT}/ui/*.qml" "${NIRI_ROOT}/ui/*.js" "${NIRI_ROOT}/ui/qmldir")
 file(GLOB_RECURSE NIRI_STUBS RELATIVE "${NIRI_ROOT}" CONFIGURE_DEPENDS
      "${NIRI_ROOT}/tests/qml-stubs/*")
 list(TRANSFORM NIRI_UI PREPEND "${NIRI_ROOT}/")
