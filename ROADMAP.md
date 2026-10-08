@@ -83,6 +83,49 @@ larger: the monorepo consolidation.
 
 ---
 
+## Planned features
+
+The maintainer approved these on 2026-10-08. They are not scheduled yet.
+"fisherman" means the work is in the backend repository; the other items are
+in this repository.
+
+### Safety and recovery
+
+| Feature | Where | What it fixes |
+|---|---|---|
+| Clean cancel and kill handling | fisherman | fisherman has no signal handler. A cancelled or killed install leaves mounts and LUKS mappings behind and emits no `error` event. Unmount, close the mappings and emit `error`. |
+| Durable data-migration rescue | fisherman | Before partitioning, copy the selected user data to persistent storage, so a failed install cannot lose it. Requested migration stays off until this exists (fisherman draft #245). |
+| Recovery key export | all frontends | On the done page, show the TPM recovery key as a QR code and offer to save it to a USB stick. Today the key is only on screen. |
+| Failure report bundle | all frontends | After a failed install, one button saves the fisherman log, the recipe without the passphrase, and hardware facts to one file for a bug report. |
+
+### Installer features
+
+| Feature | Where | What it fixes |
+|---|---|---|
+| Manual partitioning in every frontend | KDE, COSMIC, Niri, XFCE | Bring GNOME's custom-mount layout to the other four, through fisherman's existing `customMounts`. Depends on fisherman #266 for a correct progress bar. |
+| Existing-disk preview | all frontends | Before the erase warning, list what is on the target disk: partitions, sizes and detected operating systems. |
+| Shared translations | `shared/`, all frontends | Move every user-facing string into the shared copy layer with gettext catalogs, so one translation covers all five frontends. |
+| Progress-protocol version handshake | fisherman, all frontends | fisherman reports a protocol version. A frontend refuses, with a clear message, a fisherman too old for the events it uses. |
+
+### Testing
+
+| Feature | Where | What it fixes |
+|---|---|---|
+| Boot with SELinux enforcing | `shared/e2e/` | Label the SSH test files, then stop patching `enforcing=0` into the boot entries. CI then proves that installs boot with SELinux enforcing. |
+| Encrypted install end to end | `e2e.yml` | Add LUKS-passphrase and TPM2 (swtpm) variants to the install-and-boot VM matrix. Today the end-to-end installs are unencrypted. |
+| Browser click-through for KDE and COSMIC | `shared/browser/` | Finish the KDE wasm build (#104, PR #169) and find a route for COSMIC (#105), so a browser clicks through all five frontends. |
+
+### Release and distribution
+
+| Feature | Where | What it fixes |
+|---|---|---|
+| Tagged fisherman releases | fisherman | Semver tags and a changelog, so this repository and wootc pin releases, not drifting commits (fisherman #205; wootc's pin is 94 commits behind). |
+| Automatic fisherman pin bump | this repository | When fisherman's `dev` passes CI, open a submodule-bump PR here, so backend fixes reach the installers without a manual step. |
+| Published-build freshness check | `.github/workflows/` | A daily job compares each frontend's served Flatpak with `prod` and opens an issue when they differ. This catches problems like #158 within one day. |
+| Release notes per frontend | `release.yml` | Group each release's notes by frontend and backend from PR labels, so each desktop's users see what changed for them. |
+
+---
+
 ## Technical debt backlog
 
 | Item | Issue | Priority |
