@@ -68,7 +68,6 @@
         "progress"
       ],
       "matched_keywords": [
-        "deploying",
         "do not power off"
       ]
     },
@@ -99,10 +98,10 @@
       "name": "qr_companion",
       "png": "docs/screenshots/02-qr_companion.png",
       "rendered": true,
-      "colours": 514,
-      "flat": 0.9278115501519757,
-      "ink": 0.03747400415933451,
-      "stddev": 0.12187662933107418,
+      "colours": 515,
+      "flat": 0.9278315469524876,
+      "ink": 0.037460672958993226,
+      "stddev": 0.12188291858944016,
       "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
     },
     {
@@ -141,19 +140,19 @@
       "rendered": true,
       "colours": 236,
       "flat": 0.9200594571535221,
-      "ink": 0.006105689756305658,
-      "stddev": 0.04918349474231833,
+      "ink": 0.006159014557670772,
+      "stddev": 0.04933669459651057,
       "text_excerpt": "Confirm installation Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Install Install"
     },
     {
       "name": "progress",
       "png": "docs/screenshots/07-progress.png",
       "rendered": true,
-      "colours": 163,
-      "flat": 0.9653655415133578,
-      "ink": 0.004625926518423719,
-      "stddev": 0.04158934044641252,
-      "text_excerpt": "Installing TunaOS\u2026 Deploying image: writing layers Do not power off the computer. 45% 0:00 elapsed"
+      "colours": 165,
+      "flat": 0.9654721911160881,
+      "ink": 0.003919372900335946,
+      "stddev": 0.03934705766021058,
+      "text_excerpt": "Installing TunaOS\u2026 Downloading\u2026 (47 of 71 parts) Do not power off the computer. 35% 0:00 elapsed"
     },
     {
       "name": "recovery-key",
@@ -177,13 +176,13 @@
     }
   ],
   "transition_pixels": [
-    77171,
-    89185,
+    77202,
+    89216,
     52188,
     34984,
-    38225,
-    31876,
-    44105,
+    38192,
+    31724,
+    43981,
     41947
   ],
   "spec_drift": [],
