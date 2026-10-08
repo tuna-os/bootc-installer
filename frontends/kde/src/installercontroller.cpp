@@ -333,11 +333,12 @@ QString InstallerController::consumeProgress(const QString &line)
     return QString();
 }
 
-void InstallerController::appendLine(const QString &line)
+void InstallerController::appendLine(const QString &line, bool parse)
 {
     // The log PANE shows the event rendered for a person; the log FILE keeps
     // the raw protocol, because that is what gets attached to a bug report.
-    const QString shown = consumeProgress(line);
+    // Only stdout carries the protocol: stderr is shown as it is.
+    const QString shown = parse ? consumeProgress(line) : line;
     if (!shown.isEmpty()) {
         m_log += shown;
         if (!shown.endsWith(QLatin1Char('\n')))
@@ -356,14 +357,41 @@ void InstallerController::appendLine(const QString &line)
     Q_EMIT logChanged();
 }
 
-void InstallerController::drainBuffer(const QString &prefix)
+// stdout and stderr used to be appended to ONE buffer. A stdout JSON event
+// that arrived in two reads, with a stderr chunk in between, came out as two
+// broken lines: the head of the event glued to the stderr text (and labelled
+// stderr), then the tail of the event with no leading '{' — so the progress
+// event was lost. Each stream now keeps its own partial line. Buffers hold
+// bytes, not text, so a UTF-8 sequence split across reads is decoded whole.
+void InstallerController::consumeStdout(const QByteArray &data)
 {
-    QStringList lines = m_buffer.split(QLatin1Char('\n'));
-    if (lines.size() <= 1)
-        return;
-    for (int i = 0; i < lines.size() - 1; ++i)
-        appendLine(prefix + lines.at(i));
-    m_buffer = lines.last();
+    m_stdoutBuffer += data;
+    drainBuffer(m_stdoutBuffer, {}, true);
+}
+
+void InstallerController::consumeStderr(const QByteArray &data)
+{
+    m_stderrBuffer += data;
+    drainBuffer(m_stderrBuffer, QStringLiteral("[stderr] "), false);
+}
+
+void InstallerController::flushStreams()
+{
+    if (!m_stdoutBuffer.isEmpty())
+        appendLine(QString::fromUtf8(m_stdoutBuffer), true);
+    if (!m_stderrBuffer.isEmpty())
+        appendLine(QStringLiteral("[stderr] ") + QString::fromUtf8(m_stderrBuffer), false);
+    m_stdoutBuffer.clear();
+    m_stderrBuffer.clear();
+}
+
+void InstallerController::drainBuffer(QByteArray &buffer, const QString &prefix, bool parse)
+{
+    qsizetype nl;
+    while ((nl = buffer.indexOf('\n')) >= 0) {
+        appendLine(prefix + QString::fromUtf8(buffer.left(nl)), parse);
+        buffer.remove(0, nl + 1);
+    }
 }
 
 void InstallerController::fail(const QString &message)
@@ -413,7 +441,8 @@ void InstallerController::startInstall()
         m_recipe.additionalImageStores = offline::offlineStores();
 
     m_log.clear();
-    m_buffer.clear();
+    m_stdoutBuffer.clear();
+    m_stderrBuffer.clear();
     m_finished = false;
     Q_EMIT logChanged();
 
@@ -496,19 +525,14 @@ void InstallerController::startInstall()
     });
 
     connect(m_process, &QProcess::readyReadStandardOutput, this, [this]() {
-        m_buffer += QString::fromUtf8(m_process->readAllStandardOutput());
-        drainBuffer({});
+        consumeStdout(m_process->readAllStandardOutput());
     });
     connect(m_process, &QProcess::readyReadStandardError, this, [this]() {
-        m_buffer += QString::fromUtf8(m_process->readAllStandardError());
-        drainBuffer(QStringLiteral("[stderr] "));
+        consumeStderr(m_process->readAllStandardError());
     });
     connect(m_process, &QProcess::finished, this,
             [this](int exitCode, QProcess::ExitStatus status) {
-        if (!m_buffer.isEmpty()) {
-            appendLine(m_buffer);
-            m_buffer.clear();
-        }
+        flushStreams();
         // The recipe may hold secrets — remove it as soon as fisherman is done.
         if (!m_recipePath.isEmpty())
             QFile::remove(m_recipePath);

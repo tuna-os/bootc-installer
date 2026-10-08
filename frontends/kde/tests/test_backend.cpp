@@ -58,6 +58,10 @@ private slots:
     void recoveryKeyHoldsRestartUntilAcknowledged();
     void recoveryKeyAbsentMeansNoGate();
     void progressRendersEventsForTheLogPane();
+
+    // stdout and stderr shared one line buffer, so a stdout event split
+    // across two reads merged with stderr output and lost its leading '{'.
+    void streamsKeepSeparatePartialLines();
 };
 
 void BackendTest::recipeDefaults()
@@ -586,6 +590,35 @@ void BackendTest::tpmProbeReadsTheVersionNotTheDirectory()
         QSKIP("shared/tpm/fixtures is absent; this tree is checked out alone");
     }
     QCOMPARE(tpm::probe2(root), expected);
+}
+
+void BackendTest::streamsKeepSeparatePartialLines()
+{
+    InstallerController c;
+    const QString event = stepEvent(5, 8, "Installing OS", 1, 87);
+    const QByteArray bytes = event.toUtf8();
+    const qsizetype half = bytes.size() / 2;
+
+    // What a pipe really delivers: half an event on stdout, then a complete
+    // stderr line, then the rest of the event.
+    c.consumeStdout(bytes.left(half));
+    c.consumeStderr("pkexec: some warning\n");
+    c.consumeStdout(bytes.mid(half) + "\n");
+    c.consumeStderr("trailing stderr without a newline");
+    c.flushStreams();
+
+    // The event parsed: under the shared buffer it never did.
+    QCOMPARE(c.installStep(), 5);
+    QCOMPARE(c.installTotalSteps(), 8);
+    QCOMPARE(c.installFraction(), 0.01);
+
+    const QString log = c.log();
+    // stderr still reaches the pane, intact and on its own line.
+    QVERIFY(log.contains(QStringLiteral("[stderr] pkexec: some warning\n")));
+    QVERIFY(log.contains(QStringLiteral("[stderr] trailing stderr without a newline")));
+    QVERIFY(log.contains(QStringLiteral("[5/8] Installing OS")));
+    // No fragment of the event leaked into the pane as raw text.
+    QVERIFY(!log.contains(QStringLiteral("\"type\"")));
 }
 
 QTEST_APPLESS_MAIN(BackendTest)
