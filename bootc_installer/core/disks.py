@@ -21,7 +21,10 @@ class Diskutils:
     @staticmethod
     def separate_device_and_partn(part_dev: str) -> tuple[str, str | None]:
         info_json = subprocess.check_output(
-            "lsblk --json -o NAME,PKNAME,PARTN " + part_dev, shell=True
+            # An argument list, never a shell string: part_dev can come from
+            # a slurp config, and "/dev/sda1; rm -rf /" in a shell string is
+            # a command (#163).
+            ["lsblk", "--json", "-o", "NAME,PKNAME,PARTN", part_dev],
         ).decode("utf-8")
         info_multiple = json.loads(info_json)["blockdevices"]
 
@@ -39,7 +42,7 @@ class Diskutils:
     def fetch_lvm_pvs() -> list[list[str]]:
         try:
             output_json = subprocess.check_output(
-                "sudo pvs --reportformat=json", shell=True, stderr=subprocess.DEVNULL
+                ["sudo", "pvs", "--reportformat=json"], stderr=subprocess.DEVNULL
             ).decode("utf-8")
             output_pvs = json.loads(output_json)["report"][0]["pv"]
             pv_with_vgs = []
@@ -66,8 +69,8 @@ class Diskutils:
             for mountpoint in ("/sysroot", "/"):
                 try:
                     src = subprocess.check_output(
-                        f"findmnt -n -o SOURCE {mountpoint}",
-                        shell=True, stderr=subprocess.DEVNULL,
+                        ["findmnt", "-n", "-o", "SOURCE", mountpoint],
+                        stderr=subprocess.DEVNULL,
                     ).decode().strip()
                     if src:
                         source = src
@@ -82,8 +85,8 @@ class Diskutils:
             # Walk the reverse dependency tree (slaves) to find the physical disk.
             # lsblk -sno lists ancestors; grep for TYPE == disk.
             output = subprocess.check_output(
-                f"lsblk -sno NAME,TYPE {source}",
-                shell=True, stderr=subprocess.DEVNULL,
+                ["lsblk", "-sno", "NAME,TYPE", source],
+                stderr=subprocess.DEVNULL,
             ).decode().strip()
 
             for line in output.splitlines():
@@ -97,8 +100,8 @@ class Diskutils:
 
             # Fallback: direct pkname lookup (works for plain partitions)
             pkname = subprocess.check_output(
-                f"lsblk -no pkname {source}",
-                shell=True, stderr=subprocess.DEVNULL,
+                ["lsblk", "-no", "pkname", source],
+                stderr=subprocess.DEVNULL,
             ).decode().strip()
             if pkname:
                 disk = f"/dev/{pkname}"
@@ -222,7 +225,7 @@ class Partition:
     def __get_mountpoint(self):
         try:
             return (
-                subprocess.check_output(f"findmnt -n -o TARGET {self.partition}", shell=True)
+                subprocess.check_output(["findmnt", "-n", "-o", "TARGET", self.partition])
                 .decode("utf-8")
                 .strip()
             )
@@ -235,7 +238,7 @@ class Partition:
     def __get_fs_type(self):
         try:
             return (
-                subprocess.check_output(f"lsblk -d -n -o FSTYPE {self.partition}", shell=True)
+                subprocess.check_output(["lsblk", "-d", "-n", "-o", "FSTYPE", self.partition])
                 .decode("utf-8")
                 .strip()
             )
@@ -245,7 +248,7 @@ class Partition:
     def __get_uuid(self):
         try:
             return (
-                subprocess.check_output(f"lsblk -d -n -o UUID {self.partition}", shell=True)
+                subprocess.check_output(["lsblk", "-d", "-n", "-o", "UUID", self.partition])
                 .decode("utf-8")
                 .strip()
             )
@@ -255,7 +258,7 @@ class Partition:
     def __get_label(self):
         try:
             return (
-                subprocess.check_output(f"findmnt -n -o LABEL {self.partition}", shell=True)
+                subprocess.check_output(["findmnt", "-n", "-o", "LABEL", self.partition])
                 .decode("utf-8")
                 .strip()
             )
