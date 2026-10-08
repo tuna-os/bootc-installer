@@ -277,6 +277,39 @@ class TestFriendlySubstep(unittest.TestCase):
         assert result != "Running fstrim on /mnt/target"  # was mapped
 
 
+class TestLogLineForDisplay(unittest.TestCase):
+    """The log pane shows fisherman events as readable lines, not raw JSON."""
+
+    def setUp(self):
+        import importlib
+        for key in list(sys.modules.keys()):
+            if "bootc_installer.views.progress" in key:
+                sys.modules.pop(key)
+        with patch.dict("sys.modules", _mock_gtk_imports()):
+            mod = importlib.import_module("bootc_installer.views.progress")
+        self.fn = mod._log_line_for_display
+
+    def test_step_event_is_rendered(self):
+        line = ('{"type": "step", "step": 5, "total_steps": 8, '
+                '"step_name": "Installing OS", "cumulative_pct": 1, "weight_pct": 87}')
+        self.assertEqual(self.fn(line), "[5/8] Installing OS")
+
+    def test_substep_event_is_rendered(self):
+        line = '{"type": "substep", "message": "Pulling image: layer 18/71"}'
+        self.assertEqual(self.fn(line), "  Pulling image: layer 18/71")
+
+    def test_no_json_reaches_the_pane_for_the_transcript(self):
+        path = os.path.join(os.path.dirname(__file__), "..", "..",
+                            "shared", "progress", "dry-run-transcript.ndjson")
+        with open(path, encoding="utf-8") as fh:
+            for line in fh.read().splitlines():
+                if line.strip():
+                    self.assertFalse(self.fn(line).lstrip().startswith("{"), line)
+
+    def test_non_event_line_is_verbatim(self):
+        self.assertEqual(self.fn("mkfs.xfs: warning"), "mkfs.xfs: warning")
+
+
 class TestTerminateBeforeInstall(unittest.TestCase):
     """The Exit Installer dialog calls terminate() and then quit(). If
     terminate() raises, quit() never runs and Exit only closes the dialog."""

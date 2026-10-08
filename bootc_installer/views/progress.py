@@ -46,12 +46,26 @@ _FISHERMAN_CACHE_DIR = os.path.join(_FISHERMAN_STAGE_BASE, ".cache", "bootc-inst
 _FISHERMAN_HOST_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman")
 _FISHERMAN_LOG_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman-output.log")
 
-from bootc_installer.utils.progress_parser import apply_progress_event, new_progress_state, set_product_name, set_install_label, get_product_name, _RE_LAYER_PROGRESS  # noqa: E402
+from bootc_installer.utils.progress_parser import apply_progress_event, new_progress_state, render_event, set_product_name, set_install_label, get_product_name, _RE_LAYER_PROGRESS  # noqa: E402
 from bootc_installer.utils.codec_check import check_codecs_present  # noqa: E402
 
 
 def _media_stream_is_prepared(media_stream) -> bool:
     return media_stream is not None and media_stream.is_prepared()
+
+
+def _log_line_for_display(line: str) -> str:
+    """The line the log pane shows for one line of fisherman output.
+
+    fisherman's stdout is machine-readable JSON (shared/progress/README.md);
+    the pane is read by people. The shared parser's render_event turns an
+    event into a readable line, the same one XFCE shows. Anything that is not
+    an event (fisherman's stderr is interleaved) is shown verbatim. The log
+    FILE keeps the raw protocol, and Copy Log copies the file, so a bug
+    report still carries exactly what fisherman wrote.
+    """
+    shown = render_event(line.strip())
+    return line if shown is None else shown
 
 
 def _fisherman_argv_direct(recipe: str) -> list:
@@ -507,9 +521,9 @@ class BootcProgress(Gtk.Box):
         return True  # keep polling until __finish_install stops the timer
 
     def __append_log_line(self, line: str):
-        """Append a line to the TextView buffer and auto-scroll."""
+        """Append a line to the TextView buffer, readably, and auto-scroll."""
         end = self.__log_buf.get_end_iter()
-        self.__log_buf.insert(end, line + "\n")
+        self.__log_buf.insert(end, _log_line_for_display(line) + "\n")
         if self.console_box.get_visible():
             GLib.idle_add(self.__scroll_log_to_bottom)
 
