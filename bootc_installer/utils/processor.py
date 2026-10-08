@@ -17,9 +17,46 @@
 import json
 import logging
 import os
+import re
 import tempfile
 
+from bootc_installer.utils.sha512crypt import sha512_crypt
+
 logger = logging.getLogger("Installer::Processor")
+
+
+# A complete crypt(3) hash: $id$[rounds=N$]salt$hash, with the alphabet and
+# lengths crypt uses. Only this is passed through unhashed. A bare "$"
+# prefix is not enough: fisherman writes any "$"-prefixed password verbatim
+# with `chpasswd -e`, so a user who typed "$uperSecret" got an account whose
+# password field was that literal string, and could never log in.
+_CRYPT_HASH_RE = re.compile(
+    r"^\$(?:1|5|6)\$(?:rounds=\d+\$)?[./0-9A-Za-z]{1,16}\$[./0-9A-Za-z]{22,86}$"
+    r"|^\$(?:y|gy|7)\$[./0-9A-Za-z]+\$[./0-9A-Za-z]+\$[./0-9A-Za-z]{43}$"
+)
+
+
+def _hash_user_password(password: str) -> str:
+    """Hash a plaintext user password as a "$6$" crypt string.
+
+    fisherman writes a "$"-prefixed password verbatim via `chpasswd -e`.
+    Passing plaintext through forces fisherman to hash it itself via
+    `chpasswd` without -e, which invokes the target's PAM stack to do so.
+    On a composefs-native deploy fisherman only has `chpasswd --root <dir>`
+    (no real chroot), so PAM module resolution fails against the target and
+    the install aborts ("pam_chauthtok() failed", or plain "exit status 1"
+    on EL10). Hashing here means fisherman never invokes PAM at all (#79).
+
+    Hashed in plain Python (utils/sha512crypt.py): the flatpak's Python no
+    longer has the `crypt` module, and an `openssl` CLI is not guaranteed.
+
+    A complete crypt hash is returned unchanged, so a config that already
+    carries one is not hashed twice. Empty input is returned unchanged:
+    fisherman treats "" as "leave the account unset".
+    """
+    if not password or _CRYPT_HASH_RE.match(password):
+        return password
+    return sha512_crypt(password)
 
 
 def _find_nvidia_imgref_for(imgref: str) -> str:
@@ -269,8 +306,16 @@ class Processor:
         user_info = merged.get("user", {})
         user_username = user_info.get("username", "")
         user_fullname = user_info.get("fullname", "")
-        user_password = user_info.get("password", "")
+        user_password = _hash_user_password(user_info.get("password", ""))
         user_groups   = user_info.get("groups", [])
+        # A live-ISO builder may pin the supplementary groups in
+        # /etc/bootc-installer/recipe.json (e.g. an image without
+        # libvirt/docker): an explicit operator list wins over the UI
+        # defaults, which target a generic image.
+        sys_user = sys_recipe.get("user", {})
+        if isinstance(sys_user, dict) and isinstance(sys_user.get("groups"), list):
+            user_groups = sys_user["groups"]
+            logger.info("User groups overridden from system recipe: %s", user_groups)
 
         # For non-composefs (ostree/bootcDirect) live ISO installs, fisherman
         # expects an empty "image" and populated "targetImgref" so that it invokes
