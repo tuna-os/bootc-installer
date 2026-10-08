@@ -31,7 +31,7 @@ from typing import Union
 import logging
 import os
 
-from gi.repository import Adw, GObject, Gtk
+from gi.repository import Adw, GLib, GObject, Gtk
 
 from bootc_installer.core.disks import DisksManager, Diskutils, Partition
 from bootc_installer.core.system import Systeminfo
@@ -711,7 +711,6 @@ class BootcDefaultDisk(Adw.Bin):
     var_disk_keep_row = Gtk.Template.Child()
     var_disk_keep_switch = Gtk.Template.Child()
 
-    _VIRTUAL_DISK_IMG = "/var/home/james/bootc-virtual-disk.img"
     _VIRTUAL_DISK_SIZE = "50G"
 
     def __init__(self, window, distro_info, key, step, **kwargs):
@@ -751,9 +750,27 @@ class BootcDefaultDisk(Adw.Bin):
                     self.group_disks.add(entry)
                     self.__registry_disks.append(entry)
 
-        # Virtual disk row — always present
-        self.__virtual_row = self.__build_virtual_disk_row()
-        self.group_disks.add(self.__virtual_row)
+        # With no disk to install to, say so here rather than skipping the
+        # page. Skipping it is what let a user reach Install with an empty
+        # disk recipe and only learn from fisherman's "disk is required" (#154).
+        self.__no_disks_row = None
+        if not self.__registry_disks:
+            self.__no_disks_row = Adw.ActionRow()
+            self.__no_disks_row.set_title(_("No disks detected"))
+            self.__no_disks_row.set_subtitle(
+                _("Connect a disk to install to. Nothing can be installed until one is available.")
+            )
+            self.__no_disks_row.add_prefix(Gtk.Image.new_from_icon_name("dialog-warning-symbolic"))
+            self.group_disks.add(self.__no_disks_row)
+
+        # The virtual disk is a developer aid for testing in a VM. It is only
+        # offered when BOOTC_VIRTUAL_DISK names a loop device set up outside
+        # the sandbox; on a real machine it would install into a file in the
+        # live session, which is never what a user wants.
+        self.__virtual_check = None
+        if os.environ.get("BOOTC_VIRTUAL_DISK"):
+            self.__virtual_row = self.__build_virtual_disk_row()
+            self.group_disks.add(self.__virtual_row)
 
         if hasattr(Adw, 'ButtonRow'):
             self.__all_disks_button = Adw.ButtonRow()
@@ -786,10 +803,6 @@ class BootcDefaultDisk(Adw.Bin):
         self.__refresh_from_image_step()
         self.__set_default_hostname()
         self.auto_select_single_disk()
-
-        # Auto-select virtual disk if still no physical disks are available
-        if not self.__registry_disks:
-            self.__select_virtual_disk()
 
         self.__check_battery()
 
@@ -947,7 +960,9 @@ class BootcDefaultDisk(Adw.Bin):
         self.__window.get_application().quit()
 
     def should_show(self, context: dict) -> bool:
-        return context.get("disk_count", 2) > 1
+        # Skip only when exactly one disk was found and pre-selected. With
+        # none, the page has to appear to explain why Install is unavailable.
+        return context.get("disk_count", 2) != 1
 
     def _set_auto_partition_recipe(self, disk):
         self.__partition_recipe = build_auto_partition_recipe(disk)
@@ -995,7 +1010,8 @@ class BootcDefaultDisk(Adw.Bin):
         self.__selected_disks_sum = 0
         self.disk_space_err_box.set_visible(False)
         self.btn_auto.set_sensitive(True)
-        self.__virtual_check.set_active(True)
+        if self.__virtual_check is not None:
+            self.__virtual_check.set_active(True)
         logger.info("Virtual disk selected")
 
     def __build_virtual_disk_row(self):
@@ -1029,17 +1045,24 @@ class BootcDefaultDisk(Adw.Bin):
         if widget.get_active():
             self.__select_virtual_disk()
 
+    @staticmethod
+    def _virtual_disk_img() -> str:
+        """Where a virtual disk image is created: the user's cache, not a
+        hardcoded home directory."""
+        return os.path.join(GLib.get_user_cache_dir(), "bootc-installer", "virtual-disk.img")
+
     def __setup_loopback(self) -> str | None:
         """Create the disk image and attach it as a loop device. Returns the device path."""
         import subprocess
 
         # If a loop device was pre-created outside the sandbox, use it directly.
         pre_created = os.environ.get("BOOTC_VIRTUAL_DISK", "")
-        if pre_created:
+        if pre_created.startswith("/dev/"):
             logger.info(f"Using pre-created virtual disk: {pre_created}")
             return pre_created
 
-        img = self._VIRTUAL_DISK_IMG
+        img = self._virtual_disk_img()
+        os.makedirs(os.path.dirname(img), exist_ok=True)
         # Commands that need root must break out of the Flatpak sandbox via flatpak-spawn
         def host_run(cmd, **kw):
             return subprocess.run(["flatpak-spawn", "--host"] + cmd, **kw)
@@ -1071,7 +1094,7 @@ class BootcDefaultDisk(Adw.Bin):
         virtual_disk = None
         if self.__use_virtual_disk:
             virtual_disk = (
-                self._VIRTUAL_DISK_IMG,
+                self._virtual_disk_img(),
                 getattr(self, "_BootcDefaultDisk__loop_device", None),
             )
         var_disk = None

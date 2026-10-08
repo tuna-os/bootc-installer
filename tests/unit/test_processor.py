@@ -900,3 +900,40 @@ class TestLiveISOFallback:
         assert path  # recipe file still written
 
 
+
+
+class TestRecipeNamesDisk:
+    """#154: the window refuses to start fisherman on a recipe with no disk."""
+
+    def _write(self, tmp_path, obj):
+        path = tmp_path / "recipe.json"
+        path.write_text(json.dumps(obj))
+        return str(path)
+
+    def test_empty_disk_is_refused(self, tmp_path):
+        for value in ("", "   ", None):
+            assert not Processor.recipe_names_disk(self._write(tmp_path, {"disk": value}))
+
+    def test_missing_disk_key_is_refused(self, tmp_path):
+        assert not Processor.recipe_names_disk(self._write(tmp_path, {}))
+
+    def test_unreadable_recipe_is_refused(self, tmp_path):
+        assert not Processor.recipe_names_disk(str(tmp_path / "nope.json"))
+        bad = tmp_path / "bad.json"
+        bad.write_text("{not json")
+        assert not Processor.recipe_names_disk(str(bad))
+
+    def test_named_disk_is_accepted(self, tmp_path):
+        assert Processor.recipe_names_disk(self._write(tmp_path, {"disk": "/dev/nvme0n1"}))
+
+    def test_no_disk_finals_produce_a_refused_recipe(self, tmp_path):
+        """The real path from #154: no partition recipe -> {"disk": {}} finals
+        -> a generated recipe the guard must refuse."""
+        finals = _auto_finals()
+        assert finals[0]["disk"]["auto"]["disk"]  # a real disk, before the edit
+        finals[0]["disk"] = {}
+        path = Processor.gen_install_recipe("log", finals, _SYS_RECIPE)
+        assert _load(path)["disk"] == ""
+        assert not Processor.recipe_names_disk(path)
+        # and the same finals with the disk restored are accepted
+        assert Processor.recipe_names_disk(Processor.gen_install_recipe("log", _auto_finals(), _SYS_RECIPE))
