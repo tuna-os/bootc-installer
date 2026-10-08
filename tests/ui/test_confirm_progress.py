@@ -176,7 +176,10 @@ class TestProgressScreen:
             )
 
         assert progress.progressbar_text.get_label() == "Installing system image"
-        assert progress.progress_percentage.get_label() == "66%"
+        # 55 + (5/10 of the pull) * 0.6 (the pull's share of the step) * 22.
+        # The rest of the step is for the export and deploy phases after the
+        # pull (#115; shared/progress/fraction-cases.json).
+        assert progress.progress_percentage.get_label() == "61%"
         assert progress.progress_elapsed.get_label() == "2:00 elapsed"
         assert progress.progress_eta.get_label().startswith("~")
         assert "remaining" in progress.progress_eta.get_label()

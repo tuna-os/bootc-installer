@@ -487,3 +487,29 @@ class TestGenerateHostname:
             hostname = Systeminfo.generate_hostname(stem="reef")
 
         assert hostname == "reef-3e10"
+
+
+class TestDmiPlaceholders:
+    def read(self, value):
+        from unittest.mock import mock_open
+
+        from bootc_installer.core.system import _read_dmi
+        with patch("builtins.open", mock_open(read_data=value + "\n")):
+            return _read_dmi("product_name")
+
+    def test_placeholders_read_as_empty(self):
+        for value in ("None", "To Be Filled By O.E.M.", "Default string",
+                      "System Product Name", "  NONE  "):
+            assert self.read(value) == "", value
+
+    def test_real_values_pass_through(self):
+        assert self.read("Laptop 13 (AMD Ryzen 7040Series)") == \
+            "Laptop 13 (AMD Ryzen 7040Series)"
+
+    def test_placeholder_product_falls_back_to_the_stem(self):
+        # KubeVirt: sys_vendor is real but unmapped, product_name was "None".
+        dmi = {"product_name": "", "sys_vendor": "KubeVirt", "product_serial": "x"}
+        with patch("bootc_installer.core.system._read_dmi",
+                   side_effect=lambda field: dmi.get(field, "")):
+            hostname = Systeminfo.generate_hostname(stem="utah")
+        assert hostname.startswith("utah-"), hostname

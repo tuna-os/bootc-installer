@@ -143,7 +143,8 @@ if(BUILD_TESTING)
     # skips when this tree is checked out without the monorepo around it.
     target_compile_definitions(tuna-installer-backend-tests PRIVATE
         BRANDING_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/branding/fixtures"
-        TPM_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/tpm/fixtures")
+        TPM_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/tpm/fixtures"
+        PROGRESS_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/progress")
     # Qt6::Quick is needed to compile readiness.cpp: armStamp() takes a
     # QQuickWindow, so the type must be complete even though the tests below
     # only exercise writeStamp(), which has no Quick dependency of its own.

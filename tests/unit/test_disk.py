@@ -204,7 +204,9 @@ class TestBootcDefaultDiskShouldShow(unittest.TestCase):
     def test_should_show_uses_disk_count_threshold(self):
         obj = self.mod.BootcDefaultDisk.__new__(self.mod.BootcDefaultDisk)
         cases = [
-            ({"disk_count": 0}, False),
+            # Zero disks must show the page so it can explain why Install is
+            # unavailable; skipping it led to an empty disk recipe (#154).
+            ({"disk_count": 0}, True),
             ({"disk_count": 1}, False),
             ({"disk_count": 2}, True),
             ({}, True),
@@ -213,6 +215,45 @@ class TestBootcDefaultDiskShouldShow(unittest.TestCase):
         for context, expected in cases:
             with self.subTest(context=context):
                 self.assertIs(obj.should_show(context), expected)
+
+
+class TestNoDiskDoesNotProceed(unittest.TestCase):
+    """#154: with no disk detected, nothing may make the page proceed."""
+
+    def setUp(self):
+        self.mod = _import_disk_fresh()
+
+    def test_no_partition_recipe_keeps_next_disabled(self):
+        obj = self.mod.BootcDefaultDisk.__new__(self.mod.BootcDefaultDisk)
+        setattr(obj, "_BootcDefaultDisk__partition_recipe", None)
+        setattr(obj, "_BootcDefaultDisk__fs_tool_ok", True)
+        obj.btn_next = MagicMock()
+        obj._BootcDefaultDisk__update_next_button()
+        obj.btn_next.set_sensitive.assert_called_with(False)
+
+    def test_no_disk_finals_carry_no_disk(self):
+        obj = self.mod.BootcDefaultDisk.__new__(self.mod.BootcDefaultDisk)
+        setattr(obj, "_BootcDefaultDisk__partition_recipe", None)
+        setattr(obj, "_BootcDefaultDisk__use_virtual_disk", False)
+        setattr(obj, "_BootcDefaultDisk__var_disk_selected", None)
+        setattr(obj, "_BootcDefaultDisk__get_selected_filesystem", lambda: "xfs")
+        obj.hostname_entry = MagicMock()
+        obj.hostname_entry.get_text.return_value = "h"
+        obj.var_disk_switch = MagicMock()
+        obj.var_disk_switch.get_active.return_value = False
+        self.assertEqual(obj.get_finals()["disk"], {})
+
+    def test_virtual_disk_image_is_not_a_hardcoded_home(self):
+        self.mod.GLib.get_user_cache_dir = lambda: "/home/someone/.cache"
+        path = self.mod.BootcDefaultDisk._virtual_disk_img()
+        self.assertEqual(path, "/home/someone/.cache/bootc-installer/virtual-disk.img")
+        self.assertNotIn("/home/james", path)
+        self.assertTrue(path.endswith("bootc-installer/virtual-disk.img"))
+
+    def test_source_no_longer_auto_selects_the_virtual_disk(self):
+        src = open(self.mod.__file__, encoding="utf-8").read()
+        self.assertNotIn("/var/home/james", src)
+        self.assertNotIn("Auto-select virtual disk", src)
 
 
 class TestBootcDefaultDiskGetFinals(unittest.TestCase):
@@ -316,6 +357,7 @@ class TestBootcDefaultDiskGetFinals(unittest.TestCase):
         self.assertFalse(result["var_disk"]["keep_existing"])
 
     def test_get_finals_includes_virtual_disk_details(self):
+        self.mod.GLib.get_user_cache_dir = lambda: "/home/someone/.cache"
         obj = self._make_obj(
             partition_recipe={"auto": {"disk": "/dev/loop0", "size": 0}},
             use_virtual_disk=True,
@@ -324,7 +366,7 @@ class TestBootcDefaultDiskGetFinals(unittest.TestCase):
 
         result = obj.get_finals()
 
-        self.assertEqual(result["virtual_disk_img"], self.mod.BootcDefaultDisk._VIRTUAL_DISK_IMG)
+        self.assertEqual(result["virtual_disk_img"], self.mod.BootcDefaultDisk._virtual_disk_img())
         self.assertEqual(result["virtual_disk_loop"], "/dev/loop0")
 
 
