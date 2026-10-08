@@ -99,10 +99,10 @@
       "name": "qr_companion",
       "png": "docs/screenshots/02-qr_companion.png",
       "rendered": true,
-      "colours": 513,
-      "flat": 0.9278715405535114,
-      "ink": 0.03744734175865195,
-      "stddev": 0.12187772079192198,
+      "colours": 514,
+      "flat": 0.9278115501519757,
+      "ink": 0.03748066975950515,
+      "stddev": 0.12190327518227051,
       "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
     },
     {
@@ -139,10 +139,10 @@
       "name": "confirm",
       "png": "docs/screenshots/06-confirm.png",
       "rendered": true,
-      "colours": 236,
-      "flat": 0.9200727883538634,
-      "ink": 0.0061256865568175755,
-      "stddev": 0.04919948055402727,
+      "colours": 235,
+      "flat": 0.9200594571535221,
+      "ink": 0.006132352156988216,
+      "stddev": 0.04923606231474374,
       "text_excerpt": "Confirm installation Hostname Hostname Hostname Encryption Encrypted with passphrase Encryption Encrypted with passphrase Install Install"
     },
     {
@@ -177,12 +177,12 @@
     }
   ],
   "transition_pixels": [
-    77132,
-    90681,
+    77228,
+    90777,
     51432,
     34984,
-    38179,
-    31833,
+    38187,
+    31835,
     44105,
     41947
   ],
