@@ -14,6 +14,7 @@ sources = [
   'fisherman_runner.py',
   'branding.py',
   'copy.py',
+  'sha512crypt.py',
 ]
 
 install_data(sources, install_dir: utilsdir)

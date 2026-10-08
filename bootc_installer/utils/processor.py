@@ -17,14 +17,27 @@
 import json
 import logging
 import os
-import subprocess
+import re
 import tempfile
+
+from bootc_installer.utils.sha512crypt import sha512_crypt
 
 logger = logging.getLogger("Installer::Processor")
 
 
+# A complete crypt(3) hash: $id$[rounds=N$]salt$hash, with the alphabet and
+# lengths crypt uses. Only this is passed through unhashed. A bare "$"
+# prefix is not enough: fisherman writes any "$"-prefixed password verbatim
+# with `chpasswd -e`, so a user who typed "$uperSecret" got an account whose
+# password field was that literal string, and could never log in.
+_CRYPT_HASH_RE = re.compile(
+    r"^\$(?:1|5|6)\$(?:rounds=\d+\$)?[./0-9A-Za-z]{1,16}\$[./0-9A-Za-z]{22,86}$"
+    r"|^\$(?:y|gy|7)\$[./0-9A-Za-z]+\$[./0-9A-Za-z]+\$[./0-9A-Za-z]{43}$"
+)
+
+
 def _hash_user_password(password: str) -> str:
-    """Hash a plaintext user password into a crypt(3) string ("$6$salt$hash").
+    """Hash a plaintext user password as a "$6$" crypt string.
 
     fisherman writes a "$"-prefixed password verbatim via `chpasswd -e`.
     Passing plaintext through forces fisherman to hash it itself via
@@ -32,46 +45,18 @@ def _hash_user_password(password: str) -> str:
     On a composefs-native deploy fisherman only has `chpasswd --root <dir>`
     (no real chroot), so PAM module resolution fails against the target and
     the install aborts ("pam_chauthtok() failed", or plain "exit status 1"
-    on EL10). Hashing here means fisherman never invokes PAM at all.
+    on EL10). Hashing here means fisherman never invokes PAM at all (#79).
 
-    Already-hashed input (anything starting with "$", e.g. from a companion
-    config) is returned unchanged: re-hashing a hash would make the literal
-    hash text the account's real password. Empty input is returned unchanged:
+    Hashed in plain Python (utils/sha512crypt.py): the flatpak's Python no
+    longer has the `crypt` module, and an `openssl` CLI is not guaranteed.
+
+    A complete crypt hash is returned unchanged, so a config that already
+    carries one is not hashed twice. Empty input is returned unchanged:
     fisherman treats "" as "leave the account unset".
     """
-    if not password or password.startswith("$"):
+    if not password or _CRYPT_HASH_RE.match(password):
         return password
-
-    try:
-        import crypt  # stdlib; deprecated since 3.11, removed in 3.13.
-        return crypt.crypt(password, crypt.mksalt(crypt.METHOD_SHA512))
-    except ImportError:
-        pass
-
-    # crypt module unavailable (Python >= 3.13): fall back to openssl, which
-    # ships on every host/runtime this app runs on. openssl reads one line
-    # from stdin, so a password containing a newline cannot be hashed this
-    # way — fall through to the plaintext path rather than hashing a prefix.
-    if "\n" not in password:
-        try:
-            result = subprocess.run(
-                ["openssl", "passwd", "-6", "-stdin"],
-                input=password, capture_output=True, text=True, check=True,
-            )
-            hashed = result.stdout.strip()
-            if hashed.startswith("$"):
-                return hashed
-            logger.warning("openssl produced unexpected output; passing password through unhashed")
-        except (OSError, subprocess.CalledProcessError) as e:
-            logger.warning("Could not hash user password (%s); passing through unhashed", e)
-    else:
-        logger.warning("Password contains a newline and stdlib crypt is missing; passing through unhashed")
-
-    # Hashing failed entirely: surface the plaintext rather than silently
-    # producing an unusable recipe field. fisherman falls back to its own
-    # PAM-based chpasswd path (the behavior before this fix) — the previous
-    # outcome, not a new failure mode.
-    return password
+    return sha512_crypt(password)
 
 
 def _find_nvidia_imgref_for(imgref: str) -> str:

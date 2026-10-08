@@ -305,69 +305,93 @@ class TestUserSpec:
 
 
 class TestHashUserPassword:
+    """#79: the recipe carries a "$6$" hash, never the typed password."""
+
+    def _verify(self, hashed, password):
+        from bootc_installer.utils.sha512crypt import sha512_crypt
+        parts = hashed.split("$")
+        assert hashed.startswith("$6$") and len(parts) == 4, hashed
+        assert sha512_crypt(password, parts[2]) == hashed
+
     def test_empty_password_untouched(self):
         from bootc_installer.utils.processor import _hash_user_password
         assert _hash_user_password("") == ""
 
-    def test_already_hashed_password_untouched(self):
+    def test_plaintext_is_hashed_and_verifies(self):
         from bootc_installer.utils.processor import _hash_user_password
-        assert _hash_user_password("$6$salt$hash") == "$6$salt$hash"
-        assert _hash_user_password("$y$j9T$salt$hash") == "$y$j9T$salt$hash"
+        self._verify(_hash_user_password("hunter2"), "hunter2")
 
-    def test_uses_stdlib_crypt_when_available(self, monkeypatch):
-        import types
-        import bootc_installer.utils.processor as mod
-        fake = types.ModuleType("crypt")
-        fake.METHOD_SHA512 = "fake-sha512"
-        fake.mksalt = lambda method: f"salt-for-{method}"
-        fake.crypt = lambda pw, salt: f"$6${salt}${pw}-hashed"
-        monkeypatch.setitem(sys.modules, "crypt", fake)
-        assert mod._hash_user_password("hunter2") == "$6$salt-for-fake-sha512$hunter2-hashed"
+    def test_a_typed_password_starting_with_dollar_is_hashed(self):
+        """fisherman writes any "$"-prefixed value verbatim, so passing this
+        through would leave an account nobody can log in to."""
+        from bootc_installer.utils.processor import _hash_user_password
+        for typed in ("$uperSecret", "$6$", "$6$salt$hash", "$y$j9T$salt$hash"):
+            hashed = _hash_user_password(typed)
+            assert hashed != typed
+            self._verify(hashed, typed)
 
-    def test_falls_back_to_plaintext_when_hashing_unavailable(self, monkeypatch):
-        import subprocess as _subprocess
-        import bootc_installer.utils.processor as mod
+    def test_a_complete_crypt_hash_passes_through(self):
+        from bootc_installer.utils.processor import _hash_user_password
+        from bootc_installer.utils.sha512crypt import sha512_crypt
+        for hashed in (sha512_crypt("x", "abcdsalt"),
+                       "$6$rounds=10000$saltstringsaltst$OW1/O6BYHV6BcXZu8QVeXbDWra3Oeqh0sbHbbMCVNSnCM/UrjmM0Dp8vOuZeHBy/YTBmSK6H9qs/y3RnOaw5v.",
+                       "$y$j9T$F5Jx5fExrKuPp53xLKQ..1$X3DX6M94c7o.9agCG9G317fhZg9SqC.5i5rd.RhAtQ7"):
+            assert _hash_user_password(hashed) == hashed
 
-        def _boom(*a, **k):
-            raise _subprocess.CalledProcessError(1, "openssl")
-
-        # Simulate stdlib crypt gone (Python >= 3.13) AND openssl failing:
-        # must not raise, must not fabricate a value.
-        monkeypatch.setitem(sys.modules, "crypt", None)
-        monkeypatch.setattr(mod.subprocess, "run", _boom)
-        assert mod._hash_user_password("hunter2") == "hunter2"
-
-    def test_newline_password_never_truncated(self, monkeypatch):
-        # openssl reads one stdin line: hashing "a\nb" would hash only "a".
-        # With stdlib crypt missing this must pass through, not hash a prefix.
-        import bootc_installer.utils.processor as mod
-        monkeypatch.setitem(sys.modules, "crypt", None)
-        assert mod._hash_user_password("a\nb") == "a\nb"
+    def test_newline_and_unicode_passwords_hash_in_full(self):
+        from bootc_installer.utils.processor import _hash_user_password
+        for pw in ("a\nb", "pässwörd 日本語 🙂"):
+            self._verify(_hash_user_password(pw), pw)
 
     def test_two_calls_use_different_salts(self):
         from bootc_installer.utils.processor import _hash_user_password
-        first = _hash_user_password("hunter2")
-        if not first.startswith("$"):
-            pytest.skip("no crypt backend in this environment")
-        assert _hash_user_password("hunter2") != first
+        assert _hash_user_password("hunter2") != _hash_user_password("hunter2")
 
-    def test_real_hash_verifies_against_openssl(self):
+    def test_needs_neither_crypt_nor_openssl(self, monkeypatch):
+        """The flatpak's Python (3.13+) has no `crypt`, and no openssl CLI is
+        assumed."""
         import shutil
+        monkeypatch.setitem(sys.modules, "crypt", None)
+        monkeypatch.setattr(shutil, "which", lambda *_a, **_k: None)
+        from bootc_installer.utils.processor import _hash_user_password
+        self._verify(_hash_user_password("hunter2"), "hunter2")
+
+
+class TestSha512Crypt:
+    """utils/sha512crypt.py against Drepper's published test vectors."""
+
+    VECTORS = [
+        ("Hello world!", "saltstring", None,
+         "$6$saltstring$svn8UoSVapNtMuq1ukKS4tPQd8iKwSMHWjl/O817G3uBnIFNjnQJuesI68u4OTLiBFdcbYEdFCoEOfaS35inz1"),
+        ("Hello world!", "saltstringsaltstring", 10000,
+         "$6$rounds=10000$saltstringsaltst$OW1/O6BYHV6BcXZu8QVeXbDWra3Oeqh0sbHbbMCVNSnCM/UrjmM0Dp8vOuZeHBy/YTBmSK6H9qs/y3RnOaw5v."),
+        ("This is just a test", "toolongsaltstring", 5000,
+         "$6$rounds=5000$toolongsaltstrin$lQ8jolhgVRVhY4b5pZKaysCLi0QBxGoNeKQzQ3glMhwllF7oGDZxUhx1yxdYcz/e1JSbq3y6JMxxl8audkUEm0"),
+        ("a very much longer text to encrypt.  This one even stretches over morethan one line.",
+         "anotherlongsaltstring", 1400,
+         "$6$rounds=1400$anotherlongsalts$POfYwTEok97VWcjxIiSOjiykti.o/pQs.wPvMxQ6Fm7I6IoYN3CmLs66x9t0oSwbtEW7o7UmJEiDwGqd8p4ur1"),
+        ("we have a short salt string but not a short password", "short", 77777,
+         "$6$rounds=77777$short$WuQyW2YR.hBNpjjRhpYD/ifIw05xdfeEyQoMxIXbkvr0gge1a1x3yRULJ5CCaUeOxFmtlcGZelFl5CxtgfiAc0"),
+        ("the minimum number is still observed", "roundstoolow", 10,
+         "$6$rounds=1000$roundstoolow$kUMsbe306n21p9R.FRkW3IGn.S9NPN0x50YhH1xhLsPuWGsUSklZt58jaTfF4ZEQpyUNGc0dqbpBYYBaHHrsX."),
+    ]
+
+    @pytest.mark.parametrize("password,salt,rounds,want", VECTORS)
+    def test_spec_vectors(self, password, salt, rounds, want):
+        from bootc_installer.utils.sha512crypt import sha512_crypt
+        assert sha512_crypt(password, salt, rounds) == want
+
+    def test_matches_openssl_when_present(self):
+        import shutil
+        import subprocess as _subprocess
         if shutil.which("openssl") is None:
             pytest.skip("openssl not available")
-        import subprocess as _subprocess
-        from bootc_installer.utils.processor import _hash_user_password
-        hashed = _hash_user_password("correct horse")
-        assert hashed.startswith("$6$")
-        salt = hashed.split("$")[2]
-        check = _subprocess.run(
-            ["openssl", "passwd", "-6", "-salt", salt, "correct horse"],
-            capture_output=True, text=True, check=True,
-        )
-        assert check.stdout.strip() == hashed
+        from bootc_installer.utils.sha512crypt import sha512_crypt
+        for pw in ("correct horse", "$uperSecret", "pässwörd"):
+            want = _subprocess.run(["openssl", "passwd", "-6", "-salt", "abcdefgh", "-stdin"],
+                                   input=pw, capture_output=True, text=True, check=True).stdout.strip()
+            assert sha512_crypt(pw, "abcdefgh") == want
 
-
-# ── unified storage tests ─────────────────────────────────────────────────────
 
 class TestUnifiedStorage:
     def test_unified_storage_true_by_default(self):
