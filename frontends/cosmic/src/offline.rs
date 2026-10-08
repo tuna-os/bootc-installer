@@ -145,28 +145,6 @@ pub fn offline_stores() -> Vec<String> {
         .collect()
 }
 
-/// Image refs available across the given stores.
-pub fn offline_images(stores: &[String]) -> HashSet<String> {
-    let mut refs = HashSet::new();
-    for store in stores {
-        let Some(out) = run_host(&["podman", "images", "--root", store, "--format", "json"])
-        else {
-            continue;
-        };
-        let Ok(imgs) = serde_json::from_str::<serde_json::Value>(&out) else {
-            continue;
-        };
-        for img in imgs.as_array().into_iter().flatten() {
-            for name in img["Names"].as_array().into_iter().flatten() {
-                if let Some(n) = name.as_str() {
-                    refs.insert(n.to_string());
-                }
-            }
-        }
-    }
-    refs
-}
-
 /// Write the recipe 0600 in a fresh private directory (it may hold secrets).
 ///
 /// Uses NamedTempFile (O_EXCL + O_NOFOLLOW + 0600) in a directory under
@@ -315,11 +293,6 @@ mod tests {
         );
 
         std::fs::remove_dir_all(&dir).ok();
-    }
-
-    #[test]
-    fn offline_images_empty_without_stores() {
-        assert!(offline_images(&[]).is_empty());
     }
 
     // ── recipe writing ────────────────────────────────────────────────────────

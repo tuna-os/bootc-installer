@@ -3,7 +3,6 @@
 
 #include <QDir>
 #include <QFile>
-#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #if QT_CONFIG(process)
@@ -160,24 +159,6 @@ QStringList offlineStores()
         if (!existing.contains(s) && QDir(s).exists())
             existing << s;
     return existing;
-}
-
-QSet<QString> offlineImages(const QStringList &stores)
-{
-    QSet<QString> refs;
-    for (const QString &store : stores) {
-        const QString out = runHost({QStringLiteral("podman"), QStringLiteral("images"),
-                                     QStringLiteral("--root"), store,
-                                     QStringLiteral("--format"), QStringLiteral("json")},
-                                    30000);
-        const QJsonArray imgs = QJsonDocument::fromJson(out.toUtf8()).array();
-        for (const QJsonValue &img : imgs) {
-            const QJsonArray names = img.toObject()[QLatin1String("Names")].toArray();
-            for (const QJsonValue &n : names)
-                refs.insert(n.toString());
-        }
-    }
-    return refs;
 }
 
 } // namespace offline

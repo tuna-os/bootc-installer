@@ -4,7 +4,6 @@
 // Offline-install and sandbox plumbing shared by the wizard pages.
 // Contract: ../../INSTALLER-FRONTENDS.md §3 (privileges) and §4 (offline).
 
-#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QtCore/qtcore-config.h>
@@ -39,9 +38,6 @@ QString liveIsoImage();
 
 // Embedded OCI store roots present on this medium (§4B conventions).
 QStringList offlineStores();
-
-// Image refs available across the given stores (podman images --root).
-QSet<QString> offlineImages(const QStringList &stores);
 
 } // namespace offline
 
