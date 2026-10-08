@@ -309,7 +309,7 @@ class TestTerminateBeforeInstall(unittest.TestCase):
 
     def test_terminate_without_fisherman_returns_cleanly(self):
         view = self.BootcProgress.__new__(self.BootcProgress)
-        view._BootcProgress__proc = None
+        view._BootcProgress__session = None
         view._video_fallback_timeout_id = None
         view._BootcProgress__hide_video_spinner = MagicMock()
 

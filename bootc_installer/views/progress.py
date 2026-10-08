@@ -530,7 +530,7 @@ class BootcProgress(Gtk.Box):
     def __finish_install(self, ret: int) -> bool:
         """Final log drain then hand off to the done screen."""
         for line in self.__session.drain_remaining():
-            self.__parse_progress_line(line)
+            self.__parse_progress_line(line.strip())
             self.__append_log_line(line)
         # Compute elapsed before stopping the timer
         elapsed_secs = 0
