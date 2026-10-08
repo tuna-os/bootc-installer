@@ -200,6 +200,53 @@ class TestDiskStepButtonState:
         )
 
 
+
+class TestDiskStepWithNoDisks:
+    """#154: with no disk detected the page explains and nothing can proceed.
+
+    Before, the constructor auto-selected a developer-only virtual disk, the
+    page was skipped, and the user reached Install with an empty disk recipe.
+    """
+
+    def _make(self, monkeypatch, virtual=None):
+        from unittest.mock import MagicMock, patch
+
+        from bootc_installer.defaults.disk import BootcDefaultDisk
+
+        try:
+            Adw.ButtonRow  # noqa: B018
+        except AttributeError:
+            pytest.skip("Adw.ButtonRow requires libadwaita >= 1.6")
+
+        if virtual is None:
+            monkeypatch.delenv("BOOTC_VIRTUAL_DISK", raising=False)
+        else:
+            monkeypatch.setenv("BOOTC_VIRTUAL_DISK", virtual)
+        mock_window = MagicMock()
+        mock_window.recipe = {"min_disk_size": 51200}
+        with patch("bootc_installer.defaults.disk.DisksManager") as MockDM:
+            MockDM.return_value.all_disks.return_value = []
+            widget = BootcDefaultDisk(mock_window, {}, "disk", {})
+            _pump()
+        return widget
+
+    def test_says_no_disks_and_cannot_proceed(self, monkeypatch):
+        widget = self._make(monkeypatch)
+        row = widget._BootcDefaultDisk__no_disks_row
+        assert row is not None and row.get_title() == "No disks detected"
+        assert not widget._BootcDefaultDisk__use_virtual_disk, "virtual disk must not be auto-selected"
+        assert not widget.btn_auto.get_sensitive(), "nothing selected, so Install/auto must be insensitive"
+        assert not widget.btn_next.get_sensitive()
+        assert widget.get_finals()["disk"] == {}
+
+    def test_virtual_disk_is_offered_only_to_developers(self, monkeypatch):
+        widget = self._make(monkeypatch)
+        assert widget._BootcDefaultDisk__virtual_check is None
+        dev = self._make(monkeypatch, virtual="/dev/loop7")
+        assert dev._BootcDefaultDisk__virtual_check is not None
+        # Offered, still not chosen for the user.
+        assert not dev._BootcDefaultDisk__use_virtual_disk
+
 class TestDiskStepFsToolCheck:
     """fs_tool_error_banner shows when the required mkfs tool is missing on the host."""
 

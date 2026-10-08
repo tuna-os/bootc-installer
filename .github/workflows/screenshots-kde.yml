@@ -20,6 +20,7 @@ on:
       - "frontends/kde/modules/**"
       - "frontends/kde/tests/**"
       - "frontends/kde/CMakeLists.txt"
+      - "shared/progress/**"
       - ".github/workflows/screenshots-kde.yml"
   pull_request:
     paths:
@@ -27,6 +28,7 @@ on:
       - "frontends/kde/modules/**"
       - "frontends/kde/tests/**"
       - "frontends/kde/CMakeLists.txt"
+      - "shared/progress/**"
       - ".github/workflows/screenshots-kde.yml"
   workflow_dispatch:
 

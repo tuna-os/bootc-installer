@@ -8,6 +8,9 @@ on:
   merge_group:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   # Detect whether this PR only touches documentation — if so, skip tests
   changes:

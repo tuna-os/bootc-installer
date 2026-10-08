@@ -9,67 +9,67 @@
     "ocr": false,
     "pages": [
         {
-            "colours": 207,
-            "flat": 0.9896037071585472,
-            "ink": 0.009433394517497667,
+            "colours": 246,
+            "flat": 0.9856467968585442,
+            "ink": 0.013104444377576505,
             "name": "01-welcome",
             "png": "docs/screenshots/01-welcome.png",
             "rendered": true,
-            "stddev": 0.05404897092417829
+            "stddev": 0.062404648617739374
         },
         {
-            "colours": 280,
-            "flat": 0.7783377967682725,
-            "ink": 0.2197213612975055,
+            "colours": 431,
+            "flat": 0.777856347606295,
+            "ink": 0.21999217645111788,
             "name": "02-disk",
             "png": "docs/screenshots/02-disk.png",
             "rendered": true,
-            "stddev": 0.05171912805784567
+            "stddev": 0.04819552882403602
         },
         {
-            "colours": 218,
-            "flat": 0.6103421298107303,
-            "ink": 0.3808714229831794,
+            "colours": 438,
+            "flat": 0.6098004995035056,
+            "ink": 0.3813980080040923,
             "name": "03-encryption",
             "png": "docs/screenshots/03-encryption.png",
             "rendered": true,
-            "stddev": 0.0619583108443607
+            "stddev": 0.05708610525477092
         },
         {
-            "colours": 218,
-            "flat": 0.6940841934222008,
-            "ink": 0.30135708482532425,
+            "colours": 299,
+            "flat": 0.6940089669906419,
+            "ink": 0.30204916799566695,
             "name": "04-confirm",
             "png": "docs/screenshots/04-confirm.png",
             "rendered": true,
-            "stddev": 0.05797385421577167
+            "stddev": 0.05366983301623092
         },
         {
-            "colours": 236,
+            "colours": 375,
             "flat": 0.7743643148485637,
-            "ink": 0.22475339176719025,
+            "ink": 0.22472446411524777,
             "name": "05-progress",
             "png": "docs/screenshots/05-progress.png",
             "rendered": true,
-            "stddev": 0.0994989274143532
+            "stddev": 0.07601040858224951
         },
         {
-            "colours": 137,
-            "flat": 0.9934101645954323,
-            "ink": 0.0038515932958204193,
+            "colours": 170,
+            "flat": 0.9908223753498029,
+            "ink": 0.005837571088977823,
             "name": "06-done",
             "png": "docs/screenshots/06-done.png",
             "rendered": true,
-            "stddev": 0.04626333206620222
+            "stddev": 0.04644005529649656
         },
         {
-            "colours": 234,
-            "flat": 0.9743778774110071,
-            "ink": 0.021394397135377486,
+            "colours": 310,
+            "flat": 0.9709776427045407,
+            "ink": 0.0202509553756808,
             "name": "07-recovery",
             "png": "docs/screenshots/07-recovery.png",
             "rendered": true,
-            "stddev": 0.06489823133611919
+            "stddev": 0.05838722772006814
         }
     ],
     "rendered_frames": 7,
@@ -151,12 +151,12 @@
     "strict": true,
     "text_source": "qml-item-tree",
     "transition_pixels": [
-        138497,
-        144539,
-        119331,
-        393160,
-        503599,
-        13215
+        139683,
+        143072,
+        118178,
+        393349,
+        498374,
+        15001
     ],
     "visual_states": 7
 }
