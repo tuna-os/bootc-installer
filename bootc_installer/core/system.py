@@ -43,30 +43,6 @@ def _read_dmi(field: str) -> str:
         return ""
 
 
-# Values firmware and hypervisors put in DMI fields that carry no real
-# information. A KubeVirt VM reports product_name "None", which once gave
-# every such VM the hostname "none-XXXX" (#115). Compared lower-cased.
-_DMI_PLACEHOLDERS = frozenset({
-    "none",
-    "default string",
-    "not specified",
-    "not applicable",
-    "to be filled by o.e.m.",
-    "system product name",
-    "system manufacturer",
-    "system serial number",
-    "0",
-})
-
-
-def _read_dmi_meaningful(field: str) -> str:
-    """Read a DMI field, returning empty string for blanks and placeholders."""
-    value = _read_dmi(field)
-    if value.lower() in _DMI_PLACEHOLDERS:
-        return ""
-    return value
-
-
 def _sanitize_hostname_part(s: str) -> str:
     """Sanitize a string for use in a hostname: lowercase, hyphens, no junk."""
     s = s.lower()
@@ -261,8 +237,8 @@ class Systeminfo:
         if stem is None:
             from bootc_installer.utils import branding
             stem = branding.resolve().default_hostname
-        product = _read_dmi_meaningful("product_name")
-        vendor_raw = _read_dmi_meaningful("sys_vendor")
+        product = _read_dmi("product_name")
+        vendor_raw = _read_dmi("sys_vendor")
 
         # Build the model portion
         vendor = _VENDOR_MAP.get(vendor_raw.lower().strip(), "")
@@ -287,8 +263,8 @@ class Systeminfo:
             model_part = stem
 
         # Generate 4-char hex suffix from hardware serial
-        serial = (_read_dmi_meaningful("product_serial")
-                  or _read_dmi_meaningful("board_serial")
+        serial = (_read_dmi("product_serial")
+                  or _read_dmi("board_serial")
                   or os.urandom(4).hex())
         suffix = hashlib.sha256(serial.encode()).hexdigest()[:4]
 

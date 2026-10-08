@@ -10,6 +10,14 @@ frontend keeps a **byte-identical** copy, enforced by
 `shared/branding/` and `shared/recipe/` use. Non-Python frontends implement
 the same semantics against this document.
 
+[`fraction-cases.json`](fraction-cases.json) pins the bar position after
+each event in a set of event sequences. `generate-fraction-cases.py`
+writes it from the canonical parser. Every frontend's tests read it: the
+Python tests, COSMIC's `cargo test`, KDE's backend tests and Niri's
+`tests/progress-fraction-test.mjs`. A change to the bar in one parser
+therefore fails the other four until they follow. Regenerate the file after
+you change `progress_parser.py`.
+
 ## Events
 
 Every event carries `type`, plus `timestamp` (RFC 3339) and `elapsed_ms`.

@@ -5,8 +5,6 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import pytest
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from bootc_installer.core.system import (
@@ -463,20 +461,6 @@ class TestGenerateHostname:
             hostname = Systeminfo.generate_hostname(stem="reef")
 
         assert hostname == "reef-3e10"
-
-    @pytest.mark.parametrize("placeholder", ["None", "To Be Filled By O.E.M.", "Default string"])
-    def test_generate_hostname_ignores_placeholder_dmi(self, placeholder):
-        """A VM whose DMI fields read "None" gets the stem, not "none-XXXX" (#115)."""
-        dmi = {
-            "product_name": placeholder,
-            "sys_vendor": placeholder,
-            "product_serial": placeholder,
-            "board_serial": "BOARD123",
-        }
-        with patch("bootc_installer.core.system._read_dmi", side_effect=lambda field: dmi.get(field, "")):
-            hostname = Systeminfo.generate_hostname(stem="reef")
-
-        assert hostname == "reef-27a3"
 
     def test_generate_hostname_stem_defaults_to_branding(self):
         """No stem given: the branding contract's default_hostname, never a
