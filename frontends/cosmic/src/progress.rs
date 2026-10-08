@@ -28,7 +28,45 @@ pub struct Progress {
     pub recovery_key: String,
     cumulative_pct: f32,
     weight_pct: f32,
+    /// How far through the current step the bar is, 0-1. Never decreases
+    /// inside a step.
+    step_frac: f32,
+    /// `step_frac` when the first post-pull phase message arrived.
+    post_pull_base: Option<f32>,
     product: String,
+}
+
+/// Share of a step's weight the layer pull covers; the rest is for the
+/// export, deploy and bootloader phases after it, which have no counter.
+const PULL_SHARE: f32 = 0.6;
+
+/// Bar positions for the silent phases after the pull, as a share of what is
+/// left of the step. Matched as message prefixes. Without these an offline
+/// install sat at 1% through ten minutes of export and deploy (#115).
+/// Same table and semantics as shared/progress/progress_parser.py; the
+/// numbers are pinned by shared/progress/fraction-cases.json.
+const PHASE_MILESTONES: &[(&str, f32)] = &[
+    ("Exporting image to OCI layout", 0.05),
+    ("OCI export complete", 0.30),
+    ("Using ", 0.32),
+    ("Initializing ostree layout", 0.35),
+    ("Writing ", 0.35),
+    ("Deploying image", 0.35),
+    ("OS deployed, installing bootloader", 0.90),
+    ("Detected bootloader", 0.92),
+    ("Installing bootloader", 0.92),
+    ("Configuring EFI boot entry", 0.95),
+    ("Configuring GRUB", 0.95),
+    ("Configuring SELinux", 0.95),
+    ("Generating initramfs", 0.95),
+    ("bootc installation complete", 1.0),
+];
+
+fn milestone(message: &str) -> Option<f32> {
+    PHASE_MILESTONES
+        .iter()
+        .find(|(prefix, _)| message.starts_with(prefix))
+        .map(|(_, share)| *share)
 }
 
 impl Progress {
@@ -41,6 +79,8 @@ impl Progress {
             recovery_key: String::new(),
             cumulative_pct: 0.0,
             weight_pct: 0.0,
+            step_frac: 0.0,
+            post_pull_base: None,
             product: product.into(),
         }
     }
@@ -76,7 +116,20 @@ impl Progress {
 
         match str_field("type") {
             "step" => {
-                self.step = num_field("step") as u64;
+                let step = num_field("step") as u64;
+                // A repeated or earlier step is ignored, as in the canonical
+                // parser: it must not reset the bar.
+                if self.step > 0 && step <= self.step {
+                    return Some(format!(
+                        "[{}/{}] {}",
+                        step,
+                        num_field("total_steps") as u64,
+                        str_field("step_name")
+                    ));
+                }
+                self.step = step;
+                self.step_frac = 0.0;
+                self.post_pull_base = None;
                 self.total_steps = num_field("total_steps") as u64;
                 self.cumulative_pct = num_field("cumulative_pct") as f32;
                 self.weight_pct = num_field("weight_pct") as f32;
@@ -88,11 +141,21 @@ impl Progress {
             kind @ ("substep" | "info") => {
                 let message = str_field("message");
                 if kind == "substep" && self.weight_pct > 0.0 {
-                    if let Some((done, total)) = layer_progress(message) {
-                        // Without this the bar freezes for the 87% of the
-                        // install the image pull occupies.
-                        self.fraction = ((self.cumulative_pct
-                            + (done / total) * self.weight_pct)
+                    // The layer pull covers the first PULL_SHARE of the step;
+                    // the named phases after it cover the rest.
+                    let step_frac = if let Some((done, total)) = layer_progress(message) {
+                        Some((done / total).min(1.0) * PULL_SHARE)
+                    } else {
+                        milestone(message).map(|share| {
+                            let base = *self.post_pull_base.get_or_insert(self.step_frac);
+                            base + share * (1.0 - base)
+                        })
+                    };
+                    if let Some(step_frac) = step_frac {
+                        // Never move backwards: a retried pull restarts its
+                        // layer count.
+                        self.step_frac = self.step_frac.max(step_frac);
+                        self.fraction = ((self.cumulative_pct + self.step_frac * self.weight_pct)
                             / 100.0)
                             .min(1.0);
                     }
@@ -174,6 +237,41 @@ fn friendly(name: &str, product: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The numbers every frontend's bar must reproduce, generated from the
+    /// canonical parser (shared/progress/generate-fraction-cases.py). Read
+    /// at test time, not embedded: the flatpak builds from this tree alone.
+    #[test]
+    fn reproduces_the_shared_fraction_cases() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../shared/progress/fraction-cases.json"
+        );
+        let text = std::fs::read_to_string(path).expect("shared/progress/fraction-cases.json");
+        let doc: Value = serde_json::from_str(&text).unwrap();
+        let cases = doc["cases"].as_array().unwrap();
+        assert!(cases.len() >= 5);
+        for case in cases {
+            let name = case["name"].as_str().unwrap();
+            let mut p = Progress::new("ExampleOS");
+            let bars = case["bar"].as_array().unwrap();
+            for (i, (event, want)) in case["events"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .zip(bars)
+                .enumerate()
+            {
+                p.consume(&event.to_string());
+                let want = want.as_f64().unwrap() as f32;
+                assert!(
+                    (p.fraction - want).abs() < 1e-5,
+                    "{name} event {i}: bar {} want {want}",
+                    p.fraction
+                );
+            }
+        }
+    }
 
     fn step_event(step: u64, total: u64, name: &str, cumulative: i64, weight: i64) -> String {
         format!(

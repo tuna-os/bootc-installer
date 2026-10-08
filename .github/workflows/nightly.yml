@@ -6,6 +6,9 @@ on:
     - cron: '0 6 * * 0'   # 06:00 UTC weekly (Sunday)
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   go-tests:
     strategy:

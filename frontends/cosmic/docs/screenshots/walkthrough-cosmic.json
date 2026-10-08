@@ -134,8 +134,8 @@
       "rendered": true,
       "colours": 221,
       "flat": 0.4952530835764369,
-      "ink": 0.9893674190081375,
-      "stddev": 0.07565332330499626,
+      "ink": 0.9911842980705257,
+      "stddev": 0.07279487970073525,
       "text_excerpt": "Installing TunaOS\u2026 fisherman is writing the image to disk. [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pulling image: l"
     },
     {
