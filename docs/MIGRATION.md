@@ -51,9 +51,16 @@ nothing is lost in the shuffle. Tracking epic:
   36 = 543). The per-frontend `.ste-budget` files are left in place as a
   record; only the root one is read.
 - Each frontend keeps its own `README.md`, `AGENTS.md`, `DESIGN.md`,
-  `docs/`, `LICENSE`, `renovate.json`, `codecov.yml`. The last two are
-  inert now (Renovate and Codecov read the root files); folding their rules
-  into the root configs is a follow-up.
+  `docs/`, `LICENSE`, `codecov.yml`. Codecov reads only the root file, so the
+  per-frontend `codecov.yml` is inert. Each one is a byte-identical copy of
+  the root file, so nothing remains to fold in.
+- The per-frontend `renovate.json` files are gone. Renovate reads only the
+  repository root. Keeping them as a record was therefore not safe, the way
+  it is safe for `.ste-budget`: `frontends/kde/renovate.json` held the rule
+  that blocks `quay.io/fedora/fedora` major bumps. While that file sat inert,
+  the two jobs that run in `fedora:45` (the kde job in `e2e.yml`, and
+  `screenshots-kde.yml`) had no such rule. The root `renovate.json` now holds
+  it.
 
 ## What did not move
 
@@ -83,8 +90,11 @@ nothing is lost in the shuffle. Tracking epic:
    can transfer issues between repos in the same org; PRs cannot be
    transferred and must be re-opened against `frontends/<name>/`).
 3. Archive the four old repositories.
-4. Fold `frontends/*/renovate.json` (notably COSMIC's Cargo.lock automerge)
-   into the root `renovate.json`.
+4. ~~Fold `frontends/*/renovate.json` into the root `renovate.json`.~~ Done.
+   The KDE fedora-major hold was the only live rule among the four, and the
+   root file now holds it. The other three only repeated the org preset. This
+   change deletes the nested files. It does not keep them, because a config
+   that Renovate never reads looks like a guard, but guards nothing.
 5. Point the four imported Flatpak manifests at the fisherman submodule.
 6. Move the GNOME frontend under `frontends/gnome/`.
 

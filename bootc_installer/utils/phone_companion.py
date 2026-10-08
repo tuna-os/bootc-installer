@@ -4,8 +4,11 @@ import socket
 import threading
 import json
 import logging
+import os
+import re
 import secrets
 import subprocess
+import tempfile
 from urllib.parse import parse_qs, urlparse
 
 logger = logging.getLogger("Installer::PhoneCompanion")
@@ -13,6 +16,49 @@ logger = logging.getLogger("Installer::PhoneCompanion")
 GLOBAL_CONFIG = None
 CONFIG_RECEIVED_EVENT = threading.Event()
 MAX_CONFIG_BYTES = 64 * 1024
+
+# What the companion form may set, and how long each value may be. Anything
+# else in the payload is dropped (#185): the values go straight into GTK
+# entries and the install recipe, so a non-string or an unexpected key must
+# not reach them.
+_FIELD_LIMITS = {
+    "fullname": 256,
+    "username": 32,
+    "password": 4096,
+    "hostname": 63,
+    "sshkey": 16 * 1024,
+}
+_REQUIRED_FIELDS = ("fullname", "username", "password", "hostname")
+# The same rules the installer applies to typed input: user.py for the
+# username, Systeminfo hostname generation for the hostname.
+_USERNAME_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
+_HOSTNAME_RE = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")
+
+
+def sanitize_config(raw):
+    """The companion payload reduced to known string fields, or None.
+
+    None means reject the submission: a required field is missing or empty,
+    a value is not a string or is too long, or the username or hostname is
+    not one the installer would accept if typed.
+    """
+    if not isinstance(raw, dict):
+        return None
+    config = {}
+    for key, limit in _FIELD_LIMITS.items():
+        value = raw.get(key, "")
+        if not isinstance(value, str) or len(value) > limit:
+            return None
+        config[key] = value
+    config["hostname"] = config["hostname"].strip().lower()
+    config["username"] = config["username"].strip()
+    if any(not config[key] for key in _REQUIRED_FIELDS):
+        return None
+    if not _USERNAME_RE.match(config["username"]):
+        return None
+    if not _HOSTNAME_RE.match(config["hostname"]):
+        return None
+    return config
 
 def get_local_ip():
     """Finds the local IP address of the primary active interface."""
@@ -302,13 +348,21 @@ class CompanionRequestHandler(http.server.SimpleHTTPRequestHandler):
         if path is None:
             return
         if path == "/api/config":
+            # One submission per session. The page polls for the first one
+            # and stops the server; a second POST in between must not swap
+            # the account details the user just sent.
+            if CONFIG_RECEIVED_EVENT.is_set():
+                self.send_error(409, "Configuration already received")
+                return
             try:
                 content_length = int(self.headers['Content-Length'])
                 if content_length > MAX_CONFIG_BYTES:
                     self.send_error(413, "Request body too large")
                     return
                 post_data = self.rfile.read(content_length)
-                config = json.loads(post_data.decode('utf-8'))
+                config = sanitize_config(json.loads(post_data.decode('utf-8')))
+                if config is None:
+                    raise ValueError("payload failed validation")
                 
                 global GLOBAL_CONFIG
                 GLOBAL_CONFIG = config
@@ -327,19 +381,27 @@ class CompanionRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_error(404, "Not Found")
 
 def generate_self_signed_cert():
-    """Tries to generate a self-signed certificate using openssl on the live ISO."""
+    """Generate a one-day self-signed certificate with openssl.
+
+    Returns (certfile, keyfile) in a fresh private directory, or None. The
+    key used to be written to fixed paths in /tmp, where another account on
+    the machine could pre-create them.
+    """
+    certdir = tempfile.mkdtemp(prefix="bootc-companion-")  # mode 0700
+    cert = os.path.join(certdir, "cert.pem")
+    key = os.path.join(certdir, "key.pem")
     try:
         subprocess.run([
             "openssl", "req", "-x509", "-newkey", "rsa:2048",
-            "-keyout", "/tmp/companion-key.pem",
-            "-out", "/tmp/companion-cert.pem",
+            "-keyout", key,
+            "-out", cert,
             "-days", "1", "-nodes",
             "-subj", "/CN=bootc-companion"
         ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return True
+        return cert, key
     except Exception as e:
-        logger.warning("Could not generate self-signed SSL cert: %s. Falling back to HTTP.", e)
-        return False
+        logger.warning("Could not generate a self-signed certificate: %s", e)
+        return None
 
 class CompanionServer:
     def __init__(self, port=8443):
@@ -349,31 +411,43 @@ class CompanionServer:
         self.is_https = False
         self.auth_token = None
 
-    def start(self):
+    def start(self) -> bool:
+        """Serve the companion form over HTTPS. Returns whether it is up.
+
+        There is no plain-HTTP fallback: the form carries the user's
+        password, and sending it across the LAN in clear text is worse than
+        not offering the phone at all (#185). Without a certificate the
+        page tells the user to set up on this screen instead.
+        """
         global GLOBAL_CONFIG
         GLOBAL_CONFIG = None
         CONFIG_RECEIVED_EVENT.clear()
         self.auth_token = secrets.token_urlsafe(32)
-        
-        # Try SSL first
-        self.is_https = generate_self_signed_cert()
-        
+
+        cert = generate_self_signed_cert()
+        self.is_https = cert is not None
+        if not self.is_https:
+            logger.warning("Phone Companion disabled: no TLS certificate, and it will not serve the password over HTTP")
+            self.auth_token = None
+            return False
+
         try:
             self.server = http.server.HTTPServer(("0.0.0.0", self.port), CompanionRequestHandler)
             self.server.auth_token = self.auth_token
-            
-            if self.is_https:
-                context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-                context.load_cert_chain(certfile="/tmp/companion-cert.pem", keyfile="/tmp/companion-key.pem")
-                self.server.socket = context.wrap_socket(self.server.socket, server_side=True)
-                logger.info("Started local HTTPS Phone Companion server on port %s", self.port)
-            else:
-                logger.info("Started local HTTP Phone Companion server on port %s", self.port)
-                
+
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.load_cert_chain(certfile=cert[0], keyfile=cert[1])
+            self.server.socket = context.wrap_socket(self.server.socket, server_side=True)
+            logger.info("Started local HTTPS Phone Companion server on port %s", self.port)
+
             self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
             self.thread.start()
+            return True
         except Exception as e:
             logger.error("Failed to start CompanionServer: %s", e)
+            self.server = None
+            self.auth_token = None
+            return False
 
     def stop(self):
         if self.server:

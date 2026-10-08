@@ -196,6 +196,11 @@ private:
     // Carried across lines so a substep can interpolate inside its step.
     int m_cumulativePct = 0;
     int m_weightPct = 0;
+    // How far through the current step the bar is (0-1); never decreases
+    // inside a step. m_postPullBase is m_stepFrac when the first post-pull
+    // phase message arrived, or negative before that.
+    double m_stepFrac = 0.0;
+    double m_postPullBase = -1.0;
     bool m_hasTpm = false;
     QString m_productName;
     branding::Branding m_branding;

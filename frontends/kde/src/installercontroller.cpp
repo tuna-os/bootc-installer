@@ -204,7 +204,46 @@ void InstallerController::resetProgress()
     Q_EMIT recoveryChanged();
     m_cumulativePct = 0;
     m_weightPct = 0;
+    m_stepFrac = 0.0;
+    m_postPullBase = -1.0;
     Q_EMIT progressChanged();
+}
+
+// Share of a step's weight the layer pull covers; the rest is for the
+// export, deploy and bootloader phases after it, which have no counter.
+static constexpr double kPullShare = 0.6;
+
+// Bar positions for the silent phases after the pull, as a share of what is
+// left of the step, matched as message prefixes. Without these an offline
+// install sat at 1% through ten minutes of export and deploy (#115). Same
+// table and semantics as shared/progress/progress_parser.py; the numbers are
+// pinned by shared/progress/fraction-cases.json.
+static double phaseMilestone(const QString &message)
+{
+    static const struct {
+        const char *prefix;
+        double share;
+    } milestones[] = {
+        {"Exporting image to OCI layout", 0.05},
+        {"OCI export complete", 0.30},
+        {"Using ", 0.32},
+        {"Initializing ostree layout", 0.35},
+        {"Writing ", 0.35},
+        {"Deploying image", 0.35},
+        {"OS deployed, installing bootloader", 0.90},
+        {"Detected bootloader", 0.92},
+        {"Installing bootloader", 0.92},
+        {"Configuring EFI boot entry", 0.95},
+        {"Configuring GRUB", 0.95},
+        {"Configuring SELinux", 0.95},
+        {"Generating initramfs", 0.95},
+        {"bootc installation complete", 1.0},
+    };
+    for (const auto &m : milestones) {
+        if (message.startsWith(QLatin1String(m.prefix)))
+            return m.share;
+    }
+    return -1.0;
 }
 
 QString InstallerController::consumeProgress(const QString &line)
@@ -221,9 +260,20 @@ QString InstallerController::consumeProgress(const QString &line)
     const QString type = event.value(QStringLiteral("type")).toString();
 
     if (type == QLatin1String("step")) {
-        m_step = event.value(QStringLiteral("step")).toInt();
-        m_totalSteps = event.value(QStringLiteral("total_steps")).toInt();
+        const int step = event.value(QStringLiteral("step")).toInt();
         const QString name = event.value(QStringLiteral("step_name")).toString();
+        // A repeated or earlier step is ignored, as in the canonical parser:
+        // it must not reset the bar.
+        if (m_step > 0 && step <= m_step) {
+            return QStringLiteral("[%1/%2] %3")
+                .arg(step)
+                .arg(event.value(QStringLiteral("total_steps")).toInt())
+                .arg(name);
+        }
+        m_step = step;
+        m_totalSteps = event.value(QStringLiteral("total_steps")).toInt();
+        m_stepFrac = 0.0;
+        m_postPullBase = -1.0;
         m_cumulativePct = event.value(QStringLiteral("cumulative_pct")).toInt();
         m_weightPct = event.value(QStringLiteral("weight_pct")).toInt();
         m_fraction = m_cumulativePct / 100.0;
@@ -234,18 +284,30 @@ QString InstallerController::consumeProgress(const QString &line)
     if (type == QLatin1String("substep") || type == QLatin1String("info")) {
         const QString message = event.value(QStringLiteral("message")).toString();
         if (type == QLatin1String("substep") && m_weightPct > 0) {
-            // Interpolate across the image pull: it is the long step, and
-            // without this the bar freezes there for most of the install.
+            // The layer pull covers the first kPullShare of the step; the
+            // named phases after it cover the rest.
             static const QRegularExpression layers(
-                QStringLiteral("Pulling image: layer (\\d+)/(\\d+)"));
+                QStringLiteral("^Pulling image: layer (\\d+)/(\\d+)"));
+            double stepFrac = -1.0;
             const QRegularExpressionMatch m = layers.match(message);
             if (m.hasMatch()) {
                 const double done = m.captured(1).toDouble();
                 const double total = m.captured(2).toDouble();
-                if (total > 0) {
-                    m_fraction = qMin((m_cumulativePct + (done / total) * m_weightPct) / 100.0, 1.0);
-                    Q_EMIT progressChanged();
+                if (total > 0)
+                    stepFrac = qMin(done / total, 1.0) * kPullShare;
+            } else {
+                const double share = phaseMilestone(message);
+                if (share >= 0) {
+                    if (m_postPullBase < 0)
+                        m_postPullBase = m_stepFrac;
+                    stepFrac = m_postPullBase + share * (1.0 - m_postPullBase);
                 }
+            }
+            if (stepFrac >= 0) {
+                // Never move backwards: a retried pull restarts its count.
+                m_stepFrac = qMax(m_stepFrac, stepFrac);
+                m_fraction = qMin((m_cumulativePct + m_stepFrac * m_weightPct) / 100.0, 1.0);
+                Q_EMIT progressChanged();
             }
         }
         return message.isEmpty() ? QString() : QStringLiteral("  ") + message;

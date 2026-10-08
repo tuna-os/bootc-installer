@@ -115,7 +115,7 @@
       "colours": 453,
       "flat": 0.6161333333333333,
       "ink": 0.11356666666666666,
-      "stddev": 0.11049312796175044,
+      "stddev": 0.11048502176346062,
       "text_excerpt": "Step 3 of 6 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
@@ -125,17 +125,17 @@
       "colours": 385,
       "flat": 0.6189,
       "ink": 0.0209,
-      "stddev": 0.08055122397772398,
+      "stddev": 0.08056238996147015,
       "text_excerpt": "Step 4 of 6 \u00b7 Confirm Confirm installation \u26a0  Everything on the selected disk will be erased. This cannot be undone. Summary Target disk \u2014 Filesystem xfs Encryption none Hostname tunaos Image ghcr.io/tuna-os/albacore:gnome Back Back Install"
     },
     {
       "name": "05-progress",
       "png": "docs/screenshots/05-progress.png",
       "rendered": true,
-      "colours": 262,
+      "colours": 260,
       "flat": 0.6350333333333333,
-      "ink": 0.021633333333333334,
-      "stddev": 0.09108137579786926,
+      "ink": 0.0187,
+      "stddev": 0.08433593232152987,
       "text_excerpt": "Step 5 of 6 \u00b7 Installing Installing TunaOS\u2026 Step 5 of 8 \u2014 Installing OS [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pul"
     },
     {

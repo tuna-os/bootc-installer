@@ -64,15 +64,23 @@ def test_get_local_ip_returns_loopback_when_all_lookups_fail():
         assert get_local_ip() == "127.0.0.1"
 
 
-def test_generate_self_signed_cert_runs_openssl():
-    with patch("bootc_installer.utils.phone_companion.subprocess.run") as run_mock:
-        assert generate_self_signed_cert() is True
+def test_generate_self_signed_cert_runs_openssl_into_a_private_dir():
+    import os
+    import stat
 
+    with patch("bootc_installer.utils.phone_companion.subprocess.run") as run_mock:
+        cert, key = generate_self_signed_cert()
+
+    certdir = os.path.dirname(cert)
+    assert os.path.dirname(key) == certdir
+    assert not certdir.startswith("/tmp/companion")
+    # mkdtemp: only this user can read the key or plant files in its place.
+    assert stat.S_IMODE(os.stat(certdir).st_mode) == 0o700
     run_mock.assert_called_once_with(
         [
             "openssl", "req", "-x509", "-newkey", "rsa:2048",
-            "-keyout", "/tmp/companion-key.pem",
-            "-out", "/tmp/companion-cert.pem",
+            "-keyout", key,
+            "-out", cert,
             "-days", "1", "-nodes",
             "-subj", "/CN=bootc-companion",
         ],
@@ -87,7 +95,7 @@ def test_generate_self_signed_cert_returns_false_on_failure():
         "bootc_installer.utils.phone_companion.subprocess.run",
         side_effect=OSError("openssl missing"),
     ), patch("bootc_installer.utils.phone_companion.logger.warning") as warning_mock:
-        assert generate_self_signed_cert() is False
+        assert generate_self_signed_cert() is None
 
     warning_mock.assert_called_once()
 
@@ -102,28 +110,23 @@ def test_companion_server_init_sets_default_state():
     assert server.auth_token is None
 
 
-def test_companion_server_start_resets_state_and_starts_http_thread():
+def test_companion_server_never_serves_plain_http():
+    """#185: without a certificate the server does not start at all; the
+    password must not cross the LAN in clear text."""
     server = CompanionServer(port=9999)
-    fake_server = MagicMock()
-    fake_thread = MagicMock()
     phone_companion.GLOBAL_CONFIG = {"stale": True}
     CONFIG_RECEIVED_EVENT.set()
 
-    with patch("bootc_installer.utils.phone_companion.generate_self_signed_cert", return_value=False), \
-         patch("bootc_installer.utils.phone_companion.http.server.HTTPServer", return_value=fake_server) as http_server_mock, \
-         patch("bootc_installer.utils.phone_companion.threading.Thread", return_value=fake_thread) as thread_mock:
-        server.start()
+    with patch("bootc_installer.utils.phone_companion.generate_self_signed_cert", return_value=None), \
+         patch("bootc_installer.utils.phone_companion.http.server.HTTPServer") as http_server_mock:
+        assert server.start() is False
 
+    http_server_mock.assert_not_called()
+    assert server.server is None
+    assert server.is_https is False
+    assert server.auth_token is None
     assert phone_companion.GLOBAL_CONFIG is None
     assert not CONFIG_RECEIVED_EVENT.is_set()
-    assert server.server is fake_server
-    assert server.thread is fake_thread
-    assert server.is_https is False
-    assert server.auth_token is not None
-    assert fake_server.auth_token == server.auth_token
-    http_server_mock.assert_called_once_with(("0.0.0.0", 9999), CompanionRequestHandler)
-    thread_mock.assert_called_once_with(target=fake_server.serve_forever, daemon=True)
-    fake_thread.start.assert_called_once_with()
 
 
 def test_companion_server_start_configures_tls_when_certificate_exists():
@@ -135,17 +138,24 @@ def test_companion_server_start_configures_tls_when_certificate_exists():
     ssl_context = MagicMock()
     ssl_context.wrap_socket.return_value = wrapped_socket
 
-    with patch("bootc_installer.utils.phone_companion.generate_self_signed_cert", return_value=True), \
-         patch("bootc_installer.utils.phone_companion.http.server.HTTPServer", return_value=fake_server), \
+    fake_thread = MagicMock()
+    with patch("bootc_installer.utils.phone_companion.generate_self_signed_cert",
+               return_value=("/priv/cert.pem", "/priv/key.pem")), \
+         patch("bootc_installer.utils.phone_companion.http.server.HTTPServer", return_value=fake_server) as http_server_mock, \
          patch("bootc_installer.utils.phone_companion.ssl.SSLContext", return_value=ssl_context) as ssl_context_cls, \
-         patch("bootc_installer.utils.phone_companion.threading.Thread", return_value=MagicMock()):
-        server.start()
+         patch("bootc_installer.utils.phone_companion.threading.Thread", return_value=fake_thread) as thread_mock:
+        assert server.start() is True
 
     assert server.is_https is True
+    assert server.auth_token is not None
+    assert fake_server.auth_token == server.auth_token
+    http_server_mock.assert_called_once_with(("0.0.0.0", 8443), CompanionRequestHandler)
+    thread_mock.assert_called_once_with(target=fake_server.serve_forever, daemon=True)
+    fake_thread.start.assert_called_once_with()
     ssl_context_cls.assert_called_once_with(phone_companion.ssl.PROTOCOL_TLS_SERVER)
     ssl_context.load_cert_chain.assert_called_once_with(
-        certfile="/tmp/companion-cert.pem",
-        keyfile="/tmp/companion-key.pem",
+        certfile="/priv/cert.pem",
+        keyfile="/priv/key.pem",
     )
     ssl_context.wrap_socket.assert_called_once_with(original_socket, server_side=True)
     assert fake_server.socket is wrapped_socket
@@ -272,3 +282,65 @@ def test_handler_rejects_oversized_config():
 
     handler.send_error.assert_called_once_with(413, "Request body too large")
     assert phone_companion.GLOBAL_CONFIG is None
+
+
+# ── #185: what a submission may contain ─────────────────────────────────────
+
+_GOOD = {
+    "fullname": "John Doe",
+    "username": "johndoe",
+    "password": "secret",
+    "hostname": "Bluefin",
+    "sshkey": "ssh-ed25519 AAA",
+}
+
+
+def _post(payload):
+    handler = _make_handler("/api/config?token=test-token", json.dumps(payload).encode("utf-8"))
+    with patch("bootc_installer.utils.phone_companion.logger.error"):
+        handler.do_POST()
+    return handler
+
+
+def test_sanitize_keeps_known_fields_and_normalises_hostname():
+    from bootc_installer.utils.phone_companion import sanitize_config
+
+    got = sanitize_config({**_GOOD, "extra": "dropped", "groups": ["wheel"]})
+    assert got == {**_GOOD, "hostname": "bluefin"}
+
+
+@pytest.mark.parametrize("bad", [
+    {**_GOOD, "password": ["not", "a", "string"]},
+    {**_GOOD, "hostname": "bad host; rm -rf /"},
+    {**_GOOD, "hostname": "-leading-hyphen"},
+    {**_GOOD, "hostname": "a" * 64},
+    {**_GOOD, "username": "Root User"},
+    {**_GOOD, "username": "0starts-with-digit"},
+    {**_GOOD, "fullname": ""},
+    {**_GOOD, "fullname": "x" * 257},
+    {k: v for k, v in _GOOD.items() if k != "password"},
+    ["not", "an", "object"],
+])
+def test_invalid_submission_is_rejected_and_not_stored(bad):
+    handler = _post(bad)
+
+    handler.send_response.assert_called_once_with(400)
+    assert phone_companion.GLOBAL_CONFIG is None
+    assert not CONFIG_RECEIVED_EVENT.is_set()
+
+
+def test_ssh_key_is_optional():
+    handler = _post({k: v for k, v in _GOOD.items() if k != "sshkey"})
+
+    handler.send_response.assert_called_once_with(200)
+    assert phone_companion.GLOBAL_CONFIG["sshkey"] == ""
+
+
+def test_only_the_first_submission_is_accepted():
+    """The page stops the server after the first config; a second POST in
+    that window must not replace the account the user just sent."""
+    _post(_GOOD)
+    second = _post({**_GOOD, "username": "intruder"})
+
+    second.send_error.assert_called_once_with(409, "Configuration already received")
+    assert phone_companion.GLOBAL_CONFIG["username"] == "johndoe"
