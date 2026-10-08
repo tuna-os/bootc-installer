@@ -290,12 +290,13 @@ def _seed(win, page, name):
     if name == "confirm":
         win.update_finals()
     elif name == "progress":
-        # The same labels the demo mode shows, set directly so no timer has
-        # to fire. start_demo() also configures the install video, which a
-        # runner has no codec for.
-        page._BootcProgress__set_progress_fraction(0.45)
-        page.progressbar_text.set_label("Installing %s…" % win.recipe.get("distro_name", ""))
-        page.progress_substep.set_label("Deploying image: writing layers")
+        # The demo's transcript, fed up to mid-pull through the real parser
+        # so no timer has to fire. start_demo() also configures the install
+        # video, which a runner has no codec for.
+        for line in progress_mod._load_demo_transcript():
+            page.feed_line(line)
+            if "layer 47/71" in line:
+                break
     elif name == "recovery-key":
         page.set_recovery_key("mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf")
     elif name == "done":

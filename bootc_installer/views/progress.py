@@ -34,6 +34,13 @@ _LIVE_ISO = fisherman_runner.LIVE_ISO
 _RESOURCE_PREFIX = "/org/bootcinstaller/Installer"
 _ASSET_DIR = pathlib.Path(__file__).resolve().parent.parent / "assets"
 
+# The demo (BOOTC_DEMO=1) replays fisherman's own dry-run transcript, a
+# byte-identical copy of shared/progress/dry-run-transcript.ndjson that
+# utils/meson.build installs next to the parser. XFCE plays the same file.
+_DEMO_TRANSCRIPT = pathlib.Path(__file__).resolve().parent.parent / "utils" / "dry-run-transcript.ndjson"
+# One event per tick, the pace XFCE's dry run uses.
+_DEMO_INTERVAL_MS = 400
+
 # Where to stage fisherman so the host can see it (shared via --filesystem=host)
 #
 # The fallback used to be "/tmp", which put the staging directory — and so the
@@ -46,7 +53,7 @@ _FISHERMAN_CACHE_DIR = os.path.join(_FISHERMAN_STAGE_BASE, ".cache", "bootc-inst
 _FISHERMAN_HOST_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman")
 _FISHERMAN_LOG_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman-output.log")
 
-from bootc_installer.utils.progress_parser import apply_progress_event, new_progress_state, render_event, set_product_name, set_install_label, get_product_name, _RE_LAYER_PROGRESS  # noqa: E402
+from bootc_installer.utils.progress_parser import apply_progress_event, new_progress_state, render_event, set_product_name, set_install_label, _RE_LAYER_PROGRESS  # noqa: E402
 from bootc_installer.utils.codec_check import check_codecs_present  # noqa: E402
 
 
@@ -66,6 +73,17 @@ def _log_line_for_display(line: str) -> str:
     """
     shown = render_event(line.strip())
     return line if shown is None else shown
+
+
+def _load_demo_transcript(path=None) -> list:
+    """The demo transcript's event lines. Empty when the file is missing."""
+    path = _DEMO_TRANSCRIPT if path is None else path
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return [ln for ln in fh.read().splitlines() if ln.strip()]
+    except OSError as e:
+        logger.error("Demo transcript unreadable (%s): %s", path, e)
+        return []
 
 
 def _fisherman_argv_direct(recipe: str) -> list:
@@ -616,59 +634,51 @@ class BootcProgress(Gtk.Box):
             self._video_configured = True
             self.__configure_install_video()
 
-    def start_demo(self):
-        """Fake install sequence for UI design / demo mode (BOOTC_DEMO=1).
+    def feed_line(self, line: str):
+        """Apply one line of fisherman output: the bar, the labels and the log."""
+        self.__parse_progress_line(line.strip())
+        self.__append_log_line(line)
 
-        Walks through 9 steps over ~5 seconds, then calls set_installation_result.
-        No fisherman is launched. No disk is touched.
+    def start_demo(self):
+        """Fake install for UI design / demo mode (BOOTC_DEMO=1).
+
+        Replays shared/progress/dry-run-transcript.ndjson through the same
+        parser and handlers a real install uses, so the demo shows the labels
+        and bar positions fisherman's events produce. No fisherman is
+        launched. No disk is touched.
         """
         logger.info("start_demo() called")
-        installing = copy_text.text(self.__window, "progress_title") or \
-            _("Installing {}\u2026").format(get_product_name())
-        # Demo steps: (delay_seconds, bar_fraction, label)
-        # Mirrors real-install proportions: disk prep is fast (<10%),
-        # OS install dominates (~87% of bar, most of the time),
-        # then a quick burst to 100% for apps + config.
-        _STEPS = [
-            (0.3,  0.01, "Checking your drive\u2026"),
-            (0.6,  0.02, "Setting up your drive\u2026"),
-            (0.9,  0.04, "Preparing the boot system\u2026"),
-            (1.2,  0.05, "Formatting your drive\u2026"),
-            (1.5,  0.06, "Mounting your drive\u2026"),
-            (2.0,  0.10, installing),
-            (3.5,  0.45, installing),
-            (5.2,  0.86, installing),
-            (5.8,  0.93, "Installing your apps\u2026"),
-            (6.3,  0.97, "Configuring your system\u2026"),
-            (6.8,  0.99, "Finishing up\u2026"),
-        ]
+        lines = _load_demo_transcript()
+        self.__progress_state = new_progress_state()
+        self.__boot_id = ""
+        self.__recovery_key = ""
         self.__pulse_active = False
         self.__set_progress_fraction(0.0)
+        self.progressbar_text.set_label(
+            copy_text.text(self.__window, "progress_title") or _("Installing"))
         self.progress_substep.set_label("")
-        self.progress_elapsed.set_label(_("0:00 elapsed"))
         self.__hide_video_fallback()
         self.__show_media_view()
         if not self._video_configured:
             self._video_configured = True
             self.__configure_install_video()
+        self.progress_elapsed.set_label(_("0:00 elapsed"))
 
-        def _fire_step(index):
-            if index >= len(_STEPS):
-                self.__set_progress_fraction(1.0)
-                self.__pause_install_video()
-                self.progress_substep.set_label("")
-                self.progressbar_text.set_label(_("Installation complete!"))
-                GLib.timeout_add(600, lambda: self.__window.set_installation_result(True, None, "") or False)
-                return False
-            _delay, fraction, label = _STEPS[index]
-            self.__set_progress_fraction(fraction)
-            self.progress_substep.set_label("")
-            self.progressbar_text.set_label(_(label))
+        def _feed(line):
+            self.feed_line(line)
             return False
 
-        for i, (delay, _frac, _label) in enumerate(_STEPS):
-            GLib.timeout_add(int(delay * 1000), _fire_step, i)
-        GLib.timeout_add(int((_STEPS[-1][0] + 0.6) * 1000), _fire_step, len(_STEPS))
+        def _finish():
+            self.__pause_install_video()
+            # No boot_id: the transcript's is a placeholder, and the done
+            # page would set it as the firmware's BootNext on restart.
+            GLib.timeout_add(600, lambda: self.__window.set_installation_result(True, None, "") or False)
+            return False
+
+        # Every event is scheduled up front, one interval apart.
+        for i, line in enumerate(lines, start=1):
+            GLib.timeout_add(i * _DEMO_INTERVAL_MS, _feed, line)
+        GLib.timeout_add((len(lines) + 1) * _DEMO_INTERVAL_MS, _finish)
 
     def start(self, recipe):
         # If VANILLA_FAKE was passed as argument
