@@ -24,6 +24,7 @@
         "type": {
           "type": "string",
           "enum": [
+            "",
             "none",
             "luks-passphrase",
             "tpm2-luks",
@@ -63,7 +64,7 @@
     },
     "bootloader": {
       "type": "string",
-      "enum": ["grub2", "systemd"],
+      "enum": ["", "grub2", "systemd"],
       "description": "Explicit bootloader selection"
     },
     "composeFsBackend": {

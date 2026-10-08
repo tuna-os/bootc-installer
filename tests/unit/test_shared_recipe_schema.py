@@ -42,6 +42,34 @@ class SharedRecipeSchemaTests(unittest.TestCase):
         missing = sorted(set(tags) - set(props))
         self.assertEqual(missing, [], f"fisherman recipe fields absent from the shared schema: {missing}")
 
+    def _validate_cases(self, src, expr):
+        """The string literals in fisherman's `switch <expr> {` case list
+        that Validate() accepts (the first case clause)."""
+        start = src.index(f"switch {expr} {{")
+        clause = src[start:src.index(":", src.index("case", start))]
+        return set(re.findall(r'"([^"]*)"', clause))
+
+    def test_enums_match_what_fisherman_accepts(self):
+        """A schema enum narrower than fisherman's Validate() rejects recipes
+        fisherman installs: GNOME writes bootloader "" when the image
+        metadata names none, and fisherman then picks the image's default."""
+        recipe_go = REPO / "fisherman" / "fisherman" / "internal" / "recipe" / "recipe.go"
+        if not recipe_go.exists():
+            self.skipTest("fisherman submodule not checked out")
+        src = recipe_go.read_text()
+        props = json.loads(SHARED.read_text())["properties"]
+        cases = {
+            "bootloader": (self._validate_cases(src, "r.Bootloader"),
+                           props["bootloader"]["enum"]),
+            "encryption.type": (self._validate_cases(src, "r.Encryption.Type"),
+                                props["encryption"]["properties"]["type"]["enum"]),
+        }
+        for field, (accepted, enum) in cases.items():
+            with self.subTest(field=field):
+                self.assertTrue(accepted, f"could not read fisherman's {field} cases")
+                self.assertEqual(sorted(enum), sorted(accepted),
+                                 f"schema enum for {field} differs from fisherman's Validate()")
+
     def test_kde_copy_matches_shared(self):
         self.assertEqual(
             KDE.read_bytes(), SHARED.read_bytes(),
