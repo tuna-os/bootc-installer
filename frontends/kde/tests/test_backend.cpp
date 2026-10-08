@@ -69,7 +69,7 @@ void BackendTest::recipeDefaults()
     // Neutral until InstallerController fills them from the branding contract.
     QVERIFY(recipe.distroID.isEmpty());
     QVERIFY(recipe.hostname.isEmpty());
-    QVERIFY(recipe.selinuxDisabled);
+    QVERIFY(!recipe.selinuxDisabled);
     QVERIFY(!recipe.liveMode);
 }
 

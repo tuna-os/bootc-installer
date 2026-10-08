@@ -88,7 +88,7 @@ The installer writes a JSON recipe that fisherman consumes:
   "image": "ghcr.io/tuna-os/albacore:gnome",
   "additionalImageStores": ["/usr/share/tuna-installer/oci-store"],
   "distroID": "tunaos",
-  "selinuxDisabled": true,
+  "selinuxDisabled": false,
   "hostname": "tunaos"
 }
 ```

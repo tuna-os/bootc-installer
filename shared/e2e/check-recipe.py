@@ -3,13 +3,14 @@
 
     check-recipe.py <frontend> [recipe.json]   (default /tmp/tuna-e2e/recipe.json)
 
-Three independent verdicts, all required:
+Independent verdicts, all required:
   * the REAL fisherman accepts it (`fisherman validate`, the same Validate()
     an install runs first);
   * it conforms to shared/recipe/fisherman-recipe.schema.json, the contract
     the five frontends write against;
   * it targets the disk the job set up, so a frontend that picked the wrong
-    device is caught here and not by a partitioned runner.
+    device is caught here and not by a partitioned runner;
+  * it leaves SELinux on (selinuxDisabled is not true).
 The recipe is then copied to e2e-recipe-<frontend>.json for the VM job.
 """
 import json
@@ -65,6 +66,10 @@ def main():
         failures.append("hostname is empty")
     if recipe.get("encryption", {}).get("type") not in ("none", "luks-passphrase", "tpm2-luks", "tpm2-luks-passphrase"):
         failures.append(f"encryption type {recipe.get('encryption')!r}")
+    # selinuxDisabled=true makes bootc add selinux=0 to the installed
+    # system's kernel arguments. Four frontends once hardcoded it (#160).
+    if recipe.get("selinuxDisabled") is True:
+        failures.append("selinuxDisabled is true: the installed system would boot with selinux=0")
 
     out = f"e2e-recipe-{frontend}.json"
     shutil.copyfile(path, out)

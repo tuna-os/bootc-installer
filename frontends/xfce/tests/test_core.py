@@ -224,7 +224,7 @@ class TestBuildRecipe:
         assert r["filesystem"] == "xfs"
         assert r["hostname"] == "reef"
         assert r["distroID"] == core.BRANDING.id
-        assert r["selinuxDisabled"] is True
+        assert r["selinuxDisabled"] is False
         assert r["encryption"] == {"type": "none"}
 
     def test_optional_keys_are_absent_not_empty(self):

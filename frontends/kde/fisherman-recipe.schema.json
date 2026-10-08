@@ -85,7 +85,8 @@
     },
     "selinuxDisabled": {
       "type": "boolean",
-      "default": true
+      "default": false,
+      "description": "true passes --disable-selinux to bootc, which adds selinux=0 to the installed system's kernel arguments. Leave false: bootc labels the target from its own policy."
     },
     "hostname": {
       "type": "string",
