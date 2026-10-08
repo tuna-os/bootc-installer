@@ -13,7 +13,9 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
 )
 
 // DiskInfo represents a block device from lsblk
@@ -187,6 +189,28 @@ func hasTPM() bool {
 	return fakeTPMRequested() || probeTPM2("/")
 }
 
+// wrapperCommand builds the fisherman wrapper's command in a process group
+// of its own. The shared cancel contract is "kill your wrapper's process
+// group", which must never be this backend's (or Quickshell's) group.
+func wrapperCommand(argv []string) *exec.Cmd {
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	return cmd
+}
+
+// forwardSignals relays every signal this backend receives to the wrapper's
+// process group (pgid == the wrapper's pid). Before the wrapper had a group
+// of its own, a signal to this backend's group (Ctrl-C in a terminal, or a
+// session teardown) reached the wrapper too; this keeps that working. The
+// UI has no cancel button, so nothing else signals the group yet.
+func forwardSignals(pgid int, sigs <-chan os.Signal) {
+	for sig := range sigs {
+		if s, ok := sig.(syscall.Signal); ok {
+			_ = syscall.Kill(-pgid, s)
+		}
+	}
+}
+
 func runInstall(recipeJSON string) {
 	if len(recipeJSON) == 0 {
 		fmt.Fprintln(os.Stderr, "invalid recipe: empty")
@@ -224,9 +248,10 @@ func runInstall(recipeJSON string) {
 	}
 	defer os.RemoveAll(recipeDir(recipePath))
 
-	// pkexec /app/bin/fisherman in Flatpak, sudo /usr/local/bin/fisherman otherwise.
+	// flatpak-spawn --host bash -c 'pkexec /usr/local/bin/fisherman "$1"' in
+	// Flatpak, sudo /usr/local/bin/fisherman otherwise.
 	argv := append(fishermanCommand(), recipePath)
-	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd := wrapperCommand(argv)
 
 	// Tee fisherman's output to a persistent log in addition to the pipe
 	// Quickshell reads (root.installLog in installer.qml) — that property is
@@ -243,7 +268,14 @@ func runInstall(recipeJSON string) {
 		cmd.Stderr = io.MultiWriter(os.Stderr, logFile)
 	}
 
-	runErr := cmd.Run()
+	runErr := cmd.Start()
+	if runErr == nil {
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+		go forwardSignals(cmd.Process.Pid, sigs)
+		runErr = cmd.Wait()
+		signal.Stop(sigs)
+	}
 	if logFile != nil {
 		fmt.Fprintf(logFile, "=== install exited: %v ===\n", runErr)
 	}

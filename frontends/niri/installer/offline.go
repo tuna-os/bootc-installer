@@ -17,14 +17,28 @@ func inFlatpak() bool {
 	return err == nil
 }
 
-// fishermanCommand returns the program+args that run fisherman with privileges.
+// fishermanCommand returns the program+args that run fisherman with
+// privileges; the caller appends the recipe path.
 //
 // Flatpak runtimes ship no pkexec; escalate host-side. The live ISO symlinks
 // the flatpak-bundled fisherman to /usr/local/bin and installs the polkit
 // policy for it (tunaOS customize-live.sh).
 func fishermanCommand() []string {
-	if inFlatpak() {
-		return []string{"flatpak-spawn", "--host", "pkexec", "/usr/local/bin/fisherman"}
+	return fishermanCommandFor(inFlatpak())
+}
+
+// fishermanWrapperScript runs pkexec under a host-side bash. fisherman runs
+// as root, so nothing here can signal it; it cancels when its PARENT dies
+// (tuna-os/fisherman#267). Run as `flatpak-spawn --host pkexec ...`, that
+// parent was the host's flatpak-session-helper, which this frontend cannot
+// kill. The recipe path is bash's $1 (after "--"), never script text. No
+// redirection: stdout and stderr still come back through flatpak-spawn.
+const fishermanWrapperScript = `pkexec /usr/local/bin/fisherman "$1"; exit $?`
+
+// fishermanCommandFor is fishermanCommand for an explicit sandbox state.
+func fishermanCommandFor(flatpak bool) []string {
+	if flatpak {
+		return []string{"flatpak-spawn", "--host", "bash", "-c", fishermanWrapperScript, "--"}
 	}
 	return []string{"sudo", "/usr/local/bin/fisherman"}
 }
