@@ -725,7 +725,8 @@ impl TunaInstaller {
     ///
     /// stdout carries the newline-delimited JSON protocol
     /// (shared/progress/README.md); stderr is plain text and is interleaved
-    /// into the same stream, which the parser passes through untouched.
+    /// into the same stream line by line (see `merged_lines`), which the
+    /// parser passes through untouched.
     fn stream_fisherman(recipe: Recipe) -> impl Stream<Item = Message> {
         cosmic::iced::stream::channel(64, async move |mut output| {
             let json = match serde_json::to_string_pretty(&recipe) {
@@ -765,25 +766,15 @@ impl TunaInstaller {
                 }
             };
 
-            let stdout = child.stdout.take();
-            let stderr = child.stderr.take();
-            if let Some(stdout) = stdout {
-                let mut lines = BufReader::new(stdout).lines();
-                while let Ok(Some(line)) = lines.next_line().await {
-                    if output.send(Message::InstallLine(line)).await.is_err() {
-                        break;
-                    }
-                }
-            }
-            // Drained after stdout: fisherman writes its failure summary
-            // there, and dropping it is how a failed install used to reach
-            // the Done page with nothing to show.
-            if let Some(stderr) = stderr {
-                let mut lines = BufReader::new(stderr).lines();
-                while let Ok(Some(line)) = lines.next_line().await {
-                    if output.send(Message::InstallLine(line)).await.is_err() {
-                        break;
-                    }
+            // Both pipes at once. stdout used to be read to EOF before stderr
+            // was touched, so a fisherman that filled the stderr pipe (64 KiB)
+            // blocked on write while this waited for stdout to end: both
+            // processes hung for good. stderr still matters — fisherman writes
+            // its failure summary there.
+            let mut lines = merged_lines(child.stdout.take(), child.stderr.take());
+            while let Some(line) = lines.recv().await {
+                if output.send(Message::InstallLine(line)).await.is_err() {
+                    break;
                 }
             }
 
@@ -802,6 +793,39 @@ impl TunaInstaller {
             let _ = output.send(Message::InstallFinished(Ok(code))).await;
         })
     }
+}
+
+/// Every line from a child's stdout and stderr, read concurrently.
+///
+/// Each pipe gets its own task, so neither can fill up while the other is
+/// being waited on. Lines are interleaved in arrival order; a line is never
+/// split across the two streams. The tasks keep draining after the receiver
+/// is dropped, so an abandoned install page cannot leave the child blocked on
+/// a full pipe.
+fn merged_lines<O, E>(stdout: Option<O>, stderr: Option<E>) -> tokio::sync::mpsc::UnboundedReceiver<String>
+where
+    O: tokio::io::AsyncRead + Unpin + Send + 'static,
+    E: tokio::io::AsyncRead + Unpin + Send + 'static,
+{
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    if let Some(stdout) = stdout {
+        let tx = tx.clone();
+        tokio::spawn(async move {
+            let mut lines = BufReader::new(stdout).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = tx.send(line);
+            }
+        });
+    }
+    if let Some(stderr) = stderr {
+        tokio::spawn(async move {
+            let mut lines = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = tx.send(line);
+            }
+        });
+    }
+    rx
 }
 
 #[cfg(test)]
@@ -915,6 +939,42 @@ mod tests {
     /// by default: it needs TUNA_E2E_DISK and the shim.
     ///
     ///     TUNA_E2E_DISK=/dev/loopN cargo test --release -- --ignored e2e
+    /// A child that writes more than a pipe buffer to stderr before it
+    /// writes anything to stdout. Reading stdout to EOF first deadlocked:
+    /// the child blocked on the full stderr pipe and never closed stdout.
+    #[test]
+    fn merged_lines_drains_a_full_stderr_pipe_before_stdout() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut child = super::TokioCommand::new("sh")
+                .arg("-c")
+                // 256 KiB on one stderr line, then a stdout line.
+                .arg("head -c 262144 /dev/zero | tr '\\0' x >&2; echo >&2; echo stdout-done")
+                .stdout(super::Stdio::piped())
+                .stderr(super::Stdio::piped())
+                .spawn()
+                .expect("sh");
+            let mut rx = super::merged_lines(child.stdout.take(), child.stderr.take());
+            let collect = async {
+                let mut got = Vec::new();
+                while let Some(line) = rx.recv().await {
+                    got.push(line);
+                }
+                got
+            };
+            let got = tokio::time::timeout(std::time::Duration::from_secs(20), collect)
+                .await
+                .expect("deadlocked: stderr was not drained while stdout was read");
+            let status = child.wait().await.unwrap();
+            assert!(status.success());
+            assert!(got.iter().any(|l| l == "stdout-done"), "stdout line missing");
+            assert!(
+                got.iter().any(|l| l.len() == 262144 && l.bytes().all(|b| b == b'x')),
+                "the 256 KiB stderr line was not delivered whole"
+            );
+        });
+    }
+
     #[test]
     #[ignore]
     fn e2e_install_path_reaches_fisherman() {
