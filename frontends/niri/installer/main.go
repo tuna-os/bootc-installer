@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // DiskInfo represents a block device from lsblk
@@ -21,7 +22,15 @@ type DiskInfo struct {
 	Size      string `json:"size"`
 	Type      string `json:"type"`
 	Transport string `json:"tran,omitempty"`
+	// The disk picker (ui/installer.qml) leads with the model when there is
+	// one. It read modelData.model all along, but MODEL was never asked of
+	// lsblk, so every disk showed as a bare /dev name.
+	Model string `json:"model,omitempty"`
 }
+
+// lsblkColumns are the columns discover-disks asks lsblk for. Every field
+// of DiskInfo has to be listed here or it is silently always empty.
+const lsblkColumns = "NAME,SIZE,TYPE,TRAN,MODEL"
 
 // Recipe is the fisherman install recipe (see ../../INSTALLER-FRONTENDS.md §1).
 type Recipe struct {
@@ -112,6 +121,8 @@ func parseLSBLKOutput(output []byte) ([]DiskInfo, error) {
 			continue
 		}
 		if d.Type == "disk" {
+			// Older util-linux pads MODEL with trailing spaces.
+			d.Model = strings.TrimSpace(d.Model)
 			disks = append(disks, d)
 		}
 	}
@@ -119,7 +130,7 @@ func parseLSBLKOutput(output []byte) ([]DiskInfo, error) {
 }
 
 func discoverDisks() {
-	cmd := exec.Command("lsblk", "-J", "-o", "NAME,SIZE,TYPE,TRAN")
+	cmd := exec.Command("lsblk", "-J", "-o", lsblkColumns)
 	output, err := cmd.Output()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "lsblk failed: %v\n", err)
