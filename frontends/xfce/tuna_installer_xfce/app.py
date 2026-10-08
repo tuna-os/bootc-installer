@@ -24,6 +24,25 @@ from .pages import (
 from .trawlline import TrawlLine
 
 
+def spawn_fisherman(argv):
+    """Start the fisherman wrapper as the leader of its own process group.
+
+    The wrapper (flatpak-spawn, or sudo) is the only process in the install
+    this user can signal; fisherman runs as root and cancels when its parent
+    dies (tuna-os/fisherman#267). The contract every frontend follows is
+    "kill your wrapper's process group", which needs the wrapper in a group
+    of its own rather than the installer's. This frontend has no cancel UI,
+    so nothing signals it yet.
+
+    Returns (pid, stdout_fd, stderr_fd); the caller reaps the pid.
+    """
+    flags = GLib.SpawnFlags.SEARCH_PATH | GLib.SpawnFlags.DO_NOT_REAP_CHILD
+    pid, _in, out, err = GLib.spawn_async(
+        argv, flags=flags, child_setup=os.setpgrp,
+        standard_output=True, standard_error=True)
+    return pid, out, err
+
+
 class InstallerWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title=f"{core.PRODUCT_NAME} Installer",
@@ -133,9 +152,7 @@ class InstallerWindow(Gtk.ApplicationWindow):
         self._install_log = core.open_install_log()
         self._install_log.write(f"=== install started: {core.fisherman_shell(recipe_path)} ===\n")
         self._install_log.flush()
-        flags = GLib.SpawnFlags.SEARCH_PATH | GLib.SpawnFlags.DO_NOT_REAP_CHILD
-        pid, _in, out, err = GLib.spawn_async(
-            argv, flags=flags, standard_output=True, standard_error=True)
+        pid, out, err = spawn_fisherman(argv)
         for fd in (out, err):
             channel = GLib.IOChannel.unix_new(fd)
             channel.set_flags(GLib.IOFlags.NONBLOCK)

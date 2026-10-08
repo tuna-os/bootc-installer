@@ -393,6 +393,40 @@ class TestFisherman:
         cmd = core.fisherman_shell("/run/user/1000/recipe.json")
         assert cmd == "sudo /usr/local/bin/fisherman /run/user/1000/recipe.json"
 
+    def test_flatpak_argv_runs_pkexec_inside_a_host_bash(self):
+        # Not `flatpak-spawn --host pkexec ...`: then fisherman's parent is
+        # the host's flatpak-session-helper and it cannot be cancelled.
+        argv = core.fisherman_argv("/run/user/1000/recipe.json", in_flatpak=True)
+        assert argv[:5] == ["flatpak-spawn", "--host", "bash", "-c",
+                            'pkexec /usr/local/bin/fisherman "$1"; exit $?']
+        assert argv[5:] == ["--", "/run/user/1000/recipe.json"]
+
+    def test_flatpak_wrapper_passes_stdout_stderr_and_status_through(self, tmp_path):
+        """Run the wrapper's bash for real, with pkexec stubbed.
+
+        The recipe path holds characters a shell would act on if it were
+        interpolated into the script; it must reach fisherman as one argv.
+        """
+        stub = tmp_path / "bin"
+        stub.mkdir()
+        (stub / "pkexec").write_text(
+            '#!/bin/sh\n'
+            'printf \'{"type":"step","argv":"%s|%s"}\\n\' "$1" "$2"\n'
+            'echo "to stderr" >&2\n'
+            'exit 7\n')
+        (stub / "pkexec").chmod(0o755)
+        recipe = str(tmp_path / "a b $(touch pwned) ;x.json")
+        argv = core.fisherman_argv(recipe, in_flatpak=True)
+        assert argv[:2] == ["flatpak-spawn", "--host"]
+        env = dict(os.environ, PATH=f"{stub}:{os.environ['PATH']}")
+        done = subprocess.run(argv[2:], env=env, cwd=tmp_path,
+                              capture_output=True, text=True)
+        assert done.returncode == 7
+        assert done.stdout == (
+            '{"type":"step","argv":"/usr/local/bin/fisherman|' + recipe + '"}\n')
+        assert done.stderr == "to stderr\n"
+        assert not (tmp_path / "pwned").exists()
+
     def test_shell_quotes_spaces(self):
         cmd = core.fisherman_shell("/path with spaces/recipe.json")
         assert "'/path with spaces/recipe.json'" in cmd
