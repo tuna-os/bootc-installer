@@ -46,6 +46,7 @@ private slots:
     void progressStepEventMovesTheBar();
     void progressUsesCumulativePctNotStepOverTotal();
     void progressSubstepInterpolatesInsideTheLongStep();
+    void progressReproducesTheSharedFractionCases();
     void progressCompleteFillsTheBar();
     void progressIgnoresNonProtocolLines();
     void progressRejectsTheInventedStepPrefix();
@@ -419,6 +420,39 @@ void BackendTest::progressSubstepInterpolatesInsideTheLongStep()
     // Without this the bar freezes for 87% of the install.
     QVERIFY(c.installFraction() > atStepStart);
     QVERIFY(c.installFraction() < 1.0);
+}
+
+// shared/progress/fraction-cases.json is generated from the canonical
+// parser and pins the bar after every event; every frontend's parser must
+// reproduce it. It exists because #115's deploy-phase weighting was first
+// written in Python only, leaving this bar on the old formula.
+void BackendTest::progressReproducesTheSharedFractionCases()
+{
+    QFile f(QStringLiteral(PROGRESS_FIXTURES_DIR "/fraction-cases.json"));
+    if (!f.exists())
+        QSKIP("shared/progress is not present (tree checked out alone)");
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const QJsonArray cases = QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("cases")).toArray();
+    QVERIFY(cases.size() >= 5);
+    for (const QJsonValue &cv : cases) {
+        const QJsonObject kase = cv.toObject();
+        const QString name = kase.value(QStringLiteral("name")).toString();
+        const QJsonArray events = kase.value(QStringLiteral("events")).toArray();
+        const QJsonArray bars = kase.value(QStringLiteral("bar")).toArray();
+        QCOMPARE(events.size(), bars.size());
+        QStringList lines;
+        for (int i = 0; i < events.size(); ++i) {
+            lines << QString::fromUtf8(QJsonDocument(events.at(i).toObject()).toJson(QJsonDocument::Compact));
+            // Fresh controller fed every event so far: loadDemoState() resets
+            // and replays through appendLine(), the live entry point.
+            InstallerController c;
+            feed(c, lines);
+            const double want = bars.at(i).toDouble();
+            if (qAbs(c.installFraction() - want) > 1e-6)
+                QFAIL(qPrintable(QStringLiteral("%1 event %2: bar %3 want %4")
+                                     .arg(name).arg(i).arg(c.installFraction()).arg(want)));
+        }
+    }
 }
 
 void BackendTest::progressCompleteFillsTheBar()

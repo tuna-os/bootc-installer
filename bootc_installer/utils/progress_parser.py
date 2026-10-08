@@ -85,6 +85,45 @@ def _friendly_label(step_name: str) -> str:
 # Matches "Pulling image: layer 23/71" substep messages from fisherman.
 _RE_LAYER_PROGRESS = re.compile(r"Pulling image: layer (\d+)/(\d+)")
 
+# Share of a step's weight that the layer pull covers. The rest is left for
+# the export, deploy and bootloader phases that follow it, which have no
+# counter of their own.
+_PULL_SHARE = 0.6
+
+# Bar positions for the silent phases after the pull, as a share of what is
+# left of the step once the pull is over (all of it on an offline install,
+# where nothing is pulled). Matched as message prefixes, in fisherman's order.
+#
+# Without these, an offline install sat at 1% from the start of "Installing
+# OS" until the Flatpak copy: about ten minutes of export and deploy with no
+# movement at all (#115). The deploy phase itself is still one long silence
+# in bootc; these only make sure each phase fisherman does report moves the
+# bar.
+_PHASE_MILESTONES: tuple[tuple[str, float], ...] = (
+    ("Exporting image to OCI layout", 0.05),
+    ("OCI export complete", 0.30),
+    ("Using ", 0.32),                     # "Using overlay storage driver ..."
+    ("Initializing ostree layout", 0.35),
+    ("Writing ", 0.35),                   # "Writing 64 (3.7 GB) to disk ..."
+    ("Deploying image", 0.35),
+    ("OS deployed, installing bootloader", 0.90),
+    ("Detected bootloader", 0.92),
+    ("Installing bootloader", 0.92),
+    ("Configuring EFI boot entry", 0.95),
+    ("Configuring GRUB", 0.95),
+    ("Configuring SELinux", 0.95),
+    ("Generating initramfs", 0.95),
+    ("bootc installation complete", 1.0),
+)
+
+
+def _milestone(msg: str) -> float | None:
+    """Position of a post-pull phase message within its share, or None."""
+    for prefix, share in _PHASE_MILESTONES:
+        if msg.startswith(prefix):
+            return share
+    return None
+
 
 def new_progress_state() -> dict:
     """Return a fresh progress state dict (no GTK types)."""
@@ -95,6 +134,8 @@ def new_progress_state() -> dict:
         "current_step_name": "",
         "current_weight_pct": 0,
         "current_cumulative_pct": 0,
+        "step_frac": 0.0,
+        "post_pull_base": None,
         "seen_substeps": set(),
         "boot_id": "",
         "recovery_key": "",
@@ -133,6 +174,8 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
         state["current_step"] = step
         state["current_total"] = total
         state["current_step_name"] = name
+        state["step_frac"] = 0.0
+        state["post_pull_base"] = None
         state["seen_substeps"].clear()
         state["pulse_active"] = False
         friendly = _friendly_label(name)
@@ -148,15 +191,29 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
         if not msg:
             return None
         fraction = None
-        m = _RE_LAYER_PROGRESS.match(msg)
-        if m and state["current_weight_pct"] > 0:
-            done = int(m.group(1))
-            total_layers = int(m.group(2))
-            sub_frac = done / total_layers
-            fraction = min(
-                (state["current_cumulative_pct"] + sub_frac * state["current_weight_pct"]) / 100.0,
-                1.0,
-            )
+        if state["current_weight_pct"] > 0:
+            step_frac = None
+            m = _RE_LAYER_PROGRESS.match(msg)
+            if m:
+                done = int(m.group(1))
+                total_layers = int(m.group(2))
+                if total_layers > 0:
+                    step_frac = min(done / total_layers, 1.0) * _PULL_SHARE
+            else:
+                share = _milestone(msg)
+                if share is not None:
+                    if state["post_pull_base"] is None:
+                        state["post_pull_base"] = state["step_frac"]
+                    base = state["post_pull_base"]
+                    step_frac = base + share * (1.0 - base)
+            if step_frac is not None:
+                # Never move backwards: a retried pull restarts its layer count.
+                state["step_frac"] = max(state["step_frac"], step_frac)
+                fraction = min(
+                    (state["current_cumulative_pct"]
+                     + state["step_frac"] * state["current_weight_pct"]) / 100.0,
+                    1.0,
+                )
         if msg in state["seen_substeps"]:
             # Still update fraction even for duplicate substep messages.
             if fraction is not None:
