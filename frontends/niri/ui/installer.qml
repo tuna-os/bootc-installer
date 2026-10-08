@@ -16,6 +16,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import "."
+import "progress.js" as BarMath
 
 ApplicationWindow {
     id: root
@@ -147,8 +148,8 @@ ApplicationWindow {
     property real installFraction: 0
     property string installStepName: ""
     // Parser context carried across lines, for substep interpolation.
-    property int installCumulativePct: 0
-    property int installWeightPct: 0
+    // Parser state for the bar (ui/progress.js), carried across lines.
+    property var barState: BarMath.newState()
     // Recipe JSON awaiting the backend child's stdin channel (fed on
     // Process.started). Kept on the root so the passphrase-bearing recipe
     // never appears in the install command argv (see #22).
@@ -280,26 +281,13 @@ ApplicationWindow {
         if (shown !== "")
             installLog += shown + "\n"
 
+        // The bar: shared/progress semantics, in ui/progress.js.
+        installFraction = BarMath.advance(barState, event)
+
         if (event.type === "step") {
             installStep = event.step
             installSteps = event.total_steps
             installStepName = event.step_name || ""
-            installCumulativePct = event.cumulative_pct || 0
-            installWeightPct = event.weight_pct || 0
-            installFraction = installCumulativePct / 100
-        } else if (event.type === "substep") {
-            // Inside the long image pull, interpolate across layers so the
-            // bar keeps moving for the 87% of the install that step covers.
-            const m = /Pulling image: layer (\d+)\/(\d+)/.exec(event.message || "")
-            if (m && installWeightPct > 0) {
-                const sub = parseInt(m[1]) / parseInt(m[2])
-                installFraction = Math.min(
-                    (installCumulativePct + sub * installWeightPct) / 100, 1)
-            }
-        } else if (event.type === "complete") {
-            // cumulative_pct only ever reaches 99; `complete` is what fills
-            // the bar.
-            installFraction = 1
         } else if (event.type === "recovery_key") {
             recoveryKey = event.key || ""
         }
@@ -319,8 +307,7 @@ ApplicationWindow {
         installSteps = 0
         installFraction = 0
         installStepName = ""
-        installCumulativePct = 0
-        installWeightPct = 0
+        barState = BarMath.newState()
         currentPage = 4
         const recipe = {
             disk: "/dev/" + selectedDisk.name,

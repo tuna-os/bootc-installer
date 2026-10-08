@@ -158,3 +158,46 @@ class ParserDrivesTheBarTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+FRACTION_CASES = os.path.join(REPO, "shared", "progress", "fraction-cases.json")
+GENERATOR = os.path.join(REPO, "shared", "progress", "generate-fraction-cases.py")
+
+
+class FractionCasesTest(unittest.TestCase):
+    """shared/progress/fraction-cases.json pins the bar position after every
+    event. COSMIC, KDE and Niri test their own parsers against it, so it has
+    to be exactly what the canonical parser produces -- and stay that way."""
+
+    def test_fixture_is_what_the_canonical_parser_produces(self):
+        gen = _load(GENERATOR, "_fraction_gen")
+        with open(FRACTION_CASES, encoding="utf-8") as fh:
+            committed = json.load(fh)
+        self.assertEqual(
+            committed, json.loads(json.dumps(gen.build())),
+            "fraction-cases.json is stale; run "
+            "python3 shared/progress/generate-fraction-cases.py")
+
+    def test_every_python_copy_reproduces_the_fixture(self):
+        with open(FRACTION_CASES, encoding="utf-8") as fh:
+            cases = json.load(fh)["cases"]
+        self.assertGreaterEqual(len(cases), 5)
+        for path in [CANONICAL, *COPIES]:
+            pp = _load(path, "_pp_" + os.path.basename(os.path.dirname(path)))
+            for case in cases:
+                state, bar = pp.new_progress_state(), 0.0
+                for i, (event, want) in enumerate(zip(case["events"], case["bar"])):
+                    update = pp.apply_progress_event(json.dumps(event), state)
+                    if update and update.get("fraction") is not None:
+                        bar = update["fraction"]
+                    with self.subTest(copy=os.path.relpath(path, REPO),
+                                      case=case["name"], event=i):
+                        self.assertAlmostEqual(bar, want, places=6)
+
+    def test_offline_install_bar_moves_before_the_flatpak_copy(self):
+        """#115: the silent export/deploy phases must move the bar."""
+        with open(FRACTION_CASES, encoding="utf-8") as fh:
+            case = next(c for c in json.load(fh)["cases"]
+                        if c["name"] == "offline_install_moves_through_silent_phases")
+        self.assertEqual(case["bar"], sorted(case["bar"]))
+        self.assertGreater(case["bar"][-1], case["bar"][0] + 0.5)

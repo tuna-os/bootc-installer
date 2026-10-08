@@ -758,7 +758,6 @@ class BootcProgress(Gtk.Box):
         This sends SIGTERM to the bash wrapper process group. fisherman's cleanup
         handler will attempt to unmount filesystems and close LUKS devices.
         """
-        self.__stop_carousel_timer()
         self.__cancel_video_fallback_timeout()
         if self.__proc is None:
             return

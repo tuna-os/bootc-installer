@@ -502,6 +502,14 @@ class BootcWindow(Adw.ApplicationWindow):
             self.finals,
             self.recipe,
         )
+        # The disk page keeps Next disabled without a disk, but this is the
+        # last point before fisherman runs as root, so check what was actually
+        # written. Starting with an empty disk only fails inside fisherman,
+        # with an error a user cannot act on (#154).
+        if not Processor.recipe_names_disk(recipe):
+            logger.error("Refusing to install: the recipe names no target disk")
+            self.toast(_("No installation disk is selected. Go back and choose a disk."), timeout=6)
+            return
         self.next()
         self.__view_progress.start(recipe)
 

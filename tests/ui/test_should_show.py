@@ -14,6 +14,10 @@ class TestImageStepShouldShow:
 
 
 class TestDiskStepShouldShow:
+    def test_visible_when_no_disks(self):
+        # #154: the page must appear and explain, not be skipped.
+        assert BootcDefaultDisk.should_show(object(), {"disk_count": 0})
+
     def test_hidden_when_single_disk(self):
         assert not BootcDefaultDisk.should_show(object(), {"disk_count": 1})
 

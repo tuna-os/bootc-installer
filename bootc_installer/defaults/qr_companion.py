@@ -119,11 +119,17 @@ class BootcDefaultQrCompanion(Adw.Bin):
             
         logger.info("Initializing Phone Companion server...")
         self.__server = CompanionServer(port=8443)
-        self.__server.start()
-        
+        if not self.__server.start():
+            # No HTTPS, so no phone: the form carries the password (#185).
+            self.__server = None
+            self.link_label.set_text(
+                _("Phone setup is unavailable on this system. Skip to continue on this screen.")
+            )
+            self.qr_image.set_from_icon_name("dialog-warning-symbolic")
+            return
+
         ip = get_local_ip()
-        protocol = "https" if self.__server.is_https else "http"
-        url = f"{protocol}://{ip}:8443/?{urlencode({'token': self.__server.auth_token})}"
+        url = f"https://{ip}:8443/?{urlencode({'token': self.__server.auth_token})}"
         self.link_label.set_markup(f'<a href="{url}">{url}</a>')
         
         # Generate QR code SVG on the fly

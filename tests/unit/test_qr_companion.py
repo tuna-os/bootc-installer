@@ -120,3 +120,27 @@ def test_qr_companion_step_lifecycle():
     assert step_widget.get_finals() == {
         "hostname": "test-host"
     }
+
+
+def test_page_says_unavailable_when_the_server_cannot_use_https():
+    """#185: no certificate, no server, and the page says so instead of
+    showing a link to nothing."""
+    from unittest.mock import patch
+
+    _build_gi_stubs()
+    window_mock = MagicMock()
+    sys.modules.pop("bootc_installer.defaults.qr_companion", None)
+    from bootc_installer.defaults import qr_companion as mod
+
+    widget = mod.BootcDefaultQrCompanion(window_mock, {}, "qr_companion", {"num": 2})
+    widget.link_label = MagicMock()
+    widget.qr_image = MagicMock()
+    server = MagicMock()
+    server.start.return_value = False
+    with patch.object(mod, "CompanionServer", return_value=server):
+        widget._BootcDefaultQrCompanion__start_companion()
+
+    text = widget.link_label.set_text.call_args[0][0]
+    assert "unavailable" in text
+    widget.link_label.set_markup.assert_not_called()
+    assert widget._BootcDefaultQrCompanion__server is None
