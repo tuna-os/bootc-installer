@@ -72,7 +72,11 @@ template $BootcDefaultEncryption: Adw.Bin {
             margin-bottom: 4;
           }
 
-          Adw.ActionRow {
+          // Hidden, not just defaulted off, when there is no TPM 2.0
+          // (shared/tpm/README.md): encryption.py sets `visible` from
+          // Systeminfo.has_tpm2(), as the other four frontends do.
+          Adw.ActionRow tpm2_row {
+            visible: false;
             title: _("Use hardware-backed encryption");
             subtitle: _("The disk unlocks automatically on this hardware. Your passphrase remains as a fallback.");
             sensitive: bind use_encryption_switch.active;

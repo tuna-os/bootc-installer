@@ -27,6 +27,7 @@ class BootcDefaultEncryption(Adw.Bin):
     page_header = Gtk.Template.Child()
 
     use_encryption_switch = Gtk.Template.Child()
+    tpm2_row = Gtk.Template.Child()
     tpm2_switch = Gtk.Template.Child()
 
     encryption_pass_entry = Gtk.Template.Child()
@@ -34,6 +35,9 @@ class BootcDefaultEncryption(Adw.Bin):
     strength_label = Gtk.Template.Child()
 
     password_filled = False
+    # Whether this machine has a TPM 2.0 (shared/tpm/README.md). Set once in
+    # __init__; False until then so a half-built page never offers TPM.
+    has_tpm2 = False
 
     def __init__(self, window, distro_info, key, step, **kwargs):
         super().__init__(**kwargs)
@@ -53,10 +57,20 @@ class BootcDefaultEncryption(Adw.Bin):
             "changed", self.__on_password_changed
         )
 
-        # Default: encryption ON, TPM2 ON if hardware present
+        # Default: encryption ON, TPM2 ON if hardware present.
+        #
+        # Without a TPM 2.0 the TPM row is hidden, not merely switched off.
+        # It used to stay visible and switchable on every machine, so a
+        # person without a TPM (or with a TPM 1.2) could turn it on and get a
+        # tpm2-luks-passphrase recipe that fails at enrolment, after the disk
+        # has been partitioned. The other four frontends drop the TPM choices
+        # on such a machine; this follows them. BOOTC_INSTALLER_FAKE_TPM
+        # forces the row visible for screenshots.
         from bootc_installer.core.system import Systeminfo
+        self.has_tpm2 = Systeminfo.has_tpm2()
+        self.tpm2_row.set_visible(self.has_tpm2)
         self.use_encryption_switch.set_active(True)
-        self.tpm2_switch.set_active(Systeminfo.has_tpm2())
+        self.tpm2_switch.set_active(self.has_tpm2)
 
         self.__update_btn_next()
 
@@ -74,7 +88,8 @@ class BootcDefaultEncryption(Adw.Bin):
         if not use_enc:
             return {"encryption": {"use_encryption": False, "encryption_key": ""}}
         passphrase = self.encryption_pass_entry.get_text()
-        enc_type = "tpm2-luks-passphrase" if self.tpm2_switch.get_active() else "luks-passphrase"
+        use_tpm2 = self.has_tpm2 and self.tpm2_switch.get_active()
+        enc_type = "tpm2-luks-passphrase" if use_tpm2 else "luks-passphrase"
         return {
             "encryption": {
                 "use_encryption": True,
