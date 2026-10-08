@@ -20,6 +20,7 @@ import os
 import re
 import tempfile
 
+from bootc_installer.utils import branding
 from bootc_installer.utils.sha512crypt import sha512_crypt
 
 logger = logging.getLogger("Installer::Processor")
@@ -342,6 +343,10 @@ class Processor:
             "composeFsBackend": composefs_backend,
             "bootloader": bootloader,
             "hostname": hostname,
+            # fisherman names the OEM paths and services after this
+            # (/etc/<distroID>/oem/). It is the branding id, like every
+            # other frontend; with nothing branded it is os-release's ID.
+            "distroID": branding.resolve().id,
             "flatpaks": flatpaks,
             "user": {
                 "username": user_username,

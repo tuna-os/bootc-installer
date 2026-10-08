@@ -1056,3 +1056,23 @@ class TestRecipeNamesDisk:
         assert not Processor.recipe_names_disk(path)
         # and the same finals with the disk restored are accepted
         assert Processor.recipe_names_disk(Processor.gen_install_recipe("log", _auto_finals(), _SYS_RECIPE))
+
+
+# ── distroID ───────────────────────────────────────────────────────────────────
+
+class TestDistroID:
+    """GNOME writes the branding id, like the other four frontends."""
+
+    def test_distro_id_is_the_branding_id(self, monkeypatch, tmp_path):
+        branding_file = tmp_path / "branding.json"
+        branding_file.write_text(json.dumps({"id": "exampleos"}))
+        monkeypatch.setenv("BOOTC_INSTALLER_BRANDING", str(branding_file))
+        r = _load(Processor.gen_install_recipe("log", _auto_finals(), _SYS_RECIPE))
+        assert r["distroID"] == "exampleos"
+
+    def test_distro_id_follows_the_resolver(self, monkeypatch):
+        from bootc_installer.utils import branding
+        monkeypatch.setattr(branding, "resolve",
+                            lambda *a, **k: branding.Branding(id="somedistro"))
+        r = _load(Processor.gen_install_recipe("log", _auto_finals(), _SYS_RECIPE))
+        assert r["distroID"] == "somedistro"
