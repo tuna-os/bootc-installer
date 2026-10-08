@@ -495,13 +495,17 @@ void InstallerController::startInstall()
     QFile::remove(m_recipePath);
     fail(QStringLiteral("This build cannot start fisherman"));
 #else
-    // pkexec /app/bin/fisherman in Flatpak, sudo /usr/local/bin/fisherman otherwise.
+    // flatpak-spawn --host bash -c 'pkexec /usr/local/bin/fisherman "$1"' in
+    // Flatpak, sudo /usr/local/bin/fisherman otherwise.
     QStringList cmd = offline::fishermanCommand();
     cmd << m_recipePath;
 
     m_process = new QProcess(this);
     m_process->setProgram(cmd.takeFirst());
     m_process->setArguments(cmd);
+    // Its own process group: the cancel contract is "kill your wrapper's
+    // group". This frontend has no cancel UI, so nothing signals it yet.
+    offline::startInOwnProcessGroup(*m_process);
 
     // Which escalation path was taken (pkexec via flatpak-spawn, or sudo) is
     // the first thing anyone reading a failed install needs to know.

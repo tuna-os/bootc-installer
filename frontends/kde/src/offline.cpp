@@ -9,6 +9,9 @@
 #if QT_CONFIG(process)
 #include <QProcess>
 #endif
+#ifdef Q_OS_UNIX
+#include <unistd.h>
+#endif
 #include <QProcessEnvironment>
 
 namespace offline {
@@ -20,14 +23,43 @@ bool inFlatpak()
 
 QStringList fishermanCommand()
 {
+    return fishermanCommand(inFlatpak());
+}
+
+QStringList fishermanCommand(bool flatpak)
+{
     // Flatpak runtimes ship no pkexec; escalate host-side. The live ISO
     // symlinks the flatpak-bundled fisherman to /usr/local/bin and installs
     // the polkit policy for it (tunaOS customize-live.sh).
-    if (inFlatpak())
+    //
+    // pkexec runs inside a host-side bash, not straight from flatpak-spawn.
+    // fisherman runs as root, so nothing here can signal it; it cancels when
+    // its PARENT dies (tuna-os/fisherman#267). Run as `flatpak-spawn --host
+    // pkexec ...`, that parent was the host's flatpak-session-helper, which
+    // this frontend cannot kill. The recipe path the caller appends becomes
+    // bash's $1 (after "--"); it is never part of the script text. No
+    // redirection: stdout and stderr still come back through flatpak-spawn.
+    if (flatpak)
         return {QStringLiteral("flatpak-spawn"), QStringLiteral("--host"),
-                QStringLiteral("pkexec"), QStringLiteral("/usr/local/bin/fisherman")};
+                QStringLiteral("bash"), QStringLiteral("-c"),
+                QStringLiteral("pkexec /usr/local/bin/fisherman \"$1\"; exit $?"),
+                QStringLiteral("--")};
     return {QStringLiteral("sudo"), QStringLiteral("/usr/local/bin/fisherman")};
 }
+
+#if QT_CONFIG(process)
+void startInOwnProcessGroup(QProcess &process)
+{
+#ifdef Q_OS_UNIX
+    // The wrapper is the only process of the install this user can signal.
+    // The shared contract is "kill your wrapper's process group", which
+    // must never be the installer's own group.
+    process.setChildProcessModifier([] { ::setpgid(0, 0); });
+#else
+    Q_UNUSED(process);
+#endif
+}
+#endif
 
 QStringList hostCommand(const QStringList &argv)
 {
