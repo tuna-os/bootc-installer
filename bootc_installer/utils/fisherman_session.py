@@ -86,12 +86,38 @@ class FishermanSession:
         except OSError as e:
             logger.error("Failed to delete stale log: %s", e)
 
+    def _create_private_log(self):
+        """Create the log 0600 before bash's redirect opens it.
+
+        The `>` redirect in fisherman_runner.build_argv used to create the
+        file, so its mode followed the umask: 0644 under the usual 022,
+        readable by every local user. The log carries fisherman's full
+        output, including the TPM recovery key. bash's `>` truncates an
+        existing file without touching its mode, so creating it here first
+        is enough. Not done with `umask 077` in the bash wrapper: fisherman
+        inherits that umask and, as root, writes the target system's files.
+
+        O_NOFOLLOW refuses a symlink planted at the path; fchmod covers a
+        stale file that _reset_log_file() could not remove.
+        """
+        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+        try:
+            fd = os.open(self.log_path, flags, 0o600)
+        except OSError as e:
+            logger.error("Could not create private log %s: %s", self.log_path, e)
+            return
+        try:
+            os.fchmod(fd, 0o600)
+        finally:
+            os.close(fd)
+
     def launch(self):
         """Stage fisherman if needed, then start it. Returns argv used, or None on staging failure."""
         if not self.stage():
             return None
         os.makedirs(self._cache_dir, exist_ok=True)
         self._reset_log_file()
+        self._create_private_log()
         argv = fisherman_runner.build_argv(
             self.recipe_path,
             in_flatpak=self._in_flatpak,
