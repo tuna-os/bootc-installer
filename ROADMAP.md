@@ -104,6 +104,31 @@ larger: the monorepo consolidation.
 
 ---
 
+## Consolidation plan
+
+An audit on 2026-10-08 found the same non-UI logic in all five frontends.
+The copies that no shared fixture pins have drifted, and some drift is a bug.
+This plan moves that logic out of the frontends. Each fisherman step is
+additive, so older frontends keep working until they switch.
+
+| Step | Moves to | What each frontend deletes | Bugs it removes |
+|---|---|---|---|
+| F1 Progress | fisherman emits `overall_pct` and `step_id` on every event; labels become `step_*` copy keys | its milestone table, layer regex and bar maths (about 70–125 lines each) | the bar stops during the Flatpak step; Niri shows raw step names; KDE and COSMIC hard-code the title |
+| F2 `fisherman probe --json` | fisherman: disks, TPM, RAM, CPU, UEFI, live image, offline stores | lsblk parsing, size formatting, TPM probe, readiness checks | five different disk filters (zram and the live USB are offered in three); three size units; Niri never shows the disk model; only GNOME checks RAM, CPU and UEFI |
+| F3 Recipe handling | fisherman finds offline stores on the host, rejects an empty image when not live, reads the recipe from stdin | offline and live detection, temp recipe files (about 390 lines) | four frontends look for offline stores inside the Flatpak sandbox; GNOME treats any ostree host as live |
+| F4 `fisherman validate --json` | fisherman: hostname, username, filesystem and encryption rules; `shared/recipe/encryption-choices.json` | validation code and the encryption choices table | a bad username fails after the OS is on disk; only XFCE checks the hostname |
+| F5 Log and BootNext | fisherman writes the log (mode 0600, recovery key redacted) and sets BootNext | log code and the reboot boot-entry call | five log formats, all with the recovery key in plain text; GNOME runs `efibootmgr` without root |
+| F6 `fisherman images --json` | fisherman resolves the image catalog | catalog readers (about 285 lines) | `needs_user_creation` defaults differ; XFCE drops `@alias` flatpaks |
+| F7 Hostname suggestion | `fisherman hostname --suggest` | GNOME's DMI code | four frontends give every machine the same hostname |
+| F8 Branding | `fisherman branding --json` | four resolvers (about 1,100 lines) | low risk today: fixtures pin all four |
+
+Fixes that need no fisherman change land first: the KDE stream buffer and the
+COSMIC stderr read order, the schema's `distroID` default, XFCE's filesystem
+default, GNOME's TPM switch, the Niri disk model, one shared `readiness.py`,
+and the KDE rows in `docs/PARITY.md`.
+
+When a step lands, a test fails if a frontend still carries its own copy.
+
 ## Planned features
 
 The maintainer approved these on 2026-10-08. They are not scheduled yet.
