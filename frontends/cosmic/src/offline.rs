@@ -10,18 +10,35 @@ pub fn in_flatpak() -> bool {
     Path::new("/.flatpak-info").exists()
 }
 
-/// Program + leading args that run fisherman with privileges.
+/// Program + leading args that run fisherman with privileges; the caller
+/// appends the recipe path.
 ///
 /// Flatpak runtimes ship no pkexec; escalate host-side. The live ISO
 /// symlinks the flatpak-bundled fisherman to /usr/local/bin and installs
 /// the polkit policy for it (tunaOS customize-live.sh).
 pub fn fisherman_command() -> Vec<String> {
-    if in_flatpak() {
+    fisherman_command_for(in_flatpak())
+}
+
+/// `fisherman_command` for an explicit sandbox state.
+///
+/// Under Flatpak, pkexec runs inside a host-side bash rather than straight
+/// from `flatpak-spawn --host pkexec ...`. fisherman runs as root, so this
+/// process can never signal it; it cancels when its PARENT dies
+/// (tuna-os/fisherman#267). Launched directly, that parent was the host's
+/// flatpak-session-helper, which nothing here can kill. The appended recipe
+/// path becomes bash's `$1` (after `--`) and is never part of the script
+/// text. No redirection: stdout and stderr still come back through
+/// flatpak-spawn's pipes.
+pub fn fisherman_command_for(flatpak: bool) -> Vec<String> {
+    if flatpak {
         vec![
             "flatpak-spawn".into(),
             "--host".into(),
-            "pkexec".into(),
-            "/usr/local/bin/fisherman".into(),
+            "bash".into(),
+            "-c".into(),
+            r#"pkexec /usr/local/bin/fisherman "$1"; exit $?"#.into(),
+            "--".into(),
         ]
     } else {
         vec!["sudo".into(), "/usr/local/bin/fisherman".into()]
@@ -203,6 +220,58 @@ mod tests {
             fisherman_command(),
             vec!["sudo".to_string(), "/usr/local/bin/fisherman".to_string()]
         );
+    }
+
+    #[test]
+    fn fisherman_command_runs_pkexec_inside_a_host_bash_in_flatpak() {
+        // Not `flatpak-spawn --host pkexec`: fisherman's parent would be the
+        // host's session helper, and it could never be cancelled.
+        assert_eq!(
+            fisherman_command_for(true),
+            vec![
+                "flatpak-spawn",
+                "--host",
+                "bash",
+                "-c",
+                r#"pkexec /usr/local/bin/fisherman "$1"; exit $?"#,
+                "--",
+            ]
+        );
+    }
+
+    #[test]
+    fn flatpak_wrapper_passes_output_and_status_through() {
+        // The wrapper's bash for real (everything after `flatpak-spawn
+        // --host`), pkexec stubbed on PATH, and a recipe path a shell would
+        // act on if it were interpolated into the script.
+        let dir = temp_workdir("wrapper");
+        let bin = dir.join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let stub = bin.join("pkexec");
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::write(
+            &stub,
+            "#!/bin/sh\nprintf '%s|%s\\n' \"$1\" \"$2\"\necho to-stderr >&2\nexit 7\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let recipe = dir.join("a b $(touch pwned) ;x.json");
+        let mut argv = fisherman_command_for(true);
+        argv.push(recipe.display().to_string());
+        let path = format!("{}:{}", bin.display(), std::env::var("PATH").unwrap_or_default());
+        let out = Command::new(&argv[2])
+            .args(&argv[3..])
+            .env("PATH", path)
+            .current_dir(&dir)
+            .output()
+            .unwrap();
+        assert_eq!(out.status.code(), Some(7));
+        assert_eq!(
+            String::from_utf8_lossy(&out.stdout),
+            format!("/usr/local/bin/fisherman|{}\n", recipe.display())
+        );
+        assert_eq!(String::from_utf8_lossy(&out.stderr), "to-stderr\n");
+        assert!(!dir.join("pwned").exists());
     }
 
     #[test]

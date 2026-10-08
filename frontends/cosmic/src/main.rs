@@ -745,15 +745,11 @@ impl TunaInstaller {
                 }
             };
 
-            // pkexec /app/bin/fisherman in Flatpak, sudo otherwise.
-            let cmd = offline::fisherman_command();
-            let mut child = match TokioCommand::new(&cmd[0])
-                .args(&cmd[1..])
-                .arg(&path)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-            {
+            // flatpak-spawn --host bash -c 'pkexec /usr/local/bin/fisherman
+            // "$1"' in Flatpak, sudo /usr/local/bin/fisherman otherwise.
+            let mut cmd = offline::fisherman_command();
+            cmd.push(path.display().to_string());
+            let mut child = match spawn_wrapper(&cmd) {
                 Ok(child) => child,
                 Err(e) => {
                     let _ = std::fs::remove_file(&path);
@@ -793,6 +789,23 @@ impl TunaInstaller {
             let _ = output.send(Message::InstallFinished(Ok(code))).await;
         })
     }
+}
+
+/// Start fisherman's wrapper with piped output, as the leader of its own
+/// process group.
+///
+/// The wrapper is the only process of the install this user can signal;
+/// fisherman runs as root and cancels when its parent dies
+/// (tuna-os/fisherman#267). The shared contract is "kill your wrapper's
+/// process group", which must never be the installer's own group. This
+/// frontend has no cancel UI, so nothing signals it yet.
+fn spawn_wrapper(argv: &[String]) -> std::io::Result<tokio::process::Child> {
+    TokioCommand::new(&argv[0])
+        .args(&argv[1..])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
 }
 
 /// Every line from a child's stdout and stderr, read concurrently.
@@ -939,6 +952,35 @@ mod tests {
     /// by default: it needs TUNA_E2E_DISK and the shim.
     ///
     ///     TUNA_E2E_DISK=/dev/loopN cargo test --release -- --ignored e2e
+    /// The process group a pid belongs to: field 5 of /proc/<pid>/stat.
+    fn pgrp_of(pid: &str) -> u32 {
+        let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).unwrap();
+        // comm (field 2) may hold spaces; the rest follows its closing ')'.
+        let rest = &stat[stat.rfind(')').unwrap() + 2..];
+        rest.split_whitespace().nth(2).unwrap().parse().unwrap()
+    }
+
+    #[test]
+    fn wrapper_leads_its_own_process_group() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut child =
+                super::spawn_wrapper(&["sleep".to_string(), "30".to_string()]).expect("sleep");
+            let pid = child.id().unwrap();
+            assert_eq!(pgrp_of(&pid.to_string()), pid, "the wrapper is not a group leader");
+            assert_ne!(pgrp_of(&pid.to_string()), pgrp_of("self"));
+            // Signalling that group reaches the wrapper, not this process.
+            let killed = std::process::Command::new("kill")
+                .args(["-TERM", "--", &format!("-{pid}")])
+                .status()
+                .unwrap();
+            assert!(killed.success());
+            let status = child.wait().await.unwrap();
+            use std::os::unix::process::ExitStatusExt;
+            assert_eq!(status.signal(), Some(15));
+        });
+    }
+
     /// A child that writes more than a pipe buffer to stderr before it
     /// writes anything to stdout. Reading stdout to EOF first deadlocked:
     /// the child blocked on the full stderr pipe and never closed stdout.
