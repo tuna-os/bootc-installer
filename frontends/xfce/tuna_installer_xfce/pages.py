@@ -7,17 +7,11 @@ import re
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import GLib, Gtk, Pango
+from gi.repository import Gdk, GLib, Gtk, Pango
 
-from . import core
+from . import core, progress_parser
 
 HOSTNAME_RE = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$")
-
-PIPELINE_STEPS = [
-    "Partitioning disk", "Formatting boot partitions", "Setting up encryption",
-    "Formatting root filesystem", "Mounting target", "Installing image",
-    "Copying Flatpaks", "Writing hostname", "Finalizing boot entries",
-]
 
 ENCRYPTION_CHOICES = [
     ("none", "No encryption", "Anyone with the disk can read your files."),
@@ -105,7 +99,7 @@ class SourcePage(Page):
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             box.pack_start(radio, False, False, 0)
             subline = Gtk.Label(xalign=0)
-            tagged = f"{sub}   [available offline]" if offline else sub
+            tagged = f"{sub}   [available offline]".strip() if offline else sub
             subline.set_markup(
                 f"<small><tt>{GLib.markup_escape_text(tagged)}</tt></small>")
             subline.set_margin_start(26)
@@ -119,8 +113,10 @@ class SourcePage(Page):
         self.pack_start(scroll, True, True, 0)
 
         if self.live_ref:
+            # The same row GNOME shows: welcome_install and its subtitle. The
+            # "[available offline]" tag already says no download is needed.
             add_radio(core.BRANDING.text("welcome_install") + " (this system)",
-                      "no download required", {"live": True}, True)
+                      core.BRANDING.text("welcome_install_subtitle"), {"live": True}, True)
 
         def sort_key(leaf):
             return (leaf.imgref not in self.offline_refs, leaf.name)
@@ -198,7 +194,7 @@ class SetupPage(Page):
 
     def __init__(self, win):
         super().__init__(win)
-        self.has_tpm = os.path.exists("/sys/class/tpm/tpm0")
+        self.has_tpm = core.has_tpm()
 
         self.enc_radios = []
         group = None
@@ -352,6 +348,19 @@ class ProgressPage(Page):
         self.pack_start(self.steplabel, False, False, 0)
         self.bar = Gtk.ProgressBar(show_text=True)
         self.pack_start(self.bar, False, False, 0)
+        # progress_note ("Do not power off the computer.") -- the one warning
+        # that matters while the disk is being written. Empty hides it.
+        self.note = Gtk.Label(label=core.BRANDING.text("progress_note"), xalign=0)
+        self.note.get_style_context().add_class("dim-label")
+        self.note.set_no_show_all(not self.note.get_text())
+        self.pack_start(self.note, False, False, 0)
+        # Multi-line parser context (current step, weight, seen substeps).
+        self._progress = progress_parser.new_progress_state()
+        # The one step label that names the product ("Installing {product}…")
+        # must say what this build installs, not a hardcoded distro. The
+        # parser defaults to a neutral "the OS" until told otherwise.
+        progress_parser.set_product_name(core.PRODUCT_NAME)
+        progress_parser.set_install_label(core.BRANDING.text("progress_title"))
         # Log visible by default — XFCE users want the output (DESIGN.md).
         self.logview = Gtk.TextView(editable=False, monospace=True)
         self.logview.modify_font(Pango.FontDescription("monospace 9"))
@@ -364,17 +373,59 @@ class ProgressPage(Page):
 
     def append_log(self, text):
         buf = self.logview.get_buffer()
-        buf.insert(buf.get_end_iter(), text)
+        for line in text.splitlines():
+            # fisherman's protocol is machine-readable; this pane is not. The
+            # raw line still goes to the log FILE (app.py) — that is what gets
+            # pasted into bug reports — but a human reads this one.
+            shown = progress_parser.render_event(line)
+            if shown is None:
+                shown = line
+            buf.insert(buf.get_end_iter(), shown + "\n")
         mark = buf.create_mark(None, buf.get_end_iter(), False)
         self.logview.scroll_mark_onscreen(mark)
-        # crude step mapping: fisherman prefixes steps as "[n/9]"
-        m = re.search(r"\[(\d)/9\]", text)
-        if m:
-            step = int(m.group(1))
-            self.steplabel.set_text(PIPELINE_STEPS[step - 1])
-            frac = step / 9.0
-            self.bar.set_fraction(frac)
-            self.win.trawl.set_fill(frac)
+        # The bar is driven by fisherman's newline-delimited JSON progress
+        # protocol (shared/progress/README.md), parsed by the shared parser.
+        #
+        # This used to be `re.search(r"\[(\d)/9\]", text)` against a
+        # hardcoded nine-entry step table. fisherman has never written that
+        # prefix — it emits JSON on stdout and nothing else — so the bar sat
+        # at zero and the step label stayed empty for the whole of every real
+        # install. The screenshot harness did not catch it because the dry-run
+        # transcript in core.py was itself written in the "[n/9]" shape, so
+        # the only thing the parser ever matched was the fixture written to
+        # match the parser.
+        #
+        # The step COUNT was wrong too, independently: fisherman computes
+        # total_steps (8, adjusted for manual layout, LUKS, TPM2 enrolment and
+        # a separate /var disk — cmd/fisherman/main.go), so it is 9 only by
+        # coincidence. The protocol carries cumulative_pct precisely so no
+        # frontend has to model the pipeline; this reads it instead of
+        # counting steps.
+        for line in text.splitlines():
+            update = progress_parser.apply_progress_event(line, self._progress)
+            if update is None:
+                continue
+            if update["label"] is not None:
+                # The step label sits directly under the page title, and for
+                # the install step the branding's "progress_title" and the
+                # parser's "Installing {product}…" are the same sentence — so
+                # the screen said it twice, for the 87% of the install that
+                # step covers. Blank rather than stale: repeating the previous
+                # step's name would be a lie about what is running.
+                dup = update["label"].rstrip("…. ") == self.title.rstrip("…. ")
+                self.steplabel.set_text("" if dup else update["label"])
+            if update["fraction"] is not None:
+                frac = update["fraction"]
+                self.bar.set_fraction(frac)
+                self.win.trawl.set_fill(frac)
+
+    def recovery_key(self):
+        """The key fisherman emitted, or "" for a non-TPM install.
+
+        The parser has tracked this all along (shared/progress/README.md);
+        nothing read it, which is how it stayed a log line only.
+        """
+        return self._progress.get("recovery_key", "")
 
     def can_continue(self):
         return False  # navigation unlocked by install completion
@@ -394,11 +445,77 @@ class DonePage(Page):
                                         label=core.BRANDING.text("store_label"))
         self.store_btn.set_no_show_all(True)
         self.pack_start(self.store_btn, False, False, 0)
+        # Recovery key (#129). fisherman emits it once, after TPM enrolment,
+        # and for a tpm2-luks install it is the only way back into the disk
+        # if the TPM state changes. Writing it to the log pane was the
+        # mitigation; the log scrolls and nothing pauses, so a user could
+        # reach this page and reboot having never seen it.
+        #
+        # This is a panel rather than the modal #129 suggested: a dialog is
+        # dismissed and then the key is gone, while this keeps it on screen
+        # for as long as it takes to write down. The gate is on the reboot
+        # button, which is the action that ends the chance to read it.
+        self.recovery_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.recovery_box.set_no_show_all(True)
+        self.recovery_title = _page_title("")
+        self.recovery_box.pack_start(self.recovery_title, False, False, 0)
+        self.recovery_body = Gtk.Label(xalign=0)
+        self.recovery_body.set_line_wrap(True)
+        self.recovery_box.pack_start(self.recovery_body, False, False, 0)
+        self.recovery_key_label = Gtk.Label(xalign=0, selectable=True)
+        self.recovery_key_label.set_line_wrap(True)
+        self.recovery_key_label.modify_font(Pango.FontDescription("monospace 11"))
+        self.recovery_box.pack_start(self.recovery_key_label, False, False, 0)
+        self.recovery_copy_btn = Gtk.Button(
+            label=core.BRANDING.text("recovery_key_copy"))
+        self.recovery_copy_btn.connect("clicked", self.__on_copy)
+        self.recovery_box.pack_start(self.recovery_copy_btn, False, False, 0)
+        self.recovery_ack = Gtk.CheckButton(
+            label=core.BRANDING.text("recovery_key_ack"))
+        self.recovery_ack.connect("toggled", self.__on_ack)
+        self.recovery_box.pack_start(self.recovery_ack, False, False, 0)
+        self.pack_start(self.recovery_box, False, False, 8)
+
         self.reboot_btn = Gtk.Button(label=core.BRANDING.text("done_restart") or "Restart now")
         self.reboot_btn.connect("clicked", lambda *_: core.host_run(["systemctl", "reboot"]))
         self.pack_start(self.reboot_btn, False, False, 8)
 
-    def set_result(self, ok, log_tail):
+    def __on_copy(self, *_):
+        clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+        clipboard.set_text(self.recovery_key_label.get_text(), -1)
+
+    def __on_ack(self, check):
+        self.reboot_btn.set_sensitive(check.get_active())
+
+    def show_recovery_key(self, key):
+        """Reveal the panel and gate reboot behind the acknowledgement.
+
+        No key means no panel and no gate: a non-TPM install must not be
+        asked to tick a box about a key it was never given.
+        """
+        key = (key or "").strip()
+        self.recovery_box.set_visible(bool(key))
+        if not key:
+            self.reboot_btn.set_sensitive(True)
+            return
+        self.recovery_title.set_markup("<big><b>" + GLib.markup_escape_text(
+            core.BRANDING.text("recovery_key_title")) + "</b></big>")
+        self.recovery_body.set_text(core.BRANDING.text("recovery_key_body"))
+        self.recovery_key_label.set_text(key)
+        self.recovery_ack.set_active(False)
+        self.reboot_btn.set_sensitive(False)
+        # show_all() is a no-op while no_show_all is set -- that flag exists
+        # to stop the window's own show_all() revealing the panel on a
+        # non-TPM install. Lift it for this one call, or the box appears with
+        # none of its children in it: the capture drew an empty panel and the
+        # key never reached the screen.
+        self.recovery_box.set_no_show_all(False)
+        self.recovery_box.show_all()
+        self.recovery_box.set_no_show_all(True)
+
+    def set_result(self, ok, log_tail, recovery_key=""):
+        # A failed install never enrolled a TPM, so there is no key to show.
+        self.show_recovery_key(recovery_key if ok else "")
         if ok:
             self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
                 core.BRANDING.text("done_title")) + "</b></big>")

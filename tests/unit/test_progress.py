@@ -277,5 +277,44 @@ class TestFriendlySubstep(unittest.TestCase):
         assert result != "Running fstrim on /mnt/target"  # was mapped
 
 
+class TestTerminateBeforeInstall(unittest.TestCase):
+    """The Exit Installer dialog calls terminate() and then quit(). If
+    terminate() raises, quit() never runs and Exit only closes the dialog."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+
+        class _Template:
+            def __call__(self, *args, **kwargs):
+                return lambda klass: klass
+
+            def Child(self, *args, **kwargs):
+                return None
+
+        mocks = _mock_gtk_imports()
+        mocks["gi.repository.Gtk"].Template = _Template()
+        mocks["gi.repository.Gtk"].Box = object
+        mocks["gi.repository"].Gtk = mocks["gi.repository.Gtk"]
+        # Loaded under its own name so the real class does not leak into the
+        # MagicMock-based imports the other test classes share.
+        path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "bootc_installer", "views", "progress.py"
+        )
+        with patch.dict("sys.modules", mocks):
+            spec = importlib.util.spec_from_file_location("_progress_terminate_test", path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+        cls.BootcProgress = mod.BootcProgress
+
+    def test_terminate_without_fisherman_returns_cleanly(self):
+        view = self.BootcProgress.__new__(self.BootcProgress)
+        view._BootcProgress__proc = None
+        view._video_fallback_timeout_id = None
+        view._BootcProgress__hide_video_spinner = MagicMock()
+
+        view.terminate()
+
+
 if __name__ == "__main__":
     unittest.main()

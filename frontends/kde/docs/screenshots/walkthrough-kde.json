@@ -1,69 +1,78 @@
 {
     "activation_key": null,
-    "advanced_transitions": 5,
+    "advanced_transitions": 6,
     "failures": 0,
     "flavor": "kde",
-    "frames": 6,
+    "frames": 7,
     "harness": "tests/capture.cpp (Kirigami/QML, offscreen)",
     "notes": "GPU-less capture: pages are driven programmatically and text is read from the item tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop — those stay the VM walkthrough's job.",
     "ocr": false,
     "pages": [
         {
-            "colours": 207,
-            "flat": 0.9896037071585472,
-            "ink": 0.009433394517497667,
+            "colours": 246,
+            "flat": 0.9856467968585442,
+            "ink": 0.013104444377576505,
             "name": "01-welcome",
             "png": "docs/screenshots/01-welcome.png",
             "rendered": true,
-            "stddev": 0.05351765674024214
+            "stddev": 0.062404648617739374
         },
         {
-            "colours": 280,
-            "flat": 0.7783377967682725,
-            "ink": 0.2197213612975055,
+            "colours": 431,
+            "flat": 0.777856347606295,
+            "ink": 0.21999217645111788,
             "name": "02-disk",
             "png": "docs/screenshots/02-disk.png",
             "rendered": true,
-            "stddev": 0.05171912805784567
+            "stddev": 0.04819552882403602
         },
         {
-            "colours": 217,
-            "flat": 0.7292149369602503,
-            "ink": 0.26864863238347425,
+            "colours": 438,
+            "flat": 0.6098004995035056,
+            "ink": 0.3813980080040923,
             "name": "03-encryption",
             "png": "docs/screenshots/03-encryption.png",
             "rendered": true,
-            "stddev": 0.05962075674388595
+            "stddev": 0.05708610525477092
         },
         {
-            "colours": 218,
-            "flat": 0.6940841934222008,
-            "ink": 0.30135708482532425,
+            "colours": 299,
+            "flat": 0.6940089669906419,
+            "ink": 0.30204916799566695,
             "name": "04-confirm",
             "png": "docs/screenshots/04-confirm.png",
             "rendered": true,
-            "stddev": 0.057463182214099386
+            "stddev": 0.05366983301623092
         },
         {
-            "colours": 244,
-            "flat": 0.8453817003673811,
-            "ink": 0.1533888744250629,
+            "colours": 375,
+            "flat": 0.7743643148485637,
+            "ink": 0.22472446411524777,
             "name": "05-progress",
             "png": "docs/screenshots/05-progress.png",
             "rendered": true,
-            "stddev": 0.08242804074751767
+            "stddev": 0.07601040858224951
         },
         {
-            "colours": 137,
-            "flat": 0.9934101645954323,
-            "ink": 0.0038515932958204193,
+            "colours": 170,
+            "flat": 0.9908223753498029,
+            "ink": 0.005837571088977823,
             "name": "06-done",
             "png": "docs/screenshots/06-done.png",
             "rendered": true,
-            "stddev": 0.04626333206620222
+            "stddev": 0.04644005529649656
+        },
+        {
+            "colours": 310,
+            "flat": 0.9709776427045407,
+            "ink": 0.0202509553756808,
+            "name": "07-recovery",
+            "png": "docs/screenshots/07-recovery.png",
+            "rendered": true,
+            "stddev": 0.05838722772006814
         }
     ],
-    "rendered_frames": 6,
+    "rendered_frames": 7,
     "screens": {
         "disk": true,
         "done": true,
@@ -90,7 +99,8 @@
                 "remove the installation media"
             ],
             "on_pages": [
-                "06-done"
+                "06-done",
+                "07-recovery"
             ],
             "reached": true,
             "required": false
@@ -107,8 +117,7 @@
         },
         "install": {
             "matched_keywords": [
-                "partitioning",
-                "installing image"
+                "partitioning"
             ],
             "on_pages": [
                 "05-progress"
@@ -128,7 +137,8 @@
         },
         "welcome": {
             "matched_keywords": [
-                "welcome"
+                "welcome",
+                "get started"
             ],
             "on_pages": [
                 "01-welcome"
@@ -141,11 +151,12 @@
     "strict": true,
     "text_source": "qml-item-tree",
     "transition_pixels": [
-        138055,
-        86777,
-        50139,
-        403269,
-        539420
+        139683,
+        143072,
+        118178,
+        393349,
+        498374,
+        15001
     ],
-    "visual_states": 6
+    "visual_states": 7
 }

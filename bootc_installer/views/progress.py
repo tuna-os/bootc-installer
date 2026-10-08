@@ -23,6 +23,7 @@ import threading
 import time
 from gettext import gettext as _
 
+from bootc_installer.utils import copy as copy_text
 from bootc_installer.utils import fisherman_runner
 
 
@@ -45,7 +46,7 @@ _FISHERMAN_CACHE_DIR = os.path.join(_FISHERMAN_STAGE_BASE, ".cache", "bootc-inst
 _FISHERMAN_HOST_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman")
 _FISHERMAN_LOG_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman-output.log")
 
-from bootc_installer.utils.progress_parser import apply_progress_event, new_progress_state, set_product_name, get_product_name, _RE_LAYER_PROGRESS  # noqa: E402
+from bootc_installer.utils.progress_parser import apply_progress_event, new_progress_state, set_product_name, set_install_label, get_product_name, _RE_LAYER_PROGRESS  # noqa: E402
 from bootc_installer.utils.codec_check import check_codecs_present  # noqa: E402
 
 
@@ -146,6 +147,7 @@ class BootcProgress(Gtk.Box):
     progress_elapsed = Gtk.Template.Child()
     progress_eta = Gtk.Template.Child()
     progress_substep = Gtk.Template.Child()
+    progress_note = Gtk.Template.Child()
     console_button = Gtk.Template.Child()
     media_button = Gtk.Template.Child()
     console_box = Gtk.Template.Child()
@@ -163,6 +165,9 @@ class BootcProgress(Gtk.Box):
             set_product_name(window.recipe.get("distro_name", ""))
         except Exception:
             pass  # labels fall back to the neutral default
+        # The image-writing step's label is the branding contract's
+        # progress_title, so a product can say what it is installing.
+        set_install_label(copy_text.text(window, "progress_title"))
         self.__proc = None       # subprocess handle for fisherman
         self.__log_out = None    # open file handle for fisherman stdout/stderr
         self.__log_buf = None    # GtkTextBuffer — set after super().__init__
@@ -185,6 +190,10 @@ class BootcProgress(Gtk.Box):
 
         self.__build_ui()
         self.__log_buf = self.log_view.get_buffer()
+        # "Do not power off the computer." Empty hides it.
+        note = copy_text.text(window, "progress_note")
+        self.progress_note.set_label(note)
+        self.progress_note.set_visible(bool(note))
 
         self.console_button.connect("clicked", self.__on_console_button)
         self.media_button.connect("clicked", self.__on_media_button)
@@ -646,7 +655,8 @@ class BootcProgress(Gtk.Box):
         No fisherman is launched. No disk is touched.
         """
         logger.info("start_demo() called")
-        installing = _("Installing {}\u2026").format(get_product_name())
+        installing = copy_text.text(self.__window, "progress_title") or \
+            _("Installing {}\u2026").format(get_product_name())
         # Demo steps: (delay_seconds, bar_fraction, label)
         # Mirrors real-install proportions: disk prep is fast (<10%),
         # OS install dominates (~87% of bar, most of the time),
@@ -724,7 +734,8 @@ class BootcProgress(Gtk.Box):
         self.__recovery_key = ""
         self.__pulse_active = True
         self.__set_progress_fraction(0.0)
-        self.progressbar_text.set_label(_("Installing"))
+        self.progressbar_text.set_label(
+            copy_text.text(self.__window, "progress_title") or _("Installing"))
         self.progress_substep.set_label("")
         self.__hide_video_fallback()
         self.__show_media_view()
@@ -747,7 +758,6 @@ class BootcProgress(Gtk.Box):
         This sends SIGTERM to the bash wrapper process group. fisherman's cleanup
         handler will attempt to unmount filesystems and close LUKS devices.
         """
-        self.__stop_carousel_timer()
         self.__cancel_video_fallback_timeout()
         if self.__proc is None:
             return

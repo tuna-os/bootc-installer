@@ -59,20 +59,36 @@ pub fn fixture_disks() -> Vec<DiskInfo> {
     ]
 }
 
-const FIXTURE_LOG: &str = "\
-[1/9] Partitioning /dev/nvme0n1
-  created EFI system partition (1.0 GiB, FAT32)
-  created root partition (475.9 GiB)
-[2/9] Formatting boot partitions
-[3/9] Setting up encryption
-  encryption: none
-[4/9] Formatting root filesystem (xfs)
-[5/9] Mounting target at /mnt
-[6/9] Installing image ghcr.io/tuna-os/albacore:gnome
-  pulling layers... 1.9 GiB
-  applying ostree commit
-[7/9] Installing bootloader
-";
+// fisherman's real transcript (shared/progress/dry-run-transcript.ndjson),
+// cut part-way through the image pull so the bar sits mid-way rather than at
+// either end: newline-delimited JSON, one event per line, which is the only
+// thing fisherman writes.
+//
+// This was hand-written "[n/9] " lines naming a specific image ref.
+// fisherman has never emitted that prefix, so the parser now passes those
+// lines through to the log unparsed and the bar stays at zero — which is
+// what this fixture would show if it were left alone. The product name was
+// the second problem: a fixture is rendered into the docs, so it shipped one
+// product's branding to everyone who rebrands this installer.
+/// fisherman emits this once, after TPM enrolment, and for a tpm2-luks
+/// install it is the only way back into the disk if the TPM state changes
+/// (#129). No CI runner does a TPM install, so it is synthesised -- but fed
+/// through the SAME parser a real install uses. Assigning the key to the
+/// view directly would keep passing if the parse broke.
+const FIXTURE_RECOVERY_EVENT: &str = concat!(
+    r#"{"type":"recovery_key","key":"mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf","#,
+    r#""timestamp":"2026-01-01T00:00:00Z","elapsed_ms":1000}"#,
+);
+
+const FIXTURE_LOG_RUNNING: &[&str] = &[
+    r#"{"cumulative_pct": 0, "elapsed_ms": 0, "step": 1, "step_name": "Partitioning disk", "timestamp": "1970-01-01T00:00:00Z", "total_steps": 8, "type": "step", "weight_pct": 0}"#,
+    r#"{"cumulative_pct": 0, "elapsed_ms": 400, "step": 2, "step_name": "Formatting EFI partition", "timestamp": "1970-01-01T00:00:00Z", "total_steps": 8, "type": "step", "weight_pct": 1}"#,
+    r#"{"cumulative_pct": 1, "elapsed_ms": 800, "step": 3, "step_name": "Formatting root filesystem", "timestamp": "1970-01-01T00:00:00Z", "total_steps": 8, "type": "step", "weight_pct": 0}"#,
+    r#"{"cumulative_pct": 1, "elapsed_ms": 1200, "step": 4, "step_name": "Mounting filesystem", "timestamp": "1970-01-01T00:00:00Z", "total_steps": 8, "type": "step", "weight_pct": 0}"#,
+    r#"{"cumulative_pct": 1, "elapsed_ms": 1600, "step": 5, "step_name": "Installing OS", "timestamp": "1970-01-01T00:00:00Z", "total_steps": 8, "type": "step", "weight_pct": 87}"#,
+    r#"{"elapsed_ms": 2000, "message": "Pulling image: layer 18/71", "timestamp": "1970-01-01T00:00:00Z", "type": "substep"}"#,
+    r#"{"elapsed_ms": 2400, "message": "Pulling image: layer 47/71", "timestamp": "1970-01-01T00:00:00Z", "type": "substep"}"#,
+];
 
 pub struct Capture {
     pub dir: PathBuf,
@@ -135,7 +151,23 @@ fn settle_then(msg: Message) -> Task<crate::Message> {
 pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message> {
     match message {
         Message::Show(index) => {
+            // One frame past the page list: the done page as a TPM install
+            // leaves it. It is the same page in another state, not a page of
+            // its own, so it is not in Page::ORDER.
             let Some(page) = Page::ORDER.get(index).copied() else {
+                if index == Page::ORDER.len() {
+                    app.page = Page::Done;
+                    app.installing = false;
+                    app.install_ok = true;
+                    app.recovery_ack = false;
+                    app.progress.consume(FIXTURE_RECOVERY_EVENT);
+                    if app.progress.recovery_key.is_empty() {
+                        eprintln!("capture: the recovery_key event did not parse");
+                        std::process::exit(2);
+                    }
+                    app.capture.as_mut().unwrap().index = index;
+                    return settle_then(Message::Shoot);
+                }
                 return finish(app);
             };
 
@@ -147,7 +179,19 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
             match page {
                 Page::Installing => {
                     app.installing = true;
-                    app.install_log = FIXTURE_LOG.to_string();
+                    // Through the parser, the way a real install feeds it,
+                    // so this screenshot exercises the live code path rather
+                    // than a private one. Assigning install_log directly, as
+                    // this used to, is how a progress screen can be
+                    // photographed without running any of what it shows.
+                    app.install_log.clear();
+                    app.progress.reset();
+                    for line in FIXTURE_LOG_RUNNING {
+                        if let Some(shown) = app.progress.consume(line) {
+                            app.install_log.push_str(&shown);
+                            app.install_log.push('\n');
+                        }
+                    }
                 }
                 Page::Done => {
                     app.installing = false;
@@ -169,8 +213,11 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
         Message::Shot(shot) => {
             let capture = app.capture.as_mut().unwrap();
             let index = capture.index;
-            let page = Page::ORDER[index];
-            let name = page.slug().to_string();
+            let page = Page::ORDER.get(index).copied();
+            let name = match page {
+                Some(p) => p.slug().to_string(),
+                None => "recovery".to_string(),
+            };
 
             let path = capture
                 .dir
@@ -180,11 +227,54 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                 std::process::exit(2);
             }
             capture.findings.push(audit(&shot, &name));
+
+            // The install page is the one screen with a progress bar, and a
+            // bar that lays out but paints nothing is invisible to the audit
+            // above (see widest_accent_run). Fail the capture rather than
+            // publish a documentation image of a bar that is not there.
+            if page == Some(Page::Installing) {
+                let run = widest_accent_run(&shot);
+                eprintln!("  installing: widest accent run {:.1}% of width", run * 100.0);
+                // The fixture stops part-way through the image pull, so the
+                // bar is a little over half full across a nearly full-width
+                // track. A third of the window is clear of that and nowhere
+                // near what an unpainted bar (0%) gives.
+                if run < 0.33 {
+                    eprintln!(
+                        "capture: the progress bar on the install page is {:.1}% of the \
+                         window wide — it is laid out but not painted \
+                         (shared/progress/README.md)",
+                        run * 100.0
+                    );
+                    std::process::exit(2);
+                }
+            }
             // The strings this page renders, from the same constants the
             // view is built from (ui::page_text). iced has no widget-tree
             // introspection, so this is how the COSMIC row of the parity
             // matrix stops reading "not measured".
             let text = crate::ui::page_text(app).join(" ");
+
+            // The recovery frame is the one screen where a correct-looking
+            // render can still be wrong: the panel can draw with the key
+            // missing, and Restart can be live before the key is
+            // acknowledged. Neither shows up in a pixel histogram.
+            if page.is_none() {
+                let key = app.progress.recovery_key.clone();
+                if !text.contains(&key) {
+                    eprintln!(
+                        "capture: the recovery key is not in the rendered text -- the panel did not draw (#129)"
+                    );
+                    std::process::exit(2);
+                }
+                if !app.recovery_key_pending() {
+                    eprintln!(
+                        "capture: Restart is live before the recovery key was acknowledged (#129)"
+                    );
+                    std::process::exit(2);
+                }
+            }
+
             let capture = app.capture.as_mut().unwrap();
             capture.texts.push((name, text));
 
@@ -214,6 +304,58 @@ fn write_png(path: &std::path::Path, shot: &Screenshot) -> std::io::Result<()> {
         .write_image_data(&shot.rgba)
         .map_err(|e| std::io::Error::other(e.to_string()))?;
     Ok(())
+}
+
+/// Is the install page's progress bar actually PAINTED?
+///
+/// The audit above cannot answer this and was never meant to: it measures ink
+/// over the content region, and the install page supplies plenty of that from
+/// the log text alone. The sibling KDE frontend shipped a progress bar that
+/// laid out at full width, reported itself visible and opaque, and painted not
+/// one pixel — and passed every check in this repository, this audit's
+/// equivalent among them, because a page with a populated log looks populated
+/// whether or not the bar drew.
+///
+/// So this looks for the bar specifically. A determinate bar is the only
+/// accent-coloured thing in the content region — the wizard's step indicator
+/// is accent too but lives in the header, above HEADER_SKIP_PX — so the
+/// longest horizontal run of accent pixels on any row IS the filled part of
+/// the bar. An unpainted bar gives a longest run of zero.
+///
+/// Returns the run length in pixels, as a share of the window width.
+fn widest_accent_run(shot: &Screenshot) -> f64 {
+    let accent = cosmic::theme::active().cosmic().accent_color();
+    let (ar, ag, ab) = (
+        (accent.red * 255.0) as i32,
+        (accent.green * 255.0) as i32,
+        (accent.blue * 255.0) as i32,
+    );
+    let (w, h) = (shot.size.width, shot.size.height);
+    let top = HEADER_SKIP_PX.min(h);
+    let mut widest: u32 = 0;
+
+    for y in top..h {
+        let mut run: u32 = 0;
+        for x in 0..w {
+            let i = ((y as usize * w as usize) + x as usize) * 4;
+            if i + 2 >= shot.rgba.len() {
+                break;
+            }
+            // Chebyshev distance, matching the audit's own notion of "the
+            // same colour" rather than inventing a second one.
+            let d = (shot.rgba[i] as i32 - ar)
+                .abs()
+                .max((shot.rgba[i + 1] as i32 - ag).abs())
+                .max((shot.rgba[i + 2] as i32 - ab).abs());
+            if d <= 24 {
+                run += 1;
+                widest = widest.max(run);
+            } else {
+                run = 0;
+            }
+        }
+    }
+    f64::from(widest) / f64::from(w.max(1))
 }
 
 /// Measure what only holds when the UI really rendered.
@@ -358,11 +500,14 @@ fn finish(app: &mut TunaInstaller) -> Task<crate::Message> {
         }
     }
 
-    if capture.findings.len() != Page::ORDER.len() {
+    // Page::ORDER plus the recovery frame, which is the done page in its
+    // other state rather than a page of its own.
+    let expected_frames = Page::ORDER.len() + 1;
+    if capture.findings.len() != expected_frames {
         failures.push(format!(
-            "captured {} of {} pages",
+            "captured {} of {} frames",
             capture.findings.len(),
-            Page::ORDER.len()
+            expected_frames
         ));
     }
 

@@ -1,4 +1,5 @@
 #include "installercontroller.h"
+#include "tpm.h"
 #include "log.h"
 #include "offline.h"
 #include "branding.h"
@@ -8,13 +9,25 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QJsonObject>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 
 InstallerController::InstallerController(QObject *parent)
     : QObject(parent)
 {
-    m_hasTpm = QFileInfo::exists(QStringLiteral("/sys/class/tpm/tpm0"));
+    // BOOTC_INSTALLER_FAKE_TPM only ever makes the two TPM choices VISIBLE,
+    // and exists because hiding them means a capture taken on a machine
+    // without a TPM -- every CI runner -- renders a two-option encryption
+    // page. docs/PARITY.md is read off those screenshots, so this frontend
+    // was recorded as having no TPM support when it has offered both TPM
+    // modes all along. Picking one still writes an ordinary recipe; fisherman
+    // is what fails, later and loudly, if there is no TPM to enrol against.
+    // Same variable and same meaning as the XFCE frontend's core.has_tpm().
+    const QByteArray fakeTpm = qgetenv("BOOTC_INSTALLER_FAKE_TPM");
+    m_hasTpm = (!fakeTpm.isEmpty() && fakeTpm != "0")
+        || tpm::probe2(QStringLiteral("/"));
     // Product identity per shared/branding/README.md: branding.json, then
     // os-release, then neutral. Nothing in this frontend names a product.
     m_branding = branding::resolve();
@@ -146,11 +159,190 @@ void InstallerController::closeLogFile()
     m_logFile = nullptr;
 }
 
+// Friendly labels for fisherman's step names, matching the other frontends
+// (shared/progress/progress_parser.py). An unknown step falls back to its raw
+// name, so a new step in fisherman degrades to showing what it really is
+// rather than showing nothing.
+static QString friendlyStep(const QString &name, const QString &product)
+{
+    static const QHash<QString, QString> labels = {
+        {QStringLiteral("Preparing disk"), QStringLiteral("Checking your drive…")},
+        {QStringLiteral("Partitioning disk"), QStringLiteral("Setting up your drive…")},
+        {QStringLiteral("Formatting EFI partition"), QStringLiteral("Preparing the boot system…")},
+        {QStringLiteral("Setting up disk encryption"), QStringLiteral("Securing your drive…")},
+        {QStringLiteral("Formatting root filesystem"), QStringLiteral("Formatting your drive…")},
+        {QStringLiteral("Mounting filesystem"), QStringLiteral("Almost ready…")},
+        {QStringLiteral("Formatting data disk (/var)"), QStringLiteral("Preparing data storage…")},
+        // The one label that names the product. It must say what THIS build
+        // installs; nothing here may name a distro (CLAUDE.md).
+        {QStringLiteral("Installing OS"), QStringLiteral("Installing %1…")},
+        {QStringLiteral("Enrolling TPM2 auto-unlock"), QStringLiteral("Setting up auto-unlock…")},
+        {QStringLiteral("Copying system Flatpaks"), QStringLiteral("Installing your apps…")},
+        {QStringLiteral("Configuring installed system"), QStringLiteral("Configuring your system…")},
+        {QStringLiteral("Finalizing installation"), QStringLiteral("Finishing up…")},
+    };
+    const QString label = labels.value(name, name);
+    return label.contains(QLatin1String("%1")) ? label.arg(product) : label;
+}
+
+void InstallerController::setRecoveryAck(bool v)
+{
+    if (m_recoveryAck == v)
+        return;
+    m_recoveryAck = v;
+    Q_EMIT recoveryChanged();
+}
+
+void InstallerController::resetProgress()
+{
+    m_step = 0;
+    m_totalSteps = 0;
+    m_fraction = 0.0;
+    m_stepName.clear();
+    m_recoveryKey.clear();
+    m_recoveryAck = false;
+    Q_EMIT recoveryChanged();
+    m_cumulativePct = 0;
+    m_weightPct = 0;
+    m_stepFrac = 0.0;
+    m_postPullBase = -1.0;
+    Q_EMIT progressChanged();
+}
+
+// Share of a step's weight the layer pull covers; the rest is for the
+// export, deploy and bootloader phases after it, which have no counter.
+static constexpr double kPullShare = 0.6;
+
+// Bar positions for the silent phases after the pull, as a share of what is
+// left of the step, matched as message prefixes. Without these an offline
+// install sat at 1% through ten minutes of export and deploy (#115). Same
+// table and semantics as shared/progress/progress_parser.py; the numbers are
+// pinned by shared/progress/fraction-cases.json.
+static double phaseMilestone(const QString &message)
+{
+    static const struct {
+        const char *prefix;
+        double share;
+    } milestones[] = {
+        {"Exporting image to OCI layout", 0.05},
+        {"OCI export complete", 0.30},
+        {"Using ", 0.32},
+        {"Initializing ostree layout", 0.35},
+        {"Writing ", 0.35},
+        {"Deploying image", 0.35},
+        {"OS deployed, installing bootloader", 0.90},
+        {"Detected bootloader", 0.92},
+        {"Installing bootloader", 0.92},
+        {"Configuring EFI boot entry", 0.95},
+        {"Configuring GRUB", 0.95},
+        {"Configuring SELinux", 0.95},
+        {"Generating initramfs", 0.95},
+        {"bootc installation complete", 1.0},
+    };
+    for (const auto &m : milestones) {
+        if (message.startsWith(QLatin1String(m.prefix)))
+            return m.share;
+    }
+    return -1.0;
+}
+
+QString InstallerController::consumeProgress(const QString &line)
+{
+    const QString trimmed = line.trimmed();
+    if (!trimmed.startsWith(QLatin1Char('{')))
+        return line;
+    QJsonParseError err{};
+    const QJsonDocument doc = QJsonDocument::fromJson(trimmed.toUtf8(), &err);
+    if (err.error != QJsonParseError::NoError || !doc.isObject())
+        return line;
+
+    const QJsonObject event = doc.object();
+    const QString type = event.value(QStringLiteral("type")).toString();
+
+    if (type == QLatin1String("step")) {
+        const int step = event.value(QStringLiteral("step")).toInt();
+        const QString name = event.value(QStringLiteral("step_name")).toString();
+        // A repeated or earlier step is ignored, as in the canonical parser:
+        // it must not reset the bar.
+        if (m_step > 0 && step <= m_step) {
+            return QStringLiteral("[%1/%2] %3")
+                .arg(step)
+                .arg(event.value(QStringLiteral("total_steps")).toInt())
+                .arg(name);
+        }
+        m_step = step;
+        m_totalSteps = event.value(QStringLiteral("total_steps")).toInt();
+        m_stepFrac = 0.0;
+        m_postPullBase = -1.0;
+        m_cumulativePct = event.value(QStringLiteral("cumulative_pct")).toInt();
+        m_weightPct = event.value(QStringLiteral("weight_pct")).toInt();
+        m_fraction = m_cumulativePct / 100.0;
+        m_stepName = friendlyStep(name, m_productName);
+        Q_EMIT progressChanged();
+        return QStringLiteral("[%1/%2] %3").arg(m_step).arg(m_totalSteps).arg(name);
+    }
+    if (type == QLatin1String("substep") || type == QLatin1String("info")) {
+        const QString message = event.value(QStringLiteral("message")).toString();
+        if (type == QLatin1String("substep") && m_weightPct > 0) {
+            // The layer pull covers the first kPullShare of the step; the
+            // named phases after it cover the rest.
+            static const QRegularExpression layers(
+                QStringLiteral("^Pulling image: layer (\\d+)/(\\d+)"));
+            double stepFrac = -1.0;
+            const QRegularExpressionMatch m = layers.match(message);
+            if (m.hasMatch()) {
+                const double done = m.captured(1).toDouble();
+                const double total = m.captured(2).toDouble();
+                if (total > 0)
+                    stepFrac = qMin(done / total, 1.0) * kPullShare;
+            } else {
+                const double share = phaseMilestone(message);
+                if (share >= 0) {
+                    if (m_postPullBase < 0)
+                        m_postPullBase = m_stepFrac;
+                    stepFrac = m_postPullBase + share * (1.0 - m_postPullBase);
+                }
+            }
+            if (stepFrac >= 0) {
+                // Never move backwards: a retried pull restarts its count.
+                m_stepFrac = qMax(m_stepFrac, stepFrac);
+                m_fraction = qMin((m_cumulativePct + m_stepFrac * m_weightPct) / 100.0, 1.0);
+                Q_EMIT progressChanged();
+            }
+        }
+        return message.isEmpty() ? QString() : QStringLiteral("  ") + message;
+    }
+    if (type == QLatin1String("complete")) {
+        // cumulative_pct only ever reaches 99; `complete` fills the bar.
+        m_fraction = 1.0;
+        Q_EMIT progressChanged();
+        const QString message = event.value(QStringLiteral("message")).toString();
+        return message.isEmpty() ? QStringLiteral("Installation complete") : message;
+    }
+    if (type == QLatin1String("error"))
+        return QStringLiteral("ERROR: ") + event.value(QStringLiteral("message")).toString();
+    if (type == QLatin1String("recovery_key")) {
+        // Kept in the log as well as on the done page: the log is what gets
+        // pasted into a bug report, and a key that only ever existed on a
+        // screen the user already dismissed is no better than one that was
+        // never shown (#129).
+        m_recoveryKey = event.value(QStringLiteral("key")).toString();
+        Q_EMIT recoveryChanged();
+        return QStringLiteral("Recovery key: ") + m_recoveryKey;
+    }
+    return QString();
+}
+
 void InstallerController::appendLine(const QString &line)
 {
-    m_log += line;
-    if (!line.endsWith(QLatin1Char('\n')))
-        m_log += QLatin1Char('\n');
+    // The log PANE shows the event rendered for a person; the log FILE keeps
+    // the raw protocol, because that is what gets attached to a bug report.
+    const QString shown = consumeProgress(line);
+    if (!shown.isEmpty()) {
+        m_log += shown;
+        if (!shown.endsWith(QLatin1Char('\n')))
+            m_log += QLatin1Char('\n');
+    }
 
     if (m_logFile) {
         m_logFile->write(line.toUtf8());
@@ -186,7 +378,17 @@ void InstallerController::fail(const QString &message)
 
 void InstallerController::loadDemoState(const QString &log, int exitCode)
 {
-    m_log = log;
+    // Through appendLine(), the path a real install takes, so the bar and the
+    // step caption are the live code rather than something the harness paints
+    // on. Assigning m_log directly, as this used to, is how a screen can be
+    // photographed without running any of what it is supposed to show.
+    m_log.clear();
+    resetProgress();
+    const QStringList lines = log.split(QLatin1Char('\n'));
+    for (const QString &line : lines) {
+        if (!line.trimmed().isEmpty())
+            appendLine(line);
+    }
     m_finished = true;
     m_exitCode = exitCode;
     Q_EMIT logChanged();
@@ -217,6 +419,7 @@ void InstallerController::startInstall()
 
     // Before the recipe is written, so the failures below are logged too.
     openLogFile();
+    resetProgress();
     appendLine(QStringLiteral("Starting installation..."));
 
     // The recipe can hold a LUKS passphrase — write it 0600 in a fresh

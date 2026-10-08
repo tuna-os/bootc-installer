@@ -135,8 +135,13 @@ def main():
         with open(log) as fh:
             tail = fh.read()
         print("[e2e] fisherman log:\n" + tail)
-        if "[9/9]" not in tail:
-            print("FAIL: the log never reached step 9", file=sys.stderr)
+        # fisherman's terminal event in its real wire format. This was
+        # `if "[9/9]" not in tail`, a prefix fisherman has never written —
+        # the e2e shim invented it to satisfy assertions like this one, so
+        # the check was comparing the harness with itself.
+        if '"type":"complete"' not in tail:
+            print("FAIL: the log never carried a completion event",
+                  file=sys.stderr)
             return 1
     else:
         print(f"FAIL: no fisherman log at {log}", file=sys.stderr)

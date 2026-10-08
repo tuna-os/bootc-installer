@@ -32,8 +32,9 @@ template $BootcRecoveryKey: Adw.Bin {
           halign: center;
         }
 
-        Label {
-          label: _("Save Your Recovery Key");
+        // Text for every string on this page is set by views/recovery_key.py
+        // from the branding copy contract (shared/branding/copy-defaults.json).
+        Label title_label {
           halign: center;
           justify: center;
           wrap: true;
@@ -43,8 +44,7 @@ template $BootcRecoveryKey: Adw.Bin {
           ]
         }
 
-        Label {
-          label: _("If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy.");
+        Label body_label {
           halign: center;
           justify: center;
           wrap: true;
@@ -88,7 +88,6 @@ template $BootcRecoveryKey: Adw.Bin {
             Button copy_button {
               icon-name: "edit-copy-symbolic";
               valign: start;
-              tooltip-text: _("Copy to clipboard");
 
               styles [
                 "flat",
@@ -98,13 +97,11 @@ template $BootcRecoveryKey: Adw.Bin {
         }
 
         CheckButton ack_check {
-          label: _("I have saved my recovery key");
           halign: center;
           margin-top: 12;
         }
 
         Button btn_continue {
-          label: _("Continue");
           halign: center;
           sensitive: false;
 

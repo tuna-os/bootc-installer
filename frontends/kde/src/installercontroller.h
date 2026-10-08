@@ -33,9 +33,11 @@ class InstallerController : public QObject
     Q_PROPERTY(QString hostname READ hostname WRITE setHostname NOTIFY recipeChanged)
     Q_PROPERTY(QString image READ image WRITE setImage NOTIFY recipeChanged)
 
-    // /sys/class/tpm/tpm0 — the same probe the XFCE frontend uses. TPM
-    // options are hidden, not disabled, when absent: offering them on a
-    // machine without a TPM only fails later, at install time.
+    // A TPM 2.0 device, per shared/tpm/README.md — the same probe every
+    // other frontend uses. TPM options are hidden, not disabled, when
+    // absent: offering them on a machine without one only fails later, at
+    // install time. This used to test /sys/class/tpm/tpm0 for existence,
+    // which is true for a TPM 1.2 device the tpm2-luks modes cannot use.
     Q_PROPERTY(bool hasTpm READ hasTpm CONSTANT)
 
     // The product name, resolved ONCE at startup from the branding contract
@@ -56,10 +58,34 @@ class InstallerController : public QObject
     // ask for help, or attach the output to a bug report.
     Q_PROPERTY(QString logPath READ logPath NOTIFY logPathChanged)
 
+    // Install progress, from fisherman's newline-delimited JSON protocol
+    // (shared/progress/README.md). KDE had no progress bar at all: the
+    // step showed a BusyIndicator and a log pane for the whole install,
+    // which docs/PARITY.md listed as gap #2.
+    //
+    // installFraction, not step/totalSteps: fisherman computes total_steps
+    // from the recipe, and the weights are wildly unequal — "Installing OS"
+    // alone is 87% of a cold install while five other steps are 0% — so a
+    // bar advanced one-nth per step sits near empty for the whole visible
+    // install and then jumps.
+    Q_PROPERTY(int installStep READ installStep NOTIFY progressChanged)
+    Q_PROPERTY(int installTotalSteps READ installTotalSteps NOTIFY progressChanged)
+    Q_PROPERTY(qreal installFraction READ installFraction NOTIFY progressChanged)
+    Q_PROPERTY(QString installStepName READ installStepName NOTIFY progressChanged)
+
     Q_PROPERTY(bool installing READ installing NOTIFY installingChanged)
     Q_PROPERTY(bool installFinished READ installFinishedFlag NOTIFY installCompleted)
     Q_PROPERTY(int exitCode READ exitCode NOTIFY installCompleted)
     Q_PROPERTY(bool succeeded READ succeeded NOTIFY installCompleted)
+
+    // The key fisherman emits once, after TPM enrolment (#129). The
+    // "recovery_key" branch in consumeProgress() used to format a log line
+    // and keep nothing, so after the install there was nothing left to show.
+    Q_PROPERTY(QString recoveryKey READ recoveryKey NOTIFY recoveryChanged)
+    Q_PROPERTY(bool recoveryAck READ recoveryAck WRITE setRecoveryAck NOTIFY recoveryChanged)
+    // Restart is held while an unacknowledged key is on screen: leaving the
+    // done page is what ends the chance to read it.
+    Q_PROPERTY(bool recoveryKeyPending READ recoveryKeyPending NOTIFY recoveryChanged)
 
 public:
     explicit InstallerController(QObject *parent = nullptr);
@@ -92,10 +118,24 @@ public:
     Q_INVOKABLE void reboot();
     QString log() const { return m_log; }
     QString logPath() const { return m_logPath; }
+    int installStep() const { return m_step; }
+    int installTotalSteps() const { return m_totalSteps; }
+    qreal installFraction() const { return m_fraction; }
+    QString installStepName() const { return m_stepName; }
     bool installing() const { return m_process != nullptr; }
     bool installFinishedFlag() const { return m_finished; }
     int exitCode() const { return m_exitCode; }
     bool succeeded() const { return m_finished && m_exitCode == 0; }
+    QString recoveryKey() const { return m_recoveryKey; }
+    bool recoveryAck() const { return m_recoveryAck; }
+    void setRecoveryAck(bool v);
+    // A failed install enrolled nothing, and a non-TPM install was never
+    // given a key, so neither is held: a user must not be asked to tick a
+    // box about a key they do not have.
+    bool recoveryKeyPending() const
+    {
+        return succeeded() && !m_recoveryKey.isEmpty() && !m_recoveryAck;
+    }
 
     // Human-readable label for an encryption type, shared by the encryption
     // and confirm steps so they cannot drift apart.
@@ -115,12 +155,20 @@ Q_SIGNALS:
     void logChanged();
     void logPathChanged();
     void installingChanged();
+    void progressChanged();
+    void recoveryChanged();
     void installCompleted(int exitCode);
 
 private:
     void openLogFile();
     void closeLogFile();
     void appendLine(const QString &line);
+    // Parses one fisherman event and updates the progress properties.
+    // Returns the text to show in the log pane: the event rendered for a
+    // person, or the line unchanged when it is not an event (fisherman's
+    // stderr is interleaved into the same stream and is already readable).
+    QString consumeProgress(const QString &line);
+    void resetProgress();
     void drainBuffer(const QString &prefix);
     void fail(const QString &message);
 
@@ -133,6 +181,20 @@ private:
     QString m_buffer;
     QProcess *m_process = nullptr;
     bool m_finished = false;
+    int m_step = 0;
+    int m_totalSteps = 0;
+    qreal m_fraction = 0.0;
+    QString m_stepName;
+    QString m_recoveryKey;
+    bool m_recoveryAck = false;
+    // Carried across lines so a substep can interpolate inside its step.
+    int m_cumulativePct = 0;
+    int m_weightPct = 0;
+    // How far through the current step the bar is (0-1); never decreases
+    // inside a step. m_postPullBase is m_stepFrac when the first post-pull
+    // phase message arrived, or negative before that.
+    double m_stepFrac = 0.0;
+    double m_postPullBase = -1.0;
     bool m_hasTpm = false;
     QString m_productName;
     branding::Branding m_branding;

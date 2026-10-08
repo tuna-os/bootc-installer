@@ -138,10 +138,10 @@ class BootcDone(Adw.Bin):
     def set_result(self, result, terminal, boot_id="", elapsed_secs=0, image_ref=None):
         self.__terminal = terminal
         self.__boot_id = boot_id
+        from bootc_installer.utils import copy as copy_text
 
         if result:
             self.page_header.icon_name = "object-select-symbolic"
-            from bootc_installer.utils import copy as copy_text
             pretty_name = getattr(self.__window, "pretty_name", None) \
                 or copy_text.product_name(self.__window)
             self.page_header.title = copy_text.text(self.__window, "done_title", name=pretty_name)
@@ -170,7 +170,8 @@ class BootcDone(Adw.Bin):
                 GLib.timeout_add_seconds(30, self.__schedule_registry_warmup, image_ref)
         else:
             self.page_header.icon_name = "dialog-error-symbolic"
-            self.page_header.title = _("Installation failed")
+            self.page_header.title = (copy_text.text(self.__window, "done_failed_title")
+                                      or _("Installation failed"))
             # Try to extract the last failed step from the log for a helpful message
             hint = self.__extract_failure_hint()
             self.page_header.subtitle = hint

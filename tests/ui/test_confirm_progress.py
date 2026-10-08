@@ -93,10 +93,10 @@ class TestConfirmScreen:
         assert ("Hostname", "legendary-box") in rows  # EntryRow, text via get_text
         assert ("Image", "Marlin GTS") in rows
         assert ("Graphics", "AMD Radeon") in rows
-        assert (
-            "⚠️ ALL DATA ON THIS DISK WILL BE ERASED",
-            "This action cannot be undone",
-        ) in rows
+        # The erase warning is the branding contract's confirm_warning with
+        # the chosen disk filled in, not a hardcoded GNOME string.
+        titles = {widget.get_title() for widget in confirm.active_widgets}
+        assert "Everything on /dev/nvme0n1 will be erased. This cannot be undone." in titles
 
     def test_confirm_button_emits_signal_once_and_uses_confirm_subtitle(self):
         confirm = BootcConfirm(_branded_window())
@@ -126,6 +126,12 @@ class TestProgressScreen:
             progress = BootcProgress(window)
             _pump()
         return progress, window
+
+    def test_progress_note_comes_from_the_contract(self):
+        """GNOME used to show no do-not-power-off line at all."""
+        progress, _window = self._make_progress()
+        assert progress.progress_note.get_label() == "Do not power off the computer."
+        assert progress.progress_note.get_visible()
 
     def test_media_and_console_toggles_preserve_selected_media_mode(self):
         progress, _window = self._make_progress()
@@ -170,7 +176,10 @@ class TestProgressScreen:
             )
 
         assert progress.progressbar_text.get_label() == "Installing system image"
-        assert progress.progress_percentage.get_label() == "66%"
+        # 55 + (5/10 of the pull) * 0.6 (the pull's share of the step) * 22.
+        # The rest of the step is for the export and deploy phases after the
+        # pull (#115; shared/progress/fraction-cases.json).
+        assert progress.progress_percentage.get_label() == "61%"
         assert progress.progress_elapsed.get_label() == "2:00 elapsed"
         assert progress.progress_eta.get_label().startswith("~")
         assert "remaining" in progress.progress_eta.get_label()

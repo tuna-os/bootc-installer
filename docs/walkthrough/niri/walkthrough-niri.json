@@ -1,9 +1,9 @@
 {
   "flavor": "niri",
-  "frames": 6,
-  "rendered_frames": 6,
-  "advanced_transitions": 5,
-  "visual_states": 6,
+  "frames": 7,
+  "rendered_frames": 7,
+  "advanced_transitions": 6,
+  "visual_states": 7,
   "activation_key": null,
   "ocr": false,
   "screens": {
@@ -71,7 +71,6 @@
       ],
       "matched_keywords": [
         "do not power off",
-        "installing image",
         "partitioning"
       ]
     },
@@ -79,7 +78,8 @@
       "required": false,
       "reached": true,
       "on_pages": [
-        "06-done"
+        "06-done",
+        "07-recovery"
       ],
       "matched_keywords": [
         "is installed",
@@ -115,7 +115,7 @@
       "colours": 453,
       "flat": 0.6161333333333333,
       "ink": 0.11356666666666666,
-      "stddev": 0.11049312796175044,
+      "stddev": 0.11048502176346062,
       "text_excerpt": "Step 3 of 6 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
@@ -132,11 +132,11 @@
       "name": "05-progress",
       "png": "docs/screenshots/05-progress.png",
       "rendered": true,
-      "colours": 272,
-      "flat": 0.6304666666666666,
-      "ink": 0.0182,
-      "stddev": 0.07907322882807281,
-      "text_excerpt": "Step 5 of 6 \u00b7 Installing Installing TunaOS\u2026 Starting\u2026 [1/9] Partitioning /dev/nvme0n1\n[2/9] Formatting boot partitions\n[3/9] Setting up encryption\n[4/9] Formatting root filesystem (xfs)\n[5/9] Mounting target at /mnt\n[6/9] Installing image g"
+      "colours": 260,
+      "flat": 0.6350333333333333,
+      "ink": 0.0187,
+      "stddev": 0.08433593232152987,
+      "text_excerpt": "Step 5 of 6 \u00b7 Installing Installing TunaOS\u2026 Step 5 of 8 \u2014 Installing OS [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pul"
     },
     {
       "name": "06-done",
@@ -147,14 +147,25 @@
       "ink": 0.017766666666666667,
       "stddev": 0.08847120912641952,
       "text_excerpt": "Step 6 of 6 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. Close Close Restart now Restart now"
+    },
+    {
+      "name": "07-recovery",
+      "png": "docs/screenshots/07-recovery.png",
+      "rendered": true,
+      "colours": 392,
+      "flat": 0.9108,
+      "ink": 0.026266666666666667,
+      "stddev": 0.09522523880532967,
+      "text_excerpt": "Step 6 of 6 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe,"
     }
   ],
   "transition_pixels": [
     30519,
     56643,
     188997,
-    210976,
-    308037
+    209598,
+    308479,
+    53687
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
