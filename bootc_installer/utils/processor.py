@@ -52,6 +52,20 @@ def _find_nvidia_imgref_for(imgref: str) -> str:
 
 class Processor:
     @staticmethod
+    def recipe_names_disk(recipe_path: str) -> bool:
+        """Whether the fisherman recipe at `recipe_path` names a target disk.
+
+        The window checks this before starting fisherman: a recipe with an
+        empty disk only fails inside fisherman, as "invalid recipe: disk is
+        required", which a user cannot act on (#154).
+        """
+        try:
+            with open(recipe_path, encoding="utf-8") as fh:
+                return bool(str(json.load(fh).get("disk") or "").strip())
+        except (OSError, ValueError, AttributeError):
+            return False
+
+    @staticmethod
     def gen_install_recipe(log_path: str, finals: list, sys_recipe: dict) -> str:
         """Generate a fisherman recipe JSON from the UI's collected finals.
 
