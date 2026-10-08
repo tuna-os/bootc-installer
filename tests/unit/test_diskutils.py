@@ -220,6 +220,7 @@ class TestGetBootDisk(unittest.TestCase):
 
         def fake_check_output(cmd, **kwargs):
             call_count[0] += 1
+            cmd = " ".join(cmd)  # argv lists since #163; match on the joined form
             if "findmnt" in cmd and "pkname" not in cmd:
                 return findmnt_output.encode()
             elif "lsblk -sno" in cmd:
@@ -241,6 +242,7 @@ class TestGetBootDisk(unittest.TestCase):
 
     def test_falls_back_to_pkname(self):
         def fake(cmd, **kwargs):
+            cmd = " ".join(cmd)  # argv lists since #163
             if "findmnt" in cmd:
                 return b"/dev/sda2"
             if "lsblk -sno" in cmd:
@@ -619,3 +621,43 @@ class TestPartitionClass(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestNoShellInjection(unittest.TestCase):
+    """#163: device paths reach subprocess as one argv element, never a shell
+    string, so shell metacharacters in them are inert."""
+
+    HOSTILE = "/dev/sda1; touch {marker}; #"
+
+    def test_hostile_device_path_runs_no_command(self):
+        import tempfile
+
+        marker = os.path.join(tempfile.mkdtemp(), "pwned")
+        path = self.HOSTILE.format(marker=marker)
+        # The real subprocess runs: lsblk rejects the odd device name, which
+        # is fine. What must not happen is the shell running `touch`.
+        try:
+            Diskutils.separate_device_and_partn(path)
+        except Exception:
+            pass
+        self.assertFalse(os.path.exists(marker), "the device path was run as a shell command")
+
+    def test_every_disks_call_passes_an_argv_list(self):
+        calls = []
+
+        def fake(cmd, *args, **kwargs):
+            calls.append((cmd, kwargs))
+            return b'{"blockdevices": [{"name": "sda1", "pkname": "sda", "partn": 1}]}'
+
+        with patch("subprocess.check_output", side_effect=fake):
+            Diskutils.separate_device_and_partn("/dev/sda1; id")
+        cmd, kwargs = calls[0]
+        self.assertIsInstance(cmd, list)
+        self.assertEqual(cmd[-1], "/dev/sda1; id")
+        self.assertNotIn("shell", kwargs)
+
+    def test_no_shell_true_left_in_disks_module(self):
+        import bootc_installer.core.disks as disks_mod
+
+        with open(disks_mod.__file__, encoding="utf-8") as fh:
+            self.assertNotIn("shell=True", fh.read())
