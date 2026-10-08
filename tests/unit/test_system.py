@@ -317,23 +317,67 @@ class TestSysteminfoGpuAndTpmCaching:
 
         assert Systeminfo.has_nvidia_gpu() is False
 
-    def test_has_tpm2_false_when_sysfs_missing(self, monkeypatch):
+    # shared/tpm/fixtures — the trees every frontend's probe is judged by.
+    TPM_FIXTURES = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "shared", "tpm", "fixtures")
+
+    def test_has_tpm2_caches_only_the_real_root(self, monkeypatch):
         calls = []
 
-        def fake_exists(path):
-            calls.append(path)
+        def fake_probe(root):
+            calls.append(root)
             return False
 
-        monkeypatch.setattr("bootc_installer.core.system.os.path.exists", fake_exists)
+        monkeypatch.setattr(
+            "bootc_installer.core.system.tpm_probe.probe_tpm2", fake_probe)
 
         assert Systeminfo.has_tpm2() is False
         assert Systeminfo.has_tpm2() is False
-        assert calls == ["/sys/class/tpm/tpm0"]
+        assert calls == ["/"], "the real root is probed once and cached"
 
-    def test_has_tpm2_true_when_sysfs_exists(self, monkeypatch):
-        monkeypatch.setattr("bootc_installer.core.system.os.path.exists", lambda path: True)
+    def test_has_tpm2_true_for_a_tpm2_device(self):
+        assert Systeminfo.has_tpm2(
+            os.path.join(self.TPM_FIXTURES, "tpm2")) is True
 
+    def test_fake_tpm_override_shows_the_choices(self, monkeypatch):
+        """The override the other four frontends have had (#133).
+
+        It reveals nothing here: GNOME's encryption page is a plain Switch
+        with no visibility binding, so has_tpm2() only picks its default
+        state and the page renders the same either way. This is parity of
+        the contract in shared/tpm/README.md, not a capture fix.
+        """
+        monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", "1")
+        assert Systeminfo.has_tpm2(
+            os.path.join(self.TPM_FIXTURES, "legacy-none")) is True
+
+    def test_fake_tpm_override_is_off_when_empty_or_zero(self, monkeypatch):
+        for value in ("", "0"):
+            monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", value)
+            assert Systeminfo.has_tpm2(
+                os.path.join(self.TPM_FIXTURES, "legacy-none")) is False, value
+
+    def test_fake_tpm_beats_the_cache(self, monkeypatch):
+        """Read per call, so a capture that sets it is not defeated by a
+        cached False from an earlier probe of the real root."""
+        monkeypatch.delenv("BOOTC_INSTALLER_FAKE_TPM", raising=False)
+        monkeypatch.setattr(
+            "bootc_installer.core.system.tpm_probe.probe_tpm2",
+            lambda root: False)
+        assert Systeminfo.has_tpm2() is False
+        monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", "1")
         assert Systeminfo.has_tpm2() is True
+
+    def test_has_tpm2_false_for_a_tpm12_device(self):
+        """A TPM 1.2 machine cannot do tpm2-luks.
+
+        This used to test /sys/class/tpm/tpm0 for existence, which this
+        fixture has, so the old probe said True and the install failed at
+        enrolment -- after the disk had been partitioned.
+        """
+        assert Systeminfo.has_tpm2(
+            os.path.join(self.TPM_FIXTURES, "tpm12")) is False
 
 
 class TestGenerateHostname:
@@ -443,3 +487,29 @@ class TestGenerateHostname:
             hostname = Systeminfo.generate_hostname(stem="reef")
 
         assert hostname == "reef-3e10"
+
+
+class TestDmiPlaceholders:
+    def read(self, value):
+        from unittest.mock import mock_open
+
+        from bootc_installer.core.system import _read_dmi
+        with patch("builtins.open", mock_open(read_data=value + "\n")):
+            return _read_dmi("product_name")
+
+    def test_placeholders_read_as_empty(self):
+        for value in ("None", "To Be Filled By O.E.M.", "Default string",
+                      "System Product Name", "  NONE  "):
+            assert self.read(value) == "", value
+
+    def test_real_values_pass_through(self):
+        assert self.read("Laptop 13 (AMD Ryzen 7040Series)") == \
+            "Laptop 13 (AMD Ryzen 7040Series)"
+
+    def test_placeholder_product_falls_back_to_the_stem(self):
+        # KubeVirt: sys_vendor is real but unmapped, product_name was "None".
+        dmi = {"product_name": "", "sys_vendor": "KubeVirt", "product_serial": "x"}
+        with patch("bootc_installer.core.system._read_dmi",
+                   side_effect=lambda field: dmi.get(field, "")):
+            hostname = Systeminfo.generate_hostname(stem="utah")
+        assert hostname.startswith("utah-"), hostname

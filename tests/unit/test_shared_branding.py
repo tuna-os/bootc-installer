@@ -190,3 +190,63 @@ class OsReleaseParsing(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CaptureBrandingPinTest(unittest.TestCase):
+    """shared/walkthrough/capture-branding.json pins what the captures render.
+
+    Screenshot captures resolve branding like the real installer does, so an
+    unpinned run is branded by whatever machine took it: the committed
+    docs/screenshots/01-welcome.png showed the Ubuntu logo above "Welcome to
+    TunaOS", because BOOTC_INSTALLER_PRODUCT_NAME pins `name` and nothing
+    else while os-release's LOGO= went straight through. XFCE was worse --
+    its heading read "Welcome to Ubuntu 24.04.5 LTS" beside a body saying
+    "installs TunaOS", two identities in one sentence.
+
+    So: resolve the capture pin against a deliberately foreign os-release and
+    require that nothing of the host survives.
+    """
+
+    PINNED = REPO / "shared" / "walkthrough" / "capture-branding.json"
+
+    def _resolved(self):
+        return branding.resolve(
+            branding_paths=[str(self.PINNED)],
+            os_release_paths=[str(FIXTURES / "os-release")],
+            env={},
+        )
+
+    def test_pin_file_exists(self):
+        self.assertTrue(self.PINNED.is_file(),
+                        f"{self.PINNED} is what the capture harnesses point at")
+
+    def test_name_comes_from_the_pin_not_the_host(self):
+        b = self._resolved()
+        self.assertEqual(b.name, "TunaOS")
+        self.assertNotIn("Example OS", b.name)
+
+    def test_logo_comes_from_the_pin_not_the_host(self):
+        # The one the name-only pin missed.
+        b = self._resolved()
+        self.assertEqual(b.logo, "org.bootcinstaller.Installer")
+        self.assertNotEqual(b.logo, "exampleos-logo")
+
+    def test_every_copy_key_naming_the_product_says_the_pinned_name(self):
+        b = self._resolved()
+        for key in ("welcome_title", "welcome_install", "done_title"):
+            rendered = b.text(key)
+            self.assertIn("TunaOS", rendered, f"{key} lost the pinned name")
+            self.assertNotIn("Example OS", rendered,
+                             f"{key} leaked the host's product name")
+
+    def test_the_harnesses_point_at_this_file(self):
+        # A pin nothing reads is not a pin. Both GTK capture harnesses must
+        # name it, or a future edit silently goes back to host branding.
+        for harness in (REPO / "tests" / "gui" / "capture-screens.py",
+                        REPO / "frontends" / "xfce" / "tests" / "gui"
+                        / "capture-screens.py"):
+            text = harness.read_text()
+            self.assertIn("capture-branding.json", text,
+                          f"{harness} no longer pins branding")
+            self.assertIn("BOOTC_INSTALLER_BRANDING", text,
+                          f"{harness} pins something weaker than the full object")

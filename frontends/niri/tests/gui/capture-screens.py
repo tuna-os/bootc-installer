@@ -14,6 +14,7 @@ partitions a disk.
     QT_QPA_PLATFORM=offscreen python3 tests/gui/capture-screens.py [outdir]
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -27,7 +28,8 @@ os.environ.setdefault("QT_QUICK_BACKEND", "software")
 os.environ["QML2_IMPORT_PATH"] = os.path.join(REPO, "tests", "qml-stubs")
 os.environ["QML_IMPORT_PATH"] = os.environ["QML2_IMPORT_PATH"]
 
-from PyQt6.QtCore import QUrl, QTimer, QEventLoop  # noqa: E402
+from PyQt6.QtCore import (QUrl, QTimer, QEventLoop, QMetaObject, Q_ARG,  # noqa: E402
+                          QVariant, QPointF, QRect, QRectF, QSizeF)
 from PyQt6.QtGui import QGuiApplication  # noqa: E402
 from PyQt6.QtQml import QQmlApplicationEngine  # noqa: E402
 from PyQt6.QtQuick import QQuickWindow  # noqa: E402
@@ -43,17 +45,122 @@ PAGES = [
     ("04-confirm", 3, "The last screen before anything is written."),
     ("05-progress", 4, "The install, with live log."),
     ("06-done", 5, "Finished."),
+    ("07-recovery", 5, "A TPM install: the recovery key, and restart held "
+                       "until it is acknowledged."),
 ]
 
-FIXTURE_LOG = "\n".join([
-    "[1/9] Partitioning /dev/nvme0n1",
-    "[2/9] Formatting boot partitions",
-    "[3/9] Setting up encryption",
-    "[4/9] Formatting root filesystem (xfs)",
-    "[5/9] Mounting target at /mnt",
-    "[6/9] Installing image ghcr.io/tuna-os/albacore:gnome",
-    "  pulling layers... 1.9 GiB",
-])
+# fisherman emits this once, after TPM enrolment, and for a tpm2-luks install
+# it is the only way back into the disk if the TPM state changes (#129). No CI
+# runner does a TPM install, so it is synthesised -- but it goes in through
+# appendLog(), the function a real install calls, so this frame exercises the
+# parse rather than a property assignment that would keep passing if the parse
+# broke.
+RECOVERY_EVENT = json.dumps({
+    "type": "recovery_key",
+    "key": "mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf",
+    "timestamp": "2026-01-01T00:00:00Z",
+    "elapsed_ms": 1000,
+})
+
+# The install screen, caught in flight: fisherman's real newline-delimited
+# JSON transcript (shared/progress/), truncated part-way through the image
+# pull so the bar sits mid-way rather than at either end.
+#
+# This was seven hand-written "[n/9] " lines naming a specific image ref, and
+# it was assigned straight to the `installLog` property — so the capture
+# painted text into the log pane and never called appendLog() at all. The bar
+# and the step caption were therefore never exercised by this harness in
+# either direction, while docs/PARITY.md credited this frontend with a
+# working progress bar. (fisherman does not emit that prefix, so the parser
+# it was feeding could not have matched it anyway.)
+#
+# Naming a product in a fixture was the second problem: it put that product's
+# image ref into the rendered docs for everyone who rebrands this installer.
+_TRANSCRIPT = os.path.join(REPO, "..", "..", "shared", "progress",
+                           "dry-run-transcript.ndjson")
+
+
+def fixture_lines():
+    """Transcript lines up to the middle of the image pull."""
+    with open(os.path.normpath(_TRANSCRIPT), encoding="utf-8") as fh:
+        lines = [ln for ln in fh.read().splitlines() if ln.strip()]
+    cut = next(i for i, ln in enumerate(lines) if "47/71" in ln) + 1
+    return lines[:cut]
+
+
+
+def find_item(root, name):
+    """The QQuickItem with this objectName, searched down the VISUAL tree.
+
+    findChild() walks the QObject tree, which does not reach items a QML
+    component parents visually rather than by ownership — the sibling KDE
+    harness reported its progress bar missing on a screen that was rendering
+    beside it for exactly that reason. childItems() is what "on the screen"
+    means.
+    """
+    if root is None:
+        return None
+    if root.objectName() == name:
+        return root
+    for child in root.childItems():
+        found = find_item(child, name)
+        if found is not None:
+            return found
+    return None
+
+
+def assert_progress_bar_drawn(window, image, out=sys.stderr):
+    """Is the progress bar's filled part actually on the screen?
+
+    The pixel audit cannot answer this and was never meant to: it measures ink
+    over the whole frame, and the install screen supplies plenty from the log
+    text alone. The KDE frontend shipped a bar that laid out at full width,
+    reported itself visible and opaque, and painted nothing — and passed every
+    check in this repository, its capture job included, because a page with a
+    populated log looks populated either way.
+
+    This frontend is the one whose harness used to set `installLog` directly
+    instead of calling appendLog(), so its bar was never exercised here at
+    all. That is fixed; this stops it coming back.
+    """
+    fill = find_item(window.contentItem(), "installProgressFill")
+    if fill is None:
+        print("FAIL: no item named installProgressFill in the visual tree",
+              file=out)
+        return False
+
+    track = fill.parentItem()
+    share = fill.width() / track.width() if track and track.width() > 0 else 0.0
+    print(f"    bar fill: {fill.width():.0f}x{fill.height():.0f} "
+          f"({share:.1%} of track) visible={fill.isVisible()} "
+          f"opacity={fill.opacity():.2f}", file=out)
+
+    if fill.width() <= 0 or fill.height() <= 0 or not fill.isVisible():
+        print("FAIL: the progress bar's fill has no drawable geometry", file=out)
+        return False
+
+    scale = image.width() / window.width()
+    top_left = fill.mapToScene(QPointF(0, 0)) * scale
+    rect = QRectF(top_left,
+                  QSizeF(fill.width() * scale, fill.height() * scale)).toRect()
+    rect = rect.intersected(QRect(0, 0, image.width(), image.height()))
+    if rect.isEmpty():
+        print("FAIL: the progress bar's fill maps to no pixels", file=out)
+        return False
+
+    background = image.pixel(2, 2)
+    ink = sum(
+        1
+        for y in range(rect.top(), rect.bottom() + 1)
+        for x in range(rect.left(), rect.right() + 1)
+        if image.pixel(x, y) != background
+    )
+    if ink == 0:
+        print(f"FAIL: the progress bar's fill covers {rect.width()}x"
+              f"{rect.height()} pixels and every one is the page background "
+              "— it is laid out but not painted", file=out)
+        return False
+    return True
 
 
 def settle(ms=250):
@@ -140,17 +247,96 @@ def main():
     for name, page, _caption in PAGES:
         root.setProperty("currentPage", page)
         if page == 4:
-            root.setProperty("installLog", FIXTURE_LOG)
+            # Through appendLog(), the function a real install calls — so the
+            # bar, the step caption and the log rendering are all the live
+            # code path. Assigning installLog directly, as this used to, is
+            # how a screen can be "captured" without running any of it.
+            for line in fixture_lines():
+                QMetaObject.invokeMethod(root, "appendLog",
+                                         Q_ARG(QVariant, line))
+            # The fill has `Behavior on width { NumberAnimation }`, so it
+            # arrives at its final width over a few hundred milliseconds.
+            # Grabbing on the usual 300ms settle can catch it part-way and
+            # photograph a bar narrower than the install really is.
+            settle(700)
         if page == 5:
             root.setProperty("installSuccess", True)
+        if name == "07-recovery":
+            QMetaObject.invokeMethod(root, "appendLog",
+                                     Q_ARG(QVariant, RECOVERY_EVENT))
+            if not root.property("recoveryKey"):
+                print("  !! the recovery_key event did not parse",
+                      file=sys.stderr)
+                sys.exit(1)
         settle(300)
         image = window.grabWindow()
         path = os.path.join(out, f"{name}.png")
         image.save(path)
         frames.append(path)
+
+        # The install screen is the one with a progress bar, and a bar that
+        # lays out but paints nothing is invisible to the pixel audit. Fail
+        # rather than publish a documentation image of a bar that is not
+        # there.
+        if page == 4 and not assert_progress_bar_drawn(window, image):
+            sys.exit(1)
         finding = audit(image, name)
         finding["png"] = path
         finding["text"] = " ".join(page_text(window.contentItem()))
+
+        # The recovery frame is the one screen where a correct-looking render
+        # can still be wrong: the panel can draw without the key in it, and
+        # Restart can be live before the acknowledgement. Neither shows up in
+        # a pixel histogram.
+        if name == "07-recovery":
+            key = root.property("recoveryKey")
+            if key not in finding["text"]:
+                print("  !! the recovery key is not in the rendered text — "
+                      "the panel did not draw (#129)", file=sys.stderr)
+                sys.exit(1)
+            # The key alone is not enough. On the first run of this frame
+            # every LABEL was empty -- installer.qml keeps its own copy of
+            # the contract defaults and had not been given the recovery
+            # keys -- and the check still passed, because the key is set
+            # from the event rather than from the copy table. Assert on a
+            # contract-sourced string too, or this frame photographs a
+            # panel of blank buttons and calls it covered.
+            # Read from the canonical contract, not from the QML: that is
+            # what makes this catch drift between installer.qml's own copy
+            # table and shared/branding/copy-defaults.json.
+            # REPO is frontends/niri; the contract lives two levels up.
+            contract_path = os.path.join(
+                os.path.dirname(os.path.dirname(REPO)),
+                "shared", "branding", "copy-defaults.json")
+            if not os.path.exists(contract_path):
+                print("  .. shared/branding is absent; this tree is checked "
+                      "out without the monorepo, so the copy-table check is "
+                      "skipped", file=sys.stderr)
+                findings.append(finding)
+                continue
+            with open(contract_path) as fh:
+                contract = json.load(fh)
+            for key in ("recovery_key_title", "recovery_key_ack",
+                        "recovery_key_copy"):
+                want = contract[key]
+                if want not in finding["text"]:
+                    print(f"  !! {key} is not in the rendered text. The copy "
+                          "table in installer.qml is a hand-written duplicate "
+                          "of copy-defaults.json and nothing enforces it; a "
+                          "key added to the contract and not to that table "
+                          "renders as an empty string (#129).",
+                          file=sys.stderr)
+                    sys.exit(1)
+            restart = find_item(window.contentItem(), "doneRestartButton")
+            if restart is None:
+                print("  !! no doneRestartButton in the visual tree",
+                      file=sys.stderr)
+                sys.exit(1)
+            if restart.property("enabled"):
+                print("  !! Restart is live before the recovery key was "
+                      "acknowledged (#129)", file=sys.stderr)
+                sys.exit(1)
+
         findings.append(finding)
 
     failures = []

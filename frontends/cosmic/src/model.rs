@@ -14,7 +14,9 @@ pub struct Recipe {
     pub btrfs_subvolumes: bool,
     pub encryption: Encryption,
     /// Empty in live-ISO mode: bootc installs the running container.
-    #[serde(skip_serializing_if = "String::is_empty")]
+    /// `default` is what lets that empty form be read back: it is omitted
+    /// on write, so without it a live-ISO recipe cannot be deserialized.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub image: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub target_imgref: String,

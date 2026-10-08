@@ -205,6 +205,20 @@ template $BootcProgress: Box {
             "caption",
           ]
         }
+
+        // progress_note from the branding contract, set by views/progress.py.
+        Label progress_note {
+          wrap: true;
+          wrap-mode: word_char;
+          xalign: 0;
+          halign: start;
+          label: "";
+
+          styles [
+            "dim-label",
+            "caption",
+          ]
+        }
       }
 
       Label progress_percentage {

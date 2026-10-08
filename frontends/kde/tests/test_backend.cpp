@@ -3,9 +3,12 @@
 #include "branding_defaults.h"
 #include "readiness.h"
 #include "recipe.h"
+#include "installercontroller.h"
+#include "tpm.h"
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -32,6 +35,28 @@ private slots:
     void readinessWriteStampFailsWithEmptyRuntimeDir();
     void readinessWriteStampWritesExpectedFields();
     void readinessWriteStampBlankPageBecomesUnknown();
+
+    // TPM 2.0 detection (shared/tpm/README.md). The probe used to be the
+    // existence of /sys/class/tpm/tpm0, which a TPM 1.2 device has too.
+    void tpmProbeReadsTheVersionNotTheDirectory_data();
+    void tpmProbeReadsTheVersionNotTheDirectory();
+
+    // fisherman's progress protocol (shared/progress/README.md). KDE had no
+    // progress bar; these pin the parse that now drives one.
+    void progressStepEventMovesTheBar();
+    void progressUsesCumulativePctNotStepOverTotal();
+    void progressSubstepInterpolatesInsideTheLongStep();
+    void progressCompleteFillsTheBar();
+    void progressIgnoresNonProtocolLines();
+    void progressRejectsTheInventedStepPrefix();
+    void progressUnknownStepNameFallsBackToTheRawName();
+
+    // Recovery key (#129). The event used to be formatted into a log line
+    // and dropped, so nothing could show it after the install.
+    void recoveryKeyIsKeptNotJustPrinted();
+    void recoveryKeyHoldsRestartUntilAcknowledged();
+    void recoveryKeyAbsentMeansNoGate();
+    void progressRendersEventsForTheLogPane();
 };
 
 void BackendTest::recipeDefaults()
@@ -328,6 +353,205 @@ void BackendTest::readinessWriteStampBlankPageBecomesUnknown()
     QFile stamp(QDir(dir.path()).filePath(QStringLiteral("tuna-installer-ready")));
     QVERIFY(stamp.open(QIODevice::ReadOnly | QIODevice::Text));
     QVERIFY(QString::fromUtf8(stamp.readAll()).contains(QStringLiteral("page=unknown")));
+}
+
+
+// ---------------------------------------------------------------------------
+// fisherman progress protocol
+//
+// fisherman writes newline-delimited JSON to stdout and nothing else. These
+// tests exist because two other frontends shipped parsers for a "[n/9] "
+// prefix it has never written: their bars sat at zero for every real install
+// while their fixtures, written in the same invented shape, showed one
+// moving. progressRejectsTheInventedStepPrefix() is that case, pinned.
+
+static QString stepEvent(int step, int total, const char *name, int cumulative, int weight)
+{
+    return QStringLiteral(
+        "{\"type\":\"step\",\"step\":%1,\"total_steps\":%2,\"step_name\":\"%3\","
+        "\"cumulative_pct\":%4,\"weight_pct\":%5}")
+        .arg(step).arg(total).arg(QString::fromLatin1(name)).arg(cumulative).arg(weight);
+}
+
+// Every test below drives the controller through loadDemoState(), its public
+// harness hook, which splits the text on newlines and runs each line through
+// the same appendLine() the live QProcess path uses. Feeding the real entry
+// point matters here more than usual: the bug this replaces survived because
+// harnesses wrote to the frontend's state instead of through its code.
+static void feed(InstallerController &c, const QStringList &lines)
+{
+    c.loadDemoState(lines.join(QLatin1Char('\n')), 0);
+}
+
+void BackendTest::progressStepEventMovesTheBar()
+{
+    InstallerController c;
+    QVERIFY(qFuzzyIsNull(c.installFraction()));
+
+    feed(c, {stepEvent(5, 8, "Installing OS", 1, 87)});
+
+    QCOMPARE(c.installStep(), 5);
+    QCOMPARE(c.installTotalSteps(), 8);
+    QCOMPARE(c.installFraction(), 0.01);
+}
+
+void BackendTest::progressUsesCumulativePctNotStepOverTotal()
+{
+    // step/total would put step 5 of 8 at 62%. The real position is 1%:
+    // "Installing OS" has not started yet and carries 87% of the time.
+    InstallerController c;
+    feed(c, {stepEvent(5, 8, "Installing OS", 1, 87)});
+
+    QVERIFY(c.installFraction() < 0.5);
+    QCOMPARE(c.installFraction(), 0.01);
+}
+
+void BackendTest::progressSubstepInterpolatesInsideTheLongStep()
+{
+    InstallerController c;
+    feed(c, {stepEvent(5, 8, "Installing OS", 1, 87)});
+    const qreal atStepStart = c.installFraction();
+
+    feed(c, {stepEvent(5, 8, "Installing OS", 1, 87),
+             QStringLiteral(
+                 "{\"type\":\"substep\",\"message\":\"Pulling image: layer 47/71\"}")});
+
+    // Without this the bar freezes for 87% of the install.
+    QVERIFY(c.installFraction() > atStepStart);
+    QVERIFY(c.installFraction() < 1.0);
+}
+
+void BackendTest::progressCompleteFillsTheBar()
+{
+    InstallerController c;
+    // cumulative_pct only ever reaches 99; `complete` is what fills the bar.
+    const QString last = stepEvent(8, 8, "Finalizing installation", 99, 1);
+    feed(c, {last});
+    QCOMPARE(c.installFraction(), 0.99);
+
+    feed(c, {last, QStringLiteral(
+                 "{\"type\":\"complete\",\"message\":\"Installation complete\"}")});
+    QCOMPARE(c.installFraction(), 1.0);
+}
+
+void BackendTest::progressIgnoresNonProtocolLines()
+{
+    // fisherman's stderr is interleaved into the same stream.
+    InstallerController c;
+    feed(c, {QStringLiteral("fisherman: warning: something"),
+             QStringLiteral("{ not json")});
+
+    QVERIFY(qFuzzyIsNull(c.installFraction()));
+    QCOMPARE(c.installStep(), 0);
+    // A line that is not an event is shown as it stands.
+    QVERIFY(c.log().contains(QStringLiteral("fisherman: warning: something")));
+}
+
+void BackendTest::progressRejectsTheInventedStepPrefix()
+{
+    // The exact bug this parse replaces. "[9/9] Finalizing" is not something
+    // fisherman writes, so it must move nothing -- a parser that accepts it
+    // is reading its own fixtures.
+    InstallerController c;
+    feed(c, {QStringLiteral("[1/9] Partitioning /dev/nvme0n1"),
+             QStringLiteral("[9/9] Finalizing")});
+
+    QVERIFY(qFuzzyIsNull(c.installFraction()));
+    QCOMPARE(c.installStep(), 0);
+}
+
+void BackendTest::progressUnknownStepNameFallsBackToTheRawName()
+{
+    // A step added to fisherman later should show its real name, not nothing.
+    InstallerController c;
+    feed(c, {stepEvent(2, 8, "Polishing the hull", 10, 5)});
+
+    QCOMPARE(c.installStepName(), QStringLiteral("Polishing the hull"));
+}
+
+void BackendTest::progressRendersEventsForTheLogPane()
+{
+    // The protocol is machine-readable and the pane is not: a log pane fed
+    // raw stdout renders as a wall of JSON.
+    InstallerController c;
+    feed(c, {stepEvent(5, 8, "Installing OS", 1, 87)});
+
+    QVERIFY(c.log().contains(QStringLiteral("[5/8] Installing OS")));
+    QVERIFY(!c.log().contains(QStringLiteral("cumulative_pct")));
+}
+
+static QString recoveryEvent(const QString &key)
+{
+    return QStringLiteral(
+        R"({"type":"recovery_key","key":"%1",)"
+        R"("timestamp":"2026-01-01T00:00:00Z","elapsed_ms":1000})").arg(key);
+}
+
+void BackendTest::recoveryKeyIsKeptNotJustPrinted()
+{
+    InstallerController c;
+    QVERIFY(c.recoveryKey().isEmpty());
+
+    feed(c, {recoveryEvent(QStringLiteral("abcd-efgh"))});
+
+    QCOMPARE(c.recoveryKey(), QStringLiteral("abcd-efgh"));
+    // Still in the log, which is what gets pasted into a bug report.
+    QVERIFY(c.log().contains(QStringLiteral("abcd-efgh")));
+}
+
+void BackendTest::recoveryKeyHoldsRestartUntilAcknowledged()
+{
+    InstallerController c;
+    // exitCode 0: loadDemoState() marks the install finished, so succeeded()
+    // is true and the gate is live.
+    feed(c, {recoveryEvent(QStringLiteral("abcd-efgh"))});
+
+    QVERIFY2(c.recoveryKeyPending(), "an unacknowledged key must hold restart");
+    c.setRecoveryAck(true);
+    QVERIFY2(!c.recoveryKeyPending(), "ticking the box must release restart");
+}
+
+void BackendTest::recoveryKeyAbsentMeansNoGate()
+{
+    // No key means no panel and no gate: a non-TPM install must not be asked
+    // to tick a box about a key it was never given.
+    InstallerController c;
+    c.loadDemoState(QStringLiteral("some log line"), 0);
+    QVERIFY(c.succeeded());
+    QVERIFY(!c.recoveryKeyPending());
+
+    // A failed install enrolled nothing, so there is nothing to write down.
+    InstallerController failed;
+    failed.loadDemoState(recoveryEvent(QStringLiteral("abcd-efgh")), 1);
+    QCOMPARE(failed.recoveryKey(), QStringLiteral("abcd-efgh"));
+    QVERIFY(!failed.succeeded());
+    QVERIFY(!failed.recoveryKeyPending());
+}
+
+void BackendTest::tpmProbeReadsTheVersionNotTheDirectory_data()
+{
+    QTest::addColumn<QString>("tree");
+    QTest::addColumn<bool>("expected");
+
+    // shared/tpm/fixtures/ -- the same trees every frontend's probe is
+    // pointed at, so all five agree.
+    QTest::newRow("tpm2: version reads 2") << QStringLiteral("tpm2") << true;
+    QTest::newRow("tpm12: 1.2 cannot do tpm2-luks") << QStringLiteral("tpm12") << false;
+    QTest::newRow("legacy-tpm2: no version file, tpmrm0 is TPM2-only")
+        << QStringLiteral("legacy-tpm2") << true;
+    QTest::newRow("legacy-none: neither signal") << QStringLiteral("legacy-none") << false;
+}
+
+void BackendTest::tpmProbeReadsTheVersionNotTheDirectory()
+{
+    QFETCH(QString, tree);
+    QFETCH(bool, expected);
+
+    const QString root = QDir(QStringLiteral(TPM_FIXTURES_DIR)).filePath(tree);
+    if (!QFileInfo::exists(root)) {
+        QSKIP("shared/tpm/fixtures is absent; this tree is checked out alone");
+    }
+    QCOMPARE(tpm::probe2(root), expected);
 }
 
 QTEST_APPLESS_MAIN(BackendTest)

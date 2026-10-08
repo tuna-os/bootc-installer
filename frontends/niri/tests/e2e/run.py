@@ -30,7 +30,8 @@ os.environ.setdefault("BOOTC_INSTALLER_BRANDING", os.path.join(REPO, "tests", "e
 os.environ["QML2_IMPORT_PATH"] = os.path.join(REPO, "tests", "qml-stubs")
 os.environ["QML_IMPORT_PATH"] = os.environ["QML2_IMPORT_PATH"]
 
-from PyQt6.QtCore import QEventLoop, QMetaObject, QObject, QTimer, QUrl
+from PyQt6.QtCore import (QEventLoop, QMetaObject, QObject, QTimer, QUrl,
+                          Q_ARG, QVariant)
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtQml import QQmlApplicationEngine
 
@@ -95,8 +96,25 @@ def main():
     print(r.stderr, file=sys.stderr)
     if r.returncode != 0:
         sys.exit(f"FAIL: backend install exited {r.returncode}")
-    if "[9/9]" not in r.stdout:
-        sys.exit("FAIL: fisherman's output never reached step 9")
+    # Feed the backend's real output through the QML's own appendLog(), the
+    # function a live install calls, and check where the bar lands.
+    #
+    # This was `if "[9/9]" not in r.stdout`, matching a prefix fisherman has
+    # never written — the shim invented it to satisfy this line, so the
+    # assertion compared the harness with itself and passed while the QML
+    # bar sat at zero for every real install.
+    for line in r.stdout.splitlines():
+        if line.strip():
+            QMetaObject.invokeMethod(root, "appendLog", Q_ARG(QVariant, line))
+    fraction = root.property("installFraction")
+    steps = root.property("installSteps")
+    print(f"[e2e] progress bar ended at {fraction:.0%} over {steps} steps")
+    if '"type":"complete"' not in r.stdout:
+        sys.exit("FAIL: the backend's output carried no completion event")
+    if fraction != 1.0:
+        sys.exit(f"FAIL: the progress bar ended at {fraction:.0%}, not 100% — "
+                 "the QML is not parsing fisherman's progress protocol "
+                 "(shared/progress/README.md)")
     if not os.path.exists(os.path.join(E2E_DIR, "recipe.json")):
         sys.exit("FAIL: the shim recorded no recipe")
     print("OK: Niri's recipe went QML -> backend -> fisherman")

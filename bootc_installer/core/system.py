@@ -4,6 +4,8 @@ import os
 import re
 import subprocess
 
+from . import tpm_probe
+
 
 # Vendor name normalization: raw DMI vendor → clean short name.
 _VENDOR_MAP = {
@@ -32,13 +34,29 @@ _VENDOR_MAP = {
 }
 
 
+# Firmware fills unset DMI strings with vendor placeholders. Taken literally
+# they become the hostname: a KubeVirt guest reports product_name "None" and
+# was offered "none-1378"; whitebox boards say "To Be Filled By O.E.M.".
+_DMI_PLACEHOLDERS = frozenset({
+    "", "none", "null", "n/a", "na", "unknown", "not specified",
+    "not applicable", "default string", "system product name",
+    "system manufacturer", "system serial number", "to be filled by o.e.m.",
+    "to be filled by oem", "o.e.m.", "oem", "0", "0123456789",
+})
+
+
 def _read_dmi(field: str) -> str:
-    """Read a DMI field from sysfs, returning empty string on failure."""
+    """Read a DMI field from sysfs, returning empty string on failure.
+
+    Firmware placeholder values ("None", "To Be Filled By O.E.M.", ...) read
+    as empty, so callers fall back as if the field were absent.
+    """
     try:
         with open(f"/sys/devices/virtual/dmi/id/{field}") as f:
-            return f.read().strip()
+            value = f.read().strip()
     except OSError:
         return ""
+    return "" if value.lower() in _DMI_PLACEHOLDERS else value
 
 
 def _sanitize_hostname_part(s: str) -> str:
@@ -198,11 +216,28 @@ class Systeminfo:
         return f"gpu-{primary}-symbolic"
 
     @staticmethod
-    def has_tpm2() -> bool:
-        """Detect TPM2 chip via sysfs."""
+    def has_tpm2(root: str = "/") -> bool:
+        """Detect a TPM 2.0 chip, per shared/tpm/README.md.
+
+        This used to test `/sys/class/tpm/tpm0` for existence, which the
+        kernel also creates for a TPM 1.2 device -- so a 1.2 machine was
+        offered tpm2-luks and the install failed at enrolment, after the
+        disk had been partitioned.
+
+        Only the real root is cached; a test passing a fixture tree gets a
+        fresh answer each call.
+        """
+        # Checked per call, never cached: the capture harness sets it, and a
+        # value read once at import would not see it. Forces the answer ON
+        # only -- it makes the choices visible for a screenshot, and does not
+        # make them work. fisherman still fails at enrolment.
+        if tpm_probe.fake_tpm_requested():
+            return True
+        if root != "/":
+            return tpm_probe.probe_tpm2(root)
         if Systeminfo._tpm2 is not None:
             return Systeminfo._tpm2
-        Systeminfo._tpm2 = os.path.exists("/sys/class/tpm/tpm0")
+        Systeminfo._tpm2 = tpm_probe.probe_tpm2(root)
         return Systeminfo._tpm2
 
     @staticmethod
