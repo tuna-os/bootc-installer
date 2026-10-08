@@ -16,6 +16,27 @@ post-install → Windows migration → finalize) on both the systemd-boot/UKI st
 
 ---
 
+## Architecture principle
+
+Shared code is shared. A frontend contains only what it needs to feel native
+on its desktop: its widgets, its layout, its desktop integration.
+
+- **Logic goes in fisherman.** All five frontends already run fisherman, so a
+  rule that fisherman computes is computed once. Examples: validation,
+  progress percentages, disk facts, failure reports. A frontend asks
+  fisherman and shows the answer.
+- **Contracts and data go in `shared/`.** The recipe schema, branding and
+  copy, the screen contract, test fixtures and translations. A frontend reads
+  them through one thin per-language reader.
+- **A frontend owns only native UI.** If two frontends implement the same
+  rule, that rule moves to fisherman or `shared/`, and a test fails when a
+  frontend re-implements it.
+
+Every item below is judged against this principle. A feature that needs logic
+lands in fisherman or `shared/` first; the frontends then only render it.
+
+---
+
 ## Current status (measured 2026-10-08)
 
 **The repository changed shape on 2026-09-17.** Four separate frontend
@@ -112,8 +133,11 @@ in this repository.
 | Feature | Where | What it fixes |
 |---|---|---|
 | Boot with SELinux enforcing | `shared/e2e/` | Label the SSH test files, then stop patching `enforcing=0` into the boot entries. CI then proves that installs boot with SELinux enforcing. |
-| Encrypted install end to end | `e2e.yml` | Add LUKS-passphrase and TPM2 (swtpm) variants to the install-and-boot VM matrix. Today the end-to-end installs are unencrypted. |
 | Browser click-through for KDE and COSMIC | `shared/browser/` | Finish the KDE wasm build (#104, PR #169) and find a route for COSMIC (#105), so a browser clicks through all five frontends. |
+
+Encrypted installs (LUKS passphrase and TPM2) already have end-to-end tests
+in `projectbluefin/dakota-iso` and `tuna-os/tunaos`. This repository does not
+duplicate them.
 
 ### Release and distribution
 
