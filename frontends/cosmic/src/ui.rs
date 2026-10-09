@@ -69,6 +69,17 @@ fn t_disk(key: &str, disk: &str) -> String {
     branding::get().text_with(key, &[("disk", disk)])
 }
 
+/// What an encryption type is called: `suffix` is `"_label"` or
+/// `"_description"` (shared/branding/README.md, "Encryption choices").
+fn encryption_text(enc_type: &str, suffix: &str) -> String {
+    let id = if enc_type.is_empty() {
+        "none"
+    } else {
+        enc_type
+    };
+    t_line(&format!("encryption_{}{suffix}", id.replace('-', "_")))
+}
+
 fn with_product(s: &str) -> String {
     s.replace("{product}", branding::name())
 }
@@ -110,9 +121,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
         }
         Page::Options => {
             let choices = available_encryption_choices(app.has_tpm());
-            let current = choices
-                .iter()
-                .find(|c| c.id == recipe.encryption.enc_type);
+            let current = choices.iter().find(|c| **c == recipe.encryption.enc_type);
             let mut t = vec![
                 OPTIONS_TITLE.to_string(),
                 OPTIONS_SUBTITLE.to_string(),
@@ -125,8 +134,8 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 OPTIONS_DISK_ENCRYPTION.to_string(),
             ];
             if let Some(c) = current {
-                t.push(c.label.to_string());
-                t.push(c.description.to_string());
+                t.push(encryption_text(c, "_label"));
+                t.push(encryption_text(c, "_description"));
             }
             if recipe.encryption.enc_type.contains("passphrase") {
                 t.push(OPTIONS_PASSPHRASE.to_string());
@@ -149,7 +158,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             OPTIONS_FILESYSTEM.to_string(),
             recipe.filesystem.clone(),
             OPTIONS_ENCRYPTION.to_string(),
-            recipe.encryption.enc_type.clone(),
+            encryption_text(&recipe.encryption.enc_type, "_label"),
             OPTIONS_HOSTNAME.to_string(),
             recipe.hostname.clone(),
             CONFIRM_IMAGE.to_string(),
@@ -391,17 +400,20 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
 
     // tunaOS#734: this list is `has_tpm`-filtered, same set XFCE offers on
     // this hardware, and `idx` below is a position in it — NOT in the full
-    // `ENCRYPTION_CHOICES` table. `update()`'s `EncryptionChanged` handler
+    // `ENCRYPTION_TYPES` list. `update()`'s `EncryptionChanged` handler
     // rebuilds the identical filtered list before indexing into it, so the
     // two stay in lockstep without passing the list through a message.
     let enc_choices = available_encryption_choices(app.has_tpm());
     let enc_index = enc_choices
         .iter()
-        .position(|c| c.id == recipe.encryption.enc_type);
-    let enc_labels: Vec<&str> = enc_choices.iter().map(|c| c.label).collect();
+        .position(|c| *c == recipe.encryption.enc_type);
+    let enc_labels: Vec<String> = enc_choices
+        .iter()
+        .map(|c| encryption_text(c, "_label"))
+        .collect();
     let enc_description = enc_index
         .and_then(|i| enc_choices.get(i))
-        .map(|c| c.description)
+        .map(|c| encryption_text(c, "_description"))
         .unwrap_or_default();
     // "luks-passphrase" and "tpm2-luks-passphrase" both contain this
     // substring; bare "tpm2-luks" and "none" don't. Same test `encryption_ok()`
@@ -427,8 +439,8 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
             .description(enc_description)
             // Handed over by value, not as `.as_slice()`: the returned
             // `Element` outlives this function, so a borrow of the local
-            // `Vec` would not compile (E0515). `Vec<&'static str>` converts
-            // into an owned `Cow<[&str]>`, which the dropdown keeps.
+            // `Vec` would not compile (E0515). `Vec<String>` converts into
+            // an owned `Cow<[String]>`, which the dropdown keeps.
             .control(widget::dropdown(
                 enc_labels,
                 enc_index,
@@ -494,7 +506,7 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
         ))
         .add(widget::settings::item(
             OPTIONS_ENCRYPTION,
-            widget::text::body(recipe.encryption.enc_type.clone()),
+            widget::text::body(encryption_text(&recipe.encryption.enc_type, "_label")),
         ))
         .add(widget::settings::item(
             OPTIONS_HOSTNAME,
@@ -741,4 +753,30 @@ fn page_frame<'a>(
     .spacing(spacing.space_s)
     .height(Length::Fill)
     .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::encryption_text;
+    use crate::ENCRYPTION_TYPES;
+
+    #[test]
+    fn every_encryption_type_has_a_label_and_a_description() {
+        for id in ENCRYPTION_TYPES {
+            assert!(!encryption_text(id, "_label").is_empty(), "{id}: no label");
+            assert!(
+                !encryption_text(id, "_description").is_empty(),
+                "{id}: no description"
+            );
+        }
+    }
+
+    #[test]
+    fn the_confirm_page_names_the_type_rather_than_its_id() {
+        // The summary row used to print the raw recipe id.
+        assert_eq!(encryption_text("luks-passphrase", "_label"), "Passphrase");
+        assert_eq!(encryption_text("none", "_label"), "No encryption");
+        // fisherman reads "" as none; so does the summary.
+        assert_eq!(encryption_text("", "_label"), "No encryption");
+    }
 }
