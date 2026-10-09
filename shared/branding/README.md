@@ -75,6 +75,7 @@ about to be erased.
 | `encryption_<type>_label`, `encryption_<type>_description` | each encryption choice, and the confirm page's encryption row (the label) |
 | `confirm_title`, `confirm_subtitle`, `confirm_body`, `confirm_warning`, `confirm_button` | the last page before the disk is written |
 | `progress_title`, `progress_note` | while fisherman runs |
+| `step_<step_id>` | the label of the install step that is running |
 | `recovery_key_title`, `recovery_key_body`, `recovery_key_copy`, `recovery_key_ack` | the recovery-key panel after a TPM enrolment |
 | `done_title`, `done_subtitle`, `done_restart`, `done_failed_title` | the done page |
 | `store_label` | the store link on the done page, shown only when `store_url` is set |
@@ -92,6 +93,36 @@ It builds each key from the id and gets the words from its resolver. The
 confirm page shows the label of the chosen type, never the id. `tests/unit/test_encryption_choices.py` compares the list in each
 frontend with the schema, and fails if a frontend hardcodes the words. Do
 not set a label to `""`: the choice then has no name.
+
+### Install steps
+
+fisherman gives each step it starts a stable `step_id` on its progress
+stream (`shared/progress/README.md`). The label of that step is the copy key
+`step_<step_id>`, for example `step_install_os`. The ids are:
+
+| `step_id` | fisherman step | Default label |
+|---|---|---|
+| `prepare_disk` | Preparing disk | Checking your drive… |
+| `partition` | Partitioning disk | Setting up your drive… |
+| `format_efi` | Formatting EFI partition | Preparing the boot system… |
+| `luks` | Setting up disk encryption | Securing your drive… |
+| `format_root` | Formatting root filesystem | Formatting your drive… |
+| `mount` | Mounting filesystem | Almost ready… |
+| `format_var` | Formatting data disk (/var) | Preparing data storage… |
+| `install_os` | Installing OS | Installing {name}… |
+| `tpm2_enroll` | Enrolling TPM2 auto-unlock | Setting up auto-unlock… |
+| `flatpaks` | Copying system Flatpaks | Installing your apps… |
+| `configure` | Configuring installed system | Configuring your system… |
+| `finalize` | Finalizing installation | Finishing up… |
+
+fisherman owns the list. It never renames or reuses an id; a new step gets
+a new id. A frontend keeps no list: it builds the key from the id on the
+event and gets the words from its resolver. When the event has no
+`step_id`, or the copy has no line for it, the frontend shows fisherman's
+`step_name`. Thus a new step shows its real name until it gets a key. Do not
+set a step label to `""`: the frontend then shows the step name.
+`tests/unit/test_shared_progress.py` compares these keys with the ids in
+fisherman's `internal/progress/bar.go`.
 
 `confirm_quotes` maps a language tag (`"pt_BR"`) to lines used as the
 confirm subtitle in that language. `assets` holds absolute host paths
