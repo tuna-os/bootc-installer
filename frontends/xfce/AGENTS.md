@@ -40,9 +40,12 @@ This trips people up because it works one way in development and another when
 packaged:
 
 - **Outside Flatpak:** `sudo /usr/local/bin/fisherman`
-- **Inside Flatpak:** `pkexec /app/bin/fisherman`, which requires the polkit
-  action `org.tunaos.Installer.install` to be installed **on the host** by the
-  ISO build — not by this repo.
+- **Inside Flatpak:** `flatpak-spawn --host bash -c 'pkexec
+  /usr/local/bin/fisherman "$1"; exit $?' -- <recipe>`, which requires the
+  polkit action for it to be installed **on the host** by the ISO build — not
+  by this repo. The host bash is there so fisherman's parent is a process
+  this frontend owns (fisherman cancels when its parent dies); the wrapper
+  is started in its own process group (`app.spawn_fisherman`).
 
 A change to how the backend is launched has to work in both, and the Flatpak
 path can only really be exercised from a built Flatpak:

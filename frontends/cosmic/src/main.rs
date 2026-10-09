@@ -725,7 +725,8 @@ impl TunaInstaller {
     ///
     /// stdout carries the newline-delimited JSON protocol
     /// (shared/progress/README.md); stderr is plain text and is interleaved
-    /// into the same stream, which the parser passes through untouched.
+    /// into the same stream line by line (see `merged_lines`), which the
+    /// parser passes through untouched.
     fn stream_fisherman(recipe: Recipe) -> impl Stream<Item = Message> {
         cosmic::iced::stream::channel(64, async move |mut output| {
             let json = match serde_json::to_string_pretty(&recipe) {
@@ -744,15 +745,11 @@ impl TunaInstaller {
                 }
             };
 
-            // pkexec /app/bin/fisherman in Flatpak, sudo otherwise.
-            let cmd = offline::fisherman_command();
-            let mut child = match TokioCommand::new(&cmd[0])
-                .args(&cmd[1..])
-                .arg(&path)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-            {
+            // flatpak-spawn --host bash -c 'pkexec /usr/local/bin/fisherman
+            // "$1"' in Flatpak, sudo /usr/local/bin/fisherman otherwise.
+            let mut cmd = offline::fisherman_command();
+            cmd.push(path.display().to_string());
+            let mut child = match spawn_wrapper(&cmd) {
                 Ok(child) => child,
                 Err(e) => {
                     let _ = std::fs::remove_file(&path);
@@ -765,25 +762,15 @@ impl TunaInstaller {
                 }
             };
 
-            let stdout = child.stdout.take();
-            let stderr = child.stderr.take();
-            if let Some(stdout) = stdout {
-                let mut lines = BufReader::new(stdout).lines();
-                while let Ok(Some(line)) = lines.next_line().await {
-                    if output.send(Message::InstallLine(line)).await.is_err() {
-                        break;
-                    }
-                }
-            }
-            // Drained after stdout: fisherman writes its failure summary
-            // there, and dropping it is how a failed install used to reach
-            // the Done page with nothing to show.
-            if let Some(stderr) = stderr {
-                let mut lines = BufReader::new(stderr).lines();
-                while let Ok(Some(line)) = lines.next_line().await {
-                    if output.send(Message::InstallLine(line)).await.is_err() {
-                        break;
-                    }
+            // Both pipes at once. stdout used to be read to EOF before stderr
+            // was touched, so a fisherman that filled the stderr pipe (64 KiB)
+            // blocked on write while this waited for stdout to end: both
+            // processes hung for good. stderr still matters — fisherman writes
+            // its failure summary there.
+            let mut lines = merged_lines(child.stdout.take(), child.stderr.take());
+            while let Some(line) = lines.recv().await {
+                if output.send(Message::InstallLine(line)).await.is_err() {
+                    break;
                 }
             }
 
@@ -802,6 +789,56 @@ impl TunaInstaller {
             let _ = output.send(Message::InstallFinished(Ok(code))).await;
         })
     }
+}
+
+/// Start fisherman's wrapper with piped output, as the leader of its own
+/// process group.
+///
+/// The wrapper is the only process of the install this user can signal;
+/// fisherman runs as root and cancels when its parent dies
+/// (tuna-os/fisherman#267). The shared contract is "kill your wrapper's
+/// process group", which must never be the installer's own group. This
+/// frontend has no cancel UI, so nothing signals it yet.
+fn spawn_wrapper(argv: &[String]) -> std::io::Result<tokio::process::Child> {
+    TokioCommand::new(&argv[0])
+        .args(&argv[1..])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0)
+        .spawn()
+}
+
+/// Every line from a child's stdout and stderr, read concurrently.
+///
+/// Each pipe gets its own task, so neither can fill up while the other is
+/// being waited on. Lines are interleaved in arrival order; a line is never
+/// split across the two streams. The tasks keep draining after the receiver
+/// is dropped, so an abandoned install page cannot leave the child blocked on
+/// a full pipe.
+fn merged_lines<O, E>(stdout: Option<O>, stderr: Option<E>) -> tokio::sync::mpsc::UnboundedReceiver<String>
+where
+    O: tokio::io::AsyncRead + Unpin + Send + 'static,
+    E: tokio::io::AsyncRead + Unpin + Send + 'static,
+{
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    if let Some(stdout) = stdout {
+        let tx = tx.clone();
+        tokio::spawn(async move {
+            let mut lines = BufReader::new(stdout).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = tx.send(line);
+            }
+        });
+    }
+    if let Some(stderr) = stderr {
+        tokio::spawn(async move {
+            let mut lines = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = tx.send(line);
+            }
+        });
+    }
+    rx
 }
 
 #[cfg(test)]
@@ -915,6 +952,71 @@ mod tests {
     /// by default: it needs TUNA_E2E_DISK and the shim.
     ///
     ///     TUNA_E2E_DISK=/dev/loopN cargo test --release -- --ignored e2e
+    /// The process group a pid belongs to: field 5 of /proc/<pid>/stat.
+    fn pgrp_of(pid: &str) -> u32 {
+        let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).unwrap();
+        // comm (field 2) may hold spaces; the rest follows its closing ')'.
+        let rest = &stat[stat.rfind(')').unwrap() + 2..];
+        rest.split_whitespace().nth(2).unwrap().parse().unwrap()
+    }
+
+    #[test]
+    fn wrapper_leads_its_own_process_group() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut child =
+                super::spawn_wrapper(&["sleep".to_string(), "30".to_string()]).expect("sleep");
+            let pid = child.id().unwrap();
+            assert_eq!(pgrp_of(&pid.to_string()), pid, "the wrapper is not a group leader");
+            assert_ne!(pgrp_of(&pid.to_string()), pgrp_of("self"));
+            // Signalling that group reaches the wrapper, not this process.
+            let killed = std::process::Command::new("kill")
+                .args(["-TERM", "--", &format!("-{pid}")])
+                .status()
+                .unwrap();
+            assert!(killed.success());
+            let status = child.wait().await.unwrap();
+            use std::os::unix::process::ExitStatusExt;
+            assert_eq!(status.signal(), Some(15));
+        });
+    }
+
+    /// A child that writes more than a pipe buffer to stderr before it
+    /// writes anything to stdout. Reading stdout to EOF first deadlocked:
+    /// the child blocked on the full stderr pipe and never closed stdout.
+    #[test]
+    fn merged_lines_drains_a_full_stderr_pipe_before_stdout() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut child = super::TokioCommand::new("sh")
+                .arg("-c")
+                // 256 KiB on one stderr line, then a stdout line.
+                .arg("head -c 262144 /dev/zero | tr '\\0' x >&2; echo >&2; echo stdout-done")
+                .stdout(super::Stdio::piped())
+                .stderr(super::Stdio::piped())
+                .spawn()
+                .expect("sh");
+            let mut rx = super::merged_lines(child.stdout.take(), child.stderr.take());
+            let collect = async {
+                let mut got = Vec::new();
+                while let Some(line) = rx.recv().await {
+                    got.push(line);
+                }
+                got
+            };
+            let got = tokio::time::timeout(std::time::Duration::from_secs(20), collect)
+                .await
+                .expect("deadlocked: stderr was not drained while stdout was read");
+            let status = child.wait().await.unwrap();
+            assert!(status.success());
+            assert!(got.iter().any(|l| l == "stdout-done"), "stdout line missing");
+            assert!(
+                got.iter().any(|l| l.len() == 262144 && l.bytes().all(|b| b == b'x')),
+                "the 256 KiB stderr line was not delivered whole"
+            );
+        });
+    }
+
     #[test]
     #[ignore]
     fn e2e_install_path_reaches_fisherman() {

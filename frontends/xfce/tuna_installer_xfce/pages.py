@@ -185,6 +185,9 @@ class DestinationPage(Page):
         return None
 
 
+FILESYSTEMS = ("xfs", "ext4", "btrfs", "zfs")
+
+
 class SetupPage(Page):
     # "Disk encryption" is a keyword of the shared screen contract
     # (shared/walkthrough/parity_report.py). With the old title, "Filesystem
@@ -227,9 +230,15 @@ class SetupPage(Page):
         adv = Gtk.Expander(label="Advanced")
         advbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin=6)
         self.fs_combo = Gtk.ComboBoxText()
-        for fs in ("xfs", "ext4", "btrfs", "zfs"):
+        for fs in FILESYSTEMS:
             self.fs_combo.append(fs, fs)
-        self.fs_combo.set_active_id("xfs")
+        # Whether the person picked a filesystem. Until they do, the combo
+        # follows the selected image's catalog default (on_enter), and that
+        # default is what goes in the recipe.
+        self._fs_chosen = False
+        self._fs_syncing = False
+        self._show_filesystem("xfs")
+        self.fs_combo.connect("changed", self._on_fs_changed)
         fsrow = Gtk.Box(spacing=8)
         fsrow.pack_start(Gtk.Label(label="Filesystem", xalign=0), False, False, 0)
         fsrow.pack_start(self.fs_combo, False, False, 0)
@@ -256,9 +265,34 @@ class SetupPage(Page):
             return bool(p1) and p1 == p2
         return True
 
+    def _show_filesystem(self, fs):
+        """Select fs in the combo without counting it as the person's pick."""
+        if fs not in FILESYSTEMS and self.fs_combo.get_model() is not None:
+            ids = [row[1] for row in self.fs_combo.get_model()]
+            if fs not in ids:
+                self.fs_combo.append(fs, fs)
+        self._fs_syncing = True
+        try:
+            self.fs_combo.set_active_id(fs)
+        finally:
+            self._fs_syncing = False
+
+    def _on_fs_changed(self, *_):
+        if not self._fs_syncing:
+            self._fs_chosen = True
+
+    def on_enter(self):
+        if not self._fs_chosen:
+            leaf = self.win.selected_leaf()
+            self._show_filesystem((leaf.filesystem if leaf else "") or "xfs")
+
     def default_filesystem(self, leaf_default):
-        # Catalog default wins unless the user touched Advanced.
-        return self.fs_combo.get_active_id() or leaf_default or "xfs"
+        # Catalog default wins unless the user touched Advanced. This used to
+        # be `get_active_id() or leaf_default`, but the combo always had
+        # "xfs" active, so the catalog default could never apply.
+        if self._fs_chosen:
+            return self.fs_combo.get_active_id() or leaf_default or "xfs"
+        return leaf_default or "xfs"
 
 
 class IdentityPage(Page):

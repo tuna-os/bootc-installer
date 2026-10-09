@@ -13,9 +13,13 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QProcess>
 #include <QProcessEnvironment>
 #include <QTemporaryDir>
 #include <QTest>
+
+#include <csignal>
+#include <unistd.h>
 
 class BackendTest : public QObject
 {
@@ -58,6 +62,15 @@ private slots:
     void recoveryKeyHoldsRestartUntilAcknowledged();
     void recoveryKeyAbsentMeansNoGate();
     void progressRendersEventsForTheLogPane();
+
+    // stdout and stderr shared one line buffer, so a stdout event split
+    // across two reads merged with stderr output and lost its leading '{'.
+    void streamsKeepSeparatePartialLines();
+
+    // The wrapper runs pkexec under a host bash and leads its own process
+    // group, the shared cancel contract.
+    void flatpakWrapperPassesOutputAndStatusThrough();
+    void wrapperLeadsItsOwnProcessGroup();
 };
 
 void BackendTest::recipeDefaults()
@@ -304,6 +317,17 @@ void BackendTest::offlineCommandHelpers()
     const QStringList raw = {QStringLiteral("echo"), QStringLiteral("test")};
     const QStringList hostWrapped = offline::hostCommand(raw);
     QVERIFY(!hostWrapped.isEmpty());
+
+    // Flatpak: pkexec inside a host bash, so fisherman's parent is a process
+    // this frontend owns (fisherman cancels when its parent dies). Not
+    // `flatpak-spawn --host pkexec`, whose parent is the session helper.
+    QCOMPARE(offline::fishermanCommand(true),
+             (QStringList{QStringLiteral("flatpak-spawn"), QStringLiteral("--host"),
+                          QStringLiteral("bash"), QStringLiteral("-c"),
+                          QStringLiteral("pkexec /usr/local/bin/fisherman \"$1\"; exit $?"),
+                          QStringLiteral("--")}));
+    QCOMPARE(offline::fishermanCommand(false),
+             (QStringList{QStringLiteral("sudo"), QStringLiteral("/usr/local/bin/fisherman")}));
 
     if (offline::inFlatpak()) {
         QCOMPARE(hostWrapped.first(), QStringLiteral("flatpak-spawn"));
@@ -586,6 +610,92 @@ void BackendTest::tpmProbeReadsTheVersionNotTheDirectory()
         QSKIP("shared/tpm/fixtures is absent; this tree is checked out alone");
     }
     QCOMPARE(tpm::probe2(root), expected);
+}
+
+void BackendTest::streamsKeepSeparatePartialLines()
+{
+    InstallerController c;
+    const QString event = stepEvent(5, 8, "Installing OS", 1, 87);
+    const QByteArray bytes = event.toUtf8();
+    const qsizetype half = bytes.size() / 2;
+
+    // What a pipe really delivers: half an event on stdout, then a complete
+    // stderr line, then the rest of the event.
+    c.consumeStdout(bytes.left(half));
+    c.consumeStderr("pkexec: some warning\n");
+    c.consumeStdout(bytes.mid(half) + "\n");
+    c.consumeStderr("trailing stderr without a newline");
+    c.flushStreams();
+
+    // The event parsed: under the shared buffer it never did.
+    QCOMPARE(c.installStep(), 5);
+    QCOMPARE(c.installTotalSteps(), 8);
+    QCOMPARE(c.installFraction(), 0.01);
+
+    const QString log = c.log();
+    // stderr still reaches the pane, intact and on its own line.
+    QVERIFY(log.contains(QStringLiteral("[stderr] pkexec: some warning\n")));
+    QVERIFY(log.contains(QStringLiteral("[stderr] trailing stderr without a newline")));
+    QVERIFY(log.contains(QStringLiteral("[5/8] Installing OS")));
+    // No fragment of the event leaked into the pane as raw text.
+    QVERIFY(!log.contains(QStringLiteral("\"type\"")));
+}
+
+void BackendTest::flatpakWrapperPassesOutputAndStatusThrough()
+{
+#if !QT_CONFIG(process)
+    QSKIP("QProcess is not available on this platform (wasm)");
+#else
+    // Run the wrapper's bash for real (everything after flatpak-spawn
+    // --host) with pkexec stubbed on PATH, and a recipe path a shell would
+    // act on if it were interpolated into the script.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString stub = dir.filePath(QStringLiteral("pkexec"));
+    QFile f(stub);
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write("#!/bin/sh\nprintf '%s|%s\\n' \"$1\" \"$2\"\necho to-stderr >&2\nexit 7\n");
+    f.close();
+    f.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+
+    QStringList cmd = offline::fishermanCommand(true);
+    const QString recipe = dir.filePath(QStringLiteral("a b $(touch pwned) ;x.json"));
+    cmd << recipe;
+    cmd.removeFirst(); // flatpak-spawn
+    cmd.removeFirst(); // --host
+
+    QProcess p;
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert(QStringLiteral("PATH"), dir.path() + QLatin1Char(':') + env.value(QStringLiteral("PATH")));
+    p.setProcessEnvironment(env);
+    p.setWorkingDirectory(dir.path());
+    p.start(cmd.takeFirst(), cmd);
+    QVERIFY(p.waitForFinished(10000));
+    QCOMPARE(p.exitCode(), 7);
+    QCOMPARE(QString::fromUtf8(p.readAllStandardOutput()),
+             QStringLiteral("/usr/local/bin/fisherman|") + recipe + QLatin1Char('\n'));
+    QCOMPARE(p.readAllStandardError(), QByteArray("to-stderr\n"));
+    QVERIFY(!QFile::exists(dir.filePath(QStringLiteral("pwned"))));
+#endif
+}
+
+void BackendTest::wrapperLeadsItsOwnProcessGroup()
+{
+#if !QT_CONFIG(process) || !defined(Q_OS_UNIX)
+    QSKIP("needs QProcess and POSIX process groups");
+#else
+    QProcess p;
+    offline::startInOwnProcessGroup(p);
+    p.start(QStringLiteral("sleep"), {QStringLiteral("30")});
+    QVERIFY(p.waitForStarted(5000));
+    const pid_t pid = static_cast<pid_t>(p.processId());
+    QCOMPARE(::getpgid(pid), pid);
+    QVERIFY(::getpgid(pid) != ::getpgrp());
+    // Signalling that group reaches the wrapper, not this process.
+    QCOMPARE(::killpg(pid, SIGTERM), 0);
+    QVERIFY(p.waitForFinished(5000));
+    QCOMPARE(p.exitStatus(), QProcess::CrashExit);
+#endif
 }
 
 QTEST_APPLESS_MAIN(BackendTest)

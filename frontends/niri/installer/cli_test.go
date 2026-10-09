@@ -80,6 +80,7 @@ func pathWith(dir string) string {
 }
 
 const lsblkStub = `#!/bin/sh
+[ -n "$LSBLK_ARGS_FILE" ] && printf '%s\n' "$@" > "$LSBLK_ARGS_FILE"
 [ -n "$LSBLK_FAIL" ] && exit 1
 printf '%s' "$LSBLK_JSON"
 `
@@ -151,6 +152,57 @@ func TestDiscoverDisksReturnsOnlyWholeDisks(t *testing.T) {
 	}
 	if disks[1].Name != "sda" || disks[1].Transport != "usb" {
 		t.Errorf("second disk = %+v", disks[1])
+	}
+}
+
+// The disk picker shows modelData.model, which only exists if lsblk is asked
+// for MODEL and DiskInfo carries it through. Neither was true, so no disk
+// ever showed its model.
+func TestDiscoverDisksReportsTheModel(t *testing.T) {
+	dir := t.TempDir()
+	writeStub(t, dir, "lsblk", lsblkStub)
+	argsFile := filepath.Join(dir, "lsblk-args")
+
+	lsblkJSON := `{"blockdevices":[
+		{"name":"nvme0n1","size":"476.9G","type":"disk","tran":"nvme","model":"Samsung SSD 980 PRO 500GB  "},
+		{"name":"vda","size":"20G","type":"disk","tran":null,"model":null}
+	]}`
+
+	got := runCLI(t, []string{pathWith(dir), "LSBLK_JSON=" + lsblkJSON, "LSBLK_ARGS_FILE=" + argsFile}, "discover-disks")
+	if got.code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", got.code, got.stderr)
+	}
+
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var columns string
+	lines := strings.Split(strings.TrimSpace(string(args)), "\n")
+	for i, a := range lines {
+		if a == "-o" && i+1 < len(lines) {
+			columns = lines[i+1]
+		}
+	}
+	if !strings.Contains(","+columns+",", ",MODEL,") {
+		t.Errorf("lsblk -o %q does not ask for MODEL", columns)
+	}
+
+	// Decode as the QML does: by JSON key, not through DiskInfo.
+	var disks []map[string]any
+	if err := json.Unmarshal([]byte(got.stdout), &disks); err != nil {
+		t.Fatalf("stdout is not a JSON array: %v\n%s", err, got.stdout)
+	}
+	if len(disks) != 2 {
+		t.Fatalf("got %d disks, want 2: %s", len(disks), got.stdout)
+	}
+	if m := disks[0]["model"]; m != "Samsung SSD 980 PRO 500GB" {
+		t.Errorf("disks[0].model = %#v, want the trimmed model", m)
+	}
+	// A disk without a model leaves the key out, which the QML's
+	// (modelData.model ? ... : "") already handles.
+	if m, ok := disks[1]["model"]; ok {
+		t.Errorf("disks[1].model = %#v, want no key", m)
 	}
 }
 

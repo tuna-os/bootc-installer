@@ -19,6 +19,7 @@ interpret one.
 import logging
 import os
 import signal
+import subprocess
 
 from bootc_installer.utils import fisherman_runner
 
@@ -54,7 +55,6 @@ class FishermanSession:
         self.log_path = log_path
         # Injectable for tests; defaults to the real subprocess.Popen.
         if popen is None:
-            import subprocess
             popen = subprocess.Popen
         self._popen = popen
 
@@ -86,12 +86,38 @@ class FishermanSession:
         except OSError as e:
             logger.error("Failed to delete stale log: %s", e)
 
+    def _create_private_log(self):
+        """Create the log 0600 before bash's redirect opens it.
+
+        The `>` redirect in fisherman_runner.build_argv used to create the
+        file, so its mode followed the umask: 0644 under the usual 022,
+        readable by every local user. The log carries fisherman's full
+        output, including the TPM recovery key. bash's `>` truncates an
+        existing file without touching its mode, so creating it here first
+        is enough. Not done with `umask 077` in the bash wrapper: fisherman
+        inherits that umask and, as root, writes the target system's files.
+
+        O_NOFOLLOW refuses a symlink planted at the path; fchmod covers a
+        stale file that _reset_log_file() could not remove.
+        """
+        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+        try:
+            fd = os.open(self.log_path, flags, 0o600)
+        except OSError as e:
+            logger.error("Could not create private log %s: %s", self.log_path, e)
+            return
+        try:
+            os.fchmod(fd, 0o600)
+        finally:
+            os.close(fd)
+
     def launch(self):
         """Stage fisherman if needed, then start it. Returns argv used, or None on staging failure."""
         if not self.stage():
             return None
         os.makedirs(self._cache_dir, exist_ok=True)
         self._reset_log_file()
+        self._create_private_log()
         argv = fisherman_runner.build_argv(
             self.recipe_path,
             in_flatpak=self._in_flatpak,
@@ -103,7 +129,14 @@ class FishermanSession:
         # bash handles writing stdout+stderr to the log file via shell
         # redirection. Do NOT pass stdout= here — flatpak-spawn uses D-Bus,
         # not a real pipe fd, so a Python-side pipe would never fill.
-        self.proc = self._popen(argv)
+        #
+        # start_new_session: the wrapper (bash, or flatpak-spawn) leads its
+        # own process group, which terminate() signals. Without it the
+        # wrapper shared the GUI's group, and terminate()'s
+        # killpg(getpgid(wrapper)) sent SIGTERM to the installer itself.
+        # fisherman runs as root under pkexec, so the wrapper is all this
+        # process can signal; fisherman cancels when its parent dies.
+        self.proc = self._popen(argv, start_new_session=True)
         logger.info("Fisherman PID: %s", self.proc.pid)
         return argv
 
@@ -161,11 +194,23 @@ class FishermanSession:
             self._log_file = None
         return lines
 
-    def terminate(self):
-        """Send SIGTERM to fisherman's process group (e.g. window closed).
+    # How long terminate() waits for the wrapper to exit after SIGTERM.
+    TERMINATE_TIMEOUT = 5.0
 
-        fisherman's own cleanup handler attempts to unmount filesystems and
-        close LUKS devices; this only asks it to run that handler.
+    def terminate(self):
+        """Cancel the install (e.g. window closed): SIGTERM the wrapper's group.
+
+        launch() starts the wrapper as the leader of its own process group,
+        so the group id is its pid. That is signalled directly rather than
+        through os.getpgid(): if the wrapper were ever in this process's
+        group, getpgid() would name the installer's own group (which is what
+        used to happen), while killpg(pid) fails with ESRCH and falls back
+        to signalling the wrapper alone.
+
+        fisherman runs as root via pkexec, so it cannot be signalled from
+        here; it notices its parent's death and runs its cleanup handler
+        (unmount, close LUKS), exiting 130. The wrapper is then reaped with
+        a bounded wait so its exit status is collected, not left a zombie.
         """
         if self.proc is None:
             return
@@ -173,12 +218,18 @@ class FishermanSession:
             return
         logger.warning("Terminating fisherman (PID %s) due to window close", self.proc.pid)
         try:
-            os.killpg(os.getpgid(self.proc.pid), signal.SIGTERM)
+            os.killpg(self.proc.pid, signal.SIGTERM)
         except (OSError, ProcessLookupError):
             try:
                 self.proc.terminate()
             except OSError as e:
                 logger.debug("Could not terminate fisherman process: %s", e)
+        try:
+            code = self.proc.wait(timeout=self.TERMINATE_TIMEOUT)
+            logger.info("fisherman wrapper exited with %s after SIGTERM", code)
+        except subprocess.TimeoutExpired:
+            logger.warning("fisherman wrapper (PID %s) still running %.0fs after SIGTERM",
+                           self.proc.pid, self.TERMINATE_TIMEOUT)
 
     def cleanup_recipe_file(self):
         """Remove the recipe JSON file — it contains plaintext passphrases and

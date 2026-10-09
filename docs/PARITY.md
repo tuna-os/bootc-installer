@@ -63,11 +63,11 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
 | Live-ISO install without download | yes | yes | yes | yes | yes |
 | Offline image stores | yes | yes | yes | yes | yes |
 | Disk choice with erase warning | yes | yes | yes | yes | yes |
-| Filesystem choice | yes | yes | yes | no (xfs) | yes (Advanced) |
+| Filesystem choice | yes | no (xfs, shown on confirm) | yes | no (xfs) | yes (Advanced) |
 | Encryption: none / passphrase | yes | yes | yes | yes | yes |
 | Encryption: TPM / TPM + passphrase | yes | yes | yes | yes | yes |
 | Recovery key page after TPM enrolment | yes | yes | yes | yes | yes |
-| Hostname | generated, editable on confirm | field | field | field on confirm | field |
+| Hostname | generated, editable on confirm | no (branding default, shown on confirm) | field | field on confirm | field |
 | User account | yes (companion or wizard) | no | no | no | yes |
 | Phone companion (QR) | yes | no | no | no | no |
 | Windows data migration (slurp) | yes | no | no | no | no |

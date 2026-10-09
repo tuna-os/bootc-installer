@@ -156,6 +156,15 @@ public:
     // steps can be photographed. Runs no process and touches no disk.
     Q_INVOKABLE void loadDemoState(const QString &log, int exitCode);
 
+    // fisherman's output, one read at a time. The live QProcess path calls
+    // these from readyReadStandardOutput/-Error and finished(); they are
+    // public so the tests can interleave the two streams the way a pipe does.
+    // Only stdout lines are parsed as progress events.
+    void consumeStdout(const QByteArray &data);
+    void consumeStderr(const QByteArray &data);
+    // Emits whatever partial line is left in either stream.
+    void flushStreams();
+
 Q_SIGNALS:
     void recipeChanged();
     void logChanged();
@@ -168,14 +177,13 @@ Q_SIGNALS:
 private:
     void openLogFile();
     void closeLogFile();
-    void appendLine(const QString &line);
+    void appendLine(const QString &line, bool parse = true);
     // Parses one fisherman event and updates the progress properties.
     // Returns the text to show in the log pane: the event rendered for a
-    // person, or the line unchanged when it is not an event (fisherman's
-    // stderr is interleaved into the same stream and is already readable).
+    // person, or the line unchanged when it is not an event.
     QString consumeProgress(const QString &line);
     void resetProgress();
-    void drainBuffer(const QString &prefix);
+    void drainBuffer(QByteArray &buffer, const QString &prefix, bool parse);
     void fail(const QString &message);
 
     Recipe m_recipe;
@@ -184,7 +192,9 @@ private:
     QString m_log;
     QFile *m_logFile = nullptr;
     QString m_logPath;
-    QString m_buffer;
+    // One partial line per stream; see consumeStdout().
+    QByteArray m_stdoutBuffer;
+    QByteArray m_stderrBuffer;
     QProcess *m_process = nullptr;
     bool m_finished = false;
     int m_step = 0;

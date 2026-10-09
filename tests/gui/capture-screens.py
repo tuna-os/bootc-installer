@@ -68,6 +68,10 @@ os.environ["XDG_DATA_DIRS"] = os.pathsep.join([
     os.path.join(REPO, "data"),
     os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share",
 ])
+# Show the TPM row on the encryption page. It is hidden without a TPM 2.0
+# (shared/tpm/README.md), which no CI runner has, and docs/PARITY.md is read
+# off these screenshots. Same override the other frontends' captures set.
+os.environ.setdefault("BOOTC_INSTALLER_FAKE_TPM", "1")
 # Skip the RAM / CPU / UEFI gate windows: this is a render of the wizard.
 os.environ.setdefault("IGNORE_RAM", "1")
 os.environ.setdefault("IGNORE_CPU", "1")

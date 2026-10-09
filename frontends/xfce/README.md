@@ -43,9 +43,11 @@ sudo dnf install -y python3-gobject gtk3
 ```
 
 Outside a Flatpak it invokes `sudo /usr/local/bin/fisherman`; inside it uses
-`flatpak-spawn --host pkexec /usr/local/bin/fisherman` (polkit action
-`org.tunaos.Installer.install` must be installed on the host by the ISO
-build).
+`flatpak-spawn --host bash -c 'pkexec /usr/local/bin/fisherman "$1"; exit $?'
+-- <recipe>` (polkit action `org.tunaos.Installer.install` must be installed
+on the host by the ISO build). The host bash makes fisherman's parent a
+process this frontend owns, which fisherman needs in order to cancel when
+that parent dies.
 
 ## Testing
 

@@ -4,7 +4,9 @@ package main
 // Contract: ../../INSTALLER-FRONTENDS.md §3 (privileges) and §4 (offline).
 
 import (
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -24,6 +26,77 @@ func TestFishermanCommandOutsideFlatpak(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("fishermanCommand() = %v, want %v", got, want)
 		}
+	}
+}
+
+// Not `flatpak-spawn --host pkexec`: fisherman's parent would be the host's
+// session helper, and it could never be cancelled.
+func TestFishermanCommandRunsPkexecInsideAHostBashInFlatpak(t *testing.T) {
+	got := fishermanCommandFor(true)
+	want := []string{"flatpak-spawn", "--host", "bash", "-c",
+		`pkexec /usr/local/bin/fisherman "$1"; exit $?`, "--"}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("fishermanCommandFor(true) = %q, want %q", got, want)
+	}
+}
+
+// The wrapper's bash for real (everything after `flatpak-spawn --host`),
+// pkexec stubbed on PATH, and a recipe path a shell would act on if it were
+// interpolated into the script.
+func TestFlatpakWrapperPassesOutputAndStatusThrough(t *testing.T) {
+	dir := t.TempDir()
+	writeStub(t, dir, "pkexec", "#!/bin/sh\nprintf '%s|%s\\n' \"$1\" \"$2\"\necho to-stderr >&2\nexit 7\n")
+	recipe := filepath.Join(dir, "a b $(touch pwned) ;x.json")
+	argv := append(fishermanCommandFor(true), recipe)[2:]
+
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Env = append(os.Environ(), pathWith(dir))
+	cmd.Dir = dir
+	var stdout, stderr strings.Builder
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err := cmd.Run()
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 7 {
+		t.Fatalf("exit = %v, want status 7", err)
+	}
+	if got, want := stdout.String(), "/usr/local/bin/fisherman|"+recipe+"\n"; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+	if stderr.String() != "to-stderr\n" {
+		t.Errorf("stderr = %q", stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "pwned")); err == nil {
+		t.Error("the recipe path was executed as shell")
+	}
+}
+
+func TestWrapperLeadsItsOwnProcessGroupAndGetsForwardedSignals(t *testing.T) {
+	cmd := wrapperCommand([]string{"sleep", "30"})
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = cmd.Process.Kill() }()
+	pid := cmd.Process.Pid
+	pgid, err := syscall.Getpgid(pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pgid != pid || pgid == syscall.Getpgrp() {
+		t.Fatalf("wrapper pgid = %d, pid = %d, ours = %d", pgid, pid, syscall.Getpgrp())
+	}
+
+	sigs := make(chan os.Signal, 1)
+	go forwardSignals(pid, sigs)
+	sigs <- syscall.SIGTERM
+	close(sigs)
+	err = cmd.Wait()
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("wait = %v, want the wrapper killed", err)
+	}
+	ws := exitErr.Sys().(syscall.WaitStatus)
+	if !ws.Signaled() || ws.Signal() != syscall.SIGTERM {
+		t.Fatalf("wrapper status = %v, want SIGTERM", ws)
 	}
 }
 

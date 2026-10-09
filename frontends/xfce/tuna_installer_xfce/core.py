@@ -108,8 +108,18 @@ DRY_RUN_TRANSCRIPT = _load_dry_run_transcript()
 # Flatpak runtimes ship no pkexec; escalate host-side. The live ISO symlinks
 # the flatpak-bundled fisherman to /usr/local/bin and installs the polkit
 # policy for it (tunaOS customize-live.sh).
+#
+# Under Flatpak, pkexec runs inside a host-side bash rather than straight
+# from `flatpak-spawn --host pkexec ...`. fisherman runs as root, so this
+# process can never signal it; fisherman cancels itself when its PARENT dies
+# (tuna-os/fisherman#267). Launched directly, that parent was the host's
+# flatpak-session-helper, which nothing here can kill. With the wrapper it is
+# this bash. The recipe path is bash's $1, never part of the script text.
+# The wrapper does no redirection: stdout and stderr still come back through
+# flatpak-spawn's pipes, as before.
+FISHERMAN_WRAPPER_SCRIPT = 'pkexec /usr/local/bin/fisherman "$1"; exit $?'
 FISHERMAN_CMD = (
-    ["flatpak-spawn", "--host", "pkexec", "/usr/local/bin/fisherman"]
+    ["flatpak-spawn", "--host", "bash", "-c", FISHERMAN_WRAPPER_SCRIPT, "--"]
     if IN_FLATPAK
     else ["sudo", "/usr/local/bin/fisherman"]
 )
@@ -393,8 +403,14 @@ def recipe_dir(recipe_path):
     return os.path.dirname(recipe_path)
 
 
-def fisherman_argv(recipe_path):
-    return FISHERMAN_CMD + [recipe_path]
+def fisherman_argv(recipe_path, in_flatpak=None):
+    """The argv that runs fisherman on `recipe_path` with privileges."""
+    if in_flatpak is None:
+        return FISHERMAN_CMD + [recipe_path]
+    if in_flatpak:
+        return ["flatpak-spawn", "--host", "bash", "-c",
+                FISHERMAN_WRAPPER_SCRIPT, "--", recipe_path]
+    return ["sudo", "/usr/local/bin/fisherman", recipe_path]
 
 
 def fisherman_shell(recipe_path):

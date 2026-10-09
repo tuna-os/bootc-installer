@@ -129,8 +129,9 @@ class TestBootcDefaultEncryptionGetFinals(unittest.TestCase):
     def setUp(self):
         self.mod = _import_encryption_fresh()
 
-    def _make_obj(self, *, use_encryption, use_tpm2, passphrase):
+    def _make_obj(self, *, use_encryption, use_tpm2, passphrase, has_tpm2=True):
         obj = self.mod.BootcDefaultEncryption.__new__(self.mod.BootcDefaultEncryption)
+        obj.has_tpm2 = has_tpm2
         obj.use_encryption_switch = MagicMock()
         obj.use_encryption_switch.get_active.return_value = use_encryption
         obj.tpm2_switch = MagicMock()
@@ -182,6 +183,80 @@ class TestBootcDefaultEncryptionGetFinals(unittest.TestCase):
                 }
             },
         )
+
+
+    def test_get_finals_never_writes_tpm2_without_a_tpm(self):
+        # The switch claims on, the machine has no TPM 2.0: the recipe must
+        # not ask fisherman to enrol a TPM that is not there.
+        obj = self._make_obj(
+            use_encryption=True,
+            use_tpm2=True,
+            passphrase="hunter2",
+            has_tpm2=False,
+        )
+
+        self.assertEqual(obj.get_finals()["encryption"]["type"], "luks-passphrase")
+
+
+class TestBootcDefaultEncryptionTpmRow(unittest.TestCase):
+    """shared/tpm/README.md: TPM choices are offered only with a TPM 2.0.
+
+    The row used to be visible and switchable everywhere, merely defaulting
+    off without a TPM.
+    """
+
+    def setUp(self):
+        self.mod = _import_encryption_fresh()
+
+    def _init(self, has_tpm2):
+        from unittest.mock import patch
+
+        cls = self.mod.BootcDefaultEncryption
+        obj = cls.__new__(cls)
+        for child in (
+            "btn_next",
+            "page_header",
+            "use_encryption_switch",
+            "tpm2_row",
+            "tpm2_switch",
+            "encryption_pass_entry",
+            "encryption_pass_entry_confirm",
+            "strength_label",
+        ):
+            setattr(obj, child, MagicMock())
+        with patch(
+            "bootc_installer.core.system.Systeminfo.has_tpm2",
+            return_value=has_tpm2,
+        ):
+            cls.__init__(obj, MagicMock(), {}, "encryption", 0)
+        return obj
+
+    def test_row_hidden_and_off_without_a_tpm(self):
+        obj = self._init(False)
+
+        obj.tpm2_row.set_visible.assert_called_once_with(False)
+        obj.tpm2_switch.set_active.assert_called_once_with(False)
+        self.assertFalse(obj.has_tpm2)
+
+    def test_row_shown_and_on_with_a_tpm(self):
+        obj = self._init(True)
+
+        obj.tpm2_row.set_visible.assert_called_once_with(True)
+        obj.tpm2_switch.set_active.assert_called_once_with(True)
+        self.assertTrue(obj.has_tpm2)
+
+    def test_blueprint_hides_the_row_by_default(self):
+        # The template is the state before __init__ runs; it must not offer
+        # TPM either. The row must have an id for encryption.py to reach it.
+        blp = os.path.join(
+            os.path.dirname(__file__), "..", "..",
+            "bootc_installer", "gtk", "default-encryption.blp",
+        )
+        with open(blp, encoding="utf-8") as fh:
+            text = fh.read()
+        start = text.index("Adw.ActionRow tpm2_row {")
+        block = text[start:text.index("}", start)]
+        self.assertIn("visible: false;", block)
 
 
 class TestBootcDefaultEncryptionPasswordChanged(unittest.TestCase):

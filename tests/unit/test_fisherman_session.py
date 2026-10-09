@@ -1,5 +1,7 @@
 """Headless contract tests for FishermanSession — no GTK, no real subprocess."""
 import os
+import signal
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
@@ -43,11 +45,11 @@ class FishermanSessionLaunchTests(unittest.TestCase):
             cache_dir=self.cache_dir,
             host_path=os.path.join(self.cache_dir, "fisherman"),
             log_path=self.log_path,
-            popen=popen or (lambda argv: _fake_popen()),
+            popen=popen or (lambda argv, **kw: _fake_popen()),
         )
 
     def test_launch_creates_cache_dir_and_starts_process(self):
-        popen = MagicMock(side_effect=lambda argv: _fake_popen())
+        popen = MagicMock(side_effect=lambda argv, **kw: _fake_popen())
         session = self._session(popen=popen)
         argv = session.launch()
         self.assertIsNotNone(argv)
@@ -61,9 +63,10 @@ class FishermanSessionLaunchTests(unittest.TestCase):
             f.write("stale content from a previous run\n")
         session = self._session()
         session.launch()
-        # bash's redirect (not this test) recreates the file; here we only
-        # assert the stale one was removed rather than left to be read stale.
-        self.assertFalse(os.path.exists(self.log_path))
+        # The stale content is gone; launch() recreates the file empty (and
+        # 0600, see FishermanSessionLogModeTests) for bash's redirect.
+        with open(self.log_path) as f:
+            self.assertEqual(f.read(), "")
 
     def test_launch_returns_none_when_staging_fails(self):
         # in_flatpak=True + a stage_base that fails the private-path check
@@ -76,13 +79,84 @@ class FishermanSessionLaunchTests(unittest.TestCase):
         self.assertIsNone(session.proc)
 
 
+class FishermanSessionLogModeTests(unittest.TestCase):
+    """The log holds the TPM recovery key. bash's `>` used to create it, so
+    its mode followed the umask: 0644 under 022, world-readable."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, self.tmp, True)
+        self.cache_dir = os.path.join(self.tmp, "cache")
+        self.log_path = os.path.join(self.cache_dir, "fisherman-output.log")
+        old = os.umask(0o022)
+        self.addCleanup(os.umask, old)
+
+    def _launch(self):
+        session = FishermanSession(
+            os.path.join(self.tmp, "recipe.json"),
+            in_flatpak=False,
+            live_iso=False,
+            stage_base=self.tmp,
+            cache_dir=self.cache_dir,
+            host_path=os.path.join(self.cache_dir, "fisherman"),
+            log_path=self.log_path,
+            popen=lambda argv, **kw: _fake_popen(),
+        )
+        return session.launch()
+
+    def _mode(self):
+        return os.stat(self.log_path).st_mode & 0o777
+
+    def test_log_is_created_0600_before_the_process_starts(self):
+        self._launch()
+        self.assertEqual(self._mode(), 0o600)
+
+    def test_bash_redirect_keeps_the_0600_mode(self):
+        # What build_argv's command really does to the file, under the
+        # same 022 umask that used to make it 0644.
+        import subprocess
+
+        self._launch()
+        subprocess.run(
+            ["bash", "-c", 'umask 022; echo recovery >"$1" 2>&1', "--", self.log_path],
+            check=True,
+        )
+        self.assertEqual(self._mode(), 0o600)
+        with open(self.log_path) as f:
+            self.assertEqual(f.read(), "recovery\n")
+
+    def test_stale_world_readable_log_is_tightened(self):
+        # _reset_log_file() cannot remove it (simulated): the mode is still
+        # forced to 0600 and the old content dropped.
+        os.makedirs(self.cache_dir, exist_ok=True)
+        with open(self.log_path, "w") as f:
+            f.write("old key\n")
+        os.chmod(self.log_path, 0o644)
+        with patch.object(FishermanSession, "_reset_log_file"):
+            self._launch()
+        self.assertEqual(self._mode(), 0o600)
+        with open(self.log_path) as f:
+            self.assertEqual(f.read(), "")
+
+    def test_symlink_at_log_path_is_not_followed(self):
+        os.makedirs(self.cache_dir, exist_ok=True)
+        target = os.path.join(self.tmp, "elsewhere")
+        with open(target, "w") as f:
+            f.write("keep\n")
+        os.symlink(target, self.log_path)
+        with patch.object(FishermanSession, "_reset_log_file"):
+            self._launch()
+        with open(target) as f:
+            self.assertEqual(f.read(), "keep\n")
+
+
 class FishermanSessionPollTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(__import__("shutil").rmtree, self.tmp, True)
 
     def _launched_session(self, poll_sequence=(None, None, 0)):
-        popen = lambda argv: _fake_popen(poll_sequence=poll_sequence)
+        popen = lambda argv, **kw: _fake_popen(poll_sequence=poll_sequence)
         session = FishermanSession(
             os.path.join(self.tmp, "recipe.json"),
             in_flatpak=False,
@@ -117,7 +191,7 @@ class FishermanSessionLogTailingTests(unittest.TestCase):
         self.session = FishermanSession(
             os.path.join(self.tmp, "recipe.json"),
             log_path=self.log_path,
-            popen=lambda argv: _fake_popen(),
+            popen=lambda argv, **kw: _fake_popen(),
         )
 
     def test_open_log_for_tailing_false_until_file_exists(self):
@@ -179,32 +253,78 @@ class FishermanSessionTerminateAndCleanupTests(unittest.TestCase):
     def test_terminate_skips_already_exited_process(self):
         session = FishermanSession(
             os.path.join(self.tmp, "recipe.json"),
-            popen=lambda argv: _fake_popen(poll_sequence=(0,)),
+            popen=lambda argv, **kw: _fake_popen(poll_sequence=(0,)),
         )
         session.launch()
         with patch("os.killpg") as killpg:
             session.terminate()
             killpg.assert_not_called()
 
-    def test_terminate_sends_sigterm_to_process_group(self):
+    def test_launch_starts_the_wrapper_in_its_own_session(self):
+        popen = MagicMock(side_effect=lambda argv, **kw: _fake_popen())
+        session = FishermanSession(os.path.join(self.tmp, "recipe.json"), popen=popen)
+        session.launch()
+        self.assertIs(popen.call_args.kwargs.get("start_new_session"), True)
+
+    def test_terminate_signals_the_wrappers_group_not_ours(self):
         session = FishermanSession(
             os.path.join(self.tmp, "recipe.json"),
-            popen=lambda argv: _fake_popen(poll_sequence=(None,)),
+            popen=lambda argv, **kw: _fake_popen(pid=4242, poll_sequence=(None,)),
         )
         session.launch()
-        with patch("os.killpg") as killpg, patch("os.getpgid", return_value=999):
+        with patch("os.killpg") as killpg, patch("os.getpgid", return_value=os.getpgrp()):
             session.terminate()
-            killpg.assert_called_once()
+        killpg.assert_called_once_with(4242, signal.SIGTERM)
+        self.assertNotEqual(killpg.call_args.args[0], os.getpgrp())
+        session.proc.wait.assert_called_once_with(timeout=FishermanSession.TERMINATE_TIMEOUT)
 
     def test_terminate_falls_back_to_proc_terminate_if_killpg_fails(self):
         session = FishermanSession(
             os.path.join(self.tmp, "recipe.json"),
-            popen=lambda argv: _fake_popen(poll_sequence=(None,)),
+            popen=lambda argv, **kw: _fake_popen(poll_sequence=(None,)),
         )
         session.launch()
         with patch("os.killpg", side_effect=OSError()):
             session.terminate()
             session.proc.terminate.assert_called_once()
+        session.proc.wait.assert_called_once()
+
+    def test_terminate_tolerates_a_wrapper_that_outlives_the_wait(self):
+        session = FishermanSession(
+            os.path.join(self.tmp, "recipe.json"),
+            popen=lambda argv, **kw: _fake_popen(poll_sequence=(None,)),
+        )
+        session.launch()
+        session.proc.wait.side_effect = subprocess.TimeoutExpired("bash", 5)
+        with patch("os.killpg"):
+            session.terminate()  # must not raise
+
+    def test_terminate_with_a_real_child_does_not_signal_the_installer(self):
+        # A real wrapper through the real subprocess.Popen. The installer
+        # (this test process) traps SIGTERM: before start_new_session the
+        # wrapper shared our group and killpg delivered SIGTERM here too.
+        received = []
+        previous = signal.signal(signal.SIGTERM, lambda *a: received.append(a[0]))
+        self.addCleanup(signal.signal, signal.SIGTERM, previous)
+        with patch(
+            "bootc_installer.utils.fisherman_runner.build_argv",
+            return_value=["sleep", "30"],
+        ):
+            session = FishermanSession(
+                os.path.join(self.tmp, "recipe.json"),
+                in_flatpak=False,
+                cache_dir=os.path.join(self.tmp, "cache"),
+                log_path=os.path.join(self.tmp, "cache", "fisherman-output.log"),
+            )
+            session.launch()
+        self.addCleanup(lambda: session.proc.poll() is None and session.proc.kill())
+        self.assertEqual(os.getpgid(session.proc.pid), session.proc.pid)
+        self.assertNotEqual(os.getpgid(session.proc.pid), os.getpgrp())
+
+        session.terminate()
+
+        self.assertEqual(received, [])
+        self.assertEqual(session.proc.returncode, -signal.SIGTERM)
 
     def test_cleanup_recipe_file_removes_the_file(self):
         recipe_path = os.path.join(self.tmp, "recipe.json")
