@@ -58,6 +58,19 @@ flatpak run org.tunaos.InstallerXfce
 
 Runtime is `org.gnome.Platform` (it ships GTK3 + PyGObject).
 
+## Disks, TPM and minimum requirements
+
+These come from `fisherman probe --json`, not from this frontend. `core.probe()`
+runs it one time, without privileges, as `/usr/local/bin/fisherman probe --json`
+(prefixed with `flatpak-spawn --host` in a Flatpak). It reads the answer through
+`tuna_installer_xfce/fisherman_probe.py`, a byte-identical copy of
+`shared/probe/fisherman_probe.py`. Show the eligible disks in fisherman's order,
+with `size_label` exactly as given. Do not add a disk filter or a size
+formatter. If the probe fails, the destination page shows the reason and
+offers no disk. `tests/test_probe.py` renders the shared fixtures, and
+`../../shared/probe/README.md` is the contract. A capture sets
+`BOOTC_INSTALLER_FAKE_PROBE` to a fixture file.
+
 ## Offline and live-ISO installs
 
 `core.py` detects live-ISO mode via `bootc status`; an **empty `image` in the

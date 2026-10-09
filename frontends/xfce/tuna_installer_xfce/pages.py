@@ -80,6 +80,12 @@ class WelcomePage(Page):
             "You'll choose what to install and where; nothing is written to "
             "any disk until you confirm on the final step.")
         self.pack_start(body, False, False, 0)
+        # fisherman's minimum requirements (RAM, CPU cores, UEFI). A warning,
+        # not a gate: GNOME blocks, the other frontends warn and continue
+        # (shared/probe/README.md).
+        warning = core.requirements_warning()
+        if warning:
+            self.pack_start(_warn_row(warning), False, False, 0)
 
 
 class SourcePage(Page):
@@ -145,6 +151,13 @@ class SourcePage(Page):
         return None
 
 
+def disk_label(disk):
+    """One destination row: the title (model, else path), then the path,
+    fisherman's size label and the bus, in the order every frontend uses."""
+    bits = [disk["title"], disk["path"], disk["size_label"], disk["transport_label"]]
+    return "    ".join(b for b in bits if b)
+
+
 class DestinationPage(Page):
     title = f"Where should {core.PRODUCT_NAME} be installed?"
 
@@ -162,14 +175,19 @@ class DestinationPage(Page):
             self.listbox.remove(child)
         self.radios = []
         group = None
-        for disk in core.candidate_disks():
-            text = f"{disk['model']}    {core.human_size(disk['size'])}    {disk['path']}"
-            radio = Gtk.RadioButton.new_with_label_from_widget(group, text)
+        disks, error = core.candidate_disks()
+        for disk in disks:
+            radio = Gtk.RadioButton.new_with_label_from_widget(group, disk_label(disk))
             group = group or radio
             radio.disk = disk
             radio.connect("toggled", self._update_warning)
             self.listbox.pack_start(radio, False, False, 4)
             self.radios.append(radio)
+        if not disks:
+            self.listbox.pack_start(_warn_row(
+                f"Could not detect disks: {error}" if error else
+                "No disk of at least 50 GiB was found. Connect one to install to."),
+                False, False, 4)
         self.listbox.show_all()
         self._update_warning()
 
@@ -177,7 +195,7 @@ class DestinationPage(Page):
         d = self.selected_disk()
         if d:
             self.warn_label.set_text(
-                f"Everything on {d['model']} ({d['path']}) will be erased.")
+                f"Everything on {d['title']} ({d['path']}) will be erased.")
         self.warn.set_visible(d is not None)
 
     def can_continue(self):

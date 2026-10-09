@@ -7,7 +7,7 @@ import shlex
 import subprocess
 import tempfile
 
-from tuna_installer_xfce import branding, tpm_probe
+from tuna_installer_xfce import branding, fisherman_probe
 
 IN_FLATPAK = os.path.exists("/.flatpak-info")
 
@@ -53,28 +53,59 @@ def dry_run():
     return os.environ.get("TUNA_INSTALLER_DRY_RUN", "") not in ("", "0")
 
 
-# The TPM probe, as a function for the same reason dry_run() is one, and with
-# an override for the same reason BOOTC_DEMO exists.
+# Hardware facts -- the disks that may be installed to, TPM 2.0, and the
+# RAM/CPU/UEFI requirements -- are fisherman's: `fisherman probe --json`,
+# run once, unprivileged, on the host (shared/probe/README.md). This frontend
+# used to run its own lsblk with its own filter (it offered zram), format
+# sizes in SI "GB", and probed the TPM itself. None of that is here now.
 #
-# The two TPM encryption choices are hidden when this is false, so a capture
-# taken on a machine without a TPM -- every CI runner -- silently renders a
-# two-option encryption page. The screenshots are what docs/PARITY.md is read
-# off, so this frontend was recorded as having no TPM support at all, when in
-# fact it offers both TPM modes and has since the encryption page was written.
-# The capture harness sets the override so the walkthrough shows what the
-# installer can actually do rather than what the runner's hardware allows.
-#
-# It only ever makes the options VISIBLE. Choosing one still writes an ordinary
-# recipe, and fisherman is what fails, later and loudly, if there is no TPM to
-# enrol against.
-# The probe itself is shared/tpm/README.md: read tpm_version_major and accept
-# only "2". Testing /sys/class/tpm/tpm0 for existence, which this did, is true
-# for a TPM 1.2 device too, so a 1.2 machine was offered tpm2-luks and the
-# install failed at enrolment -- after the disk had been partitioned.
-def has_tpm(root="/"):
-    if tpm_probe.fake_tpm_requested():
-        return True
-    return tpm_probe.probe_tpm2(root)
+# There is no fallback scan when the probe fails: the destination page shows
+# the reason instead and offers no disk.
+FISHERMAN_PATH = "/usr/local/bin/fisherman"
+PROBE_ARGV = (["flatpak-spawn", "--host"] if IN_FLATPAK else []) + [
+    FISHERMAN_PATH, "probe", "--json"]
+
+_probe_cache = {}
+
+
+def probe(refresh=False):
+    """(result, error): the probe result, or None and the reason it failed."""
+    if refresh or "answer" not in _probe_cache:
+        try:
+            _probe_cache["answer"] = (fisherman_probe.run(PROBE_ARGV), None)
+        except fisherman_probe.ProbeError as exc:
+            _probe_cache["answer"] = (None, str(exc))
+    return _probe_cache["answer"]
+
+
+def has_tpm():
+    """fisherman's tpm.usable; False when the probe failed.
+
+    BOOTC_INSTALLER_FAKE_TPM is honoured by fisherman itself, and a capture
+    can point BOOTC_INSTALLER_FAKE_PROBE at a fixture with a usable TPM.
+    """
+    result, _ = probe()
+    return fisherman_probe.tpm_usable(result) if result else False
+
+
+def unmet_requirements():
+    """fisherman's system.unmet ("ram", "cpu", "uefi"); empty when the probe
+    failed, so a failed probe never warns."""
+    result, _ = probe()
+    return fisherman_probe.unmet_requirements(result) if result else []
+
+
+def requirements_warning():
+    """The welcome page's warning text, or "" when every requirement is met."""
+    unmet = unmet_requirements()
+    if not unmet:
+        return ""
+    keys = {"ram": "requirements_ram", "cpu": "requirements_cpu",
+            "uefi": "requirements_uefi"}
+    lines = [BRANDING.text("requirements_title")]
+    lines += [BRANDING.text(keys[item]) for item in unmet if item in keys]
+    return "\n".join(line for line in lines if line)
+
 
 # A representative fisherman transcript for the dry run, in fisherman's real
 # wire format: newline-delimited JSON on stdout, one event per line
@@ -265,34 +296,12 @@ def offline_images(stores):
 # --- disks --------------------------------------------------------------------
 
 def candidate_disks():
-    """Installable disks: real disks, not the live medium, not removable-boot."""
-    r = host_run(["lsblk", "-J", "-b", "-o",
-                  "NAME,PATH,SIZE,MODEL,TYPE,RM,MOUNTPOINTS,TRAN"])
-    if r.returncode != 0:
-        return []
-    disks = []
-    for dev in json.loads(r.stdout).get("blockdevices", []):
-        if dev.get("type") != "disk":
-            continue
-        mounts = json.dumps(dev.get("mountpoints", []))
-        if "/run/initramfs/live" in mounts or "/run/media/iso" in mounts:
-            continue
-        disks.append({
-            "path": dev["path"],
-            "model": (dev.get("model") or "Unknown disk").strip(),
-            "size": int(dev.get("size") or 0),
-            "transport": dev.get("tran") or "",
-        })
-    return disks
-
-
-def human_size(nbytes):
-    val, unit = float(nbytes), "B"
-    for unit in ("B", "KB", "MB", "GB", "TB"):
-        if val < 1000 or unit == "TB":
-            break
-        val /= 1000
-    return f"{val:.1f} {unit}".replace(".0 ", " ")
+    """(disks, error): the disks fisherman offers, in its order, rendered per
+    shared/probe/README.md -- title (model, else path), size_label verbatim."""
+    result, error = probe()
+    if result is None:
+        return [], error
+    return fisherman_probe.render_disks(result), None
 
 
 # --- recipe -------------------------------------------------------------------

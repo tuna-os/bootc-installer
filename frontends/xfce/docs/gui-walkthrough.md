@@ -6,8 +6,8 @@ page is generated in CI from the real GTK3 wizard by
 hand-taken screenshots do.
 
 The capture runs headless under Xvfb against fixtures — a canned image catalog
-and a canned `lsblk` — so it never touches a real disk and the output is
-reproducible.
+and the shared `fisherman probe --json` fixture (`shared/probe/fixtures/laptop.json`)
+— so it never touches a real disk and the output is reproducible.
 
 ---
 

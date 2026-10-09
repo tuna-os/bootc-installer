@@ -9,8 +9,6 @@ import json
 import os
 import subprocess
 
-import pytest
-
 from tuna_installer_xfce import core
 
 
@@ -153,57 +151,8 @@ class TestLoadCatalog:
         assert nodes[0].name == "XFCE"
 
 
-class TestCandidateDisks:
-    def test_filters_non_disks_and_live_media(self, monkeypatch):
-        payload = {
-            "blockdevices": [
-                {"type": "disk", "path": "/dev/vda", "name": "vda", "size": 10**12, "model": "", "rm": "0", "mountpoints": ["/run/initramfs/live"], "tran": "virtio"},
-                {"type": "disk", "path": "/dev/vdb", "name": "vdb", "size": 10**12, "model": "Virtio", "rm": "0", "mountpoints": [], "tran": "virtio"},
-                {"type": "part", "path": "/dev/vda1", "name": "vda1", "size": 10**11, "model": "", "rm": "0", "mountpoints": [], "tran": "virtio"},
-            ]
-        }
-        fake = subprocess.CompletedProcess(args=[], returncode=0, stdout=json.dumps(payload), stderr="")
-        monkeypatch.setattr(core, "host_run", lambda argv, **kw: fake)
-        disks = core.candidate_disks()
-        assert [d["path"] for d in disks] == ["/dev/vdb"]
-        assert disks[0]["model"] == "Virtio"
-        assert disks[0]["transport"] == "virtio"
-
-    def test_filters_run_media_iso_live_media(self, monkeypatch):
-        payload = {
-            "blockdevices": [
-                {"type": "disk", "path": "/dev/sda", "size": 10**11, "mountpoints": ["/run/media/iso"]},
-                {"type": "disk", "path": "/dev/sdb", "size": 5*10**11, "mountpoints": []},
-            ]
-        }
-        fake = subprocess.CompletedProcess(args=[], returncode=0, stdout=json.dumps(payload), stderr="")
-        monkeypatch.setattr(core, "host_run", lambda argv, **kw: fake)
-        disks = core.candidate_disks()
-        assert [d["path"] for d in disks] == ["/dev/sdb"]
-
-    def test_failure_yields_empty(self, monkeypatch):
-        fake = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="lsblk missing")
-        monkeypatch.setattr(core, "host_run", lambda argv, **kw: fake)
-        assert core.candidate_disks() == []
-
-
-# ─── human_size formatting ───────────────────────────────────────────────────
-
-class TestHumanSize:
-    @pytest.mark.parametrize(
-        "nbytes,expected",
-        [
-            (0, "0 B"),
-            (999, "999 B"),
-            (1000, "1 KB"),
-            (1500, "1.5 KB"),
-            (1_000_000, "1 MB"),
-            (2_500_000_000, "2.5 GB"),
-            (10**12, "1 TB"),
-        ],
-    )
-    def test_formatting(self, nbytes, expected):
-        assert core.human_size(nbytes) == expected
+# Disks, sizes and the TPM come from `fisherman probe --json` now: see
+# tests/test_probe.py.
 
 
 # ─── recipe building ─────────────────────────────────────────────────────────
@@ -569,74 +518,3 @@ class TestLiveIsoImage:
         monkeypatch.setattr("builtins.open", mocked_open)
         monkeypatch.setattr(os.path, "exists", lambda p: False)
         assert core.live_iso_image() is None
-
-
-
-TPM_FIXTURES = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..", "shared", "tpm", "fixtures")
-
-
-class TestHasTpm:
-    """core.has_tpm() decides whether the two TPM encryption choices render.
-
-    No CI runner has a TPM of any version, so a capture taken without the
-    override shows a two-option encryption page. That is what docs/PARITY.md
-    was read off, and it is why this frontend was recorded as having no TPM
-    support when it has offered both TPM modes since the encryption page was
-    written.
-
-    The probe is shared/tpm/README.md: read tpm_version_major and accept only
-    "2". It used to be the existence of /sys/class/tpm/tpm0, which the kernel
-    creates for a TPM 1.2 device too -- and a test here asserted exactly that,
-    so the suite agreed with the bug.
-    """
-
-    def test_false_without_tpm_or_override(self, monkeypatch):
-        monkeypatch.delenv("BOOTC_INSTALLER_FAKE_TPM", raising=False)
-        assert core.has_tpm(os.path.join(TPM_FIXTURES, "legacy-none")) is False
-
-    def test_true_for_a_tpm2_device(self, monkeypatch):
-        monkeypatch.delenv("BOOTC_INSTALLER_FAKE_TPM", raising=False)
-        assert core.has_tpm(os.path.join(TPM_FIXTURES, "tpm2")) is True
-
-    def test_false_for_a_tpm12_device(self, monkeypatch):
-        """The bug: tpm2-luks was offered on hardware that cannot do it."""
-        monkeypatch.delenv("BOOTC_INSTALLER_FAKE_TPM", raising=False)
-        assert core.has_tpm(os.path.join(TPM_FIXTURES, "tpm12")) is False
-
-    def test_true_for_a_pre_5_5_kernel_with_a_resource_manager(
-            self, monkeypatch):
-        monkeypatch.delenv("BOOTC_INSTALLER_FAKE_TPM", raising=False)
-        assert core.has_tpm(os.path.join(TPM_FIXTURES, "legacy-tpm2")) is True
-
-    def test_override_shows_the_choices_on_a_machine_without_a_tpm(
-            self, monkeypatch):
-        monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", "1")
-        assert core.has_tpm(os.path.join(TPM_FIXTURES, "legacy-none")) is True
-
-    def test_override_does_not_rescue_a_tpm12_machine_silently(
-            self, monkeypatch):
-        """The override forces the choices visible; it does not make them work.
-
-        fisherman still fails at enrolment. This pins that the override is a
-        capture aid and not a hardware claim.
-        """
-        monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", "1")
-        assert core.has_tpm(os.path.join(TPM_FIXTURES, "tpm12")) is True
-        monkeypatch.delenv("BOOTC_INSTALLER_FAKE_TPM")
-        assert core.has_tpm(os.path.join(TPM_FIXTURES, "tpm12")) is False
-
-    def test_override_is_off_when_empty_or_zero(self, monkeypatch):
-        for value in ("", "0"):
-            monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", value)
-            assert core.has_tpm(os.path.join(TPM_FIXTURES, "legacy-none")) is False, \
-                f"{value!r} must not force it on"
-
-    def test_read_per_call_not_at_import(self, monkeypatch):
-        # Same reasoning as dry_run(): an import-time read would make the
-        # answer depend on module import ORDER, which no caller can see.
-        monkeypatch.setattr(core.os.path, "exists", lambda p: False)
-        monkeypatch.delenv("BOOTC_INSTALLER_FAKE_TPM", raising=False)
-        assert core.has_tpm() is False
-        monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", "1")
-        assert core.has_tpm() is True

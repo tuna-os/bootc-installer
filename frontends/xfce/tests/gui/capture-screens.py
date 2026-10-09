@@ -6,9 +6,10 @@ Runs headless under Xvfb with no desktop, no GPU and no real disks: the app's
 pages are built against fixtures, driven through the real InstallerWindow, and
 grabbed from the X server.
 
-Nothing here touches a disk. core.host_run — the single seam every hardware
-query goes through — is replaced with canned lsblk output, so `candidate_disks`
-sees a plausible machine that does not exist.
+Nothing here touches a disk. The disks, TPM and requirements come from the
+shared probe fixture (BOOTC_INSTALLER_FAKE_PROBE, shared/probe/README.md), so
+the destination page shows a plausible machine that does not exist, and
+core.host_run answers every other host query with nothing.
 
     xvfb-run -a python3 tests/gui/capture-screens.py [outdir]
 """
@@ -63,17 +64,6 @@ CATALOG = {
     ],
 }
 
-LSBLK = {
-    "blockdevices": [
-        {"name": "nvme0n1", "path": "/dev/nvme0n1", "size": 512110190592,
-         "model": "SAMSUNG MZVL2512", "type": "disk", "rm": False,
-         "mountpoints": [None], "tran": "nvme"},
-        {"name": "sda", "path": "/dev/sda", "size": 2000398934016,
-         "model": "WDC WD20SPZX", "type": "disk", "rm": False,
-         "mountpoints": [None], "tran": "sata"},
-    ]
-}
-
 _tmp = tempfile.mkdtemp(prefix="tuna-shots-")
 _catalog_path = os.path.join(_tmp, "images.json")
 with open(_catalog_path, "w") as fh:
@@ -105,12 +95,14 @@ os.environ.setdefault("BOOTC_INSTALLER_BRANDING", os.path.normpath(os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..", "..", "..", "..", "shared", "walkthrough", "capture-branding.json")))
 
-# Show the TPM encryption choices. They are hidden when /sys/class/tpm/tpm0 is
-# absent, which it is on every CI runner, so an unset capture renders a
-# two-option encryption page and docs/PARITY.md -- which is read off these
-# screenshots -- recorded this frontend as having no TPM support at all. It
-# has offered both TPM modes since the page was written. See core.has_tpm().
-os.environ.setdefault("BOOTC_INSTALLER_FAKE_TPM", "1")
+# The hardware: fisherman's probe answer for a laptop (shared/probe/fixtures),
+# the same fixture every frontend's capture reads. Its TPM 2.0 is usable, so
+# the TPM encryption choices show: without one, which no CI runner has, the
+# page renders two options and docs/PARITY.md -- read off these screenshots --
+# once recorded this frontend as having no TPM support at all.
+os.environ.setdefault("BOOTC_INSTALLER_FAKE_PROBE", os.path.normpath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "..", "..", "..", "..", "shared", "probe", "fixtures", "laptop.json")))
 
 # SAFETY, and not a small one. ProgressPage.on_enter() calls
 # win.start_install(), so simply navigating the wizard to the progress page
@@ -147,10 +139,8 @@ class _Result:
 
 
 def _fake_host_run(argv, **kwargs):
-    """Every hardware query in core goes through host_run, so one seam covers
-    the lot. Anything unexpected returns empty rather than reaching the host."""
-    if argv and argv[0] == "lsblk":
-        return _Result(json.dumps(LSBLK))
+    """Every other host query in core goes through host_run. Anything returns
+    empty rather than reaching the host."""
     return _Result("")
 
 
