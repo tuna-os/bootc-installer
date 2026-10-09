@@ -422,3 +422,94 @@ def test_milestone_ignored_in_unweighted_step():
     apply_progress_event(_step(step=4, name="Mounting filesystem", weight_pct=0), state)
     update = apply_progress_event(_substep("Deploying image"), state)
     assert update["fraction"] is None
+
+
+# ── overall_pct and step_id (fisherman's own bar and step ids) ────────────────
+
+def _event(**fields):
+    return json.dumps(fields)
+
+
+@pytest.fixture
+def step_copy():
+    """A resolver like the frontends': the copy key step_<id>, "" if unknown."""
+    copy = {"step_install_os": "Writing the system…", "step_flatpaks": "Adding apps…"}
+    progress_parser.set_step_label_resolver(lambda sid: copy.get("step_" + sid, ""))
+    yield copy
+    progress_parser.set_step_label_resolver(None)
+
+
+class TestOverallPct:
+    def test_step_overall_pct_drives_the_bar(self):
+        state = new_progress_state()
+        update = apply_progress_event(_event(
+            type="step", step=5, total_steps=8, step_name="Installing OS",
+            cumulative_pct=1, weight_pct=87, step_id="install_os", overall_pct=42.5), state)
+        assert update["fraction"] == pytest.approx(0.425)
+
+    def test_substep_overall_pct_moves_a_bar_the_derivation_would_hold(self):
+        # "Copying Flatpak data: N%" is not in the derivation; fisherman's
+        # overall_pct is what moves the bar through the Flatpak copy.
+        state = new_progress_state()
+        apply_progress_event(_event(
+            type="step", step=6, total_steps=8, step_name="Copying system Flatpaks",
+            cumulative_pct=88, weight_pct=11, step_id="flatpaks", overall_pct=88), state)
+        update = apply_progress_event(_event(
+            type="substep", message="Copying Flatpak data: 50%", overall_pct=93.5), state)
+        assert update["fraction"] == pytest.approx(0.935)
+
+    def test_without_overall_pct_the_bar_is_derived(self):
+        state = new_progress_state()
+        update = apply_progress_event(_step(5, 8, "Installing OS", 1, 87), state)
+        assert update["fraction"] == pytest.approx(0.01)
+        update = apply_progress_event(_substep("Pulling image: layer 2/4"), state)
+        assert update["fraction"] == pytest.approx((1 + 0.5 * 0.6 * 87) / 100)
+
+    def test_overall_pct_never_moves_the_bar_back(self):
+        state = new_progress_state()
+        apply_progress_event(_event(type="substep", message="a", overall_pct=40), state)
+        update = apply_progress_event(_event(type="substep", message="b", overall_pct=30), state)
+        assert update["fraction"] == pytest.approx(0.40)
+
+    def test_a_non_numeric_overall_pct_is_ignored(self):
+        state = new_progress_state()
+        update = apply_progress_event(_event(
+            type="step", step=5, total_steps=8, step_name="Installing OS",
+            cumulative_pct=1, weight_pct=87, overall_pct="50"), state)
+        assert update["fraction"] == pytest.approx(0.01)
+
+    def test_complete_fills_the_bar(self):
+        state = new_progress_state()
+        update = apply_progress_event(_event(type="complete", message="x", overall_pct=100), state)
+        assert update["fraction"] == 1.0
+
+
+class TestStepId:
+    def test_step_id_is_labelled_from_the_copy(self, step_copy):
+        state = new_progress_state()
+        update = apply_progress_event(_event(
+            type="step", step=5, total_steps=8, step_name="Installing OS",
+            cumulative_pct=1, weight_pct=87, step_id="install_os", overall_pct=1), state)
+        assert update["label"] == "Writing the system…"
+        # Substeps keep the step's label.
+        update = apply_progress_event(_substep("Pulling image: layer 1/4"), state)
+        assert update["label"] == "Writing the system…"
+
+    def test_an_unknown_step_id_falls_back_to_the_step_name(self, step_copy):
+        state = new_progress_state()
+        update = apply_progress_event(_event(
+            type="step", step=3, total_steps=8, step_name="Polishing the hull",
+            cumulative_pct=1, weight_pct=0, step_id="polish_hull"), state)
+        assert update["label"] == "Polishing the hull"
+
+    def test_no_step_id_falls_back_to_the_step_name_table(self, step_copy):
+        state = new_progress_state()
+        update = apply_progress_event(_step(6, 8, "Copying system Flatpaks", 88, 11), state)
+        assert update["label"] == "Installing your apps…"
+
+    def test_without_a_resolver_the_step_name_table_is_used(self):
+        state = new_progress_state()
+        update = apply_progress_event(_event(
+            type="step", step=6, total_steps=8, step_name="Copying system Flatpaks",
+            cumulative_pct=88, weight_pct=11, step_id="flatpaks"), state)
+        assert update["label"] == "Installing your apps…"
