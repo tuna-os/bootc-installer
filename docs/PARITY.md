@@ -27,6 +27,14 @@ claimed a render that nobody had wired up.
 | `welcome_install` | install row title | no (own body text) | no (no install row) | no (no install row) | live-system radio |
 | `welcome_install_subtitle` | install row subtitle | no | no | no | live-system radio subtitle |
 | `welcome_button` | no (row activates, own label) | Next button on welcome | forward button | button | Next button on welcome |
+| `encryption_none_label` | confirm summary row | radio row, confirm row | dropdown entry, confirm row | list row, confirm row | radio, confirm summary |
+| `encryption_none_description` | no (an on/off switch, no row for this choice) | radio row description | dropdown description | list row subtitle | caption under the radio |
+| `encryption_luks_passphrase_label` | confirm summary row | radio row, confirm row | dropdown entry, confirm row | list row, confirm row | radio, confirm summary |
+| `encryption_luks_passphrase_description` | subtitle of the encrypt switch | radio row description | dropdown description | list row subtitle | caption under the radio |
+| `encryption_tpm2_luks_label` | confirm summary row | radio row, confirm row | dropdown entry, confirm row | list row, confirm row | radio, confirm summary |
+| `encryption_tpm2_luks_description` | no (the page cannot select this type) | radio row description | dropdown description | list row subtitle | caption under the radio |
+| `encryption_tpm2_luks_passphrase_label` | confirm summary row | radio row, confirm row | dropdown entry, confirm row | list row, confirm row | radio, confirm summary |
+| `encryption_tpm2_luks_passphrase_description` | subtitle of the TPM switch | radio row description | dropdown description | list row subtitle | caption under the radio |
 | `confirm_title` | page header | step heading | page title | heading | page title |
 | `confirm_subtitle` | header subtitle | italic label, hidden | page subtitle | label, hidden | label, hidden |
 | `confirm_body` | dim label, hidden | label, hidden | body, hidden | label, hidden | label, hidden |
@@ -45,6 +53,19 @@ claimed a render that nobody had wired up.
 | `done_failed_title` | page header | heading | title2 | heading | headline |
 | `store_label` | done page link to `store_url` (+ QR from `assets.store_qr`, US locale) | done page link | done page link | done page link | done page link |
 | `assets.welcome_image`, `assets.complete_image` | tour pages | no | no | welcome logo disc (`logo`) | no |
+
+The eight `encryption_*` keys name the four types of encryption in the
+recipe. The order of the types is the `encryption.type` enum in
+`shared/recipe/fisherman-recipe.schema.json`. All five frontends use the same
+words on the encryption page and on the confirm page.
+`tests/unit/test_encryption_choices.py` makes sure that each frontend offers
+those types in that order.
+
+The confirm pages used to disagree. KDE showed "None" and "Passphrase
+(LUKS)". GNOME showed its own phrases. COSMIC, Niri and Xfce showed the
+recipe id, for example `luks-passphrase`. GNOME has a switch and a TPM
+switch, not a list. Thus it shows only the two descriptions that its
+switches can select.
 
 Outside the contract, under `extensions.gnome`: the tour page text, the
 install video and the credits file. They are the last GNOME-only features.

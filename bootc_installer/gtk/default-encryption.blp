@@ -41,9 +41,10 @@ template $BootcDefaultEncryption: Adw.Bin {
         }
 
         Adw.PreferencesGroup {
-          Adw.ActionRow {
+          // Subtitles are branding copy, set in encryption.py: this row is
+          // the luks-passphrase choice, the TPM row tpm2-luks-passphrase.
+          Adw.ActionRow encryption_row {
             title: _("Encrypt this disk");
-            subtitle: _("You will need a passphrase each time you turn on your computer.");
 
             [suffix]
             Switch use_encryption_switch {
@@ -78,7 +79,6 @@ template $BootcDefaultEncryption: Adw.Bin {
           Adw.ActionRow tpm2_row {
             visible: false;
             title: _("Use hardware-backed encryption");
-            subtitle: _("The disk unlocks automatically on this hardware. Your passphrase remains as a fallback.");
             sensitive: bind use_encryption_switch.active;
 
             [suffix]

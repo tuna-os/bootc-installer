@@ -118,64 +118,27 @@ impl Page {
     }
 }
 
-/// One entry in the encryption picker.
+/// The recipe's encryption types, in display order.
 ///
-/// `id` is what actually lands in `recipe.encryption.type` and it MUST be one
-/// of the four values `fisherman` accepts (`fisherman/internal/recipe/recipe.go`
-/// `Validate()`): "none", "luks-passphrase", "tpm2-luks",
-/// "tpm2-luks-passphrase". Anything else — the previous `"luks"` here — fails
-/// recipe validation and the install never starts, which is a worse failure
-/// mode than never offering encryption at all: the user thinks they chose it.
-#[derive(Debug, Clone, Copy)]
-pub struct EncryptionChoice {
-    pub id: &'static str,
-    pub label: &'static str,
-    pub description: &'static str,
-    /// Only offered when a TPM2 chip is present (tunaOS#734 / tuna-installer-xfce
-    /// `ENCRYPTION_CHOICES`, which this mirrors value-for-value so a recipe
-    /// produced by either frontend means the same thing).
-    pub tpm: bool,
-}
-
-// `static`, not `const`: `available_encryption_choices` hands out
-// `&'static EncryptionChoice`s borrowed straight from this table. A `const`
-// has no fixed address (each use site may get its own inlined copy), so
-// relying on it for a genuinely `'static` borrow depends on rvalue-static-
-// promotion kicking in. `static` sidesteps the question — it has exactly one
-// address for the life of the program, so the borrow is `'static` outright.
-pub static ENCRYPTION_CHOICES: [EncryptionChoice; 4] = [
-    EncryptionChoice {
-        id: "none",
-        label: "No encryption",
-        description: "Anyone with the disk can read your files.",
-        tpm: false,
-    },
-    EncryptionChoice {
-        id: "luks-passphrase",
-        label: "Passphrase",
-        description: "You'll type it at every boot.",
-        tpm: false,
-    },
-    EncryptionChoice {
-        id: "tpm2-luks",
-        label: "TPM",
-        description: "Unlocks automatically on this hardware.",
-        tpm: true,
-    },
-    EncryptionChoice {
-        id: "tpm2-luks-passphrase",
-        label: "TPM + passphrase",
-        description: "Automatic unlock, passphrase as fallback.",
-        tpm: true,
-    },
+/// Each id is what actually lands in `recipe.encryption.type`, and it MUST be
+/// one of the values `fisherman` accepts (`fisherman/internal/recipe/recipe.go`
+/// `Validate()`). Anything else — the previous `"luks"` here — fails recipe
+/// validation and the install never starts, which is a worse failure mode
+/// than never offering encryption at all: the user thinks they chose it.
+///
+/// The ids and their order are the enum of
+/// `shared/recipe/fisherman-recipe.schema.json`;
+/// `tests/unit/test_encryption_choices.py` holds all five frontends to it.
+/// What each one is called is branding copy (`encryption_<type>_label` and
+/// `_description`, shared/branding/README.md), read in `ui.rs`. The two
+/// `tpm2-` types are offered only when a TPM2 chip is present (tunaOS#734).
+pub const ENCRYPTION_TYPES: [&str; 4] = [
+    "none",
+    "luks-passphrase",
+    "tpm2-luks",
+    "tpm2-luks-passphrase",
 ];
 
-/// The choices actually selectable right now. TPM-gated entries are dropped
-/// entirely rather than shown-disabled when there is no TPM — same call
-/// `tuna-installer-xfce` makes (`SetupPage.__init__`: `if value.startswith("tpm2")
-/// and not self.has_tpm: continue`), and for the same reason: a dropdown entry
-/// that silently produces an unenrollable recipe is worse than one that isn't
-/// offered.
 /// Whether the TPM encryption choices should be offered.
 ///
 /// `BOOTC_INSTALLER_FAKE_TPM` only ever forces this ON, and exists so a
@@ -211,10 +174,16 @@ pub fn probe_tpm2(root: &std::path::Path) -> bool {
     }
 }
 
-pub fn available_encryption_choices(has_tpm: bool) -> Vec<&'static EncryptionChoice> {
-    ENCRYPTION_CHOICES
-        .iter()
-        .filter(|c| !c.tpm || has_tpm)
+/// The choices actually selectable right now. TPM-gated entries are dropped
+/// entirely rather than shown-disabled when there is no TPM — same call
+/// `tuna-installer-xfce` makes (`SetupPage.__init__`: `if value.startswith("tpm2")
+/// and not self.has_tpm: continue`), and for the same reason: a dropdown entry
+/// that silently produces an unenrollable recipe is worse than one that isn't
+/// offered.
+pub fn available_encryption_choices(has_tpm: bool) -> Vec<&'static str> {
+    ENCRYPTION_TYPES
+        .into_iter()
+        .filter(|id| has_tpm || !id.starts_with("tpm2"))
         .collect()
 }
 
@@ -568,13 +537,13 @@ impl cosmic::Application for TunaInstaller {
                 // to the same choice the user actually saw and clicked.
                 let choices = available_encryption_choices(self.has_tpm);
                 if let Some(choice) = choices.get(idx) {
-                    self.recipe.encryption.enc_type = choice.id.to_string();
+                    self.recipe.encryption.enc_type = choice.to_string();
                     // Only "luks-passphrase" and "tpm2-luks-passphrase" carry a
                     // passphrase; clear it for "none" and bare "tpm2-luks" so a
                     // stale value from a previous choice can't linger into the
                     // recipe (fisherman ignores it, but Confirm would still
                     // display it — see `.contains("passphrase")` above).
-                    if !choice.id.contains("passphrase") {
+                    if !choice.contains("passphrase") {
                         self.recipe.encryption.passphrase.clear();
                     }
                 }
@@ -931,14 +900,14 @@ mod tests {
     fn encryption_choices_filtering() {
         let without_tpm = available_encryption_choices(false);
         assert_eq!(without_tpm.len(), 2);
-        assert!(without_tpm.iter().all(|c| !c.tpm));
-        assert_eq!(without_tpm[0].id, "none");
-        assert_eq!(without_tpm[1].id, "luks-passphrase");
+        assert!(without_tpm.iter().all(|c| !c.starts_with("tpm2")));
+        assert_eq!(without_tpm[0], "none");
+        assert_eq!(without_tpm[1], "luks-passphrase");
 
         let with_tpm = available_encryption_choices(true);
         assert_eq!(with_tpm.len(), 4);
-        assert_eq!(with_tpm[2].id, "tpm2-luks");
-        assert_eq!(with_tpm[3].id, "tpm2-luks-passphrase");
+        assert_eq!(with_tpm[2], "tpm2-luks");
+        assert_eq!(with_tpm[3], "tpm2-luks-passphrase");
     }
 
     /// End to end: the Install button's code path against the real backend.

@@ -61,6 +61,14 @@ bool Recipe::isValid() const
     return validationError().isEmpty();
 }
 
+const QStringList &Recipe::encryptionTypes()
+{
+    static const QStringList types = {
+        QStringLiteral("none"), QStringLiteral("luks-passphrase"),
+        QStringLiteral("tpm2-luks"), QStringLiteral("tpm2-luks-passphrase")};
+    return types;
+}
+
 QString Recipe::validationError() const
 {
     if (disk.isEmpty())
@@ -69,10 +77,7 @@ QString Recipe::validationError() const
         return QStringLiteral("No OS image specified");
     if (hostname.isEmpty())
         return QStringLiteral("Hostname is required");
-    static const QStringList kEncTypes = {
-        QStringLiteral("none"), QStringLiteral("luks-passphrase"),
-        QStringLiteral("tpm2-luks"), QStringLiteral("tpm2-luks-passphrase")};
-    if (!kEncTypes.contains(encryption.type))
+    if (!encryptionTypes().contains(encryption.type))
         return QStringLiteral("Unknown encryption type: %1").arg(encryption.type);
     if (encryption.type.endsWith(QLatin1String("passphrase")) && encryption.passphrase.isEmpty())
         return QStringLiteral("Encryption passphrase is required");

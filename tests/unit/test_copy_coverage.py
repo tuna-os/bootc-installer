@@ -61,6 +61,8 @@ RESOLVERS = re.compile(r"^(branding\.(py|rs|cpp|h|go)|branding_defaults\.h\.in|c
 KNOWN_GAPS = {
     "gnome": {
         "welcome_button": "bootc_installer/gtk/default-welcome.blp hardcodes the button label",
+        "encryption_none_description": "the encryption page is an on/off switch, not a list of choices, so no row describes no encryption",
+        "encryption_tpm2_luks_description": "the page cannot produce tpm2-luks: its TPM switch always keeps the passphrase",
     },
     "kde": {
         "welcome_install": "modules/welcome hardcodes its two body sentences",
@@ -134,6 +136,43 @@ COMMENT_MARKERS = {".py": "#", ".qml": "//", ".rs": "//", ".cpp": "//",
                    ".h": "//", ".blp": "//"}
 
 
+SCHEMA = REPO / "shared" / "recipe" / "fisherman-recipe.schema.json"
+CHOICE_SUFFIXES = ("_label", "_description")
+
+
+def encryption_types():
+    """The recipe's encryption types in display order: the schema enum, less
+    the "" that fisherman also reads as none."""
+    schema = json.loads(SCHEMA.read_text())
+    enum = schema["properties"]["encryption"]["properties"]["type"]["enum"]
+    return [t for t in enum if t]
+
+
+def encryption_key(enc_type, suffix):
+    return "encryption_" + enc_type.replace("-", "_") + suffix
+
+
+def rendered_encryption_keys(text):
+    """Choice keys a frontend builds from the recipe id at run time.
+
+    No source names encryption_tpm2_luks_label whole: every frontend joins
+    "encryption_", the id and a suffix. So a line that passes a "_label" or
+    "_description" literal renders that suffix for the id literal on the same
+    line, or, with no id literal there, for every id (the type is a variable).
+    tests/unit/test_encryption_choices.py checks which ids each frontend
+    actually offers.
+    """
+    types = encryption_types()
+    found = set()
+    for line in text.splitlines():
+        for suffix in CHOICE_SUFFIXES:
+            if f'"{suffix}"' not in line and f"'{suffix}'" not in line:
+                continue
+            named = [t for t in types if f'"{t}"' in line or f"'{t}'" in line]
+            found |= {encryption_key(t, suffix) for t in (named or types)}
+    return found
+
+
 def rendered_keys(frontend, keys):
     """Keys named anywhere in this frontend's non-resolver, non-comment code.
 
@@ -151,7 +190,8 @@ def rendered_keys(frontend, keys):
     # As a quoted literal, not a bare substring: GNOME's
     # __on_recovery_key_acknowledged contains "recovery_key_ack", and a
     # method name is not a render.
-    return {k for k in keys if f'"{k}"' in joined or f"'{k}'" in joined}
+    named = {k for k in keys if f'"{k}"' in joined or f"'{k}'" in joined}
+    return named | (rendered_encryption_keys(joined) & set(keys))
 
 
 class NiriTableMatchesTheContract(unittest.TestCase):

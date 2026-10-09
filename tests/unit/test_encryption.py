@@ -216,6 +216,7 @@ class TestBootcDefaultEncryptionTpmRow(unittest.TestCase):
         for child in (
             "btn_next",
             "page_header",
+            "encryption_row",
             "use_encryption_switch",
             "tpm2_row",
             "tpm2_switch",
@@ -244,6 +245,16 @@ class TestBootcDefaultEncryptionTpmRow(unittest.TestCase):
         obj.tpm2_row.set_visible.assert_called_once_with(True)
         obj.tpm2_switch.set_active.assert_called_once_with(True)
         self.assertTrue(obj.has_tpm2)
+
+    def test_row_subtitles_are_the_shared_choice_descriptions(self):
+        # The switch alone gives luks-passphrase, both give
+        # tpm2-luks-passphrase: each row reads that type's copy key.
+        obj = self._init(True)
+
+        obj.encryption_row.set_subtitle.assert_called_once_with(
+            "You'll type it at every boot.")
+        obj.tpm2_row.set_subtitle.assert_called_once_with(
+            "Automatic unlock, passphrase as fallback.")
 
     def test_blueprint_hides_the_row_by_default(self):
         # The template is the state before __init__ runs; it must not offer

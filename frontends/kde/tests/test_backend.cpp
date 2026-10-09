@@ -35,6 +35,7 @@ private slots:
     void brandingFixtures();
     void brandingText();
     void brandingNothingReadableIsNeutral();
+    void encryptionChoicesReadTheCopyLayer();
     void offlineCommandHelpers();
     void readinessWriteStampFailsWithEmptyRuntimeDir();
     void readinessWriteStampWritesExpectedFields();
@@ -287,6 +288,39 @@ void BackendTest::brandingFixtures()
     // The compiled-in defaults are the shared file, verbatim.
     QCOMPARE(QString::fromUtf8(kCopyDefaultsJson), readText(dir + QStringLiteral("/../copy-defaults.json")));
     QVERIFY(!branding::copyDefaults().value(QStringLiteral("welcome_title")).isEmpty());
+}
+
+void BackendTest::encryptionChoicesReadTheCopyLayer()
+{
+    // The ids and their order are the enum of the shared recipe schema.
+    const QStringList types = {QStringLiteral("none"), QStringLiteral("luks-passphrase"),
+                               QStringLiteral("tpm2-luks"), QStringLiteral("tpm2-luks-passphrase")};
+    QCOMPARE(Recipe::encryptionTypes(), types);
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QFile f(dir.filePath(QStringLiteral("branding.json")));
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(R"({"name": "Marlin", "copy": {"encryption_tpm2_luks_label": "Hardware key"}})");
+    f.close();
+    qputenv("BOOTC_INSTALLER_BRANDING", f.fileName().toUtf8());
+    InstallerController c;
+    qunsetenv("BOOTC_INSTALLER_BRANDING");
+
+    QCOMPARE(c.encryptionTypes(), types);
+    for (const QString &type : types) {
+        QVERIFY2(!c.encryptionLabel(type).isEmpty(), qPrintable(type));
+        QVERIFY2(!c.encryptionDescription(type).isEmpty(), qPrintable(type));
+    }
+    // The confirm step used to say "None" and "Passphrase (LUKS)" here while
+    // the encryption step said "No encryption" and "Passphrase".
+    QCOMPARE(c.encryptionLabel(QStringLiteral("none")), QStringLiteral("No encryption"));
+    QCOMPARE(c.encryptionLabel(QString()), QStringLiteral("No encryption"));
+    QCOMPARE(c.encryptionLabel(QStringLiteral("luks-passphrase")), QStringLiteral("Passphrase"));
+    QCOMPARE(c.encryptionDescription(QStringLiteral("luks-passphrase")),
+             QStringLiteral("You'll type it at every boot."));
+    // A product renames a choice once, in its branding file.
+    QCOMPARE(c.encryptionLabel(QStringLiteral("tpm2-luks")), QStringLiteral("Hardware key"));
 }
 
 void BackendTest::brandingText()

@@ -45,6 +45,10 @@ class InstallerController : public QObject
     // install time. This used to test /sys/class/tpm/tpm0 for existence,
     // which is true for a TPM 1.2 device the tpm2-luks modes cannot use.
     Q_PROPERTY(bool hasTpm READ hasTpm CONSTANT)
+    // Every encryption type, in display order (Recipe::encryptionTypes()).
+    // The encryption step repeats over it and hides the tpm2- ones without
+    // a TPM; what each is called comes from encryptionLabel/Description.
+    Q_PROPERTY(QStringList encryptionTypes READ encryptionTypes CONSTANT)
 
     // The product name, resolved ONCE at startup from the branding contract
     // (src/branding.h: branding.json, then os-release, then neutral). Every
@@ -112,6 +116,7 @@ public:
     void setImage(const QString &v);
 
     bool hasTpm() const { return m_hasTpm; }
+    QStringList encryptionTypes() const { return Recipe::encryptionTypes(); }
     QString productName() const { return m_productName; }
     QVariantMap copy() const { return m_branding.copyAsVariantMap(); }
     QString storeUrl() const { return m_branding.storeUrl; }
@@ -143,9 +148,12 @@ public:
         return succeeded() && !m_recoveryKey.isEmpty() && !m_recoveryAck;
     }
 
-    // Human-readable label for an encryption type, shared by the encryption
-    // and confirm steps so they cannot drift apart.
+    // What an encryption type is called: the branding copy keys
+    // encryption_<type>_label and _description (shared/branding/README.md).
+    // The encryption and confirm steps both read these, so they cannot
+    // drift apart.
     Q_INVOKABLE QString encryptionLabel(const QString &type) const;
+    Q_INVOKABLE QString encryptionDescription(const QString &type) const;
 
     // Writes the recipe and launches fisherman. The ONLY thing that starts an
     // install — nothing on step activation does. Kept that way on purpose: the

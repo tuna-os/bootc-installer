@@ -268,11 +268,6 @@ def _import_BootcConfirm_fresh():
     for key in list(sys.modules.keys()):
         if "bootc_installer.views.confirm" in key:
             del sys.modules[key]
-    # Also ensure confirm_data stub is in place.
-    if "bootc_installer.views.confirm_data" not in sys.modules:
-        cd_stub = types.ModuleType("bootc_installer.views.confirm_data")
-        cd_stub._ENC_LABELS = {}
-        sys.modules["bootc_installer.views.confirm_data"] = cd_stub
     fresh = importlib.import_module("bootc_installer.views.confirm")
     fresh.BootcChoiceEntry = lambda title, subtitle, icon, **kw: MagicMock()
     fresh.BootcChoiceExpanderEntry = lambda title, subtitle, icon, **kw: MagicMock()

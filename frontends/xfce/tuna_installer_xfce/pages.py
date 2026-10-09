@@ -13,12 +13,17 @@ from . import core, progress_parser
 
 HOSTNAME_RE = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$")
 
-ENCRYPTION_CHOICES = [
-    ("none", "No encryption", "Anyone with the disk can read your files."),
-    ("luks-passphrase", "Passphrase", "You'll type it at every boot."),
-    ("tpm2-luks", "TPM", "Unlocks automatically on this hardware."),
-    ("tpm2-luks-passphrase", "TPM + passphrase", "Automatic unlock, passphrase as fallback."),
-]
+# The recipe's encryption types, in display order: the enum of
+# shared/recipe/fisherman-recipe.schema.json, which
+# tests/unit/test_encryption_choices.py holds every frontend to. What each
+# one is called is branding copy, never a literal here.
+ENCRYPTION_TYPES = ("none", "luks-passphrase", "tpm2-luks", "tpm2-luks-passphrase")
+
+
+def encryption_text(enc_type, suffix):
+    """The copy line for an encryption type; suffix is _label or _description
+    (shared/branding/README.md, "Encryption choices")."""
+    return core.BRANDING.text("encryption_" + enc_type.replace("-", "_") + suffix)
 
 
 def _page_title(text):
@@ -201,16 +206,18 @@ class SetupPage(Page):
 
         self.enc_radios = []
         group = None
-        for value, label, explain in ENCRYPTION_CHOICES:
+        for value in ENCRYPTION_TYPES:
             if value.startswith("tpm2") and not self.has_tpm:
                 continue
-            radio = Gtk.RadioButton.new_with_label_from_widget(group, label)
+            radio = Gtk.RadioButton.new_with_label_from_widget(
+                group, encryption_text(value, "_label"))
             group = group or radio
             radio.value = value
             radio.connect("toggled", self._sync)
             self.pack_start(radio, False, False, 0)
             sub = Gtk.Label(xalign=0)
-            sub.set_markup(f"<small>{GLib.markup_escape_text(explain)}</small>")
+            sub.set_markup("<small>" + GLib.markup_escape_text(
+                encryption_text(value, "_description")) + "</small>")
             sub.set_margin_start(26)
             self.pack_start(sub, False, False, 0)
             self.enc_radios.append(radio)
@@ -363,7 +370,7 @@ class ConfirmPage(Page):
             f"Image:       {r.get('image') or 'this live system'}",
             f"Disk:        {self.win.pages['destination'].selected_disk()['path']}",
             f"Filesystem:  {r['filesystem']}",
-            f"Encryption:  {r['encryption']['type']}",
+            f"Encryption:  {encryption_text(r['encryption']['type'] or 'none', '_label')}",
             f"Hostname:    {r['hostname']}",
         ]
         if r.get("additionalImageStores"):

@@ -39,6 +39,17 @@ def text(window, key: str, **values) -> str:
     return line
 
 
+def encryption_text(window, enc_type: str, suffix: str) -> str:
+    """What an encryption type is called, or how it is described: suffix is
+    _label or _description.
+
+    The keys are encryption_<type>_label and encryption_<type>_description,
+    <type> being the recipe id with "-" as "_" (shared/branding/README.md,
+    "Encryption choices"). fisherman reads an empty type as "none".
+    """
+    return text(window, "encryption_" + (enc_type or "none").replace("-", "_") + suffix)
+
+
 def confirm_subtitle(window, language: str = "") -> str:
     """The confirm subtitle for the selected language: a confirm_quotes line
     when the branding has one for that language, else copy.confirm_subtitle."""

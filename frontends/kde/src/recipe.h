@@ -10,7 +10,7 @@ struct Recipe {
     QString filesystem = "xfs";
     bool btrfsSubvolumes = false;
     struct {
-        // "none", "luks-passphrase", "tpm2-luks", "tpm2-luks-passphrase"
+        // One of encryptionTypes().
         QString type = "none";
         QString passphrase;
     } encryption;
@@ -30,6 +30,11 @@ struct Recipe {
     static Recipe fromJson(const QJsonObject &obj);
     bool isValid() const;
     QString validationError() const;
+
+    // The encryption types fisherman accepts, in the order the encryption
+    // step offers them: the enum of shared/recipe/fisherman-recipe.schema.json,
+    // which tests/unit/test_encryption_choices.py holds every frontend to.
+    static const QStringList &encryptionTypes();
 };
 
 #endif // RECIPE_H
