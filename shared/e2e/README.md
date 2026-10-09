@@ -19,8 +19,8 @@ installed and booted.
 
 - builds the real fisherman from the submodule to `/usr/local/lib/tuna-e2e/fisherman.real`;
 - installs `fisherman-shim.sh` at `/usr/local/bin/fisherman`, the path all frontends run. The shim keeps the recipe, runs the real `fisherman validate` on it, then streams fisherman's real progress protocol — newline-delimited JSON, `total_steps` computed from the recipe (`shared/progress/README.md`). It used to stream nine invented `[n/9] ` lines, which is how two frontends could parse a format fisherman never emits and still pass this gate. It never partitions the runner;
-- creates a loop disk and writes the `lsblk` fixture that names it;
-- puts `fake-bin/` first on `PATH`: `lsblk` (one disk, the loop device), `bootc` (fails, so no live-ISO mode), `pkexec` (`sudo -n`, there is no polkit agent).
+- creates a loop disk and writes `/tmp/tuna-e2e/probe.json`, which offers that disk and nothing else. The shim prints this file for `fisherman probe --json`, which every frontend reads its disk list from (`shared/probe/README.md`). The real probe would exclude the loop disk, because it is a loop device and smaller than 50 GiB. It would also offer the runner's own disk;
+- puts `fake-bin/` first on `PATH`: `bootc` (fails, so no live-ISO mode), `pkexec` (`sudo -n`, there is no polkit agent).
 
 `check-recipe.py` then judges the recipe the frontend handed over: the real
 fisherman accepts it, it conforms to `shared/recipe/fisherman-recipe.schema.json`,

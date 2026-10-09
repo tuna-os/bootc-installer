@@ -1,7 +1,8 @@
 # TPM2 detection contract
 
 The `tpm2-luks` encryption modes need a TPM 2.0 device. This file says how
-every frontend decides whether to offer them.
+to decide whether to offer them. fisherman makes that decision for every
+frontend (see "Implementation").
 
 ## The probe
 
@@ -38,8 +39,8 @@ had already partitioned the disk.
 
 ## Fixtures
 
-`fixtures/` holds one directory tree per case. Each frontend points its
-probe at these and must agree:
+`fixtures/` holds one directory tree per case. fisherman's probe tests use
+copies of these trees and must agree:
 
 | tree | holds | result |
 |---|---|---|
@@ -48,12 +49,17 @@ probe at these and must agree:
 | `legacy-tpm2/` | no version file, `dev/tpmrm0` | true |
 | `legacy-none/` | no version file, no `dev/tpmrm0` | false |
 
-## Implementations
+## Implementation
 
-| frontend | function |
-|---|---|
-| GNOME | `bootc_installer/core/system.py` — `Systeminfo.has_tpm2` |
-| XFCE | `tuna_installer_xfce/core.py` — `has_tpm` |
-| KDE | `src/installercontroller.cpp` — `tpm2Available` |
-| COSMIC | `src/main.rs` — `tpm_available` |
-| Niri | `installer/main.go` — `hasTPM` |
+fisherman applies this contract one time: `fisherman probe --json` reports
+it as `tpm.usable` (`fisherman/docs/PROBE.md`). Its tests use copies of
+`fixtures/`, and `tests/unit/test_shared_tpm.py` checks that those copies
+match these trees.
+
+No frontend probes the TPM itself. Each one reads `tpm.usable` through its
+probe reader (`shared/probe/README.md`). The same test fails if a frontend
+source reads `tpm_version_major`, `/dev/tpmrm0` or `/sys/class/tpm` again.
+
+`BOOTC_INSTALLER_FAKE_TPM` is read by fisherman, not by the frontends. A
+capture harness can also point `BOOTC_INSTALLER_FAKE_PROBE` at a probe
+fixture whose `tpm.usable` is true.

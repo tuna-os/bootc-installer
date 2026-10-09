@@ -44,7 +44,7 @@ Eight patches, 278 diff lines. Five belong upstream, three are ours.
 | `07` | libcosmic exposes no way to reach iced's `webgl` feature. Adds a passthrough, off by default. | upstream, pop-os/libcosmic |
 | `04` | Our own `offline.rs` imports `std::os::unix` and calls `OpenOptions::mode` unconditionally. Gates both on `cfg(unix)`. | this repo |
 | `05` | `tokio` trimmed to the four features this crate uses, libcosmic's `desktop` and `tokio` features dropped, `webgl` enabled, a `cdylib` lib target added. | this repo |
-| `08` | A `wasm_bindgen(start)` entry beside `main`, and the two host-dependent calls gated: the `live_iso_image` probe (no host to shell out to) and `scan_disks` (no lsblk, no tokio reactor — it returns the capture fixtures instead). | this repo |
+| `08` | A `wasm_bindgen(start)` entry beside `main`, and the two host-dependent calls gated: the `live_iso_image` probe (no host to shell out to) and `scan_disks` (no lsblk, no tokio reactor — it returns the capture fixtures instead). The frontend has since replaced `scan_disks` with `probe()` (`shared/probe/README.md`), so this hunk no longer applies as written. | this repo |
 
 ## The interesting one
 
