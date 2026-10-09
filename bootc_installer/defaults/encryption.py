@@ -19,6 +19,8 @@ from gettext import gettext as _
 
 from gi.repository import Adw, Gtk
 
+from bootc_installer.utils import copy as copy_text
+
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/default-encryption.ui")
 class BootcDefaultEncryption(Adw.Bin):
     __gtype_name__ = "BootcDefaultEncryption"
@@ -26,6 +28,7 @@ class BootcDefaultEncryption(Adw.Bin):
     btn_next = Gtk.Template.Child()
     page_header = Gtk.Template.Child()
 
+    encryption_row = Gtk.Template.Child()
     use_encryption_switch = Gtk.Template.Child()
     tpm2_row = Gtk.Template.Child()
     tpm2_switch = Gtk.Template.Child()
@@ -46,6 +49,15 @@ class BootcDefaultEncryption(Adw.Bin):
         self.__key = key
         self.__step = step
         self.delta = False
+
+        # This page is a switch plus a TPM switch, not the four-way choice
+        # the other frontends show, so only the two choice descriptions it
+        # can produce apply: the switch alone gives luks-passphrase, both
+        # give tpm2-luks-passphrase. The words are the shared copy keys.
+        self.encryption_row.set_subtitle(
+            copy_text.encryption_text(window, "luks-passphrase", "_description"))
+        self.tpm2_row.set_subtitle(
+            copy_text.encryption_text(window, "tpm2-luks-passphrase", "_description"))
 
         self.btn_next.connect("clicked", self.__window.next)
         self.use_encryption_switch.connect(

@@ -18,7 +18,6 @@ import re
 from gettext import gettext as _
 
 from bootc_installer.utils import copy as copy_text
-from bootc_installer.views.confirm_data import _ENC_LABELS
 
 from gi.repository import Adw, GObject, Gtk
 
@@ -156,7 +155,9 @@ class BootcConfirm(Adw.Bin):
                             )
                 elif key == "encryption":
                     enc_type = value.get("type", "none") if isinstance(value, dict) else str(value)
-                    label = _ENC_LABELS.get(enc_type, enc_type)
+                    # Branding copy, the same words every frontend uses;
+                    # a type outside the contract shows as itself.
+                    label = copy_text.encryption_text(self.__window, enc_type, "_label") or enc_type
                     self.active_widgets.append(
                         BootcChoiceEntry(
                             _("Encryption"),

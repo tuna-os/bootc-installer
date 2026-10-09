@@ -89,7 +89,8 @@ class TestConfirmScreen:
         assert ("Timezone", "America Sao_Paulo") in rows
         assert ("Users", "jorge (Jorge Castro)") in rows
         assert ("Disk", "/dev/nvme0n1 (1 TB)") in rows
-        assert ("Encryption", "Hardware-backed + passphrase fallback") in rows
+        # The shared copy key, the same words the other four frontends use.
+        assert ("Encryption", "TPM + passphrase") in rows
         assert ("Hostname", "legendary-box") in rows  # EntryRow, text via get_text
         assert ("Image", "Marlin GTS") in rows
         assert ("Graphics", "AMD Radeon") in rows

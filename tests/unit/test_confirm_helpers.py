@@ -1,6 +1,6 @@
 """
 Unit tests for confirm.py and related helpers — pure Python, no GTK required.
-Covers _ENC_LABELS lookup, quote selection logic, and keyboard formatting.
+Covers encryption labels, quote selection logic, and keyboard formatting.
 """
 
 import os
@@ -10,42 +10,47 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from bootc_installer.utils import copy as copy_text  # noqa: E402
-from bootc_installer.views.confirm_data import _ENC_LABELS  # noqa: E402
 
 
-class TestEncLabels(unittest.TestCase):
-    """_ENC_LABELS maps all four encryption type strings to human-readable labels."""
+class TestEncryptionLabels(unittest.TestCase):
+    """The confirm row names the encryption type with the branding copy every
+    frontend uses (encryption_<type>_label), not a GNOME-only table. It used
+    to say "None" and "Encrypted with passphrase" where the other four said
+    "No encryption" and "Passphrase"."""
 
-    def test_none_label(self):
-        self.assertEqual(_ENC_LABELS["none"], "None")
+    TYPES = ("none", "luks-passphrase", "tpm2-luks", "tpm2-luks-passphrase")
 
-    def test_luks_passphrase_label(self):
-        self.assertIn("passphrase", _ENC_LABELS["luks-passphrase"].lower())
+    def _window(self, branding):
+        class W:
+            recipe = {"branding": branding}
+        return W()
 
-    def test_tpm2_luks_label(self):
-        label = _ENC_LABELS["tpm2-luks"]
-        self.assertTrue(label, "tpm2-luks should have a non-empty label")
-        self.assertNotIn("passphrase", label.lower(),
-                         "tpm2-luks-only label should not mention passphrase")
+    def test_every_type_has_a_label(self):
+        w = self._window({})
+        for enc_type in self.TYPES:
+            self.assertTrue(copy_text.encryption_text(w, enc_type, "_label").strip(), enc_type)
 
-    def test_tpm2_luks_passphrase_label(self):
-        label = _ENC_LABELS["tpm2-luks-passphrase"]
-        self.assertIn("passphrase", label.lower())
+    def test_the_neutral_labels(self):
+        w = self._window({})
+        self.assertEqual(copy_text.encryption_text(w, "none", "_label"), "No encryption")
+        self.assertEqual(copy_text.encryption_text(w, "luks-passphrase", "_label"), "Passphrase")
+        self.assertEqual(copy_text.encryption_text(w, "tpm2-luks", "_label"), "TPM")
+        self.assertEqual(copy_text.encryption_text(w, "tpm2-luks-passphrase", "_label"),
+                         "TPM + passphrase")
 
-    def test_all_four_keys_present(self):
-        expected = {"none", "luks-passphrase", "tpm2-luks", "tpm2-luks-passphrase"}
-        self.assertEqual(set(_ENC_LABELS.keys()), expected)
+    def test_empty_type_is_none(self):
+        # fisherman reads "" as no encryption.
+        w = self._window({})
+        self.assertEqual(copy_text.encryption_text(w, "", "_label"), "No encryption")
 
-    def test_all_labels_are_non_empty_strings(self):
-        for key, label in _ENC_LABELS.items():
-            self.assertIsInstance(label, str, f"Label for {key!r} is not a string")
-            self.assertTrue(label.strip(), f"Label for {key!r} is empty")
+    def test_a_product_renames_a_choice_in_its_branding(self):
+        w = self._window({"copy": {"encryption_tpm2_luks_label": "Hardware key"}})
+        self.assertEqual(copy_text.encryption_text(w, "tpm2-luks", "_label"), "Hardware key")
 
-    def test_fallback_for_unknown_type(self):
-        # Unknown type falls through to raw key — callers use .get(type, type)
-        unknown = "custom-encryption"
-        result = _ENC_LABELS.get(unknown, unknown)
-        self.assertEqual(result, unknown)
+    def test_unknown_type_has_no_label(self):
+        # confirm.py then shows the raw id rather than an empty row.
+        w = self._window({})
+        self.assertEqual(copy_text.encryption_text(w, "custom-encryption", "_label"), "")
 
 
 class TestConfirmSubtitleFromBranding(unittest.TestCase):
