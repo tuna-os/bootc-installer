@@ -1,0 +1,69 @@
+{
+  "protocol_version": 1,
+  "disks": [
+    {
+      "path": "/dev/sr0",
+      "size_bytes": 2470445056,
+      "size_label": "2.3 GiB",
+      "model": "QEMU DVD-ROM",
+      "vendor": "QEMU",
+      "transport": "sata",
+      "transport_label": "SATA",
+      "removable": true,
+      "read_only": false,
+      "eligible": false,
+      "excluded_reason": "optical"
+    },
+    {
+      "path": "/dev/vda",
+      "size_bytes": 68719476736,
+      "size_label": "64 GiB",
+      "model": "",
+      "vendor": "0x1af4",
+      "transport": "virtio",
+      "transport_label": "VirtIO",
+      "removable": false,
+      "read_only": false,
+      "eligible": true
+    },
+    {
+      "path": "/dev/zram0",
+      "size_bytes": 2147483648,
+      "size_label": "2 GiB",
+      "model": "",
+      "vendor": "",
+      "transport": "",
+      "transport_label": "",
+      "removable": false,
+      "read_only": false,
+      "eligible": false,
+      "excluded_reason": "zram"
+    }
+  ],
+  "tpm": {
+    "present": false,
+    "version": "",
+    "usable": false
+  },
+  "system": {
+    "ram_bytes": 2081574912,
+    "cpu_threads": 1,
+    "cpu_cores": 1,
+    "uefi": false,
+    "meets_requirements": false,
+    "unmet": [
+      "ram",
+      "cpu",
+      "uefi"
+    ]
+  },
+  "live": {
+    "is_live": true,
+    "live_image": "ghcr.io/example/os:stable",
+    "detected_by": "cmdline:rd.live.image"
+  },
+  "offline": {
+    "stores": [],
+    "images": []
+  }
+}

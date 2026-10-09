@@ -1,0 +1,7 @@
+{
+  "disks": [],
+  "tpm_usable": false,
+  "unmet": [
+    "uefi"
+  ]
+}

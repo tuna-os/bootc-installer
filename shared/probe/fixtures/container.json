@@ -1,0 +1,119 @@
+{
+  "protocol_version": 1,
+  "disks": [
+    {
+      "path": "/dev/zram0",
+      "size_bytes": 0,
+      "size_label": "0 B",
+      "model": "",
+      "vendor": "",
+      "transport": "",
+      "transport_label": "",
+      "removable": false,
+      "read_only": false,
+      "eligible": false,
+      "excluded_reason": "zram"
+    },
+    {
+      "path": "/dev/vda",
+      "size_bytes": 274877906944,
+      "size_label": "256 GiB",
+      "model": "",
+      "vendor": "0x1af4",
+      "transport": "virtio",
+      "transport_label": "VirtIO",
+      "removable": false,
+      "read_only": false,
+      "eligible": false,
+      "excluded_reason": "boot_disk"
+    },
+    {
+      "path": "/dev/vdb",
+      "size_bytes": 10035200,
+      "size_label": "9.6 MiB",
+      "model": "",
+      "vendor": "0x1af4",
+      "transport": "virtio",
+      "transport_label": "VirtIO",
+      "removable": false,
+      "read_only": true,
+      "eligible": false,
+      "excluded_reason": "read_only"
+    },
+    {
+      "path": "/dev/vdc",
+      "size_bytes": 285700096,
+      "size_label": "272.5 MiB",
+      "model": "",
+      "vendor": "0x1af4",
+      "transport": "virtio",
+      "transport_label": "VirtIO",
+      "removable": false,
+      "read_only": true,
+      "eligible": false,
+      "excluded_reason": "read_only"
+    },
+    {
+      "path": "/dev/vdd",
+      "size_bytes": 50102272,
+      "size_label": "47.8 MiB",
+      "model": "",
+      "vendor": "0x1af4",
+      "transport": "virtio",
+      "transport_label": "VirtIO",
+      "removable": false,
+      "read_only": true,
+      "eligible": false,
+      "excluded_reason": "read_only"
+    },
+    {
+      "path": "/dev/vde",
+      "size_bytes": 704512,
+      "size_label": "688 KiB",
+      "model": "",
+      "vendor": "0x1af4",
+      "transport": "virtio",
+      "transport_label": "VirtIO",
+      "removable": false,
+      "read_only": true,
+      "eligible": false,
+      "excluded_reason": "read_only"
+    },
+    {
+      "path": "/dev/vdf",
+      "size_bytes": 6045696,
+      "size_label": "5.8 MiB",
+      "model": "",
+      "vendor": "0x1af4",
+      "transport": "virtio",
+      "transport_label": "VirtIO",
+      "removable": false,
+      "read_only": true,
+      "eligible": false,
+      "excluded_reason": "read_only"
+    }
+  ],
+  "tpm": {
+    "present": false,
+    "version": "",
+    "usable": false
+  },
+  "system": {
+    "ram_bytes": 16876494848,
+    "cpu_threads": 4,
+    "cpu_cores": 4,
+    "uefi": false,
+    "meets_requirements": false,
+    "unmet": [
+      "uefi"
+    ]
+  },
+  "live": {
+    "is_live": false,
+    "live_image": ""
+  },
+  "offline": {
+    "stores": [],
+    "images": []
+  }
+}
