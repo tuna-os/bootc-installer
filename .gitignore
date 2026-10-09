@@ -21,3 +21,4 @@ org.bootcinstaller.Installer.Devel.flatpak
 
 # Local output of shared/browser/run.sh; CI uploads it as an artifact instead.
 docs/browser/
+/build-wasm-niri/
