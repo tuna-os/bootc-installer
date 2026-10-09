@@ -72,11 +72,26 @@ about to be erased.
 |---|---|
 | `welcome_title`, `welcome_subtitle` | welcome heading and line under it |
 | `welcome_install`, `welcome_install_subtitle`, `welcome_button` | the install row (GNOME) or the forward button |
+| `encryption_<type>_label`, `encryption_<type>_description` | each encryption choice, and the confirm page's encryption row (the label) |
 | `confirm_title`, `confirm_subtitle`, `confirm_body`, `confirm_warning`, `confirm_button` | the last page before the disk is written |
 | `progress_title`, `progress_note` | while fisherman runs |
 | `recovery_key_title`, `recovery_key_body`, `recovery_key_copy`, `recovery_key_ack` | the recovery-key panel after a TPM enrolment |
 | `done_title`, `done_subtitle`, `done_restart`, `done_failed_title` | the done page |
 | `store_label` | the store link on the done page, shown only when `store_url` is set |
+
+### Encryption choices
+
+`<type>` is a recipe encryption type with `-` written as `_`, for example
+`encryption_tpm2_luks_passphrase_label`. The types and their display order
+are the `encryption.type` enum in `shared/recipe/fisherman-recipe.schema.json`:
+`none`, `luks-passphrase`, `tpm2-luks`, `tpm2-luks-passphrase`. An empty
+type means `none`.
+
+A frontend keeps only that list of ids, because its code branches on them.
+It builds each key from the id and gets the words from its resolver. The
+confirm page shows the label of the chosen type, never the id. `tests/unit/test_encryption_choices.py` compares the list in each
+frontend with the schema, and fails if a frontend hardcodes the words. Do
+not set a label to `""`: the choice then has no name.
 
 `confirm_quotes` maps a language tag (`"pt_BR"`) to lines used as the
 confirm subtitle in that language. `assets` holds absolute host paths
