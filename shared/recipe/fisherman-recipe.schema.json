@@ -82,7 +82,8 @@
     },
     "distroID": {
       "type": "string",
-      "default": "tunaos"
+      "default": "bootc",
+      "description": "Short lowercase distribution id that names the OEM setup paths and services on the target (/etc/<distroID>/oem/). Frontends write the branding id; fisherman uses \"bootc\" when it is empty."
     },
     "selinuxDisabled": {
       "type": "boolean",

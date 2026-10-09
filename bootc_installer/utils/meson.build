@@ -18,4 +18,7 @@ sources = [
   'sha512crypt.py',
 ]
 
-install_data(sources, install_dir: utilsdir)
+# The demo mode (BOOTC_DEMO=1) replays this byte-identical copy of
+# shared/progress/dry-run-transcript.ndjson; views/progress.py reads it
+# from here.
+install_data(sources + ['dry-run-transcript.ndjson'], install_dir: utilsdir)

@@ -1,6 +1,6 @@
 # Contributing to bootc-installer
 
-bootc-installer is a GTK4/Libadwaita Flatpak installer for [bootc](https://containers.github.io/bootc/) container-native OS images, backed by the `fisherman` Go install backend.
+bootc-installer is a GTK4/Libadwaita Flatpak installer for container-native OS images from [bootc](https://containers.github.io/bootc/). Its install backend is `fisherman`, written in Go.
 
 ## Getting started
 
@@ -55,7 +55,7 @@ python3 -m ruff check bootc_installer/ tests/   # Lint
 ./QUALIFY_SOFTWARE.sh                           # Full qualification suite
 ```
 
-CI gate: `--cov-fail-under=51` (minimum unit test coverage).
+CI gate: `--cov-fail-under=51` (the minimum coverage for unit tests).
 
 ## Branch workflow
 
@@ -66,9 +66,9 @@ CI gate: `--cov-fail-under=51` (minimum unit test coverage).
 
 ## Adding images to the catalog
 
-The image catalog lives in [`fisherman/data/images.json`](https://github.com/tuna-os/fisherman/blob/dev/data/images.json). See the README for the full JSON schema.
+The image catalog lives in [`fisherman/data/images.json`](https://github.com/tuna-os/fisherman/blob/dev/data/images.json). Refer to [the guidebook](docs/guide/customising.md#add-an-image-to-the-default-catalog) for the JSON schema.
 
-> `fisherman/` is a git submodule pointing to [`tuna-os/fisherman`](https://github.com/tuna-os/fisherman). Changes to the catalog must be committed and pushed **separately** to the fisherman repo, then the submodule pointer updated here.
+> `fisherman/` is a git submodule that points to [`tuna-os/fisherman`](https://github.com/tuna-os/fisherman). Commit and push changes to the catalog **separately** to the fisherman repo, then update the submodule pointer here.
 
 ## Architecture overview
 
@@ -87,4 +87,4 @@ See [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) for deeper architecture do
 
 ## Security
 
-Report vulnerabilities via [GitHub Private Vulnerability Reporting](https://github.com/tuna-os/bootc-installer/security/advisories/new). Do not open public issues for security bugs.
+Report vulnerabilities through a [private vulnerability report on GitHub](https://github.com/tuna-os/bootc-installer/security/advisories/new). Do not open public issues for security bugs.

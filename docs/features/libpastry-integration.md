@@ -9,7 +9,7 @@ Integrate libpastry for frosted glass effects, spring animations, and spinners a
 1. Add libpastry as a Flatpak module in `org.bootcinstaller.Installer.json`
 2. Create `bootc_installer/utils/pastry_compat.py` wrapper (may already exist as stub)
 3. Apply frosted glass to: welcome screen background, progress screen overlay, credits window
-4. Replace loading spinners with libpastry animated spinners
+4. Replace the spinners that show load progress with libpastry animated spinners
 5. Add spring animations to carousel transitions and button press feedback
 
 ### Files to touch

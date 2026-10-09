@@ -473,7 +473,7 @@ const char *kFixtureLogFinished =
     "{\"cumulative_pct\": 88, \"elapsed_ms\": 3200, \"step\": 6, \"step_name\": \"Copying system Flatpaks\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 11}\n"
     "{\"cumulative_pct\": 99, \"elapsed_ms\": 3600, \"step\": 7, \"step_name\": \"Configuring installed system\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 0}\n"
     "{\"cumulative_pct\": 99, \"elapsed_ms\": 4000, \"step\": 8, \"step_name\": \"Finalizing installation\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"total_steps\": 8, \"type\": \"step\", \"weight_pct\": 1}\n"
-    "{\"boot_id\": \"0001\", \"elapsed_ms\": 4400, \"message\": \"Installation complete\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"type\": \"complete\"}\n";
+    "{\"boot_id\": \"0001\", \"elapsed_ms\": 4400, \"message\": \"Installation complete!\", \"timestamp\": \"1970-01-01T00:00:00Z\", \"type\": \"complete\"}\n";
 
 // fisherman emits this once, after TPM enrolment, and for a tpm2-luks
 // install it is the only way back into the disk if the TPM state changes

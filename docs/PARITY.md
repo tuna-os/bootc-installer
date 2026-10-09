@@ -2,7 +2,7 @@
 
 The GNOME frontend is the reference: it is the one that shipped and has
 end-to-end tests. This page records what each of the other four renders
-of the same contract. A gap is then a line here, not a surprise on an
+of the same contract. Each gap then shows as a line here, not as a surprise on an
 ISO. `docs/DESIGN-AUDIT.md` covers how each looks against its desktop;
 this page covers what each does.
 

@@ -1,0 +1,53 @@
+<!doctype html>
+<!--
+  Page for the Niri wizard compiled to WebAssembly. shared/browser/walk.mjs
+  drives it through window.niri:
+
+    niri.ready         true once the Qt main() is running
+    niri.show(name)    ask for a wizard page
+    niri.state()       {pages, current, text, checks, error}
+
+  The Qt window fills #screen. Nothing in the page is part of the wizard.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, height=device-height, user-scalable=0">
+  <title>Niri installer (WebAssembly)</title>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
+    #screen { position: absolute; inset: 0; }
+  </style>
+</head>
+<body>
+  <div id="screen"></div>
+  <script src="niri-wasm.js"></script>
+  <script src="qtloader.js"></script>
+  <script>
+    window.niri = { ready: false, error: null };
+    (async () => {
+      try {
+        const params = new URLSearchParams(location.search);
+        const environment = {};
+        // ?backend=software selects Qt Quick's software scene graph; the
+        // default is the WebGL one. See README.md for which one CI uses.
+        if (params.get('backend')) environment.QT_QUICK_BACKEND = params.get('backend');
+        const instance = await qtLoad({
+          qt: {
+            // EXPORT_NAME is the CMake target name plus _entry.
+            entryFunction: window.niri_wasm_entry,
+            containerElements: [document.getElementById('screen')],
+            environment,
+            onExit: (exit) => { window.niri.error = `exited: ${exit.code ?? exit.text}`; },
+          },
+        });
+        window.niri.show = (name) => instance.niriShow(name);
+        window.niri.state = () => JSON.parse(instance.niriState());
+        window.niri.ready = true;
+      } catch (e) {
+        window.niri.error = String(e);
+      }
+    })();
+  </script>
+</body>
+</html>

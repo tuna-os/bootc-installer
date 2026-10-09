@@ -1,10 +1,10 @@
 # GNOME installer walkthrough
 
-Every image below is rendered in CI from the real GTK4 / libadwaita wizard by
-`tests/gui/capture-screens.py`: the same `BootcWindow` the Flatpak presents,
-driven page by page under Xvfb against fixtures (two canned disks, no
-network, the repository's own `recipe.json`). Nothing is mocked in the UI
-and nothing touches a disk. See `.github/workflows/screenshots-gnome.yml`.
+CI renders every image below from the real GTK4 / libadwaita wizard with
+`tests/gui/capture-screens.py`. The script uses the same `BootcWindow` that
+the Flatpak presents. It drives the wizard page by page under Xvfb against
+fixtures (two canned disks, no network, the repository's own `recipe.json`).
+The UI has no mocks, and nothing touches a disk. See `.github/workflows/screenshots-gnome.yml`.
 
 The cross-frontend view, with the KDE, COSMIC, Niri and XFCE installers side
 by side and the parity matrix on top, is [`walkthrough/`](walkthrough/README.md).
@@ -27,17 +27,17 @@ by side and the parity matrix on top, is [`walkthrough/`](walkthrough/README.md)
 | ![Recovery key](screenshots/08-recovery-key.png) | **Recovery key**: shown once after an encrypted install and must be acknowledged. |
 | ![Done](screenshots/09-done.png) | **Done**: restart into the new system. |
 
-The user-account page is part of the wizard but not of this capture: the
-repository's `recipe.json` targets an image with `needs_user_creation: false`,
-so the page is skipped exactly as it would be on that ISO.
+The user-account page is part of the wizard but not of this capture. The
+repository's `recipe.json` targets an image with `needs_user_creation: false`.
+Thus the wizard skips the page, exactly as it would on that ISO.
 
 ## What the capture checks
 
-A PNG that exists is not a screenshot that rendered. Each frame is audited
-from its own pixels (distinct colours, share of the largest flat colour, ink
-fraction), and the job fails when a page did not draw. The visible widget
-text of each page is matched against the shared screen contract in
-`shared/walkthrough/parity_report.py`, and the result is written to
+A PNG that exists is not a screenshot that rendered. The job audits each
+frame from its own pixels (distinct colours, share of the largest flat
+colour, ink fraction). The job fails when a page did not draw. The job also
+compares the visible widget text of each page with the shared screen contract in
+`shared/walkthrough/parity_report.py`, and writes the result to
 `screenshots/walkthrough-gnome.json` for the aggregator.
 
 Run it locally:

@@ -205,13 +205,16 @@ class InstallerWindow(Gtk.ApplicationWindow):
         self._enter(PAGE_ORDER.index("done"))
 
 
+APP_ID = "org.tunaos.InstallerXfce"
+
+
 class InstallerApp(Gtk.Application):
     def __init__(self):
-        super().__init__(application_id="org.tunaos.InstallerXfce")
+        super().__init__(application_id=APP_ID)
 
     def do_activate(self):
         win = self.get_active_window() or InstallerWindow(self)
-        readiness.arm(win, page_getter=lambda: PAGE_ORDER[win.index])
+        readiness.arm(win, APP_ID, page_getter=lambda: PAGE_ORDER[win.index])
         win.present()
 
 

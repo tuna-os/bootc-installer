@@ -9,7 +9,7 @@ Refs: #38|Closes
 A single integration test that:
 - Launches the app with `BOOTC_DEMO=1` + `TUNA_TEST=1`
 - Auto-advances through all wizard steps
-- Verifies confirm screen renders with "( Become Legend )" button
+- Verifies that the confirm screen renders with the "( Become Legend )" button
 - Clicks confirm
 - Waits for demo install to complete (~5 seconds)
 - Verifies done screen shows success state
@@ -23,7 +23,7 @@ Add `BOOTC_PREVIEW_SCREEN=<name>` env var support:
 - `confirm`: shows with sample finals data
 - `credits`: opens credits window directly
 
-Enables rapid UI iteration on individual screens.
+This lets you quickly change the UI of one screen at a time.
 
 ## 3. Dev Setup Documentation
 
@@ -44,4 +44,4 @@ Document in `README.md` or `docs/DEV_SETUP.md`:
 
 - [x] `xvfb-run -a pytest tests/ui/test_demo_e2e.py -v` passes
 - [x] `BOOTC_PREVIEW_SCREEN=progress` opens directly to progress in demo
-- [x] Dev setup documented enough that a new contributor can run the app in < 10 min
+- [x] The dev setup docs let a new contributor run the app in < 10 min
