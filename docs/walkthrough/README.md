@@ -27,7 +27,7 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 | KDE Plasma | 7 | 7 | 6 | tests/capture.cpp (Kirigami/QML, offscreen) |
 | COSMIC | 7 | 7 | 6 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
 | Niri | 7 | 7 | 6 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
-| XFCE | 9 | 9 | 7 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
+| XFCE | 9 | 9 | 8 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
 
 ## GNOME
 
@@ -73,9 +73,9 @@ libcosmic / iced (Rust). Source: `frontends/cosmic/`.
 | | |
 |---|---|
 | <img src="cosmic/01-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to TunaOS Welcome. This assistant will guide you through installing TunaOS onto this computer. You will choose a target disk and a f</sub> |
-| <img src="cosmic/02-disk.png" width="360"> | **disk**  <br><sub>Select a disk Everything on the disk you pick will be erased. /dev/nvme0n1 476.9G · SAMSUNG MZVL2512HCJQ · nvme /dev/sda 1.8T · WDC WD20SPZX</sub> |
+| <img src="cosmic/02-disk.png" width="360"> | **disk**  <br><sub>Select a disk Everything on the disk you pick will be erased. Samsung SSD 870 EVO 500GB /dev/sda · 465.8 GiB · SATA Extreme SSD /dev/sdc · 9</sub> |
 | <img src="cosmic/03-options.png" width="360"> | **options**  <br><sub>Options Sensible defaults are already chosen. Change them only if you need to. System Computer name ubuntu Filesystem xfs Encryption Disk en</sub> |
-| <img src="cosmic/04-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation The last screen before anything is written. Everything on /dev/nvme0n1 will be erased. This cannot be undone.  Summary </sub> |
+| <img src="cosmic/04-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation The last screen before anything is written. Everything on /dev/sda will be erased. This cannot be undone.  Summary Targ</sub> |
 | <img src="cosmic/05-installing.png" width="360"> | **installing**  <br><sub>Installing TunaOS… fisherman is writing the image to disk. [1/8] Partitioning disk
 [2/8] Formatting EFI partition
 [3/8] Formatting root file</sub> |
@@ -91,9 +91,9 @@ Quickshell QML + Go backend. Source: `frontends/niri/`.
 | | |
 |---|---|
 | <img src="niri/01-welcome.png" width="360"> | **welcome**  <br><sub>Step 1 of 6 · Welcome ⬢ Welcome to TunaOS This wizard will guide you through installing TunaOS onto your computer. Get started Get started E</sub> |
-| <img src="niri/02-disk.png" width="360"> | **disk**  <br><sub>Step 2 of 6 · Disk Destination Everything on the selected disk will be erased. This cannot be undone. Scanning for disks… Back Back Continue</sub> |
+| <img src="niri/02-disk.png" width="360"> | **disk**  <br><sub>Step 2 of 6 · Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  ·  465.8 Gi</sub> |
 | <img src="niri/03-encryption.png" width="360"> | **encryption**  <br><sub>Step 3 of 6 · Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without </sub> |
-| <img src="niri/04-confirm.png" width="360"> | **confirm**  <br><sub>Step 4 of 6 · Confirm Confirm installation ⚠  Everything on the selected disk will be erased. This cannot be undone. Summary Target disk — F</sub> |
+| <img src="niri/04-confirm.png" width="360"> | **confirm**  <br><sub>Step 4 of 6 · Confirm Confirm installation ⚠  Everything on /dev/sda will be erased. This cannot be undone. Summary Target disk /dev/sda Fil</sub> |
 | <img src="niri/05-progress.png" width="360"> | **progress**  <br><sub>Step 5 of 6 · Installing Installing TunaOS… Step 5 of 8 — Installing OS [1/8] Partitioning disk
 [2/8] Formatting EFI partition
 [3/8] Formatt</sub> |
@@ -112,14 +112,14 @@ GTK3 / PyGObject. Source: `frontends/xfce/`.
 
 You'll choose what to install and where; nothing is written to any disk </sub> |
 | <img src="xfce/02-source.png" width="360"> | **source**  <br><sub>What do you want to install? Bluefin Bluefin ghcr.io/ublue-os/bluefin:latest GNOME GNOME ghcr.io/tuna-os/bonito:latest KDE Plasma KDE Plasma</sub> |
-| <img src="xfce/03-destination.png" width="360"> | **destination**  <br><sub>Where should TunaOS be installed? SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 WDC WD20SPZX    </sub> |
+| <img src="xfce/03-destination.png" width="360"> | **destination**  <br><sub>Where should TunaOS be installed? Samsung SSD 870 EVO 500GB    /dev/sda    465.8 GiB    SATA Samsung SSD 870 EVO 500GB    /dev/sda    465.8 </sub> |
 | <img src="xfce/04-setup.png" width="360"> | **setup**  <br><sub>Disk encryption No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at every boot. TP</sub> |
 | <img src="xfce/05-identity.png" width="360"> | **identity**  <br><sub>Name this computer Hostname Password Full name Username Your account</sub> |
 | <img src="xfce/06-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation Image:       ghcr.io/ublue-os/bluefin:latest
-Disk:        /dev/nvme0n1
+Disk:        /dev/sda
 Filesystem:  xfs
 Encryption:  No encryption
-Host</sub> |
+Hostname</sub> |
 | <img src="xfce/07-progress.png" width="360"> | **progress**  <br><sub>Installing TunaOS…  Do not power off the computer. [1/8] Partitioning disk
 [2/8] Formatting EFI partition
 [3/8] Formatting root filesystem

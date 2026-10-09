@@ -102,11 +102,11 @@
       "name": "disk",
       "png": "docs/screenshots/02-disk.png",
       "rendered": true,
-      "colours": 196,
-      "flat": 0.5412124469010696,
-      "ink": 0.993052356824812,
-      "stddev": 0.06435257985623488,
-      "text_excerpt": "Select a disk Everything on the disk you pick will be erased. /dev/nvme0n1 476.9G \u00b7 SAMSUNG MZVL2512HCJQ \u00b7 nvme /dev/sda 1.8T \u00b7 WDC WD20SPZX-22UA7 \u00b7 sata Back Continue"
+      "colours": 202,
+      "flat": 0.5327677977378577,
+      "ink": 0.9922206868314652,
+      "stddev": 0.06776898803874729,
+      "text_excerpt": "Select a disk Everything on the disk you pick will be erased. Samsung SSD 870 EVO 500GB /dev/sda \u00b7 465.8 GiB \u00b7 SATA Extreme SSD /dev/sdc \u00b7 931.5 GiB \u00b7 USB Cruzer Blade /dev/sdd \u00b7 59.6 GiB \u00b7 USB WD_BLACK SN850X 1000GB /dev/nvme0n1 \u00b7 953.9 Gi"
     },
     {
       "name": "options",
@@ -122,11 +122,11 @@
       "name": "confirm",
       "png": "docs/screenshots/04-confirm.png",
       "rendered": true,
-      "colours": 317,
+      "colours": 306,
       "flat": 0.5778954910691437,
-      "ink": 0.990672501151543,
-      "stddev": 0.07456627289989988,
-      "text_excerpt": "Confirm installation The last screen before anything is written. Everything on /dev/nvme0n1 will be erased. This cannot be undone.  Summary Target disk /dev/nvme0n1 Filesystem xfs Encryption No encryption Computer name ubuntu Image ghcr.io/"
+      "ink": 0.9908004503812887,
+      "stddev": 0.07439668604234888,
+      "text_excerpt": "Confirm installation The last screen before anything is written. Everything on /dev/sda will be erased. This cannot be undone.  Summary Target disk /dev/sda Filesystem xfs Encryption No encryption Computer name ubuntu Image ghcr.io/tuna-os/"
     },
     {
       "name": "installing",
@@ -161,9 +161,9 @@
   ],
   "transition_pixels": [
     389212,
-    248866,
-    240767,
-    177689,
+    250664,
+    240645,
+    177539,
     347534,
     24670
   ],

@@ -98,21 +98,21 @@
       "name": "qr_companion",
       "png": "docs/screenshots/02-qr_companion.png",
       "rendered": true,
-      "colours": 514,
-      "flat": 0.9278315469524876,
-      "ink": 0.03747400415933451,
-      "stddev": 0.12189624667222157,
+      "colours": 512,
+      "flat": 0.9278048845518051,
+      "ink": 0.037467338559163864,
+      "stddev": 0.12186896160889372,
       "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
     },
     {
       "name": "disk",
       "png": "docs/screenshots/03-disk.png",
       "rendered": true,
-      "colours": 502,
-      "flat": 0.8612821948488242,
-      "ink": 0.004592598517570522,
-      "stddev": 0.05196156188667451,
-      "text_excerpt": "Computer is not plugged in \u2014 connect power before installing Install Location Select the disk where you want to install. All data on the selected disk will be permanently erased. SAMSUNG MZVL2512 /dev/nvme0n1 \u00b7 476.9 GB SAMSUNG MZVL2512 /de"
+      "colours": 501,
+      "flat": 0.847904335306351,
+      "ink": 0.005092518530368475,
+      "stddev": 0.05333824535235833,
+      "text_excerpt": "Computer is not plugged in \u2014 connect power before installing Install Location Select the disk where you want to install. All data on the selected disk will be permanently erased. Samsung SSD 870 EVO 500GB /dev/sda \u00b7 465.8 GiB \u00b7 SATA Samsung"
     },
     {
       "name": "slurp",
@@ -138,10 +138,10 @@
       "name": "confirm",
       "png": "docs/screenshots/06-confirm.png",
       "rendered": true,
-      "colours": 232,
+      "colours": 235,
       "flat": 0.9200527915533515,
-      "ink": 0.006145683357329494,
-      "stddev": 0.049185952710588385,
+      "ink": 0.006159014557670772,
+      "stddev": 0.0492656905590267,
       "text_excerpt": "Confirm installation Hostname Hostname Hostname Encryption TPM + passphrase Encryption TPM + passphrase Install Install"
     },
     {
@@ -176,12 +176,12 @@
     }
   ],
   "transition_pixels": [
-    77219,
-    89233,
-    52188,
+    77171,
+    93195,
+    54130,
     34271,
-    36492,
-    31522,
+    36453,
+    31486,
     43981,
     41947
   ],
