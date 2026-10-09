@@ -1,56 +1,33 @@
 # TunaOS XFCE Installer — Roadmap
 
-**Last updated**: 2026-08-24 | **Maintainer**: tuna-os (hanthor)
+**Status**: Consolidated inside monorepo (`frontends/xfce`) | **Parent Roadmap**: [Root ROADMAP.md](../../ROADMAP.md)
 
 ---
 
 ## Mission
 
-Ship the XFCE desktop's install experience: a GTK3 frontend that drives the
-fisherman bootc backend — welcome, image selection, disk selection, filesystem
-and encryption, account, confirmation, install progress, completion — so a
-first-time XFCE user gets a native install from first boot to desktop.
+Ship the XFCE desktop's install experience: a lightweight GTK3 frontend that drives the
+fisherman bootc backend, providing a native, responsive install from first boot to desktop.
 
 ---
 
-## Current Status
+## Monorepo Context & Consolidation
 
-- **App**: GTK3 frontend for fisherman; CI-rendered walkthrough in
-  docs/gui-walkthrough.md.
-- **Distribution**: image-baked flatpak — no standalone GitHub Releases (by
-  design, not yet documented as policy).
-- **Parity**: covered by `installer-smoke.yml` + `docs/INSTALLER-FRONTENDS.md`
-  checks (readiness stamp, non-blank, advances, per-screen OCR).
-- **Health**: active (pushed 08-24); 40 unit tests exist but nothing runs them
-  in CI (#23).
+Following the 2026-09-17 monorepo migration ([docs/MIGRATION.md](../../docs/MIGRATION.md)),
+XFCE installer planning is unified under the root [ROADMAP.md](../../ROADMAP.md).
 
-### Priorities
+- **Shared Contracts**: Uses the canonical recipe schema (`shared/recipe/`) and fulfills the six core screens verified in [docs/walkthrough/README.md](../../docs/walkthrough/README.md).
+- **Release & Distribution**: Published as `ghcr.io/tuna-os/bootc-installer:xfce` via `.github/workflows/publish-oci.yml` upon promotion to `prod` ([docs/RELEASE.md](../../docs/RELEASE.md)).
+- **Consolidation Plan (F1–F8)**: Migrating duplicate non-UI logic (progress calculation, system probing, recipe generation, validation) directly into fisherman or `shared/`.
+
+### Active XFCE Priorities in Monorepo
 
 | Priority | Item | Tracking | Status |
 |----------|------|----------|--------|
-| P0 | Wire 40 existing unit tests into CI | #23 | 🟡 Open |
-| P2 | ROADMAP-coverage entry in org ROADMAP tally | #1295 | ⬜ Not started |
+| P0 | Frontend consolidation: adopt shared fisherman probe & progress events | #186, #208 | 🟡 In progress |
+| P1 | Unit test suite execution in monorepo CI (`ci-xfce.yml`) | #186 | 🟡 Active |
+| P1 | Parity alignment with walkthrough contract table | #150, [docs/PARITY.md](../../docs/PARITY.md) | 🟡 In progress |
+| P2 | Fold redundant vendored copies into `shared/` core | #207 | 🟡 In review |
 
 ---
-
-## Quarterly Goals
-
-### Current Quarter (2026 Q3)
-
-**Theme**: make the test suite run
-
-| Goal | Owner | Tracking | Status |
-|------|-------|----------|--------|
-| Unit tests running in CI | hanthor | #23 | ⬜ Not started |
-
-### Next Quarter (2026 Q4)
-
-**Theme**: parity and cadence
-
-| Goal | Owner | Tracking | Status |
-|------|-------|----------|--------|
-| Document release/versioning model (image-baked vs tagged) | tuna-os | (org #2020) | ⬜ Not started |
-
----
-
-*ROADMAP added by strategist agent (ACMM L6 — full mode). Signed-off-by: hanthor-hive-agent[bot] <290068839+hanthor-hive-agent[bot]@users.noreply.github.com>*
+*Consolidated roadmap for XFCE frontend. See root [ROADMAP.md](../../ROADMAP.md) for overarching milestone commitments.*
