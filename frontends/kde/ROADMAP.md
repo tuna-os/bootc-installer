@@ -1,6 +1,6 @@
 # TunaOS KDE Installer — Roadmap
 
-**Last updated**: 2026-08-29 | **Maintainer**: tuna-os (hanthor)
+**Status**: Consolidated inside monorepo (`frontends/kde`) | **Parent Roadmap**: [Root ROADMAP.md](../../ROADMAP.md)
 
 ---
 
@@ -13,50 +13,23 @@ Plasma user gets a native install from first boot to desktop.
 
 ---
 
-## Current Status
+## Monorepo Context & Consolidation
 
-- **App**: Qt 6 / Kirigami (Plasma 6) frontend for fisherman — modular
-  steps under `modules/<name>/contents/ui/main.qml`; CI-rendered walkthrough
-  in docs/gui-walkthrough.md.
-- **Distribution**: image-baked flatpak (`org.tunaos.InstallerKde`) — no
-  standalone GitHub Releases (by design, not yet documented as policy).
-- **Parity**: covered by `installer-smoke.yml` + `docs/INSTALLER-FRONTENDS.md`
-  checks (readiness stamp, non-blank, advances, per-screen OCR).
-- **Health**: active (pushed 08-29); install-recipe secrets handling shipped in
-  #35, backend coverage from #29 was extended in #42, and the unpinned
-  privileged backend (#33) remains open.
+Following the 2026-09-17 monorepo migration ([docs/MIGRATION.md](../../docs/MIGRATION.md)),
+KDE installer planning is unified under the root [ROADMAP.md](../../ROADMAP.md).
 
-### Priorities
+- **Shared Contracts**: Uses the canonical recipe schema (`shared/recipe/`) and adheres to the multi-frontend screen contract ([docs/walkthrough/README.md](../../docs/walkthrough/README.md)).
+- **Release & Distribution**: Published as `ghcr.io/tuna-os/bootc-installer:kde` via `.github/workflows/publish-oci.yml` upon promotion to `prod` ([docs/RELEASE.md](../../docs/RELEASE.md)).
+- **Consolidation Plan (F1–F8)**: Migrating duplicate non-UI logic (progress calculation, system probing, recipe generation, validation) directly into fisherman or `shared/`.
+
+### Active KDE Priorities in Monorepo
 
 | Priority | Item | Tracking | Status |
 |----------|------|----------|--------|
-| P0 | Install-recipe secrets — LUKS passphrase in QTemporaryDir | #34/#35 | ✅ Complete |
-| P1 | Unpin privileged install backend embedded in flatpak | #33 | 🟡 Open |
-| P1 | Backend test coverage preserved | #29/#42 | ✅ Complete |
-| P2 | ROADMAP-coverage entry in org ROADMAP tally | #1295 | ⬜ Not started |
+| P0 | Frontend consolidation: adopt shared fisherman probe & progress events | #186, #208 | 🟡 In progress |
+| P1 | Stream buffer handling & cancel wrapper reliability | #208 | 🟡 In review |
+| P1 | Parity alignment with walkthrough contract table | #150, [docs/PARITY.md](../../docs/PARITY.md) | 🟡 In progress |
+| P2 | Fold redundant vendored copies into `shared/` core | #207 | 🟡 In review |
 
 ---
-
-## Quarterly Goals
-
-### Current Quarter (2026 Q3)
-
-**Theme**: harden the install path
-
-| Goal | Owner | Tracking | Status |
-|------|-------|----------|--------|
-| Green recipe-secrets handling (QTemporaryDir + perms) | hanthor | #34/#35 | ✅ Complete |
-| Unpin the privileged backend | hanthor | #33 | ⬜ Not started |
-
-### Next Quarter (2026 Q4)
-
-**Theme**: parity and cadence
-
-| Goal | Owner | Tracking | Status |
-|------|-------|----------|--------|
-| Backend test coverage | hanthor | #29/#42 | ✅ Complete early |
-| Document release/versioning model (image-baked vs tagged) | tuna-os | (org #2020) | ⬜ Not started |
-
----
-
-*ROADMAP added by strategist agent (ACMM L6 — full mode). Signed-off-by: hanthor-hive-agent[bot] <290068839+hanthor-hive-agent[bot]@users.noreply.github.com>*
+*Consolidated roadmap for KDE frontend. See root [ROADMAP.md](../../ROADMAP.md) for overarching milestone commitments.*

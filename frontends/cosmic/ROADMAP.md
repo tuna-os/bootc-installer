@@ -1,63 +1,34 @@
 # TunaOS COSMIC Installer — Roadmap
 
-**Last updated**: 2026-08-30 | **Maintainer**: tuna-os (hanthor)
+**Status**: Consolidated inside monorepo (`frontends/cosmic`) | **Parent Roadmap**: [Root ROADMAP.md](../../ROADMAP.md)
 
 ---
 
 ## Mission
 
-Ship the COSMIC desktop's install experience: a real `cosmic::Application`
-frontend that gathers the user's choices, writes the fisherman recipe, and
-presents the backend's progress and result — so a first-time COSMIC user gets
-a native, polished install from first boot to desktop.
+Ship the COSMIC desktop's install experience: a native `cosmic::Application`
+(Iced/Rust) frontend that gathers user choices, writes the fisherman recipe, and
+presents installation progress and outcomes for a polished first boot to desktop.
 
 ---
 
-## Current Status
+## Monorepo Context & Consolidation
 
-- **App**: libcosmic (Iced/Rust) frontend for the fisherman bootc backend —
-  six screens (welcome, disk selection, options, confirmation, install
-  progress, completion), CI-rendered walkthrough in docs/screenshots.
-- **Distribution**: image-baked flatpak (`org.tunaos.InstallerCosmic`) — no
-  standalone GitHub Releases (by design, not yet documented as policy).
-- **Parity**: covered by `installer-smoke.yml` + `docs/INSTALLER-FRONTENDS.md`
-  checks (readiness stamp, non-blank, advances, per-screen OCR).
-- **Health**: active (pushed 08-24); open issues concentrate on install-recipe
-  hardening (#39/#40/#41) and backend privilege boundary (#38).
+Following the 2026-09-17 monorepo migration ([docs/MIGRATION.md](../../docs/MIGRATION.md)),
+COSMIC installer planning is unified under the root [ROADMAP.md](../../ROADMAP.md).
 
-### Priorities
+- **Shared Contracts**: Uses the canonical recipe schema (`shared/recipe/`) and fulfills the six core screens verified in [docs/walkthrough/README.md](../../docs/walkthrough/README.md).
+- **Release & Distribution**: Published as `ghcr.io/tuna-os/bootc-installer:cosmic` via `.github/workflows/publish-oci.yml` upon promotion to `prod` ([docs/RELEASE.md](../../docs/RELEASE.md)).
+- **Consolidation Plan (F1–F8)**: Migrating duplicate non-UI logic (progress calculation, system probing, recipe generation, validation) directly into fisherman or `shared/`.
+
+### Active COSMIC Priorities in Monorepo
 
 | Priority | Item | Tracking | Status |
 |----------|------|----------|--------|
-| P0 | Install-recipe hardening — unpredictable recipe path, 0600 mode honored | #39/#41 | ✅ Complete |
-| P0 | Unpin `cargo-sources` generation (flatpak-cargo-generator.py) | #40 | 🟡 Open |
-| P1 | Privileged install backend — only unpinned binary in the image | #38 | 🟡 Open |
-| P1 | Parity reporting — only frontend that emits no parity signal | #36 | 🟡 Open |
-| P2 | ROADMAP-coverage entry in org ROADMAP tally | #1295 | ⬜ Not started |
+| P0 | Frontend consolidation: adopt shared fisherman probe & progress events | #186, #208 | 🟡 In progress |
+| P1 | Browser rendering via Broadway/WASM evaluation | #105 | 🟡 In progress |
+| P1 | Parity alignment with walkthrough contract table | #150, [docs/PARITY.md](../../docs/PARITY.md) | 🟡 In progress |
+| P2 | Fold redundant vendored copies into `shared/` core | #207 | 🟡 In review |
 
 ---
-
-## Quarterly Goals
-
-### Current Quarter (2026 Q3)
-
-**Theme**: harden the install path
-
-| Goal | Owner | Tracking | Status |
-|------|-------|----------|--------|
-| Install-recipe path and permission hardening | hanthor | #39/#41 | ✅ Complete |
-| Pin cargo-sources generator and Python dependencies | hanthor | #40 | 🟡 In progress |
-| Decide backend privilege boundary | hanthor | #38 | ⬜ Not started |
-
-### Next Quarter (2026 Q4)
-
-**Theme**: parity and cadence
-
-| Goal | Owner | Tracking | Status |
-|------|-------|----------|--------|
-| Emit parity signal like the other frontends | hanthor | #36 | ⬜ Not started |
-| Document release/versioning model (image-baked vs tagged) | tuna-os | (org #2020) | ⬜ Not started |
-
----
-
-*ROADMAP added by strategist agent (ACMM L6 — full mode). Signed-off-by: hanthor-hive-agent[bot] <290068839+hanthor-hive-agent[bot]@users.noreply.github.com>*
+*Consolidated roadmap for COSMIC frontend. See root [ROADMAP.md](../../ROADMAP.md) for overarching milestone commitments.*
