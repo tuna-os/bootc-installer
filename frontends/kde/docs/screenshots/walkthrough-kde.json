@@ -18,13 +18,13 @@
             "stddev": 0.062404648617739374
         },
         {
-            "colours": 431,
-            "flat": 0.777856347606295,
-            "ink": 0.21999217645111788,
+            "colours": 499,
+            "flat": 0.7182770138115728,
+            "ink": 0.27863870249450845,
             "name": "02-disk",
             "png": "docs/screenshots/02-disk.png",
             "rendered": true,
-            "stddev": 0.04819552882403602
+            "stddev": 0.05484098926532153
         },
         {
             "colours": 438,
@@ -151,8 +151,8 @@
     "strict": true,
     "text_source": "qml-item-tree",
     "transition_pixels": [
-        139683,
-        143072,
+        174424,
+        123240,
         118021,
         393192,
         498374,
