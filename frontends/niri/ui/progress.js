@@ -7,7 +7,13 @@
 // which tests/progress-fraction-test.mjs feeds through this file. Kept out
 // of installer.qml so it can be tested without a QML engine.
 //
-// The bar is driven by cumulative_pct, never step / total_steps. Inside a
+// fisherman sends the bar itself as overall_pct on step, substep and
+// complete events (tuna-os/fisherman#270), and that is what the bar shows:
+// clamped to 0-1 and never below the bar before the event. The rest of this
+// file is the fallback for an event without it, from an older fisherman;
+// shared/progress/overall-pct-cases.json pins both.
+//
+// The fallback bar is driven by cumulative_pct, never step / total_steps. Inside a
 // step, the layer pull covers the first PULL_SHARE of the step's weight and
 // the named phases after it (export, deploy, bootloader) cover the rest.
 // Before the phases had positions, an offline install sat at 1% through
@@ -44,13 +50,44 @@ function milestone(message) {
     return -1
 }
 
+// fisherman's own bar as a fraction, or -1 when the event has none.
+function overallFraction(event) {
+    if (typeof event.overall_pct !== "number" || !isFinite(event.overall_pct))
+        return -1
+    return Math.min(Math.max(event.overall_pct / 100, 0), 1)
+}
+
+// The label for a step event: lookup(step_id), which installer.qml points at
+// the branding copy key "step_" + step_id. An event without a step_id, or an
+// id the copy has no line for (lookup returns ""), shows fisherman's
+// step_name.
+function stepLabel(event, lookup) {
+    if (event.step_id) {
+        var label = lookup(event.step_id)
+        if (label)
+            return label
+    }
+    return event.step_name || ""
+}
+
 // Applies one parsed event to `state` and returns the bar fraction (0-1).
 function advance(state, event) {
+    var before = state.fraction
+    derive(state, event)
+    var overall = overallFraction(event)
+    if (overall >= 0 && (event.type === "step" || event.type === "substep"))
+        state.fraction = Math.max(before, overall)
+    return state.fraction
+}
+
+// The fallback: the bar from cumulative_pct, weight_pct and the substep
+// messages, for an event without overall_pct.
+function derive(state, event) {
     if (event.type === "step") {
         var step = event.step || 0
         // A repeated or earlier step is ignored: it must not reset the bar.
         if (state.step > 0 && step <= state.step)
-            return state.fraction
+            return
         state.step = step
         state.cumulativePct = event.cumulative_pct || 0
         state.weightPct = event.weight_pct || 0
@@ -83,5 +120,4 @@ function advance(state, event) {
         // cumulative_pct only ever reaches 99; `complete` fills the bar.
         state.fraction = 1
     }
-    return state.fraction
 }

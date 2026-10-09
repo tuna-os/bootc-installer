@@ -310,13 +310,16 @@ ApplicationWindow {
         if (shown !== "")
             installLog += shown + "\n"
 
-        // The bar: shared/progress semantics, in ui/progress.js.
+        // The bar: fisherman's overall_pct, else the shared/progress
+        // derivation, in ui/progress.js.
         installFraction = BarMath.advance(barState, event)
 
         if (event.type === "step") {
             installStep = event.step
             installSteps = event.total_steps
-            installStepName = event.step_name || ""
+            // The copy key step_<step_id> (shared/branding/README.md,
+            // "Install steps"), else fisherman's step_name.
+            installStepName = BarMath.stepLabel(event, id => root.text("step_" + id))
         } else if (event.type === "recovery_key") {
             recoveryKey = event.key || ""
         }
