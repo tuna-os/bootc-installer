@@ -202,3 +202,98 @@ class FractionCasesTest(unittest.TestCase):
                         if c["name"] == "offline_install_moves_through_silent_phases")
         self.assertEqual(case["bar"], sorted(case["bar"]))
         self.assertGreater(case["bar"][-1], case["bar"][0] + 0.5)
+
+
+OVERALL_CASES = os.path.join(REPO, "shared", "progress", "overall-pct-cases.json")
+
+
+def _replay(pp, events):
+    state, bar, out = pp.new_progress_state(), 0.0, []
+    for event in events:
+        update = pp.apply_progress_event(json.dumps(event), state)
+        if update and update.get("fraction") is not None:
+            bar = update["fraction"]
+        out.append(bar)
+    return out
+
+
+class OverallPctCasesTest(unittest.TestCase):
+    """shared/progress/overall-pct-cases.json: fisherman's overall_pct is the
+    bar; without it the parser falls back to its own derivation. COSMIC, KDE
+    and Niri replay the same file."""
+
+    def setUp(self):
+        with open(OVERALL_CASES, encoding="utf-8") as fh:
+            self.cases = json.load(fh)["cases"]
+
+    def test_fixture_is_what_the_canonical_parser_produces(self):
+        gen = _load(GENERATOR, "_fraction_gen_overall")
+        with open(OVERALL_CASES, encoding="utf-8") as fh:
+            committed = json.load(fh)
+        self.assertEqual(
+            committed, json.loads(json.dumps(gen.build_overall())),
+            "overall-pct-cases.json is stale; run "
+            "python3 shared/progress/generate-fraction-cases.py")
+
+    def test_every_python_copy_reproduces_the_fixture(self):
+        for path in [CANONICAL, *COPIES]:
+            pp = _load(path, "_pp_overall_" + os.path.basename(os.path.dirname(path)))
+            for case in self.cases:
+                got = _replay(pp, case["events"])
+                for i, (bar, want) in enumerate(zip(got, case["bar"])):
+                    with self.subTest(copy=os.path.relpath(path, REPO),
+                                      case=case["name"], event=i):
+                        self.assertAlmostEqual(bar, want, places=6)
+
+    def test_the_bar_follows_overall_pct_not_the_derivation(self):
+        """Guards the guard: with overall_pct stripped, the derivation holds
+        the bar through the Flatpak copy, so the fixture would catch a
+        frontend that ignores the field."""
+        pp = _load(CANONICAL, "_pp_overall_strip")
+        case = next(c for c in self.cases if c["name"] == "overall_pct_drives_the_bar")
+        stripped = [{k: v for k, v in e.items() if k != "overall_pct"}
+                    for e in case["events"]]
+        self.assertNotEqual([round(b, 6) for b in _replay(pp, stripped)], case["bar"])
+        self.assertEqual(case["bar"],
+                         [min(e["overall_pct"], 100) / 100 for e in case["events"]])
+
+
+FISHERMAN_BAR = os.path.join(REPO, "fisherman", "fisherman", "internal",
+                             "progress", "bar.go")
+COPY_DEFAULTS = os.path.join(REPO, "shared", "branding", "copy-defaults.json")
+
+
+def _fisherman_step_ids():
+    """fisherman's step_name -> step_id table, parsed out of bar.go."""
+    import re
+    with open(FISHERMAN_BAR, encoding="utf-8") as fh:
+        body = fh.read().split("var stepIDs = map[string]string{", 1)[1].split("}", 1)[0]
+    return dict(re.findall(r'"([^"]+)":\s*"([a-z0-9_]+)"', body))
+
+
+@unittest.skipUnless(os.path.isfile(FISHERMAN_BAR), "fisherman submodule not checked out")
+class StepIdCopyTest(unittest.TestCase):
+    """Every step_id fisherman emits has a step_<id> copy key, and the
+    step-name table the parser falls back to says the same words."""
+
+    def setUp(self):
+        self.ids = _fisherman_step_ids()
+        with open(COPY_DEFAULTS, encoding="utf-8") as fh:
+            self.copy = json.load(fh)
+
+    def test_the_table_parsed(self):
+        self.assertGreaterEqual(len(self.ids), 12)
+        self.assertEqual(self.ids["Installing OS"], "install_os")
+
+    def test_every_step_id_has_a_copy_key_and_no_more(self):
+        keys = {k for k in self.copy if k.startswith("step_")}
+        self.assertEqual(keys, {"step_" + i for i in self.ids.values()})
+
+    def test_the_fallback_table_says_what_the_copy_says(self):
+        pp = _load(CANONICAL, "_pp_step_ids")
+        self.assertEqual(set(pp._FRIENDLY_STEP_LABELS), set(self.ids))
+        for name, step_id in self.ids.items():
+            with self.subTest(step=name):
+                self.assertEqual(
+                    pp._FRIENDLY_STEP_LABELS[name].replace("{product}", "{name}"),
+                    self.copy["step_" + step_id])

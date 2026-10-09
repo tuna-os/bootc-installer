@@ -88,6 +88,18 @@ ApplicationWindow {
             confirm_button: "Install",
             progress_title: "Installing {name}…",
             progress_note: "Do not power off the computer.",
+            step_prepare_disk: "Checking your drive…",
+            step_partition: "Setting up your drive…",
+            step_format_efi: "Preparing the boot system…",
+            step_luks: "Securing your drive…",
+            step_format_root: "Formatting your drive…",
+            step_mount: "Almost ready…",
+            step_format_var: "Preparing data storage…",
+            step_install_os: "Installing {name}…",
+            step_tpm2_enroll: "Setting up auto-unlock…",
+            step_flatpaks: "Installing your apps…",
+            step_configure: "Configuring your system…",
+            step_finalize: "Finishing up…",
             recovery_key_title: "Save your recovery key",
             recovery_key_body: "If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy.",
             recovery_key_copy: "Copy to clipboard",
@@ -298,13 +310,16 @@ ApplicationWindow {
         if (shown !== "")
             installLog += shown + "\n"
 
-        // The bar: shared/progress semantics, in ui/progress.js.
+        // The bar: fisherman's overall_pct, else the shared/progress
+        // derivation, in ui/progress.js.
         installFraction = BarMath.advance(barState, event)
 
         if (event.type === "step") {
             installStep = event.step
             installSteps = event.total_steps
-            installStepName = event.step_name || ""
+            // The copy key step_<step_id> (shared/branding/README.md,
+            // "Install steps"), else fisherman's step_name.
+            installStepName = BarMath.stepLabel(event, id => root.text("step_" + id))
         } else if (event.type === "recovery_key") {
             recoveryKey = event.key || ""
         }

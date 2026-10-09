@@ -402,6 +402,11 @@ class ProgressPage(Page):
         # parser defaults to a neutral "the OS" until told otherwise.
         progress_parser.set_product_name(core.PRODUCT_NAME)
         progress_parser.set_install_label(core.BRANDING.text("progress_title"))
+        # fisherman names each step with a stable step_id; its label is the
+        # copy key "step_<id>". An id the copy does not know reads "" and
+        # the parser falls back to the step name.
+        progress_parser.set_step_label_resolver(
+            lambda step_id: core.BRANDING.text("step_" + step_id))
         # Log visible by default — XFCE users want the output (DESIGN.md).
         self.logview = Gtk.TextView(editable=False, monospace=True)
         self.logview.modify_font(Pango.FontDescription("monospace 9"))
@@ -441,7 +446,9 @@ class ProgressPage(Page):
         # a separate /var disk — cmd/fisherman/main.go), so it is 9 only by
         # coincidence. The protocol carries cumulative_pct precisely so no
         # frontend has to model the pipeline; this reads it instead of
-        # counting steps.
+        # counting steps. Current fisherman goes further and sends the bar
+        # itself as overall_pct, which the parser prefers; the cumulative_pct
+        # derivation is the fallback for an older fisherman.
         for line in text.splitlines():
             update = progress_parser.apply_progress_event(line, self._progress)
             if update is None:

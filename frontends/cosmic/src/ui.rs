@@ -605,7 +605,9 @@ fn installing(app: &TunaInstaller) -> Element<'_, Message> {
         children.push(
             widget::text::caption(format!(
                 "Step {} of {} — {}",
-                progress.step, progress.total_steps, progress.step_name
+                progress.step,
+                progress.total_steps,
+                progress.step_label(branding::get())
             ))
             .into(),
         );

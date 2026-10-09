@@ -170,6 +170,10 @@ void InstallerController::closeLogFile()
 // (shared/progress/progress_parser.py). An unknown step falls back to its raw
 // name, so a new step in fisherman degrades to showing what it really is
 // rather than showing nothing.
+// The step-name table: the fallback label for a step event without a
+// step_id, from a fisherman older than tuna-os/fisherman#270. A step_id is
+// labelled by the copy key step_<id> instead (stepLabel below); these labels
+// match those keys' defaults.
 static QString friendlyStep(const QString &name, const QString &product)
 {
     static const QHash<QString, QString> labels = {
@@ -253,6 +257,34 @@ static double phaseMilestone(const QString &message)
     return -1.0;
 }
 
+// The label for a step: the branding copy line step_<step_id>
+// (shared/branding/README.md, "Install steps"), so a product can rebrand it.
+// An event without a step_id, or an id the copy has no line for, falls back
+// to the step-name table and then to fisherman's raw step_name.
+QString InstallerController::stepLabel(const QString &stepId, const QString &stepName) const
+{
+    if (!stepId.isEmpty()) {
+        const QString label = text(QStringLiteral("step_") + stepId);
+        if (!label.isEmpty())
+            return label;
+    }
+    return friendlyStep(stepName, m_productName);
+}
+
+// fisherman's own bar (overall_pct, 0-100) on step, substep and complete
+// events since tuna-os/fisherman#270. It is authoritative: when the event
+// carries it, it replaces whatever the derivation in consumeProgress()
+// computed. Clamped to 0-1 and never below the bar before this event.
+// Returns false for an event without it (an older fisherman).
+static bool applyOverallPct(const QJsonObject &event, qreal before, qreal &fraction)
+{
+    const QJsonValue v = event.value(QStringLiteral("overall_pct"));
+    if (!v.isDouble())
+        return false;
+    fraction = qMax(before, qBound(0.0, v.toDouble() / 100.0, 1.0));
+    return true;
+}
+
 QString InstallerController::consumeProgress(const QString &line)
 {
     const QString trimmed = line.trimmed();
@@ -265,6 +297,7 @@ QString InstallerController::consumeProgress(const QString &line)
 
     const QJsonObject event = doc.object();
     const QString type = event.value(QStringLiteral("type")).toString();
+    const qreal before = m_fraction;
 
     if (type == QLatin1String("step")) {
         const int step = event.value(QStringLiteral("step")).toInt();
@@ -283,8 +316,10 @@ QString InstallerController::consumeProgress(const QString &line)
         m_postPullBase = -1.0;
         m_cumulativePct = event.value(QStringLiteral("cumulative_pct")).toInt();
         m_weightPct = event.value(QStringLiteral("weight_pct")).toInt();
+        // The derivation, the fallback when the event has no overall_pct.
         m_fraction = m_cumulativePct / 100.0;
-        m_stepName = friendlyStep(name, m_productName);
+        applyOverallPct(event, before, m_fraction);
+        m_stepName = stepLabel(event.value(QStringLiteral("step_id")).toString(), name);
         Q_EMIT progressChanged();
         return QStringLiteral("[%1/%2] %3").arg(m_step).arg(m_totalSteps).arg(name);
     }
@@ -314,9 +349,12 @@ QString InstallerController::consumeProgress(const QString &line)
                 // Never move backwards: a retried pull restarts its count.
                 m_stepFrac = qMax(m_stepFrac, stepFrac);
                 m_fraction = qMin((m_cumulativePct + m_stepFrac * m_weightPct) / 100.0, 1.0);
-                Q_EMIT progressChanged();
             }
         }
+        if (type == QLatin1String("substep"))
+            applyOverallPct(event, before, m_fraction);
+        if (m_fraction != before)
+            Q_EMIT progressChanged();
         return message.isEmpty() ? QString() : QStringLiteral("  ") + message;
     }
     if (type == QLatin1String("complete")) {

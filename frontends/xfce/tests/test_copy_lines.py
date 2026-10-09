@@ -83,3 +83,40 @@ def test_live_row_carries_the_install_subtitle(monkeypatch):
     walk(page.listbox)
     assert any(core.BRANDING.text("welcome_install_subtitle") in t for t in texts), texts
     assert not any("no download required" in t for t in texts)
+
+
+def _feed(page, **event):
+    import json
+    page.append_log(json.dumps(event))
+
+
+def test_overall_pct_drives_the_bar():
+    page = pages.ProgressPage(_Win())
+    _feed(page, type="step", step=6, total_steps=8, step_name="Copying system Flatpaks",
+          step_id="flatpaks", cumulative_pct=88, weight_pct=11, overall_pct=88)
+    # The derivation would hold the bar through the Flatpak copy.
+    _feed(page, type="substep", message="Copying Flatpak data: 50%", overall_pct=93.5)
+    assert abs(page.bar.get_fraction() - 0.935) < 1e-6
+
+
+def test_without_overall_pct_the_bar_is_derived():
+    page = pages.ProgressPage(_Win())
+    _feed(page, type="step", step=5, total_steps=8, step_name="Installing OS",
+          cumulative_pct=1, weight_pct=87)
+    _feed(page, type="substep", message="Pulling image: layer 2/4")
+    assert abs(page.bar.get_fraction() - (1 + 0.5 * 0.6 * 87) / 100) < 1e-6
+
+
+def test_step_id_is_labelled_from_the_copy(monkeypatch):
+    monkeypatch.setitem(core.BRANDING.copy, "step_flatpaks", "Adding apps")
+    page = pages.ProgressPage(_Win())
+    _feed(page, type="step", step=6, total_steps=8, step_name="Copying system Flatpaks",
+          step_id="flatpaks", cumulative_pct=88, weight_pct=11, overall_pct=88)
+    assert page.steplabel.get_text() == "Adding apps"
+
+
+def test_an_unknown_step_id_shows_the_step_name():
+    page = pages.ProgressPage(_Win())
+    _feed(page, type="step", step=3, total_steps=8, step_name="Polishing the hull",
+          step_id="polish_hull", cumulative_pct=1, weight_pct=0, overall_pct=1)
+    assert page.steplabel.get_text() == "Polishing the hull"

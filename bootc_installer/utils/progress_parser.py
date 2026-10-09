@@ -8,14 +8,23 @@ is documented in shared/progress/README.md.
 
 No GTK, no file IO, no product names: importable on its own by any frontend
 and by unit tests. Provides apply_progress_event() and new_progress_state().
+
+fisherman computes the bar and names each step itself: every step, substep
+and complete event carries `overall_pct`, and every step event a stable
+`step_id`. Those are authoritative. The bar maths and the step-name table
+below are only the fallback for a fisherman that predates them, and go when
+that support does (ROADMAP.md, consolidation step F1).
 """
 
 import json
 import re
 
-# Human-friendly labels for each fisherman step name.
-# Keys must match the step_name strings emitted by fisherman exactly.
-# Unknown step names fall back to the raw step_name.
+# Human-friendly labels for each fisherman step name: the fallback for a
+# step event without a step_id (a fisherman older than overall_pct/step_id).
+# A step_id is labelled by the frontend's branding copy instead, through
+# set_step_label_resolver(); these labels match the step_<id> defaults in
+# shared/branding/copy-defaults.json. Keys must match the step_name strings
+# fisherman emits exactly. Unknown step names fall back to the raw step_name.
 _FRIENDLY_STEP_LABELS: dict[str, str] = {
     "Preparing disk":               "Checking your drive…",
     "Partitioning disk":            "Setting up your drive…",
@@ -82,6 +91,57 @@ def _friendly_label(step_name: str) -> str:
     return label.replace("{product}", _PRODUCT_NAME)
 
 
+# Labels a step_id: a function from a step_id ("install_os") to the line to
+# show, normally the branding copy key "step_" + step_id. None until a
+# frontend sets one, so a bare parser falls back to the step-name table.
+_STEP_LABEL_RESOLVER = None
+
+
+def set_step_label_resolver(resolve) -> None:
+    """Label steps by fisherman's step_id through `resolve(step_id) -> str`.
+
+    A frontend passes a function that reads its branding copy key
+    "step_" + step_id, so every step label is a rebrandable copy line
+    (shared/branding/README.md). An empty result -- an id the copy does not
+    know, or a line a product blanked -- falls back to the step name.
+    """
+    global _STEP_LABEL_RESOLVER
+    _STEP_LABEL_RESOLVER = resolve
+
+
+def _step_label(step_id: str, step_name: str) -> str:
+    """The label for a step: the copy line for its step_id when there is one,
+    else the step-name fallback (and, for an unknown name, the raw name)."""
+    if step_id and _STEP_LABEL_RESOLVER is not None:
+        label = _STEP_LABEL_RESOLVER(step_id)
+        if label:
+            return label
+    return _friendly_label(step_name)
+
+
+def _overall_fraction(event: dict) -> float | None:
+    """fisherman's own bar position as a fraction, or None if the event has no
+    overall_pct (an older fisherman)."""
+    pct = event.get("overall_pct")
+    if isinstance(pct, bool) or not isinstance(pct, (int, float)):
+        return None
+    return min(max(pct / 100.0, 0.0), 1.0)
+
+
+def _settle(state: dict, event: dict, derived: float | None) -> float | None:
+    """The bar after `event`: its overall_pct when it carries one, else the
+    fraction derived here (None means no change).
+
+    overall_pct is authoritative. It never decreases on the wire; the max()
+    keeps the bar from moving back even if it did.
+    """
+    overall = _overall_fraction(event)
+    fraction = max(state["fraction"], overall) if overall is not None else derived
+    if fraction is not None:
+        state["fraction"] = fraction
+    return fraction
+
+
 # Matches "Pulling image: layer 23/71" substep messages from fisherman.
 _RE_LAYER_PROGRESS = re.compile(r"Pulling image: layer (\d+)/(\d+)")
 
@@ -132,11 +192,13 @@ def new_progress_state() -> dict:
         "current_step": 0,
         "current_total": 0,
         "current_step_name": "",
+        "current_step_id": "",
         "current_weight_pct": 0,
         "current_cumulative_pct": 0,
         "step_frac": 0.0,
         "post_pull_base": None,
         "seen_substeps": set(),
+        "fraction": 0.0,
         "boot_id": "",
         "recovery_key": "",
     }
@@ -146,7 +208,8 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
     """Parse one fisherman log line and return a UI-update dict, or None.
 
     Pure function — no GTK, no I/O.  The returned dict has:
-      "fraction"  — float 0-1 for progressbar.set_fraction()
+      "fraction"  — float 0-1 for progressbar.set_fraction(): the event's
+                    overall_pct when it has one, else derived (None = no change)
       "label"     — str for progressbar_text.set_label() (None = no change)
       "pulse"     — bool; True means switch bar to pulse mode
       "complete"  — bool; True means install finished
@@ -174,14 +237,14 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
         state["current_step"] = step
         state["current_total"] = total
         state["current_step_name"] = name
+        state["current_step_id"] = event.get("step_id") or ""
         state["step_frac"] = 0.0
         state["post_pull_base"] = None
         state["seen_substeps"].clear()
         state["pulse_active"] = False
-        friendly = _friendly_label(name)
         return {
-            "fraction": cumulative_pct / 100.0,
-            "label": friendly,
+            "fraction": _settle(state, event, cumulative_pct / 100.0),
+            "label": _step_label(state["current_step_id"], name),
             "pulse": False,
             "complete": False,
         }
@@ -190,7 +253,7 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
         msg = event.get("message", "")
         if not msg:
             return None
-        fraction = None
+        derived = None
         if state["current_weight_pct"] > 0:
             step_frac = None
             m = _RE_LAYER_PROGRESS.match(msg)
@@ -209,11 +272,12 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
             if step_frac is not None:
                 # Never move backwards: a retried pull restarts its layer count.
                 state["step_frac"] = max(state["step_frac"], step_frac)
-                fraction = min(
+                derived = min(
                     (state["current_cumulative_pct"]
                      + state["step_frac"] * state["current_weight_pct"]) / 100.0,
                     1.0,
                 )
+        fraction = _settle(state, event, derived)
         if msg in state["seen_substeps"]:
             # Still update fraction even for duplicate substep messages.
             if fraction is not None:
@@ -222,8 +286,7 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
         state["seen_substeps"].add(msg)
         label = None
         if state["current_step"]:
-            friendly = _friendly_label(state["current_step_name"])
-            label = friendly
+            label = _step_label(state["current_step_id"], state["current_step_name"])
         return {"fraction": fraction, "label": label, "pulse": False, "complete": False}
 
     if event_type == "recovery_key":
@@ -232,6 +295,7 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
 
     if event_type == "complete":
         state["pulse_active"] = False
+        state["fraction"] = 1.0
         state["boot_id"] = event.get("boot_id", "")
         state["recovery_key"] = event.get("recovery_key", state["recovery_key"])
         return {"fraction": 1.0, "label": "Installation complete!",

@@ -43,6 +43,18 @@ claimed a render that nobody had wired up.
 | `confirm_quotes` | random line per language | no | no | no | no |
 | `progress_title` | image-writing step label | label | page title | heading | page title |
 | `progress_note` | caption under the step label | label | warning caption | caption | dim label under the bar |
+| `step_prepare_disk` | step label on the progress page | "Step N of M" caption | "Step N of M" caption | "Step N of M" caption | step label under the title |
+| `step_partition` | step label on the progress page | "Step N of M" caption | "Step N of M" caption | "Step N of M" caption | step label under the title |
+| `step_format_efi` | step label on the progress page | "Step N of M" caption | "Step N of M" caption | "Step N of M" caption | step label under the title |
+| `step_luks` | step label on the progress page | "Step N of M" caption | "Step N of M" caption | "Step N of M" caption | step label under the title |
+| `step_format_root` | step label on the progress page | "Step N of M" caption | "Step N of M" caption | "Step N of M" caption | step label under the title |
+| `step_mount` | step label on the progress page | "Step N of M" caption | "Step N of M" caption | "Step N of M" caption | step label under the title |
+| `step_format_var` | step label on the progress page | "Step N of M" caption | "Step N of M" caption | "Step N of M" caption | step label under the title |
+| `step_install_os` | step label on the progress page | "Step N of M" caption | "Step N of M" caption | "Step N of M" caption | step label under the title |
+| `step_tpm2_enroll` | step label on the progress page | "Step N of M" caption | "Step N of M" caption | "Step N of M" caption | step label under the title |
+| `step_flatpaks` | step label on the progress page | "Step N of M" caption | "Step N of M" caption | "Step N of M" caption | step label under the title |
+| `step_configure` | step label on the progress page | "Step N of M" caption | "Step N of M" caption | "Step N of M" caption | step label under the title |
+| `step_finalize` | step label on the progress page | "Step N of M" caption | "Step N of M" caption | "Step N of M" caption | step label under the title |
 | `recovery_key_title` | page heading | heading | heading | heading | heading |
 | `recovery_key_body` | label | label | body | label | label |
 | `recovery_key_copy` | copy button tooltip | copy button | copy button | copy button | copy button |
@@ -66,6 +78,20 @@ The confirm pages used to disagree. KDE showed "None" and "Passphrase
 recipe id, for example `luks-passphrase`. GNOME has a switch and a TPM
 switch, not a list. Thus it shows only the two descriptions that its
 switches can select.
+
+The twelve `step_*` keys label the install step that runs. fisherman puts a
+stable `step_id` on each step event, and each frontend reads the key
+`step_<step_id>`. An event without a `step_id`, or an id with no copy line,
+shows fisherman's `step_name`.
+
+Before this, Niri showed the raw step name.
+GNOME, Xfce, KDE and COSMIC each had their own table of the same words, so a
+product could not change them. Those tables stay only as the fallback for a
+fisherman without `step_id`. All five also draw the bar from fisherman's
+`overall_pct` (`shared/progress/README.md`). Thus the bar now moves during
+the Flatpak copy, where the old calculation in each frontend stopped.
+XFCE hides its step label when it repeats the page title, which is the case
+for `step_install_os` with the default copy.
 
 Outside the contract, under `extensions.gnome`: the tour page text, the
 install video and the credits file. They are the last GNOME-only features.

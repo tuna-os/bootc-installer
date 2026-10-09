@@ -10,6 +10,12 @@ frontend keeps a **byte-identical** copy, enforced by
 `shared/branding/` and `shared/recipe/` use. Non-Python frontends implement
 the same semantics against this document.
 
+fisherman now computes the bar and names each step itself: `overall_pct`
+and `step_id` (below) are authoritative. The derivation in this parser, and
+in the four other frontends, is only the fallback for a fisherman that does
+not send them yet. ROADMAP.md (consolidation step F1) removes it once that
+support goes.
+
 [`fraction-cases.json`](fraction-cases.json) pins the bar position after
 each event in a set of event sequences. `generate-fraction-cases.py`
 writes it from the canonical parser. Every frontend's tests read it: the
@@ -17,6 +23,12 @@ Python tests, COSMIC's `cargo test`, KDE's backend tests and Niri's
 `tests/progress-fraction-test.mjs`. A change to the bar in one parser
 therefore fails the other four until they follow. Regenerate the file after
 you change `progress_parser.py`.
+
+[`overall-pct-cases.json`](overall-pct-cases.json) does the same for events
+that carry `overall_pct`, and for a stream without it that must fall back.
+The same script writes it, and the same five test suites read it. It is a
+separate file because fisherman's tests replay `fraction-cases.json`
+through its own computation of `overall_pct`.
 
 ## Events
 
@@ -26,14 +38,26 @@ them.
 
 | `type` | Fields | Meaning |
 |---|---|---|
-| `step` | `step`, `total_steps`, `step_name`, `cumulative_pct`, `weight_pct` | A pipeline step began |
-| `substep` | `message` | Progress within the current step |
+| `step` | `step`, `total_steps`, `step_name`, `step_id`, `cumulative_pct`, `weight_pct`, `overall_pct` | A pipeline step began |
+| `substep` | `message`, `overall_pct` | Progress within the current step |
 | `info` | `message` | Informational line |
 | `recovery_key` | `key` | LUKS recovery passphrase, for `tpm2-luks` |
-| `complete` | `message`, `boot_id` (optional) | Install finished |
+| `complete` | `message`, `boot_id` (optional), `overall_pct` | Install finished |
 | `error` | `message` | Terminal failure |
 
 ## Driving a progress bar
+
+**Use `overall_pct` when the event has it.** fisherman puts it on every
+`step`, `substep` and `complete` event (tuna-os/fisherman#270): the bar
+position, 0–100, with two decimals. It never decreases, and it stays at or
+below 99 until `complete`, which is 100. fisherman computes it in
+`internal/progress/bar.go`, a port of this parser. It also moves the bar
+through the Flatpak copy (`Copying Flatpak data: N%`), which the derivation
+below does not. A frontend shows it as it stands: clamped to 0–100, and
+never lower than the bar already is.
+
+The rest of this section is the fallback for an event without
+`overall_pct`, from a fisherman older than that change.
 
 **Use `cumulative_pct`. Do not derive the bar from `step / total_steps`.**
 
@@ -69,13 +93,22 @@ reaches 99 on the last step.
 ## Step names
 
 `step_name` is fisherman's own English name (`Partitioning disk`,
-`Installing OS`, …). The parser maps them to friendlier labels and falls
-back to the raw name for ones it does not know, so a new step in fisherman
-degrades to showing its real name rather than showing nothing.
+`Installing OS`, …). `step_id` is a stable id for it (`partition`,
+`install_os`, …). fisherman never renames or reuses an id, and leaves
+`step_id` out for a step name it has no id for.
 
-One label names the product (`Installing {product}…`). Frontends **must**
-call `set_product_name()` with the resolved branding name; the default is a
-neutral `"the OS"`, never a distro. See `shared/branding/README.md`.
+**Label a step by its `step_id`.** The label is the branding copy key
+`step_<step_id>` (`shared/branding/README.md`, "Install steps"), so a
+product can rebrand it. A Python frontend gives the parser a resolver with
+`set_step_label_resolver()`. When the event has no `step_id`, or the copy
+has no line for it, the frontend falls back to the step name. Thus a new
+step in fisherman shows its real name, not nothing.
+
+The parser's own step-name table is that fallback for a fisherman without
+`step_id`. Its labels are the same as the copy defaults. One of them names
+the product (`Installing {product}…`): frontends call `set_product_name()`
+with the resolved branding name. The default is a neutral `"the OS"`, never
+a distro.
 
 ## Fixture
 
