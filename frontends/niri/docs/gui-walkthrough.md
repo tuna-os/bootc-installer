@@ -24,7 +24,7 @@ whatever machine rendered the docs.
 
 ![Disk](screenshots/02-disk.png)
 
-Populated from `tuna-installer-niri discover-disks`, which parses `lsblk -J`.
+Populated from `tuna-installer-niri discover-disks`, which reads `fisherman probe --json`.
 
 ## 3. Encryption
 

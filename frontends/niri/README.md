@@ -35,7 +35,7 @@ tuna-installer-niri/
 ```bash
 cd installer
 go build -o tuna-installer-niri .
-./tuna-installer-niri discover-disks     # list block devices
+./tuna-installer-niri discover-disks     # the disks `fisherman probe --json` offers
 ./tuna-installer-niri install '{...}'     # run fisherman with a JSON recipe
 ```
 
@@ -50,7 +50,7 @@ quickshell ui/installer.qml
 ## Workflow
 
 1. **Welcome** — intro screen
-2. **Disk Selection** — calls `tuna-installer-niri discover-disks`, renders `lsblk -J` output
+2. **Disk Selection** — calls `tuna-installer-niri discover-disks`, which renders `fisherman probe --json` (`../../shared/probe/README.md`)
 3. **Encryption** — offers supported LUKS and TPM-backed choices
 4. **Confirm** — summary with hostname input
 5. **Install Progress** — streams the Go backend's output

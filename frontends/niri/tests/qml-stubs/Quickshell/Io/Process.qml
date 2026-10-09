@@ -26,11 +26,14 @@ QtObject {
     function write(data) { written = data }
 
     // Canned backend output. Shapes match installer/main.go: `detect` returns
-    // offline facts, `discover-disks` returns parsed lsblk.
+    // offline facts, TPM and requirements; `discover-disks` returns the disks
+    // fisherman's probe offers (installer/probe.go, ProbeDisk). The capture
+    // harness replaces the disks with shared/probe/fixtures/laptop.expected.json.
     readonly property var fixtures: ({
         "detect": JSON.stringify({
             liveImage: "",
             hasTpm: true,
+            unmet: [],
             offlineStores: [],
             // What a branding.json on the docs product would yield; the
             // walkthrough is captured with this, not with the runner's
@@ -41,8 +44,8 @@ QtObject {
             }
         }),
         "discover-disks": JSON.stringify([
-            { name: "nvme0n1", size: "476.9G", type: "disk", tran: "nvme" },
-            { name: "sda", size: "1.8T", type: "disk", tran: "sata" }
+            { path: "/dev/nvme0n1", title: "WD_BLACK SN850X 1000GB", model: "WD_BLACK SN850X 1000GB",
+              size_label: "953.9 GiB", transport_label: "NVMe", removable: false }
         ])
     })
 

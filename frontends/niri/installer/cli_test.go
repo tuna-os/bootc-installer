@@ -79,12 +79,6 @@ func pathWith(dir string) string {
 	return "PATH=" + dir + string(os.PathListSeparator) + os.Getenv("PATH")
 }
 
-const lsblkStub = `#!/bin/sh
-[ -n "$LSBLK_ARGS_FILE" ] && printf '%s\n' "$@" > "$LSBLK_ARGS_FILE"
-[ -n "$LSBLK_FAIL" ] && exit 1
-printf '%s' "$LSBLK_JSON"
-`
-
 // ---------------------------------------------------------------------------
 // dispatch
 // ---------------------------------------------------------------------------
@@ -124,160 +118,41 @@ func TestCLIRejectsAnUnknownCommand(t *testing.T) {
 // discover-disks
 // ---------------------------------------------------------------------------
 
-func TestDiscoverDisksReturnsOnlyWholeDisks(t *testing.T) {
-	dir := t.TempDir()
-	writeStub(t, dir, "lsblk", lsblkStub)
-
-	lsblkJSON := `{"blockdevices":[
-		{"name":"nvme0n1","size":"476.9G","type":"disk","tran":"nvme"},
-		{"name":"nvme0n1p1","size":"1G","type":"part"},
-		{"name":"loop0","size":"4K","type":"loop"},
-		{"name":"sda","size":"1.8T","type":"disk","tran":"usb"}
-	]}`
-
-	got := runCLI(t, []string{pathWith(dir), "LSBLK_JSON=" + lsblkJSON}, "discover-disks")
-
+// discover-disks prints the probe's eligible disks in the shape the QML
+// reads (and shared/probe/fixtures/*.expected.json pins).
+func TestDiscoverDisksPrintsTheProbedDisks(t *testing.T) {
+	got := runCLI(t, []string{fakeProbeEnv + "=" + filepath.Join(probeFixtures, "vm.json")}, "discover-disks")
 	if got.code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", got.code, got.stderr)
 	}
-	var disks []DiskInfo
-	if err := json.Unmarshal([]byte(got.stdout), &disks); err != nil {
-		t.Fatalf("stdout is not the JSON array the frontend parses: %v\n%s", err, got.stdout)
-	}
-	if len(disks) != 2 {
-		t.Fatalf("got %d disks (%v), want the 2 type=disk entries", len(disks), disks)
-	}
-	if disks[0].Name != "nvme0n1" || disks[0].Transport != "nvme" || disks[0].Size != "476.9G" {
-		t.Errorf("first disk = %+v", disks[0])
-	}
-	if disks[1].Name != "sda" || disks[1].Transport != "usb" {
-		t.Errorf("second disk = %+v", disks[1])
-	}
-}
-
-// The disk picker shows modelData.model, which only exists if lsblk is asked
-// for MODEL and DiskInfo carries it through. Neither was true, so no disk
-// ever showed its model.
-func TestDiscoverDisksReportsTheModel(t *testing.T) {
-	dir := t.TempDir()
-	writeStub(t, dir, "lsblk", lsblkStub)
-	argsFile := filepath.Join(dir, "lsblk-args")
-
-	lsblkJSON := `{"blockdevices":[
-		{"name":"nvme0n1","size":"476.9G","type":"disk","tran":"nvme","model":"Samsung SSD 980 PRO 500GB  "},
-		{"name":"vda","size":"20G","type":"disk","tran":null,"model":null}
-	]}`
-
-	got := runCLI(t, []string{pathWith(dir), "LSBLK_JSON=" + lsblkJSON, "LSBLK_ARGS_FILE=" + argsFile}, "discover-disks")
-	if got.code != 0 {
-		t.Fatalf("exit code = %d, stderr = %q", got.code, got.stderr)
-	}
-
-	args, err := os.ReadFile(argsFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var columns string
-	lines := strings.Split(strings.TrimSpace(string(args)), "\n")
-	for i, a := range lines {
-		if a == "-o" && i+1 < len(lines) {
-			columns = lines[i+1]
-		}
-	}
-	if !strings.Contains(","+columns+",", ",MODEL,") {
-		t.Errorf("lsblk -o %q does not ask for MODEL", columns)
-	}
-
-	// Decode as the QML does: by JSON key, not through DiskInfo.
 	var disks []map[string]any
 	if err := json.Unmarshal([]byte(got.stdout), &disks); err != nil {
 		t.Fatalf("stdout is not a JSON array: %v\n%s", err, got.stdout)
 	}
-	if len(disks) != 2 {
-		t.Fatalf("got %d disks, want 2: %s", len(disks), got.stdout)
-	}
-	if m := disks[0]["model"]; m != "Samsung SSD 980 PRO 500GB" {
-		t.Errorf("disks[0].model = %#v, want the trimmed model", m)
-	}
-	// A disk without a model leaves the key out, which the QML's
-	// (modelData.model ? ... : "") already handles.
-	if m, ok := disks[1]["model"]; ok {
-		t.Errorf("disks[1].model = %#v, want no key", m)
+	if len(disks) != 1 || disks[0]["path"] != "/dev/vda" || disks[0]["size_label"] != "64 GiB" {
+		t.Errorf("disks = %v, want only /dev/vda at 64 GiB", disks)
 	}
 }
 
-// No disks is a legitimate answer and must stay parseable, not become a crash
-// or a bare `null` the frontend cannot iterate.
-func TestDiscoverDisksWithNoWholeDisksStillEmitsJSON(t *testing.T) {
-	dir := t.TempDir()
-	writeStub(t, dir, "lsblk", lsblkStub)
-
-	got := runCLI(t,
-		[]string{pathWith(dir), `LSBLK_JSON={"blockdevices":[{"name":"loop0","type":"loop"}]}`},
-		"discover-disks")
-
-	if got.code != 0 {
-		t.Fatalf("exit code = %d, stderr = %q", got.code, got.stderr)
-	}
-	var disks []DiskInfo
-	if err := json.Unmarshal([]byte(got.stdout), &disks); err != nil {
-		t.Fatalf("stdout is not valid JSON: %v\n%s", err, got.stdout)
-	}
-	if len(disks) != 0 {
-		t.Errorf("got %v, want no disks", disks)
+// With nothing eligible the frontend still gets a JSON array, not "null".
+func TestDiscoverDisksWithNoEligibleDiskStillEmitsAnArray(t *testing.T) {
+	got := runCLI(t, []string{fakeProbeEnv + "=" + filepath.Join(probeFixtures, "container.json")}, "discover-disks")
+	if got.code != 0 || strings.TrimSpace(got.stdout) != "[]" {
+		t.Errorf("code = %d, stdout = %q, want 0 and []", got.code, got.stdout)
 	}
 }
 
-func TestDiscoverDisksFailsWhenLsblkFails(t *testing.T) {
-	dir := t.TempDir()
-	writeStub(t, dir, "lsblk", lsblkStub)
-
-	got := runCLI(t, []string{pathWith(dir), "LSBLK_FAIL=1"}, "discover-disks")
-
+// A failed probe is reported, not papered over with a scan of our own.
+func TestDiscoverDisksFailsWhenTheProbeFails(t *testing.T) {
+	got := runCLI(t, []string{fakeProbeEnv + "=/nonexistent/probe.json"}, "discover-disks")
 	if got.code != 1 {
 		t.Errorf("exit code = %d, want 1", got.code)
 	}
-	if !strings.Contains(got.stderr, "lsblk failed") {
-		t.Errorf("stderr = %q, want it to report the lsblk failure", got.stderr)
+	if !strings.Contains(got.stderr, "/nonexistent/probe.json") {
+		t.Errorf("stderr = %q, want the reason", got.stderr)
 	}
-}
-
-func TestDiscoverDisksFailsOnUnparseableLsblkOutput(t *testing.T) {
-	dir := t.TempDir()
-	writeStub(t, dir, "lsblk", lsblkStub)
-
-	got := runCLI(t, []string{pathWith(dir), "LSBLK_JSON=not json"}, "discover-disks")
-
-	if got.code != 1 {
-		t.Errorf("exit code = %d, want 1", got.code)
-	}
-	if !strings.Contains(got.stderr, "parse lsblk output") {
-		t.Errorf("stderr = %q, want the parse error", got.stderr)
-	}
-}
-
-// A device lsblk reports in a shape DiskInfo cannot decode is skipped rather
-// than failing the whole listing — the other disks still have to be offered.
-func TestDiscoverDisksSkipsAnUndecodableDevice(t *testing.T) {
-	dir := t.TempDir()
-	writeStub(t, dir, "lsblk", lsblkStub)
-
-	lsblkJSON := `{"blockdevices":[
-		{"name":["unexpected","array"],"type":"disk"},
-		{"name":"sda","size":"1.8T","type":"disk"}
-	]}`
-
-	got := runCLI(t, []string{pathWith(dir), "LSBLK_JSON=" + lsblkJSON}, "discover-disks")
-
-	if got.code != 0 {
-		t.Fatalf("exit code = %d, stderr = %q", got.code, got.stderr)
-	}
-	var disks []DiskInfo
-	if err := json.Unmarshal([]byte(got.stdout), &disks); err != nil {
-		t.Fatal(err)
-	}
-	if len(disks) != 1 || disks[0].Name != "sda" {
-		t.Errorf("got %v, want only sda", disks)
+	if got.stdout != "" {
+		t.Errorf("stdout = %q, want empty", got.stdout)
 	}
 }
 
@@ -285,7 +160,7 @@ func TestDiscoverDisksSkipsAnUndecodableDevice(t *testing.T) {
 // detect
 // ---------------------------------------------------------------------------
 
-// The five keys detectEnvironment emits are the frontend's environment
+// The six keys detectEnvironment emits are the frontend's environment
 // contract: installer.qml reads each one by name. Renaming or dropping one
 // breaks the UI silently, so pin them.
 func TestDetectEmitsTheEnvironmentContract(t *testing.T) {
@@ -298,7 +173,8 @@ func TestDetectEmitsTheEnvironmentContract(t *testing.T) {
 	}
 
 	got := runCLI(t,
-		[]string{pathWith(dir), "TUNA_OFFLINE_STORES=" + storeDir},
+		[]string{pathWith(dir), "TUNA_OFFLINE_STORES=" + storeDir,
+			fakeProbeEnv + "=" + filepath.Join(probeFixtures, "vm.json")},
 		"detect")
 
 	if got.code != 0 {
@@ -309,13 +185,16 @@ func TestDetectEmitsTheEnvironmentContract(t *testing.T) {
 	if err := json.Unmarshal([]byte(got.stdout), &env); err != nil {
 		t.Fatalf("stdout is not the JSON object the frontend parses: %v\n%s", err, got.stdout)
 	}
-	for _, key := range []string{"liveImage", "offlineStores", "offlineImages", "hasTpm", "branding"} {
+	for _, key := range []string{"liveImage", "offlineStores", "offlineImages", "hasTpm", "unmet", "branding"} {
 		if _, ok := env[key]; !ok {
 			t.Errorf("detect output is missing the %q key; got %v", key, env)
 		}
 	}
 	if _, ok := env["hasTpm"].(bool); !ok {
 		t.Errorf("hasTpm = %v (%T), want a bool", env["hasTpm"], env["hasTpm"])
+	}
+	if unmet, ok := env["unmet"].([]any); !ok || len(unmet) != 3 {
+		t.Errorf("unmet = %v (%T), want the vm fixture's three items", env["unmet"], env["unmet"])
 	}
 	if _, ok := env["liveImage"].(string); !ok {
 		t.Errorf("liveImage = %v (%T), want a string", env["liveImage"], env["liveImage"])
