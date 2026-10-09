@@ -26,6 +26,7 @@ COPIES = [
     os.path.join(REPO, "frontends", "xfce", "tuna_installer_xfce", "progress_parser.py"),
 ]
 TRANSCRIPT_COPIES = [
+    os.path.join(REPO, "bootc_installer", "utils", "dry-run-transcript.ndjson"),
     os.path.join(REPO, "frontends", "xfce", "tuna_installer_xfce",
                  "dry-run-transcript.ndjson"),
 ]

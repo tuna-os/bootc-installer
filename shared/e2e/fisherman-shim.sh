@@ -84,7 +84,7 @@ for layer in 18 47 71; do substep "Pulling image: layer $layer/71"; done
 step "Copying system Flatpaks"     88 11
 step "Configuring installed system" 99  0
 step "Finalizing installation"      99  1
-printf '{"type":"complete","message":"Installation complete","boot_id":"0001","elapsed_ms":0,"timestamp":"%s"}\n' \
+printf '{"type":"complete","message":"Installation complete!","boot_id":"0001","elapsed_ms":0,"timestamp":"%s"}\n' \
   "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "[e2e] install simulated; recipe kept at $DIR/recipe.json"
 exit 0

@@ -1,5 +1,10 @@
 """Readiness stamp: a compositor-independent record that a window really mapped.
 
+Canonical copy. The Python frontends (GNOME, XFCE) carry byte-identical
+copies and tests/unit/test_shared_readiness.py enforces that they match, the
+same arrangement shared/progress/ and shared/tpm/ use. Edit this file and
+re-copy; never edit a copy.
+
 WHY THIS EXISTS
 
 tunaOS's `installer-smoke.yml` proves the frontend is up with `flatpak ps`,
@@ -14,28 +19,30 @@ compositor that renders, and four of the five desktops need a DRM render node
 that GitHub-hosted runners do not have. So the frontend says so itself, in a
 file, which any runner can read over SSH with no GPU and no OCR.
 
-WHAT IT RECORDS
+WHAT IT RECORDS, AND WHY IT IS NOT JUST A BOOLEAN
 
-The window class and the wizard page that was showing when it mapped. XFCE only
-ever maps InstallerWindow, so the class matters less here than it does in
-bootc-installer (whose do_activate can present a not-enough-RAM window that
-`flatpak ps` reports as a healthy install) — but the field is part of the
-contract and stays uniform across the frontends that implement it.
+The window class that mapped, and the wizard page when the frontend knows it.
 
-The page is the useful half here: it distinguishes "a window mapped" from "the
-wizard reached its first page", which is the thing a smoke test actually wants
-to know.
+GNOME's `do_activate` does not always present the installer. Depending on the
+machine it may present BootcRamWindow, BootcCpuWindow or
+BootcUnsupportedWindow instead — real windows, correctly mapped, that are not
+the wizard. `flatpak ps` cannot tell those apart, and neither can "a window
+exists". A CI VM sized just under the RAM threshold would show the
+not-enough-RAM screen and pass every check we currently run. So the stamp
+carries the window class that actually mapped, and the smoke test can require
+the wizard rather than merely a window.
 
-DUPLICATION, DELIBERATELY FLAGGED
+The page distinguishes "a window mapped" from "the wizard reached its first
+page". A frontend passes it either as a fixed `page`, or as a `page_getter`
+that is called at map time — the toolkit-specific part, since only the
+frontend knows how to ask its own wizard which page is showing.
 
-This file is a near-copy of bootc_installer/readiness.py, because the five
-frontends share no code at all — they are five independent implementations in
-five languages, and this is the fifth thing to be reimplemented five times
-(after the offline-store probe, the privilege escalation, the product-name
-resolution and the encryption table). The contract is small enough that copying
-it is the right call today; docs/INSTALLER-FRONTENDS.md in tunaOS is where the
-canonical field list lives, and it is what a sixth frontend should be written
-against.
+WHEN IT IS WRITTEN
+
+On GTK's `map` signal, not on `present()`. `present()` is a request; `map` is
+the widget actually being mapped. Writing on the request would reintroduce
+exactly the gap this closes. GTK 3 and GTK 4 both emit `map` with the widget
+as its only argument, so the same handler serves both frontends.
 """
 
 import logging
@@ -64,8 +71,6 @@ STAMP_NAME = "tuna-installer-ready"
 # would let a smoke test believe a frame callback proves a mapped window — on
 # the very frontend whose window never appeared.
 SIGNAL = "gtk-map"
-
-APP_ID = "org.tunaos.InstallerXfce"
 
 
 def stamp_path():
@@ -109,21 +114,23 @@ def write_stamp(app_id, window_class, page=None):
         logger.exception("could not write readiness stamp to %s", path)
 
 
-def arm(window, app_id=APP_ID, page_getter=None):
+def arm(window, app_id, page=None, page_getter=None):
     """Write the stamp the first time `window` is mapped.
 
-    `page_getter` is called at map time rather than read up front, so the stamp
-    reports the page the user is actually looking at instead of whatever was
-    current when the signal was connected.
+    `page` is a fixed page name. `page_getter`, when given, is called at map
+    time instead, so the stamp reports the page the user is actually looking
+    at rather than whatever was current when the signal was connected. A
+    getter that raises still stamps, without a page.
     """
 
     def _on_map(widget):
-        page = None
+        current = page
         if page_getter is not None:
             try:
-                page = page_getter()
+                current = page_getter()
             except Exception:
                 logger.exception("page_getter failed; stamping without a page")
-        write_stamp(app_id, type(widget).__name__, page=page)
+                current = None
+        write_stamp(app_id, type(widget).__name__, page=current)
 
     window.connect("map", _on_map)
