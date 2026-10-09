@@ -79,12 +79,20 @@ impl Default for Recipe {
     }
 }
 
-#[derive(Debug, Clone)]
+/// One disk fisherman offers (`fisherman probe --json`, eligible only), as
+/// every frontend renders it: shared/probe/README.md.
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct DiskInfo {
-    pub name: String,
-    pub size: String,
+    /// "/dev/nvme0n1"
+    pub path: String,
+    /// The model, or the path when the model is unknown.
+    pub title: String,
     pub model: String,
-    pub transport: String,
+    /// fisherman's size label, verbatim ("953.9 GiB").
+    pub size_label: String,
+    /// "NVMe", "SATA", "USB", ... or "".
+    pub transport_label: String,
+    pub removable: bool,
 }
 
 pub const FILESYSTEMS: [&str; 2] = ["xfs", "btrfs"];

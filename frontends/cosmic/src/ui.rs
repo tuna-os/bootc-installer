@@ -31,8 +31,8 @@ pub mod copy {
     pub const DISK_TITLE: &str = "Select a disk";
     pub const DISK_SUBTITLE: &str = "Everything on the disk you pick will be erased.";
     pub const DISK_SCANNING: &str = "Scanning for disks\u{2026}";
-    pub const DISK_UNKNOWN_MODEL: &str = "unknown model";
-    pub const DISK_UNKNOWN_BUS: &str = "unknown bus";
+    pub const DISK_NONE: &str = "No disk of at least 50 GiB was found. Connect one to install to.";
+    pub const DISK_PROBE_FAILED: &str = "Could not detect disks";
 
     pub const OPTIONS_TITLE: &str = "Options";
     pub const OPTIONS_SUBTITLE: &str =
@@ -101,16 +101,17 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 t.push(sub);
             }
             t.push(WELCOME_CAPTION.to_string());
+            t.extend(crate::probe::requirements_lines(app.unmet()));
             t.push(t_line("welcome_button"));
             t
         }
         Page::DiskSelect => {
             let mut t = vec![DISK_TITLE.to_string(), DISK_SUBTITLE.to_string()];
             if app.disks().is_empty() {
-                t.push(DISK_SCANNING.to_string());
+                t.extend(disk_empty_text(app));
             }
             for disk in app.disks() {
-                t.push(format!("/dev/{}", disk.name));
+                t.push(disk.title.clone());
                 t.push(disk_caption(disk));
             }
             t.push(BACK.to_string());
@@ -197,27 +198,30 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
     }
 }
 
+/// Below the disk's title (its model, or its path): the path, fisherman's
+/// size label and the bus (shared/probe/README.md).
 fn disk_caption(disk: &crate::model::DiskInfo) -> String {
-    format!(
-        "{} \u{b7} {} \u{b7} {}",
-        disk.size,
-        if disk.model.is_empty() {
-            DISK_UNKNOWN_MODEL
-        } else {
-            &disk.model
-        },
-        if disk.transport.is_empty() {
-            DISK_UNKNOWN_BUS
-        } else {
-            &disk.transport
-        },
-    )
+    let mut bits = vec![disk.path.as_str(), disk.size_label.as_str()];
+    if !disk.transport_label.is_empty() {
+        bits.push(&disk.transport_label);
+    }
+    bits.join(" \u{b7} ")
+}
+
+/// What the disk page says while it has no disk to offer: scanning, the
+/// probe's failure, or that fisherman found nothing eligible.
+fn disk_empty_text(app: &TunaInstaller) -> Vec<String> {
+    match app.disk_error() {
+        Some(err) => vec![DISK_PROBE_FAILED.to_string(), err.to_string()],
+        None if app.probed() => vec![DISK_NONE.to_string()],
+        None => vec![DISK_SCANNING.to_string()],
+    }
 }
 
 fn confirm_disk(app: &TunaInstaller) -> String {
     app.selected_disk()
         .and_then(|i| app.disks().get(i))
-        .map_or_else(|| "?".to_string(), |d| format!("/dev/{}", d.name))
+        .map_or_else(|| "?".to_string(), |d| d.path.clone())
 }
 
 fn confirm_image(app: &TunaInstaller) -> String {
@@ -303,7 +307,7 @@ fn nav_row<'a>(
     row.align_y(Alignment::Center).into()
 }
 
-fn welcome(_app: &TunaInstaller) -> Element<'_, Message> {
+fn welcome(app: &TunaInstaller) -> Element<'_, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
 
     let hero = widget::column::with_children(vec![
@@ -320,8 +324,21 @@ fn welcome(_app: &TunaInstaller) -> Element<'_, Message> {
     } else {
         hero.push(widget::text::body(subtitle))
     };
+    let mut hero = hero.push(widget::text::caption(WELCOME_CAPTION));
+    // fisherman's minimum requirements (RAM, CPU cores, UEFI). A warning,
+    // not a gate: shared/probe/README.md.
+    let warning = crate::probe::requirements_lines(app.unmet());
+    if !warning.is_empty() {
+        hero = hero.push(
+            widget::row::with_children(vec![
+                widget::icon::from_name("dialog-warning-symbolic").size(16).icon().into(),
+                widget::text::body(warning.join("\n")).into(),
+            ])
+            .spacing(spacing.space_xs)
+            .align_y(Alignment::Center),
+        );
+    }
     let hero = hero
-        .push(widget::text::caption(WELCOME_CAPTION))
         .spacing(spacing.space_s)
         .align_x(Alignment::Center)
         .width(Length::Fill);
@@ -342,21 +359,21 @@ fn disk_select(app: &TunaInstaller) -> Element<'_, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
 
     let body: Element<Message> = if app.disks().is_empty() {
-        widget::column::with_children(vec![
-            widget::progress_bar::indeterminate_linear()
-                .width(Length::Fill)
-                .into(),
-            widget::text::body(DISK_SCANNING).into(),
-        ])
-        .spacing(spacing.space_s)
-        .into()
+        let mut col = widget::column::with_capacity(3).spacing(spacing.space_s);
+        if !app.probed() {
+            col = col.push(widget::progress_bar::indeterminate_linear().width(Length::Fill));
+        }
+        for line in disk_empty_text(app) {
+            col = col.push(widget::text::body(line));
+        }
+        col.into()
     } else {
         let mut list = widget::list_column().style(cosmic::theme::Container::List);
         for (i, disk) in app.disks().iter().enumerate() {
             let _selected = app.selected_disk() == Some(i);
 
             let label = widget::column::with_children(vec![
-                widget::text::body(format!("/dev/{}", disk.name)).into(),
+                widget::text::body(disk.title.clone()).into(),
                 widget::text::caption(disk_caption(disk)).into(),
             ])
             .spacing(spacing.space_xxxs)

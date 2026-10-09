@@ -29,7 +29,7 @@ the cosmic widget set and the `cosmic-theme` palette. It drives the
 ## Workflow
 
 1. **Welcome** — brief intro
-2. **Select a disk** — `lsblk -J` lists available disks; user picks one
+2. **Select a disk** — `fisherman probe --json` lists the disks fisherman offers (`../../shared/probe/README.md`); user picks one
 3. **Options** — computer name, filesystem, encryption
 4. **Confirm** — summary of choices, under a warning banner
 5. **Installing** — writes recipe JSON, runs `fisherman`, streams output
@@ -115,7 +115,7 @@ just capture
 ```
 
 Capture mode is entered only by setting `TUNA_CAPTURE_DIR`. In that mode the
-app uses fixture disks, never shells out to `lsblk`/`bootc`/`podman`, and
+app reads the shared probe fixture, never shells out to `fisherman`/`bootc`/`podman`, and
 refuses `StartInstall` outright — driving the wizard to the install screen
 cannot start an install. The harness reads back the frame wgpu actually
 presented and fails if any screen did not really render.

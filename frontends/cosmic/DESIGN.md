@@ -10,7 +10,7 @@ recipe, and presents the backend's progress and result.
 The installer has six screens:
 
 1. **Welcome** introduces the detected TunaOS product.
-2. **Select a disk** lists the devices returned by `lsblk -J` and requires a
+2. **Select a disk** lists the disks that `fisherman probe --json` offers and requires a
    selection before continuing.
 3. **Options** collects the hostname, filesystem, and encryption settings.
 4. **Confirm** summarizes the choices and marks installation as a destructive
