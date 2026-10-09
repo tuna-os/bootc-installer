@@ -2,8 +2,8 @@
 //
 // The recipe has carried encryption.type and encryption.passphrase since the
 // beginning and fisherman honours both, but nothing ever set them until this
-// step existed (tunaOS#734). The wording deliberately matches
-// tuna-installer-xfce, the reference implementation.
+// step existed (tunaOS#734). The choice labels and descriptions are the
+// shared branding copy keys, so every frontend words them the same.
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
@@ -61,45 +61,24 @@ TunaComponents.SetupModule {
 
                 Layout.alignment: Qt.AlignHCenter
 
-                FormCard.FormRadioDelegate {
-                    text: "No encryption"
-                    description: "Anyone with the disk can read your files."
-                    checked: InstallerController.encryptionType === "none"
-                    onToggled: if (checked) {
-                        InstallerController.encryptionType = "none";
-                    }
-                }
+                // One row per recipe type, in the shared order
+                // (Recipe::encryptionTypes()); the words are branding copy.
+                // TPM options are hidden, not disabled, on a machine without
+                // a TPM: offering them there only fails at install time.
+                Repeater {
+                    model: InstallerController.encryptionTypes
 
-                FormCard.FormRadioDelegate {
-                    text: "Passphrase"
-                    description: "You'll type it at every boot."
-                    checked: InstallerController.encryptionType === "luks-passphrase"
-                    onToggled: if (checked) {
-                        InstallerController.encryptionType = "luks-passphrase";
-                        root.commitPassphrase();
-                    }
-                }
+                    delegate: FormCard.FormRadioDelegate {
+                        required property string modelData
 
-                // TPM options are hidden, not disabled, on a machine without a
-                // TPM: offering them there only fails at install time.
-                FormCard.FormRadioDelegate {
-                    visible: InstallerController.hasTpm
-                    text: "TPM"
-                    description: "Unlocks automatically on this hardware."
-                    checked: InstallerController.encryptionType === "tpm2-luks"
-                    onToggled: if (checked) {
-                        InstallerController.encryptionType = "tpm2-luks";
-                    }
-                }
-
-                FormCard.FormRadioDelegate {
-                    visible: InstallerController.hasTpm
-                    text: "TPM + passphrase"
-                    description: "Automatic unlock, passphrase as fallback."
-                    checked: InstallerController.encryptionType === "tpm2-luks-passphrase"
-                    onToggled: if (checked) {
-                        InstallerController.encryptionType = "tpm2-luks-passphrase";
-                        root.commitPassphrase();
+                        visible: !modelData.startsWith("tpm2") || InstallerController.hasTpm
+                        text: InstallerController.encryptionLabel(modelData)
+                        description: InstallerController.encryptionDescription(modelData)
+                        checked: InstallerController.encryptionType === modelData
+                        onToggled: if (checked) {
+                            InstallerController.encryptionType = modelData;
+                            root.commitPassphrase();
+                        }
                     }
                 }
             }

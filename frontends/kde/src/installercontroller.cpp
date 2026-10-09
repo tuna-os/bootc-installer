@@ -96,15 +96,22 @@ void InstallerController::setImage(const QString &v)
     Q_EMIT recipeChanged();
 }
 
+// The copy key for an encryption type; fisherman reads "" as "none".
+static QString encryptionKey(const QString &type, const char *suffix)
+{
+    const QString id = type.isEmpty() ? QStringLiteral("none") : type;
+    return QStringLiteral("encryption_") + QString(id).replace(QLatin1Char('-'), QLatin1Char('_'))
+        + QLatin1String(suffix);
+}
+
 QString InstallerController::encryptionLabel(const QString &type) const
 {
-    if (type == QLatin1String("luks-passphrase"))
-        return QStringLiteral("Passphrase (LUKS)");
-    if (type == QLatin1String("tpm2-luks"))
-        return QStringLiteral("TPM");
-    if (type == QLatin1String("tpm2-luks-passphrase"))
-        return QStringLiteral("TPM + passphrase");
-    return QStringLiteral("None");
+    return text(encryptionKey(type, "_label"));
+}
+
+QString InstallerController::encryptionDescription(const QString &type) const
+{
+    return text(encryptionKey(type, "_description"));
 }
 
 // The install log existed only in m_log, i.e. only in the TextArea on the
