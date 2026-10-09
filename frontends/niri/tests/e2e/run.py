@@ -115,6 +115,15 @@ def main():
         sys.exit(f"FAIL: the progress bar ended at {fraction:.0%}, not 100% — "
                  "the QML is not parsing fisherman's progress protocol "
                  "(shared/progress/README.md)")
+    # The last step carries step_id "finalize", so its caption is the copy
+    # line step_finalize, not fisherman's raw step_name.
+    with open(os.path.join(REPO, "installer", "copy-defaults.json"), encoding="utf-8") as fh:
+        want = json.load(fh)["step_finalize"]
+    label = root.property("installStepName")
+    print(f"[e2e] last step label: {label!r}")
+    if label != want:
+        sys.exit(f"FAIL: the last step reads {label!r}, not the copy line {want!r} -- "
+                 "the QML is not labelling steps by step_id")
     if not os.path.exists(os.path.join(E2E_DIR, "recipe.json")):
         sys.exit("FAIL: the shim recorded no recipe")
     print("OK: Niri's recipe went QML -> backend -> fisherman")

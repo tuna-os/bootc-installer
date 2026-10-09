@@ -173,6 +173,23 @@ def rendered_encryption_keys(text):
     return found
 
 
+STEP_PREFIX = "step_"
+
+
+def rendered_step_keys(text, keys):
+    """Step-label keys a frontend builds from fisherman's step_id at run time.
+
+    fisherman owns the step ids and puts one on every step event; no frontend
+    keeps the list, so none names step_install_os whole. A frontend that
+    joins a "step_" literal with the event's id renders every step key
+    (shared/branding/README.md, "Install steps").
+    tests/unit/test_shared_progress.py holds the keys to fisherman's ids.
+    """
+    if f'"{STEP_PREFIX}"' in text or f"'{STEP_PREFIX}'" in text:
+        return {k for k in keys if k.startswith(STEP_PREFIX)}
+    return set()
+
+
 def rendered_keys(frontend, keys):
     """Keys named anywhere in this frontend's non-resolver, non-comment code.
 
@@ -191,7 +208,8 @@ def rendered_keys(frontend, keys):
     # __on_recovery_key_acknowledged contains "recovery_key_ack", and a
     # method name is not a render.
     named = {k for k in keys if f'"{k}"' in joined or f"'{k}'" in joined}
-    return named | (rendered_encryption_keys(joined) & set(keys))
+    return (named | (rendered_encryption_keys(joined) & set(keys))
+            | rendered_step_keys(joined, keys))
 
 
 class NiriTableMatchesTheContract(unittest.TestCase):
@@ -277,6 +295,18 @@ class ParityPageMatchesTheGaps(unittest.TestCase):
         self.assertGreater(len(self.table), 15)
         self.assertEqual(sorted(self.table["done_title"]),
                          ["cosmic", "gnome", "kde", "niri", "xfce"])
+
+
+class StepKeys(unittest.TestCase):
+    def test_a_step_prefix_literal_renders_every_step_key(self):
+        keys = {"step_install_os": "", "step_mount": "", "done_title": ""}
+        self.assertEqual(rendered_step_keys('text("step_" + id)', keys),
+                         {"step_install_os", "step_mount"})
+
+    def test_a_key_name_alone_is_not_the_prefix(self):
+        keys = {"step_install_os": ""}
+        self.assertEqual(rendered_step_keys('"step_install_os"', keys), set())
+        self.assertEqual(rendered_step_keys("step_ = 1", keys), set())
 
 
 class CommentStripping(unittest.TestCase):

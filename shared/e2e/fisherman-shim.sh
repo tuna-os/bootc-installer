@@ -57,34 +57,45 @@ FS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("filesy
 # shared/progress/dry-run-transcript.ndjson was generated from. total_steps
 # is 8 here and is NOT a constant — fisherman computes it from the recipe.
 #
+# Like a current fisherman (tuna-os/fisherman#270), every step, substep and
+# complete event carries overall_pct, the bar position fisherman computes
+# (internal/progress/bar.go), and every step event its stable step_id. The
+# overall_pct values below are what that Tracker emits for this exact stream:
+# a unit test (tests/unit/test_e2e_shim.py) replays the shim's events through
+# the reference parser with the field stripped and requires the same bar.
+# Frontends show overall_pct and label the step from the copy key
+# step_<step_id>; the e2e runners still require the bar to end at 100%.
+#
 # A frontend that shows a moving bar against this is parsing the protocol. A
 # frontend that shows an empty one is not, which is the point of the gate.
 TOTAL=8
-step() { # step_name cumulative_pct weight_pct
-  printf '{"type":"step","step":%d,"total_steps":%d,"step_name":"%s","cumulative_pct":%d,"weight_pct":%d,"elapsed_ms":%d,"timestamp":"%s"}\n' \
-    "$N" "$TOTAL" "$1" "$2" "$3" "$((N * 200))" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+step() { # step_name step_id cumulative_pct weight_pct overall_pct
+  printf '{"type":"step","step":%d,"total_steps":%d,"step_name":"%s","step_id":"%s","cumulative_pct":%d,"weight_pct":%d,"overall_pct":%s,"elapsed_ms":%d,"timestamp":"%s"}\n' \
+    "$N" "$TOTAL" "$1" "$2" "$3" "$4" "$5" "$((N * 200))" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   N=$((N + 1))
   sleep 0.2
 }
-substep() {
-  printf '{"type":"substep","message":"%s","elapsed_ms":0,"timestamp":"%s"}\n' \
-    "$1" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+substep() { # message overall_pct
+  printf '{"type":"substep","message":"%s","overall_pct":%s,"elapsed_ms":0,"timestamp":"%s"}\n' \
+    "$1" "$2" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   sleep 0.2
 }
 N=1
-step "Partitioning disk"            0  0
-substep "target disk: $DISK"
-step "Formatting EFI partition"     0  1
-step "Formatting root filesystem"   1  0
-substep "filesystem: $FS"
-step "Mounting filesystem"          1  0
-step "Installing OS"                1 87
-substep "image: $IMAGE"
-for layer in 18 47 71; do substep "Pulling image: layer $layer/71"; done
-step "Copying system Flatpaks"     88 11
-step "Configuring installed system" 99  0
-step "Finalizing installation"      99  1
-printf '{"type":"complete","message":"Installation complete!","boot_id":"0001","elapsed_ms":0,"timestamp":"%s"}\n' \
+step "Partitioning disk"            partition    0  0 0
+substep "target disk: $DISK" 0
+step "Formatting EFI partition"     format_efi   0  1 0
+step "Formatting root filesystem"   format_root  1  0 1
+substep "filesystem: $FS" 1
+step "Mounting filesystem"          mount        1  0 1
+step "Installing OS"                install_os   1 87 1
+substep "image: $IMAGE" 1
+substep "Pulling image: layer 18/71" 14.23
+substep "Pulling image: layer 47/71" 35.55
+substep "Pulling image: layer 71/71" 53.2
+step "Copying system Flatpaks"      flatpaks    88 11 88
+step "Configuring installed system" configure   99  0 99
+step "Finalizing installation"      finalize    99  1 99
+printf '{"type":"complete","message":"Installation complete!","boot_id":"0001","overall_pct":100,"elapsed_ms":0,"timestamp":"%s"}\n' \
   "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "[e2e] install simulated; recipe kept at $DIR/recipe.json"
 exit 0
