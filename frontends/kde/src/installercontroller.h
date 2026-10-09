@@ -190,6 +190,8 @@ private:
     // Returns the text to show in the log pane: the event rendered for a
     // person, or the line unchanged when it is not an event.
     QString consumeProgress(const QString &line);
+    // The label for a step: copy key step_<stepId>, else the step name.
+    QString stepLabel(const QString &stepId, const QString &stepName) const;
     void resetProgress();
     void drainBuffer(QByteArray &buffer, const QString &prefix, bool parse);
     void fail(const QString &message);

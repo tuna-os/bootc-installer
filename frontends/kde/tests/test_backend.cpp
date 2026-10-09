@@ -52,6 +52,10 @@ private slots:
     void progressUsesCumulativePctNotStepOverTotal();
     void progressSubstepInterpolatesInsideTheLongStep();
     void progressReproducesTheSharedFractionCases();
+    // fisherman's overall_pct and step_id (tuna-os/fisherman#270).
+    void progressReproducesTheSharedOverallPctCases();
+    void progressOverallPctDrivesTheBar();
+    void progressStepIdReadsTheCopyLayer();
     void progressCompleteFillsTheBar();
     void progressIgnoresNonProtocolLines();
     void progressRejectsTheInventedStepPrefix();
@@ -484,14 +488,14 @@ void BackendTest::progressSubstepInterpolatesInsideTheLongStep()
 // parser and pins the bar after every event; every frontend's parser must
 // reproduce it. It exists because #115's deploy-phase weighting was first
 // written in Python only, leaving this bar on the old formula.
-void BackendTest::progressReproducesTheSharedFractionCases()
+static void replayProgressCases(const QString &file, int minCases)
 {
-    QFile f(QStringLiteral(PROGRESS_FIXTURES_DIR "/fraction-cases.json"));
+    QFile f(QStringLiteral(PROGRESS_FIXTURES_DIR "/") + file);
     if (!f.exists())
         QSKIP("shared/progress is not present (tree checked out alone)");
     QVERIFY(f.open(QIODevice::ReadOnly));
     const QJsonArray cases = QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("cases")).toArray();
-    QVERIFY(cases.size() >= 5);
+    QVERIFY(cases.size() >= minCases);
     for (const QJsonValue &cv : cases) {
         const QJsonObject kase = cv.toObject();
         const QString name = kase.value(QStringLiteral("name")).toString();
@@ -511,6 +515,71 @@ void BackendTest::progressReproducesTheSharedFractionCases()
                                      .arg(name).arg(i).arg(c.installFraction()).arg(want)));
         }
     }
+}
+
+void BackendTest::progressReproducesTheSharedFractionCases()
+{
+    replayProgressCases(QStringLiteral("fraction-cases.json"), 5);
+}
+
+// shared/progress/overall-pct-cases.json: fisherman's overall_pct is the
+// bar; an event without it falls back to the derivation above.
+void BackendTest::progressReproducesTheSharedOverallPctCases()
+{
+    replayProgressCases(QStringLiteral("overall-pct-cases.json"), 3);
+}
+
+void BackendTest::progressOverallPctDrivesTheBar()
+{
+    InstallerController c;
+    const QString flatpaks = QStringLiteral(
+        "{\"type\":\"step\",\"step\":6,\"total_steps\":8,\"step_name\":\"Copying system Flatpaks\","
+        "\"step_id\":\"flatpaks\",\"cumulative_pct\":88,\"weight_pct\":11,\"overall_pct\":88}");
+    // The derivation holds the bar through the Flatpak copy; overall_pct
+    // moves it.
+    feed(c, {flatpaks, QStringLiteral(
+                 "{\"type\":\"substep\",\"message\":\"Copying Flatpak data: 50%\",\"overall_pct\":93.5}")});
+    QCOMPARE(c.installFraction(), 0.935);
+
+    // Never backwards, even if an event said so.
+    feed(c, {flatpaks,
+             QStringLiteral("{\"type\":\"substep\",\"message\":\"a\",\"overall_pct\":93.5}"),
+             QStringLiteral("{\"type\":\"substep\",\"message\":\"b\",\"overall_pct\":90}")});
+    QCOMPARE(c.installFraction(), 0.935);
+
+    // Without overall_pct the bar is derived, as before.
+    feed(c, {stepEvent(5, 8, "Installing OS", 1, 87),
+             QStringLiteral("{\"type\":\"substep\",\"message\":\"Pulling image: layer 2/4\"}")});
+    QVERIFY(qAbs(c.installFraction() - (1 + 0.5 * 0.6 * 87) / 100.0) < 1e-9);
+}
+
+void BackendTest::progressStepIdReadsTheCopyLayer()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QFile f(dir.filePath(QStringLiteral("branding.json")));
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(R"({"name": "Marlin", "copy": {"step_flatpaks": "Adding apps to {name}"}})");
+    f.close();
+    qputenv("BOOTC_INSTALLER_BRANDING", f.fileName().toUtf8());
+    InstallerController c;
+    qunsetenv("BOOTC_INSTALLER_BRANDING");
+
+    const auto step = [](const char *name, const char *id) {
+        return QStringLiteral(
+                   "{\"type\":\"step\",\"step\":3,\"total_steps\":8,\"step_name\":\"%1\","
+                   "\"step_id\":\"%2\",\"cumulative_pct\":1,\"weight_pct\":0,\"overall_pct\":1}")
+            .arg(QString::fromLatin1(name), QString::fromLatin1(id));
+    };
+    // A product's branding.json renames the step.
+    feed(c, {step("Copying system Flatpaks", "flatpaks")});
+    QCOMPARE(c.installStepName(), QStringLiteral("Adding apps to Marlin"));
+    // The neutral default for an id the product left alone.
+    feed(c, {step("Installing OS", "install_os")});
+    QCOMPARE(c.installStepName(), QStringLiteral("Installing Marlin…"));
+    // An id the copy does not know shows fisherman's step name.
+    feed(c, {step("Polishing the hull", "polish_hull")});
+    QCOMPARE(c.installStepName(), QStringLiteral("Polishing the hull"));
 }
 
 void BackendTest::progressCompleteFillsTheBar()
