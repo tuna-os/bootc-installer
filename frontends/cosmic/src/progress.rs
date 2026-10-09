@@ -6,8 +6,16 @@
 // for every real install, which is what `rejects_the_invented_step_prefix`
 // below pins.
 //
-// Semantics match the canonical Python parser in shared/progress. The bar is
-// driven by `cumulative_pct`, never by step/total_steps: fisherman computes
+// fisherman sends the bar itself as `overall_pct` on step, substep and
+// complete events, and a stable `step_id` on step events
+// (tuna-os/fisherman#270). Both are authoritative: the bar shows
+// `overall_pct`, and the step label is the branding copy key
+// `step_<step_id>` (see `Progress::step_label`).
+//
+// Without `overall_pct` (an older fisherman) the bar falls back to the
+// derivation below. Its semantics match the canonical Python parser in
+// shared/progress. It is driven by `cumulative_pct`, never by
+// step/total_steps: fisherman computes
 // total_steps from the recipe, and "Installing OS" alone carries 87% of a
 // cold install while five other steps carry 0%, so a bar advanced one-nth per
 // step sits near empty for the whole visible install and then jumps.
@@ -21,7 +29,12 @@ pub struct Progress {
     pub step: u64,
     pub total_steps: u64,
     pub fraction: f32,
+    /// The step-name fallback label: the friendly table, else fisherman's
+    /// raw step_name. Shown when the step has no copy line; see step_label.
     pub step_name: String,
+    /// fisherman's stable id for the current step, "" when the event had
+    /// none (an older fisherman, or a step fisherman has no id for).
+    pub step_id: String,
     /// The key fisherman emits once, after TPM enrolment (#129). It used to
     /// be formatted into a log line and dropped: the event was rendered but
     /// never stored, so nothing could show it after the install finished.
@@ -62,6 +75,13 @@ const PHASE_MILESTONES: &[(&str, f32)] = &[
     ("bootc installation complete", 1.0),
 ];
 
+/// fisherman's own bar position as a fraction, if the event carries it.
+/// Clamped to 0-1 and never below `before`, the bar before this event.
+fn overall_fraction(event: &Value, before: f32) -> Option<f32> {
+    let pct = event.get("overall_pct").and_then(Value::as_f64)? as f32;
+    Some(before.max((pct / 100.0).clamp(0.0, 1.0)))
+}
+
 fn milestone(message: &str) -> Option<f32> {
     PHASE_MILESTONES
         .iter()
@@ -76,6 +96,7 @@ impl Progress {
             total_steps: 0,
             fraction: 0.0,
             step_name: String::new(),
+            step_id: String::new(),
             recovery_key: String::new(),
             cumulative_pct: 0.0,
             weight_pct: 0.0,
@@ -88,6 +109,20 @@ impl Progress {
     pub fn reset(&mut self) {
         let product = std::mem::take(&mut self.product);
         *self = Self::new(product);
+    }
+
+    /// What to call the current step: the branding copy line
+    /// `step_<step_id>` (shared/branding/README.md, "Install steps"), so a
+    /// product can rebrand it. A step without an id, or an id the copy has
+    /// no line for, falls back to `step_name`.
+    pub fn step_label(&self, branding: &crate::branding::Branding) -> String {
+        if !self.step_id.is_empty() {
+            let label = branding.text(&(String::from("step_") + &self.step_id));
+            if !label.is_empty() {
+                return label;
+            }
+        }
+        self.step_name.clone()
     }
 
     /// True once fisherman has said anything, i.e. the bar means something.
@@ -113,6 +148,7 @@ impl Progress {
 
         let str_field = |k: &str| event.get(k).and_then(Value::as_str).unwrap_or("");
         let num_field = |k: &str| event.get(k).and_then(Value::as_f64).unwrap_or(0.0);
+        let before = self.fraction;
 
         match str_field("type") {
             "step" => {
@@ -133,9 +169,12 @@ impl Progress {
                 self.total_steps = num_field("total_steps") as u64;
                 self.cumulative_pct = num_field("cumulative_pct") as f32;
                 self.weight_pct = num_field("weight_pct") as f32;
-                self.fraction = self.cumulative_pct / 100.0;
+                // The derivation is the fallback; overall_pct wins.
+                self.fraction =
+                    overall_fraction(&event, before).unwrap_or(self.cumulative_pct / 100.0);
                 let name = str_field("step_name");
                 self.step_name = friendly(name, &self.product);
+                self.step_id = str_field("step_id").to_string();
                 Some(format!("[{}/{}] {}", self.step, self.total_steps, name))
             }
             kind @ ("substep" | "info") => {
@@ -158,6 +197,11 @@ impl Progress {
                         self.fraction = ((self.cumulative_pct + self.step_frac * self.weight_pct)
                             / 100.0)
                             .min(1.0);
+                    }
+                }
+                if kind == "substep" {
+                    if let Some(fraction) = overall_fraction(&event, before) {
+                        self.fraction = fraction;
                     }
                 }
                 (!message.is_empty()).then(|| format!("  {message}"))
@@ -211,7 +255,9 @@ fn layer_progress(message: &str) -> Option<(f32, f32)> {
 }
 
 /// Human labels for fisherman's step names, matching the other frontends
-/// (shared/progress/progress_parser.py). An unknown step falls back to its
+/// (shared/progress/progress_parser.py): the fallback for a step event
+/// without a step_id, from a fisherman older than overall_pct/step_id. The
+/// labels match the step_<id> copy defaults. An unknown step falls back to its
 /// raw name, so a step added to fisherman later shows what it really is
 /// rather than showing nothing.
 fn friendly(name: &str, product: &str) -> String {
@@ -277,6 +323,95 @@ mod tests {
         format!(
             r#"{{"type":"step","step":{step},"total_steps":{total},"step_name":"{name}","cumulative_pct":{cumulative},"weight_pct":{weight}}}"#
         )
+    }
+
+    /// shared/progress/overall-pct-cases.json: fisherman's overall_pct is
+    /// the bar; an event without it falls back to the derivation.
+    #[test]
+    fn reproduces_the_shared_overall_pct_cases() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../shared/progress/overall-pct-cases.json"
+        );
+        let text = std::fs::read_to_string(path).expect("shared/progress/overall-pct-cases.json");
+        let doc: Value = serde_json::from_str(&text).unwrap();
+        let cases = doc["cases"].as_array().unwrap();
+        assert!(cases.len() >= 3);
+        for case in cases {
+            let name = case["name"].as_str().unwrap();
+            let mut p = Progress::new("ExampleOS");
+            for (i, (event, want)) in case["events"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .zip(case["bar"].as_array().unwrap())
+                .enumerate()
+            {
+                p.consume(&event.to_string());
+                let want = want.as_f64().unwrap() as f32;
+                assert!(
+                    (p.fraction - want).abs() < 1e-5,
+                    "{name} event {i}: bar {} want {want}",
+                    p.fraction
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn overall_pct_drives_the_bar() {
+        let mut p = Progress::new("ExampleOS");
+        p.consume(
+            r#"{"type":"step","step":6,"total_steps":8,"step_name":"Copying system Flatpaks","step_id":"flatpaks","cumulative_pct":88,"weight_pct":11,"overall_pct":88}"#,
+        );
+        // The derivation would hold the bar through the Flatpak copy.
+        p.consume(r#"{"type":"substep","message":"Copying Flatpak data: 50%","overall_pct":93.5}"#);
+        assert!((p.fraction - 0.935).abs() < 1e-6, "{}", p.fraction);
+        // Never backwards.
+        p.consume(r#"{"type":"substep","message":"x","overall_pct":90}"#);
+        assert!((p.fraction - 0.935).abs() < 1e-6, "{}", p.fraction);
+    }
+
+    #[test]
+    fn without_overall_pct_the_bar_is_derived() {
+        let mut p = Progress::new("ExampleOS");
+        p.consume(&step_event(5, 8, "Installing OS", 1, 87));
+        p.consume(r#"{"type":"substep","message":"Pulling image: layer 2/4"}"#);
+        let want = (1.0 + 0.5 * 0.6 * 87.0) / 100.0;
+        assert!((p.fraction - want).abs() < 1e-6, "{}", p.fraction);
+    }
+
+    fn branded(copy: serde_json::Value) -> crate::branding::Branding {
+        let file = serde_json::json!({"name": "Marlin", "copy": copy});
+        crate::branding::from_sources(file.as_object(), None, "")
+    }
+
+    #[test]
+    fn step_id_is_labelled_from_the_copy() {
+        let b = branded(serde_json::json!({"step_flatpaks": "Adding apps to {name}"}));
+        let mut p = Progress::new("Marlin");
+        p.consume(
+            r#"{"type":"step","step":6,"total_steps":8,"step_name":"Copying system Flatpaks","step_id":"flatpaks","cumulative_pct":88,"weight_pct":11,"overall_pct":88}"#,
+        );
+        assert_eq!(p.step_label(&b), "Adding apps to Marlin");
+        // The neutral default for an id the product left alone.
+        p.consume(
+            r#"{"type":"step","step":7,"total_steps":8,"step_name":"Installing OS","step_id":"install_os","cumulative_pct":88,"weight_pct":0,"overall_pct":88}"#,
+        );
+        assert_eq!(p.step_label(&b), "Installing Marlin…");
+    }
+
+    #[test]
+    fn an_unknown_step_id_falls_back_to_the_step_name() {
+        let b = branded(serde_json::json!({}));
+        let mut p = Progress::new("Marlin");
+        p.consume(
+            r#"{"type":"step","step":2,"total_steps":8,"step_name":"Polishing the hull","step_id":"polish_hull","cumulative_pct":10,"weight_pct":5,"overall_pct":10}"#,
+        );
+        assert_eq!(p.step_label(&b), "Polishing the hull");
+        // No step_id at all: the step-name table.
+        p.consume(&step_event(3, 8, "Copying system Flatpaks", 88, 11));
+        assert_eq!(p.step_label(&b), "Installing your apps…");
     }
 
     #[test]
