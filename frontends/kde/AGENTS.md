@@ -84,6 +84,19 @@ Encryption types: `none`, `luks-passphrase`, `tpm2-luks`,
 `tpm2-luks-passphrase`. On a live ISO `image` may be omitted, and bootc
 installs the running container offline.
 
+## Disks, TPM and minimum requirements
+
+These come from `fisherman probe --json`, not from this frontend. `src/probe.cpp`
+runs `/usr/local/bin/fisherman probe --json` without privileges (prefixed with
+`flatpak-spawn --host` in a Flatpak). `InstallerController` reads TPM and the
+requirements from it at startup. `DiskModel` runs the probe again each time the
+disk step opens. Show the eligible disks in fisherman's order, with
+`size_label` exactly as given. Do not add a disk filter or a size formatter. If
+the probe fails, the disk step shows the reason. `test_backend`
+(`probeFixtures`) renders the shared fixtures, and
+`../../shared/probe/README.md` is the contract. The capture sets
+`BOOTC_INSTALLER_FAKE_PROBE` to `shared/probe/fixtures/laptop.json`.
+
 ## Visual verification
 
 `screenshots.yml` builds the real QML modules with `tests/capture.cpp`, renders

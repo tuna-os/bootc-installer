@@ -28,7 +28,7 @@ hardcoded pixel metrics, and no more forced Fusion style.
 ## Workflow
 
 1. **Welcome** — brief intro
-2. **Target Disk** — `lsblk -J` lists available disks; user picks one
+2. **Target Disk** — `fisherman probe --json` lists the disks fisherman offers (`../../shared/probe/README.md`); user picks one
 3. **Disk Encryption** — none / passphrase / TPM / TPM + passphrase
 4. **Confirm** — summary of choices (disk, filesystem, encryption, hostname, image)
 5. **Installing** — writes recipe JSON, runs `fisherman <recipe.json>`, streams output

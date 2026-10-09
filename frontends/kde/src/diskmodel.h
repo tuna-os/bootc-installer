@@ -2,25 +2,23 @@
 
 // Target-disk list, backing the disk step's ListView.
 //
-// Same discovery as the Widgets frontend it replaces: `lsblk -J`, filtered to
-// type == "disk". Only the presentation moved to QML.
+// The disks are fisherman's: `fisherman probe --json`, eligible disks only,
+// in fisherman's order, with fisherman's size labels (shared/probe/README.md).
+// Only the presentation is here.
+
+#include "probe.h"
 
 #include <QAbstractListModel>
 #include <QString>
 #include <qqmlintegration.h>
-
-struct DiskEntry {
-    QString device;      // "/dev/nvme0n1"
-    QString size;
-    QString model;
-    QString transport;   // "NVMe", "SATA", ...
-};
 
 class DiskModel : public QAbstractListModel
 {
     Q_OBJECT
     QML_ELEMENT
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
+    // Why there are no disks, when the probe failed; empty otherwise.
+    Q_PROPERTY(QString error READ error NOTIFY countChanged)
 
 public:
     enum Roles {
@@ -29,6 +27,8 @@ public:
         ModelRole,
         TransportRole,
         SubtitleRole,
+        TitleRole,
+        RemovableRole,
     };
 
     explicit DiskModel(QObject *parent = nullptr);
@@ -37,14 +37,20 @@ public:
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    // Re-runs lsblk. Called when the disk step is activated, mirroring the old
-    // DiskSelectionPage::prepare().
+    // Re-runs the probe. Called when the disk step is activated, so a disk
+    // plugged in after start-up appears.
     Q_INVOKABLE void refresh();
     Q_INVOKABLE QString deviceAt(int row) const;
+
+    // Replaces the rows with a probe result (refresh(), and the tests).
+    void setResult(const probe::Result &result);
+
+    QString error() const { return m_error; }
 
 Q_SIGNALS:
     void countChanged();
 
 private:
-    QList<DiskEntry> m_disks;
+    QList<probe::Disk> m_disks;
+    QString m_error;
 };

@@ -47,10 +47,10 @@ set(BACKEND_SOURCES
     src/diskmodel.h
     src/installercontroller.cpp
     src/installercontroller.h
+    src/probe.cpp
+    src/probe.h
     src/readiness.cpp
     src/readiness.h
-    src/tpm.cpp
-    src/tpm.h
 )
 
 # copy-defaults.json compiled into branding.cpp as a raw string literal. The
@@ -113,6 +113,10 @@ option(BUILD_CAPTURE "Build the screenshot capture harness" OFF)
 if(BUILD_CAPTURE)
     qt_add_executable(tuna-installer-capture tests/capture.cpp)
     target_link_libraries(tuna-installer-capture PRIVATE tunainstallerapp tunainstallerappplugin)
+    # The machine the disk step photographs: fisherman's probe answer for a
+    # laptop, the fixture every frontend's capture reads.
+    target_compile_definitions(tuna-installer-capture PRIVATE
+        PROBE_FIXTURE_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/probe/fixtures/laptop.json")
 endif()
 
 option(BUILD_E2E "Build the end-to-end driver that launches the real backend path" OFF)
@@ -131,7 +135,8 @@ if(BUILD_TESTING)
         src/branding.cpp
         src/offline.cpp
         src/readiness.cpp
-        src/tpm.cpp
+        src/probe.cpp
+        src/diskmodel.cpp
         # For the fisherman progress protocol parse. The controller's other
         # halves (QProcess, the recipe file) are not exercised here; the
         # tests below feed appendLine() directly, which is the same entry
@@ -143,7 +148,7 @@ if(BUILD_TESTING)
     # skips when this tree is checked out without the monorepo around it.
     target_compile_definitions(tuna-installer-backend-tests PRIVATE
         BRANDING_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/branding/fixtures"
-        TPM_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/tpm/fixtures"
+        PROBE_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/probe/fixtures"
         PROGRESS_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/progress")
     # Qt6::Quick is needed to compile readiness.cpp: armStamp() takes a
     # QQuickWindow, so the type must be complete even though the tests below

@@ -19,7 +19,8 @@ TunaComponents.SetupModule {
     nextEnabled: InstallerController.disk.length > 0
 
     // Called by the wizard whenever this step becomes current, so hotplugged
-    // media show up. Replaces DiskSelectionPage::prepare().
+    // media show up. Re-runs `fisherman probe --json`: the disks, their
+    // order, size labels and models are fisherman's (shared/probe/README.md).
     function onPageActivated(): void {
         disks.refresh();
     }
@@ -82,9 +83,12 @@ TunaComponents.SetupModule {
 
                     delegate: FormCard.FormRadioDelegate {
                         required property string device
+                        required property string title
                         required property string subtitle
 
-                        text: device
+                        // The model (the path when it is unknown); the
+                        // path, fisherman's size label and the bus below.
+                        text: title
                         description: subtitle
                         checked: InstallerController.disk === device
 
@@ -102,8 +106,10 @@ TunaComponents.SetupModule {
                 Layout.alignment: Qt.AlignHCenter
 
                 FormCard.FormTextDelegate {
-                    text: "No disks found"
-                    description: "lsblk reported no block devices of type “disk”."
+                    text: disks.error.length > 0 ? "Could not detect disks" : "No disks found"
+                    description: disks.error.length > 0
+                        ? disks.error
+                        : "Connect a disk of at least 50 GiB to install to."
                 }
             }
         }
