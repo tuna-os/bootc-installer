@@ -1,8 +1,7 @@
-"""Unit tests for core/system.py — GPU detection, TPM2, hostname generation."""
+"""Unit tests for core/system.py — GPU detection, probe-backed checks, hostname generation."""
 
 import os
 import sys
-from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -209,75 +208,70 @@ class TestHostnameSanitize:
         assert _sanitize_hostname_part("  -ThinkPad X1-  ") == "thinkpad-x1"
 
 
+def _probe_result(unmet=(), uefi=True, tpm_usable=False):
+    return {
+        "protocol_version": 1,
+        "disks": [],
+        "tpm": {"present": tpm_usable, "version": "2.0" if tpm_usable else "", "usable": tpm_usable},
+        "system": {"ram_bytes": 1, "cpu_threads": 1, "cpu_cores": 1, "uefi": uefi,
+                   "meets_requirements": not unmet, "unmet": list(unmet)},
+        "live": {"is_live": False, "live_image": ""},
+        "offline": {"stores": [], "images": []},
+    }
+
+
 class TestSysteminfoBasicChecks:
+    """RAM, CPU and UEFI are fisherman's answers now (shared/probe/README.md):
+    `free`, `lscpu` and /sys/firmware/efi are no longer read here."""
+
     def setup_method(self):
-        Systeminfo.uefi = None
-        Systeminfo.ram = None
-        Systeminfo.cpu = None
-        Systeminfo._nvidia = None
-        Systeminfo._tpm2 = None
-        Systeminfo._gpus = None
+        Systeminfo._probe = None
+        Systeminfo._probe_error = None
+        Systeminfo._probed = False
 
-    def test_is_uefi_true_inside_flatpak(self, monkeypatch):
-        monkeypatch.setattr("bootc_installer.core.system.os.path.exists", lambda path: path == "/.flatpak-info")
-        monkeypatch.setattr("bootc_installer.core.system.os.path.isdir", lambda path: False)
+    def teardown_method(self):
+        self.setup_method()
 
-        assert Systeminfo.is_uefi() is True
+    def _probe(self, monkeypatch, result):
+        monkeypatch.setattr("bootc_installer.core.system.fisherman_probe.run",
+                            lambda argv: result)
 
-    def test_is_uefi_uses_sysfs_when_not_in_flatpak(self, monkeypatch):
-        monkeypatch.setattr("bootc_installer.core.system.os.path.exists", lambda path: False)
-        monkeypatch.setattr("bootc_installer.core.system.os.path.isdir", lambda path: path == "/sys/firmware/efi")
-
-        assert Systeminfo.is_uefi() is True
-
-    def test_is_uefi_returns_cached_value(self, monkeypatch):
-        Systeminfo.uefi = True
-        monkeypatch.setattr(
-            "bootc_installer.core.system.os.path.exists",
-            lambda path: (_ for _ in ()).throw(AssertionError("cache should be used")),
-        )
-
-        assert Systeminfo.is_uefi() is True
-
-    def test_is_ram_enough_true_at_threshold(self, monkeypatch):
-        fake_proc = SimpleNamespace(stdout=SimpleNamespace(read=lambda: b"3800000000\n"))
-        monkeypatch.setattr("bootc_installer.core.system.subprocess.Popen", lambda *args, **kwargs: fake_proc)
-
+    def test_all_met(self, monkeypatch):
+        self._probe(monkeypatch, _probe_result())
         assert Systeminfo.is_ram_enough() is True
-
-    def test_is_ram_enough_false_below_threshold(self, monkeypatch):
-        fake_proc = SimpleNamespace(stdout=SimpleNamespace(read=lambda: b"3799999999\n"))
-        monkeypatch.setattr("bootc_installer.core.system.subprocess.Popen", lambda *args, **kwargs: fake_proc)
-
-        assert Systeminfo.is_ram_enough() is False
-
-    def test_is_cpu_enough_true_with_two_cores_total(self, monkeypatch):
-        procs = iter(
-            [
-                SimpleNamespace(stdout=SimpleNamespace(read=lambda: b"1\n")),
-                SimpleNamespace(stdout=SimpleNamespace(read=lambda: b"2\n")),
-            ]
-        )
-        monkeypatch.setattr("bootc_installer.core.system.subprocess.Popen", lambda *args, **kwargs: next(procs))
-
         assert Systeminfo.is_cpu_enough() is True
+        assert Systeminfo.is_uefi() is True
 
-    def test_is_cpu_enough_false_with_single_core_total(self, monkeypatch):
-        procs = iter(
-            [
-                SimpleNamespace(stdout=SimpleNamespace(read=lambda: b"1\n")),
-                SimpleNamespace(stdout=SimpleNamespace(read=lambda: b"1\n")),
-            ]
-        )
-        monkeypatch.setattr("bootc_installer.core.system.subprocess.Popen", lambda *args, **kwargs: next(procs))
-
+    def test_each_unmet_requirement(self, monkeypatch):
+        self._probe(monkeypatch, _probe_result(unmet=("ram", "cpu", "uefi"), uefi=False))
+        assert Systeminfo.is_ram_enough() is False
         assert Systeminfo.is_cpu_enough() is False
+        assert Systeminfo.is_uefi() is False
+        assert Systeminfo.unmet_requirements() == ["ram", "cpu", "uefi"]
+
+    def test_tpm_is_fishermans_usable(self, monkeypatch):
+        self._probe(monkeypatch, _probe_result(tpm_usable=True))
+        assert Systeminfo.has_tpm2() is True
+
+    def test_result_is_cached(self, monkeypatch):
+        calls = []
+
+        def run(argv):
+            calls.append(argv)
+            return _probe_result()
+
+        monkeypatch.setattr("bootc_installer.core.system.fisherman_probe.run", run)
+        monkeypatch.delenv("BOOTC_INSTALLER_FAKE_PROBE", raising=False)
+        monkeypatch.setattr("bootc_installer.utils.fisherman_runner.IN_FLATPAK", False)
+        Systeminfo.is_uefi()
+        Systeminfo.is_ram_enough()
+        Systeminfo.has_tpm2()
+        assert calls == [["/usr/local/bin/fisherman", "probe", "--json"]]
 
 
-class TestSysteminfoGpuAndTpmCaching:
+class TestSysteminfoGpuCaching:
     def setup_method(self):
         Systeminfo._nvidia = None
-        Systeminfo._tpm2 = None
         Systeminfo._gpus = None
 
     def test_detect_gpus_returns_cached_value(self, monkeypatch):
@@ -316,68 +310,6 @@ class TestSysteminfoGpuAndTpmCaching:
         )
 
         assert Systeminfo.has_nvidia_gpu() is False
-
-    # shared/tpm/fixtures — the trees every frontend's probe is judged by.
-    TPM_FIXTURES = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        "shared", "tpm", "fixtures")
-
-    def test_has_tpm2_caches_only_the_real_root(self, monkeypatch):
-        calls = []
-
-        def fake_probe(root):
-            calls.append(root)
-            return False
-
-        monkeypatch.setattr(
-            "bootc_installer.core.system.tpm_probe.probe_tpm2", fake_probe)
-
-        assert Systeminfo.has_tpm2() is False
-        assert Systeminfo.has_tpm2() is False
-        assert calls == ["/"], "the real root is probed once and cached"
-
-    def test_has_tpm2_true_for_a_tpm2_device(self):
-        assert Systeminfo.has_tpm2(
-            os.path.join(self.TPM_FIXTURES, "tpm2")) is True
-
-    def test_fake_tpm_override_shows_the_choices(self, monkeypatch):
-        """The override the other four frontends have had (#133).
-
-        It reveals nothing here: GNOME's encryption page is a plain Switch
-        with no visibility binding, so has_tpm2() only picks its default
-        state and the page renders the same either way. This is parity of
-        the contract in shared/tpm/README.md, not a capture fix.
-        """
-        monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", "1")
-        assert Systeminfo.has_tpm2(
-            os.path.join(self.TPM_FIXTURES, "legacy-none")) is True
-
-    def test_fake_tpm_override_is_off_when_empty_or_zero(self, monkeypatch):
-        for value in ("", "0"):
-            monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", value)
-            assert Systeminfo.has_tpm2(
-                os.path.join(self.TPM_FIXTURES, "legacy-none")) is False, value
-
-    def test_fake_tpm_beats_the_cache(self, monkeypatch):
-        """Read per call, so a capture that sets it is not defeated by a
-        cached False from an earlier probe of the real root."""
-        monkeypatch.delenv("BOOTC_INSTALLER_FAKE_TPM", raising=False)
-        monkeypatch.setattr(
-            "bootc_installer.core.system.tpm_probe.probe_tpm2",
-            lambda root: False)
-        assert Systeminfo.has_tpm2() is False
-        monkeypatch.setenv("BOOTC_INSTALLER_FAKE_TPM", "1")
-        assert Systeminfo.has_tpm2() is True
-
-    def test_has_tpm2_false_for_a_tpm12_device(self):
-        """A TPM 1.2 machine cannot do tpm2-luks.
-
-        This used to test /sys/class/tpm/tpm0 for existence, which this
-        fixture has, so the old probe said True and the install failed at
-        enrolment -- after the disk had been partitioned.
-        """
-        assert Systeminfo.has_tpm2(
-            os.path.join(self.TPM_FIXTURES, "tpm12")) is False
 
 
 class TestGenerateHostname:

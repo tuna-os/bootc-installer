@@ -192,6 +192,7 @@ class TestDiskStepButtonState:
 
         with patch("bootc_installer.defaults.disk.DisksManager") as MockDM:
             MockDM.return_value.all_disks.return_value = []
+            MockDM.return_value.error = None
             widget = BootcDefaultDisk(mock_window, {}, "disk", {})
             _pump()
 
@@ -226,6 +227,7 @@ class TestDiskStepWithNoDisks:
         mock_window.recipe = {"min_disk_size": 51200}
         with patch("bootc_installer.defaults.disk.DisksManager") as MockDM:
             MockDM.return_value.all_disks.return_value = []
+            MockDM.return_value.error = None
             widget = BootcDefaultDisk(mock_window, {}, "disk", {})
             _pump()
         return widget
@@ -269,6 +271,7 @@ class TestDiskStepFsToolCheck:
         }
         with patch("bootc_installer.defaults.disk.DisksManager") as MockDM:
             MockDM.return_value.all_disks.return_value = []
+            MockDM.return_value.error = None
             widget = BootcDefaultDisk(mock_window, {}, "disk", {})
             _pump()
         return widget

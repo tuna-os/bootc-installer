@@ -1,10 +1,12 @@
 import glob
 import hashlib
+import logging
 import os
 import re
-import subprocess
 
-from . import tpm_probe
+from . import fisherman_probe
+
+logger = logging.getLogger("Installer::System")
 
 
 # Vendor name normalization: raw DMI vendor → clean short name.
@@ -118,52 +120,64 @@ def _detect_display_devices() -> list[dict]:
 
 
 class Systeminfo:
-    uefi = None
-    ram = None
-    cpu = None
+    """Hardware facts. Disks, TPM, RAM, CPU and UEFI come from
+    `fisherman probe --json` (shared/probe/README.md), run once and cached;
+    GPU and DMI facts are still read here."""
+
+    _probe = None
+    _probe_error = None
+    _probed = False
     _nvidia = None
-    _tpm2 = None
     _gpus = None
 
     @staticmethod
-    def is_uefi() -> bool:
-        if not Systeminfo.uefi:
-            # Skip UEFI check inside Flatpak — assume UEFI
-            if os.path.exists("/.flatpak-info"):
-                Systeminfo.uefi = True
-            else:
-                Systeminfo.uefi = os.path.isdir("/sys/firmware/efi")
+    def probe(refresh: bool = False):
+        """The probe result, or None when it failed (see probe_error).
 
-        return Systeminfo.uefi
+        Run once; a failure is remembered too, so a missing fisherman is not
+        re-run by every page that asks.
+        """
+        if Systeminfo._probed and not refresh:
+            return Systeminfo._probe
+        from bootc_installer.utils import fisherman_runner
+
+        try:
+            if fisherman_runner.IN_FLATPAK and not os.environ.get(fisherman_probe.FAKE_ENV):
+                if not fisherman_runner.stage_on_host():
+                    raise fisherman_probe.ProbeError("could not stage fisherman on the host")
+            Systeminfo._probe = fisherman_probe.run(fisherman_runner.probe_argv())
+            Systeminfo._probe_error = None
+        except fisherman_probe.ProbeError as exc:
+            logger.error("fisherman probe failed: %s", exc)
+            Systeminfo._probe = None
+            Systeminfo._probe_error = str(exc)
+        Systeminfo._probed = True
+        return Systeminfo._probe
+
+    @staticmethod
+    def probe_error() -> str | None:
+        Systeminfo.probe()
+        return Systeminfo._probe_error
+
+    @staticmethod
+    def unmet_requirements() -> list[str]:
+        """fisherman's `system.unmet`; empty when the probe failed, so a
+        failed probe never blocks the wizard."""
+        result = Systeminfo.probe()
+        return fisherman_probe.unmet_requirements(result) if result else []
+
+    @staticmethod
+    def is_uefi() -> bool:
+        result = Systeminfo.probe()
+        return fisherman_probe.is_uefi(result) if result else True
 
     @staticmethod
     def is_ram_enough() -> bool:
-        if not Systeminfo.ram:
-            proc = subprocess.Popen(
-                "free -b | grep Mem | awk '{print $2}'",
-                shell=True,
-                stdout=subprocess.PIPE
-            ).stdout.read().decode()
-            Systeminfo.ram = int(proc) >= 3800000000
-
-        return Systeminfo.ram
+        return "ram" not in Systeminfo.unmet_requirements()
 
     @staticmethod
     def is_cpu_enough() -> bool:
-        if not Systeminfo.cpu:
-            proc1 = subprocess.Popen(
-                "lscpu | grep -E 'Core\\(s\\)' | awk '{print $4}'",
-                shell=True,
-                stdout=subprocess.PIPE
-            ).stdout.read().decode()
-            proc2 = subprocess.Popen(
-                "lscpu | grep -E 'Socket\\(s\\)' | awk '{print $2}'",
-                shell=True,
-                stdout=subprocess.PIPE
-            ).stdout .read().decode()
-            Systeminfo.cpu = (int(proc1) * int(proc2)) >= 2
-
-        return Systeminfo.cpu
+        return "cpu" not in Systeminfo.unmet_requirements()
 
     @staticmethod
     def has_nvidia_gpu() -> bool:
@@ -216,29 +230,15 @@ class Systeminfo:
         return f"gpu-{primary}-symbolic"
 
     @staticmethod
-    def has_tpm2(root: str = "/") -> bool:
-        """Detect a TPM 2.0 chip, per shared/tpm/README.md.
+    def has_tpm2() -> bool:
+        """Whether a TPM 2.0 is usable, per fisherman's `tpm.usable`.
 
-        This used to test `/sys/class/tpm/tpm0` for existence, which the
-        kernel also creates for a TPM 1.2 device -- so a 1.2 machine was
-        offered tpm2-luks and the install failed at enrolment, after the
-        disk had been partitioned.
-
-        Only the real root is cached; a test passing a fixture tree gets a
-        fresh answer each call.
+        fisherman implements shared/tpm/README.md (and honours
+        BOOTC_INSTALLER_FAKE_TPM). False when the probe failed: the tpm2-luks
+        choices are then hidden rather than offered blind.
         """
-        # Checked per call, never cached: the capture harness sets it, and a
-        # value read once at import would not see it. Forces the answer ON
-        # only -- it makes the choices visible for a screenshot, and does not
-        # make them work. fisherman still fails at enrolment.
-        if tpm_probe.fake_tpm_requested():
-            return True
-        if root != "/":
-            return tpm_probe.probe_tpm2(root)
-        if Systeminfo._tpm2 is not None:
-            return Systeminfo._tpm2
-        Systeminfo._tpm2 = tpm_probe.probe_tpm2(root)
-        return Systeminfo._tpm2
+        result = Systeminfo.probe()
+        return fisherman_probe.tpm_usable(result) if result else False
 
     @staticmethod
     def generate_hostname(stem: str | None = None) -> str:

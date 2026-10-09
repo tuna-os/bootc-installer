@@ -34,7 +34,7 @@ class TestDiskStepShouldShow:
             def __init__(self, disk):
                 self._disk = disk
 
-            def all_disks(self, include_removable=True):
+            def all_disks(self):
                 return [self._disk]
 
         class FakeCheckButton:

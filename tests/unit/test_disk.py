@@ -94,7 +94,9 @@ def _build_core_stubs():
     disks_mod = types.ModuleType("bootc_installer.core.disks")
 
     class _DisksManager:
-        def all_disks(self, include_removable=False):
+        error = None
+
+        def all_disks(self):
             return []
 
     class _Diskutils:

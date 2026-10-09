@@ -178,11 +178,8 @@ class BootcWindow(Adw.ApplicationWindow):
     def __step_context(self, current_widget=None):
         context = {
             "offline_install": self._is_offline_install(),
-            # shared/tpm/README.md, not an inline probe. This was a third
-            # copy of the TPM check, and #132's sweep grepped for
-            # "class/tpm" so it did not turn up. It happened to be right --
-            # /dev/tpmrm0 is TPM2-only -- but it bypassed the contract and
-            # ignored BOOTC_INSTALLER_FAKE_TPM.
+            # fisherman's tpm.usable (shared/probe/README.md), never an
+            # inline probe: this was once a third copy of the TPM check.
             "has_tpm2": Systeminfo.has_tpm2(),
             "live_iso": not os.path.exists("/.flatpak-info") and os.path.exists("/run/ostree-booted"),
             "sys_recipe": self.recipe if hasattr(self, "recipe") else {},

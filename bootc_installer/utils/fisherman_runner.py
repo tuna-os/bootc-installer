@@ -49,6 +49,22 @@ def build_argv(
     return ["bash", "-c", command, "--", recipe]
 
 
+def probe_argv(
+    *,
+    in_flatpak: bool = IN_FLATPAK,
+    host_path: str = HOST_PATH,
+) -> list[str]:
+    """The unprivileged `fisherman probe --json` command (shared/probe/README.md).
+
+    The same fisherman the install runs, on the host, as the desktop user:
+    the probe needs no root. In a Flatpak that is the staged copy, so the
+    caller stages it first (stage_on_host).
+    """
+    if in_flatpak:
+        return ["flatpak-spawn", "--host", host_path, "probe", "--json"]
+    return ["/usr/local/bin/fisherman", "probe", "--json"]
+
+
 def path_is_private(path: str, check_mode: bool = True) -> bool:
     """Return whether a path is safe for staging a root-executed helper."""
     try:

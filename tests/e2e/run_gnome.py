@@ -7,8 +7,9 @@ the step widgets, the recipe the Processor writes, BootcProgress.start()
 staging and launching fisherman (pkexec outside Flatpak), the log watcher
 that feeds the progress bar, and set_installation_result(). The only
 substitutions are the ones shared/e2e/setup.sh makes on the host: fisherman
-at /usr/local/bin is the validating shim, pkexec/lsblk/bootc on PATH are the
-e2e fakes, and the disk list is the loop device.
+at /usr/local/bin is the validating shim, pkexec/bootc on PATH are the e2e
+fakes, and the disk list is what the shim answers to `fisherman probe --json`:
+the loop device. The disk page reads it through the real DisksManager.
 
     xvfb-run -a python3 tests/e2e/run_gnome.py
 
@@ -19,14 +20,12 @@ import json
 import os
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
 E2E_DIR = os.environ.get("TUNA_E2E_DIR", "/tmp/tuna-e2e")
-DISK = os.environ.get("TUNA_E2E_DISK") or Path(E2E_DIR, "loopdev").read_text().strip()
 TIMEOUT = float(os.environ.get("TUNA_E2E_TIMEOUT", "120"))
 
 # The system recipe the app ships (images, steps, log file), with the image
@@ -80,16 +79,6 @@ Adw.init()
 from bootc_installer.windows.main_window import BootcWindow
 
 
-class _E2EDisksManager:
-    def __init__(self):
-        self._disks = [SimpleNamespace(
-            display_name="E2E loop disk", disk=DISK, pretty_size="20 GB",
-            size=20 * 1024**3, is_removable=False)]
-
-    def all_disks(self, include_removable=False):
-        return list(self._disks)
-
-
 def main():
     result = {}
     orig = BootcWindow.set_installation_result
@@ -102,7 +91,6 @@ def main():
         return r
 
     patchers = [
-        patch("bootc_installer.defaults.disk.DisksManager", return_value=_E2EDisksManager()),
         patch("bootc_installer.defaults.qr_companion.CompanionServer"),
         patch("bootc_installer.defaults.qr_companion.get_local_ip", return_value="127.0.0.1"),
         patch.object(BootcWindow, "set_installation_result", record),

@@ -65,6 +65,8 @@ class _TimeoutQueue:
 
 
 class _FakeDisksManager:
+    error = None
+
     def __init__(self):
         self._disks = [
             SimpleNamespace(
@@ -76,10 +78,8 @@ class _FakeDisksManager:
             )
         ]
 
-    def all_disks(self, include_removable=False):
-        if include_removable:
-            return list(self._disks)
-        return [disk for disk in self._disks if not disk.is_removable]
+    def all_disks(self):
+        return list(self._disks)
 
 
 def _make_window(extra_env):
