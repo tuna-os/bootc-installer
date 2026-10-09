@@ -261,7 +261,7 @@ class TestBuildRecipe:
         assert "passphrase" not in r["encryption"]
 
     def test_tpm_only_takes_no_passphrase(self):
-        """`tpm2-luks` unlocks from the TPM alone — see ENCRYPTION_CHOICES."""
+        """`tpm2-luks` unlocks from the TPM alone — see ENCRYPTION_TYPES."""
         r = core.build_recipe(**MINIMAL, encryption_type="tpm2-luks",
                               passphrase="left-over")
         assert r["encryption"] == {"type": "tpm2-luks"}
