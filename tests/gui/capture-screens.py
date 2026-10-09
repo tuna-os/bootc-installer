@@ -19,7 +19,7 @@ GTK4 has no offscreen backend, so a real X display is required:
     BOOTC_RESOURCE=build/bootc_installer/bootc-installer.gresource \\
         xvfb-run -a python3 tests/gui/capture-screens.py [outdir]
 
-Nothing here touches a disk. ``DisksManager`` is replaced with canned disks,
+Nothing here touches a disk. The disks come from the shared probe fixture,
 the QR companion server never binds a port, and ``BootcProgress.start`` --
 the one method that launches fisherman -- is replaced with a guard that fails
 the capture if anything reaches it.
@@ -30,7 +30,6 @@ import os
 import subprocess
 import sys
 import time
-from types import SimpleNamespace
 from unittest.mock import patch
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -68,10 +67,14 @@ os.environ["XDG_DATA_DIRS"] = os.pathsep.join([
     os.path.join(REPO, "data"),
     os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share",
 ])
-# Show the TPM row on the encryption page. It is hidden without a TPM 2.0
-# (shared/tpm/README.md), which no CI runner has, and docs/PARITY.md is read
-# off these screenshots. Same override the other frontends' captures set.
-os.environ.setdefault("BOOTC_INSTALLER_FAKE_TPM", "1")
+# Disks, TPM and requirements come from `fisherman probe --json`
+# (shared/probe/README.md). The capture reads the shared laptop fixture
+# instead: four plausible disks, a usable TPM 2.0 (so the TPM row shows,
+# which no CI runner could), every requirement met. Same fixture the other
+# frontends' captures read.
+os.environ.setdefault(
+    "BOOTC_INSTALLER_FAKE_PROBE",
+    os.path.join(REPO, "shared", "probe", "fixtures", "laptop.json"))
 # Skip the RAM / CPU / UEFI gate windows: this is a render of the wizard.
 os.environ.setdefault("IGNORE_RAM", "1")
 os.environ.setdefault("IGNORE_CPU", "1")
@@ -117,25 +120,6 @@ from bootc_installer.windows.main_window import BootcWindow  # noqa: E402
 
 # ── fixtures ─────────────────────────────────────────────────────────────────
 
-class _FakeDisksManager:
-    """Two plausible fixed disks on a machine that does not exist."""
-
-    def __init__(self):
-        self._disks = [
-            SimpleNamespace(display_name="SAMSUNG MZVL2512", disk="/dev/nvme0n1",
-                            pretty_size="476.9 GB", size=512110190592,
-                            is_removable=False),
-            SimpleNamespace(display_name="WDC WD20SPZX", disk="/dev/sda",
-                            pretty_size="1.8 TB", size=2000398934016,
-                            is_removable=False),
-        ]
-
-    def all_disks(self, include_removable=False):
-        if include_removable:
-            return list(self._disks)
-        return [d for d in self._disks if not d.is_removable]
-
-
 def _refuse_to_install(*_args, **_kwargs):
     # SAFETY INTERLOCK. BootcProgress.start() is the only code path that
     # launches fisherman. The capture never confirms the install, so this
@@ -145,7 +129,6 @@ def _refuse_to_install(*_args, **_kwargs):
 
 
 PATCHERS = [
-    patch("bootc_installer.defaults.disk.DisksManager", return_value=_FakeDisksManager()),
     patch("bootc_installer.defaults.qr_companion.CompanionServer"),
     patch("bootc_installer.defaults.qr_companion.get_local_ip", return_value="192.0.2.10"),
     patch.object(progress_mod.BootcProgress, "start", _refuse_to_install),

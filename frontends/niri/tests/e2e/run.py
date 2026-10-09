@@ -63,7 +63,7 @@ def main():
     disks = json.loads(subprocess.run([BACKEND, "discover-disks"], capture_output=True, text=True, check=True).stdout)
     print(f"[e2e] backend detect: {facts}")
     print(f"[e2e] backend discover-disks: {disks}")
-    chosen = next((d for d in disks if d.get("name") == name), None)
+    chosen = next((d for d in disks if d.get("path") == disk), None)
     if chosen is None:
         sys.exit(f"FAIL: the backend did not list the e2e disk {name}: {disks}")
 

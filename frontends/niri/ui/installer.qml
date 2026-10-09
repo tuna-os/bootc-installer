@@ -73,6 +73,10 @@ ApplicationWindow {
             welcome_install: "Install {name}",
             welcome_install_subtitle: "Installs to your internal disk.",
             welcome_button: "Get started",
+            requirements_title: "This computer does not meet the minimum requirements",
+            requirements_ram: "It has less than 4 GB of memory.",
+            requirements_cpu: "It has fewer than 2 processor cores.",
+            requirements_uefi: "It did not start in UEFI mode. Turn on UEFI in the firmware settings.",
             encryption_none_label: "No encryption",
             encryption_none_description: "Anyone with the disk can read your files.",
             encryption_luks_passphrase_label: "Passphrase",
@@ -143,7 +147,21 @@ ApplicationWindow {
     }
     property string passphrase: ""
     property bool hasTpm: false
+    // fisherman's system.unmet from `detect` ("ram", "cpu", "uefi").
+    property var unmet: []
+    // The disks fisherman offers, from `discover-disks`; why there are none
+    // when the probe failed (no fallback scan, shared/probe/README.md).
     property var disks: []
+    property bool disksProbed: false
+    property string diskError: ""
+    // The welcome page's warning: requirements_title, then a line per item.
+    readonly property string requirementsWarning: {
+        const keys = { ram: "requirements_ram", cpu: "requirements_cpu", uefi: "requirements_uefi" }
+        const known = root.unmet.filter(u => keys[u] !== undefined)
+        if (known.length === 0) return ""
+        return [root.text("requirements_title")].concat(known.map(u => root.text(keys[u])))
+            .filter(l => l !== "").join("\n")
+    }
     property var selectedDisk: ({})
     property string hostname: branding.defaultHostname || "linux"
     property bool installSuccess: false
@@ -231,6 +249,7 @@ ApplicationWindow {
                     const facts = JSON.parse(text)
                     root.liveImage = facts.liveImage || ""
                     root.hasTpm = facts.hasTpm === true
+                    root.unmet = facts.unmet || []
                     root.offlineStores = facts.offlineStores || []
                     if (facts.branding) root.branding = facts.branding
                 } catch (e) { /* detect is best-effort */ }
@@ -243,8 +262,16 @@ ApplicationWindow {
         command: [root.backendBin, "discover-disks"]
         stdout: StdioCollector {
             onStreamFinished: {
-                try { root.disks = JSON.parse(text) } catch (e) { root.disks = [] }
+                try { root.disks = JSON.parse(text) || [] } catch (e) { root.disks = [] }
+                root.disksProbed = true
+                // Keep the choice across a re-probe only if the disk is still offered.
+                if (root.selectedDisk.path !== undefined
+                        && !root.disks.some(d => d.path === root.selectedDisk.path))
+                    root.selectedDisk = ({})
             }
+        }
+        stderr: StdioCollector {
+            onStreamFinished: root.diskError = text.trim()
         }
     }
 
@@ -342,7 +369,7 @@ ApplicationWindow {
         barState = BarMath.newState()
         currentPage = 4
         const recipe = {
-            disk: "/dev/" + selectedDisk.name,
+            disk: selectedDisk.path,
             filesystem: "xfs",
             encryption: root.encType.endsWith("passphrase")
                 ? { type: root.encType, passphrase: root.passphrase }
@@ -367,9 +394,9 @@ ApplicationWindow {
     function advance() {
         switch (currentPage) {
         case 0: discoverProc.running = true; currentPage = 1; break
-        case 1: if (selectedDisk.name !== undefined) currentPage = 2; break
+        case 1: if (selectedDisk.path !== undefined) currentPage = 2; break
         case 2: encryptionPage.next(); break
-        case 3: if (selectedDisk.name !== undefined) startInstall(); break
+        case 3: if (selectedDisk.path !== undefined) startInstall(); break
         }
     }
     function back() {
@@ -474,6 +501,16 @@ ApplicationWindow {
                         horizontalAlignment: Text.AlignHCenter
                         Layout.fillWidth: true
                     }
+                    // fisherman's minimum requirements (RAM, CPU cores, UEFI).
+                    // A warning, not a gate: shared/probe/README.md.
+                    StyledText {
+                        text: root.requirementsWarning
+                        visible: text !== ""
+                        color: Theme.warning
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.Wrap
+                        Layout.fillWidth: true
+                    }
                     DankButton {
                         text: root.text("welcome_button")
                         buttonHeight: Theme.buttonHeightM
@@ -494,8 +531,8 @@ ApplicationWindow {
                     font.weight: Theme.fontWeightMedium
                 }
                 StyledText {
-                    text: root.text("confirm_warning", { disk: root.selectedDisk.name !== undefined
-                        ? "/dev/" + root.selectedDisk.name : "the selected disk" })
+                    text: root.text("confirm_warning", { disk: root.selectedDisk.path !== undefined
+                        ? root.selectedDisk.path : "the selected disk" })
                     color: Theme.warning
                     Layout.fillWidth: true
                 }
@@ -513,15 +550,25 @@ ApplicationWindow {
                         width: diskList.width
                         firstInGroup: index === 0
                         lastInGroup: index === diskList.count - 1
-                        primaryText: (modelData.model ? modelData.model + "  ·  " : "") + "/dev/" + modelData.name
-                        secondaryText: (modelData.size || "?") + "  ·  " + (modelData.tran || "unknown bus")
-                        isSelected: root.selectedDisk.name === modelData.name
+                        // fisherman's disk (shared/probe/README.md): the model
+                        // (the path when unknown), then path, size label, bus.
+                        primaryText: modelData.title
+                        secondaryText: [modelData.path, modelData.size_label, modelData.transport_label]
+                            .filter(s => s).join("  ·  ")
+                        isSelected: root.selectedDisk.path === modelData.path
                         onClicked: root.selectedDisk = modelData
                     }
                     StyledText {
                         anchors.centerIn: parent
+                        width: diskList.width
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.Wrap
                         visible: diskList.count === 0
-                        text: "Scanning for disks…"
+                        text: root.diskError !== ""
+                            ? "Could not detect disks: " + root.diskError
+                            : root.disksProbed
+                                ? "No disk of at least 50 GiB was found. Connect one to install to."
+                                : "Scanning for disks…"
                         color: Theme.surfaceVariantText
                     }
                 }
@@ -532,7 +579,7 @@ ApplicationWindow {
                     Item { Layout.fillWidth: true }
                     DankButton {
                         text: "Continue"
-                        enabled: root.selectedDisk.name !== undefined
+                        enabled: root.selectedDisk.path !== undefined
                         onClicked: root.advance()
                     }
                 }
@@ -659,7 +706,7 @@ ApplicationWindow {
                     StyledText {
                         id: warnText
                         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: Theme.spacingM }
-                        text: "⚠  " + root.text("confirm_warning", { disk: root.selectedDisk.name ? "/dev/" + root.selectedDisk.name : "the selected disk" })
+                        text: "⚠  " + root.text("confirm_warning", { disk: root.selectedDisk.path ? root.selectedDisk.path : "the selected disk" })
                         color: Theme.warning
                     }
                 }
@@ -673,7 +720,7 @@ ApplicationWindow {
                         columnSpacing: Theme.spacingXL
                         rowSpacing: Theme.spacingS
                         StyledText { text: "Target disk"; color: Theme.surfaceVariantText }
-                        StyledText { text: root.selectedDisk.name ? "/dev/" + root.selectedDisk.name : "—"; isMonospace: true }
+                        StyledText { text: root.selectedDisk.path ? root.selectedDisk.path : "—"; isMonospace: true }
                         StyledText { text: "Filesystem"; color: Theme.surfaceVariantText }
                         StyledText { text: "xfs"; isMonospace: true }
                         StyledText { text: "Encryption"; color: Theme.surfaceVariantText }
@@ -715,7 +762,7 @@ ApplicationWindow {
                     DankButton {
                         text: root.text("confirm_button")
                         destructive: true
-                        enabled: root.selectedDisk.name !== undefined
+                        enabled: root.selectedDisk.path !== undefined
                         onClicked: root.startInstall()
                     }
                 }

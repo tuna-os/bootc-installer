@@ -1,5 +1,5 @@
 #include "installercontroller.h"
-#include "tpm.h"
+#include "probe.h"
 #include "log.h"
 #include "offline.h"
 #include "branding.h"
@@ -17,23 +17,40 @@
 InstallerController::InstallerController(QObject *parent)
     : QObject(parent)
 {
-    // BOOTC_INSTALLER_FAKE_TPM only ever makes the two TPM choices VISIBLE,
-    // and exists because hiding them means a capture taken on a machine
-    // without a TPM -- every CI runner -- renders a two-option encryption
-    // page. docs/PARITY.md is read off those screenshots, so this frontend
-    // was recorded as having no TPM support when it has offered both TPM
-    // modes all along. Picking one still writes an ordinary recipe; fisherman
-    // is what fails, later and loudly, if there is no TPM to enrol against.
-    // Same variable and same meaning as the XFCE frontend's core.has_tpm().
-    const QByteArray fakeTpm = qgetenv("BOOTC_INSTALLER_FAKE_TPM");
-    m_hasTpm = (!fakeTpm.isEmpty() && fakeTpm != "0")
-        || tpm::probe2(QStringLiteral("/"));
+    // TPM 2.0 and the minimum requirements are fisherman's answers
+    // (`fisherman probe --json`, shared/probe/README.md), read once. The
+    // disk step runs the probe again when it opens, for hotplugged disks.
+    // A capture points BOOTC_INSTALLER_FAKE_PROBE at a fixture with a
+    // usable TPM, so the TPM choices show on a runner without one.
+    const probe::Result facts = probe::run();
+    m_hasTpm = facts.tpmUsable;
+    m_unmet = facts.unmet;
     // Product identity per shared/branding/README.md: branding.json, then
     // os-release, then neutral. Nothing in this frontend names a product.
     m_branding = branding::resolve();
     m_productName = m_branding.name;
     m_recipe.distroID = m_branding.id;
     m_recipe.hostname = m_branding.defaultHostname;
+}
+
+QString InstallerController::requirementsWarning() const
+{
+    if (m_unmet.isEmpty())
+        return {};
+    // One copy key per fisherman `unmet` id; an id this build does not know
+    // gets the title alone.
+    static const QHash<QString, QString> keys{
+        {QStringLiteral("ram"), QStringLiteral("requirements_ram")},
+        {QStringLiteral("cpu"), QStringLiteral("requirements_cpu")},
+        {QStringLiteral("uefi"), QStringLiteral("requirements_uefi")},
+    };
+    QStringList lines{text(QStringLiteral("requirements_title"))};
+    for (const QString &item : m_unmet) {
+        if (keys.contains(item))
+            lines << text(keys.value(item));
+    }
+    lines.removeAll(QString());
+    return lines.join(QLatin1Char('\n'));
 }
 
 void InstallerController::setDisk(const QString &v)

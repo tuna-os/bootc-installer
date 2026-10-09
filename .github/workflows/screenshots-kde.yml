@@ -97,17 +97,12 @@ jobs:
           # with the neutral fallback name rather than the container's
           # PRETTY_NAME.
           BOOTC_INSTALLER_PRODUCT_NAME: TunaOS
-          # Show the TPM encryption choices. They are hidden when
-          # /sys/class/tpm/tpm0 is absent, which it is on every runner, so an
-          # unset capture renders a two-option encryption page -- and
-          # docs/PARITY.md, which is read off these screenshots, recorded this
-          # frontend as having no TPM support when it has offered both TPM
-          # modes all along.
-          BOOTC_INSTALLER_FAKE_TPM: "1"
+          # The disks and the TPM come from shared/probe/fixtures/laptop.json,
+          # which the capture harness sets as BOOTC_INSTALLER_FAKE_PROBE. Its
+          # TPM 2.0 is usable, so the encryption step shows the TPM choices.
         run: |
           mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
           ./build/tuna-installer-capture docs/screenshots
-          rm -f docs/screenshots/.lsblk-fixture.json
           if command -v magick >/dev/null; then IM=magick; else IM=convert; fi
           $IM -delay 240 -loop 0 docs/screenshots/0*.png docs/screenshots/walkthrough.gif
           ls -l docs/screenshots
@@ -125,7 +120,6 @@ jobs:
             > /run/host/etc/os-release
           mkdir -p /tmp/branding-check
           ./build/tuna-installer-capture /tmp/branding-check
-          rm -f /tmp/branding-check/.lsblk-fixture.json
           grep PRETTY_NAME /etc/os-release
           ls -l /tmp/branding-check
 

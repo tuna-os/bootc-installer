@@ -4,7 +4,7 @@
 #   1. build the real fisherman from the submodule;
 #   2. install fisherman-shim.sh where the frontends look for fisherman;
 #   3. create a loop disk so the recipe's `disk` exists and validates;
-#   4. write the lsblk fixture that names it;
+#   4. write the `fisherman probe --json` answer that offers it;
 #   5. print the PATH prefix the frontend must run with.
 #
 # Works as root (Fedora container) or as a sudoer (ubuntu runner).
@@ -43,12 +43,30 @@ echo "$LOOPDEV" > "$DIR/loopdev"
 echo "   $LOOPDEV"
 
 NAME=$(basename "$LOOPDEV")
-cat > "$DIR/lsblk.json" <<JSON
-{"blockdevices": [
-  {"name": "$NAME", "path": "$LOOPDEV", "size": 21474836480, "model": "E2E loop disk",
-   "type": "disk", "rm": false, "mountpoints": [null], "tran": "virtio"}
-]}
-JSON
+# What the shim prints for `fisherman probe --json` (shared/probe/README.md):
+# the loop disk as the one eligible target, a machine that meets every
+# requirement, no TPM. The real probe would exclude it twice over (a loop
+# device, and under fisherman's 50 GiB minimum), and would list the runner's
+# own disk, which a frontend that picks the first disk would then hand over.
+python3 - "$LOOPDEV" > "$DIR/probe.json" <<'PY'
+import json, sys
+dev = sys.argv[1]
+size = 20 * 1024 ** 3
+print(json.dumps({
+    "protocol_version": 1,
+    "disks": [{
+        "path": dev, "size_bytes": size, "size_label": "20 GiB",
+        "model": "E2E loop disk", "vendor": "", "transport": "virtio",
+        "transport_label": "VirtIO", "removable": False, "read_only": False,
+        "eligible": True,
+    }],
+    "tpm": {"present": False, "version": "", "usable": False},
+    "system": {"ram_bytes": 8 * 1024 ** 3, "cpu_threads": 4, "cpu_cores": 4,
+               "uefi": True, "meets_requirements": True, "unmet": []},
+    "live": {"is_live": False, "live_image": ""},
+    "offline": {"stores": [], "images": []},
+}, indent=2))
+PY
 
 # Frontends run these by name; the fake ones must win the PATH lookup.
 echo "== PATH prefix: $HERE/fake-bin"

@@ -19,8 +19,8 @@ Kirigami Addons, `org.kde.desktop` Qt Quick Controls style). See
 | | |
 |---|---|
 | ![Welcome](screenshots/01-welcome.png) | **Welcome** — what the wizard is about to do. |
-| ![Target disk](screenshots/02-disk.png) | **Target disk** — `lsblk -J`, filtered to whole disks, one FormCard radio per device. Re-read every time the step becomes current, so hotplugged media appear. |
-| ![Disk encryption](screenshots/03-encryption.png) | **Disk encryption** — `none`, `luks-passphrase`, and (only when `/sys/class/tpm/tpm0` exists) `tpm2-luks` and `tpm2-luks-passphrase`. The passphrase fields appear only for the options that take one. |
+| ![Target disk](screenshots/02-disk.png) | **Target disk** — the disks `fisherman probe --json` offers, one FormCard radio per disk: the model (the path when unknown), then the path, fisherman's size label and the bus. Re-probed every time the step becomes current, so hotplugged media appear. |
+| ![Disk encryption](screenshots/03-encryption.png) | **Disk encryption** — `none`, `luks-passphrase`, and (only when fisherman reports a usable TPM 2.0) `tpm2-luks` and `tpm2-luks-passphrase`. The passphrase fields appear only for the options that take one. |
 | ![Confirm](screenshots/04-confirm.png) | **Confirm** — the recipe as it will be written, and the only button in the app that starts an install. |
 | ![Installing](screenshots/05-progress.png) | **Installing** — live `fisherman` output. No Back, no Next: the wizard advances itself when the process exits. |
 | ![Finished](screenshots/06-done.png) | **Finished** — success or failure, with the exit code. |
@@ -93,8 +93,8 @@ precisely when the capture fails.
 
 The harness drives navigation through `Wizard.goToStep()`, which moves the
 visible step and calls the target module's `onPageActivated()`. The only
-`onPageActivated()` in the tree is the disk step's, and it re-reads `lsblk` and
-nothing else. `InstallerController.startInstall()` — the sole path to a
+`onPageActivated()` in the tree is the disk step's, and it re-runs the
+read-only `fisherman probe --json` and nothing else. `InstallerController.startInstall()` — the sole path to a
 privileged `fisherman` process — has exactly one caller, the Install button's
 `onClicked` in `Wizard.qml`, which the harness never presses.
 

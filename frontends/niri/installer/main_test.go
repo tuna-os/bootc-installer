@@ -34,30 +34,6 @@ func TestRunInstallRejectsEmptyRecipe(t *testing.T) {
 	}
 }
 
-func TestParseLSBLKOutput(t *testing.T) {
-	input := []byte(`{
-		"blockdevices": [
-			{"name": "nvme0n1", "size": "500G", "type": "disk", "tran": "nvme", "model": "WD Blue SN570 "},
-			{"name": "loop0", "size": "2G", "type": "loop"},
-			{"name": "sda", "size": "1T", "type": "disk", "tran": "sata"}
-		]
-	}`)
-
-	disks, err := parseLSBLKOutput(input)
-	if err != nil {
-		t.Fatalf("parseLSBLKOutput failed: %v", err)
-	}
-	if len(disks) != 2 {
-		t.Fatalf("expected 2 disks, got %d", len(disks))
-	}
-	if disks[0].Name != "nvme0n1" || disks[0].Transport != "nvme" || disks[0].Model != "WD Blue SN570" {
-		t.Errorf("unexpected disk 0: %+v", disks[0])
-	}
-	if disks[1].Name != "sda" || disks[1].Transport != "sata" {
-		t.Errorf("unexpected disk 1: %+v", disks[1])
-	}
-}
-
 func TestRecipeUnmarshal(t *testing.T) {
 	input := []byte(`{
 		"disk": "/dev/sda",

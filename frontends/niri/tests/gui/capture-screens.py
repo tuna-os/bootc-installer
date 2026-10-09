@@ -78,6 +78,8 @@ RECOVERY_EVENT = json.dumps({
 # image ref into the rendered docs for everyone who rebrands this installer.
 _TRANSCRIPT = os.path.join(REPO, "..", "..", "shared", "progress",
                            "dry-run-transcript.ndjson")
+_PROBE_EXPECTED = os.path.join(REPO, "..", "..", "shared", "probe", "fixtures",
+                               "laptop.expected.json")
 
 
 def fixture_lines():
@@ -242,6 +244,19 @@ def main():
     # QQuickApplicationWindow. The cast is what exposes grabWindow().
     window = sip.cast(root, QQuickWindow)
     settle(500)
+
+    # The disks every frontend's capture shows: shared/probe/fixtures/laptop,
+    # as fisherman's probe renders it (shared/probe/README.md) -- the exact
+    # shape the backend's discover-disks prints, which installer/probe_test.go
+    # pins against the same file. The pages are set directly, so the QML's
+    # own discover-disks call never runs here.
+    with open(_PROBE_EXPECTED, encoding="utf-8") as fh:
+        probed = json.load(fh)
+    root.setProperty("disks", probed["disks"])
+    root.setProperty("disksProbed", True)
+    root.setProperty("selectedDisk", probed["disks"][0])
+    root.setProperty("hasTpm", probed["tpm_usable"])
+    root.setProperty("unmet", probed["unmet"])
 
     frames, findings = [], []
     for name, page, _caption in PAGES:

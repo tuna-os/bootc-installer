@@ -3,7 +3,8 @@
 // A plain argv/stdout CLI, not a service: the QML frontend runs it with
 // Quickshell's Process for each operation (`discover-disks`, `detect`,
 // `install <recipe>`, `readiness [page]`) and parses what comes back on
-// stdout. This backend wraps fisherman and provides disk discovery.
+// stdout. This backend wraps fisherman; the disk list, TPM and requirements
+// are fisherman's own (`fisherman probe --json`, probe.go).
 
 package main
 
@@ -14,25 +15,8 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strings"
 	"syscall"
 )
-
-// DiskInfo represents a block device from lsblk
-type DiskInfo struct {
-	Name      string `json:"name"`
-	Size      string `json:"size"`
-	Type      string `json:"type"`
-	Transport string `json:"tran,omitempty"`
-	// The disk picker (ui/installer.qml) leads with the model when there is
-	// one. It read modelData.model all along, but MODEL was never asked of
-	// lsblk, so every disk showed as a bare /dev name.
-	Model string `json:"model,omitempty"`
-}
-
-// lsblkColumns are the columns discover-disks asks lsblk for. Every field
-// of DiskInfo has to be listed here or it is silently always empty.
-const lsblkColumns = "NAME,SIZE,TYPE,TRAN,MODEL"
 
 // Recipe is the fisherman install recipe (see ../../INSTALLER-FRONTENDS.md §1).
 type Recipe struct {
@@ -63,8 +47,8 @@ func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, "Usage: tuna-installer-niri <command> [args...]")
 		fmt.Fprintln(os.Stderr, "Commands:")
-		fmt.Fprintln(os.Stderr, "  discover-disks     List available block devices as JSON")
-		fmt.Fprintln(os.Stderr, "  detect             Report live-ISO image and offline stores as JSON")
+		fmt.Fprintln(os.Stderr, "  discover-disks     List the disks fisherman offers as JSON")
+		fmt.Fprintln(os.Stderr, "  detect             Report live-ISO image, offline stores, TPM and requirements as JSON")
 		fmt.Fprintln(os.Stderr, "  install <recipe>   Run fisherman with the given recipe JSON")
 		fmt.Fprintln(os.Stderr, "  readiness [page]   Record that the UI window presented a frame")
 		fmt.Fprintln(os.Stderr, "  reboot             Restart the host (the done page's action)")
@@ -108,46 +92,18 @@ func main() {
 	}
 }
 
-func parseLSBLKOutput(output []byte) ([]DiskInfo, error) {
-	var result struct {
-		Blockdevices []json.RawMessage `json:"blockdevices"`
-	}
-	if err := json.Unmarshal(output, &result); err != nil {
-		return nil, fmt.Errorf("parse lsblk output: %w", err)
-	}
-
-	var disks []DiskInfo
-	for _, raw := range result.Blockdevices {
-		var d DiskInfo
-		if err := json.Unmarshal(raw, &d); err != nil {
-			continue
-		}
-		if d.Type == "disk" {
-			// Older util-linux pads MODEL with trailing spaces.
-			d.Model = strings.TrimSpace(d.Model)
-			disks = append(disks, d)
-		}
-	}
-	return disks, nil
-}
-
+// discoverDisks prints the disks fisherman offers, in its order, rendered
+// per shared/probe/README.md ([]ProbeDisk). On a probe failure it prints the
+// reason on stderr and exits 1; the QML shows that reason.
 func discoverDisks() {
-	cmd := exec.Command("lsblk", "-J", "-o", lsblkColumns)
-	output, err := cmd.Output()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "lsblk failed: %v\n", err)
-		os.Exit(1)
-	}
-
-	disks, err := parseLSBLKOutput(output)
+	facts, err := runProbe()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	if err := enc.Encode(disks); err != nil {
+	if err := enc.Encode(facts.Disks); err != nil {
 		fmt.Fprintf(os.Stderr, "encode output: %v\n", err)
 		os.Exit(1)
 	}
@@ -156,14 +112,23 @@ func discoverDisks() {
 // detectEnvironment reports offline-install facts for the QML frontend.
 func detectEnvironment() {
 	stores := offlineStores()
+	// TPM and requirements are fisherman's. A failed probe offers no TPM
+	// choices and warns about nothing; discover-disks reports the failure.
+	facts, err := runProbe()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+	}
 	result := map[string]any{
 		"liveImage":     liveISOImage(),
 		"offlineStores": stores,
 		"offlineImages": offlineImages(stores),
-		// The UI hides the TPM encryption options when this is false, rather
-		// than offering a choice that would fail later at install time. Same
-		// probe the XFCE and KDE frontends use.
-		"hasTpm": hasTPM(),
+		// fisherman's tpm.usable. The UI hides the TPM encryption options
+		// when this is false, rather than offering a choice that would fail
+		// later at install time.
+		"hasTpm": err == nil && facts.TPMUsable,
+		// fisherman's system.unmet ("ram", "cpu", "uefi"): the welcome page
+		// warns about each one.
+		"unmet": unmetOrEmpty(facts, err),
 		// Product identity per shared/branding/README.md: branding.json,
 		// then os-release, then neutral. The QML takes its product name,
 		// hostname seed, distroID and default image from here; nothing in
@@ -178,15 +143,11 @@ func detectEnvironment() {
 	}
 }
 
-// hasTPM reports whether the machine exposes a TPM 2.0 device, which is what
-// the tpm2-luks encryption modes require.
-//
-// It used to stat /sys/class/tpm/tpm0, which the kernel also creates for a
-// TPM 1.2 device. A 1.2 machine was therefore offered tpm2-luks, and the
-// install failed at enrolment, after fisherman had partitioned the disk.
-// shared/tpm/README.md is the contract; probeTPM2 implements it.
-func hasTPM() bool {
-	return fakeTPMRequested() || probeTPM2("/")
+func unmetOrEmpty(facts ProbeFacts, err error) []string {
+	if err != nil || facts.Unmet == nil {
+		return []string{}
+	}
+	return facts.Unmet
 }
 
 // wrapperCommand builds the fisherman wrapper's command in a process group

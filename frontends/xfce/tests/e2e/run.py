@@ -5,8 +5,9 @@ Unlike tests/gui/capture-screens.py this does NOT set TUNA_INSTALLER_DRY_RUN
 and does NOT stub host_run: navigating to the progress page calls
 InstallerWindow.start_install(), which writes the recipe and spawns
 `sudo /usr/local/bin/fisherman <recipe>` exactly as it does on a live ISO.
-shared/e2e/setup.sh has put the validating shim at that path, the e2e lsblk
-on PATH (one disk: the loop device) and a failing bootc (no live-ISO mode).
+shared/e2e/setup.sh has put the validating shim at that path (it also answers
+`fisherman probe --json` with one disk: the loop device) and a failing bootc on
+PATH (no live-ISO mode).
 
     xvfb-run -a python3 tests/e2e/run.py
 

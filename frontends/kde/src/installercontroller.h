@@ -39,12 +39,16 @@ class InstallerController : public QObject
     Q_PROPERTY(QString hostname READ hostname WRITE setHostname NOTIFY recipeChanged)
     Q_PROPERTY(QString image READ image WRITE setImage NOTIFY recipeChanged)
 
-    // A TPM 2.0 device, per shared/tpm/README.md — the same probe every
-    // other frontend uses. TPM options are hidden, not disabled, when
-    // absent: offering them on a machine without one only fails later, at
-    // install time. This used to test /sys/class/tpm/tpm0 for existence,
-    // which is true for a TPM 1.2 device the tpm2-luks modes cannot use.
+    // fisherman's tpm.usable from `fisherman probe --json`
+    // (shared/probe/README.md). TPM options are hidden, not disabled, when
+    // false: offering them on a machine without one only fails later, at
+    // install time. False when the probe failed.
     Q_PROPERTY(bool hasTpm READ hasTpm CONSTANT)
+    // fisherman's system.unmet ("ram", "cpu", "uefi"), and the welcome
+    // step's warning built from the requirements_* copy keys; empty when
+    // every requirement is met or the probe failed. A warning, not a gate.
+    Q_PROPERTY(QStringList unmetRequirements READ unmetRequirements CONSTANT)
+    Q_PROPERTY(QString requirementsWarning READ requirementsWarning CONSTANT)
     // Every encryption type, in display order (Recipe::encryptionTypes()).
     // The encryption step repeats over it and hides the tpm2- ones without
     // a TPM; what each is called comes from encryptionLabel/Description.
@@ -116,6 +120,8 @@ public:
     void setImage(const QString &v);
 
     bool hasTpm() const { return m_hasTpm; }
+    QStringList unmetRequirements() const { return m_unmet; }
+    QString requirementsWarning() const;
     QStringList encryptionTypes() const { return Recipe::encryptionTypes(); }
     QString productName() const { return m_productName; }
     QVariantMap copy() const { return m_branding.copyAsVariantMap(); }
@@ -222,6 +228,7 @@ private:
     double m_stepFrac = 0.0;
     double m_postPullBase = -1.0;
     bool m_hasTpm = false;
+    QStringList m_unmet;
     QString m_productName;
     branding::Branding m_branding;
     int m_exitCode = 0;

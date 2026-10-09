@@ -1,7 +1,18 @@
+"""Disks for the wizard.
+
+Which disks may be installed to, their size labels and models come from
+`fisherman probe --json` (shared/probe/README.md), through Systeminfo.probe().
+Nothing here filters or formats a disk: fisherman decides. What remains below
+is partition-level detail the probe does not report (the manual partition
+picker, the Windows-data scan).
+"""
+
 import json
 import logging
 import os
 import subprocess
+
+from . import fisherman_probe
 
 logger = logging.getLogger("Installer::Disks")
 
@@ -9,14 +20,8 @@ logger = logging.getLogger("Installer::Disks")
 class Diskutils:
     @staticmethod
     def pretty_size(size: int) -> str:
-        if size > 1024**3:
-            return f"{round(size / 1024 ** 3, 2)} GB"
-        elif size > 1024**2:
-            return f"{round(size / 1024 ** 2, 2)} MB"
-        elif size > 1024:
-            return f"{round(size / 1024, 2)} KB"
-        else:
-            return f"{size} B"
+        """fisherman's size rule, for sizes the probe does not report."""
+        return fisherman_probe.format_size(size)
 
     @staticmethod
     def separate_device_and_partn(part_dev: str) -> tuple[str, str | None]:
@@ -55,161 +60,67 @@ class Diskutils:
             logger.warning(f"Could not enumerate LVM PVs (safe to ignore in Flatpak): {e}")
             return []
 
-    @staticmethod
-    def get_boot_disk() -> str | None:
-        """Return the /dev/... disk path the system is currently booted from.
-
-        Handles LVM, dm-crypt, and plain partitions by walking the slave tree
-        back to the underlying physical disk.
-        """
-        try:
-            source = None
-            mountpoint_used = None
-            # bootc/ostree systems mount the real root at /sysroot
-            for mountpoint in ("/sysroot", "/"):
-                try:
-                    src = subprocess.check_output(
-                        ["findmnt", "-n", "-o", "SOURCE", mountpoint],
-                        stderr=subprocess.DEVNULL,
-                    ).decode().strip()
-                    if src:
-                        source = src
-                        mountpoint_used = mountpoint
-                        break
-                except subprocess.CalledProcessError:
-                    continue
-
-            if not source:
-                return None
-
-            # Walk the reverse dependency tree (slaves) to find the physical disk.
-            # lsblk -sno lists ancestors; grep for TYPE == disk.
-            output = subprocess.check_output(
-                ["lsblk", "-sno", "NAME,TYPE", source],
-                stderr=subprocess.DEVNULL,
-            ).decode().strip()
-
-            for line in output.splitlines():
-                parts = line.split()
-                if len(parts) >= 2 and parts[-1] == "disk":
-                    # Strip lsblk tree-drawing characters
-                    name = parts[0].lstrip("└─├│ ")
-                    disk = f"/dev/{name}"
-                    logger.info(f"Boot disk detected: {disk} (via {source} at {mountpoint_used})")
-                    return disk
-
-            # Fallback: direct pkname lookup (works for plain partitions)
-            pkname = subprocess.check_output(
-                ["lsblk", "-no", "pkname", source],
-                stderr=subprocess.DEVNULL,
-            ).decode().strip()
-            if pkname:
-                disk = f"/dev/{pkname}"
-                logger.info(f"Boot disk detected: {disk} (pkname fallback)")
-                return disk
-
-            return source
-        except Exception as e:
-            logger.warning(f"Could not detect boot disk: {e}")
-            return None
-
 
 class Disk:
-    def __init__(self, disk: str):
-        self.__disk = disk
-        self.__partitions = self.__get_partitions()
-        self.__size = self.__get_size()
+    """One eligible disk from the probe. Read-only; the probe is the source."""
 
-    def __get_partitions(self):
-        partitions = []
-        for partition in os.listdir(self.block):
-            if partition.startswith(self.__disk):
-                partitions.append(Partition(self.__disk, partition))
-        return partitions
+    def __init__(self, probed: dict):
+        self.__probed = probed
+        self.__partitions = None
 
-    def __get_size(self):
-        with open(f"{self.block}/size", "r") as f:
-            return int(f.read().strip()) * 512
+    @property
+    def disk(self) -> str:
+        return self.__probed.get("path", "")
+
+    @property
+    def name(self) -> str:
+        return os.path.basename(self.disk)
+
+    @property
+    def size(self) -> int:
+        return int(self.__probed.get("size_bytes") or 0)
+
+    @property
+    def pretty_size(self) -> str:
+        return self.__probed.get("size_label", "")
+
+    @property
+    def model(self) -> str:
+        return self.__probed.get("model", "")
+
+    @property
+    def transport_label(self) -> str:
+        return self.__probed.get("transport_label", "")
+
+    @property
+    def display_name(self) -> str:
+        return fisherman_probe.disk_title(self.__probed)
+
+    @property
+    def is_removable(self) -> bool:
+        return bool(self.__probed.get("removable"))
+
+    @property
+    def block(self):
+        return f"/sys/block/{self.name}"
 
     @property
     def partitions(self):
+        if self.__partitions is None:
+            self.update_partitions()
         return self.__partitions
+
+    def update_partitions(self):
+        try:
+            entries = os.listdir(self.block)
+        except OSError:
+            entries = []
+        self.__partitions = [Partition(self.name, p) for p in entries if p.startswith(self.name)]
 
     def get_partition(self, mountpoint: str):
         for partition in self.partitions:
             if partition.mountpoint == mountpoint:
                 return partition
-
-    def update_partitions(self):
-        self.__partitions = self.__get_partitions()
-
-    @property
-    def disk(self):
-        return f"/dev/{self.__disk}"
-
-    @property
-    def name(self):
-        return self.__disk
-
-    @property
-    def block(self):
-        return f"/sys/block/{self.__disk}"
-
-    @property
-    def size(self):
-        return self.__size
-
-    @property
-    def pretty_size(self):
-        size = self.size
-        if size > 1024**3:
-            return f"{round(size / 1024 ** 3, 2)} GB"
-        elif size > 1024**2:
-            return f"{round(size / 1024 ** 2, 2)} MB"
-        elif size > 1024:
-            return f"{round(size / 1024, 2)} KB"
-        else:
-            return f"{size} B"
-
-    @property
-    def model(self) -> str:
-        """Return drive model string from sysfs, or empty string if unavailable."""
-        for path in [
-            f"/sys/block/{self.__disk}/device/model",
-            f"/sys/block/{self.__disk}/device/name",
-        ]:
-            try:
-                with open(path) as f:
-                    return f.read().strip()
-            except OSError:
-                pass
-        return ""
-
-    @property
-    def vendor(self) -> str:
-        """Return drive vendor string from sysfs, or empty string if unavailable."""
-        try:
-            with open(f"/sys/block/{self.__disk}/device/vendor") as f:
-                return f.read().strip()
-        except OSError:
-            return ""
-
-    @property
-    def display_name(self) -> str:
-        """Human-friendly name: 'Vendor Model' if available, else device name."""
-        parts = [self.vendor, self.model]
-        label = " ".join(p for p in parts if p)
-        return label if label else self.__disk
-
-    @property
-    def is_removable(self):
-        if os.path.isfile("/sys/block/" + self.__disk + "/removable"):
-            with open("/sys/block/" + self.__disk + "/removable") as f:
-                removable = int(f.readlines()[0].strip())
-                if removable == 1:
-                    return True
-    
-        return False
 
 
 class Partition:
@@ -283,15 +194,7 @@ class Partition:
 
     @property
     def pretty_size(self):
-        size = self.size
-        if size > 1024**3:
-            return f"{round(size / 1024 ** 3, 2)} GB"
-        elif size > 1024**2:
-            return f"{round(size / 1024 ** 2, 2)} MB"
-        elif size > 1024:
-            return f"{round(size / 1024, 2)} KB"
-        else:
-            return f"{size} B"
+        return Diskutils.pretty_size(self.size)
 
     @property
     def fs_type(self):
@@ -315,63 +218,35 @@ class Partition:
 
 
 class DisksManager:
-    def __init__(self):
-        self.__boot_disk = Diskutils.get_boot_disk()
-        if self.__boot_disk:
-            logger.info(f"Boot disk excluded from selection: {self.__boot_disk}")
+    """The disks fisherman offers, in fisherman's order.
+
+    No filter here: zram, the live USB, optical drives and too-small disks
+    are already excluded by the probe, and removable disks are offered
+    (shared/probe/README.md). When the probe failed there are no disks and
+    `error` says why; there is no fallback scan.
+    """
+
+    def __init__(self, probe_result=None):
+        if probe_result is None:
+            from bootc_installer.core.system import Systeminfo
+
+            probe_result = Systeminfo.probe()
+            self.__error = Systeminfo.probe_error() if probe_result is None else None
         else:
-            logger.info("Boot disk not detected; showing all disks")
-        self.__disks = self.__get_disks()
+            self.__error = None
+        self.__disks = [
+            Disk(d) for d in fisherman_probe.eligible_disks(probe_result or {})
+        ]
 
-    def __get_disks(self):
-        disks = []
+    @property
+    def error(self) -> str | None:
+        return self.__error
 
-        for disk in os.listdir("/sys/block"):
-            if disk.startswith(("loop", "ram", "sr", "zram", "dm-")):
-                continue
+    def all_disks(self):
+        return list(self.__disks)
 
-            d = Disk(disk)
-
-            if self.__boot_disk and d.disk == self.__boot_disk:
-                logger.info(f"Skipping boot disk: {d.disk}")
-                continue
-
-            disks.append(d)
-
-        return disks
-
-    def all_disks(self, include_removable: bool = True):
-        selected_disks = []
-        if include_removable:
-            selected_disks = self.__disks
-        else:
-            for disk in self.__disks:
-                if not disk.is_removable:
-                    selected_disks.append(disk)
-
-        return selected_disks
-
-    def get_disk(self, disk: str):
-        for disk in self.all_disks():
-            if disk.disk == disk:
+    def get_disk(self, path: str):
+        for disk in self.__disks:
+            if disk.disk == path:
                 return disk
-
-
-# testing snippet:
-# if __name__ == "__main__":
-#     disks_manager = DisksManager()
-#     for disk in disks_manager.all_disks:
-#         print(f"Disk: {disk.disk}")
-#         print(f"Size: {disk.size}")
-#         for partition in disk.partitions:
-#             print(f"Partition: {partition.partition}")
-#             print(f"Mountpoint: {partition.mountpoint}")
-#             print(f"Size: {partition.size}")
-#             print(f"FS Type: {partition.fs_type}")
-#             print(f"UUID: {partition.uuid}")
-#             print(f"Label: {partition.label}")
-#             print()
-
-#         print()
-
-#     print("Done!")
+        return None

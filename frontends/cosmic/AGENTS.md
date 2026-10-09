@@ -82,6 +82,17 @@ both read from it, and the capture harness writes `page_text` to
 `copy` and to `page_text` when you add it to a view, or the parity matrix
 stops seeing that screen.
 
+## Disks, TPM and minimum requirements
+
+These come from `fisherman probe --json`, not from this frontend. `src/probe.rs`
+runs `/usr/local/bin/fisherman probe --json` without privileges, off the UI
+thread (prefixed with `flatpak-spawn --host` in a Flatpak). It runs at startup
+and again when the disk page opens. Show the eligible disks in fisherman's
+order, with `size_label` exactly as given. Do not add a disk filter or a size
+formatter. If the probe fails, the disk page shows the reason. `cargo test
+probe` renders the shared fixtures, and `../../shared/probe/README.md` is the
+contract. Capture mode reads `shared/probe/fixtures/laptop.json`.
+
 ## Sibling contract
 
 It produces the same recipe JSON as the Qt/KDE installer, shared with all four

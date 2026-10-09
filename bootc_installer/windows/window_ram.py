@@ -14,11 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from gettext import gettext as _
 import sys
 import subprocess
 from gi.repository import Adw, Gtk
-from bootc_installer.utils.recipe import RecipeLoader
+from bootc_installer.windows.requirements import requirements_text
 
 
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/window-ram.ui")
@@ -31,7 +30,10 @@ class BootcRamWindow(Adw.Window):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.description_label.set_label(_("Your computer does have enough RAM to run %s (minimum 4GB)") % RecipeLoader().raw['distro_name'])
+        # fisherman's unmet requirement (`fisherman probe --json`), in the
+        # shared requirements_* copy every frontend shows
+        # (shared/probe/README.md).
+        self.description_label.set_label(requirements_text("requirements_ram"))
         self.btn_continue.connect("clicked", self.__continue)
 
     def __continue(self, btn):

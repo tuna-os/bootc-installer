@@ -31,7 +31,7 @@ The QML talks to the backend through its CLI, not a library:
 ```bash
 cd installer
 go build -o tuna-installer-niri .
-./tuna-installer-niri discover-disks        # renders lsblk -J output
+./tuna-installer-niri discover-disks        # renders `fisherman probe --json` disks
 ./tuna-installer-niri install '{...}'       # runs fisherman with a JSON recipe
 quickshell ui/installer.qml                 # the frontend, needs Quickshell
 ```
@@ -71,6 +71,19 @@ capture breaks that cross-installer report, not just this repo's screenshots.
 `DESIGN.md`'s "Quality floor" section is the standard those renders are held to
 — the scrolling column strip is the signature element, so treat changes to it
 as design changes, not layout tweaks.
+
+## Disks, TPM and minimum requirements
+
+These come from `fisherman probe --json`, not from this frontend.
+`installer/probe.go` runs `/usr/local/bin/fisherman probe --json` without
+privileges (prefixed with `flatpak-spawn --host` in a Flatpak).
+`discover-disks` prints the eligible disks in the shape of
+`shared/probe/fixtures/*.expected.json`. `detect` reports `hasTpm` and
+`unmet`. Show the disks in fisherman's order, with `size_label` exactly as
+given. Do not add a disk filter or a size formatter. If the probe fails,
+`discover-disks` exits 1 with the reason on stderr, and the disk page shows
+it. `go test -run TestProbe` renders the shared fixtures, and
+`../../shared/probe/README.md` is the contract.
 
 ## Sibling contract
 

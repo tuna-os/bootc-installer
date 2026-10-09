@@ -24,8 +24,9 @@ Nothing is written to any disk until you confirm on the last step.
 
 ![Select a disk](screenshots/02-disk.png)
 
-Disks come from `lsblk -J`. Each row is a COSMIC list item with the device
-node, its size, model and bus. **Continue** stays unavailable until something
+Disks come from `fisherman probe --json` (`shared/probe/README.md`). Each row
+is a COSMIC list item with the model (the device node when the model is
+unknown), then the device node, fisherman's size label and the bus. **Continue** stays unavailable until something
 is selected, so there is no way to walk past this screen without a target.
 
 ## 3. Options

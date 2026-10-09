@@ -1,0 +1,38 @@
+{
+  "disks": [
+    {
+      "path": "/dev/sda",
+      "title": "Samsung SSD 870 EVO 500GB",
+      "model": "Samsung SSD 870 EVO 500GB",
+      "size_label": "465.8 GiB",
+      "transport_label": "SATA",
+      "removable": false
+    },
+    {
+      "path": "/dev/sdc",
+      "title": "Extreme SSD",
+      "model": "Extreme SSD",
+      "size_label": "931.5 GiB",
+      "transport_label": "USB",
+      "removable": true
+    },
+    {
+      "path": "/dev/sdd",
+      "title": "Cruzer Blade",
+      "model": "Cruzer Blade",
+      "size_label": "59.6 GiB",
+      "transport_label": "USB",
+      "removable": true
+    },
+    {
+      "path": "/dev/nvme0n1",
+      "title": "WD_BLACK SN850X 1000GB",
+      "model": "WD_BLACK SN850X 1000GB",
+      "size_label": "953.9 GiB",
+      "transport_label": "NVMe",
+      "removable": false
+    }
+  ],
+  "tpm_usable": true,
+  "unmet": []
+}

@@ -10,6 +10,8 @@ import types
 import unittest
 from unittest.mock import MagicMock, patch, mock_open
 
+from bootc_installer.utils.branding import COPY_DEFAULTS
+
 
 def _build_gi_stubs():
     gi_mod = types.ModuleType("gi")
@@ -107,6 +109,7 @@ def _import_window_modules():
         "bootc_installer.windows.dialog",
         "bootc_installer.windows.dialog_output",
         "bootc_installer.windows.dialog_poweroff",
+        "bootc_installer.windows.requirements",
         "bootc_installer.windows.window_cpu",
         "bootc_installer.windows.window_ram",
         "bootc_installer.windows.window_unsupported",
@@ -280,7 +283,10 @@ class TestWindowCpu(unittest.TestCase):
         BootcCpuWindow.__init__(obj)
         obj.description_label.set_label.assert_called_once()
         label = obj.description_label.set_label.call_args[0][0]
-        self.assertIn("TestOS", label)
+        # fisherman's unmet requirement, in the shared copy every frontend
+        # shows (shared/probe/README.md).
+        self.assertEqual(label.splitlines(), [COPY_DEFAULTS["requirements_title"],
+                                              COPY_DEFAULTS["requirements_cpu"]])
 
     def test_continue_spawns_process_and_exits(self):
         obj = BootcCpuWindow.__new__(BootcCpuWindow)
@@ -299,7 +305,10 @@ class TestWindowRam(unittest.TestCase):
         BootcRamWindow.__init__(obj)
         obj.description_label.set_label.assert_called_once()
         label = obj.description_label.set_label.call_args[0][0]
-        self.assertIn("TestOS", label)
+        # fisherman's unmet requirement, in the shared copy every frontend
+        # shows (shared/probe/README.md).
+        self.assertEqual(label.splitlines(), [COPY_DEFAULTS["requirements_title"],
+                                              COPY_DEFAULTS["requirements_ram"]])
 
     def test_continue_spawns_process_and_exits(self):
         obj = BootcRamWindow.__new__(BootcRamWindow)
@@ -318,7 +327,10 @@ class TestWindowUnsupported(unittest.TestCase):
         BootcUnsupportedWindow.__init__(obj)
         obj.description_label.set_label.assert_called_once()
         label = obj.description_label.set_label.call_args[0][0]
-        self.assertIn("TestOS", label)
+        # fisherman's unmet requirement, in the shared copy every frontend
+        # shows (shared/probe/README.md).
+        self.assertEqual(label.splitlines(), [COPY_DEFAULTS["requirements_title"],
+                                              COPY_DEFAULTS["requirements_uefi"]])
 
     def test_on_poweroff_calls_systemctl(self):
         obj = BootcUnsupportedWindow.__new__(BootcUnsupportedWindow)

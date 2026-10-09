@@ -23,11 +23,22 @@
 # Layout (created by setup.sh):
 #   /usr/local/lib/tuna-e2e/fisherman.real   the binary built from fisherman/
 #   /tmp/tuna-e2e/                           1777; recipe.json lands here
+#   /tmp/tuna-e2e/probe.json                 the `probe --json` answer
 set -u
 REAL=/usr/local/lib/tuna-e2e/fisherman.real
 DIR=/tmp/tuna-e2e
 
 case "${1:-}" in
+  probe)
+    # The disk list every frontend renders (shared/probe/README.md). The
+    # real probe would offer the runner's own disk and exclude the loop
+    # disk, so setup.sh wrote the answer that offers only the loop disk.
+    # Still checked against the real fisherman's argument rules.
+    if [ "${2:-}" != "--json" ]; then
+      exec "$REAL" "$@"
+    fi
+    exec cat "$DIR/probe.json"
+    ;;
   validate|images|scan|--help|-h|"")
     exec "$REAL" "$@"
     ;;

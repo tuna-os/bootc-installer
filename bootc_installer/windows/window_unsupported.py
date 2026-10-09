@@ -14,10 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from gettext import gettext as _
 import subprocess
 from gi.repository import Adw, Gtk
-from bootc_installer.utils.recipe import RecipeLoader
+from bootc_installer.windows.requirements import requirements_text
 
 
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/window-unsupported.ui")
@@ -30,7 +29,10 @@ class BootcUnsupportedWindow(Adw.Window):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.description_label.set_label(_("%s requires UEFI to install") % RecipeLoader().raw['distro_name'])
+        # fisherman's unmet requirement (`fisherman probe --json`), in the
+        # shared requirements_* copy every frontend shows
+        # (shared/probe/README.md).
+        self.description_label.set_label(requirements_text("requirements_uefi"))
         self.btn_poweroff.connect("clicked", self.__on_poweroff)
 
     def __on_poweroff(self, btn):

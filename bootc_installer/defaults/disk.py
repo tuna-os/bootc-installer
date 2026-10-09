@@ -55,8 +55,11 @@ class BootcDefaultDiskEntry(Adw.ActionRow):
         super().__init__(**kwargs)
         self.__parent = parent
         self.__disk = disk
+        # fisherman's disk (shared/probe/README.md): the model (the path when
+        # unknown), then the path, fisherman's size label and the bus.
         self.set_title(disk.display_name)
-        self.set_subtitle(f"{disk.disk} · {disk.pretty_size}")
+        bits = [disk.disk, disk.pretty_size, getattr(disk, "transport_label", "")]
+        self.set_subtitle(" · ".join(b for b in bits if b))
 
         callback = (
             self.__parent.on_var_disk_entry_toggled
@@ -699,8 +702,6 @@ class BootcDefaultDisk(Adw.Bin):
     btn_auto = Gtk.Template.Child()
     btn_exit = Gtk.Template.Child()
     group_disks = Gtk.Template.Child()
-    disk_space_err_box = Gtk.Template.Child()
-    disk_space_err_label = Gtk.Template.Child()
     filesystem_row = Gtk.Template.Child()
     fs_tool_error_banner = Gtk.Template.Child()
     hostname_entry = Gtk.Template.Child()
@@ -730,25 +731,14 @@ class BootcDefaultDisk(Adw.Bin):
         self.__var_disk_selected = None  # Disk object for the optional /var disk
         self.__var_registry_disks = []   # BootcDefaultDiskEntry rows for var picker
 
-        self.min_disk_size = self.__window.recipe.get("min_disk_size", 51200)
-        self.disk_space_err_label.set_label(
-            self.disk_space_err_label.get_label()
-            % Diskutils.pretty_size(self.min_disk_size * 1_048_576)
-        )
-
-        # Append real disk rows
-        for disk in self.__disks.all_disks(include_removable=False):
+        # The disks fisherman offers, in its order (shared/probe/README.md).
+        # No minimum size and no removable-disk filter here: fisherman
+        # already excluded disks under 50 GiB and the live USB, and an
+        # external disk is a legitimate target.
+        for disk in self.__disks.all_disks():
             entry = BootcDefaultDiskEntry(self, disk)
             self.group_disks.add(entry)
             self.__registry_disks.append(entry)
-
-        # If no fixed disks found, immediately populate removable disks too
-        if not self.__registry_disks:
-            for disk in self.__disks.all_disks(include_removable=True):
-                if disk.is_removable:
-                    entry = BootcDefaultDiskEntry(self, disk)
-                    self.group_disks.add(entry)
-                    self.__registry_disks.append(entry)
 
         # With no disk to install to, say so here rather than skipping the
         # page. Skipping it is what let a user reach Install with an empty
@@ -756,10 +746,15 @@ class BootcDefaultDisk(Adw.Bin):
         self.__no_disks_row = None
         if not self.__registry_disks:
             self.__no_disks_row = Adw.ActionRow()
-            self.__no_disks_row.set_title(_("No disks detected"))
-            self.__no_disks_row.set_subtitle(
-                _("Connect a disk to install to. Nothing can be installed until one is available.")
-            )
+            if self.__disks.error:
+                self.__no_disks_row.set_title(_("Could not detect disks"))
+                self.__no_disks_row.set_subtitle(self.__disks.error)
+            else:
+                self.__no_disks_row.set_title(_("No disks detected"))
+                self.__no_disks_row.set_subtitle(
+                    _("Connect a disk of at least 50 GiB to install to. "
+                      "Nothing can be installed until one is available.")
+                )
             self.__no_disks_row.add_prefix(Gtk.Image.new_from_icon_name("dialog-warning-symbolic"))
             self.group_disks.add(self.__no_disks_row)
 
@@ -772,24 +767,6 @@ class BootcDefaultDisk(Adw.Bin):
             self.__virtual_row = self.__build_virtual_disk_row()
             self.group_disks.add(self.__virtual_row)
 
-        if hasattr(Adw, 'ButtonRow'):
-            self.__all_disks_button = Adw.ButtonRow()
-        else:
-            # Fallback for libadwaita < 1.6 (e.g. Ubuntu 24.04)
-            self.__all_disks_button = Adw.ActionRow()
-            self.__all_disks_button.set_activatable(True)
-        self.__all_disks_button.set_title(_("Show removable disks"))
-        self.group_disks.add(self.__all_disks_button)
-        # Hide the button if removable disks are already shown
-        if not self.__disks.all_disks(include_removable=False):
-            self.__all_disks_button.set_visible(False)
-
-        try:
-            self.__all_disks_button.connect("activated", self.__on_btn_all_disks)
-        except TypeError:
-            # ActionRow fallback doesn't have 'activated' signal;
-            # users can still access removable disks when no fixed disks exist
-            pass
         self.btn_next.connect("clicked", self.__on_btn_next_clicked)
         self.btn_auto.connect("clicked", self.__on_auto_clicked)
         self.btn_exit.connect("clicked", self.__on_btn_exit_clicked)
@@ -969,9 +946,7 @@ class BootcDefaultDisk(Adw.Bin):
         self.__update_next_button()
 
     def auto_select_single_disk(self):
-        disks = self.__disks.all_disks(include_removable=False)
-        if not disks:
-            disks = self.__disks.all_disks(include_removable=True)
+        disks = self.__disks.all_disks()
 
         if len(disks) != 1:
             return False
@@ -1008,7 +983,6 @@ class BootcDefaultDisk(Adw.Bin):
         self.__use_virtual_disk = True
         self.__selected_disks = []
         self.__selected_disks_sum = 0
-        self.disk_space_err_box.set_visible(False)
         self.btn_auto.set_sensitive(True)
         if self.__virtual_check is not None:
             self.__virtual_check.set_active(True)
@@ -1113,14 +1087,6 @@ class BootcDefaultDisk(Adw.Bin):
             var_disk=var_disk,
         )
 
-    def __on_btn_all_disks(self, widget):
-        self.__all_disks_button.set_visible(False)
-        for disk in self.__disks.all_disks(include_removable=True):
-            if disk.is_removable:
-                entry = BootcDefaultDiskEntry(self, disk)
-                self.group_disks.add(entry)
-                self.__registry_disks.append(entry)
-
     def __on_auto_clicked(self, button):
         if self.__use_virtual_disk:
             loop_dev = self.__setup_loopback()
@@ -1146,15 +1112,7 @@ class BootcDefaultDisk(Adw.Bin):
         self.confirm_partition_changes()
 
     def __update_action_buttons(self):
-        if (
-            self.__selected_disks_sum / 1_048_576 < self.min_disk_size
-            and self.__selected_disks_sum > 0
-        ):
-            self.disk_space_err_box.set_visible(True)
-            self.btn_auto.set_sensitive(False)
-        else:
-            self.disk_space_err_box.set_visible(False)
-            self.btn_auto.set_sensitive(len(self.__selected_disks) == 1)
+        self.btn_auto.set_sensitive(len(self.__selected_disks) == 1)
 
     def on_disk_entry_toggled(self, widget, disk):
         self.__use_virtual_disk = False
@@ -1190,7 +1148,7 @@ class BootcDefaultDisk(Adw.Bin):
         system_disk = (
             self.__selected_disks[0].disk if self.__selected_disks else None
         )
-        for d in self.__disks.all_disks(include_removable=False):
+        for d in self.__disks.all_disks():
             if system_disk and d.disk == system_disk:
                 continue
             entry = BootcDefaultDiskEntry(self, d, role="var")

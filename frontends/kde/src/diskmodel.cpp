@@ -1,14 +1,5 @@
 #include "diskmodel.h"
 
-#include <QFile>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#if QT_CONFIG(process)
-#include <QProcess>
-#endif
-#include <QDebug>
-
 DiskModel::DiskModel(QObject *parent)
     : QAbstractListModel(parent)
 {
@@ -23,24 +14,24 @@ QVariant DiskModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= m_disks.size())
         return {};
-    const DiskEntry &d = m_disks.at(index.row());
+    const probe::Disk &d = m_disks.at(index.row());
     switch (role) {
     case DeviceRole:
-        return d.device;
+        return d.path;
     case SizeRole:
-        return d.size;
+        return d.sizeLabel;
     case ModelRole:
         return d.model;
     case TransportRole:
-        return d.transport;
+        return d.transportLabel;
+    case TitleRole:
+        return d.title;
+    case RemovableRole:
+        return d.removable;
     case SubtitleRole: {
-        QStringList bits;
-        if (!d.size.isEmpty())
-            bits << d.size;
-        if (!d.model.isEmpty())
-            bits << d.model;
-        if (!d.transport.isEmpty())
-            bits << d.transport;
+        QStringList bits{d.path, d.sizeLabel};
+        if (!d.transportLabel.isEmpty())
+            bits << d.transportLabel;
         return bits.join(QStringLiteral(" • "));
     }
     default:
@@ -56,6 +47,8 @@ QHash<int, QByteArray> DiskModel::roleNames() const
         {ModelRole, "model"},
         {TransportRole, "transport"},
         {SubtitleRole, "subtitle"},
+        {TitleRole, "title"},
+        {RemovableRole, "removable"},
     };
 }
 
@@ -63,67 +56,19 @@ QString DiskModel::deviceAt(int row) const
 {
     if (row < 0 || row >= m_disks.size())
         return {};
-    return m_disks.at(row).device;
+    return m_disks.at(row).path;
 }
 
 void DiskModel::refresh()
 {
-    QByteArray raw;
+    setResult(probe::run());
+}
 
-    // Screenshot/test seam: point this at a file holding `lsblk -J` output and
-    // no process is run. The capture harness uses it so the disk step
-    // photographs a realistic machine instead of whatever a CI container
-    // happens to expose. Never consulted unless the variable is set.
-    const QString fake = qEnvironmentVariable("TUNA_INSTALLER_FAKE_LSBLK");
-    if (!fake.isEmpty()) {
-        QFile f(fake);
-        if (f.open(QIODevice::ReadOnly))
-            raw = f.readAll();
-        else
-            qWarning() << "TUNA_INSTALLER_FAKE_LSBLK set but unreadable:" << fake;
-    } else {
-#if QT_CONFIG(process)
-        QProcess proc;
-        proc.start(QStringLiteral("lsblk"),
-               {QStringLiteral("-J"), QStringLiteral("-o"),
-                    QStringLiteral("NAME,SIZE,TYPE,MODEL,TRAN")});
-        proc.waitForFinished(5000);
-        raw = proc.readAllStandardOutput();
-#else
-        // Qt for WebAssembly: no lsblk to run. The browser harness always
-        // sets the variable above, so reaching here means it was left out.
-        qWarning() << "no TUNA_INSTALLER_FAKE_LSBLK and this build cannot run lsblk";
-#endif
-    }
-
-    QJsonParseError err;
-    const auto doc = QJsonDocument::fromJson(raw, &err);
-    QList<DiskEntry> found;
-    if (err.error != QJsonParseError::NoError) {
-        qWarning() << "Failed to parse lsblk output:" << err.errorString();
-    } else {
-        const auto devices = doc.object()[QLatin1String("blockdevices")].toArray();
-        for (const auto &value : devices) {
-            const QJsonObject obj = value.toObject();
-            if (obj[QLatin1String("type")].toString() != QLatin1String("disk"))
-                continue;
-            DiskEntry e;
-            e.device = QStringLiteral("/dev/") + obj[QLatin1String("name")].toString();
-            e.size = obj[QLatin1String("size")].toString();
-            e.model = obj[QLatin1String("model")].toString();
-            const QString tran = obj[QLatin1String("tran")].toString();
-            if (tran == QLatin1String("nvme"))
-                e.transport = QStringLiteral("NVMe");
-            else if (tran == QLatin1String("sata") || tran == QLatin1String("ata"))
-                e.transport = QStringLiteral("SATA");
-            else
-                e.transport = tran.toUpper();
-            found.append(e);
-        }
-    }
-
+void DiskModel::setResult(const probe::Result &result)
+{
     beginResetModel();
-    m_disks = found;
+    m_disks = result.disks;
+    m_error = result.ok ? QString() : result.error;
     endResetModel();
     Q_EMIT countChanged();
 }

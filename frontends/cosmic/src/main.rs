@@ -13,6 +13,7 @@ mod capture;
 mod model;
 mod readiness;
 mod offline;
+mod probe;
 mod progress;
 mod branding;
 mod ui;
@@ -22,7 +23,6 @@ use cosmic::iced::{Length, Size};
 use cosmic::prelude::*;
 use cosmic::widget;
 use cosmic::iced::futures::{SinkExt, Stream, StreamExt};
-use std::process::Command as SysCommand;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as TokioCommand;
@@ -139,41 +139,6 @@ pub const ENCRYPTION_TYPES: [&str; 4] = [
     "tpm2-luks-passphrase",
 ];
 
-/// Whether the TPM encryption choices should be offered.
-///
-/// `BOOTC_INSTALLER_FAKE_TPM` only ever forces this ON, and exists so a
-/// capture can show what the installer offers rather than what the runner's
-/// hardware allows. Empty and "0" do not count as set, so an exported but
-/// blank variable cannot silently turn the choices on everywhere.
-pub fn tpm_available() -> bool {
-    match std::env::var("BOOTC_INSTALLER_FAKE_TPM") {
-        Ok(v) if !v.is_empty() && v != "0" => true,
-        _ => probe_tpm2(std::path::Path::new("/")),
-    }
-}
-
-/// The kernel writes the TCG spec major version here: "2" for TPM 2.0, "1"
-/// for TPM 1.2. Added in Linux 5.5.
-const TPM_VERSION_FILE: &str = "sys/class/tpm/tpm0/tpm_version_major";
-
-/// The in-kernel resource manager is a TPM 2.0 feature, so the kernel makes
-/// this node only for a 2.0 device. Fallback for kernels older than 5.5.
-const TPM_RESOURCE_MANAGER: &str = "dev/tpmrm0";
-
-/// Whether `root` holds a TPM 2.0 device, per shared/tpm/README.md.
-///
-/// This used to test `/sys/class/tpm/tpm0` for existence, which the kernel
-/// also creates for a TPM 1.2 device -- so a 1.2 machine was offered
-/// tpm2-luks and the install failed at enrolment, after the disk had been
-/// partitioned. The `root` parameter is what makes this testable: no CI
-/// runner has a TPM of any version, so the tests point it at a fixture tree.
-pub fn probe_tpm2(root: &std::path::Path) -> bool {
-    match std::fs::read_to_string(root.join(TPM_VERSION_FILE)) {
-        Ok(v) => v.trim() == "2",
-        Err(_) => root.join(TPM_RESOURCE_MANAGER).exists(),
-    }
-}
-
 /// The choices actually selectable right now. TPM-gated entries are dropped
 /// entirely rather than shown-disabled when there is no TPM — same call
 /// `tuna-installer-xfce` makes (`SetupPage.__init__`: `if value.startswith("tpm2")
@@ -194,7 +159,8 @@ pub enum Message {
     NextPage,
     BackPage,
     SelectDisk(usize),
-    DisksScanned(Result<Vec<DiskInfo>, String>),
+    /// `fisherman probe --json` answered (shared/probe/README.md).
+    Probed(Result<probe::Facts, String>),
     /// Resolved asynchronously so init() never blocks on a host command.
     LiveImageResolved(Option<String>),
     HostnameChanged(String),
@@ -244,9 +210,14 @@ pub struct TunaInstaller {
     /// Ticked by the user on the done page once they have written the
     /// recovery key down. It gates Restart (#129).
     recovery_ack: bool,
-    /// `/sys/class/tpm/tpm0` existence, checked once at startup — same probe
-    /// `tuna-installer-xfce` uses. Gates the two `tpm2-*` encryption choices.
+    /// fisherman's `tpm.usable`. Gates the two `tpm2-*` encryption choices.
     has_tpm: bool,
+    /// fisherman's `system.unmet`: the welcome page warns about each one.
+    unmet: Vec<String>,
+    /// Why there are no disks, when the probe failed. No fallback scan.
+    disk_error: Option<String>,
+    /// Whether a probe answer (or failure) has arrived yet.
+    probed: bool,
     /// `Some` only in capture mode. Its presence is also the hard interlock
     /// that stops the capture harness ever running a real install.
     capture: Option<capture::Capture>,
@@ -303,6 +274,45 @@ impl TunaInstaller {
     }
     pub fn has_tpm(&self) -> bool {
         self.has_tpm
+    }
+    pub fn unmet(&self) -> &[String] {
+        &self.unmet
+    }
+    pub fn disk_error(&self) -> Option<&str> {
+        self.disk_error.as_deref()
+    }
+    pub fn probed(&self) -> bool {
+        self.probed
+    }
+
+    /// Takes in a probe answer: the disks, TPM and requirements together.
+    fn apply_probe(&mut self, result: Result<probe::Facts, String>) {
+        self.probed = true;
+        match result {
+            Ok(facts) => {
+                self.disk_error = None;
+                self.has_tpm = facts.tpm_usable;
+                self.unmet = facts.unmet;
+                let keep = self
+                    .selected_disk
+                    .and_then(|i| self.disks.get(i))
+                    .map(|d| d.path.clone());
+                self.disks = facts.disks;
+                self.selected_disk = keep
+                    .and_then(|p| self.disks.iter().position(|d| d.path == p))
+                    .or((!self.disks.is_empty()).then_some(0));
+            }
+            Err(err) => {
+                self.disk_error = Some(err);
+                self.disks.clear();
+                self.selected_disk = None;
+            }
+        }
+        self.recipe.disk = self
+            .selected_disk
+            .and_then(|i| self.disks.get(i))
+            .map(|d| d.path.clone())
+            .unwrap_or_default();
     }
 
     /// Whether the Options page is allowed to advance. The dropdown can only
@@ -371,15 +381,14 @@ impl cosmic::Application for TunaInstaller {
             recipe.hostname = b.default_hostname.clone();
             recipe.image = b.default_image.clone();
         }
-        let mut disks = Vec::new();
         let live;
         let mut init_tasks: Vec<Task<Message>> = Vec::new();
 
         if capturing {
             // Fixtures. In capture mode nothing shells out: no `bootc status`,
-            // no `lsblk`, no `podman`. The machine in the screenshots does not
-            // exist, so the output is deterministic and CI never sees a disk.
-            disks = capture::fixture_disks();
+            // no `fisherman probe`, no `podman`. The machine in the
+            // screenshots does not exist, so the output is deterministic and
+            // CI never sees a disk.
             live = Some(capture::FIXTURE_LIVE_IMAGE.to_string());
             recipe.image = String::new();
         } else {
@@ -402,39 +411,36 @@ impl cosmic::Application for TunaInstaller {
             live = None;
         }
 
-        if let Some(first) = disks.first() {
-            recipe.disk = format!("/dev/{}", first.name);
-        }
-
-        // Same probe as the XFCE frontend's `core.has_tpm()` and KDE's
-        // InstallerController, and the same override for the same reason.
-        //
-        // The Xvfb CI runner has no TPM, so an unset capture renders an
-        // encryption page with only two of the four choices. docs/PARITY.md is
-        // read off those screenshots, which is how KDE and XFCE came to be
-        // recorded as having no TPM support at all when both have offered it
-        // all along. BOOTC_INSTALLER_FAKE_TPM=1 makes the choices VISIBLE for
-        // captures only; picking one still writes an ordinary recipe, and
-        // fisherman is what fails, later and loudly, with no chip to enrol
-        // against.
-        let has_tpm = tpm_available();
-
         let mut app = Self {
             core,
             page: Page::Welcome,
             live_image: live,
             recipe,
-            selected_disk: (!disks.is_empty()).then_some(0),
-            disks,
+            selected_disk: None,
+            disks: Vec::new(),
             install_log: String::new(),
             progress: progress::Progress::new(branding::name()),
             install_ok: false,
             installing: false,
             passphrase_hidden: true,
             recovery_ack: false,
-            has_tpm,
+            // Until the probe answers: no TPM choices, no warning.
+            has_tpm: false,
+            unmet: Vec::new(),
+            disk_error: None,
+            probed: false,
             capture: flags.capture,
         };
+        if capturing {
+            // The shared laptop fixture, through the same reader. A capture
+            // without it would photograph an error, so refuse.
+            let facts = capture::fixture_probe();
+            if let Err(e) = &facts {
+                eprintln!("capture: probe fixture unreadable: {e}");
+                std::process::exit(2);
+            }
+            app.apply_probe(facts);
+        }
 
         // The product name from the branding contract (branding.json, then
         // os-release), never a literal — see `branding`.
@@ -444,8 +450,8 @@ impl cosmic::Application for TunaInstaller {
         if app.capture.is_some() {
             tasks.push(capture::begin());
         } else {
-            tasks.push(Task::perform(Self::scan_disks(), |r| {
-                cosmic::action::app(Message::DisksScanned(r))
+            tasks.push(Task::perform(Self::probe(), |r| {
+                cosmic::action::app(Message::Probed(r))
             }));
         }
         app.set_header_title(window_title);
@@ -482,8 +488,10 @@ impl cosmic::Application for TunaInstaller {
             Message::NextPage => {
                 if let Some(Page::DiskSelect) = self.advance() {
                     if !self.capturing() {
-                        return Task::perform(Self::scan_disks(), |r| {
-                            cosmic::action::app(Message::DisksScanned(r))
+                        // Again on entering the page, so a disk plugged in
+                        // after start-up appears.
+                        return Task::perform(Self::probe(), |r| {
+                            cosmic::action::app(Message::Probed(r))
                         });
                     }
                 }
@@ -496,21 +504,12 @@ impl cosmic::Application for TunaInstaller {
             Message::SelectDisk(idx) => {
                 if let Some(disk) = self.disks.get(idx) {
                     self.selected_disk = Some(idx);
-                    self.recipe.disk = format!("/dev/{}", disk.name);
+                    self.recipe.disk = disk.path.clone();
                 }
                 Task::none()
             }
-            Message::DisksScanned(Ok(disks)) => {
-                self.disks = disks;
-                if !self.disks.is_empty() && self.selected_disk.is_none() {
-                    self.selected_disk = Some(0);
-                    self.recipe.disk = format!("/dev/{}", self.disks[0].name);
-                }
-                Task::none()
-            }
-            Message::DisksScanned(Err(err)) => {
-                self.install_log
-                    .push_str(&format!("Disk scan error: {err}\n"));
+            Message::Probed(result) => {
+                self.apply_probe(result);
                 Task::none()
             }
             Message::LiveImageResolved(live) => {
@@ -641,43 +640,11 @@ impl cosmic::Application for TunaInstaller {
 // -------------------------------------------------------- async helpers ----
 
 impl TunaInstaller {
-    async fn scan_disks() -> Result<Vec<DiskInfo>, String> {
-        let output = tokio::task::spawn_blocking(|| {
-            SysCommand::new("lsblk")
-                .args(["-J", "-o", "NAME,SIZE,TYPE,MODEL,TRAN"])
-                .output()
-                .map_err(|e| format!("Failed to run lsblk: {e}"))
-        })
-        .await
-        .map_err(|e| format!("Task join error: {e}"))??;
-
-        if !output.status.success() {
-            return Err(String::from_utf8_lossy(&output.stderr).into_owned());
-        }
-
-        let val: serde_json::Value = serde_json::from_slice(&output.stdout)
-            .map_err(|e| format!("Failed to parse lsblk JSON: {e}"))?;
-
-        let mut disks = Vec::new();
-        if let Some(devices) = val.get("blockdevices").and_then(|d| d.as_array()) {
-            for dev in devices {
-                if dev.get("type").and_then(|t| t.as_str()) == Some("disk") {
-                    let field = |k: &str| {
-                        dev.get(k)
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string()
-                    };
-                    disks.push(DiskInfo {
-                        name: field("name"),
-                        size: field("size"),
-                        model: field("model"),
-                        transport: field("tran"),
-                    });
-                }
-            }
-        }
-        Ok(disks)
+    /// `fisherman probe --json`, off the UI thread (shared/probe/README.md).
+    async fn probe() -> Result<probe::Facts, String> {
+        tokio::task::spawn_blocking(probe::run)
+            .await
+            .map_err(|e| format!("Task join error: {e}"))?
     }
 
     /// Runs fisherman and yields its output a line at a time, then the exit
@@ -812,36 +779,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    // The capture override. Without it the Xvfb runner's missing TPM decides
-    // what the screenshots show, and docs/PARITY.md is read off those.
-    // Serialised with a mutex: these mutate process-wide environment, and
-    // cargo runs tests in threads.
-    #[test]
-    fn tpm_available_honours_the_capture_override() {
-        use std::sync::Mutex;
-        static ENV_LOCK: Mutex<()> = Mutex::new(());
-        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-
-        let real = std::path::Path::new("/sys/class/tpm/tpm0").exists();
-
-        unsafe { std::env::remove_var("BOOTC_INSTALLER_FAKE_TPM") };
-        assert_eq!(super::tpm_available(), real, "unset must fall through to the probe");
-
-        unsafe { std::env::set_var("BOOTC_INSTALLER_FAKE_TPM", "1") };
-        assert!(super::tpm_available(), "the override must force it on");
-
-        // Empty and "0" must not count as set.
-        for value in ["", "0"] {
-            unsafe { std::env::set_var("BOOTC_INSTALLER_FAKE_TPM", value) };
-            assert_eq!(
-                super::tpm_available(), real,
-                "{value:?} must not force the choices on"
-            );
-        }
-
-        unsafe { std::env::remove_var("BOOTC_INSTALLER_FAKE_TPM") };
-    }
-
     #[test]
     fn override_makes_all_four_choices_available() {
         use std::sync::Mutex;
@@ -876,24 +813,6 @@ mod tests {
         assert!(json.get("image").is_none());
         assert!(json.get("targetImgref").is_none());
         assert!(json.get("bootloader").is_none());
-    }
-
-    /// shared/tpm/fixtures/ -- the same trees every frontend's probe is
-    /// pointed at, so all five agree. See shared/tpm/README.md.
-    fn tpm_fixture(tree: &str) -> std::path::PathBuf {
-        std::path::Path::new("../../shared/tpm/fixtures").join(tree)
-    }
-
-    #[test]
-    fn probe_tpm2_reads_the_version_rather_than_the_directory() {
-        for (tree, want, why) in [
-            ("tpm2", true, "tpm_version_major reads 2"),
-            ("tpm12", false, "a TPM 1.2 device cannot do tpm2-luks"),
-            ("legacy-tpm2", true, "no version file, but /dev/tpmrm0 is TPM2-only"),
-            ("legacy-none", false, "no version file and no resource manager"),
-        ] {
-            assert_eq!(probe_tpm2(&tpm_fixture(tree)), want, "{tree}: {why}");
-        }
     }
 
     #[test]

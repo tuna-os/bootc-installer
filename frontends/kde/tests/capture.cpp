@@ -11,7 +11,7 @@
 //
 // Safe by construction: Wizard.goToStep() only moves the visible step and calls
 // the target module's onPageActivated(), and no module's onPageActivated() does
-// anything but re-read lsblk. The only caller of
+// anything but re-run the disk probe. The only caller of
 // InstallerController.startInstall() is the Install button's onClicked, which
 // nothing here presses. Worth stating because the sibling XFCE installer does
 // start an install from its page-enter hook, so "drive the steps" is not
@@ -21,6 +21,7 @@
 #include <QDir>
 #include <QEventLoop>
 #include <QFile>
+#include <QFileInfo>
 #include <QImage>
 #include <QMap>
 #include <QMetaMethod>
@@ -485,12 +486,6 @@ const char *kFixtureRecoveryEvent =
     "{\"type\": \"recovery_key\", \"key\": \"mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf\", "
     "\"timestamp\": \"1970-01-01T00:00:00Z\", \"elapsed_ms\": 4800}\n";
 
-const char *kFixtureDisks = R"({"blockdevices":[
-  {"name":"nvme0n1","size":"512G","type":"disk","model":"Samsung SSD 990 PRO","tran":"nvme"},
-  {"name":"sda","size":"1.8T","type":"disk","model":"WDC WD20EZBX","tran":"sata"},
-  {"name":"sdb","size":"57.3G","type":"disk","model":"Cruzer Blade","tran":"usb"}
-]})";
-
 } // namespace
 
 int main(int argc, char *argv[])
@@ -582,18 +577,17 @@ int main(int argc, char *argv[])
         out << "cleared " << stale.size() << " stale image(s) from " << outDir << "\n";
     }
 
-    // Feed the disk step a realistic machine; a CI container exposes no disks,
-    // and the step would honestly but uselessly render "No disks found".
-    if (qEnvironmentVariableIsEmpty("TUNA_INSTALLER_FAKE_LSBLK")) {
-        const QString path = QDir(outDir).filePath(u".lsblk-fixture.json"_s);
-        QFile f(path);
-        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-            out << "FAIL: could not write disk fixture\n";
+    // Feed the disk step a realistic machine; a CI container exposes no
+    // disks, and the step would honestly but uselessly render "No disks
+    // found". This is fisherman's probe answer for a laptop, the fixture
+    // every frontend's capture reads (shared/probe/README.md). Its TPM 2.0
+    // is usable, so the encryption step shows the TPM choices too.
+    if (qEnvironmentVariableIsEmpty("BOOTC_INSTALLER_FAKE_PROBE")) {
+        if (!QFileInfo::exists(QStringLiteral(PROBE_FIXTURE_FILE))) {
+            out << "FAIL: probe fixture missing: " << PROBE_FIXTURE_FILE << "\n";
             return 1;
         }
-        f.write(kFixtureDisks);
-        f.close();
-        qputenv("TUNA_INSTALLER_FAKE_LSBLK", path.toLocal8Bit());
+        qputenv("BOOTC_INSTALLER_FAKE_PROBE", PROBE_FIXTURE_FILE);
     }
 
     QQmlApplicationEngine engine;

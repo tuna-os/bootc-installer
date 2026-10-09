@@ -129,6 +129,14 @@ and the KDE rows in `docs/PARITY.md`.
 
 When a step lands, a test fails if a frontend still carries its own copy.
 
+**F2 status (2026-10-09): frontends switched.** fisherman#268 ships the probe.
+All five frontends read their disks, TPM and RAM/CPU/UEFI facts from it
+(`shared/probe/README.md`), and the five disk filters, three size units and
+two TPM probes are gone. `tests/unit/test_shared_probe.py` fails if a frontend
+runs `lsblk` to list disks, and `tests/unit/test_shared_tpm.py` fails if one
+probes the TPM. The probe's live-image and offline-store facts are not used
+yet; F3 moves them.
+
 ## Planned features
 
 The maintainer approved these on 2026-10-08. They are not scheduled yet.

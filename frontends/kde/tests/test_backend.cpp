@@ -4,7 +4,8 @@
 #include "readiness.h"
 #include "recipe.h"
 #include "installercontroller.h"
-#include "tpm.h"
+#include "probe.h"
+#include "diskmodel.h"
 
 #include <QDir>
 #include <QFile>
@@ -41,10 +42,13 @@ private slots:
     void readinessWriteStampWritesExpectedFields();
     void readinessWriteStampBlankPageBecomesUnknown();
 
-    // TPM 2.0 detection (shared/tpm/README.md). The probe used to be the
-    // existence of /sys/class/tpm/tpm0, which a TPM 1.2 device has too.
-    void tpmProbeReadsTheVersionNotTheDirectory_data();
-    void tpmProbeReadsTheVersionNotTheDirectory();
+    // `fisherman probe --json` (shared/probe/README.md): the same fixtures
+    // and expected renderings every frontend is tested against.
+    void probeFixtures_data();
+    void probeFixtures();
+    void probeFakeEnvReachesTheController();
+    void probeFailureOffersNothingAndSaysWhy();
+    void probeCommandIsUnprivileged();
 
     // fisherman's progress protocol (shared/progress/README.md). KDE had no
     // progress bar; these pin the parse that now drives one.
@@ -689,30 +693,102 @@ void BackendTest::recoveryKeyAbsentMeansNoGate()
     QVERIFY(!failed.recoveryKeyPending());
 }
 
-void BackendTest::tpmProbeReadsTheVersionNotTheDirectory_data()
+void BackendTest::probeFixtures_data()
 {
-    QTest::addColumn<QString>("tree");
-    QTest::addColumn<bool>("expected");
-
-    // shared/tpm/fixtures/ -- the same trees every frontend's probe is
-    // pointed at, so all five agree.
-    QTest::newRow("tpm2: version reads 2") << QStringLiteral("tpm2") << true;
-    QTest::newRow("tpm12: 1.2 cannot do tpm2-luks") << QStringLiteral("tpm12") << false;
-    QTest::newRow("legacy-tpm2: no version file, tpmrm0 is TPM2-only")
-        << QStringLiteral("legacy-tpm2") << true;
-    QTest::newRow("legacy-none: neither signal") << QStringLiteral("legacy-none") << false;
+    QTest::addColumn<QString>("name");
+    QTest::newRow("laptop") << QStringLiteral("laptop");
+    QTest::newRow("container") << QStringLiteral("container");
+    QTest::newRow("vm") << QStringLiteral("vm");
 }
 
-void BackendTest::tpmProbeReadsTheVersionNotTheDirectory()
+void BackendTest::probeFixtures()
 {
-    QFETCH(QString, tree);
-    QFETCH(bool, expected);
+    QFETCH(QString, name);
+    const QDir dir(QStringLiteral(PROBE_FIXTURES_DIR));
+    QFile input(dir.filePath(name + QStringLiteral(".json")));
+    QFile expectedFile(dir.filePath(name + QStringLiteral(".expected.json")));
+    if (!input.open(QIODevice::ReadOnly) || !expectedFile.open(QIODevice::ReadOnly))
+        QSKIP("shared/probe/fixtures is absent; this tree is checked out alone");
+    const QJsonObject expected = QJsonDocument::fromJson(expectedFile.readAll()).object();
 
-    const QString root = QDir(QStringLiteral(TPM_FIXTURES_DIR)).filePath(tree);
-    if (!QFileInfo::exists(root)) {
-        QSKIP("shared/tpm/fixtures is absent; this tree is checked out alone");
+    const probe::Result result = probe::parse(input.readAll());
+    QVERIFY2(result.ok, qPrintable(result.error));
+
+    // What the disk step's rows carry, through the model the QML reads.
+    DiskModel model;
+    model.setResult(result);
+    const QJsonArray want = expected.value(QStringLiteral("disks")).toArray();
+    QCOMPARE(model.rowCount(), want.size());
+    const QHash<int, QByteArray> roles = model.roleNames();
+    auto role = [&](const QByteArray &n) { return roles.key(n); };
+    for (int i = 0; i < want.size(); ++i) {
+        const QJsonObject w = want.at(i).toObject();
+        const QModelIndex idx = model.index(i);
+        QCOMPARE(model.data(idx, role("device")).toString(), w.value(QStringLiteral("path")).toString());
+        QCOMPARE(model.data(idx, role("title")).toString(), w.value(QStringLiteral("title")).toString());
+        QCOMPARE(model.data(idx, role("model")).toString(), w.value(QStringLiteral("model")).toString());
+        QCOMPARE(model.data(idx, role("size")).toString(), w.value(QStringLiteral("size_label")).toString());
+        QCOMPARE(model.data(idx, role("transport")).toString(),
+                 w.value(QStringLiteral("transport_label")).toString());
+        QCOMPARE(model.data(idx, role("removable")).toBool(), w.value(QStringLiteral("removable")).toBool());
     }
-    QCOMPARE(tpm::probe2(root), expected);
+    QCOMPARE(result.tpmUsable, expected.value(QStringLiteral("tpm_usable")).toBool());
+    QStringList unmet;
+    for (const QJsonValue &v : expected.value(QStringLiteral("unmet")).toArray())
+        unmet << v.toString();
+    QCOMPARE(result.unmet, unmet);
+}
+
+void BackendTest::probeFakeEnvReachesTheController()
+{
+    const QString vm = QDir(QStringLiteral(PROBE_FIXTURES_DIR)).filePath(QStringLiteral("vm.json"));
+    if (!QFileInfo::exists(vm))
+        QSKIP("shared/probe/fixtures is absent; this tree is checked out alone");
+    qputenv(probe::FAKE_ENV, vm.toLocal8Bit());
+    InstallerController c;
+    qunsetenv(probe::FAKE_ENV);
+    QVERIFY(!c.hasTpm());
+    QCOMPARE(c.unmetRequirements(), (QStringList{QStringLiteral("ram"), QStringLiteral("cpu"),
+                                                 QStringLiteral("uefi")}));
+    const QStringList lines = c.requirementsWarning().split(QLatin1Char('\n'));
+    QCOMPARE(lines, (QStringList{c.text(QStringLiteral("requirements_title")),
+                                 c.text(QStringLiteral("requirements_ram")),
+                                 c.text(QStringLiteral("requirements_cpu")),
+                                 c.text(QStringLiteral("requirements_uefi"))}));
+
+    const QString laptop = QDir(QStringLiteral(PROBE_FIXTURES_DIR)).filePath(QStringLiteral("laptop.json"));
+    qputenv(probe::FAKE_ENV, laptop.toLocal8Bit());
+    InstallerController met;
+    qunsetenv(probe::FAKE_ENV);
+    QVERIFY(met.hasTpm());
+    QVERIFY(met.requirementsWarning().isEmpty());
+}
+
+void BackendTest::probeFailureOffersNothingAndSaysWhy()
+{
+    const probe::Result old = probe::parse(QByteArrayLiteral("{\"protocol_version\": 2}"));
+    QVERIFY(!old.ok);
+    QVERIFY(old.error.contains(QStringLiteral("protocol_version")));
+    QVERIFY(!probe::parse(QByteArrayLiteral("not json")).ok);
+
+    qputenv(probe::FAKE_ENV, QByteArrayLiteral("/nonexistent/probe.json"));
+    DiskModel model;
+    model.refresh();
+    InstallerController c;
+    qunsetenv(probe::FAKE_ENV);
+    QCOMPARE(model.rowCount(), 0);
+    QVERIFY(model.error().contains(QStringLiteral("/nonexistent/probe.json")));
+    QVERIFY(!c.hasTpm());
+    QVERIFY(c.requirementsWarning().isEmpty());
+}
+
+void BackendTest::probeCommandIsUnprivileged()
+{
+    const QStringList host{QStringLiteral("/usr/local/bin/fisherman"), QStringLiteral("probe"),
+                           QStringLiteral("--json")};
+    QCOMPARE(probe::command(false), host);
+    QCOMPARE(probe::command(true),
+             QStringList({QStringLiteral("flatpak-spawn"), QStringLiteral("--host")}) + host);
 }
 
 void BackendTest::streamsKeepSeparatePartialLines()

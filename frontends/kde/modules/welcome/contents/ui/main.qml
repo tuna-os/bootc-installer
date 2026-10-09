@@ -73,6 +73,16 @@ TunaComponents.SetupModule {
                 Layout.fillWidth: true
             }
 
+            // fisherman's minimum requirements (RAM, CPU cores, UEFI). A
+            // warning, not a gate: shared/probe/README.md.
+            Kirigami.InlineMessage {
+                type: Kirigami.MessageType.Warning
+                visible: text.length > 0
+                text: InstallerController.requirementsWarning
+
+                Layout.fillWidth: true
+            }
+
         }
     }
 }

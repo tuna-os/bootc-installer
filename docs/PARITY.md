@@ -27,6 +27,10 @@ claimed a render that nobody had wired up.
 | `welcome_install` | install row title | no (own body text) | no (no install row) | no (no install row) | live-system radio |
 | `welcome_install_subtitle` | install row subtitle | no | no | no | live-system radio subtitle |
 | `welcome_button` | no (row activates, own label) | Next button on welcome | forward button | button | Next button on welcome |
+| `requirements_title` | gate window text (blocks) | welcome inline message | welcome warning row | welcome warning | welcome warning row |
+| `requirements_ram` | RAM gate window text | welcome inline message line | welcome warning row line | welcome warning line | welcome warning row line |
+| `requirements_cpu` | CPU gate window text | welcome inline message line | welcome warning row line | welcome warning line | welcome warning row line |
+| `requirements_uefi` | UEFI gate window text | welcome inline message line | welcome warning row line | welcome warning line | welcome warning row line |
 | `encryption_none_label` | confirm summary row | radio row, confirm row | dropdown entry, confirm row | list row, confirm row | radio, confirm summary |
 | `encryption_none_description` | no (an on/off switch, no row for this choice) | radio row description | dropdown description | list row subtitle | caption under the radio |
 | `encryption_luks_passphrase_label` | confirm summary row | radio row, confirm row | dropdown entry, confirm row | list row, confirm row | radio, confirm summary |
@@ -110,6 +114,10 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
 | Live-ISO install without download | yes | yes | yes | yes | yes |
 | Offline image stores | yes | yes | yes | yes | yes |
 | Disk choice with erase warning | yes | yes | yes | yes | yes |
+| Disk list from `fisherman probe --json` (`shared/probe/`) | yes | yes | yes | yes | yes |
+| Disk row: model (path when unknown), path, size label, bus | yes | yes | yes | yes | yes |
+| Disk probe failure shown on the disk page | yes | yes | yes | yes | yes |
+| RAM / CPU / UEFI check (fisherman's `system.unmet`) | blocks (gate window) | warns on welcome | warns on welcome | warns on welcome | warns on welcome |
 | Filesystem choice | yes | no (xfs, shown on confirm) | yes | no (xfs) | yes (Advanced) |
 | Encryption: none / passphrase | yes | yes | yes | yes | yes |
 | Encryption: TPM / TPM + passphrase | yes | yes | yes | yes | yes |
@@ -128,10 +136,11 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
 ## Closing the gaps, in order
 
 1. ~~**Encryption set** (KDE, XFCE)~~ — **not a gap.** Both offer TPM and
-   TPM + passphrase today. Each hides the two choices when
-   `/sys/class/tpm/tpm0` is missing. No CI runner has a TPM. The capture
-   thus showed only two of the choices, and this table copied it. Set
-   `BOOTC_INSTALLER_FAKE_TPM=1` to capture all four.
+   TPM + passphrase today. Each hides the two choices when fisherman's
+   `tpm.usable` is false. No CI runner has a TPM. The capture thus showed
+   only two of the choices, and this table copied it. The captures now read
+   `shared/probe/fixtures/laptop.json`, which has a usable TPM, so they show
+   all four.
 2. ~~**Progress bar**~~ — **closed.** All five read
    `shared/progress/README.md` now. This entry said that fisherman emits
    `[n/9]`. It does not. Three frontends used that claim, so their bars

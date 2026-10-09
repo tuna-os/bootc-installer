@@ -1,7 +1,7 @@
 """Unit tests for the pure-Python parts of core/disks.py.
 
-Covers Diskutils.pretty_size() (static, no I/O) and the Partition
-comparison operators (__lt__, __eq__) exercised via lightweight stubs.
+Covers Diskutils.pretty_size() (static, no I/O), the probe-backed Disk, and
+the Partition comparison operators (__lt__, __eq__) via lightweight stubs.
 """
 
 import json
@@ -43,58 +43,23 @@ class _FakePartition:
 # ---------------------------------------------------------------------------
 
 class TestPrettySize(unittest.TestCase):
-    def test_bytes_boundary(self):
+    """fisherman's size rule (shared/probe/README.md), for partition sizes the
+    probe does not report. It used to be binary maths labelled "GB"."""
+
+    def test_bytes(self):
         self.assertEqual(Diskutils.pretty_size(512), "512 B")
-
-    def test_exactly_1024_is_bytes(self):
-        # 1024 is NOT > 1024, so it stays in bytes
-        self.assertEqual(Diskutils.pretty_size(1024), "1024 B")
-
-    def test_just_above_1024_is_kb(self):
-        self.assertEqual(Diskutils.pretty_size(1025), "1.0 KB")
-
-    def test_kilobytes(self):
-        result = Diskutils.pretty_size(2048)
-        self.assertIn("KB", result)
-        self.assertEqual(result, "2.0 KB")
-
-    def test_exactly_1mb_is_kb(self):
-        # 1024**2 is NOT > 1024**2
-        result = Diskutils.pretty_size(1024 ** 2)
-        self.assertIn("KB", result)
-
-    def test_just_above_1mb_is_mb(self):
-        result = Diskutils.pretty_size(1024 ** 2 + 1)
-        self.assertIn("MB", result)
-
-    def test_megabytes(self):
-        result = Diskutils.pretty_size(10 * 1024 ** 2)
-        self.assertEqual(result, "10.0 MB")
-
-    def test_exactly_1gb_is_mb(self):
-        result = Diskutils.pretty_size(1024 ** 3)
-        self.assertIn("MB", result)
-
-    def test_just_above_1gb_is_gb(self):
-        result = Diskutils.pretty_size(1024 ** 3 + 1)
-        self.assertIn("GB", result)
-
-    def test_gigabytes(self):
-        result = Diskutils.pretty_size(500 * 1024 ** 3)
-        self.assertEqual(result, "500.0 GB")
-
-    def test_zero_bytes(self):
         self.assertEqual(Diskutils.pretty_size(0), "0 B")
 
-    def test_rounding(self):
-        # 1.5 GB
-        size = int(1.5 * 1024 ** 3) + 1
-        result = Diskutils.pretty_size(size)
-        self.assertIn("GB", result)
-        self.assertIn("1.5", result)
+    def test_binary_units_labelled_honestly(self):
+        self.assertEqual(Diskutils.pretty_size(1024), "1 KiB")
+        self.assertEqual(Diskutils.pretty_size(10 * 1024 ** 2), "10 MiB")
+        self.assertEqual(Diskutils.pretty_size(500 * 1024 ** 3), "500 GiB")
+        self.assertEqual(Diskutils.pretty_size(int(1.5 * 1024 ** 3)), "1.5 GiB")
 
-    def test_returns_string(self):
-        self.assertIsInstance(Diskutils.pretty_size(1024 ** 2 + 1), str)
+    def test_matches_fishermans_labels(self):
+        # Sizes from shared/probe/fixtures/laptop.json, labelled by fisherman.
+        self.assertEqual(Diskutils.pretty_size(500107862016), "465.8 GiB")
+        self.assertEqual(Diskutils.pretty_size(2000398934016), "1.8 TiB")
 
 
 # ---------------------------------------------------------------------------
@@ -212,275 +177,64 @@ class TestFetchLvmPvs(unittest.TestCase):
         self.assertEqual(result, [])
 
 
-class TestGetBootDisk(unittest.TestCase):
-    """Tests for Diskutils.get_boot_disk()."""
-
-    def _make_check_output(self, findmnt_output, lsblk_output, pkname_output=""):
-        call_count = [0]
-
-        def fake_check_output(cmd, **kwargs):
-            call_count[0] += 1
-            cmd = " ".join(cmd)  # argv lists since #163; match on the joined form
-            if "findmnt" in cmd and "pkname" not in cmd:
-                return findmnt_output.encode()
-            elif "lsblk -sno" in cmd:
-                return lsblk_output.encode()
-            elif "pkname" in cmd:
-                return pkname_output.encode()
-            return b""
-
-        return fake_check_output
-
-    def test_detects_disk_from_lsblk_tree(self):
-        fake = self._make_check_output(
-            findmnt_output="/dev/nvme0n1p3",
-            lsblk_output="nvme0n1p3 part\nnvme0n1  disk\n",
-        )
-        with patch("subprocess.check_output", side_effect=fake):
-            result = Diskutils.get_boot_disk()
-        self.assertEqual(result, "/dev/nvme0n1")
-
-    def test_falls_back_to_pkname(self):
-        def fake(cmd, **kwargs):
-            cmd = " ".join(cmd)  # argv lists since #163
-            if "findmnt" in cmd:
-                return b"/dev/sda2"
-            if "lsblk -sno" in cmd:
-                return b"sda2 part\n"  # no "disk" type in output
-            if "pkname" in cmd:
-                return b"sda"
-            return b""
-
-        with patch("subprocess.check_output", side_effect=fake):
-            result = Diskutils.get_boot_disk()
-        self.assertEqual(result, "/dev/sda")
-
-    def test_returns_none_on_exception(self):
-        with patch("subprocess.check_output", side_effect=Exception("no findmnt")):
-            result = Diskutils.get_boot_disk()
-        self.assertIsNone(result)
-
-    def test_returns_none_when_no_source_found(self):
-        import subprocess as _sp
-
-        def fake(cmd, **kwargs):
-            raise _sp.CalledProcessError(1, cmd)
-
-        with patch("subprocess.check_output", side_effect=fake):
-            result = Diskutils.get_boot_disk()
-        self.assertIsNone(result)
-
-    def test_returns_source_when_pkname_empty(self):
-        """When pkname lookup returns empty, returns the raw source device."""
-        def fake(cmd, **kwargs):
-            if "findmnt" in cmd and "pkname" not in cmd:
-                return b"/dev/sda"
-            if "lsblk -sno" in cmd:
-                return b"sda part\n"  # no "disk" type
-            if "pkname" in cmd:
-                return b""  # empty pkname
-            return b""
-
-        with patch("subprocess.check_output", side_effect=fake):
-            result = Diskutils.get_boot_disk()
-        self.assertEqual(result, "/dev/sda")
-
-
 # ---------------------------------------------------------------------------
-# Disk class — using __new__ + attribute injection (avoids sysfs reads)
+# Disk — one eligible disk from `fisherman probe --json`
 # ---------------------------------------------------------------------------
 
-def _make_stub_disk(name="nvme0n1", size=500 * 1024 ** 3):
-    """Create a Disk without calling __init__ (no sysfs I/O)."""
-    d = _Disk.__new__(_Disk)
-    d._Disk__disk = name
-    d._Disk__partitions = []
-    d._Disk__size = size
-    return d
+_PROBED = {
+    "path": "/dev/nvme0n1", "size_bytes": 1024209543168, "size_label": "953.9 GiB",
+    "model": "WD_BLACK SN850X 1000GB", "vendor": "", "transport": "nvme",
+    "transport_label": "NVMe", "removable": False, "read_only": False, "eligible": True,
+}
 
 
 class TestDiskClass(unittest.TestCase):
-    """Tests for the Disk class properties using lightweight stubs."""
-
-    def test_disk_property(self):
-        d = _make_stub_disk(name="nvme0n1")
+    def test_properties_come_from_the_probe(self):
+        d = _Disk(dict(_PROBED))
         self.assertEqual(d.disk, "/dev/nvme0n1")
-
-    def test_name_property(self):
-        d = _make_stub_disk(name="sda")
-        self.assertEqual(d.name, "sda")
-
-    def test_block_property(self):
-        d = _make_stub_disk(name="nvme0n1")
+        self.assertEqual(d.name, "nvme0n1")
         self.assertEqual(d.block, "/sys/block/nvme0n1")
+        self.assertEqual(d.size, 1024209543168)
+        self.assertEqual(d.pretty_size, "953.9 GiB")
+        self.assertEqual(d.model, "WD_BLACK SN850X 1000GB")
+        self.assertEqual(d.display_name, "WD_BLACK SN850X 1000GB")
+        self.assertEqual(d.transport_label, "NVMe")
+        self.assertFalse(d.is_removable)
 
-    def test_size_property(self):
-        d = _make_stub_disk(size=1000 * 512)
-        self.assertEqual(d.size, 1000 * 512)
+    def test_display_name_falls_back_to_the_path(self):
+        d = _Disk(dict(_PROBED, model=""))
+        self.assertEqual(d.display_name, "/dev/nvme0n1")
 
-    def test_pretty_size_gb(self):
-        d = _make_stub_disk(size=500 * 1024 ** 3 + 1)
-        self.assertIn("GB", d.pretty_size)
+    def test_removable_is_reported_not_filtered(self):
+        self.assertTrue(_Disk(dict(_PROBED, removable=True)).is_removable)
 
-    def test_pretty_size_mb(self):
-        d = _make_stub_disk(size=5 * 1024 ** 2 + 1)
-        self.assertIn("MB", d.pretty_size)
+    def test_partitions_are_read_lazily_from_sysfs(self):
+        d = _Disk(dict(_PROBED))
+        with patch("bootc_installer.core.disks.os.listdir",
+                   return_value=["nvme0n1p1", "queue", "nvme0n1p2"]) as listdir, \
+             patch("bootc_installer.core.disks.Partition",
+                   side_effect=lambda disk, part: (disk, part)):
+            self.assertEqual(d.partitions, [("nvme0n1", "nvme0n1p1"), ("nvme0n1", "nvme0n1p2")])
+            d.partitions
+        listdir.assert_called_once_with("/sys/block/nvme0n1")
 
-    def test_pretty_size_kb(self):
-        d = _make_stub_disk(size=2 * 1024 + 1)
-        self.assertIn("KB", d.pretty_size)
+    def test_no_sysfs_means_no_partitions(self):
+        d = _Disk(dict(_PROBED))
+        with patch("bootc_installer.core.disks.os.listdir", side_effect=OSError):
+            self.assertEqual(d.partitions, [])
 
-    def test_pretty_size_bytes(self):
-        d = _make_stub_disk(size=512)
-        self.assertIn("B", d.pretty_size)
-        self.assertNotIn("K", d.pretty_size)
-
-    def test_model_reads_from_sysfs(self):
-        d = _make_stub_disk(name="nvme0n1")
-        import io
-        with patch("builtins.open",
-                   return_value=io.StringIO("Samsung 980 Pro\n")):
-            result = d.model
-        self.assertEqual(result, "Samsung 980 Pro")
-
-    def test_model_falls_back_on_oserror(self):
-        d = _make_stub_disk(name="nvme0n1")
-        with patch("builtins.open", side_effect=OSError("not found")):
-            result = d.model
-        self.assertEqual(result, "")
-
-    def test_vendor_reads_from_sysfs(self):
-        d = _make_stub_disk(name="sda")
-        import io
-        with patch("builtins.open", return_value=io.StringIO("WDC\n")):
-            result = d.vendor
-        self.assertEqual(result, "WDC")
-
-    def test_vendor_falls_back_on_oserror(self):
-        d = _make_stub_disk(name="sda")
-        with patch("builtins.open", side_effect=OSError):
-            result = d.vendor
-        self.assertEqual(result, "")
-
-    def test_display_name_combines_vendor_and_model(self):
-        d = _make_stub_disk(name="nvme0n1")
-        import io
-        # display_name accesses self.vendor first, then self.model
-        open_calls = iter([io.StringIO("Samsung\n"), io.StringIO("980 Pro\n")])
-        with patch("builtins.open", side_effect=lambda *a, **kw: next(open_calls)):
-            name = d.display_name
-        self.assertEqual(name, "Samsung 980 Pro")
-
-    def test_display_name_falls_back_to_disk_name(self):
-        d = _make_stub_disk(name="nvme0n1")
-        with patch("builtins.open", side_effect=OSError):
-            name = d.display_name
-        self.assertEqual(name, "nvme0n1")
-
-    def test_is_removable_true(self):
-        d = _make_stub_disk(name="sdb")
-        import io
-        with patch("os.path.isfile", return_value=True), \
-             patch("builtins.open", return_value=io.StringIO("1\n")):
-            self.assertTrue(d.is_removable)
-
-
-    def test_is_removable_false_when_value_is_zero(self):
-        d = _make_stub_disk(name="nvme0n1")
-        import io
-        with patch("os.path.isfile", return_value=True), \
-             patch("builtins.open", return_value=io.StringIO("0\n")):
-            self.assertFalse(d.is_removable)
-
-    def test_is_removable_false_when_no_sysfs_file(self):
-        d = _make_stub_disk(name="nvme0n1")
-        with patch("os.path.isfile", return_value=False):
-            self.assertFalse(d.is_removable)
-
-    def test_get_partition_returns_matching_mountpoint(self):
-        """get_partition finds the partition with the given mountpoint."""
-        d = _make_stub_disk()
+    def test_get_partition_by_mountpoint(self):
+        d = _Disk(dict(_PROBED))
 
         class _FakePart:
             def __init__(self, mp):
                 self.mountpoint = mp
 
-        d._Disk__partitions = [_FakePart("/boot"), _FakePart("/"), _FakePart(None)]
-        result = d.get_partition("/")
-        self.assertIsNotNone(result)
-        self.assertEqual(result.mountpoint, "/")
+        root, boot = _FakePart("/"), _FakePart("/boot")
+        d._Disk__partitions = [root, boot]
+        self.assertIs(d.get_partition("/boot"), boot)
+        self.assertIsNone(d.get_partition("/home"))
 
-    def test_get_partition_returns_none_when_not_found(self):
-        d = _make_stub_disk()
-        d._Disk__partitions = []
-        self.assertIsNone(d.get_partition("/nonexistent"))
-
-    def test_partitions_property(self):
-        d = _make_stub_disk()
-        d._Disk__partitions = ["fake"]
-        self.assertEqual(d.partitions, ["fake"])
-
-    def test_update_partitions_repopulates(self):
-        """update_partitions calls __get_partitions which reads /sys/block/<disk>."""
-        d = _make_stub_disk(name="nvme0n1")
-        d._Disk__partitions = []
-        with patch("os.listdir", return_value=[]), \
-             patch("builtins.open", return_value=__import__("io").StringIO("0")):
-            d.update_partitions()
-        self.assertEqual(d._Disk__partitions, [])
-
-
-class TestDiskInit(unittest.TestCase):
-    """Tests for Disk.__init__ via mocked I/O to cover construction paths."""
-
-    def test_disk_constructor_with_no_partitions(self):
-        """Disk() with an empty /sys/block/<disk> directory sets empty partition list."""
-        import io
-
-        with patch("os.listdir", return_value=[]), \
-             patch("builtins.open", return_value=io.StringIO("1953525168\n")):
-            from bootc_installer.core.disks import Disk
-            d = Disk("nvme0n1")
-
-        self.assertEqual(d.disk, "/dev/nvme0n1")
-        self.assertEqual(d.partitions, [])
-        self.assertEqual(d.size, 1953525168 * 512)
-
-    def test_disk_constructor_with_partition_listed(self):
-        """Disk() adds Partition objects for each child entry that starts with disk name."""
-        import io
-
-        # open_calls: disk size, then one size per matching partition
-        # nvme0n1p1 and nvme0n1p2 start with "nvme0n1"; "queue" does not
-        open_calls = [
-            io.StringIO("1953525168\n"),   # Disk size
-            io.StringIO("0\n"),             # nvme0n1p1 partition size
-            io.StringIO("0\n"),             # nvme0n1p2 partition size
-        ]
-        open_idx = [0]
-
-        def fake_open(path, *a, **kw):
-            idx = open_idx[0]
-            open_idx[0] += 1
-            return open_calls[idx]
-
-        def fake_check_output(cmd, **kw):
-            # All subprocess calls return empty for mountpoint, fstype, uuid, label
-            return b""
-
-        with patch("os.listdir", return_value=["nvme0n1p1", "queue", "nvme0n1p2"]), \
-             patch("builtins.open", side_effect=fake_open), \
-             patch("subprocess.check_output", side_effect=fake_check_output):
-            from bootc_installer.core.disks import Disk
-            d = Disk("nvme0n1")
-
-        # Only nvme0n1p1 and nvme0n1p2 start with "nvme0n1"; "queue" does not
-        self.assertEqual(len(d.partitions), 2)
-
-
-# ---------------------------------------------------------------------------
-# Partition construction via real __init__ with mocked subprocess
-# ---------------------------------------------------------------------------
 
 class TestPartitionInit(unittest.TestCase):
     """Tests for Partition.__init__ via mocked I/O."""
@@ -570,22 +324,10 @@ class TestPartitionClass(unittest.TestCase):
         p = _make_stub_partition(size=1000)
         self.assertEqual(p.size, 1000)
 
-    def test_pretty_size_gb(self):
-        p = _make_stub_partition(size=500 * 1024 ** 3 + 1)
-        self.assertIn("GB", p.pretty_size)
-
-    def test_pretty_size_mb(self):
-        p = _make_stub_partition(size=10 * 1024 ** 2 + 1)
-        self.assertIn("MB", p.pretty_size)
-
-    def test_pretty_size_kb(self):
-        p = _make_stub_partition(size=2 * 1024 + 1)
-        self.assertIn("KB", p.pretty_size)
-
-    def test_pretty_size_bytes(self):
-        p = _make_stub_partition(size=512)
-        self.assertIn("B", p.pretty_size)
-        self.assertNotIn("K", p.pretty_size)
+    def test_pretty_size_uses_fishermans_rule(self):
+        self.assertEqual(_make_stub_partition(size=500 * 1024 ** 3).pretty_size, "500 GiB")
+        self.assertEqual(_make_stub_partition(size=10 * 1024 ** 2).pretty_size, "10 MiB")
+        self.assertEqual(_make_stub_partition(size=512).pretty_size, "512 B")
 
     def test_fs_type_property(self):
         p = _make_stub_partition(fs_type="ext4")

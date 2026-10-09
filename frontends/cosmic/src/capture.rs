@@ -28,7 +28,7 @@ use cosmic::iced::window::Screenshot;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use crate::{DiskInfo, Page, TunaInstaller};
+use crate::{Page, TunaInstaller};
 
 pub const FIXTURE_LIVE_IMAGE: &str = "ghcr.io/tuna-os/albacore:gnome";
 
@@ -42,21 +42,21 @@ const HEADER_SKIP_PX: u32 = 56;
 /// window, which looks like a screenshot and is not one.
 const SETTLE_MS: u64 = 700;
 
-pub fn fixture_disks() -> Vec<DiskInfo> {
-    vec![
-        DiskInfo {
-            name: "nvme0n1".into(),
-            size: "476.9G".into(),
-            model: "SAMSUNG MZVL2512HCJQ".into(),
-            transport: "nvme".into(),
-        },
-        DiskInfo {
-            name: "sda".into(),
-            size: "1.8T".into(),
-            model: "WDC WD20SPZX-22UA7".into(),
-            transport: "sata".into(),
-        },
-    ]
+/// The machine the screenshots show: fisherman's probe answer for a laptop,
+/// the fixture every frontend's capture reads (shared/probe/README.md), read
+/// through the same parser a real probe goes through. Its TPM 2.0 is usable,
+/// so the encryption page shows the TPM choices on a runner without one.
+/// `BOOTC_INSTALLER_FAKE_PROBE` overrides the file.
+pub const FIXTURE_PROBE: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/probe/fixtures/laptop.json");
+
+pub fn fixture_probe() -> Result<crate::probe::Facts, String> {
+    let path = std::env::var(crate::probe::FAKE_ENV)
+        .ok()
+        .filter(|p| !p.is_empty())
+        .unwrap_or_else(|| FIXTURE_PROBE.to_string());
+    let text = std::fs::read_to_string(&path).map_err(|e| format!("{path}: {e}"))?;
+    crate::probe::parse(&text)
 }
 
 // fisherman's real transcript (shared/progress/dry-run-transcript.ndjson),
