@@ -105,17 +105,17 @@
       "colours": 257,
       "flat": 0.9694333333333334,
       "ink": 0.009666666666666667,
-      "stddev": 0.052709923393785496,
+      "stddev": 0.05269190816861404,
       "text_excerpt": "Step 2 of 6 \u00b7 Disk Destination Everything on the selected disk will be erased. This cannot be undone. Scanning for disks\u2026 Back Back Continue Continue Enter Continue Shift+Enter Back Tab Next field"
     },
     {
       "name": "03-encryption",
       "png": "docs/screenshots/03-encryption.png",
       "rendered": true,
-      "colours": 450,
-      "flat": 0.6162,
-      "ink": 0.11353333333333333,
-      "stddev": 0.11051476375489575,
+      "colours": 453,
+      "flat": 0.6161333333333333,
+      "ink": 0.11356666666666666,
+      "stddev": 0.11048502176346062,
       "text_excerpt": "Step 3 of 6 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
@@ -161,8 +161,8 @@
   ],
   "transition_pixels": [
     30519,
-    56649,
-    188975,
+    56643,
+    188997,
     209871,
     308479,
     53687
