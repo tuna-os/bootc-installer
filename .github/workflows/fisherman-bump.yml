@@ -1,0 +1,177 @@
+name: Fisherman bump
+
+# Keeps the fisherman submodule pin current. fisherman/ is pinned to one
+# commit of tuna-os/fisherman, and a fix there reaches the installers only
+# when the pin moves. Every 6 hours (and by hand) this workflow looks at
+# fisherman `dev`'s HEAD and, when it is ahead of the pin and its CI finished
+# green, opens or updates ONE pull request against `dev` from the fixed branch
+# bot/fisherman-bump. The decision is shared/ci/fisherman_bump.py
+# (tests/unit/test_ci_fisherman_bump.py); this file only turns it into git
+# and PR operations.
+#
+# What it refuses to do:
+#   - bump to a commit whose CI is red, still running, or absent: every
+#     commit status must be success and every check run success or skipped;
+#   - move the pin backwards or onto a diverged fisherman history;
+#   - open a second PR: an open PR from bot/fisherman-bump is updated in
+#     place (branch force-pushed, title and body rewritten).
+# When dev HEAD is already the pin (someone bumped by hand), an open bump PR
+# is closed as superseded.
+#
+# Which token pushes the branch and opens the PR matters. A PR opened with
+# the workflow's GITHUB_TOKEN does not trigger push or pull_request
+# workflows, so CI would not run on it. This repository has no bot token or
+# GitHub App yet, so:
+#   - with the FISHERMAN_BUMP_TOKEN secret set (a fine-grained PAT, or a
+#     GitHub App installation token, with Contents and Pull requests
+#     read/write on this repository), the push and PR use it and CI runs
+#     normally;
+#   - without it, GITHUB_TOKEN is used, and this workflow dispatches the
+#     validation workflows that matter for a fisherman change (Go Tests,
+#     Python Tests, Flatpak, End to end) on the bump branch itself.
+#     workflow_dispatch is the one event GITHUB_TOKEN may trigger; those runs
+#     report on the head commit and show on the PR. That is why the job needs
+#     `actions: write`. Path-filtered workflows do not run that way. The
+#     repository setting "Allow GitHub Actions to create and approve pull
+#     requests" must be on for GITHUB_TOKEN to open the PR at all.
+
+on:
+  schedule:
+    - cron: "41 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fisherman-bump
+  cancel-in-progress: false
+
+env:
+  BUMP_BRANCH: bot/fisherman-bump
+  BASE_BRANCH: dev
+  # Dispatched on the bump branch when the push used GITHUB_TOKEN (see above).
+  DISPATCH_WORKFLOWS: go-test.yml python-test.yml flatpak.yml e2e.yml
+
+jobs:
+  bump:
+    name: Bump
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      # `bot` when FISHERMAN_BUMP_TOKEN is set. Secrets cannot appear in a
+      # step's `if:`, so the steps read this instead.
+      TOKEN_KIND: ${{ secrets.FISHERMAN_BUMP_TOKEN != '' && 'bot' || 'default' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASE_BRANCH }}
+          fetch-depth: 0
+          # The submodule's contents are not needed: the pin is a gitlink
+          # entry in the index, read and written without checking it out.
+          submodules: false
+          token: ${{ secrets.FISHERMAN_BUMP_TOKEN || github.token }}
+
+      - name: Decide
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pinned=$(git rev-parse HEAD:fisherman)
+          python3 shared/ci/fisherman_bump.py --pinned "$pinned" \
+            --body "$RUNNER_TEMP/body.md" --token-kind "$TOKEN_KIND"
+
+      - name: Push the bump branch
+        id: push
+        if: steps.decide.outputs.action == 'bump'
+        env:
+          NEW: ${{ steps.decide.outputs.head }}
+          TITLE: ${{ steps.decide.outputs.title }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          base=$(git rev-parse HEAD)
+          git update-index --cacheinfo "160000,$NEW,fisherman"
+          git commit -q -m "$TITLE" -m "fisherman dev HEAD, CI green. Opened by fisherman-bump.yml."
+          # The branch already holds this exact bump on this exact dev: leave
+          # it alone, so CI is not re-run for nothing.
+          if git fetch -q origin "$BUMP_BRANCH" 2>/dev/null \
+             && [ "$(git rev-parse 'FETCH_HEAD^{tree}')" = "$(git rev-parse 'HEAD^{tree}')" ] \
+             && [ "$(git rev-parse 'FETCH_HEAD^')" = "$base" ]; then
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            echo "$BUMP_BRANCH already carries this bump"
+            exit 0
+          fi
+          git push --force origin "HEAD:refs/heads/$BUMP_BRANCH"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      # REST through `gh api` rather than `gh pr edit`, which goes through
+      # GraphQL and has failed on unrelated project fields before.
+      - name: Open or update the PR
+        id: pr
+        if: steps.decide.outputs.action == 'bump'
+        env:
+          GH_TOKEN: ${{ secrets.FISHERMAN_BUMP_TOKEN || github.token }}
+          TITLE: ${{ steps.decide.outputs.title }}
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY%%/*}"
+          number=$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&base=$BASE_BRANCH&head=$owner:$BUMP_BRANCH" \
+                     --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/pulls/$number" \
+              -f title="$TITLE" -F body=@"$RUNNER_TEMP/body.md" --silent
+            echo "updated #$number"
+          else
+            number=$(gh api -X POST "repos/$GITHUB_REPOSITORY/pulls" \
+                       -f title="$TITLE" -f head="$BUMP_BRANCH" -f base="$BASE_BRANCH" \
+                       -F body=@"$RUNNER_TEMP/body.md" --jq .number)
+            echo "opened #$number"
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch CI on the bump branch
+        if: steps.push.outputs.pushed == 'true' && env.TOKEN_KIND == 'default'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for wf in $DISPATCH_WORKFLOWS; do
+            gh workflow run "$wf" --repo "$GITHUB_REPOSITORY" --ref "$BUMP_BRANCH"
+            echo "dispatched $wf on $BUMP_BRANCH"
+          done
+
+      - name: Close a superseded PR
+        if: steps.decide.outputs.action == 'current'
+        env:
+          GH_TOKEN: ${{ secrets.FISHERMAN_BUMP_TOKEN || github.token }}
+          HEAD_SHA: ${{ steps.decide.outputs.head }}
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY%%/*}"
+          number=$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&base=$BASE_BRANCH&head=$owner:$BUMP_BRANCH" \
+                     --jq '.[0].number // empty')
+          [ -n "$number" ] || exit 0
+          gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$number/comments" \
+            -f body="\`$BASE_BRANCH\` already pins fisherman at ${HEAD_SHA:0:7}; closing this bump as superseded." --silent
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/pulls/$number" -f state=closed --silent
+          echo "closed #$number"
+
+      - name: Summary
+        if: always()
+        env:
+          ACTION: ${{ steps.decide.outputs.action }}
+          REASON: ${{ steps.decide.outputs.reason }}
+          NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          {
+            echo "## Fisherman bump"
+            echo
+            echo "- decision: **${ACTION:-error}** — $REASON"
+            if [ -n "$NUMBER" ]; then echo "- PR: #$NUMBER"; fi
+          } >> "$GITHUB_STEP_SUMMARY"

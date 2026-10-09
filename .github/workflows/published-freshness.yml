@@ -1,0 +1,121 @@
+name: Published freshness
+
+# Checks, once a day, that the tuna-os Flatpak remote serves every frontend
+# from the build `prod` last released. The remote resolves installs through
+# https://tunaos.org/flatpak/index/static (docs/RELEASE.md), and release.yml
+# publishes all five frontends to ghcr.io/tuna-os/bootc-installer:<frontend>
+# (publish-oci.yml). Issue #158 is what this catches: kde, cosmic, niri and
+# xfce kept being served from the orphaned pre-migration entries
+# tuna-os/tuna-installer-*, and every other check stayed green. It also
+# catches one frontend's publish replacing another's images under the shared
+# tuna-os/bootc-installer entry: on 2026-10-08 the niri publish left that
+# entry with niri alone, and GNOME dropped out of the index.
+#
+# The comparison is shared/ci/published_freshness.py
+# (tests/unit/test_ci_published_freshness.py). Per frontend it fails when:
+#   - any tuna-os/tuna-installer-* entry still serves it;
+#   - tuna-os/bootc-installer has no image tagged with it, or lacks an arch;
+#   - the image was built from a commit whose frontend tree differs from the
+#     head of the last successful release.yml run on prod (same path rule as
+#     release.yml's change detection);
+#   - prod HEAD has changes to it and the newest release run on prod ended
+#     without success. A release still queued or running is only noted.
+# The source commit comes from the image's org.flatpak.subject label
+# ("Built from <sha>"); the index carries no OCI revision label. An image
+# without that subject is compared by build time instead, which cannot tell
+# two builds of the same tree apart. The script's header has the details.
+#
+# On failure it opens, or updates, ONE issue labelled `published-freshness`
+# with the report; it closes that issue once everything matches again. The
+# job itself fails while anything is stale, so the red run is the signal and
+# the issue is the record.
+
+on:
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+concurrency:
+  group: published-freshness
+  cancel-in-progress: true
+
+env:
+  ISSUE_TITLE: Published Flatpak builds are stale
+  ISSUE_LABEL: published-freshness
+
+jobs:
+  check:
+    name: Freshness
+    runs-on: ubuntu-24.04
+    steps:
+      # Full history: the check diffs the served commits against prod.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare the index with prod
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          rc=0
+          python3 shared/ci/published_freshness.py --git-dir . --prod-ref origin/prod \
+            --report "$RUNNER_TEMP/report.md" || rc=$?
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ -f "$RUNNER_TEMP/report.md" ]; then cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"; fi
+
+      # rc 2 means the check could not run (index or API unreachable). That
+      # says nothing about freshness, so the issue is left as it is.
+      - name: Open, update or close the tracking issue
+        if: steps.check.outputs.rc == '0' || steps.check.outputs.rc == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RC: ${{ steps.check.outputs.rc }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label "$ISSUE_LABEL" \
+                     --json number,title --limit 100 \
+                   | jq -r --arg t "$ISSUE_TITLE" 'map(select(.title == $t)) | .[0].number // empty')
+          if [ "$RC" = "0" ]; then
+            if [ -n "$number" ]; then
+              gh issue close "$number" --repo "$GITHUB_REPOSITORY" \
+                --comment "Every frontend is served from the build prod last released again ($RUN_URL). Closing."
+              echo "closed #$number"
+            fi
+            exit 0
+          fi
+          {
+            echo "Opened by \`published-freshness.yml\`. It rewrites this body on every"
+            echo "daily run while anything is stale and closes the issue once"
+            echo "everything matches. Latest run: $RUN_URL"
+            echo
+            cat "$RUNNER_TEMP/report.md"
+          } > "$RUNNER_TEMP/issue.md"
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/issue.md"
+            echo "updated #$number"
+          else
+            gh label create "$ISSUE_LABEL" --repo "$GITHUB_REPOSITORY" --color B60205 \
+              --description "Published Flatpak differs from what prod released" 2>/dev/null || true
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$ISSUE_TITLE" \
+              --label "$ISSUE_LABEL" --body-file "$RUNNER_TEMP/issue.md"
+          fi
+
+      - name: Fail while anything is stale
+        if: steps.check.outputs.rc != '0'
+        env:
+          RC: ${{ steps.check.outputs.rc }}
+        run: |
+          if [ "$RC" = "2" ]; then
+            echo "::error::the freshness check could not run; see the step above"
+          else
+            echo "::error::a published Flatpak is stale; see the job summary"
+          fi
+          exit 1
