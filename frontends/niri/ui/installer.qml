@@ -120,6 +120,15 @@ ApplicationWindow {
     // Encryption was previously hardcoded to "none" in the recipe with no UI,
     // so every install came out unencrypted (tuna-os/tunaOS#734).
     property string encType: "none"
+    // The recipe's encryption types, in display order: the enum of
+    // shared/recipe/fisherman-recipe.schema.json, which
+    // tests/unit/test_encryption_choices.py holds every frontend to.
+    readonly property var encryptionTypes: ["none", "luks-passphrase", "tpm2-luks", "tpm2-luks-passphrase"]
+    // What a type is called: suffix "_label" or "_description", branding
+    // copy (shared/branding/README.md, "Encryption choices"). "" is none.
+    function encryptionText(type, suffix) {
+        return root.text("encryption_" + (type || "none").split("-").join("_") + suffix)
+    }
     property string passphrase: ""
     property bool hasTpm: false
     property var disks: []
@@ -553,23 +562,18 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     spacing: Theme.groupedListGap
                     Repeater {
-                        model: [
-                            { value: "none",                 label: "No encryption",    explain: "Anyone with the disk can read your files." },
-                            { value: "luks-passphrase",      label: "Passphrase",       explain: "You'll type it at every boot." },
-                            { value: "tpm2-luks",            label: "TPM",              explain: "Unlocks automatically on this hardware." },
-                            { value: "tpm2-luks-passphrase", label: "TPM + passphrase", explain: "Automatic unlock, passphrase as fallback." }
-                        ]
+                        model: root.encryptionTypes
                         DankListItem {
-                            required property var modelData
+                            required property string modelData
                             required property int index
                             Layout.fillWidth: true
-                            visible: !modelData.value.startsWith("tpm2") || root.hasTpm
+                            visible: !modelData.startsWith("tpm2") || root.hasTpm
                             firstInGroup: index === 0
                             lastInGroup: index === (root.hasTpm ? 3 : 1)
-                            primaryText: modelData.label
-                            secondaryText: modelData.explain
-                            isSelected: root.encType === modelData.value
-                            onClicked: root.encType = modelData.value
+                            primaryText: root.encryptionText(modelData, "_label")
+                            secondaryText: root.encryptionText(modelData, "_description")
+                            isSelected: root.encType === modelData
+                            onClicked: root.encType = modelData
                         }
                     }
                 }
@@ -658,7 +662,7 @@ ApplicationWindow {
                         StyledText { text: "Filesystem"; color: Theme.surfaceVariantText }
                         StyledText { text: "xfs"; isMonospace: true }
                         StyledText { text: "Encryption"; color: Theme.surfaceVariantText }
-                        StyledText { text: root.encType; isMonospace: true }
+                        StyledText { text: root.encryptionText(root.encType, "_label"); isMonospace: true }
                         StyledText { text: "Hostname"; color: Theme.surfaceVariantText }
                         DankTextField {
                             id: hostField
