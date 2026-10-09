@@ -197,6 +197,33 @@ class TestProgressScreen:
         assert progress._BootcProgress__boot_id == "boot-123"
         assert progress._BootcProgress__recovery_key == "rk-1"
 
+    def test_overall_pct_drives_the_bar_and_step_id_the_label(self):
+        """fisherman's overall_pct is the bar and its step_id picks the copy
+        line; the derivation would hold the bar through the Flatpak copy."""
+        progress, window = self._make_progress()
+        window.recipe = {"branding": {"name": "ExampleOS",
+                                      "copy": {"step_flatpaks": "Adding apps for {name}…"}}}
+        progress._BootcProgress__parse_progress_line(json.dumps({
+            "type": "step", "step": 6, "total_steps": 8,
+            "step_name": "Copying system Flatpaks", "step_id": "flatpaks",
+            "cumulative_pct": 88, "weight_pct": 11, "overall_pct": 88,
+        }))
+        assert progress.progressbar_text.get_label() == "Adding apps for ExampleOS…"
+        assert progress.progress_percentage.get_label() == "88%"
+        progress._BootcProgress__parse_progress_line(json.dumps(
+            {"type": "substep", "message": "Copying Flatpak data: 50%", "overall_pct": 93.5}))
+        assert progress.progress_percentage.get_label() == "93%"
+        assert progress.progressbar_text.get_label() == "Adding apps for ExampleOS…"
+
+        # A step_id the copy does not know shows fisherman's step name.
+        progress._BootcProgress__parse_progress_line(json.dumps({
+            "type": "step", "step": 7, "total_steps": 8,
+            "step_name": "Polishing the hull", "step_id": "polish_hull",
+            "cumulative_pct": 99, "weight_pct": 0, "overall_pct": 99,
+        }))
+        assert progress.progressbar_text.get_label() == "Polishing the hull"
+        assert progress.progress_percentage.get_label() == "99%"
+
     def test_demo_mode_completes_and_reports_success(self):
         progress, window = self._make_progress()
 

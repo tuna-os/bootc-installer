@@ -53,7 +53,7 @@ _FISHERMAN_CACHE_DIR = os.path.join(_FISHERMAN_STAGE_BASE, ".cache", "bootc-inst
 _FISHERMAN_HOST_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman")
 _FISHERMAN_LOG_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman-output.log")
 
-from bootc_installer.utils.progress_parser import apply_progress_event, new_progress_state, render_event, set_product_name, set_install_label, _RE_LAYER_PROGRESS  # noqa: E402
+from bootc_installer.utils.progress_parser import apply_progress_event, new_progress_state, render_event, set_product_name, set_install_label, set_step_label_resolver, _RE_LAYER_PROGRESS  # noqa: E402
 from bootc_installer.utils.codec_check import check_codecs_present  # noqa: E402
 
 
@@ -194,6 +194,10 @@ class BootcProgress(Gtk.Box):
         # The image-writing step's label is the branding contract's
         # progress_title, so a product can say what it is installing.
         set_install_label(copy_text.text(window, "progress_title"))
+        # fisherman names each step with a stable step_id; its label is the
+        # copy key "step_<id>" (shared/branding/README.md). An id the copy
+        # does not know reads "" and falls back to the step name.
+        set_step_label_resolver(lambda step_id: copy_text.text(window, "step_" + step_id))
         self.__session = None    # FishermanSession — owns subprocess + log tailing
         self.__log_buf = None    # GtkTextBuffer — set after super().__init__
         self.__pulse_active = True  # whether the progress bar is in pulse mode
