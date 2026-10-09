@@ -13,6 +13,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QProcess>
 #include <QProcessEnvironment>
 #include <QTemporaryDir>
 #include <QTest>
@@ -642,6 +643,9 @@ void BackendTest::streamsKeepSeparatePartialLines()
 
 void BackendTest::flatpakWrapperPassesOutputAndStatusThrough()
 {
+#if !QT_CONFIG(process)
+    QSKIP("QProcess is not available on this platform (wasm)");
+#else
     // Run the wrapper's bash for real (everything after flatpak-spawn
     // --host) with pkexec stubbed on PATH, and a recipe path a shell would
     // act on if it were interpolated into the script.
@@ -672,10 +676,14 @@ void BackendTest::flatpakWrapperPassesOutputAndStatusThrough()
              QStringLiteral("/usr/local/bin/fisherman|") + recipe + QLatin1Char('\n'));
     QCOMPARE(p.readAllStandardError(), QByteArray("to-stderr\n"));
     QVERIFY(!QFile::exists(dir.filePath(QStringLiteral("pwned"))));
+#endif
 }
 
 void BackendTest::wrapperLeadsItsOwnProcessGroup()
 {
+#if !QT_CONFIG(process) || !defined(Q_OS_UNIX)
+    QSKIP("needs QProcess and POSIX process groups");
+#else
     QProcess p;
     offline::startInOwnProcessGroup(p);
     p.start(QStringLiteral("sleep"), {QStringLiteral("30")});
@@ -687,6 +695,7 @@ void BackendTest::wrapperLeadsItsOwnProcessGroup()
     QCOMPARE(::killpg(pid, SIGTERM), 0);
     QVERIFY(p.waitForFinished(5000));
     QCOMPARE(p.exitStatus(), QProcess::CrashExit);
+#endif
 }
 
 QTEST_APPLESS_MAIN(BackendTest)
