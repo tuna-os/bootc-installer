@@ -89,45 +89,45 @@
       "name": "welcome",
       "png": "docs/screenshots/01-welcome.png",
       "rendered": true,
-      "colours": 243,
-      "ink": 0.011735954452680202,
-      "stddev": 0.07332327010335722,
+      "colours": 228,
+      "ink": 0.0117628101836932,
+      "stddev": 0.07352482178610632,
       "text_excerpt": "Welcome to TunaOS This assistant installs TunaOS on this computer.\n\nYou'll choose what to install and where; nothing is written to any disk until you confirm on the final step."
     },
     {
       "name": "source",
       "png": "docs/screenshots/02-source.png",
       "rendered": true,
-      "colours": 283,
-      "ink": 0.010070899129874316,
-      "stddev": 0.06492297739095616,
+      "colours": 269,
+      "ink": 0.010097754860887313,
+      "stddev": 0.0651528558236435,
       "text_excerpt": "What do you want to install? Bluefin Bluefin ghcr.io/ublue-os/bluefin:latest GNOME GNOME ghcr.io/tuna-os/bonito:latest KDE Plasma KDE Plasma ghcr.io/tuna-os/bonito:kde"
     },
     {
       "name": "destination",
       "png": "docs/screenshots/03-destination.png",
       "rendered": true,
-      "colours": 302,
-      "ink": 0.014609517671071007,
-      "stddev": 0.07964240209178643,
+      "colours": 290,
+      "ink": 0.014636373402084004,
+      "stddev": 0.07977543467942917,
       "text_excerpt": "Where should TunaOS be installed? SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 SAMSUNG MZVL2512    512.1 GB    /dev/nvme0n1 WDC WD20SPZX    2 TB    /dev/sda WDC WD20SPZX    2 TB    /dev/sda Everything on SAMSUNG MZVL2512 (/dev/nvme0n1) will"
     },
     {
       "name": "setup",
       "png": "docs/screenshots/04-setup.png",
       "rendered": true,
-      "colours": 330,
-      "ink": 0.013266731120421097,
-      "stddev": 0.07508728418516858,
+      "colours": 318,
+      "ink": 0.013293586851434096,
+      "stddev": 0.07517985631625536,
       "text_excerpt": "Disk encryption No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at every boot. TPM TPM Unlocks automatically on this hardware. TPM + passphrase TPM + passphrase Automatic unlock, pa"
     },
     {
       "name": "identity",
       "png": "docs/screenshots/05-identity.png",
       "rendered": true,
-      "colours": 229,
+      "colours": 216,
       "ink": 0.006740788484262542,
-      "stddev": 0.05650399514168884,
+      "stddev": 0.05656200998178052,
       "text_excerpt": "Name this computer Hostname Password Full name Username Your account"
     },
     {
@@ -135,9 +135,9 @@
       "png": "docs/screenshots/06-confirm.png",
       "rendered": true,
       "colours": 273,
-      "ink": 0.013991835857772049,
-      "stddev": 0.07432353226572888,
-      "text_excerpt": "Confirm installation Image:       ghcr.io/ublue-os/bluefin:latest\nDisk:        /dev/nvme0n1\nFilesystem:  xfs\nEncryption:  none\nHostname:    tunaos Everything on the selected disk will be erased. This cannot be undone."
+      "ink": 0.014367816091954023,
+      "stddev": 0.07521088488996527,
+      "text_excerpt": "Confirm installation Image:       ghcr.io/ublue-os/bluefin:latest\nDisk:        /dev/nvme0n1\nFilesystem:  xfs\nEncryption:  No encryption\nHostname:    tunaos Everything on the selected disk will be erased. This cannot be undone."
     },
     {
       "name": "progress",
@@ -145,37 +145,37 @@
       "rendered": true,
       "colours": 266,
       "ink": 0.016059727145772907,
-      "stddev": 0.09616574334563334,
+      "stddev": 0.09617084799975062,
       "text_excerpt": "Installing TunaOS\u2026  Do not power off the computer. [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pulling image: layer 47/"
     },
     {
       "name": "done",
       "png": "docs/screenshots/08-done.png",
       "rendered": true,
-      "colours": 218,
+      "colours": 227,
       "ink": 0.006418519712106564,
-      "stddev": 0.05563203066478104,
+      "stddev": 0.055704447379297944,
       "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Restart now Restart now"
     },
     {
       "name": "recovery",
       "png": "docs/screenshots/09-recovery.png",
       "rendered": true,
-      "colours": 336,
+      "colours": 338,
       "ink": 0.02365989902245139,
-      "stddev": 0.09749782357166925,
+      "stddev": 0.09749406756006739,
       "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password mana"
     }
   ],
   "transition_pixels": [
-    9762,
+    9829,
     9280,
     12284,
     12045,
-    11907,
-    15892,
-    12704,
-    12778
+    12133,
+    16138,
+    12692,
+    12801
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."

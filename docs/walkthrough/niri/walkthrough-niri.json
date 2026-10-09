@@ -105,28 +105,28 @@
       "colours": 257,
       "flat": 0.9694333333333334,
       "ink": 0.009666666666666667,
-      "stddev": 0.05269190816861404,
+      "stddev": 0.052709923393785496,
       "text_excerpt": "Step 2 of 6 \u00b7 Disk Destination Everything on the selected disk will be erased. This cannot be undone. Scanning for disks\u2026 Back Back Continue Continue Enter Continue Shift+Enter Back Tab Next field"
     },
     {
       "name": "03-encryption",
       "png": "docs/screenshots/03-encryption.png",
       "rendered": true,
-      "colours": 453,
-      "flat": 0.6161333333333333,
-      "ink": 0.11356666666666666,
-      "stddev": 0.11048502176346062,
+      "colours": 450,
+      "flat": 0.6162,
+      "ink": 0.11353333333333333,
+      "stddev": 0.11051476375489575,
       "text_excerpt": "Step 3 of 6 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
       "name": "04-confirm",
       "png": "docs/screenshots/04-confirm.png",
       "rendered": true,
-      "colours": 385,
+      "colours": 391,
       "flat": 0.6189,
-      "ink": 0.0209,
-      "stddev": 0.08056238996147015,
-      "text_excerpt": "Step 4 of 6 \u00b7 Confirm Confirm installation \u26a0  Everything on the selected disk will be erased. This cannot be undone. Summary Target disk \u2014 Filesystem xfs Encryption none Hostname tunaos Image ghcr.io/tuna-os/albacore:gnome Back Back Install"
+      "ink": 0.021433333333333332,
+      "stddev": 0.0811607970065459,
+      "text_excerpt": "Step 4 of 6 \u00b7 Confirm Confirm installation \u26a0  Everything on the selected disk will be erased. This cannot be undone. Summary Target disk \u2014 Filesystem xfs Encryption No encryption Hostname tunaos Image ghcr.io/tuna-os/albacore:gnome Back Bac"
     },
     {
       "name": "05-progress",
@@ -161,9 +161,9 @@
   ],
   "transition_pixels": [
     30519,
-    56643,
-    188997,
-    209598,
+    56649,
+    188975,
+    209871,
     308479,
     53687
   ],

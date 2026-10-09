@@ -98,10 +98,10 @@
       "name": "qr_companion",
       "png": "docs/screenshots/02-qr_companion.png",
       "rendered": true,
-      "colours": 513,
-      "flat": 0.9278115501519757,
+      "colours": 514,
+      "flat": 0.9278048845518051,
       "ink": 0.037494000959846424,
-      "stddev": 0.12188825836284589,
+      "stddev": 0.12187861974905419,
       "text_excerpt": "Phone Companion Setup Scan the QR code below with your phone to configure the installer settings.\nBoth devices must be on the same local network. Phone Companion Setup Scan the QR code below with your phone to configure the installer settin"
     },
     {
@@ -129,20 +129,20 @@
       "png": "docs/screenshots/05-encryption.png",
       "rendered": true,
       "colours": 266,
-      "flat": 0.8641217405215166,
-      "ink": 0.010038393856982884,
-      "stddev": 0.07410108676618438,
-      "text_excerpt": "Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You will need a passphrase each time you turn on your computer. Encrypt this disk You will need a passphrase each time you turn on your computer. Password Passwo"
+      "flat": 0.8679611262198048,
+      "ink": 0.00997173785527649,
+      "stddev": 0.07377502093566715,
+      "text_excerpt": "Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You'll type it at every boot. Encrypt this disk You'll type it at every boot. Password Password Password Confirm Password Confirm Password Confirm Password Use h"
     },
     {
       "name": "confirm",
       "png": "docs/screenshots/06-confirm.png",
       "rendered": true,
-      "colours": 237,
-      "flat": 0.9200461259531808,
-      "ink": 0.006172345758012052,
-      "stddev": 0.04934042758707169,
-      "text_excerpt": "Confirm installation Hostname Hostname Hostname Encryption Hardware-backed + passphrase fallback Encryption Hardware-backed + passphrase fallback Install Install"
+      "colours": 236,
+      "flat": 0.9200527915533515,
+      "ink": 0.006152348957500133,
+      "stddev": 0.0491896945552359,
+      "text_excerpt": "Confirm installation Hostname Hostname Hostname Encryption TPM + passphrase Encryption TPM + passphrase Install Install"
     },
     {
       "name": "progress",
@@ -176,12 +176,12 @@
     }
   ],
   "transition_pixels": [
-    77222,
-    89236,
+    77168,
+    89182,
     52188,
-    35009,
-    38563,
-    32035,
+    34271,
+    36464,
+    31496,
     43981,
     41947
   ],
