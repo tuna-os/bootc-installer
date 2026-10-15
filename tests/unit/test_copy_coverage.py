@@ -67,7 +67,6 @@ KNOWN_GAPS = {
         "encryption_tpm2_luks_description": "the page cannot produce tpm2-luks: its TPM switch always keeps the passphrase",
     },
     "kde": {
-        "validate_*": "not wired to fisherman validate --json yet",
         "welcome_install": "modules/welcome hardcodes its two body sentences",
         "welcome_install_subtitle": "modules/welcome hardcodes its two body sentences",
     },

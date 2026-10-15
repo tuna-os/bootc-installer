@@ -26,15 +26,18 @@ from tests.unit.test_copy_coverage import (
 # Where each frontend's encryption page gets its ids: (file, the text that
 # opens the list). Every quoted string between it and the closing bracket
 # is an id, in display order.
-CHOICE_LISTS = {
-    "kde": ("frontends/kde/src/recipe.cpp", "static const QStringList types = {"),
-}
+# Empty since every frontend with a list reads fisherman's file instead
+# (LOADS_THE_FILE); kept so a frontend that brings a literal list back is
+# held to the order.
+CHOICE_LISTS = {}
 CLOSERS = {"(": ")", "[": "]", "{": "}"}
 
 # The frontends that read their copy of encryption-choices.json instead of
 # keeping a list: (file, the text that shows it reads the copy). Their order
 # and their passphrase / TPM logic are then the file's.
 LOADS_THE_FILE = {
+    "kde": [("frontends/kde/CMakeLists.txt", 'encryption-choices.json" TUNA_ENCRYPTION_CHOICES_JSON'),
+            ("frontends/kde/src/recipe.cpp", '#include "encryption_choices.h"')],
     "xfce": [("frontends/xfce/tuna_installer_xfce/core.py",
               "fisherman_validate.load_choices()")],
     "cosmic": [("frontends/cosmic/src/validate.rs", 'include_str!("encryption-choices.json")'),
@@ -170,7 +173,7 @@ class EveryFrontendOffersTheSchemaTypes(unittest.TestCase):
         # out: GNOME's done page searches the log for it.)
         allowed = set(encryption_types())
         pattern = re.compile(r'"(luks-[a-z0-9-]+|tpm2-luks[a-z0-9-]*)"')
-        for frontend in ("gnome", *CHOICE_LISTS):
+        for frontend in ("gnome", *LOADS_THE_FILE, *CHOICE_LISTS):
             for path, code in frontend_code(frontend):
                 for literal in pattern.findall(code):
                     self.assertIn(literal, allowed, f"{path.relative_to(REPO)}: {literal!r}")
@@ -178,7 +181,7 @@ class EveryFrontendOffersTheSchemaTypes(unittest.TestCase):
 
 class NoFrontendCarriesItsOwnWords(unittest.TestCase):
     def test_no_choice_label_or_description_is_hardcoded(self):
-        for frontend in ("gnome", *CHOICE_LISTS):
+        for frontend in ("gnome", *LOADS_THE_FILE, *CHOICE_LISTS):
             for path, code in frontend_code(frontend):
                 for line in NOT_IN_FRONTEND_SOURCE:
                     for quoted in (f'"{line}"', f"'{line}'"):
