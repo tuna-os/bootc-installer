@@ -27,7 +27,6 @@ from tests.unit.test_copy_coverage import (
 # opens the list). Every quoted string between it and the closing bracket
 # is an id, in display order.
 CHOICE_LISTS = {
-    "cosmic": ("frontends/cosmic/src/main.rs", "pub const ENCRYPTION_TYPES: [&str; 4] = ["),
     "kde": ("frontends/kde/src/recipe.cpp", "static const QStringList types = {"),
 }
 CLOSERS = {"(": ")", "[": "]", "{": "}"}
@@ -38,6 +37,8 @@ CLOSERS = {"(": ")", "[": "]", "{": "}"}
 LOADS_THE_FILE = {
     "xfce": [("frontends/xfce/tuna_installer_xfce/core.py",
               "fisherman_validate.load_choices()")],
+    "cosmic": [("frontends/cosmic/src/validate.rs", 'include_str!("encryption-choices.json")'),
+               ("frontends/cosmic/src/main.rs", "validate::choices()")],
     "niri": [("frontends/niri/installer/validate.go", "//go:embed encryption-choices.json"),
              ("frontends/niri/installer/main.go", '"encryptionChoices": encryptionChoices()'),
              ("frontends/niri/ui/installer.qml", "root.encryptionChoices = facts.encryptionChoices")],

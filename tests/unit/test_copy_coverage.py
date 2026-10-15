@@ -72,7 +72,6 @@ KNOWN_GAPS = {
         "welcome_install_subtitle": "modules/welcome hardcodes its two body sentences",
     },
     "cosmic": {
-        "validate_*": "not wired to fisherman validate --json yet",
         "welcome_install": "the welcome page has no install row to label",
         "welcome_install_subtitle": "the welcome page has no install row to label",
     },
