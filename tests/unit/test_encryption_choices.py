@@ -27,12 +27,25 @@ from tests.unit.test_copy_coverage import (
 # opens the list). Every quoted string between it and the closing bracket
 # is an id, in display order.
 CHOICE_LISTS = {
-    "xfce": ("frontends/xfce/tuna_installer_xfce/pages.py", "ENCRYPTION_TYPES = ("),
     "cosmic": ("frontends/cosmic/src/main.rs", "pub const ENCRYPTION_TYPES: [&str; 4] = ["),
     "kde": ("frontends/kde/src/recipe.cpp", "static const QStringList types = {"),
     "niri": ("frontends/niri/ui/installer.qml", "readonly property var encryptionTypes: ["),
 }
 CLOSERS = {"(": ")", "[": "]", "{": "}"}
+
+# The frontends that read their copy of encryption-choices.json instead of
+# keeping a list: (file, the text that shows it reads the copy). Their order
+# and their passphrase / TPM logic are then the file's.
+LOADS_THE_FILE = {
+    "xfce": ("frontends/xfce/tuna_installer_xfce/core.py",
+             "fisherman_validate.load_choices()"),
+}
+# What logic on the type's name looked like before the file had
+# needs_passphrase and needs_tpm2.
+NAME_LOGIC = re.compile(
+    r"""["']passphrase["']\s+in\b|contains\(\s*"passphrase"|endsWith\(\s*(?:QLatin1String\()?"passphrase"|"""
+    r"""HasSuffix\([^)]*"passphrase"|startswith\(\s*["']tpm2|startsWith\(\s*(?:QLatin1String\()?"tpm2"|"""
+    r"""HasPrefix\([^)]*["]tpm2""" + '"')
 
 # The defaults' distinctive words, and the confirm-page labels that drifted
 # from them. "Passphrase" and "TPM" alone are left out: every frontend
@@ -177,6 +190,21 @@ class NoFrontendCarriesItsOwnWords(unittest.TestCase):
             with self.subTest(frontend=frontend):
                 code = "\n".join(c for _, c in frontend_code(frontend))
                 self.assertFalse(raw in code, f"{frontend} prints {raw}")
+
+
+class FrontendsReadTheFile(unittest.TestCase):
+    def test_each_reads_its_copy(self):
+        for frontend, (path, marker) in LOADS_THE_FILE.items():
+            with self.subTest(frontend=frontend):
+                self.assertIn(marker, (REPO / path).read_text())
+
+    def test_no_frontend_decides_by_the_types_name(self):
+        """needs_passphrase and needs_tpm2 come from the file. A frontend
+        that tests the name for "passphrase" or "tpm2" re-implements them."""
+        for frontend in LOADS_THE_FILE:
+            for path, code in frontend_code(frontend):
+                with self.subTest(path=str(path.relative_to(REPO))):
+                    self.assertIsNone(NAME_LOGIC.search(code))
 
 
 class TheParserReadsRealLists(unittest.TestCase):

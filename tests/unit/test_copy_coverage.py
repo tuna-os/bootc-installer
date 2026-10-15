@@ -82,7 +82,6 @@ KNOWN_GAPS = {
         "welcome_install_subtitle": "the welcome page has no install row to label",
     },
     "xfce": {
-        "validate_*": "not wired to fisherman validate --json yet",
     },
 }
 
