@@ -14,6 +14,7 @@ the confirm pages did not: KDE said "None" and "Passphrase (LUKS)", GNOME
 "Encrypted with passphrase", and COSMIC, Niri and Xfce printed the raw id.
 """
 
+import json
 import re
 import unittest
 
@@ -77,6 +78,46 @@ def frontend_code(frontend):
         if path.suffix == ".rs":
             text = text.split("#[cfg(test)]", 1)[0]
         yield path, strip_comments(text, COMMENT_MARKERS[path.suffix])
+
+
+# fisherman's table of encryption types (data/encryption-choices.json,
+# generated from recipe.EncryptionChoices), copied byte for byte. The
+# frontends that build from their own directory carry a further copy each.
+CHOICES = REPO / "shared" / "recipe" / "encryption-choices.json"
+CHOICES_UPSTREAM = REPO / "fisherman" / "data" / "encryption-choices.json"
+CHOICES_COPIES = {
+    "kde": REPO / "frontends" / "kde" / "encryption-choices.json",
+    "cosmic": REPO / "frontends" / "cosmic" / "src" / "encryption-choices.json",
+    "niri": REPO / "frontends" / "niri" / "installer" / "encryption-choices.json",
+    "xfce": REPO / "frontends" / "xfce" / "tuna_installer_xfce" / "encryption-choices.json",
+}
+
+
+def choice_types():
+    return [c["type"] for c in json.loads(CHOICES.read_text())["choices"]]
+
+
+class TheChoicesFileIsFishermans(unittest.TestCase):
+    def test_shared_copy_is_byte_identical_to_the_submodule(self):
+        if not CHOICES_UPSTREAM.exists():
+            self.skipTest("fisherman submodule not checked out")
+        self.assertEqual(
+            CHOICES.read_bytes(), CHOICES_UPSTREAM.read_bytes(),
+            "shared/recipe/encryption-choices.json drifted from fisherman's "
+            "data/encryption-choices.json; copy it again after a submodule bump")
+
+    def test_frontend_copies_are_byte_identical(self):
+        for frontend, path in CHOICES_COPIES.items():
+            with self.subTest(frontend=frontend):
+                self.assertEqual(path.read_bytes(), CHOICES.read_bytes(),
+                                 f"{path.relative_to(REPO)} drifted from {CHOICES.relative_to(REPO)}")
+
+    def test_the_file_is_the_schema_enum_in_order(self):
+        self.assertEqual(choice_types(), encryption_types())
+
+    def test_every_choice_names_its_copy_key(self):
+        for c in json.loads(CHOICES.read_text())["choices"]:
+            self.assertEqual(c["copy_key"], encryption_key(c["type"], ""))
 
 
 class EveryFrontendOffersTheSchemaTypes(unittest.TestCase):
