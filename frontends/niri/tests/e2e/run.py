@@ -80,9 +80,16 @@ def main():
     QMetaObject.invokeMethod(root, "startInstall")
     settle(300)
 
-    # Only the install Process ever receives a write(); the stub keeps it.
+    # The install Process's write(); the stub keeps it. The validate Process
+    # writes too (the page's fields, for `fisherman validate --partial`), so
+    # pick the one whose command is `install`.
+    def _command(obj):
+        cmd = obj.property("command")
+        cmd = cmd.toVariant() if hasattr(cmd, "toVariant") else cmd
+        return list(cmd or [])
+
     written = next((obj.property("written") for obj in root.findChildren(QObject)
-                    if obj.property("written")), None)
+                    if obj.property("written") and "install" in _command(obj)), None)
     if not written:
         sys.exit("FAIL: startInstall wrote nothing to the backend's stdin")
     recipe = json.loads(written)
