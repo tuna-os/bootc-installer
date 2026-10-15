@@ -62,7 +62,6 @@ RESOLVERS = re.compile(r"^(branding\.(py|rs|cpp|h|go)|branding_defaults\.h\.in|c
 # with that prefix (the validate_* family is rendered, or not, as one).
 KNOWN_GAPS = {
     "gnome": {
-        "validate_*": "not wired to fisherman validate --json yet",
         "welcome_button": "bootc_installer/gtk/default-welcome.blp hardcodes the button label",
         "encryption_none_description": "the encryption page is an on/off switch, not a list of choices, so no row describes no encryption",
         "encryption_tpm2_luks_description": "the page cannot produce tpm2-luks: its TPM switch always keeps the passphrase",
