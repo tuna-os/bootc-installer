@@ -67,7 +67,7 @@ claimed a render that nobody had wired up.
 | `done_subtitle` | header subtitle (+ elapsed time) | label | body | label | label |
 | `done_restart` | Reboot Now button | Restart button | suggested button | button | Reboot button |
 | `done_failed_title` | page header | heading | title2 | heading | headline |
-| `validate_*` | error line under the hostname (disk and confirm pages) and the username | no (not wired yet) | no (not wired yet) | no (not wired yet) | line under the hostname, the username and the encryption choice |
+| `validate_*` | error line under the hostname (disk and confirm pages) and the username | no (not wired yet) | no (not wired yet) | line under the hostname (confirm) and under the passphrase | line under the hostname, the username and the encryption choice |
 | `store_label` | done page link to `store_url` (+ QR from `assets.store_qr`, US locale) | done page link | done page link | done page link | done page link |
 | `assets.welcome_image`, `assets.complete_image` | tour pages | no | no | welcome logo disc (`logo`) | no |
 

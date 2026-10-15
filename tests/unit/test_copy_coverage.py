@@ -77,7 +77,6 @@ KNOWN_GAPS = {
         "welcome_install_subtitle": "the welcome page has no install row to label",
     },
     "niri": {
-        "validate_*": "not wired to fisherman validate --json yet",
         "welcome_install": "the welcome page has no install row to label",
         "welcome_install_subtitle": "the welcome page has no install row to label",
     },

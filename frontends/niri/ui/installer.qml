@@ -168,10 +168,18 @@ ApplicationWindow {
     // Encryption was previously hardcoded to "none" in the recipe with no UI,
     // so every install came out unencrypted (tuna-os/tunaOS#734).
     property string encType: "none"
-    // The recipe's encryption types, in display order: the enum of
-    // shared/recipe/fisherman-recipe.schema.json, which
-    // tests/unit/test_encryption_choices.py holds every frontend to.
-    readonly property var encryptionTypes: ["none", "luks-passphrase", "tpm2-luks", "tpm2-luks-passphrase"]
+    // The encryption choices in display order, with needs_passphrase and
+    // needs_tpm2: fisherman's data/encryption-choices.json, which the backend
+    // embeds and `detect` reports (tests/unit/test_encryption_choices.py).
+    property var encryptionChoices: []
+    readonly property var encryptionTypes: encryptionChoices.map(c => c.type)
+    function encryptionChoice(type) {
+        return encryptionChoices.find(c => c.type === (type || "none")) || ({})
+    }
+    function needsPassphrase(type) { return encryptionChoice(type).needs_passphrase === true }
+    function needsTpm2(type) { return encryptionChoice(type).needs_tpm2 === true }
+    readonly property var offeredEncryptionTypes: encryptionChoices
+        .filter(c => root.hasTpm || c.needs_tpm2 !== true).map(c => c.type)
     // What a type is called: suffix "_label" or "_description", branding
     // copy (shared/branding/README.md, "Encryption choices"). "" is none.
     function encryptionText(type, suffix) {
@@ -234,9 +242,38 @@ ApplicationWindow {
     // never appears in the install command argv (see #22).
     property string pendingRecipe: ""
 
-    // Offline facts from `detect` (spec §4)
+    // Live media from `detect`: fisherman's probe (`live`). Only on live
+    // media may the recipe leave `image` empty, which installs the running
+    // system; liveImage names it for the summary. The offline stores are
+    // fisherman's to find: the recipe leaves additionalImageStores out.
+    property bool isLive: false
     property string liveImage: ""
-    property var offlineStores: []
+
+    // fisherman's answer to `validate --json --partial` for the fields the
+    // wizard has (hostname, encryption): {field: problem}. The rules are
+    // fisherman's (shared/recipe/README.md); a check that cannot run leaves
+    // this empty and blocks nothing.
+    property var problems: ({})
+    function problemText(field) {
+        const p = problems[field]
+        if (!p) return ""
+        // The copy key validate_<code>, else fisherman's own message.
+        return (p.code ? root.text("validate_" + p.code) : "") || p.message || ""
+    }
+    readonly property string hostnameProblem: problemText("hostname")
+    readonly property string encryptionProblem:
+        problemText("encryption.passphrase") || problemText("encryption.type")
+    property string pendingValidate: ""
+    property bool validateAgain: false
+    function partialRecipe() {
+        const enc = { type: root.encType }
+        if (root.needsPassphrase(root.encType)) enc.passphrase = root.passphrase
+        return { hostname: root.hostname, filesystem: "xfs", encryption: enc }
+    }
+    function checkFields() { validateTimer.restart() }
+    onHostnameChanged: checkFields()
+    onPassphraseChanged: checkFields()
+    onEncTypeChanged: checkFields()
     // The image installed off a live ISO: branding.json's default_image.
     // Empty means the backend refuses ("image is required") rather than
     // installing somebody else's product.
@@ -279,13 +316,52 @@ ApplicationWindow {
             onStreamFinished: {
                 try {
                     const facts = JSON.parse(text)
+                    root.isLive = facts.isLive === true
                     root.liveImage = facts.liveImage || ""
                     root.hasTpm = facts.hasTpm === true
                     root.unmet = facts.unmet || []
-                    root.offlineStores = facts.offlineStores || []
+                    if (facts.encryptionChoices) root.encryptionChoices = facts.encryptionChoices
                     if (facts.branding) root.branding = facts.branding
                 } catch (e) { /* detect is best-effort */ }
             }
+        }
+    }
+
+    // After a pause in the typing, one `validate` at a time: the backend runs
+    // `fisherman validate --json --partial -` with the page's fields on
+    // stdin (never argv: the passphrase is one of them).
+    Timer {
+        id: validateTimer
+        interval: 300
+        onTriggered: {
+            if (validateProc.running) { root.validateAgain = true; return }
+            root.pendingValidate = JSON.stringify(root.partialRecipe())
+            validateProc.running = true
+        }
+    }
+    Process {
+        id: validateProc
+        command: [root.backendBin, "validate"]
+        stdinEnabled: true
+        onStarted: {
+            validateProc.write(root.pendingValidate)
+            root.pendingValidate = ""
+        }
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let answer = null
+                try { answer = JSON.parse(text) } catch (e) { answer = null }
+                const found = {}
+                if (answer && Array.isArray(answer.errors)) {
+                    for (const p of answer.errors)
+                        if (p && p.field && found[p.field] === undefined) found[p.field] = p
+                }
+                // No answer (exit 2, an old fisherman): nothing is known.
+                root.problems = found
+            }
+        }
+        onExited: (code, status) => {
+            if (root.validateAgain) { root.validateAgain = false; validateTimer.restart() }
         }
     }
 
@@ -403,16 +479,17 @@ ApplicationWindow {
         const recipe = {
             disk: selectedDisk.path,
             filesystem: "xfs",
-            encryption: root.encType.endsWith("passphrase")
+            encryption: root.needsPassphrase(root.encType)
                 ? { type: root.encType, passphrase: root.passphrase }
                 : { type: root.encType },
-            // Empty image = live-ISO self-install (bootc uses the running container)
-            image: liveImage !== "" ? "" : defaultImage,
+            // Empty image = install the running system, which fisherman
+            // accepts only on live media (probe's live.is_live).
+            image: isLive ? "" : defaultImage,
             hostname: hostname,
             distroID: root.branding.id || "linux",
             // true makes bootc boot the installed system with selinux=0.
-            selinuxDisabled: false,
-            additionalImageStores: offlineStores
+            selinuxDisabled: false
+            // No additionalImageStores: fisherman exposes the host's stores.
         }
         installProc.command = [root.backendBin, "install"]
         root.pendingRecipe = JSON.stringify(recipe)
@@ -428,7 +505,7 @@ ApplicationWindow {
         case 0: discoverProc.running = true; currentPage = 1; break
         case 1: if (selectedDisk.path !== undefined) currentPage = 2; break
         case 2: encryptionPage.next(); break
-        case 3: if (selectedDisk.path !== undefined) startInstall(); break
+        case 3: if (selectedDisk.path !== undefined && root.hostnameProblem === "") startInstall(); break
         }
     }
     function back() {
@@ -526,7 +603,7 @@ ApplicationWindow {
                         Layout.fillWidth: true
                     }
                     StyledText {
-                        text: root.liveImage !== ""
+                        text: root.isLive
                             ? "Install this system — no download required."
                             : "This wizard will guide you through installing " + root.productName + " onto your computer."
                         color: Theme.surfaceVariantText
@@ -629,15 +706,15 @@ ApplicationWindow {
                 spacing: Theme.spacingM
 
                 function next() {
-                    // fisherman rejects a *-passphrase type with an empty
-                    // passphrase, but that only surfaces mid-install; catch it
-                    // here where it can still be corrected.
-                    if (root.encType.endsWith("passphrase")) {
-                        if (passField.text === "") { passError.text = "Enter a passphrase."; return }
-                        if (passField.text !== passConfirm.text) { passError.text = "Passphrases do not match."; return }
+                    // fisherman's rules (an empty passphrase) come from
+                    // `validate`; that the two entries match is this page's.
+                    root.passphrase = passField.text
+                    if (root.encryptionProblem !== "") return
+                    if (root.needsPassphrase(root.encType) && passField.text !== passConfirm.text) {
+                        passError.text = "Passphrases do not match."
+                        return
                     }
                     passError.text = ""
-                    root.passphrase = passField.text
                     root.currentPage = 3
                 }
 
@@ -656,14 +733,13 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     spacing: Theme.groupedListGap
                     Repeater {
-                        model: root.encryptionTypes
+                        model: root.offeredEncryptionTypes
                         DankListItem {
                             required property string modelData
                             required property int index
                             Layout.fillWidth: true
-                            visible: !modelData.startsWith("tpm2") || root.hasTpm
                             firstInGroup: index === 0
-                            lastInGroup: index === (root.hasTpm ? 3 : 1)
+                            lastInGroup: index === root.offeredEncryptionTypes.length - 1
                             primaryText: root.encryptionText(modelData, "_label")
                             secondaryText: root.encryptionText(modelData, "_description")
                             isSelected: root.encType === modelData
@@ -672,10 +748,10 @@ ApplicationWindow {
                     }
                 }
 
-                // Only meaningful for the *-passphrase modes.
+                // Only for a choice with needs_passphrase.
                 DankCard {
                     Layout.fillWidth: true
-                    visible: root.encType.endsWith("passphrase")
+                    visible: root.needsPassphrase(root.encType)
                     title: "Passphrase"
                     Column {
                         width: parent.width
@@ -696,6 +772,12 @@ ApplicationWindow {
                         }
                         StyledText {
                             id: passError
+                            color: Theme.error
+                            visible: text !== ""
+                            font.pixelSize: Theme.fontSizeSmall
+                        }
+                        StyledText {
+                            text: root.encryptionProblem
                             color: Theme.error
                             visible: text !== ""
                             font.pixelSize: Theme.fontSizeSmall
@@ -758,17 +840,28 @@ ApplicationWindow {
                         StyledText { text: "Encryption"; color: Theme.surfaceVariantText }
                         StyledText { text: root.encryptionText(root.encType, "_label"); isMonospace: true }
                         StyledText { text: "Hostname"; color: Theme.surfaceVariantText }
-                        DankTextField {
-                            id: hostField
-                            text: root.hostname
-                            onTextEdited: root.hostname = text  // not onTextChanged: that fires at load and would pin the branding default
-                            font.family: Theme.monoFontFamily
-                            implicitWidth: 260
+                        ColumnLayout {
+                            spacing: 2
+                            DankTextField {
+                                id: hostField
+                                text: root.hostname
+                                onTextEdited: root.hostname = text  // not onTextChanged: that fires at load and would pin the branding default
+                                font.family: Theme.monoFontFamily
+                                implicitWidth: 260
+                                isError: root.hostnameProblem !== ""
+                            }
+                            // fisherman's hostname rule, in the copy's words.
+                            StyledText {
+                                text: root.hostnameProblem
+                                color: Theme.error
+                                visible: text !== ""
+                                font.pixelSize: Theme.fontSizeSmall
+                            }
                         }
                         StyledText { text: "Image"; color: Theme.surfaceVariantText }
                         StyledText {
-                            text: root.liveImage !== ""
-                                ? root.liveImage + "  (this system, no download)"
+                            text: root.isLive
+                                ? (root.liveImage || "this system") + "  (this system, no download)"
                                 : (root.defaultImage || "—")
                             isMonospace: true
                             font.pixelSize: Theme.fontSizeSmall
@@ -794,7 +887,7 @@ ApplicationWindow {
                     DankButton {
                         text: root.text("confirm_button")
                         destructive: true
-                        enabled: root.selectedDisk.path !== undefined
+                        enabled: root.selectedDisk.path !== undefined && root.hostnameProblem === ""
                         onClicked: root.startInstall()
                     }
                 }

@@ -29,7 +29,6 @@ from tests.unit.test_copy_coverage import (
 CHOICE_LISTS = {
     "cosmic": ("frontends/cosmic/src/main.rs", "pub const ENCRYPTION_TYPES: [&str; 4] = ["),
     "kde": ("frontends/kde/src/recipe.cpp", "static const QStringList types = {"),
-    "niri": ("frontends/niri/ui/installer.qml", "readonly property var encryptionTypes: ["),
 }
 CLOSERS = {"(": ")", "[": "]", "{": "}"}
 
@@ -37,8 +36,11 @@ CLOSERS = {"(": ")", "[": "]", "{": "}"}
 # keeping a list: (file, the text that shows it reads the copy). Their order
 # and their passphrase / TPM logic are then the file's.
 LOADS_THE_FILE = {
-    "xfce": ("frontends/xfce/tuna_installer_xfce/core.py",
-             "fisherman_validate.load_choices()"),
+    "xfce": [("frontends/xfce/tuna_installer_xfce/core.py",
+              "fisherman_validate.load_choices()")],
+    "niri": [("frontends/niri/installer/validate.go", "//go:embed encryption-choices.json"),
+             ("frontends/niri/installer/main.go", '"encryptionChoices": encryptionChoices()'),
+             ("frontends/niri/ui/installer.qml", "root.encryptionChoices = facts.encryptionChoices")],
 }
 # What logic on the type's name looked like before the file had
 # needs_passphrase and needs_tpm2.
@@ -194,9 +196,16 @@ class NoFrontendCarriesItsOwnWords(unittest.TestCase):
 
 class FrontendsReadTheFile(unittest.TestCase):
     def test_each_reads_its_copy(self):
-        for frontend, (path, marker) in LOADS_THE_FILE.items():
-            with self.subTest(frontend=frontend):
-                self.assertIn(marker, (REPO / path).read_text())
+        for frontend, markers in LOADS_THE_FILE.items():
+            for path, marker in markers:
+                with self.subTest(frontend=frontend, path=path):
+                    self.assertIn(marker, (REPO / path).read_text())
+
+    def test_no_frontend_that_reads_the_file_keeps_a_list(self):
+        for frontend in LOADS_THE_FILE:
+            for path, code in frontend_code(frontend):
+                with self.subTest(path=str(path.relative_to(REPO))):
+                    self.assertNotIn('"tpm2-luks-passphrase"', code)
 
     def test_no_frontend_decides_by_the_types_name(self):
         """needs_passphrase and needs_tpm2 come from the file. A frontend
