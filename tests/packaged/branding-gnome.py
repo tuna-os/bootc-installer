@@ -50,3 +50,73 @@ assert done.page_header.icon_name == 'dialog-error-symbolic'
 print(json.dumps({'result': 'pass', 'sandbox': True, 'module': branding.__file__,
                   'name': identity.name, 'resolved_logo': path,
                   'decoded_widgets': ['welcome', 'done', 'catalog'], 'size': [120, 60]}))
+
+# Recipe generation only: no backend process, disk access or installation.
+from bootc_installer.utils.processor import Processor
+
+storage = Processor.gen_install_recipe('unused', [{
+    'disk': {'auto': {'disk': '/dev/vdb'}, 'filesystem': 'ext4'},
+    'hostname': 'canary',
+}], {'imgref': 'localhost/qualification/example:latest',
+     'local_imgref': 'oci:/var/tmp/qualification/source',
+     'composeFsBackend': True, 'bootloader': 'systemd', 'filesystem': 'ext4'})
+assert storage['filesystem'] == 'ext4'
+assert storage['composeFsBackend'] is True
+assert storage['bootloader'] == 'systemd'
+assert storage['image'] == 'oci:/var/tmp/qualification/source'
+assert storage['targetImgref'] == 'localhost/qualification/example:latest'
+print(json.dumps({'storage_contract': 'pass', 'filesystem': storage['filesystem'],
+                  'composeFsBackend': storage['composeFsBackend'],
+                  'source_target_separate': True, 'installation_executed': False}))
+
+# Build the real wizard against a valid host catalog with a root-level leaf.
+# This catches constructor crashes that isolated Gtk.Image probes cannot.
+import tempfile
+
+from bootc_installer.core.system import Systeminfo
+from bootc_installer.utils.recipe import RecipeLoader
+from bootc_installer.views.progress import BootcProgress
+from bootc_installer.windows.main_window import BootcWindow
+
+with tempfile.TemporaryDirectory() as directory:
+    recipe_path = directory + '/recipe.json'
+    with open(recipe_path, 'w') as stream:
+        json.dump({'log_file': directory + '/wizard.log',
+                   'imgref': 'localhost/qualification/example:latest',
+                   'steps': {'welcome': {'template': 'welcome'},
+                             'image': {'template': 'image'}}}, stream)
+    application = Adw.Application(application_id='org.bootcinstaller.Installer.Probe',
+                                  flags=Gio.ApplicationFlags.NON_UNIQUE)
+    application.register(None)
+    with patch.dict(os.environ, {'BOOTC_CUSTOM_RECIPE': recipe_path}), \
+            patch.object(RecipeLoader, '_host_live', return_value=(False, '')), \
+            patch.object(Systeminfo, 'probe', return_value=None), \
+            patch.object(BootcProgress, 'start', side_effect=AssertionError('installation forbidden')):
+        window = BootcWindow(application=application)
+        window.present()
+        from gi.repository import GLib
+        for _ in range(50):
+            while GLib.MainContext.default().pending():
+                GLib.MainContext.default().iteration(False)
+        assert window.get_mapped(), 'real wizard did not map'
+        assert window.carousel.get_n_pages() >= 2
+        pages = window._BootcWindow__builder.widgets
+        welcome_page = next(page for page in pages if isinstance(page, BootcDefaultWelcome))
+        assert identity.name in welcome_page.page_header.title
+        assert welcome_page.page_header._icon.get_paintable() is not None
+        from bootc_installer.defaults.image import BootcDefaultImage
+        image_page = next(page for page in pages if isinstance(page, BootcDefaultImage))
+        selected = image_page.get_finals()
+        assert selected['selected_image'] == 'localhost/qualification/example:latest'
+        assert selected['pretty_name'] == identity.name
+        # Follow the real window's finals-to-Done identity path, rather than
+        # constructing a completion widget with no selected image metadata.
+        from bootc_installer.windows.main_window import _extract_icon_and_name
+        window.pretty_name, window.selected_icon = _extract_icon_and_name([selected])
+        completed = BootcDone(window)
+        completed.set_result(True, None)
+        assert completed.page_header.title == identity.name + ' is installed'
+        assert completed.page_header._icon.get_paintable() is not None
+        window.close()
+print(json.dumps({'packaged_window': 'pass', 'catalog_root_leaf': True, 'selected_done_name': identity.name,
+                  'installation_executed': False}))
