@@ -242,6 +242,27 @@ class TestEncryptionChoices(unittest.TestCase):
 
 @unittest.skipUnless(RULES_GO.exists(), "fisherman submodule not checked out")
 class TestCopyKeys(unittest.TestCase):
+    def test_path_problems_render_specific_copy(self):
+        # Fisherman owns validation; the UI must explain these three distinct
+        # path rules, rather than fall back to the engine's raw message.
+        copy = json.loads(COPY_DEFAULTS.read_text())
+        expected = {
+            "custom_mount_target_invalid":
+                'Use "swap" or an absolute mount path without ".." components.',
+            "target_mount_invalid":
+                'Use an absolute installation target path other than / without ".." components.',
+            "flatpak_var_path_invalid":
+                'Keep the Flatpak data path inside the installed system: do not use ".." components.',
+        }
+        for code, message in expected.items():
+            with self.subTest(code=code):
+                problem = {"code": code, "message": "engine fallback"}
+                self.assertEqual(fv.render(problem, copy.get), message)
+                # Product overrides still go through the same copy contract.
+                override = {fv.copy_key(code): "Product-specific guidance"}
+                self.assertEqual(fv.render(problem, override.get),
+                                 "Product-specific guidance")
+
     def test_every_code_has_a_copy_key(self):
         copy = json.loads(COPY_DEFAULTS.read_text())
         codes = fisherman_codes()
