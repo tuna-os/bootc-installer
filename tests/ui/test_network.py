@@ -204,3 +204,48 @@ def test_network_page_renders_mocked_wired_and_wireless_devices(monkeypatch):
             sys.modules.pop("bootc_installer.defaults.network", None)
         if fake_nm is not None:
             sys.modules.pop("gi.repository.NM", None)
+
+
+def test_network_page_keeps_next_hidden_without_connection(monkeypatch):
+    """An unavailable network must not enable or skip the page."""
+    network_module = None
+    fake_nm = None
+    client = None
+    try:
+        network_module, fake_nm = _load_network(monkeypatch, lambda: client)
+        ethernet = _FakeDevice(
+            fake_nm.DeviceType.ETHERNET,
+            state=fake_nm.DeviceState.UNAVAILABLE,
+        )
+        wifi = _FakeDevice(
+            fake_nm.DeviceType.WIFI,
+            state=fake_nm.DeviceState.DISCONNECTED,
+        )
+        client = _FakeClient((ethernet, wifi))
+
+        window = SimpleNamespace(carousel=MagicMock(), next=MagicMock())
+        step = {"num": 3}
+        with patch.object(network_module, "RunAsync") as run_async:
+            page = network_module.BootcDefaultNetwork(
+                window,
+                {"name": "Test OS"},
+                "network",
+                step,
+            )
+
+        assert page.wired_group.get_visible()
+        assert page.wireless_group.get_visible()
+        assert not page.has_eth_connection
+        assert not page.has_wifi_connection
+        assert not page.btn_next.get_visible()
+        assert not page.btn_next.get_sensitive()
+
+        page._BootcDefaultNetwork__try_skip_page(None, step["num"])
+        page._BootcDefaultNetwork__try_skip_page(None, step["num"] + 1)
+        window.next.assert_not_called()
+        assert run_async.call_count == 1
+    finally:
+        if network_module is not None:
+            sys.modules.pop("bootc_installer.defaults.network", None)
+        if fake_nm is not None:
+            sys.modules.pop("gi.repository.NM", None)
