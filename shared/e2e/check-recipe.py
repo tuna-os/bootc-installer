@@ -11,7 +11,8 @@ Independent verdicts, all required:
     the five frontends write against;
   * it targets the disk the job set up, so a frontend that picked the wrong
     device is caught here and not by a partitioned runner;
-  * it leaves SELinux on (selinuxDisabled is not true).
+  * it leaves SELinux on (selinuxDisabled is not true);
+  * a frontend with an account step (USER_STEP) wrote a user block, in wheel.
 The recipe is then copied to e2e-recipe-<frontend>.json for the VM job.
 """
 import json
@@ -22,6 +23,8 @@ import sys
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 REAL = "/usr/local/lib/tuna-e2e/fisherman.real"
+# Frontends whose E2E driver fills an account step.
+USER_STEP = {"cosmic"}
 
 
 def main():
@@ -86,6 +89,15 @@ def main():
     # system's kernel arguments. Four frontends once hardcoded it (#160).
     if recipe.get("selinuxDisabled") is True:
         failures.append("selinuxDisabled is true: the installed system would boot with selinux=0")
+    # Frontends with an account step must hand over the user block: without
+    # one, an image with needs_user_creation installs with no way to sign in.
+    # Others join this set when they gain the step (docs/PARITY.md gap #4).
+    if frontend in USER_STEP:
+        user = recipe.get("user") or {}
+        if not user.get("username"):
+            failures.append(f"user: {frontend} has an account step but wrote no username: {user!r}")
+        elif "wheel" not in (user.get("groups") or []):
+            failures.append(f"user: the first account is not in wheel: {user.get('groups')!r}")
 
     out = f"e2e-recipe-{frontend}.json"
     shutil.copyfile(path, out)
