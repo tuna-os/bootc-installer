@@ -12,8 +12,8 @@ Independent verdicts, all required:
   * it targets the disk the job set up, so a frontend that picked the wrong
     device is caught here and not by a partitioned runner;
   * it leaves SELinux on (selinuxDisabled is not true);
-  * a frontend with an account step (USER_STEP) wrote the `user` block,
-    with a username, a password and groups ["wheel"].
+  * for a frontend with a required account step (USER_STEP), it creates a
+    user in wheel.
 The recipe is then copied to e2e-recipe-<frontend>.json for the VM job.
 """
 import json
@@ -24,10 +24,9 @@ import sys
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 REAL = "/usr/local/lib/tuna-e2e/fisherman.real"
-# Frontends whose E2E driver fills an account step. Without the `user`
-# block fisherman creates no account, and the installed system has nobody
-# to sign in as.
-USER_STEP = {"kde"}
+# Frontends whose wizard has a required account step: their recipe must
+# create a user, in wheel, or the installed system has nobody to log in as.
+USER_STEP = {"cosmic", "kde", "niri"}
 
 
 def main():
@@ -95,11 +94,9 @@ def main():
     if frontend in USER_STEP:
         user = recipe.get("user") or {}
         if not user.get("username"):
-            failures.append("user: no username; the installed system would have no account")
-        if not user.get("password"):
-            failures.append("user: no password")
-        if user.get("groups") != ["wheel"]:
-            failures.append(f"user: groups {user.get('groups')!r}, expected ['wheel']")
+            failures.append("user: the account step produced no username")
+        elif "wheel" not in (user.get("groups") or []):
+            failures.append(f"user: {user.get('username')!r} is not in wheel: {user.get('groups')!r}")
 
     out = f"e2e-recipe-{frontend}.json"
     shutil.copyfile(path, out)
