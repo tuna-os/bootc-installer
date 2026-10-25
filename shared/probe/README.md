@@ -52,7 +52,8 @@ and must produce the same list.
   frontend has space for it.
 - **Removable disks:** offer the `removable: true` disks too. fisherman
   already removes the live USB (`boot_disk`), so a frontend must not hide
-  removable disks.
+  removable disks. Frontends warn before erasing one through the
+  `confirm_warning_removable` copy key (#251).
 - **No eligible disks:** say so on the disk page. Do not skip the page.
 - **Minimum size:** fisherman removes disks smaller than 50 GiB
   (`too_small`). Frontends do not apply a minimum of their own.

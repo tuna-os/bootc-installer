@@ -392,6 +392,7 @@ class TestBootcDefaultDiskAutoPartitionRecipe(unittest.TestCase):
                     "pretty_size": "500 GB",
                     "size": 500,
                     "model": "",
+                    "removable": False,
                     "vgs_to_remove": [],
                     "pvs_to_remove": [],
                 }

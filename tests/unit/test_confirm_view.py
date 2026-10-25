@@ -201,6 +201,8 @@ class TestConfirmUpdate(unittest.TestCase):
         obj.group_changes = MagicMock()
         obj.btn_confirm = MagicMock()
         obj.page_header = MagicMock()
+        obj.row_warning = MagicMock()
+        obj.group_warning = MagicMock()
         return obj
 
     def test_update_with_language_adds_widget(self):
@@ -222,6 +224,63 @@ class TestConfirmUpdate(unittest.TestCase):
         obj = self._make_obj()
         obj.update([{"disk": {"auto": {"disk": "/dev/sda", "pretty_size": "100 GB"}}}])
         self.assertGreater(len(obj.active_widgets), 0)
+    def test_update_with_disk_auto_warns_everything_erased_by_default(self):
+        # #251: a non-removable (or unflagged) disk keeps the original,
+        # unqualified erase warning.
+        obj = self._make_obj()
+        _set_window(obj, {})
+        obj.update([{"disk": {"auto": {"disk": "/dev/sda", "pretty_size": "100 GB"}}}])
+        obj.row_warning.set_title.assert_called_once()
+        (warning,), _ = obj.row_warning.set_title.call_args
+        self.assertIn("/dev/sda", warning)
+        self.assertIn("erased", warning)
+        self.assertNotIn("removable", warning)
+        obj.group_warning.set_visible.assert_called_once_with(True)
+
+    def test_update_with_removable_disk_warns_removable_drive(self):
+        # #251: fisherman flags the auto disk "removable" (USB stick or
+        # other external drive); the confirm page must say so, not just
+        # "everything will be erased".
+        obj = self._make_obj()
+        _set_window(obj, {})
+        obj.update([{"disk": {"auto": {
+            "disk": "/dev/sdb", "pretty_size": "14.8 GiB", "removable": True,
+        }}}])
+        obj.row_warning.set_title.assert_called_once()
+        (warning,), _ = obj.row_warning.set_title.call_args
+        self.assertIn("/dev/sdb", warning)
+        self.assertIn("removable", warning)
+
+    def test_update_with_manual_partitioning_shows_no_erase_warning(self):
+        # Manual partitioning may touch only part of a disk, so there is no
+        # "erase_disk" and no row -- unchanged behaviour, guarded so the new
+        # removable branch cannot start firing here by accident.
+        obj = self._make_obj()
+        _set_window(obj, {})
+        obj.update([{"disk": {"/dev/sda1": {"fs": "fat32", "mp": "/boot/efi",
+                                             "pretty_size": "500 MiB"}}}])
+        obj.row_warning.set_title.assert_called_once_with("")
+        obj.group_warning.set_visible.assert_called_once_with(False)
+
+    def test_removable_warning_can_be_rebranded(self):
+        obj = self._make_obj()
+        _set_window(obj, {"branding": {
+            "copy": {"confirm_warning_removable": "Careful: {disk} is external."}}})
+        obj.update([{"disk": {"auto": {"disk": "/dev/sdc", "removable": True}}}])
+        obj.row_warning.set_title.assert_called_once_with("Careful: /dev/sdc is external.")
+
+    def test_removable_warning_empty_override_falls_back_not_hidden(self):
+        # Same safety net as confirm_warning: a branding file cannot silence
+        # the warning on a whole-disk erase, removable or not.
+        obj = self._make_obj()
+        _set_window(obj, {"branding": {
+            "copy": {"confirm_warning_removable": ""}}})
+        obj.update([{"disk": {"auto": {"disk": "/dev/sdc", "removable": True}}}])
+        obj.row_warning.set_title.assert_called_once()
+        (warning,), _ = obj.row_warning.set_title.call_args
+        self.assertTrue(warning)
+        obj.group_warning.set_visible.assert_called_once_with(True)
+
 
     def test_update_with_encryption_none_adds_widget(self):
         obj = self._make_obj()

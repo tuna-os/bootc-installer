@@ -85,6 +85,7 @@ TunaComponents.SetupModule {
                         required property string device
                         required property string title
                         required property string subtitle
+                        required property bool removable
 
                         // The model (the path when it is unknown); the
                         // path, fisherman's size label and the bus below.
@@ -94,6 +95,7 @@ TunaComponents.SetupModule {
 
                         onToggled: if (checked) {
                             InstallerController.disk = device;
+                            InstallerController.diskRemovable = removable;
                         }
                     }
                 }

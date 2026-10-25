@@ -9,8 +9,11 @@ def build_auto_partition_recipe(disk) -> dict:
             "pretty_size": disk.pretty_size,
             "size": disk.size,
             # For the confirm page only (Processor reads "disk"): the model
-            # names the physical disk that is about to be erased.
+            # names the physical disk that is about to be erased, and
+            # "removable" (#251) lets the confirm page warn that it is a
+            # USB stick or other external drive, not the internal disk.
             "model": getattr(disk, "model", "") or "",
+            "removable": bool(getattr(disk, "is_removable", False)),
             "vgs_to_remove": [],
             "pvs_to_remove": [],
         }

@@ -99,7 +99,7 @@ about to be erased.
 | `welcome_title`, `welcome_subtitle` | welcome heading and line under it |
 | `welcome_install`, `welcome_install_subtitle`, `welcome_button` | the install row (GNOME) or the forward button |
 | `encryption_<type>_label`, `encryption_<type>_description` | each encryption choice, and the confirm page's encryption row (the label) |
-| `confirm_title`, `confirm_subtitle`, `confirm_body`, `confirm_warning`, `confirm_button` | the last page before the disk is written |
+| `confirm_title`, `confirm_subtitle`, `confirm_body`, `confirm_warning`, `confirm_warning_removable`, `confirm_button` | the last page before the disk is written |
 | `progress_title`, `progress_note` | while fisherman runs |
 | `step_<step_id>` | the label of the install step that is running |
 | `recovery_key_title`, `recovery_key_body`, `recovery_key_copy`, `recovery_key_ack` | the recovery-key panel after a TPM enrolment |

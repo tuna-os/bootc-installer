@@ -496,7 +496,13 @@ class ConfirmPage(Page):
         width = max(len(k) for k, _ in rows) + 2
         lines = [f"{k + ':':<{width}}{v}" for k, v in rows]
         self.summary.set_markup("<tt>" + GLib.markup_escape_text("\n".join(lines)) + "</tt>")
-        self.warn_text.set_text(core.BRANDING.text("confirm_warning", disk=disk))
+        selected = self.win.pages["destination"].selected_disk()
+        warn_key = (
+            "confirm_warning_removable"
+            if selected and selected.get("removable")
+            else "confirm_warning"
+        )
+        self.warn_text.set_text(core.BRANDING.text(warn_key, disk=disk))
 
 
 class ProgressPage(Page):

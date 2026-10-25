@@ -12,7 +12,7 @@ from bootc_installer.defaults.disk_plan import (
 class TestDiskPlan(unittest.TestCase):
     def test_build_auto_partition_recipe_copies_disk_contract(self):
         disk = SimpleNamespace(disk="/dev/nvme0n1", pretty_size="500 GB", size=500,
-                               model="Samsung SSD 980 PRO")
+                               model="Samsung SSD 980 PRO", is_removable=False)
 
         self.assertEqual(build_auto_partition_recipe(disk), {
             "auto": {
@@ -20,10 +20,28 @@ class TestDiskPlan(unittest.TestCase):
                 "pretty_size": "500 GB",
                 "size": 500,
                 "model": "Samsung SSD 980 PRO",
+                "removable": False,
                 "vgs_to_remove": [],
                 "pvs_to_remove": [],
             }
         })
+
+    def test_build_auto_partition_recipe_flags_removable_disk(self):
+        # #251: a USB stick or other external drive must carry "removable"
+        # into the finals so the confirm page can warn about it.
+        disk = SimpleNamespace(disk="/dev/sdb", pretty_size="14.8 GiB", size=15931539456,
+                               model="Ultra Fit", is_removable=True)
+
+        recipe = build_auto_partition_recipe(disk)
+        self.assertTrue(recipe["auto"]["removable"])
+
+    def test_build_auto_partition_recipe_defaults_removable_when_absent(self):
+        # A disk object with no is_removable attribute (e.g. an older test
+        # double) must not raise, and must be treated as not removable.
+        disk = SimpleNamespace(disk="/dev/sda", pretty_size="500 GB", size=500, model="")
+
+        recipe = build_auto_partition_recipe(disk)
+        self.assertFalse(recipe["auto"]["removable"])
 
     def test_build_disk_finals_adds_auto_filesystem_contract(self):
         result = build_disk_finals(
