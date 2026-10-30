@@ -28,7 +28,8 @@
     {
       "name": "go",
       "buildsystem": "simple",
-      "build-commands": ["cp -r go /app/go"],
+      "build-commands": ["cp -r go /app/go", "install -Dm644 go/LICENSE /app/share/licenses/go/LICENSE"],
+      "cleanup": ["/go"],
       "sources": [
         {
           "type": "archive",
