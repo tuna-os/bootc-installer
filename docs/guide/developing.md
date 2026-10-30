@@ -41,7 +41,7 @@ native helper. Keep the compiled helpers in `/app/bin` and the Go license in
 `/app/share/licenses/go/LICENSE`.
 
 `tests/packaged/host-staging-gnome.py` checks the actual installed application.
-It requires `/app/go` to be absent, verifies the persistent host copy of
+It checks that `/app/go` is absent, verifies the persistent host copy of
 fisherman, and runs its help and read-only schema check from the host.
 This probe does not install an operating system or qualify a GUI session.
 Use the same checks after a package cleanup change; source-file checks alone
