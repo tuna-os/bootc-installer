@@ -7,8 +7,9 @@ name: KDE wasm build
 # rendered yet, because the KF6 QML stack (Kirigami, Kirigami Addons) is not
 # bundled. shared/browser/README.md records what is left.
 #
-# Qt 6.9 matches the org.kde.Platform 6.9 runtime in the Flatpak manifest, and
-# Emscripten 3.1.70 is the version Qt 6.9 is built with. The multithread Qt is
+# Qt 6.9 is the wasm Qt this check was set up with; it no longer matches the
+# org.kde.Platform 6.11 runtime in the Flatpak manifest (#273). Emscripten
+# 3.1.70 is the version Qt 6.9 is built with. The multithread Qt is
 # used because Kirigami needs QtConcurrent, which the single-thread wasm Qt
 # does not ship.
 
