@@ -45,7 +45,7 @@ jobs:
       app-id: org.tunaos.InstallerKde
       manifest-path: frontends/kde/flatpak/org.tunaos.InstallerKde.json
       # Must track "runtime-version" in the manifest.
-      flatpak-builder-image: kde-6.9
+      flatpak-builder-image: kde-6.11
       # aarch64 alongside x86_64: the tunaOS live-ISO build installs this
       # Flatpak from the tuna-os remote on both architectures.
       archs: ${{ inputs.archs }}

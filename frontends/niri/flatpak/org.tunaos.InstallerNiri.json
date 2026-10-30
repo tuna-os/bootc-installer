@@ -1,7 +1,7 @@
 {
   "app-id": "org.tunaos.InstallerNiri",
   "runtime": "org.kde.Platform",
-  "runtime-version": "6.9",
+  "runtime-version": "6.11",
   "sdk": "org.kde.Sdk",
   "command": "tuna-installer-niri",
   "finish-args": [
@@ -96,7 +96,7 @@
         {
           "type": "git",
           "url": "https://git.outfoxxed.me/quickshell/quickshell.git",
-          "tag": "v0.1.0"
+          "tag": "v0.2.1"
         }
       ]
     },
