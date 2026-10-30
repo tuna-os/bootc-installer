@@ -11,6 +11,7 @@ from bootc_installer.utils import fisherman_runner as runner
 
 assert runner.__file__.startswith('/app/')
 assert runner.IN_FLATPAK
+assert not os.path.lexists('/app/go'), 'build-only Go SDK must not be shipped'
 assert runner.CACHE_DIR == os.path.join(os.environ['XDG_CACHE_HOME'], 'bootc-installer')
 if sys.argv[1] == 'stage':
     assert runner.stage_on_host(), 'staging must verify the actual host-visible payload'
@@ -23,6 +24,9 @@ assert hashlib.sha256(Path(runner.HOST_PATH).read_bytes()).hexdigest() == expect
 host = subprocess.run(['flatpak-spawn', '--host', 'sha256sum', '--', runner.HOST_PATH],
                       check=True, capture_output=True, text=True, timeout=10)
 assert host.stdout.split()[0] == expected
+# The compiled helper must start on the host without the build-time Go SDK.
+subprocess.run(runner.fisherman_argv() + ['--help'],
+               check=True, capture_output=True, text=True, timeout=10)
 # Read-only schema validation proves host execution; never run the install command.
 validated = subprocess.run(runner.fisherman_argv() + ['validate', '--json', '--partial', '-'],
                            check=False, input='{"hostname":"packaged-canary"}',
@@ -30,4 +34,5 @@ validated = subprocess.run(runner.fisherman_argv() + ['validate', '--json', '--p
 assert validated.returncode == 0, validated.stderr
 json.loads(validated.stdout)
 print(json.dumps({'host_staging': 'pass', 'phase': sys.argv[1],
-                  'path': runner.HOST_PATH, 'sha256': expected, 'validation': 'passed'}))
+                  'path': runner.HOST_PATH, 'sha256': expected, 'validation': 'passed',
+                  'go_sdk': 'absent', 'native_help': 'passed'}))

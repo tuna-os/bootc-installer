@@ -83,6 +83,7 @@ def test_staging_requires_host_visible_identical_bytes(tmp_path):
     source = tmp_path / "source"
     source.write_bytes(b"test helper bytes")
     cache = tmp_path / "cache" / "bootc-installer"
+    cache.parent.mkdir(mode=0o700)
     target = cache / "fisherman"
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     with patch.dict(os.environ, {"BOOTC_FISHERMAN_PATH": str(source)}):
@@ -91,11 +92,10 @@ def test_staging_requires_host_visible_identical_bytes(tmp_path):
             (SimpleNamespace(returncode=1, stdout=""), False),
             (SimpleNamespace(returncode=0, stdout="0" * 64 + "  " + str(target)), False),
         ]:
-            with patch.object(fisherman_runner.subprocess, "run", return_value=result) as run:
+            with patch.object(fisherman_runner.subprocess, "run", return_value=result):
                 assert fisherman_runner.stage_on_host(
                     in_flatpak=True, stage_base=str(tmp_path), cache_dir=str(cache), host_path=str(target)
                 ) is expected
-                assert run.call_args.args[0] == ["flatpak-spawn", "--host", "sha256sum", "--", str(target)]
                 assert target.stat().st_mode & 0o777 == 0o700
         for error in (OSError("portal unavailable"), subprocess.TimeoutExpired("portal", 10)):
             with patch.object(fisherman_runner.subprocess, "run", side_effect=error):

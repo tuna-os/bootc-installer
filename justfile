@@ -13,7 +13,9 @@ python-test:
     python3 -m pytest tests/unit/ -v --tb=short
 
 flatpak-validate:
-    for manifest in flatpak/*installer*.json; do
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for manifest in flatpak/*installer*.json frontends/*/flatpak/org.tunaos.Installer*.json; do
       python3 -m json.tool "$manifest" > /dev/null
       jq -e '."app-id" and .runtime and .command' "$manifest" > /dev/null
     done
