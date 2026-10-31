@@ -2,6 +2,9 @@ name: CI Tests
 
 on:
   pull_request:
+    # All sweep helpers are inline below; source changes use go/python-test.yml.
+    paths:
+      - '.github/workflows/nightly.yml'
   schedule:
     - cron: '0 6 * * 0'   # 06:00 UTC weekly (Sunday)
   workflow_dispatch:
@@ -109,7 +112,7 @@ jobs:
             --prefix=/tmp/tuna-install
           ninja -C build
           RESOURCE=$(find build -name "bootc-installer.gresource" | head -1)
-          echo "TUNA_RESOURCE=${RESOURCE}" >> $GITHUB_ENV
+          echo "TUNA_RESOURCE=${RESOURCE}" >> "$GITHUB_ENV"
 
       - name: Run UI integration tests (Xvfb)
         env:
@@ -160,7 +163,7 @@ jobs:
             --prefix=/tmp/tuna-install
           ninja -C build
           RESOURCE=$(find build -name "bootc-installer.gresource" | head -1)
-          echo "TUNA_RESOURCE=${RESOURCE}" >> $GITHUB_ENV
+          echo "TUNA_RESOURCE=${RESOURCE}" >> "$GITHUB_ENV"
 
       - name: Run integration tests
         env:

@@ -70,6 +70,16 @@ python3 -m ruff check bootc_installer/ tests/   # Lint
 
 CI gate: `--cov-fail-under=51` (the minimum coverage for unit tests).
 
+### PR checks versus the weekly branch sweep
+
+`Go Tests` and `Python Tests` check the PR head SHA and its pinned fisherman
+submodule. Push and merge-group runs check the event SHA.
+
+`CI Tests` checks `prod` and `dev`, not the PR head. It runs on PRs only when
+`.github/workflows/nightly.yml` changes. The Sunday 06:00 UTC schedule and
+manual runs still check both branches. Do not require this path-filtered
+workflow: GitHub leaves skipped PR workflows pending.
+
 ## Branch workflow
 
 - Default branch: **`dev`**
