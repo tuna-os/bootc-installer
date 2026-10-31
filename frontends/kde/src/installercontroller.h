@@ -32,6 +32,7 @@ class InstallerController : public QObject
     QML_SINGLETON
 
     Q_PROPERTY(QString disk READ disk WRITE setDisk NOTIFY recipeChanged)
+    Q_PROPERTY(bool diskRemovable READ diskRemovable WRITE setDiskRemovable NOTIFY recipeChanged)
     Q_PROPERTY(QString filesystem READ filesystem WRITE setFilesystem NOTIFY recipeChanged)
     Q_PROPERTY(bool btrfsSubvolumes READ btrfsSubvolumes WRITE setBtrfsSubvolumes NOTIFY recipeChanged)
     Q_PROPERTY(QString encryptionType READ encryptionType WRITE setEncryptionType NOTIFY recipeChanged)
@@ -136,6 +137,14 @@ public:
 
     QString disk() const { return m_recipe.disk; }
     void setDisk(const QString &v);
+    bool diskRemovable() const { return m_diskRemovable; }
+    void setDiskRemovable(bool v)
+    {
+        if (m_diskRemovable == v)
+            return;
+        m_diskRemovable = v;
+        Q_EMIT recipeChanged();
+    }
     QString filesystem() const { return m_recipe.filesystem; }
     void setFilesystem(const QString &v);
     bool btrfsSubvolumes() const { return m_recipe.btrfsSubvolumes; }
@@ -259,6 +268,7 @@ private:
     void runValidate();
 
     Recipe m_recipe;
+    bool m_diskRemovable = false;
     QString m_liveImage;
     QList<validate::Problem> m_problems;
     QTimer m_validateTimer;

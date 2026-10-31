@@ -92,6 +92,7 @@ ApplicationWindow {
             confirm_subtitle: "",
             confirm_body: "",
             confirm_warning: "Everything on {disk} will be erased. This cannot be undone.",
+            confirm_warning_removable: "{disk} is a removable drive. Make sure it isn't your install media or another disk you want to keep. Everything on it will be erased, and this cannot be undone.",
             confirm_button: "Install",
             progress_title: "Installing {name}…",
             progress_note: "Do not power off the computer.",
@@ -678,7 +679,7 @@ ApplicationWindow {
                     font.weight: Theme.fontWeightMedium
                 }
                 StyledText {
-                    text: root.text("confirm_warning", { disk: root.selectedDisk.path !== undefined
+                    text: root.text(root.selectedDisk.removable ? "confirm_warning_removable" : "confirm_warning", { disk: root.selectedDisk.path !== undefined
                         ? root.selectedDisk.path : "the selected disk" })
                     color: Theme.warning
                     Layout.fillWidth: true
@@ -968,7 +969,7 @@ ApplicationWindow {
                     StyledText {
                         id: warnText
                         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: Theme.spacingM }
-                        text: "⚠  " + root.text("confirm_warning", { disk: root.selectedDisk.path ? root.selectedDisk.path : "the selected disk" })
+                        text: "⚠  " + root.text(root.selectedDisk.removable ? "confirm_warning_removable" : "confirm_warning", { disk: root.selectedDisk.path ? root.selectedDisk.path : "the selected disk" })
                         color: Theme.warning
                     }
                 }

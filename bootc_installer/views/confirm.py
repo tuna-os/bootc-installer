@@ -126,6 +126,7 @@ class BootcConfirm(Adw.Bin):
         primary = {"disk": [], "filesystem": [], "encryption": [],
                    "hostname": [], "image": []}
         erase_disk = None
+        erase_disk_removable = False
 
         for final in finals:
             for key, value in final.items():
@@ -158,6 +159,7 @@ class BootcConfirm(Adw.Bin):
                     if "auto" in value:
                         auto = value["auto"]
                         erase_disk = auto.get("disk", "")
+                        erase_disk_removable = bool(auto.get("removable", False))
                         primary["disk"].append(
                             BootcChoiceEntry(
                                 _("Target disk"),
@@ -285,11 +287,17 @@ class BootcConfirm(Adw.Bin):
         # with {disk} filled in, in a row of its own above the summary. Plain
         # text, not markup -- the line can come from a product's branding
         # file. Unlike other copy keys an empty line does not hide it: a
-        # whole-disk erase is always announced.
+        # whole-disk erase is always announced. A removable disk (#251: USB
+        # stick or other external drive, flagged by fisherman's probe) gets
+        # confirm_warning_removable instead, so the one moment that commits
+        # to erasing it says so plainly.
         warning = ""
         if erase_disk:
+            warning_key = (
+                "confirm_warning_removable" if erase_disk_removable else "confirm_warning"
+            )
             warning = (
-                copy_text.text(self.__window, "confirm_warning", disk=erase_disk)
+                copy_text.text(self.__window, warning_key, disk=erase_disk)
                 or _("All data on this disk will be erased. This cannot be undone."))
         self.row_warning.set_title(warning)
         self.group_warning.set_visible(bool(warning))

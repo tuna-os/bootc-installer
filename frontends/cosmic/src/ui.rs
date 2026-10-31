@@ -217,7 +217,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
         Page::Confirm => vec![
             t_line("confirm_title"),
             confirm_subtitle(),
-            t_disk("confirm_warning", &confirm_disk(app)),
+            t_disk(confirm_warn_key(app), &confirm_disk(app)),
             t_line("confirm_body"),
             CONFIRM_SUMMARY.to_string(),
             CONFIRM_TARGET_DISK.to_string(),
@@ -291,6 +291,18 @@ fn confirm_disk(app: &TunaInstaller) -> String {
         .and_then(|i| app.disks().get(i))
         .map_or_else(|| "?".to_string(), |d| d.path.clone())
 }
+fn confirm_warn_key(app: &TunaInstaller) -> &'static str {
+    let removable = app
+        .selected_disk()
+        .and_then(|i| app.disks().get(i))
+        .map_or(false, |d| d.removable);
+    if removable {
+        "confirm_warning_removable"
+    } else {
+        "confirm_warning"
+    }
+}
+
 
 fn confirm_image(app: &TunaInstaller) -> String {
     match (app.live_image(), app.recipe().image.is_empty()) {
@@ -815,7 +827,7 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
                 .size(16)
                 .icon()
                 .into(),
-            widget::text::body(t_disk("confirm_warning", &confirm_disk(app)))
+            widget::text::body(t_disk(confirm_warn_key(app), &confirm_disk(app)))
             .class(cosmic::theme::Text::Color(
                 theme.cosmic().warning_text_color().into(),
             ))

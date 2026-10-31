@@ -43,6 +43,7 @@ claimed a render that nobody had wired up.
 | `confirm_subtitle` | header subtitle | italic label, hidden | page subtitle | label, hidden | label, hidden |
 | `confirm_body` | dim label, hidden | label, hidden | body, hidden | label, hidden | label, hidden |
 | `confirm_warning` | summary warning row (own group above the summary, `{disk}` filled) | inline message | warning card | warning line | warning row naming the selected disk |
+| `confirm_warning_removable` | summary warning row (replaces `confirm_warning` when the target disk is removable, `{disk}` filled) | inline message (replaces `confirm_warning`) | warning card (replaces `confirm_warning`) | warning line (replaces `confirm_warning`) | warning row (replaces `confirm_warning`) |
 | `confirm_button` | pill button | Next button | forward button | button | Next button |
 | `confirm_quotes` | random line per language | no | no | no | no |
 | `progress_title` | image-writing step label (centred title) | label | page title | heading | page title |

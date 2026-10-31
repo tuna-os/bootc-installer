@@ -80,6 +80,7 @@ COPY_DEFAULTS_JSON = r'''{
   "confirm_subtitle": "",
   "confirm_body": "",
   "confirm_warning": "Everything on {disk} will be erased. This cannot be undone.",
+  "confirm_warning_removable": "{disk} is a removable drive. Make sure it isn't your install media or another disk you want to keep. Everything on it will be erased, and this cannot be undone.",
   "confirm_button": "Install",
   "progress_title": "Installing {name}…",
   "progress_note": "Do not power off the computer.",
