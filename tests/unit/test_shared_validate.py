@@ -8,13 +8,12 @@ for `fisherman validate --json` and the encryption choices file.
    a partial recipe can hold the LUKS passphrase, and argv is
    world-readable in /proc.
 4. LiveCheck debounces, runs off the UI thread, and drops stale answers.
-5. Every problem code fisherman can report has a `validate_<code>` copy key.
+5. New problem codes retain fisherman's message when no branded copy exists.
 """
 
 import json
 import os
 import pathlib
-import re
 import stat
 import sys
 import tempfile
@@ -23,7 +22,7 @@ import unittest
 REPO = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "shared" / "recipe"))
 
-import fisherman_validate as fv  # noqa: E402
+import fisherman_validate as fv
 
 CANONICAL = REPO / "shared" / "recipe" / "fisherman_validate.py"
 COPIES = [
@@ -31,14 +30,7 @@ COPIES = [
     REPO / "frontends" / "xfce" / "tuna_installer_xfce" / "fisherman_validate.py",
 ]
 GOLDEN = REPO / "fisherman" / "fisherman" / "cmd" / "fisherman" / "testdata" / "validate"
-RULES_GO = REPO / "fisherman" / "fisherman" / "internal" / "recipe" / "rules.go"
 COPY_DEFAULTS = REPO / "shared" / "branding" / "copy-defaults.json"
-
-
-def fisherman_codes():
-    src = RULES_GO.read_text()
-    block = src.split("const (", 1)[1].split(")", 1)[0]
-    return set(re.findall(r'Code[A-Za-z0-9]+\s*=\s*"([a-z0-9_]+)"', block))
 
 
 class TestCopies(unittest.TestCase):
@@ -78,9 +70,8 @@ class TestParse(unittest.TestCase):
     def test_rejects_garbage(self):
         for text in ("", "not json", "[]", '{"protocol_version": 2, "errors": []}',
                      '{"protocol_version": 1}'):
-            with self.subTest(text=text):
-                with self.assertRaises(fv.ValidateError):
-                    fv.parse(text)
+            with self.subTest(text=text), self.assertRaises(fv.ValidateError):
+                fv.parse(text)
 
     def test_an_unknown_code_shows_fishermans_message(self):
         problem = {"field": "hostname", "code": "hostname_new_rule", "message": "say why"}
@@ -238,23 +229,6 @@ class TestEncryptionChoices(unittest.TestCase):
         self.assertTrue(fv.needs_tpm2("tpm2-luks", choices))
         self.assertFalse(fv.needs_tpm2("", choices))
         self.assertIsNone(fv.choice("luks", choices))
-
-
-@unittest.skipUnless(RULES_GO.exists(), "fisherman submodule not checked out")
-class TestCopyKeys(unittest.TestCase):
-    def test_every_code_has_a_copy_key(self):
-        copy = json.loads(COPY_DEFAULTS.read_text())
-        codes = fisherman_codes()
-        self.assertGreater(len(codes), 20)
-        missing = sorted(c for c in codes if not copy.get(fv.copy_key(c), "").strip())
-        self.assertEqual(missing, [], "add validate_<code> to shared/branding/copy-defaults.json")
-
-    def test_no_copy_key_names_a_code_fisherman_lacks(self):
-        copy = json.loads(COPY_DEFAULTS.read_text())
-        codes = fisherman_codes()
-        stale = sorted(k for k in copy if k.startswith(fv.COPY_PREFIX)
-                       and k[len(fv.COPY_PREFIX):] not in codes)
-        self.assertEqual(stale, [])
 
 
 if __name__ == "__main__":

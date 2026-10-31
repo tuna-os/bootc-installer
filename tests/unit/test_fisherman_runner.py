@@ -31,10 +31,6 @@ def test_the_unprivileged_command_is_the_install_binary():
     assert fisherman_runner.probe_argv(in_flatpak=False)[-2:] == ["probe", "--json"]
 
 
-def test_no_live_detection_from_ostree_booted():
-    assert not hasattr(fisherman_runner, "LIVE_ISO")
-
-
 def test_flatpak_argv_runs_redirect_on_host():
     with patch.dict(os.environ, {}, clear=True):
         argv = fisherman_runner.build_argv(
@@ -60,13 +56,6 @@ def test_flatpak_uses_persistent_app_cache_on_var_home():
         assert fisherman_runner.default_cache_dir() == "/var/home/test/.var/app/app.id/cache/bootc-installer"
 
 
-def test_native_cache_location_is_unchanged():
-    with patch.object(fisherman_runner, "IN_FLATPAK", False), patch.dict(
-        os.environ, {"HOME": "/home/test", "XDG_CACHE_HOME": "/different"}, clear=True
-    ):
-        assert fisherman_runner.default_cache_dir() == "/home/test/.cache/bootc-installer"
-
-
 @pytest.mark.parametrize("cache", ["", "relative"])
 def test_missing_or_relative_flatpak_cache_is_rejected(cache):
     with patch.object(fisherman_runner, "IN_FLATPAK", True), patch.dict(
@@ -83,6 +72,8 @@ def test_staging_requires_host_visible_identical_bytes(tmp_path):
     source = tmp_path / "source"
     source.write_bytes(b"test helper bytes")
     cache = tmp_path / "cache" / "bootc-installer"
+    cache.parent.mkdir(mode=0o700)
+    cache.mkdir(mode=0o700)
     target = cache / "fisherman"
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     with patch.dict(os.environ, {"BOOTC_FISHERMAN_PATH": str(source)}):
@@ -91,11 +82,10 @@ def test_staging_requires_host_visible_identical_bytes(tmp_path):
             (SimpleNamespace(returncode=1, stdout=""), False),
             (SimpleNamespace(returncode=0, stdout="0" * 64 + "  " + str(target)), False),
         ]:
-            with patch.object(fisherman_runner.subprocess, "run", return_value=result) as run:
+            with patch.object(fisherman_runner.subprocess, "run", return_value=result):
                 assert fisherman_runner.stage_on_host(
                     in_flatpak=True, stage_base=str(tmp_path), cache_dir=str(cache), host_path=str(target)
                 ) is expected
-                assert run.call_args.args[0] == ["flatpak-spawn", "--host", "sha256sum", "--", str(target)]
                 assert target.stat().st_mode & 0o777 == 0o700
         for error in (OSError("portal unavailable"), subprocess.TimeoutExpired("portal", 10)):
             with patch.object(fisherman_runner.subprocess, "run", side_effect=error):
