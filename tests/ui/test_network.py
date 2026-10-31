@@ -93,10 +93,11 @@ class _FakeClient:
         self.signal_handlers.append((signal, callback))
 
 
-def _load_network(monkeypatch, client_factory):
-    """Import network.py with real GTK and a fake NM namespace."""
-    from gi import repository
+_NETWORK_MODULE = "bootc_installer.defaults.network"
+_client_factory = None
 
+
+def _make_fake_nm():
     fake_nm = types.ModuleType("gi.repository.NM")
     fake_nm.DeviceType = SimpleNamespace(ETHERNET=object(), WIFI=object())
     fake_nm.DeviceState = SimpleNamespace(
@@ -118,20 +119,36 @@ def _load_network(monkeypatch, client_factory):
     class Client:
         @staticmethod
         def new():
-            return client_factory()
+            return _client_factory()
 
     fake_nm.Client = Client
-    monkeypatch.setattr(repository, "NM", fake_nm, raising=False)
-    monkeypatch.setitem(sys.modules, "gi.repository.NM", fake_nm)
-    sys.modules.pop("bootc_installer.defaults.network", None)
-    return importlib.import_module("bootc_installer.defaults.network"), fake_nm
+    return fake_nm
+
+
+_FAKE_NM = _make_fake_nm()
+
+
+def _load_network(monkeypatch, client_factory):
+    """Return network.py bound to a fake NM namespace with real GTK.
+
+    The module is imported at most once per process: re-executing it would
+    re-register its @Gtk.Template GObject types (WirelessRow, ...) and fail.
+    """
+    monkeypatch.setattr(sys.modules[__name__], "_client_factory", client_factory)
+    network_module = sys.modules.get(_NETWORK_MODULE)
+    if network_module is None:
+        from gi import repository
+
+        with monkeypatch.context() as import_patch:
+            import_patch.setattr(repository, "NM", _FAKE_NM, raising=False)
+            import_patch.setitem(sys.modules, "gi.repository.NM", _FAKE_NM)
+            network_module = importlib.import_module(_NETWORK_MODULE)
+    monkeypatch.setattr(network_module, "NM", _FAKE_NM)
+    return network_module, _FAKE_NM
 
 
 def test_network_page_renders_mocked_wired_and_wireless_devices(monkeypatch):
     """Real templates render device rows without a D-Bus NetworkManager."""
-    network_module = None
-    fake_nm = None
-
     # Constants mirror NetworkManager's libnm values used by network.py.
     open_ap = _FakeAccessPoint("Guest", 25)
     home_ap = _FakeAccessPoint("Home", 65, flags=1, wpa_flags=1, rsn_flags=1)
@@ -140,112 +157,98 @@ def test_network_page_renders_mocked_wired_and_wireless_devices(monkeypatch):
 
     # The client is assigned after the fake NM constants are available.
     client = None
-    try:
-        network_module, fake_nm = _load_network(monkeypatch, lambda: client)
-        ethernet = _FakeDevice(
-            fake_nm.DeviceType.ETHERNET,
-            state=fake_nm.DeviceState.ACTIVATED,
-            speed=1000,
+    network_module, fake_nm = _load_network(monkeypatch, lambda: client)
+    ethernet = _FakeDevice(
+        fake_nm.DeviceType.ETHERNET,
+        state=fake_nm.DeviceState.ACTIVATED,
+        speed=1000,
+    )
+    wifi = _FakeDevice(
+        fake_nm.DeviceType.WIFI,
+        state=fake_nm.DeviceState.ACTIVATED,
+        active=active_connection,
+        access_points=(open_ap, home_ap, stronger_home_ap),
+    )
+    client = _FakeClient((ethernet, wifi))
+
+    window = SimpleNamespace(carousel=MagicMock(), next=MagicMock())
+    step = {"num": 3}
+    with patch.object(network_module, "RunAsync") as run_async:
+        page = network_module.BootcDefaultNetwork(
+            window,
+            {"name": "Test OS"},
+            "network",
+            step,
         )
-        wifi = _FakeDevice(
-            fake_nm.DeviceType.WIFI,
-            state=fake_nm.DeviceState.ACTIVATED,
-            active=active_connection,
-            access_points=(open_ap, home_ap, stronger_home_ap),
-        )
-        client = _FakeClient((ethernet, wifi))
 
-        window = SimpleNamespace(carousel=MagicMock(), next=MagicMock())
-        step = {"num": 3}
-        with patch.object(network_module, "RunAsync") as run_async:
-            page = network_module.BootcDefaultNetwork(
-                window,
-                {"name": "Test OS"},
-                "network",
-                step,
-            )
+    _pump()
 
-        _pump()
+    rows = page._BootcDefaultNetwork__wireless_children
+    assert page.wired_group.get_visible()
+    assert page.wireless_group.get_visible()
+    assert not page.advanced_group.get_visible()
+    assert page.has_eth_connection
+    assert page.has_wifi_connection
+    assert set(rows) == {"Home", "Guest"}
+    assert run_async.call_count == 1
 
-        rows = page._BootcDefaultNetwork__wireless_children
-        assert page.wired_group.get_visible()
-        assert page.wireless_group.get_visible()
-        assert not page.advanced_group.get_visible()
-        assert page.has_eth_connection
-        assert page.has_wifi_connection
-        assert set(rows) == {"Home", "Guest"}
-        assert run_async.call_count == 1
+    home = rows["Home"][0]
+    guest = rows["Guest"][0]
+    assert home.get_title() == "Home"
+    assert home.signal_strength == 90
+    assert home.signal_icon.get_icon_name() == (
+        "network-wireless-signal-excellent-symbolic"
+    )
+    assert home.secure_icon.get_visible()
+    assert home.secure_icon.get_tooltip_text() == "Secure network (WPA)"
+    assert home.connected_label.get_visible()
+    assert guest.get_title() == "Guest"
+    assert guest.signal_icon.get_icon_name() == "network-wireless-signal-weak-symbolic"
+    assert not guest.secure_icon.get_visible()
+    assert not guest.connected_label.get_visible()
+    assert [row.ssid for row in page._BootcDefaultNetwork__sorted_wireless_children] == [
+        "Home",
+        "Guest",
+    ]
 
-        home = rows["Home"][0]
-        guest = rows["Guest"][0]
-        assert home.get_title() == "Home"
-        assert home.signal_strength == 90
-        assert home.signal_icon.get_icon_name() == (
-            "network-wireless-signal-excellent-symbolic"
-        )
-        assert home.secure_icon.get_visible()
-        assert home.secure_icon.get_tooltip_text() == "Secure network (WPA)"
-        assert home.connected_label.get_visible()
-        assert guest.get_title() == "Guest"
-        assert guest.signal_icon.get_icon_name() == "network-wireless-signal-weak-symbolic"
-        assert not guest.secure_icon.get_visible()
-        assert not guest.connected_label.get_visible()
-        assert [row.ssid for row in page._BootcDefaultNetwork__sorted_wireless_children] == [
-            "Home",
-            "Guest",
-        ]
-
-        page._BootcDefaultNetwork__try_skip_page(None, step["num"])
-        window.next.assert_called_once_with()
-        assert client.signal_handlers
-        assert wifi.signal_handlers == [("state-changed", page._BootcDefaultNetwork__on_state_changed)]
-    finally:
-        if network_module is not None:
-            sys.modules.pop("bootc_installer.defaults.network", None)
-        if fake_nm is not None:
-            sys.modules.pop("gi.repository.NM", None)
+    page._BootcDefaultNetwork__try_skip_page(None, step["num"])
+    window.next.assert_called_once_with()
+    assert client.signal_handlers
+    assert wifi.signal_handlers == [("state-changed", page._BootcDefaultNetwork__on_state_changed)]
 
 
 def test_network_page_keeps_next_hidden_without_connection(monkeypatch):
     """An unavailable network must not enable or skip the page."""
-    network_module = None
-    fake_nm = None
     client = None
-    try:
-        network_module, fake_nm = _load_network(monkeypatch, lambda: client)
-        ethernet = _FakeDevice(
-            fake_nm.DeviceType.ETHERNET,
-            state=fake_nm.DeviceState.UNAVAILABLE,
+    network_module, fake_nm = _load_network(monkeypatch, lambda: client)
+    ethernet = _FakeDevice(
+        fake_nm.DeviceType.ETHERNET,
+        state=fake_nm.DeviceState.UNAVAILABLE,
+    )
+    wifi = _FakeDevice(
+        fake_nm.DeviceType.WIFI,
+        state=fake_nm.DeviceState.DISCONNECTED,
+    )
+    client = _FakeClient((ethernet, wifi))
+
+    window = SimpleNamespace(carousel=MagicMock(), next=MagicMock())
+    step = {"num": 3}
+    with patch.object(network_module, "RunAsync") as run_async:
+        page = network_module.BootcDefaultNetwork(
+            window,
+            {"name": "Test OS"},
+            "network",
+            step,
         )
-        wifi = _FakeDevice(
-            fake_nm.DeviceType.WIFI,
-            state=fake_nm.DeviceState.DISCONNECTED,
-        )
-        client = _FakeClient((ethernet, wifi))
 
-        window = SimpleNamespace(carousel=MagicMock(), next=MagicMock())
-        step = {"num": 3}
-        with patch.object(network_module, "RunAsync") as run_async:
-            page = network_module.BootcDefaultNetwork(
-                window,
-                {"name": "Test OS"},
-                "network",
-                step,
-            )
+    assert page.wired_group.get_visible()
+    assert page.wireless_group.get_visible()
+    assert not page.has_eth_connection
+    assert not page.has_wifi_connection
+    assert not page.btn_next.get_visible()
+    assert not page.btn_next.get_sensitive()
 
-        assert page.wired_group.get_visible()
-        assert page.wireless_group.get_visible()
-        assert not page.has_eth_connection
-        assert not page.has_wifi_connection
-        assert not page.btn_next.get_visible()
-        assert not page.btn_next.get_sensitive()
-
-        page._BootcDefaultNetwork__try_skip_page(None, step["num"])
-        page._BootcDefaultNetwork__try_skip_page(None, step["num"] + 1)
-        window.next.assert_not_called()
-        assert run_async.call_count == 1
-    finally:
-        if network_module is not None:
-            sys.modules.pop("bootc_installer.defaults.network", None)
-        if fake_nm is not None:
-            sys.modules.pop("gi.repository.NM", None)
+    page._BootcDefaultNetwork__try_skip_page(None, step["num"])
+    page._BootcDefaultNetwork__try_skip_page(None, step["num"] + 1)
+    window.next.assert_not_called()
+    assert run_async.call_count == 1
