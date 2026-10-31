@@ -63,6 +63,13 @@ This repository is the monorepo for all TunaOS and Bluefin installer frontends.
 They share the fisherman backend, the recipe schema and the screen contract in [`shared/`](shared/).
 CI renders all five frontends in [`docs/walkthrough/`](docs/walkthrough/README.md).
 
+On live ISOs, frontends invoke Fisherman on the host.
+The live-media marker makes the host's media-input receipt mandatory.
+Fisherman checks the embedded OCI content before it accesses image stores,
+caches, the network or disks.
+Use `shared/ci/fisherman_pins.py` to update the gitlink and the pins in all four
+manifests together after the backend change merges.
+
 | Frontend | Path | Toolkit | Walkthrough |
 |---|---|---|---|
 | GNOME | `bootc_installer/` | GTK4 / libadwaita (Python) | [docs/gui-walkthrough.md](docs/gui-walkthrough.md) |
