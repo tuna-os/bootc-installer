@@ -147,8 +147,12 @@ stay on `@main`; Renovate is told not to pin them.
   boots one canary per frontend recipe; the matrix over every supported
   image lives in `tuna-os/fisherman` (`bootcrew-vm.yml`), and the live-ISO
   smoke test in `tuna-os/tunaOS` (`installer-smoke.yml`).
-- It does not version the fisherman submodule. Bumping the pointer is a
-  normal PR to `dev` and ships like any other change.
+- It does not version the fisherman submodule. Renovate moves the pointer:
+  the gitlink and the four frontend Flatpak manifest pins track fisherman's
+  `prod` branch (`.gitmodules`, `renovate.json` group `fisherman`), which only
+  advances after fisherman's own promote gate. Renovate opens one PR to `dev`
+  and merges it when every check is green; from there it ships like any other
+  change. To pin by hand, run `shared/ci/fisherman_pins.py --commit <sha>`.
 - It does not need a personal access token. `GITHUB_TOKEN` pushes do not
   trigger push workflows, which is why `release.yml` is dispatched explicitly
   rather than triggered by the push to `prod`.

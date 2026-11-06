@@ -7,9 +7,9 @@ test_shared_probe.py::TestFishermanPin requires them to agree:
   - the fisherman git source in each frontend's Flatpak app manifest
     (frontends/<name>/flatpak/*.json), which the other frontends build from.
 
-fisherman-bump.yml used to move only the gitlink, so every bump it opened
-failed that test. This script moves all of them in one step and stages the
-result.
+Renovate keeps the pins current (renovate.json, group "fisherman"); this
+script is for moving them by hand. It moves all of them in one step and
+stages the result.
 
 A manifest is a Flatpak app manifest when its JSON is an object with
 "modules" and an "app-id" or "id"; other JSON files there (cargo-sources.json)

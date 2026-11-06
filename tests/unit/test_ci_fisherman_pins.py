@@ -2,8 +2,8 @@
 
 TestFishermanPin (test_shared_probe.py) requires the submodule gitlink and
 each frontend Flatpak manifest's fisherman source to name one commit.
-fisherman-bump.yml used to move only the gitlink, so its PRs went red. These
-tests run the rewrite in throwaway git repositories, with no network.
+Moving only the gitlink turns that test red. These tests run the rewrite in
+throwaway git repositories, with no network.
 """
 
 import json
