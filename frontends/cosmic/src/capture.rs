@@ -141,6 +141,33 @@ const CAPTURE_USERNAME: &str = "alex";
 const CAPTURE_FULLNAME: &str = "Alex Example";
 const CAPTURE_PASSWORD: &str = "tr0ub4dor and 3";
 
+/// The catalog the walkthrough photographs, read through the same parser
+/// a real catalog goes through. Two products; the first has two channels,
+/// so the rows show why a row is a breadcrumb and not a leaf name. The
+/// selected leaf needs a user and carries a tour slide, so the image,
+/// account and tour pages all render their populated states from the same
+/// selection. No product of ours in any of it.
+const FIXTURE_CATALOG: &str = r#"{
+  "default_image": "registry.example/os/capture-desktop:stable",
+  "images": [
+    {"name": "Capture Desktop", "registry": "registry.example/os/capture-desktop",
+     "bootloader": "systemd", "composefs": true, "filesystems": ["btrfs", "ext4"],
+     "flatpaks": [],
+     "children": [
+       {"name": "Stable", "tag": "stable", "desc": "The photographed system.",
+        "carousel": [{"title": "Capture at a glance",
+                      "description": "Everything is where you left it."}]},
+       {"name": "Beta", "tag": "beta"}
+     ]},
+    {"name": "Capture Minimal", "imgref": "registry.example/os/capture-minimal:stable",
+     "needs_user_creation": false}
+  ]
+}"#;
+
+/// The frames after the page list: a page in another state, not a page of
+/// its own, so none of them is in `Page::ORDER`.
+const EXTRA_FRAMES: [&str; 4] = ["recovery", "cancel", "cancelled", "offline"];
+
 pub struct Capture {
     pub dir: PathBuf,
     pub index: usize,
@@ -202,24 +229,54 @@ fn settle_then(msg: Message) -> Task<crate::Message> {
 pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message> {
     match message {
         Message::Show(index) => {
-            // One frame past the page list: the done page as a TPM install
-            // leaves it. It is the same page in another state, not a page of
-            // its own, so it is not in Page::ORDER.
             let Some(page) = Page::ORDER.get(index).copied() else {
-                if index == Page::ORDER.len() {
-                    app.page = Page::Done;
-                    app.installing = false;
-                    app.install_ok = true;
-                    app.recovery_ack = false;
-                    app.progress.consume(FIXTURE_RECOVERY_EVENT);
-                    if app.progress.recovery_key.is_empty() {
-                        eprintln!("capture: the recovery_key event did not parse");
-                        std::process::exit(2);
+                let Some(extra) = EXTRA_FRAMES.get(index - Page::ORDER.len()).copied() else {
+                    return finish(app);
+                };
+                app.capture.as_mut().unwrap().index = index;
+                match extra {
+                    // The done page as a TPM install leaves it.
+                    "recovery" => {
+                        app.page = Page::Done;
+                        app.installing = false;
+                        app.install_ok = true;
+                        app.recovery_ack = false;
+                        app.progress.consume(FIXTURE_RECOVERY_EVENT);
+                        if app.progress.recovery_key.is_empty() {
+                            eprintln!("capture: the recovery_key event did not parse");
+                            std::process::exit(2);
+                        }
                     }
-                    app.capture.as_mut().unwrap().index = index;
-                    return settle_then(Message::Shoot);
+                    // The progress page's Cancel was pressed: the question,
+                    // through the page's own message. Nothing is signalled
+                    // (there is no wrapper), and nothing would be before
+                    // the answer.
+                    "cancel" => {
+                        app.page = Page::Installing;
+                        app.installing = true;
+                        app.install_ok = false;
+                        let _ = cosmic::Application::update(app, crate::Message::RequestCancelInstall);
+                    }
+                    // The done page after a confirmed cancel: fisherman's
+                    // exit code 130 through the same mapping a real install
+                    // uses (`install_outcome`).
+                    "cancelled" => {
+                        app.show_cancel_dialog = false;
+                        app.installing = false;
+                        app.page = Page::Done;
+                        let outcome = crate::install_outcome(Some(130), false);
+                        app.install_ok = outcome == crate::Outcome::Succeeded;
+                        app.install_cancelled = outcome == crate::Outcome::Cancelled;
+                    }
+                    // The network page with no connection: the help an
+                    // offline user gets.
+                    _ => {
+                        app.page = Page::Network;
+                        app.net_checking = false;
+                        app.net_online = Some(false);
+                    }
                 }
-                return finish(app);
+                return settle_then(Message::Shoot);
             };
 
             // Assign the page directly. Going through the ordinary navigation
@@ -257,38 +314,17 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                     app.recipe.encryption.passphrase = CAPTURE_PASSPHRASE.into();
                     app.passphrase_confirm = CAPTURE_PASSPHRASE.into();
                 }
-                // The catalog the walkthrough photographs: two leaves, the
-                // selected one needing a user and carrying a tour slide, so
-                // the image, account and tour pages all render their
-                // populated states from the same selection.
+                // The fixture catalog, with its default leaf selected the
+                // way init selects one (`default_index`), and applied
+                // through the page's own message.
                 Page::Image => {
-                    app.catalog = crate::image_catalog::Catalog {
-                        default_image: "ghcr.io/example/capture-desktop:stable".to_string(),
-                        fallback_flatpaks: Vec::new(),
-                        leaves: vec![
-                            crate::image_catalog::ImageLeaf {
-                                name: "Capture Desktop".to_string(),
-                                description: "The photographed system.".to_string(),
-                                imgref: "ghcr.io/example/capture-desktop:stable".to_string(),
-                                needs_user_creation: true,
-                                carousel: vec![serde_json::json!({
-                                    "title": "Welcome to Capture",
-                                    "description": "Everything is where you left it.",
-                                })],
-                                flatpaks: Vec::new(),
-                            },
-                            crate::image_catalog::ImageLeaf {
-                                name: "Capture Minimal".to_string(),
-                                description: String::new(),
-                                imgref: "ghcr.io/example/capture-minimal:stable".to_string(),
-                                needs_user_creation: false,
-                                carousel: Vec::new(),
-                                flatpaks: Vec::new(),
-                            },
-                        ],
+                    app.catalog = crate::image_catalog::parse_manifest(FIXTURE_CATALOG)
+                        .expect("the capture catalog parses");
+                    let Some(default) = app.catalog.default_index("") else {
+                        eprintln!("capture: the fixture catalog's default_image is not a leaf");
+                        std::process::exit(2);
                     };
-                    app.selected_image = Some(0);
-                    app.recipe.image = app.catalog.leaves[0].imgref.clone();
+                    let _ = cosmic::Application::update(app, crate::Message::SelectImage(default));
                 }
                 // Deterministic preflight lists (no localectl in CI), at a
                 // production-like density: a real `localectl list-locales`
@@ -335,11 +371,6 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                     app.net_checking = false;
                     app.net_online = Some(true);
                 }
-                // The pairing code without a server: capture never binds one.
-                Page::Companion => {
-                    app.companion_token = "capture-token".to_string();
-                    app.companion_port = Some(8443);
-                }
                 // Filled in through the page's own messages, so the recipe's
                 // user block is built the way typing builds it (sync_user).
                 // update() returns no task for these in capture mode: no
@@ -373,7 +404,7 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
             let page = Page::ORDER.get(index).copied();
             let name = match page {
                 Some(p) => p.slug().to_string(),
-                None => "recovery".to_string(),
+                None => EXTRA_FRAMES[index - Page::ORDER.len()].to_string(),
             };
 
             let path = capture
@@ -416,7 +447,7 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
             // render can still be wrong: the panel can draw with the key
             // missing, and Restart can be live before the key is
             // acknowledged. Neither shows up in a pixel histogram.
-            if page.is_none() {
+            if name == "recovery" {
                 let key = app.progress.recovery_key.clone();
                 if !text.contains(&key) {
                     eprintln!(
@@ -432,12 +463,60 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                 }
             }
 
+            // The cancel question asks and stops nothing; the cancelled page
+            // is not the failure page; the offline page offers the settings
+            // and holds Continue. None of these shows in a pixel histogram.
+            use crate::i18n::tr;
+            use crate::ui::copy;
+            let has = |shown: String| text.contains(&shown);
+            if name == "cancel"
+                && !(has(tr(copy::CANCEL_TITLE)) && has(tr(copy::CANCEL_KEEP)) && app.installing)
+            {
+                eprintln!("capture: Cancel did not ask first (#299)");
+                std::process::exit(2);
+            }
+            if name == "cancelled"
+                && !(text.contains(&crate::branding::get().text("done_cancelled_title"))
+                    && !text.contains(&crate::branding::get().text("done_failed_title"))
+                    && !has(tr(copy::DONE_FAIL_DETAIL)))
+            {
+                eprintln!("capture: exit code 130 did not show the cancelled page (#299)");
+                std::process::exit(2);
+            }
+            if name == "offline" && !(has(tr(copy::NETWORK_SETTINGS)) && !has(tr(copy::CONTINUE))) {
+                eprintln!("capture: the offline page offers no network settings, or Continue (#301)");
+                std::process::exit(2);
+            }
+            // The image page: the default leaf is selected, each row names
+            // its product, and the leaf's fields are in the recipe (#286).
+            if page == Some(Page::Image) {
+                let recipe = app.recipe();
+                if !(text.contains("Capture Desktop \u{203a} Stable")
+                    && has(tr(copy::IMAGE_SEARCH_HINT))
+                    && recipe.bootloader == "systemd"
+                    && recipe.compose_fs_backend
+                    && recipe.filesystem == "btrfs"
+                    && recipe.flatpaks == Some(Vec::new())
+                    && recipe.target_imgref == recipe.image)
+                {
+                    eprintln!("capture: the selected leaf did not reach the recipe: {recipe:?}");
+                    std::process::exit(2);
+                }
+            }
+            // The three session-only pages say that they are (#292).
+            if matches!(page, Some(Page::Language | Page::Keyboard | Page::Timezone))
+                && !text.contains("this session only")
+            {
+                eprintln!("capture: the {name} page does not say it changes this session only");
+                std::process::exit(2);
+            }
+
             // A needs_passphrase choice must bring both fields with it,
             // and a matching pair must leave Continue live. Neither is
             // visible to a pixel histogram.
             if page == Some(Page::Options) {
-                for label in [crate::ui::copy::OPTIONS_PASSPHRASE, crate::ui::copy::OPTIONS_PASSPHRASE_CONFIRM] {
-                    if !text.contains(label) {
+                for label in [tr(copy::OPTIONS_PASSPHRASE), tr(copy::OPTIONS_PASSPHRASE_CONFIRM)] {
+                    if !has(label.clone()) {
                         eprintln!("capture: options page with a passphrase choice has no {label:?} field");
                         std::process::exit(2);
                     }
@@ -454,15 +533,15 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
 
             // The account page must show its fields, keep the password off
             // the page, leave Continue live once filled in, and have put a
-            // user block with the wheel group into the recipe.
+            // user block with the shared group list into the recipe.
             if page == Some(Page::Account) {
                 for label in [
-                    crate::ui::copy::ACCOUNT_USERNAME,
-                    crate::ui::copy::ACCOUNT_FULLNAME,
-                    crate::ui::copy::ACCOUNT_PASSWORD,
-                    crate::ui::copy::ACCOUNT_PASSWORD_CONFIRM,
+                    tr(copy::ACCOUNT_USERNAME),
+                    tr(copy::ACCOUNT_FULLNAME),
+                    tr(copy::ACCOUNT_PASSWORD),
+                    tr(copy::ACCOUNT_PASSWORD_CONFIRM),
                 ] {
-                    if !text.contains(label) {
+                    if !has(label.clone()) {
                         eprintln!("capture: the account page has no {label:?} field");
                         std::process::exit(2);
                     }
@@ -476,13 +555,15 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                     std::process::exit(2);
                 }
                 let user = app.recipe().user.clone().unwrap_or_default();
-                if user.username != CAPTURE_USERNAME || user.groups != crate::model::USER_GROUPS {
+                if user.username != CAPTURE_USERNAME || user.groups != crate::model::default_groups() {
                     eprintln!("capture: the recipe's user block is {user:?}");
                     std::process::exit(2);
                 }
             }
-            if page == Some(Page::Confirm) && !text.contains(CAPTURE_USERNAME) {
-                eprintln!("capture: the confirm page does not show the username");
+            if page == Some(Page::Confirm)
+                && !(text.contains(CAPTURE_USERNAME) && text.contains("Capture Desktop Stable"))
+            {
+                eprintln!("capture: the confirm page does not show the username and the image label");
                 std::process::exit(2);
             }
 
@@ -711,9 +792,8 @@ fn finish(app: &mut TunaInstaller) -> Task<crate::Message> {
         }
     }
 
-    // Page::ORDER plus the recovery frame, which is the done page in its
-    // other state rather than a page of its own.
-    let expected_frames = Page::ORDER.len() + 1;
+    // Page::ORDER plus the frames that show a page in another state.
+    let expected_frames = Page::ORDER.len() + EXTRA_FRAMES.len();
     if capture.findings.len() != expected_frames {
         failures.push(format!(
             "captured {} of {} frames",

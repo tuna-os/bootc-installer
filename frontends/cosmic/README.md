@@ -91,11 +91,20 @@ just check-cargo-sources
 
 ## Offline installs
 
-On a TunaOS live ISO the installer detects the booted bootc image
-(`bootc status`) and installs it without a download (empty `image` in the
-recipe). Embedded OCI stores listed in `/etc/tuna-installer/offline-stores`
-(or `$TUNA_OFFLINE_STORES`, default `/usr/share/tuna-installer/oci-store`)
-are passed to fisherman as `additionalImageStores`.
+On live media the installer installs the booted image without a download.
+fisherman says that the host is live media (`live.is_live` of
+`fisherman probe --json`); the recipe then has no `image`. The installer
+does not look for offline stores: the recipe leaves `additionalImageStores`
+out, and fisherman uses the stores that it finds on the host.
+
+## What the Flatpak runs
+
+The Flatpak builds fisherman as `/app/bin/fisherman`. The host cannot run a
+file from the sandbox, so the installer copies it to
+`$XDG_CACHE_HOME/bootc-installer/fisherman`, checks its SHA256 on the host,
+and runs that copy for the probe, the validation and the install. A native
+install runs `/usr/local/bin/fisherman` through `pkexec`. See
+[DESIGN.md](DESIGN.md), "How fisherman runs".
 
 ## Contributing
 

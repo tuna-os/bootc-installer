@@ -71,20 +71,10 @@ pub fn parse(json: &str) -> Result<Vec<Problem>, String> {
     answer.errors.ok_or_else(|| "fisherman validate printed no errors list".to_string())
 }
 
-/// The unprivileged command: the fisherman the install runs, on the host
-/// (`flatpak-spawn --host` when sandboxed). Never pkexec or sudo.
-pub fn command(flatpak: bool) -> Vec<String> {
-    let mut argv = Vec::new();
-    if flatpak {
-        argv.extend(["flatpak-spawn".to_string(), "--host".to_string()]);
-    }
-    argv.extend(["/usr/local/bin/fisherman", "validate", "--json", "--partial", "-"].map(String::from));
-    argv
-}
-
 /// Asks fisherman about `partial`. Blocking: call it off the UI thread.
 pub fn check(partial: &serde_json::Value) -> Result<Vec<Problem>, String> {
-    check_with(&command(crate::offline::in_flatpak()), partial)
+    // The one resolver (offline.rs): unprivileged, never pkexec or sudo.
+    check_with(&crate::offline::fisherman(crate::offline::Use::Validate, false)?, partial)
 }
 
 /// `check` with the command given (tests).
@@ -210,11 +200,10 @@ mod tests {
 
     #[test]
     fn command_is_unprivileged_partial_and_on_stdin() {
-        assert_eq!(
-            command(false),
-            ["/usr/local/bin/fisherman", "validate", "--json", "--partial", "-"]
-        );
-        assert_eq!(command(true)[..2], ["flatpak-spawn", "--host"]);
+        use crate::offline::{fisherman, Use};
+        let argv = fisherman(Use::Validate, false).unwrap();
+        assert_eq!(argv[1..], ["validate", "--json", "--partial", "-"]);
+        assert!(!argv.iter().any(|a| a == "pkexec" || a == "sudo"));
     }
 
     #[test]
@@ -236,7 +225,7 @@ mod tests {
         std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
         let partial = serde_json::json!({"encryption": {"type": "luks-passphrase", "passphrase": "s3cret"}});
         let mut argv = vec![fake.display().to_string()];
-        argv.extend(command(false)[1..].iter().cloned());
+        argv.extend(crate::offline::fisherman(crate::offline::Use::Validate, false).unwrap()[1..].iter().cloned());
         let problems = check_with(&argv, &partial).unwrap();
         assert_eq!(problems[0].code, "encryption_passphrase_required");
         let got: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&seen).unwrap()).unwrap();
