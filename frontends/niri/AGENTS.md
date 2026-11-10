@@ -65,6 +65,15 @@ contracts, so run them before you push:
   Flatpak).
 - `user_test.go` holds `installer/groups.json` to
   `../../shared/account/groups.json`.
+- `redact_test.go` sends `../../shared/progress/recovery-key-transcript.ndjson`
+  through the `install.log` writer and fails if the recovery key is in the
+  file (`../../shared/progress/recovery-key-cases.json`, #337).
+
+`installer/` has copies of three files in `../../shared/`:
+`copy-defaults.json`, `encryption-choices.json` and `groups.json`. They are
+copies because `go:embed` cannot leave the module. Do not edit them. After a
+change in `shared/`, run `go generate ./...` in `installer/`. The tests fail
+when a copy is different from the shared file.
 - `i18n_test.go` fails on a text literal in `ui/*.qml` that is not in
   `qsTr()` and not a `root.text()` key.
 
