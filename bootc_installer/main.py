@@ -77,7 +77,7 @@ from bootc_installer.windows.window_unsupported import BootcUnsupportedWindow  #
 from bootc_installer.windows.window_ram import BootcRamWindow  # noqa: E402
 from bootc_installer.windows.window_cpu import BootcCpuWindow  # noqa: E402
 from bootc_installer.core.system import Systeminfo  # noqa: E402
-from bootc_installer import readiness  # noqa: E402
+from bootc_shared import readiness  # noqa: E402
 logger_boot.info("All imports done")
 
 logger = logging.getLogger("Installer::Main")
@@ -94,10 +94,9 @@ def _arm_readiness_frame_gated(win, app_id):
     COSMIC-leg failure mode) writes no stamp, while a window whose toolkit
     never realises one still stamps on map alone.
 
-    Lives here, not in bootc_installer/readiness.py: that file is the
-    byte-identical shared copy enforced by
-    tests/unit/test_shared_readiness.py, and this gating changes no shared
-    semantics — map and the stamp format are untouched.
+    Lives here, not in bootc_shared/readiness.py: that module is the one
+    that XFCE also imports, and this gating changes no shared semantics —
+    map and the stamp format are untouched.
     """
     state = {"mapped": False, "painted": False, "stamped": False}
 

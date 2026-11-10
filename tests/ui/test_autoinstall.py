@@ -5,7 +5,7 @@ import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from bootc_installer.core import fisherman_validate
+from bootc_shared import validate as fisherman_validate
 from bootc_installer.windows.main_window import BootcWindow
 
 _VALID = {"disk": "/dev/vda", "image": "registry.example/os:1"}

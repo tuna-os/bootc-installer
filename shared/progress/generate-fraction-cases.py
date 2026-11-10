@@ -26,8 +26,8 @@ import pathlib
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
-import progress_parser as pp  # noqa: E402
+sys.path.insert(0, str(HERE.parent / "python"))
+from bootc_shared import progress as pp  # noqa: E402
 
 OUT = HERE / "fraction-cases.json"
 OVERALL_OUT = HERE / "overall-pct-cases.json"

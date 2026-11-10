@@ -1,10 +1,8 @@
 """Reader for `fisherman validate --json` and the encryption choices file,
 per shared/recipe/README.md.
 
-Canonical copy. The Python frontends (GNOME, XFCE) carry byte-identical
-copies and tests/unit/test_shared_validate.py enforces that they match, the
-same arrangement shared/probe/ uses. Edit this file and re-copy; never edit
-a copy.
+The one copy: GNOME and XFCE import it as `bootc_shared.validate`.
+tests/unit/test_shared_validate.py covers it.
 
 fisherman owns the recipe rules: hostname, username, filesystem, encryption
 (fisherman/docs/VALIDATE.md). The install runs the same rules before it
@@ -22,6 +20,8 @@ import os
 import subprocess
 import threading
 
+from . import _data
+
 # The schema version this reader understands. fisherman bumps it only when a
 # field is removed, renamed or changes meaning; new codes do not bump it.
 PROTOCOL_VERSION = 1
@@ -33,9 +33,9 @@ TIMEOUT_SECONDS = 10
 # A problem's copy key is this prefix plus its code (shared/branding).
 COPY_PREFIX = "validate_"
 
-# Where a frontend copy of encryption-choices.json sits: beside this module.
-CHOICES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                            "encryption-choices.json")
+# shared/recipe/encryption-choices.json, or the copy that a build installs
+# with this package (_data.py).
+CHOICES_FILE = _data.path("recipe/encryption-choices.json")
 
 
 class ValidateError(Exception):

@@ -18,8 +18,9 @@ import json
 import logging
 import re
 
-from bootc_installer.utils import branding, catalog
-from bootc_installer.utils.account import resolve_groups
+from bootc_installer.utils import catalog
+from bootc_shared import branding
+from bootc_shared.account import resolve_groups
 from bootc_installer.utils.sha512crypt import sha512_crypt
 
 logger = logging.getLogger("Installer::Processor")

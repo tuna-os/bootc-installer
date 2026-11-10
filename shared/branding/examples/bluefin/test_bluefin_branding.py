@@ -2,7 +2,7 @@
 
 This test travels with the branding (projectbluefin/dakota-iso), not with
 the installer: the installer must not know Bluefin exists. It needs the
-shared resolver (shared/branding/branding.py) importable and, if
+shared resolver (shared/python/bootc_shared/branding.py) importable and, if
 `jsonschema` is installed, validates against branding.schema.json.
 """
 
@@ -18,10 +18,9 @@ BRANDING = json.loads((HERE / "branding.json").read_text())
 
 
 def _resolver():
-    spec = importlib.util.spec_from_file_location("branding", SHARED / "branding.py")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    import sys
+    sys.path.insert(0, str(SHARED.parent / "python"))
+    return importlib.import_module("bootc_shared.branding")
 
 
 def test_schema():

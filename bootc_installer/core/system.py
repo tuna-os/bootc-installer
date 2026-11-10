@@ -4,7 +4,7 @@ import logging
 import os
 import re
 
-from . import fisherman_probe
+from bootc_shared import probe as fisherman_probe
 
 logger = logging.getLogger("Installer::System")
 
@@ -272,7 +272,7 @@ class Systeminfo:
         os-release DEFAULT_HOSTNAME/ID) unless given.
         """
         if stem is None:
-            from bootc_installer.utils import branding
+            from bootc_shared import branding
             stem = branding.resolve().default_hostname
         product = _read_dmi("product_name")
         vendor_raw = _read_dmi("sys_vendor")

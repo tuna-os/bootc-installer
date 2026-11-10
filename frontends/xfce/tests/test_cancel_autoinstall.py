@@ -103,9 +103,10 @@ def test_bad_autoinstall_falls_back_to_wizard():
 import gi  # noqa: E402
 
 gi.require_version("Gtk", "3.0")
+from bootc_shared import validate as fisherman_validate  # noqa: E402
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from tuna_installer_xfce import core, fisherman_validate, gates  # noqa: E402
+from tuna_installer_xfce import core, gates  # noqa: E402
 
 
 def _window(monkeypatch, tmp_path):

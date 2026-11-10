@@ -39,10 +39,12 @@ _IN_FLATPAK = fisherman_runner.IN_FLATPAK
 _RESOURCE_PREFIX = "/org/bootcinstaller/Installer"
 _ASSET_DIR = pathlib.Path(__file__).resolve().parent.parent / "assets"
 
-# The demo (BOOTC_DEMO=1) replays fisherman's own dry-run transcript, a
-# byte-identical copy of shared/progress/dry-run-transcript.ndjson that
-# utils/meson.build installs next to the parser. XFCE plays the same file.
-_DEMO_TRANSCRIPT = pathlib.Path(__file__).resolve().parent.parent / "utils" / "dry-run-transcript.ndjson"
+# The demo (BOOTC_DEMO=1) replays fisherman's own dry-run transcript,
+# shared/progress/dry-run-transcript.ndjson, which the build installs with
+# the bootc_shared package. XFCE plays the same file.
+from bootc_shared.progress import transcript_path
+
+_DEMO_TRANSCRIPT = pathlib.Path(transcript_path())
 # One event per tick, the pace XFCE's dry run uses.
 _DEMO_INTERVAL_MS = 400
 
@@ -53,7 +55,7 @@ _FISHERMAN_CACHE_DIR = fisherman_runner.default_cache_dir()
 _FISHERMAN_HOST_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman")
 _FISHERMAN_LOG_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman-output.log")
 
-from bootc_installer.utils.progress_parser import apply_progress_event, new_progress_state, render_event, set_product_name, set_install_label, set_step_label_resolver, _RE_LAYER_PROGRESS  # noqa: E402
+from bootc_shared.progress import apply_progress_event, new_progress_state, render_event, set_product_name, set_install_label, set_step_label_resolver, _RE_LAYER_PROGRESS  # noqa: E402
 from bootc_installer.utils.codec_check import check_codecs_present  # noqa: E402
 
 

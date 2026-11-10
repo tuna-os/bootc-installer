@@ -1,8 +1,8 @@
 """The first account: its groups (#302) and its password (#295).
 
-The groups are shared/account/groups.json: this frontend embeds the default
-list (core.DEFAULT_GROUPS, because the Flatpak build copies only this
-package), and the first test fails when the two differ. The operator's
+The groups are shared/account/groups.json: core.DEFAULT_GROUPS is that list,
+read through bootc_shared.account, and the first test fails when the two
+differ. The operator's
 override is `user.groups` of <etc>/bootc-installer/recipe.json.
 """
 
@@ -27,7 +27,7 @@ with open(GROUPS_FILE, encoding="utf-8") as _stream:
     SHARED = json.load(_stream)
 
 
-def test_the_embedded_default_is_the_shared_list():
+def test_the_default_is_the_shared_list():
     assert list(core.DEFAULT_GROUPS) == SHARED["default_groups"]
     assert "sudo" in core.DEFAULT_GROUPS and "wheel" in core.DEFAULT_GROUPS
 
