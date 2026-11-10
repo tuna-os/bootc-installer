@@ -394,7 +394,7 @@ class FishermanSessionStdinTests(unittest.TestCase):
             popen = MagicMock(side_effect=lambda argv, **kw: _fake_popen())
             self._session(popen, use_sudo=use_sudo).launch()
             argvs[use_sudo] = popen.call_args.args[0][-1]
-        self.assertTrue(argvs[True].startswith("sudo /usr/local/bin/fisherman -"))
+        self.assertTrue(argvs[True].startswith("sudo -n /usr/local/bin/fisherman -"))
         self.assertTrue(argvs[False].startswith("pkexec /usr/local/bin/fisherman -"))
 
 

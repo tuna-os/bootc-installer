@@ -62,6 +62,26 @@ Recipe schema sha256: `55a4169f5661764ccdc4e385b561b45328f4f39d3b5ed62b557cbea0d
 - GNOME and KDE test against them. XFCE, Niri and COSMIC keep a log file
   and do not yet.
 
+## 2026-11-10: GNOME and XFCE share the catalog reader, the fisherman command and the log redaction
+
+- Added: `python/bootc_shared/catalog.py`, `hardware.py`, `network.py`,
+  `fisherman_host.py` and `redact.py`, and `logo_source` in `branding.py`.
+  GNOME and XFCE had each written this logic; the two use these modules now.
+- Added: `catalog/README.md` documents `FISHERMAN_IMAGES_PATH`, the catalog
+  file that is tried first. GNOME reads it now. COSMIC does not read it.
+- Changed, XFCE: the install log, the log pane and the log tail do not have
+  the recovery key (#337). A catalog field of the wrong type gets its
+  default. The stage of fisherman refuses a `HOME` that is not the user's
+  own.
+- Changed, GNOME: the install on live media outside a Flatpak runs
+  `sudo -n`, as the other four frontends do. The connection check probes
+  the registry of the selected image first. The NVIDIA image of a leaf
+  finds that leaf. A path in the install command is quoted with
+  `shlex.quote`.
+- Changed, both: an empty `VANILLA_SKIP_CONN_CHECK` or
+  `TUNA_INSTALLER_SKIP_CONN_CHECK`, or the value `0`, does not turn the
+  connection check off. Each frontend reads the two names.
+
 ## 2026-11-10: one Python package, `python/bootc_shared`
 
 - Changed: the Python code of five contracts moved to one package.

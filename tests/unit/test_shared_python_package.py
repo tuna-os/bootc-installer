@@ -51,7 +51,8 @@ def xfce_module():
 
 
 def test_the_package_has_the_contract_modules():
-    for name in ("account", "branding", "probe", "progress", "readiness", "validate"):
+    for name in ("account", "branding", "probe", "progress", "readiness", "validate",
+                 "catalog", "hardware", "network", "fisherman_host", "redact"):
         assert name in MODULES
 
 

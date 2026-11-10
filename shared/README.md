@@ -53,7 +53,8 @@ The image catalog (`images.json`): where a frontend looks for it, which
 fields of a leaf go into the recipe, which image is selected at the start,
 and when the installer makes an account. `resolve.py` is the reference
 resolver, and `tests/unit/test_shared_catalog.py` runs it against
-`fixtures/`. A new frontend reads `fixtures/catalog.json` with its own
+`fixtures/`. The reader that GNOME and XFCE ship is `bootc_shared.catalog`
+(see `python/`). A new frontend reads `fixtures/catalog.json` with its own
 parser in a test and compares the result with `fixtures/expected.json`. See
 [catalog/README.md](catalog/README.md).
 
@@ -122,7 +123,13 @@ language and runs it against `fraction-cases.json`,
 The package `bootc_shared`: the contract code that the two Python frontends
 (GNOME and XFCE) import. It has the readers for `probe/` and `recipe/`, the
 parser for `progress/`, the resolver for `branding/`, the groups of
-`account/`, and the readiness stamp. There is one copy. The data files stay
+`account/`, and the readiness stamp. It also has the logic that the two
+frontends had each written and that had drifted: the catalog reader
+(`catalog`), NVIDIA detection (`hardware`), the targets of the network
+check (`network`), the stage and the command for fisherman
+(`fisherman_host`), and the removal of the recovery key from a log
+(`redact`). `tests/unit/test_shared_python_catalog.py` and
+`tests/unit/test_shared_python_host.py` cover those. There is one copy. The data files stay
 in their contract directories, because the other three frontends read them
 there; `_data.py` lists the files that the package reads and finds them in
 a checkout and in an installed tree. The GNOME build installs the package

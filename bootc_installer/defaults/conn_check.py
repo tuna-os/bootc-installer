@@ -21,6 +21,8 @@ from gettext import gettext as _
 
 from gi.repository import Adw, Gtk
 
+from bootc_shared import network
+
 from bootc_installer.utils.run_async import RunAsync
 
 logging.basicConfig(level=logging.INFO)
@@ -88,26 +90,34 @@ class BootcDefaultConnCheck(Adw.Bin):
         self.__going_back = previous > idx
         self._run_check()
 
+    def _image_to_download(self) -> str:
+        """The image of the steps before this page, or "" when none has
+        chosen one (the check then uses the shared targets only)."""
+        ask = getattr(self.__window, "image_to_download", None)
+        try:
+            imgref = ask(self) if callable(ask) else ""
+        except Exception as error:  # noqa: BLE001 - the check must run anyway
+            logger.debug("no image for the connection check: %s", error)
+            imgref = ""
+        return imgref if isinstance(imgref, str) else ""
+
     def _run_check(self):
         self.__check_run += 1
         run = self.__check_run
+        # Read on the main thread: the registry of the image that the
+        # install downloads, when a step before this one has chosen it.
+        imgref = self._image_to_download()
 
         def async_fn():
-            if "VANILLA_SKIP_CONN_CHECK" in os.environ:
+            # bootc_shared.network, which XFCE also uses: the registry of
+            # the image first, then ghcr.io:443, then 8.8.8.8:53 as a plain
+            # route probe. The image's own registry is what the install
+            # downloads from; a mirror or a private registry can be up
+            # when ghcr.io is blocked, and the reverse.
+            if network.has_connectivity(imgref, connect=socket.create_connection):
                 return True
-
-            # Try ghcr.io first (the actual registry for bootc images), then
-            # fall back to 8.8.8.8:53 DNS as a general connectivity probe.
-            # Avoids false-negatives when github.com is blocked but ghcr.io is
-            # reachable (corporate proxies, some national firewalls).
-            for host, port in [("ghcr.io", 443), ("8.8.8.8", 53)]:
-                try:
-                    s = socket.create_connection((host, port), timeout=5)
-                    s.close()
-                    return True
-                except OSError:
-                    continue
-            logger.error("Connection check failed: could not reach ghcr.io:443 or 8.8.8.8:53")
+            logger.error("Connection check failed: could not reach %s", ", ".join(
+                f"{host}:{port}" for host, port in network.connectivity_targets(imgref)))
             return False
 
         def callback(res, *args):

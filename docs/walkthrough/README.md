@@ -23,11 +23,11 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 
 | Frontend | Pages | Rendered | Transitions | Harness |
 |---|---|---|---|---|
-| GNOME | 8 | 8 | 7 | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
-| KDE Plasma | 8 | 8 | 7 | tests/capture.cpp (Kirigami/QML, offscreen) |
-| COSMIC | 8 | 8 | 7 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
-| Niri | 8 | 8 | 7 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
-| XFCE | 9 | 9 | 8 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
+| GNOME | 11 | 11 | 10 | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
+| KDE Plasma | 10 | 10 | 9 | tests/capture.cpp (Kirigami/QML, offscreen) |
+| COSMIC | 18 | 18 | 17 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
+| Niri | 14 | 14 | 13 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
+| XFCE | 10 | 10 | 9 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
 
 ## GNOME
 
@@ -38,13 +38,16 @@ GTK4 / libadwaita (Python). Source: `bootc_installer/`.
 | | |
 |---|---|
 | <img src="gnome/01-welcome.png" width="360"> | **welcome** What the installer is about to do. <br><sub>Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Power Off Power Off Press Su</sub> |
-| <img src="gnome/02-qr_companion.png" width="360"> | **qr companion** Optional: scan a QR code and type your account details on your phone. <br><sub>Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR </sub> |
-| <img src="gnome/03-disk.png" width="360"> | **disk** Choose the disk. Nothing is written yet. <br><sub>Computer is not plugged in — connect power before installing Install Location Select the disk where you want to install. All data on the sel</sub> |
-| <img src="gnome/04-encryption.png" width="360"> | **encryption** Full-disk encryption, with or without TPM2. <br><sub>Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You'll type it at every boot. Encrypt this disk You'll type i</sub> |
-| <img src="gnome/05-confirm.png" width="360"> | **confirm** The last screen before anything is written. <br><sub>Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be und</sub> |
-| <img src="gnome/06-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installing TunaOS… Downloading… (47 of 71 parts) 0:00 elapsed 35% Do not power off the computer.</sub> |
-| <img src="gnome/07-recovery-key.png" width="360"> | **recovery key** The LUKS recovery key, shown once after an encrypted install. <br><sub>Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere sa</sub> |
-| <img src="gnome/08-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>TunaOS is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now</sub> |
+| <img src="gnome/02-conn-check.png" width="360"> | **conn check** A check that the image registry can be reached. <br><sub>Checking Connection Please wait until the connection check is done</sub> |
+| <img src="gnome/03-image.png" width="360"> | **image** Choose the image to install from the catalog. <br><sub>Choose an Image Select a BootcOS image to install, or enter a custom bootc-compatible image URL. Search images… Aurora Aurora Aurora Aurora </sub> |
+| <img src="gnome/04-qr_companion.png" width="360"> | **qr companion** Optional: scan a QR code and type your account details on your phone. <br><sub>Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR </sub> |
+| <img src="gnome/05-disk.png" width="360"> | **disk** Choose the disk. Nothing is written yet. <br><sub>Computer is not plugged in — connect power before installing Install Location Select the disk where you want to install. All data on the sel</sub> |
+| <img src="gnome/06-encryption.png" width="360"> | **encryption** Full-disk encryption, with or without TPM2. <br><sub>Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You'll type it at every boot. Encrypt this disk You'll type i</sub> |
+| <img src="gnome/07-user.png" width="360"> | **user** Your account and password. <br><sub>Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Conf</sub> |
+| <img src="gnome/08-confirm.png" width="360"> | **confirm** The last screen before anything is written. <br><sub>Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be und</sub> |
+| <img src="gnome/09-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installing TunaOS… Downloading… (47 of 71 parts) 0:00 elapsed 35% Do not power off the computer. Cancel Cancel</sub> |
+| <img src="gnome/10-recovery-key.png" width="360"> | **recovery key** The LUKS recovery key, shown once after an encrypted install. <br><sub>Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere sa</sub> |
+| <img src="gnome/11-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>Aurora DX is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now</sub> |
 
 ## KDE Plasma
 
@@ -54,14 +57,52 @@ Qt 6 / Kirigami (C++ + QML). Source: `frontends/kde/`.
 
 | | |
 |---|---|
-| <img src="kde/01-welcome.png" width="360"> | **welcome**  |
-| <img src="kde/02-disk.png" width="360"> | **disk**  |
-| <img src="kde/03-encryption.png" width="360"> | **encryption**  |
-| <img src="kde/04-account.png" width="360"> | **account**  |
-| <img src="kde/05-confirm.png" width="360"> | **confirm**  |
-| <img src="kde/06-progress.png" width="360"> | **progress**  |
-| <img src="kde/07-done.png" width="360"> | **done**  |
-| <img src="kde/08-recovery.png" width="360"> | **recovery**  |
+| <img src="kde/01-welcome.png" width="360"> | **welcome**  <br><sub>Step 1 of 7 · Welcome
+Welcome to TunaOS
+This wizard will guide you through installing TunaOS onto this computer.
+You will choose a disk and </sub> |
+| <img src="kde/02-disk.png" width="360"> | **disk**  <br><sub>Step 2 of 7 · Target Disk
+Target Disk
+Choose the disk where TunaOS will be installed.
+Everything on the selected disk will be erased.
+Everyt</sub> |
+| <img src="kde/03-encryption.png" width="360"> | **encryption**  <br><sub>Step 3 of 7 · Disk Encryption
+Disk Encryption
+Encryption protects your files if the disk is lost or stolen. It cannot be turned on later wit</sub> |
+| <img src="kde/04-account.png" width="360"> | **account**  <br><sub>Step 4 of 7 · User Account
+User Account
+Create the account you will sign in with. It can also administer this computer.
+Alex Example
+Full na</sub> |
+| <img src="kde/05-confirm.png" width="360"> | **confirm**  <br><sub>Step 5 of 7 · Confirm Installation
+Confirm installation
+Everything on /dev/nvme0n1 will be erased. This cannot be undone.
+Everything on /dev</sub> |
+| <img src="kde/06-progress.png" width="360"> | **progress**  <br><sub>Step 6 of 7 · Installing
+Installing
+Installing TunaOS… /dev/nvme0n1. Do not power off the computer.
+Step 5 of 8 — Installing TunaOS…
+[1/8] P</sub> |
+| <img src="kde/07-done.png" width="360"> | **done**  <br><sub>Step 7 of 7 · Finished
+TunaOS is installed
+Remove the installation media and restart the computer.
+Restart now
+&Restart now
+Close
+&Close</sub> |
+| <img src="kde/08-recovery.png" width="360"> | **recovery**  <br><sub>Step 7 of 7 · Finished
+TunaOS is installed
+Remove the installation media and restart the computer.
+Save your recovery key
+Save your recovery</sub> |
+| <img src="kde/09-cancel-confirm.png" width="360"> | **cancel confirm**  <br><sub>Step 6 of 7 · Installing
+Installing
+Installing TunaOS… /dev/nvme0n1. Do not power off the computer.
+Step 5 of 8 — Installing TunaOS…
+[1/8] P</sub> |
+| <img src="kde/10-cancelled.png" width="360"> | **cancelled**  <br><sub>Step 7 of 7 · Finished
+Installation cancelled
+You stopped the installation. The selected disk is erased and has no complete system. Start th</sub> |
 
 ## COSMIC
 
@@ -71,16 +112,26 @@ libcosmic / iced (Rust). Source: `frontends/cosmic/`.
 
 | | |
 |---|---|
-| <img src="cosmic/01-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to TunaOS Welcome. This assistant will guide you through installing TunaOS onto this computer. You will choose a target disk and a f</sub> |
-| <img src="cosmic/02-disk.png" width="360"> | **disk**  <br><sub>Select a disk Everything on the disk you pick will be erased. Samsung SSD 870 EVO 500GB /dev/sda · 465.8 GiB · SATA Extreme SSD /dev/sdc · 9</sub> |
-| <img src="cosmic/03-options.png" width="360"> | **options**  <br><sub>Options Sensible defaults are already chosen. Change them only if you need to. System Computer name tunaos Filesystem xfs Encryption Disk en</sub> |
-| <img src="cosmic/04-account.png" width="360"> | **account**  <br><sub>Create your account You will sign in with this account. It can administer the computer. Account Username alex Full name Alex Example Passwor</sub> |
-| <img src="cosmic/05-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation The last screen before anything is written. Everything on /dev/sda will be erased. This cannot be undone.  Summary Targ</sub> |
-| <img src="cosmic/06-installing.png" width="360"> | **installing**  <br><sub>Installing TunaOS… fisherman is writing the image to disk. [1/8] Partitioning disk
+| <img src="cosmic/01-requirements.png" width="360"> | **requirements**  <br><sub>Requirements met Firmware setup Power off Continue</sub> |
+| <img src="cosmic/02-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to TunaOS Welcome. This assistant will guide you through installing TunaOS onto this computer. You will choose a target disk and a f</sub> |
+| <img src="cosmic/03-image.png" width="360"> | **image**  <br><sub>Choose a system What to install onto the disk. Search systems  Capture Desktop › Stable The photographed system. Capture Desktop › Beta regi</sub> |
+| <img src="cosmic/04-language.png" width="360"> | **language**  <br><sub>Language Changes this session only. The installed system keeps its own language. en_US.UTF-8 en_GB.UTF-8 fr_FR.UTF-8 de_DE.UTF-8 es_ES.UTF-8</sub> |
+| <img src="cosmic/05-keyboard.png" width="360"> | **keyboard**  <br><sub>Keyboard Changes this session only. The installed system keeps its own keyboard layout. us gb fr de es it br jp ru cn Back Continue</sub> |
+| <img src="cosmic/06-timezone.png" width="360"> | **timezone**  <br><sub>Time zone Search, then pick where you are. Changes this session only. The installed system keeps its own time zone. Search time zones  Europ</sub> |
+| <img src="cosmic/07-network.png" width="360"> | **network**  <br><sub>Network The installer needs the network to fetch images. Connected. Recheck Back Continue</sub> |
+| <img src="cosmic/08-disk.png" width="360"> | **disk**  <br><sub>Select a disk Everything on the disk you pick will be erased. Samsung SSD 870 EVO 500GB /dev/sda · 465.8 GiB · SATA Extreme SSD /dev/sdc · 9</sub> |
+| <img src="cosmic/09-options.png" width="360"> | **options**  <br><sub>Options Sensible defaults are already chosen. Change them only if you need to. System Computer name tunaos Filesystem btrfs Encryption Disk </sub> |
+| <img src="cosmic/10-account.png" width="360"> | **account**  <br><sub>Create your account You will sign in with this account. It can administer the computer. Account Username alex Full name Alex Example Passwor</sub> |
+| <img src="cosmic/11-tour.png" width="360"> | **tour**  <br><sub>Tour Capture at a glance Everything is where you left it. Back Continue</sub> |
+| <img src="cosmic/12-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation The last screen before anything is written. Everything on /dev/sda will be erased. This cannot be undone.  Summary Targ</sub> |
+| <img src="cosmic/13-installing.png" width="360"> | **installing**  <br><sub>Installing TunaOS… fisherman is writing the image to disk. [1/8] Partitioning disk
 [2/8] Formatting EFI partition
 [3/8] Formatting root file</sub> |
-| <img src="cosmic/07-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Restart now Close</sub> |
-| <img src="cosmic/08-recovery.png" width="360"> | **recovery**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automaticall</sub> |
+| <img src="cosmic/14-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Restart now Copy log Close</sub> |
+| <img src="cosmic/15-recovery.png" width="360"> | **recovery**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automaticall</sub> |
+| <img src="cosmic/16-cancel.png" width="360"> | **cancel**  <br><sub>Stop the installation? The disk is already changed. If you stop now, it has no system that can start. You can run the installer again. Keep </sub> |
+| <img src="cosmic/17-cancelled.png" width="360"> | **cancelled**  <br><sub>Installation cancelled You stopped the installation. The disk has no system that can start. Run the installer again to finish. Copy log Clos</sub> |
+| <img src="cosmic/18-offline.png" width="360"> | **offline**  <br><sub>Network The installer needs the network to fetch images. No internet connection. The installer requires an active internet connection. Netwo</sub> |
 
 ## Niri
 
@@ -90,16 +141,24 @@ Quickshell QML + Go backend. Source: `frontends/niri/`.
 
 | | |
 |---|---|
-| <img src="niri/01-welcome.png" width="360"> | **welcome**  <br><sub>Step 1 of 7 · Welcome ⬢ Welcome to TunaOS This wizard will guide you through installing TunaOS onto your computer. Get started Get started E</sub> |
-| <img src="niri/02-disk.png" width="360"> | **disk**  <br><sub>Step 2 of 7 · Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  ·  465.8 Gi</sub> |
-| <img src="niri/03-encryption.png" width="360"> | **encryption**  <br><sub>Step 3 of 7 · Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without </sub> |
-| <img src="niri/04-account.png" width="360"> | **account**  <br><sub>Step 4 of 7 · Account Your account The account you sign in with. It can administer this computer. Account Username alex Full name Alex Examp</sub> |
-| <img src="niri/05-confirm.png" width="360"> | **confirm**  <br><sub>Step 5 of 7 · Confirm Confirm installation ⚠  Everything on /dev/sda will be erased. This cannot be undone. Summary Target disk /dev/sda Fil</sub> |
-| <img src="niri/06-progress.png" width="360"> | **progress**  <br><sub>Step 6 of 7 · Installing Installing TunaOS… Step 5 of 8 — Installing OS [1/8] Partitioning disk
+| <img src="niri/01-welcome.png" width="360"> | **welcome**  <br><sub>Step 1 of 9 · Welcome ⬢ Welcome to TunaOS This wizard will guide you through installing TunaOS onto your computer. Get started Get started E</sub> |
+| <img src="niri/02-session.png" width="360"> | **session**  <br><sub>Step 2 of 9 · Session Session These settings change only on live media. This computer keeps its own keyboard, language and time zone. Keyboa</sub> |
+| <img src="niri/03-source.png" width="360"> | **source**  <br><sub>Step 3 of 9 · Source What do you want to install? Search images Example OS › Stable ghcr.io/example/os:stable  ·  available offline Example </sub> |
+| <img src="niri/04-disk.png" width="360"> | **disk**  <br><sub>Step 4 of 9 · Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  ·  465.8 Gi</sub> |
+| <img src="niri/05-encryption.png" width="360"> | **encryption**  <br><sub>Step 5 of 9 · Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without </sub> |
+| <img src="niri/06-account.png" width="360"> | **account**  <br><sub>Step 6 of 9 · Account Your account The account you sign in with. It can administer this computer. Account Username alex Full name Alex Examp</sub> |
+| <img src="niri/07-confirm.png" width="360"> | **confirm**  <br><sub>Step 7 of 9 · Confirm Confirm installation ⚠  Everything on /dev/sda will be erased. This cannot be undone. Summary Target disk /dev/sda Ima</sub> |
+| <img src="niri/08-progress.png" width="360"> | **progress**  <br><sub>Step 8 of 9 · Installing Installing TunaOS… Step 5 of 8 — Installing OS [1/8] Partitioning disk
 [2/8] Formatting EFI partition
 [3/8] Formatt</sub> |
-| <img src="niri/07-done.png" width="360"> | **done**  <br><sub>Step 7 of 7 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Close Close Restart now Restart now</sub> |
-| <img src="niri/08-recovery.png" width="360"> | **recovery**  <br><sub>Step 7 of 7 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails t</sub> |
+| <img src="niri/09-done.png" width="360"> | **done**  <br><sub>Step 9 of 9 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Close Close Power off Power off Restart now</sub> |
+| <img src="niri/10-recovery.png" width="360"> | **recovery**  <br><sub>Step 9 of 9 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails t</sub> |
+| <img src="niri/11-tour.png" width="360"> | **tour**  <br><sub>Step 8 of 8 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails t</sub> |
+| <img src="niri/12-cancel-confirm.png" width="360"> | **cancel confirm**  <br><sub>Step 7 of 8 · Installing Installing TunaOS… Step 5 of 8 — Installing OS [1/8] Partitioning disk
+[2/8] Formatting EFI partition
+[3/8] Formatt</sub> |
+| <img src="niri/13-cancelled.png" width="360"> | **cancelled**  <br><sub>Step 8 of 8 · Done – Installation cancelled You stopped the installer. The disk can be in an incomplete state: start the installer again bef</sub> |
+| <img src="niri/14-offline.png" width="360"> | **offline**  <br><sub>Step 3 of 9 · Source What do you want to install? Search images Example OS › Stable ghcr.io/example/os:stable  ·  available offline Example </sub> |
 
 ## XFCE
 
@@ -112,19 +171,22 @@ GTK3 / PyGObject. Source: `frontends/xfce/`.
 | <img src="xfce/01-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to TunaOS This assistant installs TunaOS on this computer.
 
 You'll choose what to install and where; nothing is written to any disk </sub> |
-| <img src="xfce/02-source.png" width="360"> | **source**  <br><sub>What do you want to install? Bluefin Bluefin ghcr.io/ublue-os/bluefin:latest GNOME GNOME ghcr.io/tuna-os/bonito:latest KDE Plasma KDE Plasma</sub> |
+| <img src="xfce/02-source.png" width="360"> | **source**  <br><sub>What do you want to install? Bluefin › Bluefin Bluefin › Bluefin ghcr.io/ublue-os/bluefin:latest TunaOS › GNOME TunaOS › GNOME ghcr.io/tuna-</sub> |
 | <img src="xfce/03-destination.png" width="360"> | **destination**  <br><sub>Where should TunaOS be installed? Samsung SSD 870 EVO 500GB    /dev/sda    465.8 GiB    SATA Samsung SSD 870 EVO 500GB    /dev/sda    465.8 </sub> |
 | <img src="xfce/04-setup.png" width="360"> | **setup**  <br><sub>Disk encryption No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at every boot. TP</sub> |
-| <img src="xfce/05-identity.png" width="360"> | **identity**  <br><sub>Name this computer Hostname Password Full name Username Your account</sub> |
+| <img src="xfce/05-identity.png" width="360"> | **identity**  <br><sub>Name this computer Hostname Confirm password Password Full name Username Your account Keyboard Keyboard layout (this session only)</sub> |
 | <img src="xfce/06-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation Target disk: /dev/sda
-Filesystem:  xfs
+Filesystem:  btrfs
 Encryption:  No encryption
 Hostname:    tunaos
-Image:       ghcr.io/ublue-os/blu</sub> |
+Image:       ghcr.io/tuna-os/bo</sub> |
 | <img src="xfce/07-progress.png" width="360"> | **progress**  <br><sub>Installing TunaOS…  Do not power off the computer. [1/8] Partitioning disk
 [2/8] Formatting EFI partition
 [3/8] Formatting root filesystem
 [</sub> |
-| <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Close Close Restart now Restart now</sub> |
+| <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Close Close Power off Power off Restart now Restart now</sub> |
 | <img src="xfce/09-recovery.png" width="360"> | **recovery**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automaticall</sub> |
+| <img src="xfce/10-cancelled.png" width="360"> | **cancelled**  <br><sub>Installation cancelled You stopped the installation. The target disk holds an incomplete system: start the installer again to use it.
+
+Full </sub> |
 

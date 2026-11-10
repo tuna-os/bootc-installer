@@ -32,30 +32,24 @@ class TestGpuDetection:
 
     def test_nvidia_vga_detected(self, tmp_path, monkeypatch):
         self._make_pci_device(tmp_path, "0000:01:00.0", "0x10de", "0x030000")
-        monkeypatch.setattr(
-            "bootc_installer.core.system.glob.glob",
-            lambda pattern: [str(tmp_path / "sys/bus/pci/devices/0000:01:00.0/class")],
-        )
+        monkeypatch.setattr("bootc_installer.core.system.PCI_DEVICES",
+                            str(tmp_path / "sys/bus/pci/devices"))
         result = _detect_display_devices()
         assert len(result) == 1
         assert result[0]["vendor"] == "nvidia"
 
     def test_intel_vga_detected(self, tmp_path, monkeypatch):
         self._make_pci_device(tmp_path, "0000:00:02.0", "0x8086", "0x030000")
-        monkeypatch.setattr(
-            "bootc_installer.core.system.glob.glob",
-            lambda pattern: [str(tmp_path / "sys/bus/pci/devices/0000:00:02.0/class")],
-        )
+        monkeypatch.setattr("bootc_installer.core.system.PCI_DEVICES",
+                            str(tmp_path / "sys/bus/pci/devices"))
         result = _detect_display_devices()
         assert len(result) == 1
         assert result[0]["vendor"] == "intel"
 
     def test_amd_vga_detected(self, tmp_path, monkeypatch):
         self._make_pci_device(tmp_path, "0000:06:00.0", "0x1002", "0x030000")
-        monkeypatch.setattr(
-            "bootc_installer.core.system.glob.glob",
-            lambda pattern: [str(tmp_path / "sys/bus/pci/devices/0000:06:00.0/class")],
-        )
+        monkeypatch.setattr("bootc_installer.core.system.PCI_DEVICES",
+                            str(tmp_path / "sys/bus/pci/devices"))
         result = _detect_display_devices()
         assert len(result) == 1
         assert result[0]["vendor"] == "amd"
@@ -64,13 +58,8 @@ class TestGpuDetection:
         """Laptop with Intel iGPU + NVIDIA dGPU — both detected."""
         self._make_pci_device(tmp_path, "0000:00:02.0", "0x8086", "0x030000")
         self._make_pci_device(tmp_path, "0000:01:00.0", "0x10de", "0x030200")
-        monkeypatch.setattr(
-            "bootc_installer.core.system.glob.glob",
-            lambda pattern: [
-                str(tmp_path / "sys/bus/pci/devices/0000:00:02.0/class"),
-                str(tmp_path / "sys/bus/pci/devices/0000:01:00.0/class"),
-            ],
-        )
+        monkeypatch.setattr("bootc_installer.core.system.PCI_DEVICES",
+                            str(tmp_path / "sys/bus/pci/devices"))
         result = _detect_display_devices()
         vendors = {r["vendor"] for r in result}
         assert vendors == {"intel", "nvidia"}
@@ -78,28 +67,22 @@ class TestGpuDetection:
     def test_intel_non_gpu_ignored(self, tmp_path, monkeypatch):
         """Intel PCI device that is NOT a GPU (e.g. USB controller) is excluded."""
         self._make_pci_device(tmp_path, "0000:00:14.0", "0x8086", "0x0c0330")
-        monkeypatch.setattr(
-            "bootc_installer.core.system.glob.glob",
-            lambda pattern: [str(tmp_path / "sys/bus/pci/devices/0000:00:14.0/class")],
-        )
+        monkeypatch.setattr("bootc_installer.core.system.PCI_DEVICES",
+                            str(tmp_path / "sys/bus/pci/devices"))
         result = _detect_display_devices()
         assert result == []
 
     def test_nvidia_audio_function_ignored(self, tmp_path, monkeypatch):
         """NVIDIA HDMI audio function (class 0x040300) is not a GPU."""
         self._make_pci_device(tmp_path, "0000:01:00.1", "0x10de", "0x040300")
-        monkeypatch.setattr(
-            "bootc_installer.core.system.glob.glob",
-            lambda pattern: [str(tmp_path / "sys/bus/pci/devices/0000:01:00.1/class")],
-        )
+        monkeypatch.setattr("bootc_installer.core.system.PCI_DEVICES",
+                            str(tmp_path / "sys/bus/pci/devices"))
         result = _detect_display_devices()
         assert result == []
 
     def test_no_pci_devices(self, monkeypatch):
-        monkeypatch.setattr(
-            "bootc_installer.core.system.glob.glob",
-            lambda pattern: [],
-        )
+        monkeypatch.setattr("bootc_installer.core.system.PCI_DEVICES",
+                            "/nonexistent/sys/bus/pci/devices")
         result = _detect_display_devices()
         assert result == []
 
@@ -108,10 +91,8 @@ class TestGpuDetection:
         broken_dir.mkdir(parents=True)
         (broken_dir / "class").write_text("not-hex\n")
 
-        monkeypatch.setattr(
-            "bootc_installer.core.system.glob.glob",
-            lambda pattern: [str(broken_dir / "class")],
-        )
+        monkeypatch.setattr("bootc_installer.core.system.PCI_DEVICES",
+                            str(broken_dir.parent))
 
         assert _detect_display_devices() == []
 

@@ -72,3 +72,9 @@ def pytest_configure(config):
     # Register all Adw widget types so @Gtk.Template classes that reference
     # AdwToolbarView, AdwStatusPage, etc. can be instantiated in tests.
     Adw.init()
+
+    # Register the app's own widget types that templates name, as main.py
+    # does before it loads the blueprints. Without this a test file run on
+    # its own fails with "Invalid object type 'BootcPageHeader'": only an
+    # earlier file in the full run happened to import the type.
+    from bootc_installer.widgets.page_header import BootcPageHeader  # noqa: F401

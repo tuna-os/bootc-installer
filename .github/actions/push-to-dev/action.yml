@@ -3,7 +3,7 @@ description: >-
   Commits the given paths as github-actions[bot] and pushes the commit to
   dev, with a rebase and a retry when another bot commit won the race. Does
   nothing when the paths have no change. The caller decides when it runs
-  (`if:`) and must have the repository checked out with push credentials.
+  (`if:`) and must have the repository checked out.
 
 # One copy of the step that screenshots-<frontend>.yml (five) and
 # walkthrough.yml each carried. Use it after actions/checkout:
@@ -14,6 +14,14 @@ description: >-
 #       working-directory: frontends/kde
 #       paths: docs/screenshots
 #       message: "docs(kde): refresh GUI screenshots [skip ci]"
+#       ssh-key: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}
+#
+# The push goes over SSH with DEV_PUSH_DEPLOY_KEY, a write deploy key on this
+# repository, not with GITHUB_TOKEN: the "tier-a: required checks" ruleset
+# on dev rejects a commit with no check runs (GH013, "3 of 3 required status
+# checks are expected"), a [skip ci] commit never gets any, and GitHub
+# Actions cannot be a ruleset bypass actor. Deploy keys can, and that is the
+# ruleset's only bypass besides org admins on pull requests.
 
 inputs:
   paths:
@@ -26,6 +34,9 @@ inputs:
     description: Where to run, from the repository root. A step of a composite action does not take the caller's `defaults.run`.
     required: false
     default: .
+  ssh-key:
+    description: Private half of the write deploy key on this repository (secret DEV_PUSH_DEPLOY_KEY).
+    required: true
 
 runs:
   using: composite
@@ -36,6 +47,7 @@ runs:
       env:
         PATHS: ${{ inputs.paths }}
         MESSAGE: ${{ inputs.message }}
+        DEV_PUSH_DEPLOY_KEY: ${{ inputs.ssh-key }}
       run: |
         # A job in a container runs as a user that does not own the
         # checkout, and git then refuses the repository. On a hosted runner
@@ -47,6 +59,21 @@ runs:
         git add -- "${paths[@]}"
         if git diff --cached --quiet; then echo "no changes"; exit 0; fi
         git commit -m "$MESSAGE"
+        if [ -z "$DEV_PUSH_DEPLOY_KEY" ]; then
+          echo "::error::ssh-key is empty -- is the DEV_PUSH_DEPLOY_KEY secret set on ${GITHUB_REPOSITORY}?"
+          exit 1
+        fi
+        keydir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/push-to-dev.XXXXXX")"
+        trap 'rm -rf "$keydir"' EXIT
+        (umask 077; printf '%s\n' "$DEV_PUSH_DEPLOY_KEY" > "$keydir/key")
+        # github.com's published host keys (https://api.github.com/meta).
+        printf 'github.com %s\n' \
+          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" \
+          "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=" \
+          > "$keydir/known_hosts"
+        export GIT_SSH_COMMAND="ssh -i $keydir/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$keydir/known_hosts"
+        # Fetch stays on the checkout's HTTPS remote; only the push uses the key.
+        git remote set-url --push origin "git@github.com:${GITHUB_REPOSITORY}.git"
         # Five capture jobs and the walkthrough all push small commits to dev
         # within seconds of each other, and a plain push loses the race with
         # a non-fast-forward rejection (runs 35281231391/462/400 on the

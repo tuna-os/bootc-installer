@@ -257,3 +257,35 @@ def resolve(branding_paths=None, os_release_paths=None, env=None) -> Branding:
             os_release_text = text
             break
     return from_sources(file_data, os_release_text, env.get(ENV_NAME, ""))
+
+
+# ── Artwork sources ──────────────────────────────────────────────────────────
+
+RESOURCE_PREFIX = "resource://"
+
+
+def logo_source(spec, in_flatpak):
+    """(kind, value) for a logo or icon spec: where a toolkit loads it from.
+
+    "resource"  a path in the application's own resources (`resource:///...`;
+                the value is the path, with its leading slash);
+    "file"      an absolute file. The host's /usr and /etc are below
+                /run/host in a Flatpak; /app (the application's assets) and
+                a path that is already mapped are not changed;
+    "theme"     an icon name of the active theme;
+    "none"      nothing to show: an empty spec, a relative path or a URL. A
+                frontend never fetches artwork.
+
+    shared/branding/fixtures/logo-paths.json has the cases.
+    """
+    if not isinstance(spec, str) or not spec:
+        return "none", ""
+    if spec.startswith(RESOURCE_PREFIX + "/"):
+        return "resource", spec[len(RESOURCE_PREFIX):]
+    if spec.startswith("/"):
+        if in_flatpak and spec.startswith(("/usr/", "/etc/")):
+            return "file", "/run/host" + spec
+        return "file", spec
+    if "/" in spec or ":" in spec:
+        return "none", ""
+    return "theme", spec
