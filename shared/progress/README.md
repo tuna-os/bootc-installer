@@ -134,8 +134,10 @@ is a short install with one `recovery_key` event. A frontend that keeps a
 log sends the transcript through its log writer and compares the file:
 the key is not there, the redacted event is, and each other line is
 unchanged. GNOME (`tests/unit/test_recovery_key_log_fixture.py`), KDE
-(`frontends/kde/tests/test_backend.cpp`), COSMIC (`src/redact.rs`) and Niri
-(`installer/redact_test.go`) do this.
+(`frontends/kde/tests/test_backend.cpp`), COSMIC (`src/redact.rs`), Niri
+(`installer/redact_test.go`) and XFCE
+(`frontends/xfce/tests/test_recovery_key_log.py`) do this. GNOME and XFCE
+use one function, `bootc_shared.redact`.
 
 ## Fixture
 

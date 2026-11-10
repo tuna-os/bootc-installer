@@ -18,8 +18,7 @@ import json
 import logging
 import re
 
-from bootc_installer.utils import catalog
-from bootc_shared import branding
+from bootc_shared import branding, catalog
 from bootc_shared.account import resolve_groups
 from bootc_installer.utils.sha512crypt import sha512_crypt
 
@@ -77,6 +76,38 @@ def _find_nvidia_imgref_for(imgref: str) -> str:
 
 
 class Processor:
+    @staticmethod
+    def find_metadata(candidates, aliases, imgref) -> dict:
+        """The catalog metadata of `imgref` in an `images` list: the fields
+        that gen_install_recipe reads, or {} when the list has no leaf for
+        the image.
+
+        A list of one entry that names no image (no `imgref`, `tag`,
+        `registry` or `children`) is the metadata of the one image there
+        is; that entry is returned as it is.
+        """
+        leaf = catalog.find({"images": candidates, "aliases": aliases}, imgref, strict=True)
+        if leaf is not None:
+            metadata = {
+                "composefs": leaf["composefs"],
+                "image_type": leaf["image_type"],
+                "bootloader": leaf["bootloader"],
+                # An image with one filesystem decides. One that offers a
+                # choice does not: the disk page showed the list (the same
+                # rule as image_finals.leaf_finals).
+                "filesystem": leaf["filesystem"] if len(leaf["filesystems"]) <= 1 else "",
+                "flatpak_var_path": leaf["flatpak_var_path"],
+                "flatpaks": leaf["flatpaks"],
+            }
+            # The desktop extras: only an object that the catalog has.
+            if leaf["extras"] is not None:
+                metadata["extras"] = leaf["extras"]
+            return metadata
+        if (len(candidates) == 1
+                and not any(key in candidates[0] for key in ("imgref", "tag", "registry", "children"))):
+            return candidates[0]
+        return {}
+
     @staticmethod
     def image_plan(finals: list, sys_recipe: dict) -> dict:
         """Which image is installed and which one updates follow.
@@ -302,29 +333,12 @@ class Processor:
                 except (OSError, ValueError) as error:
                     raise ValueError(f"Cannot read image metadata at {path}: {error}") from error
         # Match the chosen tracking reference, never a local OCI source or an
-        # unrelated first row. A single metadata-only entry remains supported.
-        def find_metadata(nodes, inherited=None):
-            if not isinstance(nodes, list):
-                raise ValueError("Image metadata must be a list")  # noqa: TRY004 - invalid serialized recipe, surfaced in UI
-            for node in nodes:
-                if not isinstance(node, dict):
-                    raise ValueError("Image metadata entry must be an object")  # noqa: TRY004 - invalid serialized recipe, surfaced in UI
-                context = {**(inherited or {}), **node}
-                reference = node.get("imgref")
-                if not reference and node.get("tag") and context.get("registry"):
-                    reference = f"{context['registry']}:{node['tag']}"
-                if reference == metadata_imgref:
-                    return context
-                if "children" in node:
-                    found = find_metadata(node["children"], context)
-                    if found:
-                        return found
-            return {}
-
-        metadata = find_metadata(candidates)
-        if (not metadata and len(candidates) == 1
-                and not any(key in candidates[0] for key in ("imgref", "tag", "registry", "children"))):
-            metadata = candidates[0]
+        # unrelated first row. The leaf comes from the one catalog reader
+        # (bootc_shared.catalog), so it inherits what the image page shows.
+        # `strict`: a tree that is not lists of objects, or a wrong type in
+        # the leaf of this image, stops the install (CatalogError is a
+        # ValueError); it must not go on with a default backend.
+        metadata = Processor.find_metadata(candidates, metadata_aliases, metadata_imgref)
 
         def field(ui_key, system_key, image_key, default):
             for source, key in ((merged, ui_key), (sys_recipe, system_key),

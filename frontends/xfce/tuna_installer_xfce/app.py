@@ -472,10 +472,15 @@ class InstallerWindow(Gtk.ApplicationWindow):
                 return
             if status != GLib.IOStatus.NORMAL or not text:
                 return
-            self._log_tail = (self._log_tail + [text])[-15:]
+            # The file and the tail that a failed install shows get the
+            # line without the recovery key (#337). The page gets the
+            # line as fisherman wrote it: it reads the key from the
+            # event, for the recovery-key page.
+            clean = text
             if self._install_log:
-                self._install_log.write(text)
+                clean = self._install_log.write(text)
                 self._install_log.flush()
+            self._log_tail = (self._log_tail + [clean])[-15:]
             page.append_log(text)
 
     def _on_output(self, channel, cond, page):

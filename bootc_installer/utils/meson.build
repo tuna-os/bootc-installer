@@ -7,7 +7,7 @@ sources = [
   'icons.py',
   'run_async.py',
   'processor.py',
-  'catalog.py',
+  'image_finals.py',
   'recipe.py',
   'builder.py',
   'codec_check.py',
