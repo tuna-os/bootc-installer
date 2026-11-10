@@ -31,6 +31,12 @@ name: Promote dev → prod
 
 on:
   workflow_run:
+    # Every workflow that a push to dev can start, by its `name:`. The gate
+    # reads every check run on the candidate, and only the last workflow to
+    # finish sees "everything complete". A workflow that is absent from this
+    # list can finish last, and then no firing promotes until the hourly
+    # catch-up. tests/unit/test_promote_gate.py fails when a name here
+    # matches no workflow, or when a workflow that runs on dev is absent.
     workflows:
       - Flatpak
       - Flatpak (frontends)
@@ -45,6 +51,12 @@ on:
       - cargo-sources (cosmic)
       - Walkthrough
       - End to end
+      - Cargo Tests (cosmic)
+      - Validate Flatpak Manifests
+      - Workflow lint
+      - Prose
+      - Browser walkthrough
+      - KDE wasm build
     types: [completed]
     branches: [dev]
   # Catch-up only. The gate sleeps out the soak itself (see the header), so
@@ -84,6 +96,10 @@ env:
   # e2e.yml: every frontend drives its real backend path, and the recipe
   # each one produced is installed and booted in a VM. Nothing ships
   # without all five installers having installed something that booted.
+  # Every workflow that runs on each push to dev (no path filter) has a job
+  # here, so a workflow that does not start cannot pass as "nothing failed".
+  # tests/unit/test_promote_gate.py makes sure of that, and that each name
+  # is the name of a job.
   REQUIRED_CHECKS: |
     Build (production)
     Build (production, aarch64)
@@ -91,6 +107,9 @@ env:
     Unit Tests (no display)
     UI Integration Tests (offscreen GTK)
     Unit Tests
+    Detect changed frontends
+    cargo-sources matches Cargo.lock (cosmic)
+    Validate Flatpak manifests
     E2E (gnome)
     E2E (kde)
     E2E (cosmic)

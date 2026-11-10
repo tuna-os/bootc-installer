@@ -38,7 +38,7 @@ feature/xyz ──PR──▶ dev ──promote.yml (all checks green + soak)─
 | `ci-niri.yml` | `Go backend (niri)` | gofmt / vet / build / test for `frontends/niri/installer`. |
 | `cargo-sources-cosmic.yml` | `cargo-sources matches Cargo.lock (cosmic)` | Offline cargo vendoring stays in sync with `Cargo.lock`. |
 | `e2e.yml` | `E2E (gnome)`, `E2E (kde)`, `E2E (cosmic)`, `E2E (niri)`, `E2E (xfce)`, `E2E (install <frontend>)` | The gate that proves the installers work: each frontend drives its real backend launch path to Done against the real fisherman's validation, then the recipe it produced is installed onto a loop disk and booted in QEMU. See `shared/e2e/README.md`. |
-| `validate-flatpak.yml` | `validate` | GNOME manifests are well-formed with required fields. |
+| `validate-flatpak.yml` | `Validate Flatpak manifests` | GNOME manifests are well-formed with required fields. |
 | `actionlint.yml` | `actionlint` | Workflow syntax. |
 | `ste.yml` | `ste` | Simplified Technical English over every `.md`, budget in `.ste-budget` (a ratchet; the monorepo budget is the sum of the five repos'). |
 | `nightly.yml` | — | Weekly test sweep of `dev` and `prod`. |
@@ -62,6 +62,9 @@ feature/xyz ──PR──▶ dev ──promote.yml (all checks green + soak)─
 Names matter: `promote.yml` lists workflow *names* in its `workflow_run`
 trigger and job *names* in `REQUIRED_CHECKS`. Renaming a job or workflow
 means updating both.
+`tests/unit/test_promote_gate.py` fails when a name in one of
+the two lists matches nothing, and when a workflow that runs on `dev` is
+absent from the trigger list (`docs/RELEASE.md`, "Knobs").
 
 ---
 
