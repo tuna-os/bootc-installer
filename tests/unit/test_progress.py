@@ -16,7 +16,7 @@ def _mock_gtk_imports():
         "gi", "gi.repository", "gi.repository.Gdk", "gi.repository.Gio",
         "gi.repository.GLib", "gi.repository.Gtk", "gi.repository.Adw",
         "gi.repository.Pango", "gi.repository.GdkPixbuf",
-        "bootc_installer.views.tour", "bootc_installer.utils.run_async",
+        "bootc_installer.utils.run_async",
     ]:
         mocks[name] = MagicMock()
     # gi.require_version must be a callable no-op

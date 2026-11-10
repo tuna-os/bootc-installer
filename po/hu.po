@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: vanilla-installer\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 17:21+0000\n"
+"POT-Creation-Date: 2026-11-10 18:13+0000\n"
 "PO-Revision-Date: 2023-12-29 16:06+0000\n"
 "Last-Translator: Balázs Szeles <zutvas@gmail.com>\n"
 "Language-Team: Hungarian <https://hosted.weblate.org/projects/vanilla-os/"
@@ -440,25 +440,16 @@ msgid "Pair your keyboard or mouse to continue"
 msgstr ""
 
 #: bootc_installer/gtk/default-welcome.blp:58
-#: bootc_installer/gtk/dialog-recovery.blp:5
-msgid "Recovery"
-msgstr "Helyreállítás"
-
-#: bootc_installer/gtk/default-welcome.blp:59
-msgid "Troubleshoot or repair an existing installation."
-msgstr ""
-
-#: bootc_installer/gtk/default-welcome.blp:76
 #: bootc_installer/gtk/dialog-poweroff.blp:5
 #: bootc_installer/gtk/dialog-poweroff.blp:22
 msgid "Power Off"
 msgstr "Kikapcsolás"
 
-#: bootc_installer/gtk/default-welcome.blp:94
+#: bootc_installer/gtk/default-welcome.blp:76
 msgid "Press Super+Alt+S to enable the screen reader"
 msgstr ""
 
-#: bootc_installer/gtk/default-welcome.blp:105
+#: bootc_installer/gtk/default-welcome.blp:87
 #: bootc_installer/gtk/dialog-credits.blp:5 bootc_installer/gtk/window.blp:56
 msgid "Credits"
 msgstr ""
@@ -470,7 +461,7 @@ msgid "Confirm Changes"
 msgstr "Változások megerősítése"
 
 #: bootc_installer/gtk/dialog-disk-confirm.blp:17
-#: bootc_installer/gtk/dialog-disk.blp:17 bootc_installer/gtk/progress.blp:312
+#: bootc_installer/gtk/progress.blp:312
 #: bootc_installer/windows/main_window.py:584
 msgid "Cancel"
 msgstr "Mégse"
@@ -482,14 +473,6 @@ msgid ""
 msgstr ""
 "A következő változtatások lesznek végrehajtva a lemezen. Kérjük, tekintse át "
 "őket gondosan."
-
-#: bootc_installer/gtk/dialog-disk.blp:5
-msgid "Configure Disk"
-msgstr "Lemez konfigurálása"
-
-#: bootc_installer/gtk/dialog-disk.blp:22
-msgid "Apply"
-msgstr "Alkalmaz"
 
 #: bootc_installer/gtk/dialog-output.blp:5
 msgid "Log"
@@ -507,47 +490,6 @@ msgstr "Újraindítás"
 #, fuzzy
 msgid "Restart Into Firmware Setup"
 msgstr "Újraindítás a Firmware Setup-ba"
-
-#: bootc_installer/gtk/dialog-recovery.blp:22
-msgid "Console"
-msgstr "Konzol"
-
-#: bootc_installer/gtk/dialog-recovery.blp:23
-msgid "Open a terminal"
-msgstr "Nyisson meg egy terminált"
-
-#: bootc_installer/gtk/dialog-recovery.blp:39
-msgid "Documentation"
-msgstr "Dokumentáció"
-
-#: bootc_installer/gtk/dialog-recovery.blp:40
-#, fuzzy
-msgid "Open the documentation"
-msgstr "A Vanilla OS dokumentációjának megnyitása"
-
-#: bootc_installer/gtk/dialog-recovery.blp:56
-msgid "Disks manager"
-msgstr ""
-
-#: bootc_installer/gtk/dialog-recovery.blp:57
-msgid "Manage disks and partitions"
-msgstr "Lemezek és partíciók kezelése"
-
-#: bootc_installer/gtk/dialog-recovery.blp:73
-msgid "Get help"
-msgstr ""
-
-#: bootc_installer/gtk/dialog-recovery.blp:74
-msgid "Open the support site"
-msgstr ""
-
-#: bootc_installer/gtk/dialog-recovery.blp:90
-msgid "Web Browser"
-msgstr "Webböngésző"
-
-#: bootc_installer/gtk/dialog-recovery.blp:91
-msgid "Search help online"
-msgstr "Keressen segítséget az interneten"
 
 #: bootc_installer/gtk/dialog.blp:5
 msgid "Showing Information"
@@ -594,13 +536,13 @@ msgstr ""
 msgid "Installation will continue normally. Feel free to browse around. Rawr."
 msgstr ""
 
-#: bootc_installer/gtk/progress.blp:191 bootc_installer/views/progress.py:769
-#: bootc_installer/views/progress.py:843
+#: bootc_installer/gtk/progress.blp:191 bootc_installer/views/progress.py:829
+#: bootc_installer/views/progress.py:905
 #, fuzzy
 msgid "Installing"
 msgstr "Telepítés…"
 
-#: bootc_installer/gtk/progress.blp:225 bootc_installer/views/progress.py:776
+#: bootc_installer/gtk/progress.blp:225 bootc_installer/views/progress.py:836
 msgid "0:00 elapsed"
 msgstr ""
 
@@ -622,140 +564,6 @@ msgstr "Telepítés megerősítése"
 #: bootc_installer/gtk/widget-keyboard.blp:13
 msgid "key"
 msgstr "kulcs"
-
-#: bootc_installer/gtk/widget-partition.blp:8
-msgid "Manually Partition"
-msgstr "Kézi partícionálás"
-
-#: bootc_installer/gtk/widget-partition.blp:9
-msgid "Open GParted to manually partition the disk"
-msgstr "GParted megnyitása a lemez kézi particionálásához"
-
-#: bootc_installer/gtk/widget-partition.blp:27
-msgid "Boot Partition"
-msgstr "Boot partíció"
-
-#: bootc_installer/gtk/widget-partition.blp:29
-#, fuzzy
-msgid ""
-"The partition to mount under “/boot”. This directory stores files for "
-"booting into bootc installer. Minimum space required in the partition is "
-msgstr ""
-"A \"/boot/efi\" alá csatolandó partíció. Ez a könyvtár tárolja a "
-"bootloaderben való indításhoz szükséges fájlokat."
-
-#: bootc_installer/gtk/widget-partition.blp:33
-#: bootc_installer/gtk/widget-partition.blp:53
-#: bootc_installer/gtk/widget-partition.blp:85
-#: bootc_installer/gtk/widget-partition.blp:106
-#: bootc_installer/gtk/widget-partition.blp:126
-#: bootc_installer/gtk/widget-partition.blp:160
-#, fuzzy
-msgid "No Partition Selected"
-msgstr "Nincs kiválasztott partíció"
-
-#: bootc_installer/gtk/widget-partition.blp:34
-#: bootc_installer/gtk/widget-partition.blp:54
-#: bootc_installer/gtk/widget-partition.blp:86
-#: bootc_installer/gtk/widget-partition.blp:107
-#: bootc_installer/gtk/widget-partition.blp:127
-#: bootc_installer/gtk/widget-partition.blp:161
-#: bootc_installer/defaults/disk.py:460
-msgid "Please select a partition from the options below"
-msgstr "Kérjük, válasszon egy partíciót az alábbi lehetőségek közül"
-
-#: bootc_installer/gtk/widget-partition.blp:47
-msgid "EFI Partition"
-msgstr "EFI partíciók"
-
-#: bootc_installer/gtk/widget-partition.blp:49
-#, fuzzy
-msgid ""
-"The partition to mount under “/boot/efi”. This directory stores files for "
-"booting in the bootloader. Minimum space required in the partition is "
-msgstr ""
-"A \"/boot/efi\" alá csatolandó partíció. Ez a könyvtár tárolja a "
-"bootloaderben való indításhoz szükséges fájlokat."
-
-#: bootc_installer/gtk/widget-partition.blp:58
-msgid "Keep EFI"
-msgstr ""
-
-#: bootc_installer/gtk/widget-partition.blp:59
-msgid ""
-"Choose to not format your EFI partition. Make sure this is turned on if you "
-"are dual-booting"
-msgstr ""
-
-#: bootc_installer/gtk/widget-partition.blp:79
-msgid "BIOS Boot Partition"
-msgstr "BIOS boot partíció"
-
-#: bootc_installer/gtk/widget-partition.blp:81
-msgid ""
-"The partition required by GPT-formatted disks to support booting from BIOS "
-"systems. It must be located in the first 2 TB of the disk and must be "
-"exactly 1 Mebibyte (1 MiB)."
-msgstr ""
-"A GPT-formátumú lemezek által a BIOS-rendszerekből való indítás "
-"támogatásához szükséges partíció. A lemez első 2 TB-ján kell elhelyezkednie, "
-"és pontosan 1 Mebibyte (1 MiB) méretűnek kell lennie."
-
-#: bootc_installer/gtk/widget-partition.blp:96
-msgid "BIOS partition must be exactly 1 MiB."
-msgstr "A BIOS partíciónak pontosan 1 MiB-nak kell lennie."
-
-#: bootc_installer/gtk/widget-partition.blp:100
-msgid "Root Partition"
-msgstr "Root partíció"
-
-#: bootc_installer/gtk/widget-partition.blp:102
-#, fuzzy
-msgid ""
-"The partition to mount under “/”. It will be automatically converted into an "
-"LVM thin pool during installation. Minimum space required in the partition "
-"is "
-msgstr ""
-"A \"/\" alá csatolandó partíció. Ez automatikusan át lesz alakítva egy LVM "
-"thin pool-ba a telepítés során."
-
-#: bootc_installer/gtk/widget-partition.blp:120
-msgid "Var Partition"
-msgstr "Var partíció"
-
-#: bootc_installer/gtk/widget-partition.blp:122
-#, fuzzy
-msgid ""
-"The partition to mount under “/var”. This directory stores all user data "
-"like personal documents and system-wide configuration. Minimum space "
-"required in the partition is "
-msgstr ""
-"A \"/var\" alá csatolandó partíció. Ez a könyvtár tárolja az összes "
-"felhasználói adatot, mint például a személyes dokumentumok és a "
-"rendszerszintű konfiguráció."
-
-#: bootc_installer/gtk/widget-partition.blp:141
-#: bootc_installer/gtk/widget-partition.blp:147
-msgid "Swap Partition"
-msgstr "Swap partíció"
-
-#: bootc_installer/gtk/widget-partition.blp:143
-#, fuzzy
-msgid ""
-"Swap acts as a virtual extension of your RAM and enables hibernation. bootc "
-"installer already uses zram to provide swapping at no storage cost."
-msgstr ""
-"A Swap a RAM virtuális kiterjesztéseként működik, és lehetővé teszi a "
-"hibernációt. A Vanilla OS már használja a zramot, hogy tárolási költség "
-"nélkül biztosítsa a swapolást."
-
-#: bootc_installer/gtk/widget-partition.blp:148
-msgid ""
-"Choose a partition to use for swap alongside zram. This is not required for "
-"hibernation."
-msgstr ""
-"Válasszon egy partíciót, amelyet a zram mellett a swap számára használ. Ez "
-"nem szükséges a hibernáláshoz."
 
 #: bootc_installer/gtk/window-cpu.blp:52 bootc_installer/gtk/window-ram.blp:52
 msgid "Continue..."
@@ -791,89 +599,60 @@ msgstr ""
 msgid "Installer requires an active internet connection"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:338
-msgid "GParted is already running. Only one instance of GParted is permitted."
-msgstr "A GParted már fut. Csak egy GParted példány engedélyezett."
-
-#: bootc_installer/defaults/disk.py:403
-msgid "Partition must be at least {}"
-msgstr "A partíciónak legalább {} méretűnek kell lennie"
-
-#: bootc_installer/defaults/disk.py:427
-msgid "Partition must EXACTLY {}"
-msgstr "A partíciónak PONTOSAN {} méretűnek kel lennie"
-
-#: bootc_installer/defaults/disk.py:458
-msgid "No partition selected"
-msgstr "Nincs kiválasztott partíció"
-
-#: bootc_installer/defaults/disk.py:565
-msgid "Partitions have changed. Current selections have been cleared."
-msgstr "A partíciók megváltoztak. A jelenlegi kiválasztások törlődtek."
-
-#: bootc_installer/defaults/disk.py:636
+#: bootc_installer/defaults/disk.py:109
 msgid "Entire disk will be used."
 msgstr "A teljes lemez felhasználásra kerül."
 
-#: bootc_installer/defaults/disk.py:643
-#, fuzzy
-msgid "Will be mounted in {}"
-msgstr "{} formátumban lesz formázva és {} formátumban lesz felcsatolva"
-
-#: bootc_installer/defaults/disk.py:649
-msgid "Will be formatted in {} and mounted in {}"
-msgstr "{} formátumban lesz formázva és {} formátumban lesz felcsatolva"
-
-#: bootc_installer/defaults/disk.py:659 bootc_installer/defaults/disk.py:684
+#: bootc_installer/defaults/disk.py:113
 #, python-format
 msgid "LVM volume group: %s"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:660 bootc_installer/defaults/disk.py:685
+#: bootc_installer/defaults/disk.py:114
 #, fuzzy
 msgid "Volume group will be removed."
 msgstr "A napló nem kerül tárolásra."
 
-#: bootc_installer/defaults/disk.py:664 bootc_installer/defaults/disk.py:679
+#: bootc_installer/defaults/disk.py:118
 #, python-format
 msgid "LVM physical volume: %s"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:665 bootc_installer/defaults/disk.py:680
+#: bootc_installer/defaults/disk.py:119
 msgid "Physical volume will be removed."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:751
+#: bootc_installer/defaults/disk.py:185
 msgid "Could not detect disks"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:754
+#: bootc_installer/defaults/disk.py:188
 msgid "No disks detected"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:756
+#: bootc_installer/defaults/disk.py:190
 msgid ""
 "Connect a disk of at least 50 GiB to install to. Nothing can be installed "
 "until one is available."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:894
+#: bootc_installer/defaults/disk.py:328
 msgid "Btrfs (with subvolumes)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:932
+#: bootc_installer/defaults/disk.py:366
 msgid "Install the \"{}\" package on the host to use this filesystem"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:935
+#: bootc_installer/defaults/disk.py:369
 msgid "Missing host tool: \"{}\" — install the \"{}\" package"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:1013
+#: bootc_installer/defaults/disk.py:447
 msgid "Virtual disk (for VMs / testing)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:1015
+#: bootc_installer/defaults/disk.py:449
 #, python-format
 msgid "Creates a %s disk image and attaches it as a loop device"
 msgstr ""
@@ -1050,55 +829,42 @@ msgstr ""
 msgid "Please select at least one option."
 msgstr "Kérjük, válasszon legalább egy lehetőséget."
 
-#: bootc_installer/utils/builder.py:66
-msgid "Missing 'log_file' in the recipe."
-msgstr "Hiányzik a 'log_file' a receptben."
-
-#: bootc_installer/utils/builder.py:75
-#, python-format
-msgid "failed to create log file: %s"
-msgstr "nem sikerült naplófájlt létrehozni: %s"
-
-#: bootc_installer/utils/builder.py:76
-msgid "No log will be stored."
-msgstr "A napló nem kerül tárolásra."
-
-#: bootc_installer/utils/builder.py:79
+#: bootc_installer/utils/builder.py:63
 #, python-format
 msgid "(%s) Processing step..."
 msgstr ""
 
-#: bootc_installer/utils/builder.py:83
+#: bootc_installer/utils/builder.py:67
 #, python-format
 msgid "(%s) Display-conditions found"
 msgstr ""
 
-#: bootc_installer/utils/builder.py:88
+#: bootc_installer/utils/builder.py:72
 #, fuzzy, python-format
 msgid "(%s) Performing display-condition: %s"
 msgstr "Megjelenítési feltétel végrehajtása: %s"
 
-#: bootc_installer/utils/builder.py:97
+#: bootc_installer/utils/builder.py:81
 #, python-format
 msgid "(%s) Display-conditions not met"
 msgstr ""
 
-#: bootc_installer/utils/builder.py:99
+#: bootc_installer/utils/builder.py:83
 #, fuzzy, python-format
 msgid "(%s) Display-conditions met"
 msgstr "Megjelenítési feltétel végrehajtása: %s"
 
-#: bootc_installer/utils/builder.py:102
+#: bootc_installer/utils/builder.py:86
 #, python-format
 msgid "Step %s skipped due to display-conditions"
 msgstr "%s lépés kihagyva a megjelenítési feltételek miatt"
 
-#: bootc_installer/utils/builder.py:113
+#: bootc_installer/utils/builder.py:97
 #, python-format
 msgid "(%s) Initializing widgets for template: %s"
 msgstr ""
 
-#: bootc_installer/utils/builder.py:120
+#: bootc_installer/utils/builder.py:104
 #, python-format
 msgid "(%s) Widgets initialized"
 msgstr ""
@@ -1180,40 +946,40 @@ msgstr ""
 msgid "Connection error."
 msgstr "Nem sikerült a kapcsolódás"
 
-#: bootc_installer/utils/recipe.py:139
+#: bootc_installer/utils/recipe.py:138
 #, fuzzy, python-brace-format
 msgid "Installing {name}"
 msgstr "Telepítés…"
 
-#: bootc_installer/utils/recipe.py:140
+#: bootc_installer/utils/recipe.py:139
 #, fuzzy
 msgid "This will take a few minutes."
 msgstr "Ez törli az összes adatot a lemezről."
 
-#: bootc_installer/utils/recipe.py:144
+#: bootc_installer/utils/recipe.py:143
 #, fuzzy
 msgid "Installation complete"
 msgstr "telepítés-megerősítve"
 
-#: bootc_installer/utils/recipe.py:145
+#: bootc_installer/utils/recipe.py:144
 msgid "Your system is ready to use."
 msgstr ""
 
-#: bootc_installer/utils/recipe.py:200
+#: bootc_installer/utils/recipe.py:201
 msgid "Recipe is not a dictionary"
 msgstr "A recept nem egy bejegyzés"
 
-#: bootc_installer/utils/recipe.py:205
+#: bootc_installer/utils/recipe.py:206
 #, python-brace-format
 msgid "Recipe is missing the '{key}' key"
 msgstr "A receptből hiányzik a '{key}' kulcs"
 
-#: bootc_installer/utils/recipe.py:209
+#: bootc_installer/utils/recipe.py:210
 #, fuzzy
 msgid "Recipe steps is not a dictionary"
 msgstr "A recept nem egy bejegyzés"
 
-#: bootc_installer/utils/recipe.py:214
+#: bootc_installer/utils/recipe.py:215
 #, fuzzy, python-brace-format
 msgid "Step {step_key} is not a dictionary"
 msgstr "A {step} lépés nem egy bejegyzés"
@@ -1304,116 +1070,116 @@ msgid ""
 "system that does not start."
 msgstr ""
 
-#: bootc_installer/views/done.py:214
+#: bootc_installer/views/done.py:144 bootc_installer/views/done.py:346
+msgid "Error: {}"
+msgstr ""
+
+#: bootc_installer/views/done.py:240
 #, fuzzy, python-format
 msgid "Installed in %s. "
 msgstr "Telepítés…"
 
-#: bootc_installer/views/done.py:216
+#: bootc_installer/views/done.py:242
 #, fuzzy
 msgid "Restart now"
 msgstr "Újraindítás"
 
-#: bootc_installer/views/done.py:240
+#: bootc_installer/views/done.py:266
 #, fuzzy
 msgid "Installation cancelled"
 msgstr "telepítés-megerősítve"
 
-#: bootc_installer/views/done.py:250
+#: bootc_installer/views/done.py:276
 #, fuzzy
 msgid "Installation failed"
 msgstr "telepítés-megerősítve"
 
-#: bootc_installer/views/done.py:286
+#: bootc_installer/views/done.py:316
 msgid "Check the log for details. Click 'Show Log' below."
 msgstr ""
 
-#: bootc_installer/views/done.py:295
+#: bootc_installer/views/done.py:325
 msgid "The installer exited unexpectedly. Check the log for details."
 msgstr ""
 
-#: bootc_installer/views/done.py:300
+#: bootc_installer/views/done.py:330
 msgid ""
 "A required system tool is missing. Ensure you are running from the official "
 "live media."
 msgstr ""
 
-#: bootc_installer/views/done.py:302
+#: bootc_installer/views/done.py:332
 msgid ""
 "Network error during image download. Check your internet connection and try "
 "again."
 msgstr ""
 
-#: bootc_installer/views/done.py:304
+#: bootc_installer/views/done.py:334
 msgid "Not enough disk space. Select a larger disk or free up space."
 msgstr ""
 
-#: bootc_installer/views/done.py:306
+#: bootc_installer/views/done.py:336
 msgid "Permission denied. The installer needs administrator access to proceed."
 msgstr ""
 
-#: bootc_installer/views/done.py:308
+#: bootc_installer/views/done.py:338
 msgid ""
 "Disk encryption setup failed. Try disabling encryption or check your "
 "passphrase."
 msgstr ""
 
-#: bootc_installer/views/done.py:310
+#: bootc_installer/views/done.py:340
 msgid "Disk partitioning failed. The disk may be in use or damaged."
 msgstr ""
 
-#: bootc_installer/views/done.py:312
+#: bootc_installer/views/done.py:342
 msgid "Filesystem mount failed. The disk may be in use by another process."
 msgstr ""
 
-#: bootc_installer/views/done.py:316
-msgid "Error: {}"
-msgstr ""
-
-#: bootc_installer/views/done.py:347
+#: bootc_installer/views/done.py:377
 msgid "Could not reboot"
 msgstr ""
 
-#: bootc_installer/views/done.py:348
+#: bootc_installer/views/done.py:378
 msgid "Please reboot manually by running: systemctl reboot"
 msgstr ""
 
-#: bootc_installer/views/done.py:350
+#: bootc_installer/views/done.py:380
 msgid "OK"
 msgstr ""
 
-#: bootc_installer/views/progress.py:160
+#: bootc_installer/views/progress.py:188
 #, python-format
 msgid "Downloading\\u2026 (%s of %s parts)"
 msgstr ""
 
-#: bootc_installer/views/progress.py:162 bootc_installer/views/progress.py:164
+#: bootc_installer/views/progress.py:190 bootc_installer/views/progress.py:192
 msgid "Downloading system image\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:166
+#: bootc_installer/views/progress.py:194
 msgid "Compressing\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:168
+#: bootc_installer/views/progress.py:196
 msgid "Optimizing drive\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:277
+#: bootc_installer/views/progress.py:307
 msgid "Stopping the installation\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:557
+#: bootc_installer/views/progress.py:587
 #, python-format
 msgid "~%d sec remaining"
 msgstr ""
 
-#: bootc_installer/views/progress.py:560
+#: bootc_installer/views/progress.py:590
 #, python-format
 msgid "~%d min remaining"
 msgstr ""
 
-#: bootc_installer/views/progress.py:567
+#: bootc_installer/views/progress.py:597
 #, python-format
 msgid "%s elapsed"
 msgstr ""
@@ -1515,6 +1281,164 @@ msgstr ""
 #: bootc_installer/windows/main_window.py:670
 msgid "No installation disk is selected. Go back and choose a disk."
 msgstr ""
+
+#~ msgid "Recovery"
+#~ msgstr "Helyreállítás"
+
+#~ msgid "Configure Disk"
+#~ msgstr "Lemez konfigurálása"
+
+#~ msgid "Apply"
+#~ msgstr "Alkalmaz"
+
+#~ msgid "Console"
+#~ msgstr "Konzol"
+
+#~ msgid "Open a terminal"
+#~ msgstr "Nyisson meg egy terminált"
+
+#~ msgid "Documentation"
+#~ msgstr "Dokumentáció"
+
+#, fuzzy
+#~ msgid "Open the documentation"
+#~ msgstr "A Vanilla OS dokumentációjának megnyitása"
+
+#~ msgid "Manage disks and partitions"
+#~ msgstr "Lemezek és partíciók kezelése"
+
+#~ msgid "Web Browser"
+#~ msgstr "Webböngésző"
+
+#~ msgid "Search help online"
+#~ msgstr "Keressen segítséget az interneten"
+
+#~ msgid "Manually Partition"
+#~ msgstr "Kézi partícionálás"
+
+#~ msgid "Open GParted to manually partition the disk"
+#~ msgstr "GParted megnyitása a lemez kézi particionálásához"
+
+#~ msgid "Boot Partition"
+#~ msgstr "Boot partíció"
+
+#, fuzzy
+#~ msgid ""
+#~ "The partition to mount under “/boot”. This directory stores files for "
+#~ "booting into bootc installer. Minimum space required in the partition is "
+#~ msgstr ""
+#~ "A \"/boot/efi\" alá csatolandó partíció. Ez a könyvtár tárolja a "
+#~ "bootloaderben való indításhoz szükséges fájlokat."
+
+#, fuzzy
+#~ msgid "No Partition Selected"
+#~ msgstr "Nincs kiválasztott partíció"
+
+#~ msgid "Please select a partition from the options below"
+#~ msgstr "Kérjük, válasszon egy partíciót az alábbi lehetőségek közül"
+
+#~ msgid "EFI Partition"
+#~ msgstr "EFI partíciók"
+
+#, fuzzy
+#~ msgid ""
+#~ "The partition to mount under “/boot/efi”. This directory stores files for "
+#~ "booting in the bootloader. Minimum space required in the partition is "
+#~ msgstr ""
+#~ "A \"/boot/efi\" alá csatolandó partíció. Ez a könyvtár tárolja a "
+#~ "bootloaderben való indításhoz szükséges fájlokat."
+
+#~ msgid "BIOS Boot Partition"
+#~ msgstr "BIOS boot partíció"
+
+#~ msgid ""
+#~ "The partition required by GPT-formatted disks to support booting from "
+#~ "BIOS systems. It must be located in the first 2 TB of the disk and must "
+#~ "be exactly 1 Mebibyte (1 MiB)."
+#~ msgstr ""
+#~ "A GPT-formátumú lemezek által a BIOS-rendszerekből való indítás "
+#~ "támogatásához szükséges partíció. A lemez első 2 TB-ján kell "
+#~ "elhelyezkednie, és pontosan 1 Mebibyte (1 MiB) méretűnek kell lennie."
+
+#~ msgid "BIOS partition must be exactly 1 MiB."
+#~ msgstr "A BIOS partíciónak pontosan 1 MiB-nak kell lennie."
+
+#~ msgid "Root Partition"
+#~ msgstr "Root partíció"
+
+#, fuzzy
+#~ msgid ""
+#~ "The partition to mount under “/”. It will be automatically converted into "
+#~ "an LVM thin pool during installation. Minimum space required in the "
+#~ "partition is "
+#~ msgstr ""
+#~ "A \"/\" alá csatolandó partíció. Ez automatikusan át lesz alakítva egy "
+#~ "LVM thin pool-ba a telepítés során."
+
+#~ msgid "Var Partition"
+#~ msgstr "Var partíció"
+
+#, fuzzy
+#~ msgid ""
+#~ "The partition to mount under “/var”. This directory stores all user data "
+#~ "like personal documents and system-wide configuration. Minimum space "
+#~ "required in the partition is "
+#~ msgstr ""
+#~ "A \"/var\" alá csatolandó partíció. Ez a könyvtár tárolja az összes "
+#~ "felhasználói adatot, mint például a személyes dokumentumok és a "
+#~ "rendszerszintű konfiguráció."
+
+#~ msgid "Swap Partition"
+#~ msgstr "Swap partíció"
+
+#, fuzzy
+#~ msgid ""
+#~ "Swap acts as a virtual extension of your RAM and enables hibernation. "
+#~ "bootc installer already uses zram to provide swapping at no storage cost."
+#~ msgstr ""
+#~ "A Swap a RAM virtuális kiterjesztéseként működik, és lehetővé teszi a "
+#~ "hibernációt. A Vanilla OS már használja a zramot, hogy tárolási költség "
+#~ "nélkül biztosítsa a swapolást."
+
+#~ msgid ""
+#~ "Choose a partition to use for swap alongside zram. This is not required "
+#~ "for hibernation."
+#~ msgstr ""
+#~ "Válasszon egy partíciót, amelyet a zram mellett a swap számára használ. "
+#~ "Ez nem szükséges a hibernáláshoz."
+
+#~ msgid ""
+#~ "GParted is already running. Only one instance of GParted is permitted."
+#~ msgstr "A GParted már fut. Csak egy GParted példány engedélyezett."
+
+#~ msgid "Partition must be at least {}"
+#~ msgstr "A partíciónak legalább {} méretűnek kell lennie"
+
+#~ msgid "Partition must EXACTLY {}"
+#~ msgstr "A partíciónak PONTOSAN {} méretűnek kel lennie"
+
+#~ msgid "No partition selected"
+#~ msgstr "Nincs kiválasztott partíció"
+
+#~ msgid "Partitions have changed. Current selections have been cleared."
+#~ msgstr "A partíciók megváltoztak. A jelenlegi kiválasztások törlődtek."
+
+#, fuzzy
+#~ msgid "Will be mounted in {}"
+#~ msgstr "{} formátumban lesz formázva és {} formátumban lesz felcsatolva"
+
+#~ msgid "Will be formatted in {} and mounted in {}"
+#~ msgstr "{} formátumban lesz formázva és {} formátumban lesz felcsatolva"
+
+#~ msgid "Missing 'log_file' in the recipe."
+#~ msgstr "Hiányzik a 'log_file' a receptben."
+
+#, python-format
+#~ msgid "failed to create log file: %s"
+#~ msgstr "nem sikerült naplófájlt létrehozni: %s"
+
+#~ msgid "No log will be stored."
+#~ msgstr "A napló nem kerül tárolásra."
 
 #~ msgid "Vanilla OS Installer"
 #~ msgstr "Vanilla OS Telepítő"

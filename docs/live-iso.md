@@ -84,7 +84,6 @@ sent to fisherman.
 
 ```json
 {
-  "log_file": "/var/log/bootc-installer.log",
   "distro_name": "My OS",
   "distro_logo": "resource:///org/bootcinstaller/Installer/images/my-os.png",
   "imgref": "ghcr.io/my-org/my-os:latest",
@@ -134,7 +133,6 @@ sent to fisherman.
 
 | Field | Required | Description |
 |---|---|---|
-| `log_file` | ✅ | Path where the installer writes its log |
 | `distro_name` | ✅ | Display name shown throughout the UI |
 | `distro_logo` | ✅ | GResource path or icon name for the distro logo |
 | `steps` | ✅ | Ordered wizard steps (see templates below) |

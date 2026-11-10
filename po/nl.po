@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: vanilla-installer\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 17:21+0000\n"
+"POT-Creation-Date: 2026-11-10 18:13+0000\n"
 "PO-Revision-Date: 2024-01-04 20:01+0000\n"
 "Last-Translator: Philip Goto <philip.goto@gmail.com>\n"
 "Language-Team: Dutch <https://hosted.weblate.org/projects/vanilla-os/"
@@ -439,25 +439,16 @@ msgid "Pair your keyboard or mouse to continue"
 msgstr ""
 
 #: bootc_installer/gtk/default-welcome.blp:58
-#: bootc_installer/gtk/dialog-recovery.blp:5
-msgid "Recovery"
-msgstr "Herstel"
-
-#: bootc_installer/gtk/default-welcome.blp:59
-msgid "Troubleshoot or repair an existing installation."
-msgstr ""
-
-#: bootc_installer/gtk/default-welcome.blp:76
 #: bootc_installer/gtk/dialog-poweroff.blp:5
 #: bootc_installer/gtk/dialog-poweroff.blp:22
 msgid "Power Off"
 msgstr "Uitschakelen"
 
-#: bootc_installer/gtk/default-welcome.blp:94
+#: bootc_installer/gtk/default-welcome.blp:76
 msgid "Press Super+Alt+S to enable the screen reader"
 msgstr ""
 
-#: bootc_installer/gtk/default-welcome.blp:105
+#: bootc_installer/gtk/default-welcome.blp:87
 #: bootc_installer/gtk/dialog-credits.blp:5 bootc_installer/gtk/window.blp:56
 msgid "Credits"
 msgstr ""
@@ -469,7 +460,7 @@ msgid "Confirm Changes"
 msgstr "Veranderingen bevestigen"
 
 #: bootc_installer/gtk/dialog-disk-confirm.blp:17
-#: bootc_installer/gtk/dialog-disk.blp:17 bootc_installer/gtk/progress.blp:312
+#: bootc_installer/gtk/progress.blp:312
 #: bootc_installer/windows/main_window.py:584
 msgid "Cancel"
 msgstr "Annuleren"
@@ -481,14 +472,6 @@ msgid ""
 msgstr ""
 "De volgende wijzigingen zullen op uw schijf worden aangebracht. Bekijk deze "
 "zorgvuldig."
-
-#: bootc_installer/gtk/dialog-disk.blp:5
-msgid "Configure Disk"
-msgstr "Schijf configureren"
-
-#: bootc_installer/gtk/dialog-disk.blp:22
-msgid "Apply"
-msgstr "Toepassen"
 
 #: bootc_installer/gtk/dialog-output.blp:5
 msgid "Log"
@@ -506,47 +489,6 @@ msgstr "Herstarten"
 #, fuzzy
 msgid "Restart Into Firmware Setup"
 msgstr "Herstarten naar firmware-instellingen"
-
-#: bootc_installer/gtk/dialog-recovery.blp:22
-msgid "Console"
-msgstr "Console"
-
-#: bootc_installer/gtk/dialog-recovery.blp:23
-msgid "Open a terminal"
-msgstr "Opent een terminal"
-
-#: bootc_installer/gtk/dialog-recovery.blp:39
-msgid "Documentation"
-msgstr "Documentatie"
-
-#: bootc_installer/gtk/dialog-recovery.blp:40
-#, fuzzy
-msgid "Open the documentation"
-msgstr "Opent de documentatie van Vanilla OS"
-
-#: bootc_installer/gtk/dialog-recovery.blp:56
-msgid "Disks manager"
-msgstr ""
-
-#: bootc_installer/gtk/dialog-recovery.blp:57
-msgid "Manage disks and partitions"
-msgstr "Beheer schijven en partities"
-
-#: bootc_installer/gtk/dialog-recovery.blp:73
-msgid "Get help"
-msgstr ""
-
-#: bootc_installer/gtk/dialog-recovery.blp:74
-msgid "Open the support site"
-msgstr ""
-
-#: bootc_installer/gtk/dialog-recovery.blp:90
-msgid "Web Browser"
-msgstr "Webbrowser"
-
-#: bootc_installer/gtk/dialog-recovery.blp:91
-msgid "Search help online"
-msgstr "Zoek online naar hulp"
 
 #: bootc_installer/gtk/dialog.blp:5
 msgid "Showing Information"
@@ -593,13 +535,13 @@ msgstr ""
 msgid "Installation will continue normally. Feel free to browse around. Rawr."
 msgstr ""
 
-#: bootc_installer/gtk/progress.blp:191 bootc_installer/views/progress.py:769
-#: bootc_installer/views/progress.py:843
+#: bootc_installer/gtk/progress.blp:191 bootc_installer/views/progress.py:829
+#: bootc_installer/views/progress.py:905
 #, fuzzy
 msgid "Installing"
 msgstr "Installeren…"
 
-#: bootc_installer/gtk/progress.blp:225 bootc_installer/views/progress.py:776
+#: bootc_installer/gtk/progress.blp:225 bootc_installer/views/progress.py:836
 msgid "0:00 elapsed"
 msgstr ""
 
@@ -621,141 +563,6 @@ msgstr "Installatie bevestigen"
 #: bootc_installer/gtk/widget-keyboard.blp:13
 msgid "key"
 msgstr "sleutel"
-
-#: bootc_installer/gtk/widget-partition.blp:8
-msgid "Manually Partition"
-msgstr "Handmatig partitioneren"
-
-#: bootc_installer/gtk/widget-partition.blp:9
-msgid "Open GParted to manually partition the disk"
-msgstr "Open GParted om de schijf handmatig te partitioneren"
-
-#: bootc_installer/gtk/widget-partition.blp:27
-msgid "Boot Partition"
-msgstr "Opstartpartitie"
-
-#: bootc_installer/gtk/widget-partition.blp:29
-#, fuzzy
-msgid ""
-"The partition to mount under “/boot”. This directory stores files for "
-"booting into bootc installer. Minimum space required in the partition is "
-msgstr ""
-"De partitie welke aan ‘/boot/efi’ dient te worden gekoppeld. Deze bevat "
-"bestanden voor het laden van de bootloader."
-
-#: bootc_installer/gtk/widget-partition.blp:33
-#: bootc_installer/gtk/widget-partition.blp:53
-#: bootc_installer/gtk/widget-partition.blp:85
-#: bootc_installer/gtk/widget-partition.blp:106
-#: bootc_installer/gtk/widget-partition.blp:126
-#: bootc_installer/gtk/widget-partition.blp:160
-#, fuzzy
-msgid "No Partition Selected"
-msgstr "Geen partitie geselecteerd"
-
-#: bootc_installer/gtk/widget-partition.blp:34
-#: bootc_installer/gtk/widget-partition.blp:54
-#: bootc_installer/gtk/widget-partition.blp:86
-#: bootc_installer/gtk/widget-partition.blp:107
-#: bootc_installer/gtk/widget-partition.blp:127
-#: bootc_installer/gtk/widget-partition.blp:161
-#: bootc_installer/defaults/disk.py:460
-msgid "Please select a partition from the options below"
-msgstr "Selecteer een partitie uit de volgende opties"
-
-#: bootc_installer/gtk/widget-partition.blp:47
-msgid "EFI Partition"
-msgstr "EFI-partitie"
-
-#: bootc_installer/gtk/widget-partition.blp:49
-#, fuzzy
-msgid ""
-"The partition to mount under “/boot/efi”. This directory stores files for "
-"booting in the bootloader. Minimum space required in the partition is "
-msgstr ""
-"De partitie welke aan ‘/boot/efi’ dient te worden gekoppeld. Deze bevat "
-"bestanden voor het laden van de bootloader."
-
-#: bootc_installer/gtk/widget-partition.blp:58
-msgid "Keep EFI"
-msgstr ""
-
-#: bootc_installer/gtk/widget-partition.blp:59
-msgid ""
-"Choose to not format your EFI partition. Make sure this is turned on if you "
-"are dual-booting"
-msgstr ""
-
-#: bootc_installer/gtk/widget-partition.blp:79
-msgid "BIOS Boot Partition"
-msgstr "BIOS-opstartpartitie"
-
-#: bootc_installer/gtk/widget-partition.blp:81
-msgid ""
-"The partition required by GPT-formatted disks to support booting from BIOS "
-"systems. It must be located in the first 2 TB of the disk and must be "
-"exactly 1 Mebibyte (1 MiB)."
-msgstr ""
-"De partitie, vereist door schijven geformatteerd in GPT-formaat, om te "
-"kunnen opstarten vanuit BIOS-systemen. Deze moet zich bevinden in de eerste "
-"2 TB van de schijf en dient exact 1 mebibyte (MiB) te zijn."
-
-#: bootc_installer/gtk/widget-partition.blp:96
-msgid "BIOS partition must be exactly 1 MiB."
-msgstr "BIOS-partitie moet exact 1 MiB zijn"
-
-#: bootc_installer/gtk/widget-partition.blp:100
-msgid "Root Partition"
-msgstr "Root-partitie"
-
-#: bootc_installer/gtk/widget-partition.blp:102
-#, fuzzy
-msgid ""
-"The partition to mount under “/”. It will be automatically converted into an "
-"LVM thin pool during installation. Minimum space required in the partition "
-"is "
-msgstr ""
-"De partitie welke aan ‘/’ dient te worden gekoppeld. Deze wordt tijdens de "
-"installatie automatisch omgezet in een ‘LVM thin pool’."
-
-#: bootc_installer/gtk/widget-partition.blp:120
-msgid "Var Partition"
-msgstr "Var-partitie"
-
-#: bootc_installer/gtk/widget-partition.blp:122
-#, fuzzy
-msgid ""
-"The partition to mount under “/var”. This directory stores all user data "
-"like personal documents and system-wide configuration. Minimum space "
-"required in the partition is "
-msgstr ""
-"De partitie welke aan ‘/var’ dient te worden gekoppeld. Deze bevat alle "
-"gebruikers­gegevens zoals persoonlijke ducumenten en systeembrede "
-"configuraties."
-
-#: bootc_installer/gtk/widget-partition.blp:141
-#: bootc_installer/gtk/widget-partition.blp:147
-msgid "Swap Partition"
-msgstr "Wissel­geheugen­partitie"
-
-#: bootc_installer/gtk/widget-partition.blp:143
-#, fuzzy
-msgid ""
-"Swap acts as a virtual extension of your RAM and enables hibernation. bootc "
-"installer already uses zram to provide swapping at no storage cost."
-msgstr ""
-"Wissel­geheugen (swap) fungeert als een virtuele uitbreiding van uw werk­"
-"geheugen en maakt sluimer­stand mogelijk. Vanilla OS maakt al gebruik van "
-"‘zram’ om het werk­geheugen uit te breiden zonder gebruik te maken van extra "
-"opslag­ruimte."
-
-#: bootc_installer/gtk/widget-partition.blp:148
-msgid ""
-"Choose a partition to use for swap alongside zram. This is not required for "
-"hibernation."
-msgstr ""
-"Kies een partitie om naast ‘zram’ als wissel­geheugen te gebruiken. Dit is "
-"niet vereist voor sluimer­stand."
 
 #: bootc_installer/gtk/window-cpu.blp:52 bootc_installer/gtk/window-ram.blp:52
 msgid "Continue..."
@@ -791,90 +598,60 @@ msgstr ""
 msgid "Installer requires an active internet connection"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:338
-msgid "GParted is already running. Only one instance of GParted is permitted."
-msgstr ""
-"GParted wordt al uitgevoerd. Enkel één instantie van GParted is toegestaan."
-
-#: bootc_installer/defaults/disk.py:403
-msgid "Partition must be at least {}"
-msgstr "Partitie dient minstens {} te zijn"
-
-#: bootc_installer/defaults/disk.py:427
-msgid "Partition must EXACTLY {}"
-msgstr "Partitie dient EXACT {} te zijn"
-
-#: bootc_installer/defaults/disk.py:458
-msgid "No partition selected"
-msgstr "Geen partitie geselecteerd"
-
-#: bootc_installer/defaults/disk.py:565
-msgid "Partitions have changed. Current selections have been cleared."
-msgstr "Partities zijn veranderd. Huidige selecties zijn gewist."
-
-#: bootc_installer/defaults/disk.py:636
+#: bootc_installer/defaults/disk.py:109
 msgid "Entire disk will be used."
 msgstr "De hele schijf zal worden gebruikt."
 
-#: bootc_installer/defaults/disk.py:643
-#, fuzzy
-msgid "Will be mounted in {}"
-msgstr "Zal worden geformatteerd als {} en gekoppeld als {}"
-
-#: bootc_installer/defaults/disk.py:649
-msgid "Will be formatted in {} and mounted in {}"
-msgstr "Zal worden geformatteerd als {} en gekoppeld als {}"
-
-#: bootc_installer/defaults/disk.py:659 bootc_installer/defaults/disk.py:684
+#: bootc_installer/defaults/disk.py:113
 #, python-format
 msgid "LVM volume group: %s"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:660 bootc_installer/defaults/disk.py:685
+#: bootc_installer/defaults/disk.py:114
 #, fuzzy
 msgid "Volume group will be removed."
 msgstr "Logboek wordt niet opgeslagen"
 
-#: bootc_installer/defaults/disk.py:664 bootc_installer/defaults/disk.py:679
+#: bootc_installer/defaults/disk.py:118
 #, python-format
 msgid "LVM physical volume: %s"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:665 bootc_installer/defaults/disk.py:680
+#: bootc_installer/defaults/disk.py:119
 msgid "Physical volume will be removed."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:751
+#: bootc_installer/defaults/disk.py:185
 msgid "Could not detect disks"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:754
+#: bootc_installer/defaults/disk.py:188
 msgid "No disks detected"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:756
+#: bootc_installer/defaults/disk.py:190
 msgid ""
 "Connect a disk of at least 50 GiB to install to. Nothing can be installed "
 "until one is available."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:894
+#: bootc_installer/defaults/disk.py:328
 msgid "Btrfs (with subvolumes)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:932
+#: bootc_installer/defaults/disk.py:366
 msgid "Install the \"{}\" package on the host to use this filesystem"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:935
+#: bootc_installer/defaults/disk.py:369
 msgid "Missing host tool: \"{}\" — install the \"{}\" package"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:1013
+#: bootc_installer/defaults/disk.py:447
 msgid "Virtual disk (for VMs / testing)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:1015
+#: bootc_installer/defaults/disk.py:449
 #, python-format
 msgid "Creates a %s disk image and attaches it as a loop device"
 msgstr ""
@@ -1051,55 +828,42 @@ msgstr ""
 msgid "Please select at least one option."
 msgstr "Selecteer ten minste één optie."
 
-#: bootc_installer/utils/builder.py:66
-msgid "Missing 'log_file' in the recipe."
-msgstr "‘log_file’ ontbreekt in het recept"
-
-#: bootc_installer/utils/builder.py:75
-#, python-format
-msgid "failed to create log file: %s"
-msgstr "kon logboekbestand niet aanmaken: %s"
-
-#: bootc_installer/utils/builder.py:76
-msgid "No log will be stored."
-msgstr "Logboek wordt niet opgeslagen"
-
-#: bootc_installer/utils/builder.py:79
+#: bootc_installer/utils/builder.py:63
 #, python-format
 msgid "(%s) Processing step..."
 msgstr ""
 
-#: bootc_installer/utils/builder.py:83
+#: bootc_installer/utils/builder.py:67
 #, python-format
 msgid "(%s) Display-conditions found"
 msgstr ""
 
-#: bootc_installer/utils/builder.py:88
+#: bootc_installer/utils/builder.py:72
 #, fuzzy, python-format
 msgid "(%s) Performing display-condition: %s"
 msgstr "Weergaveconditie uitvoeren: %s"
 
-#: bootc_installer/utils/builder.py:97
+#: bootc_installer/utils/builder.py:81
 #, python-format
 msgid "(%s) Display-conditions not met"
 msgstr ""
 
-#: bootc_installer/utils/builder.py:99
+#: bootc_installer/utils/builder.py:83
 #, fuzzy, python-format
 msgid "(%s) Display-conditions met"
 msgstr "Weergaveconditie uitvoeren: %s"
 
-#: bootc_installer/utils/builder.py:102
+#: bootc_installer/utils/builder.py:86
 #, python-format
 msgid "Step %s skipped due to display-conditions"
 msgstr "Stap %s overgeslagen vanwege weergavecondities"
 
-#: bootc_installer/utils/builder.py:113
+#: bootc_installer/utils/builder.py:97
 #, python-format
 msgid "(%s) Initializing widgets for template: %s"
 msgstr ""
 
-#: bootc_installer/utils/builder.py:120
+#: bootc_installer/utils/builder.py:104
 #, python-format
 msgid "(%s) Widgets initialized"
 msgstr ""
@@ -1181,40 +945,40 @@ msgstr ""
 msgid "Connection error."
 msgstr "Verbinden mislukt"
 
-#: bootc_installer/utils/recipe.py:139
+#: bootc_installer/utils/recipe.py:138
 #, fuzzy, python-brace-format
 msgid "Installing {name}"
 msgstr "Installeren…"
 
-#: bootc_installer/utils/recipe.py:140
+#: bootc_installer/utils/recipe.py:139
 #, fuzzy
 msgid "This will take a few minutes."
 msgstr "Hiermee worden alle gegevens op de schijf gewist."
 
-#: bootc_installer/utils/recipe.py:144
+#: bootc_installer/utils/recipe.py:143
 #, fuzzy
 msgid "Installation complete"
 msgstr "installatie-bevestigd"
 
-#: bootc_installer/utils/recipe.py:145
+#: bootc_installer/utils/recipe.py:144
 msgid "Your system is ready to use."
 msgstr ""
 
-#: bootc_installer/utils/recipe.py:200
+#: bootc_installer/utils/recipe.py:201
 msgid "Recipe is not a dictionary"
 msgstr "Recept is geen woordenboek"
 
-#: bootc_installer/utils/recipe.py:205
+#: bootc_installer/utils/recipe.py:206
 #, python-brace-format
 msgid "Recipe is missing the '{key}' key"
 msgstr "Recept mist de ‘{key}’-sleutel"
 
-#: bootc_installer/utils/recipe.py:209
+#: bootc_installer/utils/recipe.py:210
 #, fuzzy
 msgid "Recipe steps is not a dictionary"
 msgstr "Recept is geen woordenboek"
 
-#: bootc_installer/utils/recipe.py:214
+#: bootc_installer/utils/recipe.py:215
 #, fuzzy, python-brace-format
 msgid "Step {step_key} is not a dictionary"
 msgstr "Stap {step} is niet een woordenboek"
@@ -1305,116 +1069,116 @@ msgid ""
 "system that does not start."
 msgstr ""
 
-#: bootc_installer/views/done.py:214
+#: bootc_installer/views/done.py:144 bootc_installer/views/done.py:346
+msgid "Error: {}"
+msgstr ""
+
+#: bootc_installer/views/done.py:240
 #, fuzzy, python-format
 msgid "Installed in %s. "
 msgstr "Installeren…"
 
-#: bootc_installer/views/done.py:216
+#: bootc_installer/views/done.py:242
 #, fuzzy
 msgid "Restart now"
 msgstr "Herstarten"
 
-#: bootc_installer/views/done.py:240
+#: bootc_installer/views/done.py:266
 #, fuzzy
 msgid "Installation cancelled"
 msgstr "installatie-bevestigd"
 
-#: bootc_installer/views/done.py:250
+#: bootc_installer/views/done.py:276
 #, fuzzy
 msgid "Installation failed"
 msgstr "installatie-bevestigd"
 
-#: bootc_installer/views/done.py:286
+#: bootc_installer/views/done.py:316
 msgid "Check the log for details. Click 'Show Log' below."
 msgstr ""
 
-#: bootc_installer/views/done.py:295
+#: bootc_installer/views/done.py:325
 msgid "The installer exited unexpectedly. Check the log for details."
 msgstr ""
 
-#: bootc_installer/views/done.py:300
+#: bootc_installer/views/done.py:330
 msgid ""
 "A required system tool is missing. Ensure you are running from the official "
 "live media."
 msgstr ""
 
-#: bootc_installer/views/done.py:302
+#: bootc_installer/views/done.py:332
 msgid ""
 "Network error during image download. Check your internet connection and try "
 "again."
 msgstr ""
 
-#: bootc_installer/views/done.py:304
+#: bootc_installer/views/done.py:334
 msgid "Not enough disk space. Select a larger disk or free up space."
 msgstr ""
 
-#: bootc_installer/views/done.py:306
+#: bootc_installer/views/done.py:336
 msgid "Permission denied. The installer needs administrator access to proceed."
 msgstr ""
 
-#: bootc_installer/views/done.py:308
+#: bootc_installer/views/done.py:338
 msgid ""
 "Disk encryption setup failed. Try disabling encryption or check your "
 "passphrase."
 msgstr ""
 
-#: bootc_installer/views/done.py:310
+#: bootc_installer/views/done.py:340
 msgid "Disk partitioning failed. The disk may be in use or damaged."
 msgstr ""
 
-#: bootc_installer/views/done.py:312
+#: bootc_installer/views/done.py:342
 msgid "Filesystem mount failed. The disk may be in use by another process."
 msgstr ""
 
-#: bootc_installer/views/done.py:316
-msgid "Error: {}"
-msgstr ""
-
-#: bootc_installer/views/done.py:347
+#: bootc_installer/views/done.py:377
 msgid "Could not reboot"
 msgstr ""
 
-#: bootc_installer/views/done.py:348
+#: bootc_installer/views/done.py:378
 msgid "Please reboot manually by running: systemctl reboot"
 msgstr ""
 
-#: bootc_installer/views/done.py:350
+#: bootc_installer/views/done.py:380
 msgid "OK"
 msgstr ""
 
-#: bootc_installer/views/progress.py:160
+#: bootc_installer/views/progress.py:188
 #, python-format
 msgid "Downloading\\u2026 (%s of %s parts)"
 msgstr ""
 
-#: bootc_installer/views/progress.py:162 bootc_installer/views/progress.py:164
+#: bootc_installer/views/progress.py:190 bootc_installer/views/progress.py:192
 msgid "Downloading system image\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:166
+#: bootc_installer/views/progress.py:194
 msgid "Compressing\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:168
+#: bootc_installer/views/progress.py:196
 msgid "Optimizing drive\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:277
+#: bootc_installer/views/progress.py:307
 msgid "Stopping the installation\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:557
+#: bootc_installer/views/progress.py:587
 #, python-format
 msgid "~%d sec remaining"
 msgstr ""
 
-#: bootc_installer/views/progress.py:560
+#: bootc_installer/views/progress.py:590
 #, python-format
 msgid "~%d min remaining"
 msgstr ""
 
-#: bootc_installer/views/progress.py:567
+#: bootc_installer/views/progress.py:597
 #, python-format
 msgid "%s elapsed"
 msgstr ""
@@ -1516,6 +1280,167 @@ msgstr ""
 #: bootc_installer/windows/main_window.py:670
 msgid "No installation disk is selected. Go back and choose a disk."
 msgstr ""
+
+#~ msgid "Recovery"
+#~ msgstr "Herstel"
+
+#~ msgid "Configure Disk"
+#~ msgstr "Schijf configureren"
+
+#~ msgid "Apply"
+#~ msgstr "Toepassen"
+
+#~ msgid "Console"
+#~ msgstr "Console"
+
+#~ msgid "Open a terminal"
+#~ msgstr "Opent een terminal"
+
+#~ msgid "Documentation"
+#~ msgstr "Documentatie"
+
+#, fuzzy
+#~ msgid "Open the documentation"
+#~ msgstr "Opent de documentatie van Vanilla OS"
+
+#~ msgid "Manage disks and partitions"
+#~ msgstr "Beheer schijven en partities"
+
+#~ msgid "Web Browser"
+#~ msgstr "Webbrowser"
+
+#~ msgid "Search help online"
+#~ msgstr "Zoek online naar hulp"
+
+#~ msgid "Manually Partition"
+#~ msgstr "Handmatig partitioneren"
+
+#~ msgid "Open GParted to manually partition the disk"
+#~ msgstr "Open GParted om de schijf handmatig te partitioneren"
+
+#~ msgid "Boot Partition"
+#~ msgstr "Opstartpartitie"
+
+#, fuzzy
+#~ msgid ""
+#~ "The partition to mount under “/boot”. This directory stores files for "
+#~ "booting into bootc installer. Minimum space required in the partition is "
+#~ msgstr ""
+#~ "De partitie welke aan ‘/boot/efi’ dient te worden gekoppeld. Deze bevat "
+#~ "bestanden voor het laden van de bootloader."
+
+#, fuzzy
+#~ msgid "No Partition Selected"
+#~ msgstr "Geen partitie geselecteerd"
+
+#~ msgid "Please select a partition from the options below"
+#~ msgstr "Selecteer een partitie uit de volgende opties"
+
+#~ msgid "EFI Partition"
+#~ msgstr "EFI-partitie"
+
+#, fuzzy
+#~ msgid ""
+#~ "The partition to mount under “/boot/efi”. This directory stores files for "
+#~ "booting in the bootloader. Minimum space required in the partition is "
+#~ msgstr ""
+#~ "De partitie welke aan ‘/boot/efi’ dient te worden gekoppeld. Deze bevat "
+#~ "bestanden voor het laden van de bootloader."
+
+#~ msgid "BIOS Boot Partition"
+#~ msgstr "BIOS-opstartpartitie"
+
+#~ msgid ""
+#~ "The partition required by GPT-formatted disks to support booting from "
+#~ "BIOS systems. It must be located in the first 2 TB of the disk and must "
+#~ "be exactly 1 Mebibyte (1 MiB)."
+#~ msgstr ""
+#~ "De partitie, vereist door schijven geformatteerd in GPT-formaat, om te "
+#~ "kunnen opstarten vanuit BIOS-systemen. Deze moet zich bevinden in de "
+#~ "eerste 2 TB van de schijf en dient exact 1 mebibyte (MiB) te zijn."
+
+#~ msgid "BIOS partition must be exactly 1 MiB."
+#~ msgstr "BIOS-partitie moet exact 1 MiB zijn"
+
+#~ msgid "Root Partition"
+#~ msgstr "Root-partitie"
+
+#, fuzzy
+#~ msgid ""
+#~ "The partition to mount under “/”. It will be automatically converted into "
+#~ "an LVM thin pool during installation. Minimum space required in the "
+#~ "partition is "
+#~ msgstr ""
+#~ "De partitie welke aan ‘/’ dient te worden gekoppeld. Deze wordt tijdens "
+#~ "de installatie automatisch omgezet in een ‘LVM thin pool’."
+
+#~ msgid "Var Partition"
+#~ msgstr "Var-partitie"
+
+#, fuzzy
+#~ msgid ""
+#~ "The partition to mount under “/var”. This directory stores all user data "
+#~ "like personal documents and system-wide configuration. Minimum space "
+#~ "required in the partition is "
+#~ msgstr ""
+#~ "De partitie welke aan ‘/var’ dient te worden gekoppeld. Deze bevat alle "
+#~ "gebruikers­gegevens zoals persoonlijke ducumenten en systeembrede "
+#~ "configuraties."
+
+#~ msgid "Swap Partition"
+#~ msgstr "Wissel­geheugen­partitie"
+
+#, fuzzy
+#~ msgid ""
+#~ "Swap acts as a virtual extension of your RAM and enables hibernation. "
+#~ "bootc installer already uses zram to provide swapping at no storage cost."
+#~ msgstr ""
+#~ "Wissel­geheugen (swap) fungeert als een virtuele uitbreiding van uw werk­"
+#~ "geheugen en maakt sluimer­stand mogelijk. Vanilla OS maakt al gebruik van "
+#~ "‘zram’ om het werk­geheugen uit te breiden zonder gebruik te maken van "
+#~ "extra opslag­ruimte."
+
+#~ msgid ""
+#~ "Choose a partition to use for swap alongside zram. This is not required "
+#~ "for hibernation."
+#~ msgstr ""
+#~ "Kies een partitie om naast ‘zram’ als wissel­geheugen te gebruiken. Dit is "
+#~ "niet vereist voor sluimer­stand."
+
+#~ msgid ""
+#~ "GParted is already running. Only one instance of GParted is permitted."
+#~ msgstr ""
+#~ "GParted wordt al uitgevoerd. Enkel één instantie van GParted is "
+#~ "toegestaan."
+
+#~ msgid "Partition must be at least {}"
+#~ msgstr "Partitie dient minstens {} te zijn"
+
+#~ msgid "Partition must EXACTLY {}"
+#~ msgstr "Partitie dient EXACT {} te zijn"
+
+#~ msgid "No partition selected"
+#~ msgstr "Geen partitie geselecteerd"
+
+#~ msgid "Partitions have changed. Current selections have been cleared."
+#~ msgstr "Partities zijn veranderd. Huidige selecties zijn gewist."
+
+#, fuzzy
+#~ msgid "Will be mounted in {}"
+#~ msgstr "Zal worden geformatteerd als {} en gekoppeld als {}"
+
+#~ msgid "Will be formatted in {} and mounted in {}"
+#~ msgstr "Zal worden geformatteerd als {} en gekoppeld als {}"
+
+#~ msgid "Missing 'log_file' in the recipe."
+#~ msgstr "‘log_file’ ontbreekt in het recept"
+
+#, python-format
+#~ msgid "failed to create log file: %s"
+#~ msgstr "kon logboekbestand niet aanmaken: %s"
+
+#~ msgid "No log will be stored."
+#~ msgstr "Logboek wordt niet opgeslagen"
 
 #~ msgid "Vanilla OS Installer"
 #~ msgstr "Installer van Vanilla OS"

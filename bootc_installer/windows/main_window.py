@@ -652,7 +652,7 @@ class BootcWindow(Adw.ApplicationWindow):
 
         try:
             recipe = Processor.gen_install_recipe(
-                self.recipe.get("log_file", "/tmp/vanilla_installer.log"),
+                "",
                 self.finals,
                 self.recipe,
             )

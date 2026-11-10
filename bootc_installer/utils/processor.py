@@ -177,7 +177,7 @@ class Processor:
         """Generate a fisherman recipe JSON from the UI's collected finals.
 
         Args:
-            log_path: path for the installation log (unused by fisherman, kept for API compat)
+            log_path: not read; the callers still pass it
             finals: list of dicts collected from each installer step's get_finals()
             sys_recipe: the loaded system recipe (from /etc/bootcos-installer/recipe.json)
 
@@ -195,34 +195,24 @@ class Processor:
         logger.info(f"Building fisherman recipe from finals: {list(merged.keys())}")
 
         # --- Disk ---
-        # disk_info comes from BootcDefaultDisk.get_finals() as one of:
-        #   Auto:   {"auto": {"disk": "/dev/vda", ...}}
-        #   Manual: {"/dev/sda1": {"fs": "fat32", "mp": "/boot/efi"}, "/dev/sda2": {...}, ...}
+        # disk_info comes from BootcDefaultDisk.get_finals():
+        #   {"auto": {"disk": "/dev/vda", ...}, "filesystem": ..., "btrfsSubvolumes": ...}
+        # The wizard makes whole-disk layouts only. A manual layout (keys
+        # that are partitions) had no page that could make it (#312), and
+        # fisherman now needs /boot/efi (and /boot for GRUB with an XFS
+        # root) in `customMounts`. Refuse it here, and never write
+        # `customMounts`, so that no caller can send a layout that has no
+        # boot partitions.
         disk_info = merged.get("disk", {})
         disk_device = ""
         filesystem = "xfs"
         btrfs_subvolumes = False
-        custom_mounts = []
 
-        is_manual = (
-            isinstance(disk_info, dict)
-            and disk_info
-            and all(k.startswith("/dev/") for k in disk_info)
-        )
+        if (isinstance(disk_info, dict) and disk_info
+                and any(str(k).startswith("/dev/") for k in disk_info)):
+            raise ValueError("Manual partition layouts are not supported")
 
-        if is_manual:
-            for partition, spec in disk_info.items():
-                fstype = spec.get("fs", "unformatted") or "unformatted"
-                mountpoint = spec.get("mp", "")
-                if not mountpoint:
-                    continue
-                custom_mounts.append({
-                    "partition": partition,
-                    "target": mountpoint,
-                    "fstype": fstype,
-                })
-            logger.info(f"Manual partition layout: {len(custom_mounts)} mounts")
-        elif isinstance(disk_info, dict):
+        if isinstance(disk_info, dict):
             if "auto" in disk_info:
                 disk_device = disk_info["auto"].get("disk", "")
             elif "disk" in disk_info:
@@ -435,8 +425,6 @@ class Processor:
                 "groups": user_groups,
             },
         }
-        if custom_mounts:
-            recipe["customMounts"] = custom_mounts
         if unified_storage:
             recipe["unifiedStorage"] = True
         if image_type and image_type != "bootc":

@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: vanilla-installer\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 17:21+0000\n"
+"POT-Creation-Date: 2026-11-10 18:13+0000\n"
 "PO-Revision-Date: 2023-08-19 21:52+0000\n"
 "Last-Translator: Maksim <maxklezovich@gmail.com>\n"
 "Language-Team: Belarusian <https://hosted.weblate.org/projects/vanilla-os/"
@@ -442,25 +442,16 @@ msgid "Pair your keyboard or mouse to continue"
 msgstr ""
 
 #: bootc_installer/gtk/default-welcome.blp:58
-#: bootc_installer/gtk/dialog-recovery.blp:5
-msgid "Recovery"
-msgstr "Аднаўленне"
-
-#: bootc_installer/gtk/default-welcome.blp:59
-msgid "Troubleshoot or repair an existing installation."
-msgstr ""
-
-#: bootc_installer/gtk/default-welcome.blp:76
 #: bootc_installer/gtk/dialog-poweroff.blp:5
 #: bootc_installer/gtk/dialog-poweroff.blp:22
 msgid "Power Off"
 msgstr ""
 
-#: bootc_installer/gtk/default-welcome.blp:94
+#: bootc_installer/gtk/default-welcome.blp:76
 msgid "Press Super+Alt+S to enable the screen reader"
 msgstr ""
 
-#: bootc_installer/gtk/default-welcome.blp:105
+#: bootc_installer/gtk/default-welcome.blp:87
 #: bootc_installer/gtk/dialog-credits.blp:5 bootc_installer/gtk/window.blp:56
 msgid "Credits"
 msgstr ""
@@ -472,7 +463,7 @@ msgid "Confirm Changes"
 msgstr "Пацвердзіце змены"
 
 #: bootc_installer/gtk/dialog-disk-confirm.blp:17
-#: bootc_installer/gtk/dialog-disk.blp:17 bootc_installer/gtk/progress.blp:312
+#: bootc_installer/gtk/progress.blp:312
 #: bootc_installer/windows/main_window.py:584
 msgid "Cancel"
 msgstr "Скасаваць"
@@ -483,14 +474,6 @@ msgid ""
 "carefully."
 msgstr ""
 "На вашым дыску будуць унесены наступныя змены. Уважліва праглядзіце іх."
-
-#: bootc_installer/gtk/dialog-disk.blp:5
-msgid "Configure Disk"
-msgstr "Наладзіць дыск"
-
-#: bootc_installer/gtk/dialog-disk.blp:22
-msgid "Apply"
-msgstr "Ужыць"
 
 #: bootc_installer/gtk/dialog-output.blp:5
 msgid "Log"
@@ -507,49 +490,6 @@ msgstr ""
 #: bootc_installer/gtk/dialog-poweroff.blp:54
 msgid "Restart Into Firmware Setup"
 msgstr ""
-
-#: bootc_installer/gtk/dialog-recovery.blp:22
-msgid "Console"
-msgstr "Кансоль"
-
-#: bootc_installer/gtk/dialog-recovery.blp:23
-#, fuzzy
-msgid "Open a terminal"
-msgstr "Адкрыйце тэрмінал"
-
-#: bootc_installer/gtk/dialog-recovery.blp:39
-msgid "Documentation"
-msgstr ""
-
-#: bootc_installer/gtk/dialog-recovery.blp:40
-#, fuzzy
-msgid "Open the documentation"
-msgstr "Прачытайце даведнік па Vanilla OS"
-
-#: bootc_installer/gtk/dialog-recovery.blp:56
-msgid "Disks manager"
-msgstr ""
-
-#: bootc_installer/gtk/dialog-recovery.blp:57
-msgid "Manage disks and partitions"
-msgstr "Кіраванне дыскамі і раздзеламі"
-
-#: bootc_installer/gtk/dialog-recovery.blp:73
-msgid "Get help"
-msgstr ""
-
-#: bootc_installer/gtk/dialog-recovery.blp:74
-msgid "Open the support site"
-msgstr ""
-
-#: bootc_installer/gtk/dialog-recovery.blp:90
-msgid "Web Browser"
-msgstr "Вэб-браўзеры"
-
-#: bootc_installer/gtk/dialog-recovery.blp:91
-#, fuzzy
-msgid "Search help online"
-msgstr "Шукайце дапамогу ў Інтэрнэце"
 
 #: bootc_installer/gtk/dialog.blp:5
 msgid "Showing Information"
@@ -596,13 +536,13 @@ msgstr ""
 msgid "Installation will continue normally. Feel free to browse around. Rawr."
 msgstr ""
 
-#: bootc_installer/gtk/progress.blp:191 bootc_installer/views/progress.py:769
-#: bootc_installer/views/progress.py:843
+#: bootc_installer/gtk/progress.blp:191 bootc_installer/views/progress.py:829
+#: bootc_installer/views/progress.py:905
 #, fuzzy
 msgid "Installing"
 msgstr "Усталяванне..."
 
-#: bootc_installer/gtk/progress.blp:225 bootc_installer/views/progress.py:776
+#: bootc_installer/gtk/progress.blp:225 bootc_installer/views/progress.py:836
 msgid "0:00 elapsed"
 msgstr ""
 
@@ -624,142 +564,6 @@ msgstr "Пацвердзіце ўстаноўку"
 #: bootc_installer/gtk/widget-keyboard.blp:13
 msgid "key"
 msgstr ""
-
-#: bootc_installer/gtk/widget-partition.blp:8
-#, fuzzy
-msgid "Manually Partition"
-msgstr "Ручное раздзяленне"
-
-#: bootc_installer/gtk/widget-partition.blp:9
-msgid "Open GParted to manually partition the disk"
-msgstr "Адкрыйце GParted, каб разбіць дыск уручную"
-
-#: bootc_installer/gtk/widget-partition.blp:27
-msgid "Boot Partition"
-msgstr "Загрузны раздзел"
-
-#: bootc_installer/gtk/widget-partition.blp:29
-#, fuzzy
-msgid ""
-"The partition to mount under “/boot”. This directory stores files for "
-"booting into bootc installer. Minimum space required in the partition is "
-msgstr ""
-"Падзел для мантавання ў «/boot/efi». У гэтым каталогу захоўваюцца файлы для "
-"загрузкі ў загрузніку."
-
-#: bootc_installer/gtk/widget-partition.blp:33
-#: bootc_installer/gtk/widget-partition.blp:53
-#: bootc_installer/gtk/widget-partition.blp:85
-#: bootc_installer/gtk/widget-partition.blp:106
-#: bootc_installer/gtk/widget-partition.blp:126
-#: bootc_installer/gtk/widget-partition.blp:160
-#, fuzzy
-msgid "No Partition Selected"
-msgstr "Падзел не выбраны"
-
-#: bootc_installer/gtk/widget-partition.blp:34
-#: bootc_installer/gtk/widget-partition.blp:54
-#: bootc_installer/gtk/widget-partition.blp:86
-#: bootc_installer/gtk/widget-partition.blp:107
-#: bootc_installer/gtk/widget-partition.blp:127
-#: bootc_installer/gtk/widget-partition.blp:161
-#: bootc_installer/defaults/disk.py:460
-msgid "Please select a partition from the options below"
-msgstr "Калі ласка, абярыце падзел з варыянтаў ніжэй"
-
-#: bootc_installer/gtk/widget-partition.blp:47
-msgid "EFI Partition"
-msgstr "Падзел EFI"
-
-#: bootc_installer/gtk/widget-partition.blp:49
-#, fuzzy
-msgid ""
-"The partition to mount under “/boot/efi”. This directory stores files for "
-"booting in the bootloader. Minimum space required in the partition is "
-msgstr ""
-"Падзел для мантавання ў «/boot/efi». У гэтым каталогу захоўваюцца файлы для "
-"загрузкі ў загрузніку."
-
-#: bootc_installer/gtk/widget-partition.blp:58
-msgid "Keep EFI"
-msgstr ""
-
-#: bootc_installer/gtk/widget-partition.blp:59
-msgid ""
-"Choose to not format your EFI partition. Make sure this is turned on if you "
-"are dual-booting"
-msgstr ""
-
-#: bootc_installer/gtk/widget-partition.blp:79
-msgid "BIOS Boot Partition"
-msgstr "Загрузны раздзел BIOS"
-
-#: bootc_installer/gtk/widget-partition.blp:81
-msgid ""
-"The partition required by GPT-formatted disks to support booting from BIOS "
-"systems. It must be located in the first 2 TB of the disk and must be "
-"exactly 1 Mebibyte (1 MiB)."
-msgstr ""
-"Падзел, неабходны дыскам у фармаце GPT для падтрымкі загрузкі з сістэм BIOS. "
-"Ён павінен быць размешчаны ў першых 2 ТБ дыска і павінен мець роўна 1 "
-"Мебібайт (1 МіБ)."
-
-#: bootc_installer/gtk/widget-partition.blp:96
-msgid "BIOS partition must be exactly 1 MiB."
-msgstr "Раздзел BIOS павінен быць роўна 1 MiB."
-
-#: bootc_installer/gtk/widget-partition.blp:100
-#, fuzzy
-msgid "Root Partition"
-msgstr "Каранёвыя раздзелы"
-
-#: bootc_installer/gtk/widget-partition.blp:102
-#, fuzzy
-msgid ""
-"The partition to mount under “/”. It will be automatically converted into an "
-"LVM thin pool during installation. Minimum space required in the partition "
-"is "
-msgstr ""
-"Падзел для мантавання ў «/boot». У гэтым каталогу захоўваюцца файлы для "
-"загрузкі ў Vanilla OS."
-
-#: bootc_installer/gtk/widget-partition.blp:120
-#, fuzzy
-msgid "Var Partition"
-msgstr "Своп падзел"
-
-#: bootc_installer/gtk/widget-partition.blp:122
-#, fuzzy
-msgid ""
-"The partition to mount under “/var”. This directory stores all user data "
-"like personal documents and system-wide configuration. Minimum space "
-"required in the partition is "
-msgstr ""
-"Падзел для мантавання ў «/home». У гэтым каталогу захоўваюцца ўсе дадзеныя "
-"карыстальніка."
-
-#: bootc_installer/gtk/widget-partition.blp:141
-#: bootc_installer/gtk/widget-partition.blp:147
-msgid "Swap Partition"
-msgstr "Своп падзел"
-
-#: bootc_installer/gtk/widget-partition.blp:143
-#, fuzzy
-msgid ""
-"Swap acts as a virtual extension of your RAM and enables hibernation. bootc "
-"installer already uses zram to provide swapping at no storage cost."
-msgstr ""
-"Swap дзейнічае як віртуальнае пашырэнне аператыўнай памяці і дазваляе спячы "
-"рэжым. Vanilla OS ужо выкарыстоўвае zram для забеспячэння абмену без "
-"выдаткаў на захоўванне."
-
-#: bootc_installer/gtk/widget-partition.blp:148
-msgid ""
-"Choose a partition to use for swap alongside zram. This is not required for "
-"hibernation."
-msgstr ""
-"Выберыце падзел для свопу разам з zram. Гэта не патрабуецца для спячага "
-"рэжыму."
 
 #: bootc_installer/gtk/window-cpu.blp:52 bootc_installer/gtk/window-ram.blp:52
 msgid "Continue..."
@@ -795,89 +599,60 @@ msgstr ""
 msgid "Installer requires an active internet connection"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:338
-msgid "GParted is already running. Only one instance of GParted is permitted."
-msgstr "GParted ужо працуе. Дазваляецца толькі адзін асобнік GParted."
-
-#: bootc_installer/defaults/disk.py:403
-msgid "Partition must be at least {}"
-msgstr "Падзел павінен быць не менш за {}"
-
-#: bootc_installer/defaults/disk.py:427
-msgid "Partition must EXACTLY {}"
-msgstr "Раздзел павінен ТОЛЬКІ {}"
-
-#: bootc_installer/defaults/disk.py:458
-msgid "No partition selected"
-msgstr "Падзел не выбраны"
-
-#: bootc_installer/defaults/disk.py:565
-msgid "Partitions have changed. Current selections have been cleared."
-msgstr "Перагародкі змяніліся. Бягучыя выбары ачышчаны."
-
-#: bootc_installer/defaults/disk.py:636
+#: bootc_installer/defaults/disk.py:109
 msgid "Entire disk will be used."
 msgstr "Будзе выкарыстаны ўвесь дыск."
 
-#: bootc_installer/defaults/disk.py:643
-#, fuzzy
-msgid "Will be mounted in {}"
-msgstr "Будзе адфарматаваны ў {} і змантаваны ў {}"
-
-#: bootc_installer/defaults/disk.py:649
-msgid "Will be formatted in {} and mounted in {}"
-msgstr "Будзе адфарматаваны ў {} і змантаваны ў {}"
-
-#: bootc_installer/defaults/disk.py:659 bootc_installer/defaults/disk.py:684
+#: bootc_installer/defaults/disk.py:113
 #, python-format
 msgid "LVM volume group: %s"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:660 bootc_installer/defaults/disk.py:685
+#: bootc_installer/defaults/disk.py:114
 #, fuzzy
 msgid "Volume group will be removed."
 msgstr "Журнал захоўвацца не будзе."
 
-#: bootc_installer/defaults/disk.py:664 bootc_installer/defaults/disk.py:679
+#: bootc_installer/defaults/disk.py:118
 #, python-format
 msgid "LVM physical volume: %s"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:665 bootc_installer/defaults/disk.py:680
+#: bootc_installer/defaults/disk.py:119
 msgid "Physical volume will be removed."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:751
+#: bootc_installer/defaults/disk.py:185
 msgid "Could not detect disks"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:754
+#: bootc_installer/defaults/disk.py:188
 msgid "No disks detected"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:756
+#: bootc_installer/defaults/disk.py:190
 msgid ""
 "Connect a disk of at least 50 GiB to install to. Nothing can be installed "
 "until one is available."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:894
+#: bootc_installer/defaults/disk.py:328
 msgid "Btrfs (with subvolumes)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:932
+#: bootc_installer/defaults/disk.py:366
 msgid "Install the \"{}\" package on the host to use this filesystem"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:935
+#: bootc_installer/defaults/disk.py:369
 msgid "Missing host tool: \"{}\" — install the \"{}\" package"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:1013
+#: bootc_installer/defaults/disk.py:447
 msgid "Virtual disk (for VMs / testing)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:1015
+#: bootc_installer/defaults/disk.py:449
 #, python-format
 msgid "Creates a %s disk image and attaches it as a loop device"
 msgstr ""
@@ -1053,55 +828,42 @@ msgstr ""
 msgid "Please select at least one option."
 msgstr "Выберыце хаця б адзін варыянт."
 
-#: bootc_installer/utils/builder.py:66
-msgid "Missing 'log_file' in the recipe."
-msgstr "У рэцэпце адсутнічае 'log_file'."
-
-#: bootc_installer/utils/builder.py:75
-#, python-format
-msgid "failed to create log file: %s"
-msgstr "не атрымалася стварыць файл часопіса: %s"
-
-#: bootc_installer/utils/builder.py:76
-msgid "No log will be stored."
-msgstr "Журнал захоўвацца не будзе."
-
-#: bootc_installer/utils/builder.py:79
+#: bootc_installer/utils/builder.py:63
 #, python-format
 msgid "(%s) Processing step..."
 msgstr ""
 
-#: bootc_installer/utils/builder.py:83
+#: bootc_installer/utils/builder.py:67
 #, python-format
 msgid "(%s) Display-conditions found"
 msgstr ""
 
-#: bootc_installer/utils/builder.py:88
+#: bootc_installer/utils/builder.py:72
 #, fuzzy, python-format
 msgid "(%s) Performing display-condition: %s"
 msgstr "Выкананне стану адлюстравання: %s"
 
-#: bootc_installer/utils/builder.py:97
+#: bootc_installer/utils/builder.py:81
 #, python-format
 msgid "(%s) Display-conditions not met"
 msgstr ""
 
-#: bootc_installer/utils/builder.py:99
+#: bootc_installer/utils/builder.py:83
 #, fuzzy, python-format
 msgid "(%s) Display-conditions met"
 msgstr "Выкананне стану адлюстравання: %s"
 
-#: bootc_installer/utils/builder.py:102
+#: bootc_installer/utils/builder.py:86
 #, python-format
 msgid "Step %s skipped due to display-conditions"
 msgstr "Крок %s прапушчаны з-за ўмоў адлюстравання"
 
-#: bootc_installer/utils/builder.py:113
+#: bootc_installer/utils/builder.py:97
 #, python-format
 msgid "(%s) Initializing widgets for template: %s"
 msgstr ""
 
-#: bootc_installer/utils/builder.py:120
+#: bootc_installer/utils/builder.py:104
 #, python-format
 msgid "(%s) Widgets initialized"
 msgstr ""
@@ -1182,40 +944,40 @@ msgstr ""
 msgid "Connection error."
 msgstr ""
 
-#: bootc_installer/utils/recipe.py:139
+#: bootc_installer/utils/recipe.py:138
 #, fuzzy, python-brace-format
 msgid "Installing {name}"
 msgstr "Усталяванне..."
 
-#: bootc_installer/utils/recipe.py:140
+#: bootc_installer/utils/recipe.py:139
 #, fuzzy
 msgid "This will take a few minutes."
 msgstr "Гэта прывядзе да выдалення ўсіх даных на дыску."
 
-#: bootc_installer/utils/recipe.py:144
+#: bootc_installer/utils/recipe.py:143
 #, fuzzy
 msgid "Installation complete"
 msgstr "ўстаноўка пацверджана"
 
-#: bootc_installer/utils/recipe.py:145
+#: bootc_installer/utils/recipe.py:144
 msgid "Your system is ready to use."
 msgstr ""
 
-#: bootc_installer/utils/recipe.py:200
+#: bootc_installer/utils/recipe.py:201
 msgid "Recipe is not a dictionary"
 msgstr "Рэцэпт не слоўнік"
 
-#: bootc_installer/utils/recipe.py:205
+#: bootc_installer/utils/recipe.py:206
 #, python-brace-format
 msgid "Recipe is missing the '{key}' key"
 msgstr "У рэцэпце адсутнічае ключ \"{key}\""
 
-#: bootc_installer/utils/recipe.py:209
+#: bootc_installer/utils/recipe.py:210
 #, fuzzy
 msgid "Recipe steps is not a dictionary"
 msgstr "Рэцэпт не слоўнік"
 
-#: bootc_installer/utils/recipe.py:214
+#: bootc_installer/utils/recipe.py:215
 #, fuzzy, python-brace-format
 msgid "Step {step_key} is not a dictionary"
 msgstr "Крок {step} не з'яўляецца слоўнікам"
@@ -1306,115 +1068,115 @@ msgid ""
 "system that does not start."
 msgstr ""
 
-#: bootc_installer/views/done.py:214
+#: bootc_installer/views/done.py:144 bootc_installer/views/done.py:346
+msgid "Error: {}"
+msgstr ""
+
+#: bootc_installer/views/done.py:240
 #, fuzzy, python-format
 msgid "Installed in %s. "
 msgstr "Усталяванне..."
 
-#: bootc_installer/views/done.py:216
+#: bootc_installer/views/done.py:242
 msgid "Restart now"
 msgstr ""
 
-#: bootc_installer/views/done.py:240
+#: bootc_installer/views/done.py:266
 #, fuzzy
 msgid "Installation cancelled"
 msgstr "ўстаноўка пацверджана"
 
-#: bootc_installer/views/done.py:250
+#: bootc_installer/views/done.py:276
 #, fuzzy
 msgid "Installation failed"
 msgstr "ўстаноўка пацверджана"
 
-#: bootc_installer/views/done.py:286
+#: bootc_installer/views/done.py:316
 msgid "Check the log for details. Click 'Show Log' below."
 msgstr ""
 
-#: bootc_installer/views/done.py:295
+#: bootc_installer/views/done.py:325
 msgid "The installer exited unexpectedly. Check the log for details."
 msgstr ""
 
-#: bootc_installer/views/done.py:300
+#: bootc_installer/views/done.py:330
 msgid ""
 "A required system tool is missing. Ensure you are running from the official "
 "live media."
 msgstr ""
 
-#: bootc_installer/views/done.py:302
+#: bootc_installer/views/done.py:332
 msgid ""
 "Network error during image download. Check your internet connection and try "
 "again."
 msgstr ""
 
-#: bootc_installer/views/done.py:304
+#: bootc_installer/views/done.py:334
 msgid "Not enough disk space. Select a larger disk or free up space."
 msgstr ""
 
-#: bootc_installer/views/done.py:306
+#: bootc_installer/views/done.py:336
 msgid "Permission denied. The installer needs administrator access to proceed."
 msgstr ""
 
-#: bootc_installer/views/done.py:308
+#: bootc_installer/views/done.py:338
 msgid ""
 "Disk encryption setup failed. Try disabling encryption or check your "
 "passphrase."
 msgstr ""
 
-#: bootc_installer/views/done.py:310
+#: bootc_installer/views/done.py:340
 msgid "Disk partitioning failed. The disk may be in use or damaged."
 msgstr ""
 
-#: bootc_installer/views/done.py:312
+#: bootc_installer/views/done.py:342
 msgid "Filesystem mount failed. The disk may be in use by another process."
 msgstr ""
 
-#: bootc_installer/views/done.py:316
-msgid "Error: {}"
-msgstr ""
-
-#: bootc_installer/views/done.py:347
+#: bootc_installer/views/done.py:377
 msgid "Could not reboot"
 msgstr ""
 
-#: bootc_installer/views/done.py:348
+#: bootc_installer/views/done.py:378
 msgid "Please reboot manually by running: systemctl reboot"
 msgstr ""
 
-#: bootc_installer/views/done.py:350
+#: bootc_installer/views/done.py:380
 msgid "OK"
 msgstr ""
 
-#: bootc_installer/views/progress.py:160
+#: bootc_installer/views/progress.py:188
 #, python-format
 msgid "Downloading\\u2026 (%s of %s parts)"
 msgstr ""
 
-#: bootc_installer/views/progress.py:162 bootc_installer/views/progress.py:164
+#: bootc_installer/views/progress.py:190 bootc_installer/views/progress.py:192
 msgid "Downloading system image\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:166
+#: bootc_installer/views/progress.py:194
 msgid "Compressing\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:168
+#: bootc_installer/views/progress.py:196
 msgid "Optimizing drive\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:277
+#: bootc_installer/views/progress.py:307
 msgid "Stopping the installation\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:557
+#: bootc_installer/views/progress.py:587
 #, python-format
 msgid "~%d sec remaining"
 msgstr ""
 
-#: bootc_installer/views/progress.py:560
+#: bootc_installer/views/progress.py:590
 #, python-format
 msgid "~%d min remaining"
 msgstr ""
 
-#: bootc_installer/views/progress.py:567
+#: bootc_installer/views/progress.py:597
 #, python-format
 msgid "%s elapsed"
 msgstr ""
@@ -1515,6 +1277,165 @@ msgstr ""
 #: bootc_installer/windows/main_window.py:670
 msgid "No installation disk is selected. Go back and choose a disk."
 msgstr ""
+
+#~ msgid "Recovery"
+#~ msgstr "Аднаўленне"
+
+#~ msgid "Configure Disk"
+#~ msgstr "Наладзіць дыск"
+
+#~ msgid "Apply"
+#~ msgstr "Ужыць"
+
+#~ msgid "Console"
+#~ msgstr "Кансоль"
+
+#, fuzzy
+#~ msgid "Open a terminal"
+#~ msgstr "Адкрыйце тэрмінал"
+
+#, fuzzy
+#~ msgid "Open the documentation"
+#~ msgstr "Прачытайце даведнік па Vanilla OS"
+
+#~ msgid "Manage disks and partitions"
+#~ msgstr "Кіраванне дыскамі і раздзеламі"
+
+#~ msgid "Web Browser"
+#~ msgstr "Вэб-браўзеры"
+
+#, fuzzy
+#~ msgid "Search help online"
+#~ msgstr "Шукайце дапамогу ў Інтэрнэце"
+
+#, fuzzy
+#~ msgid "Manually Partition"
+#~ msgstr "Ручное раздзяленне"
+
+#~ msgid "Open GParted to manually partition the disk"
+#~ msgstr "Адкрыйце GParted, каб разбіць дыск уручную"
+
+#~ msgid "Boot Partition"
+#~ msgstr "Загрузны раздзел"
+
+#, fuzzy
+#~ msgid ""
+#~ "The partition to mount under “/boot”. This directory stores files for "
+#~ "booting into bootc installer. Minimum space required in the partition is "
+#~ msgstr ""
+#~ "Падзел для мантавання ў «/boot/efi». У гэтым каталогу захоўваюцца файлы "
+#~ "для загрузкі ў загрузніку."
+
+#, fuzzy
+#~ msgid "No Partition Selected"
+#~ msgstr "Падзел не выбраны"
+
+#~ msgid "Please select a partition from the options below"
+#~ msgstr "Калі ласка, абярыце падзел з варыянтаў ніжэй"
+
+#~ msgid "EFI Partition"
+#~ msgstr "Падзел EFI"
+
+#, fuzzy
+#~ msgid ""
+#~ "The partition to mount under “/boot/efi”. This directory stores files for "
+#~ "booting in the bootloader. Minimum space required in the partition is "
+#~ msgstr ""
+#~ "Падзел для мантавання ў «/boot/efi». У гэтым каталогу захоўваюцца файлы "
+#~ "для загрузкі ў загрузніку."
+
+#~ msgid "BIOS Boot Partition"
+#~ msgstr "Загрузны раздзел BIOS"
+
+#~ msgid ""
+#~ "The partition required by GPT-formatted disks to support booting from "
+#~ "BIOS systems. It must be located in the first 2 TB of the disk and must "
+#~ "be exactly 1 Mebibyte (1 MiB)."
+#~ msgstr ""
+#~ "Падзел, неабходны дыскам у фармаце GPT для падтрымкі загрузкі з сістэм "
+#~ "BIOS. Ён павінен быць размешчаны ў першых 2 ТБ дыска і павінен мець роўна "
+#~ "1 Мебібайт (1 МіБ)."
+
+#~ msgid "BIOS partition must be exactly 1 MiB."
+#~ msgstr "Раздзел BIOS павінен быць роўна 1 MiB."
+
+#, fuzzy
+#~ msgid "Root Partition"
+#~ msgstr "Каранёвыя раздзелы"
+
+#, fuzzy
+#~ msgid ""
+#~ "The partition to mount under “/”. It will be automatically converted into "
+#~ "an LVM thin pool during installation. Minimum space required in the "
+#~ "partition is "
+#~ msgstr ""
+#~ "Падзел для мантавання ў «/boot». У гэтым каталогу захоўваюцца файлы для "
+#~ "загрузкі ў Vanilla OS."
+
+#, fuzzy
+#~ msgid "Var Partition"
+#~ msgstr "Своп падзел"
+
+#, fuzzy
+#~ msgid ""
+#~ "The partition to mount under “/var”. This directory stores all user data "
+#~ "like personal documents and system-wide configuration. Minimum space "
+#~ "required in the partition is "
+#~ msgstr ""
+#~ "Падзел для мантавання ў «/home». У гэтым каталогу захоўваюцца ўсе "
+#~ "дадзеныя карыстальніка."
+
+#~ msgid "Swap Partition"
+#~ msgstr "Своп падзел"
+
+#, fuzzy
+#~ msgid ""
+#~ "Swap acts as a virtual extension of your RAM and enables hibernation. "
+#~ "bootc installer already uses zram to provide swapping at no storage cost."
+#~ msgstr ""
+#~ "Swap дзейнічае як віртуальнае пашырэнне аператыўнай памяці і дазваляе "
+#~ "спячы рэжым. Vanilla OS ужо выкарыстоўвае zram для забеспячэння абмену "
+#~ "без выдаткаў на захоўванне."
+
+#~ msgid ""
+#~ "Choose a partition to use for swap alongside zram. This is not required "
+#~ "for hibernation."
+#~ msgstr ""
+#~ "Выберыце падзел для свопу разам з zram. Гэта не патрабуецца для спячага "
+#~ "рэжыму."
+
+#~ msgid ""
+#~ "GParted is already running. Only one instance of GParted is permitted."
+#~ msgstr "GParted ужо працуе. Дазваляецца толькі адзін асобнік GParted."
+
+#~ msgid "Partition must be at least {}"
+#~ msgstr "Падзел павінен быць не менш за {}"
+
+#~ msgid "Partition must EXACTLY {}"
+#~ msgstr "Раздзел павінен ТОЛЬКІ {}"
+
+#~ msgid "No partition selected"
+#~ msgstr "Падзел не выбраны"
+
+#~ msgid "Partitions have changed. Current selections have been cleared."
+#~ msgstr "Перагародкі змяніліся. Бягучыя выбары ачышчаны."
+
+#, fuzzy
+#~ msgid "Will be mounted in {}"
+#~ msgstr "Будзе адфарматаваны ў {} і змантаваны ў {}"
+
+#~ msgid "Will be formatted in {} and mounted in {}"
+#~ msgstr "Будзе адфарматаваны ў {} і змантаваны ў {}"
+
+#~ msgid "Missing 'log_file' in the recipe."
+#~ msgstr "У рэцэпце адсутнічае 'log_file'."
+
+#, python-format
+#~ msgid "failed to create log file: %s"
+#~ msgstr "не атрымалася стварыць файл часопіса: %s"
+
+#~ msgid "No log will be stored."
+#~ msgstr "Журнал захоўвацца не будзе."
 
 #~ msgid "Vanilla OS Installer"
 #~ msgstr "Праграма ўстаноўкі АС Vanilla"

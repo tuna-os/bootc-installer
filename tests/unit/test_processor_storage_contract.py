@@ -84,13 +84,14 @@ def test_unsupported_backend_is_preserved_for_fisherman_rejection():
     assert generate({"imageType": "ostree"})["imageType"] == "ostree"
 
 
-def test_manual_layout_preserved():
-    recipe = Processor.gen_install_recipe("unused", [{"hostname": "canary", "disk": {
-        "/dev/vdb1": {"fs": "fat32", "mp": "/boot/efi"},
-        "/dev/vdb2": {"fs": "ext4", "mp": "/"},
-    }}], {"imgref": REF, "composeFsBackend": True, "filesystem": "ext4"})
-    assert recipe["customMounts"][-1] == {"partition": "/dev/vdb2", "target": "/", "fstype": "ext4"}
-    assert recipe["composeFsBackend"] is True
+def test_manual_layout_refused():
+    """No page makes a manual layout (#312): the Processor never writes
+    customMounts."""
+    with pytest.raises(ValueError, match="Manual partition layouts"):
+        Processor.gen_install_recipe("unused", [{"hostname": "canary", "disk": {
+            "/dev/vdb1": {"fs": "fat32", "mp": "/boot/efi"},
+            "/dev/vdb2": {"fs": "ext4", "mp": "/"},
+        }}], {"imgref": REF, "composeFsBackend": True, "filesystem": "ext4"})
 
 
 def test_nested_catalog_inherits_storage_and_expands_registry_tag():
