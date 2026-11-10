@@ -414,6 +414,42 @@ def host_run(argv, **kwargs):
     return subprocess.run(argv, capture_output=True, text=True, **kwargs)
 
 
+# The desktop's own network tool, in the order tried: the NetworkManager
+# editor an Xfce session ships, then the settings panels of the other
+# desktops this installer runs on. Best effort (#301): the confirm page
+# says so when the host has none of them.
+NETWORK_TOOLS = (
+    ("nm-connection-editor",),
+    ("gnome-control-center", "wifi"),
+    ("systemsettings", "kcm_networkmanagement"),
+    ("cosmic-settings", "network"),
+)
+
+
+def host_spawn(argv):
+    """Start a command on the host and do not wait for it."""
+    if IN_FLATPAK:
+        argv = ["flatpak-spawn", "--host"] + list(argv)
+    return subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def open_network_settings():
+    """Open the first of NETWORK_TOOLS the host has. Returns its name, or ""
+    when the host has none or it could not start."""
+    for tool in NETWORK_TOOLS:
+        try:
+            found = host_run(["sh", "-c", 'command -v "$1" >/dev/null 2>&1', "sh", tool[0]],
+                             timeout=10)
+            if found.returncode != 0:
+                continue
+            host_spawn(list(tool))
+        except (OSError, subprocess.SubprocessError):
+            continue
+        return tool[0]
+    return ""
+
+
 # --- image catalog -----------------------------------------------------------
 #
 # shared/catalog/README.md is the contract and shared/catalog/fixtures/ the

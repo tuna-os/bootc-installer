@@ -139,7 +139,7 @@ not use `default_image` yet (#289).
 | Disk row: model (path when unknown), path, size label, bus | yes | yes | yes | yes | yes |
 | Disk probe failure shown on the disk page | yes | yes | yes | yes | yes |
 | RAM / CPU / UEFI check (fisherman's `system.unmet`) | blocks (gate window) | holds Next; override for RAM and CPU | blocks (requirements page) | blocks (gate dialog) | blocks (gate window) |
-| Connectivity check | blocks (connection-check step); the Wi-Fi page is not in the bundled recipe | blocks on welcome | blocks (network page) | status line, does not block (#301) | blocks on confirm |
+| Connectivity check | blocks (connection-check step); the Wi-Fi page is not in the bundled recipe | blocks on welcome | blocks (network page) | status line, does not block (#301) | blocks on confirm; probes the image's registry first; Network settings button |
 | Filesystem choice | yes (list from the image) | no (always xfs, #287) | xfs or btrfs | yes (Advanced) | yes (Advanced, list from the image) |
 | Encryption: none / passphrase | yes | yes | yes | yes | yes |
 | Passphrase typed twice, Next held on a mismatch | yes | yes | yes | yes | yes |

@@ -124,15 +124,54 @@ def current_timezone():
     return "UTC"
 
 
-def has_connectivity(timeout=5):
-    """Whether an install image could be downloaded right now: ghcr.io:443
-    first (the registry bootc images come from), then 8.8.8.8:53 as a plain
-    connectivity probe. Either skipping env var forces True for harnesses
-    with no route out. Mirrors defaults/conn_check.py's async_fn."""
+# The targets every frontend falls back to: the registry most bootc images
+# come from, then a plain "is there a route" probe.
+SHARED_TARGETS = (("ghcr.io", 443), ("8.8.8.8", 53))
+
+# The registry a reference with no registry in it names.
+DEFAULT_REGISTRY = "registry-1.docker.io"
+
+
+def registry_target(imgref):
+    """(host, port) of the registry that serves `imgref`, or None.
+
+    The first component of a reference is a registry when it has a dot or a
+    port, or is "localhost"; otherwise the reference is a Docker Hub name.
+    A registry with its own port is probed on that port, any other on 443.
+    """
+    ref = (imgref or "").strip()
+    if "://" in ref:
+        ref = ref.split("://", 1)[1]
+    if not ref:
+        return None
+    first = ref.split("/", 1)[0] if "/" in ref else ""
+    if not first or not ("." in first or ":" in first or first == "localhost"):
+        return (DEFAULT_REGISTRY, 443)
+    host, _, port = first.partition(":")
+    if not host:
+        return None
+    return (host, int(port) if port.isdigit() else 443)
+
+
+def connectivity_targets(imgref=""):
+    """What to probe, in order: the registry of the selected image first --
+    it is what the install downloads from, so it is a better answer than a
+    DNS server -- then the shared targets (#301)."""
+    targets = []
+    for target in (registry_target(imgref), *SHARED_TARGETS):
+        if target and target not in targets:
+            targets.append(target)
+    return targets
+
+
+def has_connectivity(timeout=5, imgref=""):
+    """Whether an install image could be downloaded right now: the first of
+    connectivity_targets(imgref) that accepts a connection. Either skipping
+    env var forces True for harnesses with no route out."""
     if any(os.environ.get(var) not in (None, "", "0")
            for var in SKIP_ENV_VARS):
         return True
-    for host, port in (("ghcr.io", 443), ("8.8.8.8", 53)):
+    for host, port in connectivity_targets(imgref):
         try:
             sock = socket.create_connection((host, port), timeout=timeout)
         except OSError:

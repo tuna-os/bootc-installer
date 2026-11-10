@@ -656,8 +656,14 @@ class ConfirmPage(Page):
         self.pack_start(self.net_row, False, False, 0)
         netbar = Gtk.Box(spacing=8)
         netbar.set_halign(Gtk.Align.END)
+        # Help to get online, not only a verdict (#301): the desktop's own
+        # network tool, opened on the host.
+        self.net_settings = Gtk.Button(label="Network settings")
+        self.net_settings.connect("clicked", self._on_network_settings)
+        self.net_settings.set_no_show_all(True)
+        netbar.pack_start(self.net_settings, False, False, 0)
         self.net_recheck = Gtk.Button(label="Recheck")
-        self.net_recheck.connect("clicked", lambda *_: self._check_network())
+        self.net_recheck.connect("clicked", lambda *_args: self._check_network())
         self.net_recheck.set_no_show_all(True)
         netbar.pack_start(self.net_recheck, False, False, 0)
         self.net_bar = netbar
@@ -718,24 +724,34 @@ class ConfirmPage(Page):
             return
         self._set_net(True, "Checking network connection…")
         self.win.refresh_nav()
+        # The registry of the image this install downloads is probed first.
+        image = self.win.source_and_target()[0]
 
         def probe():
-            ok = locale_checks.has_connectivity()
+            ok = locale_checks.has_connectivity(imgref=image)
             GLib.idle_add(self._on_net_result, ok, offline)
 
         threading.Thread(target=probe, daemon=True).start()
+
+    NO_NETWORK = ("No network connection. The selected image must be "
+                  "downloaded. Open Network settings to connect, then press "
+                  "Recheck; or go back and choose an image marked "
+                  "[available offline].")
+    NO_NETWORK_TOOL = ("No network settings tool was found on this system. "
+                       "Connect with the network icon of the panel, then "
+                       "press Recheck.")
 
     def _on_net_result(self, ok, offline):
         if ok:
             self._set_net(True, "")
         else:
-            self._set_net(
-                False,
-                "No network connection. The selected image must be "
-                "downloaded; connect and press Recheck, or go back and "
-                "choose an image marked [available offline].")
+            self._set_net(False, self.NO_NETWORK)
         self.win.refresh_nav()
         return False
+
+    def _on_network_settings(self, *_args):
+        if not core.open_network_settings():
+            self._set_net(False, self.NO_NETWORK + "\n\n" + self.NO_NETWORK_TOOL)
 
     def _set_net(self, ok, message):
         self.net_ok = ok
@@ -743,6 +759,7 @@ class ConfirmPage(Page):
             self.net_row.get_children()[1].set_text(message)
         self.net_row.set_visible(bool(message))
         self.net_recheck.set_visible(not ok)
+        self.net_settings.set_visible(not ok)
 
     def can_continue(self):
         return self.net_ok

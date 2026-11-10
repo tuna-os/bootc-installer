@@ -121,3 +121,46 @@ def test_the_identity_page_offers_only_what_it_applies(monkeypatch):
     assert "this session only" in page.locale_expander.get_label()
     page.kb_combo.set_active_id("de")
     assert applied == ["de"]
+
+
+# ─── which host the connectivity check asks (#301) ──────────────────────────
+
+def test_the_registry_of_the_selected_image_is_probed_first():
+    assert locale_checks.connectivity_targets("quay.io/centos-bootc/centos-bootc:c10s") == [
+        ("quay.io", 443), ("ghcr.io", 443), ("8.8.8.8", 53)]
+    # No duplicate when the image is on the shared registry.
+    assert locale_checks.connectivity_targets("ghcr.io/example/os:latest") == [
+        ("ghcr.io", 443), ("8.8.8.8", 53)]
+    # No image (live media): the shared targets.
+    assert locale_checks.connectivity_targets("") == list(locale_checks.SHARED_TARGETS)
+
+
+def test_registry_target_reads_a_reference():
+    target = locale_checks.registry_target
+    assert target("registry.example:5000/os/atlas:stable") == ("registry.example", 5000)
+    assert target("localhost/os:1") == ("localhost", 443)
+    assert target("docker://quay.io/fedora/fedora-bootc:42") == ("quay.io", 443)
+    # A name with no registry is a Docker Hub name.
+    assert target("library/ubuntu:26.04") == (locale_checks.DEFAULT_REGISTRY, 443)
+    assert target("ubuntu") == (locale_checks.DEFAULT_REGISTRY, 443)
+    assert target("") is None
+
+
+def test_has_connectivity_tries_the_targets_in_order(monkeypatch):
+    monkeypatch.delenv("TUNA_INSTALLER_SKIP_CONN_CHECK", raising=False)
+    monkeypatch.delenv("VANILLA_SKIP_CONN_CHECK", raising=False)
+    tried = []
+
+    class _Sock:
+        def close(self):
+            pass
+
+    def connect(address, timeout=None):
+        tried.append(address)
+        if address == ("ghcr.io", 443):
+            return _Sock()
+        raise OSError("no route")
+
+    monkeypatch.setattr(locale_checks.socket, "create_connection", connect)
+    assert locale_checks.has_connectivity(timeout=1, imgref="quay.io/a/b:1") is True
+    assert tried == [("quay.io", 443), ("ghcr.io", 443)]
