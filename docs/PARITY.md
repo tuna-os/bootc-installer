@@ -68,7 +68,7 @@ claimed a render that nobody had wired up.
 | `done_subtitle` | header subtitle (+ elapsed time) | label | body | label | label |
 | `done_restart` | Reboot Now button | Restart button | suggested button | button | suggested button beside Close |
 | `done_failed_title` | page header | heading | title2 | heading | headline |
-| `done_cancelled_title` | page header, after a confirmed Cancel or fisherman exit code 130 | heading | no (failure page, #299) | heading, after a confirmed Cancel or fisherman exit code 130 | headline, after a confirmed Cancel or fisherman exit code 130 |
+| `done_cancelled_title` | page header, after a confirmed Cancel or fisherman exit code 130 | heading | title2, after a confirmed Cancel or fisherman exit code 130 | heading, after a confirmed Cancel or fisherman exit code 130 | headline, after a confirmed Cancel or fisherman exit code 130 |
 | `validate_*` | error line under the hostname (disk and confirm pages) and the username | inline message on the encryption step (passphrase) and the confirm step (hostname) | hostname row description; encryption row description | line under the hostname (confirm) and under the passphrase | line under the hostname, the username and the encryption choice |
 | `store_label` | done page link to `store_url` (+ QR from `assets.store_qr`, US locale) | done page link | done page link | done page link | done page link |
 | `logo` | product icon (GNOME file adapter tracked separately) | theme/file on welcome and successful done, after the asset; else `system-software-install` / `checkmark` | theme/file on welcome and successful done, after the asset; else `computer-symbolic` in an accent disc / the check | theme/file on welcome and successful done | theme/file/resource on welcome and successful done |
@@ -117,7 +117,7 @@ other four. Video and credits then leave the contract; nothing else gets
 them.
 
 All five render the identity keys (`name`, `id`, `default_hostname`, URLs);
-see `shared/branding/README.md`. Off live media, COSMIC and XFCE do
+see `shared/branding/README.md`. Off live media, Niri and XFCE do
 not use `default_image` yet (#289).
 
 ## Features
@@ -126,36 +126,36 @@ not use `default_image` yet (#289).
 
 | Feature | GNOME | KDE | COSMIC | Niri | XFCE |
 |---|---|---|---|---|---|
-| Image catalog choice (fisherman `images.json`) | yes (tree, search) | yes (disk step, breadcrumb rows, search) | yes (and a custom URL row) | yes (flat list, product and channel in each row, search) | yes (flat list, product and channel in each row, search) |
-| Image selected at start, off live media | branding `default_image`, then catalog `default_image`, each only if the catalog has it; else you must pick | branding `default_image`, then the catalog's; else you must pick | first row of the catalog (#289) | branding `default_image`, then catalog `default_image`; else you must pick | branding `default_image`, then catalog `default_image`; else you must pick |
-| Catalog fields that reach the recipe | all | all of the contract (shared/catalog) | image and Flatpaks only (#286) | all | all |
+| Image catalog choice (fisherman `images.json`) | yes (tree, search) | yes (disk step, breadcrumb rows, search) | yes (search, breadcrumb rows, a custom image row) | yes (flat list, product and channel in each row, search) | yes (flat list, product and channel in each row, search) |
+| Image selected at start, off live media | branding `default_image`, then catalog `default_image`, each only if the catalog has it; else you must pick | branding `default_image`, then the catalog's; else you must pick | branding default_image, then the catalog's, else none: you must pick | branding `default_image`, then catalog `default_image`; else you must pick | branding `default_image`, then catalog `default_image`; else you must pick |
+| Catalog fields that reach the recipe | all | all of the contract (shared/catalog) | all contract fields (shared fixture test) | all | all |
 | Live-ISO install without download (live media from `fisherman probe --json`) | yes | yes | yes | yes | yes |
 | Offline image stores (found by fisherman on the host) | yes | yes | yes | yes | yes |
 | Recipe on fisherman's stdin, no recipe file | yes | yes | yes | yes | yes |
-| fisherman staged from the Flatpak, with a SHA256 check | yes | yes (probe, validate and install) | no (#290) | yes | yes |
+| fisherman staged from the Flatpak, with a SHA256 check | yes | yes (probe, validate and install) | yes (staged, SHA256 checked on the host) | yes | yes |
 | Fields checked by `fisherman validate --json --partial` | hostname, username | hostname, username, passphrase, filesystem with composefs | hostname, passphrase, username | hostname, username, passphrase, filesystem | hostname, username, passphrase, filesystem |
 | Disk choice with erase warning | yes | yes | yes | yes | yes |
 | Disk list from `fisherman probe --json` (`shared/probe/`) | yes | yes | yes | yes | yes |
 | Disk row: model (path when unknown), path, size label, bus | yes | yes | yes | yes | yes |
 | Disk probe failure shown on the disk page | yes | yes | yes | yes | yes |
 | RAM / CPU / UEFI check (fisherman's `system.unmet`) | blocks (gate window) | holds Next; override for RAM and CPU | blocks (requirements page) | blocks (gate dialog) | blocks (gate window) |
-| Connectivity check | blocks (connection-check step); the Wi-Fi page is not in the bundled recipe | blocks on welcome and confirm; image registry first; Network settings action | blocks (network page) | blocks on source and confirm when the image needs a download; probes the image's registry first; Network settings button | blocks on confirm; probes the image's registry first; Network settings button |
-| Filesystem choice | yes (list from the image) | yes (the choices of the image) | xfs or btrfs | yes (Advanced, list from the image) | yes (Advanced, list from the image) |
+| Connectivity check | blocks (connection-check step); the Wi-Fi page is not in the bundled recipe | blocks on welcome and confirm; image registry first; Network settings action | blocks (network page; registry of the image first; Network settings button) | blocks on source and confirm when the image needs a download; probes the image's registry first; Network settings button | blocks on confirm; probes the image's registry first; Network settings button |
+| Filesystem choice | yes (list from the image) | yes (the choices of the image) | the image's list, else xfs, ext4 or btrfs | yes (Advanced, list from the image) | yes (Advanced, list from the image) |
 | Encryption: none / passphrase | yes | yes | yes | yes | yes |
 | Passphrase typed twice, Next held on a mismatch | yes | yes | yes | yes | yes |
 | Encryption: TPM / TPM + passphrase | yes | yes | yes | yes | yes |
 | Recovery key shown after a `tpm2-luks` install | yes | yes | yes | yes | yes |
 | Hostname | generated, editable on confirm | no (branding default, shown on confirm) | field | field on confirm, first value from the image | field, first value from the image |
 | User account, when the image needs one | yes | yes | yes | yes | yes |
-| Default when the catalog does not set `needs_user_creation` (#288) | account | account | no account | account | account |
+| Default when the catalog does not set `needs_user_creation` (#288) | account | account | account | account | account |
 | Account password | twice, reveal, strength | twice, reveal, strength | twice, reveal | twice, reveal | twice, reveal |
-| Account groups | wheel, sudo and developer groups (`shared/account/`), operator override | shared list, operator override | wheel (#302) | wheel, sudo and developer groups, operator override | wheel, sudo and developer groups, operator override |
-| Phone companion (QR) | yes (TLS on the LAN address only); shows when the image needs an account, and fills the account page | no | yes (plain HTTP, #293) | no | no |
-| Keyboard / language / timezone (#292) | pages exist; not in the bundled recipe | pickers on welcome, marked as not applied (#292) | applied to the live session | applied to the live session only; sends only what you changed; a failure is a warning | keyboard only, for this session; says so |
+| Account groups | wheel, sudo and developer groups (`shared/account/`), operator override | shared list, operator override | shared list, operator override | wheel, sudo and developer groups, operator override | wheel, sudo and developer groups, operator override |
+| Phone companion (QR) | yes (TLS on the LAN address only); shows when the image needs an account, and fills the account page | no | no (removed, #293) | no | no |
+| Keyboard / language / timezone (#292) | pages exist; not in the bundled recipe | pickers on welcome, marked as not applied (#292) | applied to the live session; each page says so | applied to the live session only; sends only what you changed; a failure is a warning | keyboard only, for this session; says so |
 | Keyboard / language / timezone in the installed system | no | no | no | no | no |
-| Cancel a running install (#299) | Cancel button, window close and Ctrl+Q: each asks first; a cancelled page follows | Cancel button, asks first; cancelled page | quit dialog | Cancel button and window close: each asks first; a cancelled page follows | Cancel button and window close: each asks first; a cancelled page follows |
+| Cancel a running install (#299) | Cancel button, window close and Ctrl+Q: each asks first; a cancelled page follows | Cancel button, asks first; cancelled page | Cancel button, asks first; cancelled page | Cancel button and window close: each asks first; a cancelled page follows | Cancel button and window close: each asks first; a cancelled page follows |
 | `--autoinstall` | yes (the recipe is validated first) | no | no | no | yes (the recipe is validated first) |
-| Translatable UI | gettext, one domain (`bootc-installer`); branding copy stays in one language (#311) | strings marked (qsTr, tr); no catalog ships (#300) | no (#300) | strings marked with qsTr, no translations shipped (#300) | gettext, one domain (`tuna-installer-xfce`), lint test; no translation ships yet; branding copy stays in one language (#311) |
+| Translatable UI | gettext, one domain (`bootc-installer`); branding copy stays in one language (#311) | strings marked (qsTr, tr); no catalog ships (#300) | one tr() shim and a lint; no catalog ships (#300) | strings marked with qsTr, no translations shipped (#300) | gettext, one domain (`tuna-installer-xfce`), lint test; no translation ships yet; branding copy stays in one language (#311) |
 | Progress bar from fisherman's protocol | yes | yes | yes | yes | yes |
 | Restart from the done page | yes | yes | yes | yes | yes |
 | Show log after failure | yes (recovery key redacted); the page shows fisherman's `error` event | log path | log in page | log in page | log tail |
@@ -208,8 +208,9 @@ four frontends a catalog, gates, locale pages and a companion.
    for artwork. Every resolver already resolves the keys, so this is view
    work only. KDE and COSMIC now show `welcome_image` and
    `complete_image` as the welcome and done artwork, ahead of `logo`.
-6. **Companion and locale steps**: no longer GNOME-only. COSMIC and XFCE
-   have a companion, over plain HTTP (#293). All five have locale pages, and
+6. **Companion and locale steps**: no longer GNOME-only. XFCE
+   has a companion, over plain HTTP (#293). COSMIC had one and removed it.
+   All five have locale pages, and
    they mean five different things (#292). No frontend sends a locale, a
    keymap or a time zone to the installed system: the recipe has no field
    for them (tuna-os/fisherman#405). Windows data migration (slurp) is not
