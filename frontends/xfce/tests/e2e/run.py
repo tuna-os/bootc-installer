@@ -3,11 +3,17 @@
 
 Unlike tests/gui/capture-screens.py this does NOT set TUNA_INSTALLER_DRY_RUN
 and does NOT stub host_run: navigating to the progress page calls
-InstallerWindow.start_install(), which writes the recipe and spawns
-`sudo /usr/local/bin/fisherman <recipe>` exactly as it does on a live ISO.
+InstallerWindow.start_install(), which pipes the recipe to the command
+core.fisherman_command("install") gives: off live media and outside a
+Flatpak, `bash -c 'pkexec /usr/local/bin/fisherman -; exit $?'`.
 shared/e2e/setup.sh has put the validating shim at that path (it also answers
-`fisherman probe --json` with one disk: the loop device) and a failing bootc on
-PATH (no live-ISO mode).
+`fisherman probe --json` with one disk, the loop device, and says the machine
+is not live media), and shared/e2e/fake-bin/pkexec stands in for the polkit
+agent a headless runner does not have.
+
+The catalog below goes to the frontend AND to <e2e dir>/catalog.json, so
+shared/e2e/check-recipe.py can judge "an account exactly when the image
+needs one" against the catalog this run used.
 
     xvfb-run -a python3 tests/e2e/run.py
 
@@ -41,6 +47,10 @@ CATALOG = {
 _tmp = tempfile.mkdtemp(prefix="tuna-e2e-xfce-")
 _catalog = os.path.join(_tmp, "images.json")
 with open(_catalog, "w") as fh:
+    json.dump(CATALOG, fh)
+# The same catalog, where check-recipe.py looks for it.
+os.makedirs(E2E_DIR, exist_ok=True)
+with open(os.path.join(E2E_DIR, "catalog.json"), "w") as fh:
     json.dump(CATALOG, fh)
 os.environ["FISHERMAN_IMAGES_PATH"] = _catalog
 os.environ.setdefault("XDG_RUNTIME_DIR", _tmp)
@@ -81,6 +91,16 @@ def main():
             win._enter(PAGE_ORDER.index(name))
             _pump(0.2)
             page = win.pages[name]
+            if name == "source":
+                # The catalog's default_image is the selection at the start;
+                # nothing else may be (shared/catalog/README.md).
+                leaf = (page.selection() or {}).get("leaf")
+                picked = leaf.imgref if leaf else None
+                print(f"[e2e] image selected at the start: {picked}")
+                if picked != CATALOG["default_image"]:
+                    outcome["error"] = f"the source page selected {picked!r}"
+                    app.quit()
+                    return
             if name == "destination":
                 radios = page.radios
                 print(f"[e2e] disks offered: {[r.disk['path'] for r in radios]}")
@@ -149,7 +169,7 @@ def main():
     if not os.path.exists(os.path.join(E2E_DIR, "recipe.json")):
         print("FAIL: the shim recorded no recipe", file=sys.stderr)
         return 1
-    print("OK: XFCE reached Done through sudo /usr/local/bin/fisherman")
+    print("OK: XFCE reached Done through " + core.shell_line(core.fisherman_argv()))
     return 0
 
 

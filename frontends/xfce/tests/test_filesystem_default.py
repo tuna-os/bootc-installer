@@ -20,8 +20,14 @@ from tuna_installer_xfce import pages  # noqa: E402
 
 
 class _Leaf:
-    def __init__(self, filesystem):
+    """A catalog leaf as core.ImageLeaf resolves it: `filesystems` is what
+    the user may pick, `filesystem` what is selected first."""
+
+    def __init__(self, filesystem, filesystems=None, imgref="registry.example/os:1"):
+        self.imgref = imgref
         self.filesystem = filesystem
+        self.filesystems = list(filesystems or ([filesystem] if filesystem else []))
+        self.composefs = False
 
 
 class _Win:
@@ -49,7 +55,7 @@ def test_combo_shows_the_catalog_default_on_enter():
 
 
 def test_the_persons_choice_wins():
-    page = pages.SetupPage(_Win(_Leaf("btrfs")))
+    page = pages.SetupPage(_Win(_Leaf("btrfs", ["btrfs", "ext4"])))
     page.on_enter()
     page.fs_combo.set_active_id("ext4")
     assert page.default_filesystem("btrfs") == "ext4"
@@ -63,3 +69,48 @@ def test_no_catalog_default_falls_back_to_xfs():
     page.on_enter()
     assert page.fs_combo.get_active_id() == "xfs"
     assert page.default_filesystem("") == "xfs"
+
+
+def _offered(page):
+    return [row[1] for row in page.fs_combo.get_model()]
+
+
+def test_the_choices_are_the_images_own():
+    page = pages.SetupPage(_Win(_Leaf("", ["btrfs", "ext4"])))
+    page.on_enter()
+    assert _offered(page) == ["btrfs", "ext4"]
+    # No `filesystem`: the first of `filesystems` is selected.
+    assert page.fs_combo.get_active_id() == "btrfs"
+
+
+def test_one_filesystem_is_the_only_choice():
+    page = pages.SetupPage(_Win(_Leaf("xfs")))
+    page.on_enter()
+    assert _offered(page) == ["xfs"]
+
+
+def test_an_image_that_names_none_gets_the_frontends_list():
+    page = pages.SetupPage(_Win(_Leaf("")))
+    page.on_enter()
+    assert _offered(page) == list(pages.FILESYSTEMS)
+    assert page.fs_combo.get_active_id() == "xfs"
+
+
+def test_a_different_image_does_not_keep_the_choice_made_before():
+    win = _Win(_Leaf("btrfs", ["btrfs", "ext4"], imgref="registry.example/a:1"))
+    page = pages.SetupPage(win)
+    page.on_enter()
+    page.fs_combo.set_active_id("ext4")
+    assert page.default_filesystem("btrfs") == "ext4"
+    win.leaf = _Leaf("xfs", imgref="registry.example/b:1")
+    page.on_enter()
+    assert _offered(page) == ["xfs"]
+    assert page.default_filesystem("xfs") == "xfs"
+
+
+def test_composefs_reaches_the_live_check():
+    leaf = _Leaf("btrfs")
+    leaf.composefs = True
+    page = pages.SetupPage(_Win(leaf))
+    assert page.partial_recipe()["composeFsBackend"] is True
+    assert "composeFsBackend" not in pages.SetupPage(_Win(_Leaf("xfs"))).partial_recipe()

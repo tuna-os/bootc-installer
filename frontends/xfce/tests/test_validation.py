@@ -74,6 +74,7 @@ def test_a_hostname_problem_shows_its_copy_and_blocks_next(monkeypatch):
     page, check = _page(pages.IdentityPage, monkeypatch)
     page.username.set_text("jo")
     page.password.set_text("pw")
+    page.password2.set_text("pw")
     assert page.can_continue()
     check.on_result([{"field": "hostname", "code": "hostname_invalid_char",
                       "message": "hostname contains '_'"}], None)
@@ -89,6 +90,7 @@ def test_a_reserved_username_blocks_next(monkeypatch):
     page, check = _page(pages.IdentityPage, monkeypatch)
     page.username.set_text("root")
     page.password.set_text("pw")
+    page.password2.set_text("pw")
     check.on_result([{"field": "user.username", "code": "username_reserved",
                       "message": "m"}], None)
     assert not page.can_continue()
@@ -99,6 +101,7 @@ def test_a_check_that_cannot_run_blocks_nothing(monkeypatch):
     page, check = _page(pages.IdentityPage, monkeypatch)
     page.username.set_text("jo")
     page.password.set_text("pw")
+    page.password2.set_text("pw")
     check.on_result(None, "cannot run /usr/local/bin/fisherman: not found")
     assert page.can_continue()
 
@@ -112,7 +115,7 @@ def test_encryption_page_sends_the_passphrase_on_stdin_not_argv(monkeypatch):
     page.pass1.set_text("s3cret")
     assert check.submitted[-1]["encryption"] == {"type": "luks-passphrase",
                                                  "passphrase": "s3cret"}
-    assert "s3cret" not in " ".join(core.VALIDATE_ARGV)
+    assert "s3cret" not in " ".join(core.validate_argv())
 
 
 def test_encryption_problem_blocks_next(monkeypatch):

@@ -77,7 +77,6 @@ KNOWN_GAPS = {
     },
     "niri": {},
     "xfce": {
-        "done_cancelled_title": "exit code 130 shows the failure page; the cancelled page is the open part of #299",
     },
 }
 

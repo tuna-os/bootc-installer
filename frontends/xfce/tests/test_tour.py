@@ -55,7 +55,7 @@ def test_carousel_pages_and_clamps():
 
 def test_welcome_page_carries_the_tour(monkeypatch):
     from tuna_installer_xfce import core, pages
-    monkeypatch.setattr(core, "load_catalog",
-                        lambda: ("", "", [_root("Workstation", "Daily driver.")]))
+    monkeypatch.setattr(core, "load_catalog", lambda: core.Catalog(
+        {"images": [{"name": "Workstation", "desc": "Daily driver.", "children": []}]}))
     welcome = pages.WelcomePage(None)
     assert len(welcome.tour) == 1
