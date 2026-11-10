@@ -24,23 +24,31 @@ backend. The plainest of the TunaOS installer frontends by design — see
 
 ## Flow
 
-Welcome (with a tour of the image families) → Source (image catalog,
-offline badges, live-ISO self-install) → Destination → Filesystem &
-encryption → Identity (account, language and region) →
-Confirm (connectivity gate when the image must be downloaded) → Progress →
-Done (install-log viewer on failure, power off / restart).
+Welcome (with a tour of the image families) → Source (image catalog with a
+search box, offline tags, "install this system" on live media) → Destination
+→ Disk encryption (filesystem under Advanced) → Identity (hostname, account,
+keyboard layout for this session) → Confirm (connectivity gate when the
+install must download the image) → Progress (with Cancel) → Done.
 
-Below-minimum machines never reach the wizard: a blocking RAM, CPU or UEFI
-gate shows first, with Continue anyway (relaunch ignoring the check) or
-Power off. Closing the window mid-install asks first and cancels the
-running fisherman on confirm. `--autoinstall RECIPE_JSON` skips the wizard
-entirely and installs straight from the file.
+- A machine below the minimum does not get the wizard. A RAM, CPU or UEFI
+  gate shows first, with Continue anyway or Power off.
+- The image catalog follows `shared/catalog/README.md`. The page selects the
+  branding `default_image`, then the catalog `default_image`. If the catalog
+  has neither, the page selects nothing and Next waits.
+- The account password is typed two times. Each secret field has a reveal
+  icon. The account gets the groups of `shared/account/groups.json`.
+- The keyboard layout applies to the live session only. The recipe has no
+  locale, keyboard or time zone field yet.
+- When the connectivity check fails, the confirm page offers Network
+  settings and Recheck, and holds the Install button.
+- Cancel on the progress page asks first. A window close during an install
+  asks too. A cancelled install gets its own result page.
+- `--autoinstall RECIPE_JSON` skips the wizard. fisherman validates the
+  recipe first, and a recipe that it rejects starts nothing.
 
-Offline installs: detects live-ISO mode via `bootc status` (empty `image` in
-the recipe installs the running system) and probes embedded OCI stores
-(`/etc/tuna-installer/offline-stores`, `$TUNA_OFFLINE_STORES`,
-`/usr/share/tuna-installer/oci-store`), passing them as
-`additionalImageStores`.
+Live media and offline images are fisherman's facts (`fisherman probe
+--json`). On live media an empty `image` installs the system that runs. The
+recipe never carries `additionalImageStores`.
 
 ## Run (development)
 
@@ -51,12 +59,18 @@ sudo dnf install -y python3-gobject gtk3
 ./tuna-installer-xfce
 ```
 
-Outside a Flatpak it invokes `sudo /usr/local/bin/fisherman`; inside it uses
-`flatpak-spawn --host bash -c 'pkexec /usr/local/bin/fisherman "$1"; exit $?'
--- <recipe>` (polkit action `org.tunaos.Installer.install` must be installed
-on the host by the ISO build). The host bash makes fisherman's parent a
-process this frontend owns, which fisherman needs in order to cancel when
-that parent dies.
+`core.fisherman_command()` is the one function that decides how fisherman
+runs:
+
+- Outside a Flatpak: `bash -c 'pkexec /usr/local/bin/fisherman -; exit $?'`.
+  On live media it uses `sudo -n` in place of `pkexec`.
+- In a Flatpak: the app copies its bundled `/app/bin/fisherman` to
+  `$XDG_CACHE_HOME/bootc-installer/fisherman`, compares the SHA256 on the
+  host, and runs that copy through `flatpak-spawn --host`.
+
+The recipe goes to fisherman on stdin. The bash wrapper makes the parent of
+fisherman a process that this frontend owns, because fisherman cancels when
+its parent dies.
 
 ## Testing
 

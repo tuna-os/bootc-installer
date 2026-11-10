@@ -103,7 +103,8 @@ def terminate_process_group(pid):
 
 class InstallerWindow(Gtk.ApplicationWindow):
     def __init__(self, app, autoinstall_recipe=None):
-        super().__init__(application=app, title=_("{product} Installer").format(product=core.PRODUCT_NAME),
+        super().__init__(application=app,
+                         title=_("{product} Installer").format(product=core.PRODUCT_NAME),
                          default_width=640, default_height=520)
         # The running install, if any: spawn_fisherman's wrapper pid (the
         # group leader terminate_process_group() signals). None otherwise.

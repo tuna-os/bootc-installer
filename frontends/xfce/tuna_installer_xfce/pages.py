@@ -644,7 +644,8 @@ class ConfirmPage(Page):
         self.pack_start(self.body, False, False, 0)
         # confirm_warning names the disk that is about to be erased; on_enter
         # fills in the selected one's path, as KDE, COSMIC and Niri do.
-        self.warn_label = _warn_row(core.BRANDING.text("confirm_warning", disk=_("the selected disk")))
+        self.warn_label = _warn_row(
+            core.BRANDING.text("confirm_warning", disk=_("the selected disk")))
         self.warn_text = self.warn_label.get_children()[1]
         self.pack_start(self.warn_label, False, False, 0)
         # Connectivity gate (defaults/conn_check.py): an install that must

@@ -11,7 +11,6 @@ import subprocess
 
 from tuna_installer_xfce import core
 
-
 # ─── dry_run interlock ───────────────────────────────────────────────────────
 
 class TestDryRun:
