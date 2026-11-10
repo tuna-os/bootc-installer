@@ -29,18 +29,20 @@ The installer does these steps differently for Dakota:
 - It uses systemd-boot with a UKI (Unified Kernel Image).
 - It gives `--composefs-backend` to bootc.
 - It formats the root partition as btrfs.
-- It makes 2 partitions: an EFI partition of 1 GiB in FAT32, and a root partition.
-- It sets the GPT type of the root partition to the GUID for an x86-64 Linux root. Thus systemd-boot finds the root with no more configuration.
+- It makes 2 partitions: an EFI partition of 2 GiB in FAT32, and a root partition.
+- It sets the GPT type of the root partition to the Linux root GUID for the CPU architecture. Thus systemd-boot finds the root with no more configuration.
 - It does not make a user account. Dakota has its own setup at first boot.
 
 The recipe fields for Dakota are `"bootloader": "systemd"` and `"composeFsBackend": true`.
 
-## The nine install steps
+## The install steps
 
-fisherman does these steps from the recipe:
+fisherman does these steps from the recipe.
+The number of steps changes with the recipe: encryption, a second disk and the TPM each add a step.
+Thus a frontend reads the percentage from fisherman and does not count steps.
 
 1. **Partition.** The layout comes from the boot stack:
-   - systemd-boot: 2 GPT partitions, EFI (1 GiB FAT32) and root. systemd-boot can read the EFI partition in FAT32, so there is no `/boot` partition.
+   - systemd-boot: 2 GPT partitions, EFI (2 GiB FAT32) and root. systemd-boot can read the EFI partition in FAT32, so there is no `/boot` partition.
    - GRUB2: 3 GPT partitions, EFI (FAT32), `/boot` (ext4) and root. GRUB cannot read new XFS features (`nrext64`, `exchange`, `rmapbt`). Also, `bootupctl` must find the `/boot` UUID on a raw block device, not on a LUKS mapper device.
 2. **Format.** fisherman formats the EFI partition with `mkfs.fat -F32`. For GRUB2 images, it also formats `/boot` with `mkfs.ext4`.
 3. **Encrypt.** This step is optional. fisherman runs `cryptsetup luksFormat` and `luksOpen`.

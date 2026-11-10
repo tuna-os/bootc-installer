@@ -46,7 +46,7 @@ Refer to [the GNOME walkthrough](../gui-walkthrough.md) for the full set.
 | ![Install location](../screenshots/03-disk.png) | **Install location**. Select a disk. The installer does not write to the disk yet. |
 | ![Encryption](../screenshots/04-encryption.png) | **Disk encryption**. Select LUKS with a passphrase, TPM2, or the two together. |
 | ![Confirm](../screenshots/05-confirm.png) | **Confirm**. Make sure that the data is correct. After this screen, the installer writes to the disk. |
-| ![Installing](../screenshots/06-progress.png) | **Installing**. Wait for the nine steps to complete. Open the log if you want to see more. |
+| ![Installing](../screenshots/06-progress.png) | **Installing**. Wait for the install steps to complete. Open the log if you want to see more. |
 | ![Recovery key](../screenshots/07-recovery-key.png) | **Recovery key**. Keep the key in a safe place, then confirm. This screen shows only after an encrypted install. |
 | ![Done](../screenshots/08-done.png) | **Done**. Restart into the new system. |
 
