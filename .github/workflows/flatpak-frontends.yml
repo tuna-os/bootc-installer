@@ -54,7 +54,7 @@ jobs:
             changed=$(git diff --name-only "$BASE" "$HEAD")
           fi
           for n in kde cosmic niri xfce; do
-            if echo "$changed" | grep -qE "^(frontends/$n/|\.github/workflows/(flatpak-frontends|publish-flatpak-$n)\.yml)"; then
+            if echo "$changed" | grep -qE "^(frontends/$n/|shared/(account|branding|recipe)/|\.github/workflows/(flatpak-frontends|publish-flatpak-$n)\.yml)"; then
               echo "$n=true" >> "$GITHUB_OUTPUT"
             else
               echo "$n=false" >> "$GITHUB_OUTPUT"

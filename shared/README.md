@@ -124,8 +124,8 @@ The recipe that each frontend writes for fisherman:
 `fisherman-recipe.schema.json`, the encryption choices, and the reader for
 `fisherman validate --json`. fisherman owns the rules; the schema must have
 each field of fisherman's `Recipe` struct.
-`tests/unit/test_shared_recipe_schema.py` examines that, and that the KDE copy
-is byte-identical. `tests/unit/test_shared_validate.py` and
+`tests/unit/test_shared_recipe_schema.py` examines that, and that no
+frontend keeps a second copy. `tests/unit/test_shared_validate.py` and
 `tests/unit/test_encryption_choices.py` cover the reader and the choices.
 `tests/unit/test_shared_contract_docs.py` fails when the schema changes
 with no new entry in [CHANGELOG.md](CHANGELOG.md). A new frontend builds
@@ -145,7 +145,13 @@ reads `tpm.usable` from the probe and does not read sysfs itself. See
 The screen contract: the screens that every installer must show
 (`parity_report.py`), and `aggregate.py`, which builds
 [docs/walkthrough/](../docs/walkthrough/README.md) from the reports of all
-five. `tests/unit/test_walkthrough_contract.py` covers the contract. A new
+five. `tests/unit/test_walkthrough_contract.py` covers the contract. The
+Python harnesses (GNOME, XFCE, Niri) import this directory directly. They
+share the pixel audit (`pixel_audit.py`) and the capture fixtures
+(`capture_fixtures.py`: the cut transcript, the recovery event and the GIF
+step). `tests/unit/test_walkthrough_pixel_audit.py` covers both. The
+compiled harnesses (KDE, COSMIC) write their PNGs and a `texts.json`, and
+their workflows run `report_from_pngs.py`. A new
 frontend adds a capture harness and a `screenshots-<name>.yml` workflow
 that writes `walkthrough-<name>.json`, and `walkthrough.yml` adds it to the
 page.
@@ -174,7 +180,7 @@ keep that visible.
   fixture or a test case, and add an entry to `CHANGELOG.md`. The entry
   says which frontends use the addition and which do not yet.
 - **Change the recipe schema.** fisherman owns the recipe. Change
-  fisherman first, then the schema, then the KDE copy. Put the new sha256
+  fisherman first, then the schema. Put the new sha256
   of the schema in the `CHANGELOG.md` entry.
 - **Deprecate.** Do not remove a field, a key or a file in the commit that
   replaces it. First add a `CHANGELOG.md` entry with the word "Deprecated",

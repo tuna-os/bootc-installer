@@ -16,12 +16,16 @@ core.host_run answers every other host query with nothing.
 
 import json
 import os
-import subprocess
 import sys
 import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, REPO)
+# The screen contract, the pixel audit and the capture fixtures live once, in
+# shared/walkthrough/, for every frontend.
+SHARED_WALKTHROUGH = os.path.normpath(os.path.join(
+    REPO, "..", "..", "shared", "walkthrough"))
+sys.path.insert(0, SHARED_WALKTHROUGH)
 
 # SAFETY INTERLOCK — set before ANY tuna_installer_xfce import, and first
 # because this is the one line whose absence costs a disk rather than a
@@ -89,11 +93,9 @@ os.environ.setdefault("GTK_A11Y", "none")
 # Pin the whole object rather than BOOTC_INSTALLER_PRODUCT_NAME, which covers
 # `name` alone and leaves os-release's LOGO and assets showing through.
 # setdefault, so a workflow pointing at a real product's file still wins.
-# REPO here is the frontend tree, not the monorepo root, so reach the shared
-# file the same way tests/gui/parity_report.py does.
-os.environ.setdefault("BOOTC_INSTALLER_BRANDING", os.path.normpath(os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "..", "..", "..", "..", "shared", "walkthrough", "capture-branding.json")))
+# REPO here is the frontend tree, not the monorepo root.
+os.environ.setdefault("BOOTC_INSTALLER_BRANDING", os.path.join(
+    SHARED_WALKTHROUGH, "capture-branding.json"))
 
 # The hardware: fisherman's probe answer for a laptop (shared/probe/fixtures),
 # the same fixture every frontend's capture reads. Its TPM 2.0 is usable, so
@@ -126,12 +128,13 @@ import gi  # noqa: E402
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
-from gi.repository import Gdk, GdkPixbuf, GLib, Gtk  # noqa: E402
+from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 from tuna_installer_xfce import core  # noqa: E402
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import capture_fixtures  # noqa: E402
 import parity_report  # noqa: E402
+import pixel_audit  # noqa: E402
 
 
 class _Result:
@@ -189,18 +192,12 @@ CAPTIONS = {
                 "is acknowledged.",
 }
 
-# fisherman emits this once, after TPM enrolment, and it is the only way back
-# into the disk if the TPM state changes (#129). No CI runner does a TPM
-# install, so the event is synthesised here -- but it is fed through the SAME
-# parser a real install goes through, not written into the widget. A capture
-# that seeded the label directly would keep passing if the parse broke, which
-# is the failure this harness has spent four PRs removing.
-RECOVERY_EVENT = json.dumps({
-    "type": "recovery_key",
-    "key": "mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf",
-    "timestamp": "2026-01-01T00:00:00Z",
-    "elapsed_ms": 1000,
-})
+# The recovery event is synthesised (no CI runner does a TPM install), but it
+# is fed through the SAME parser a real install goes through, not written into
+# the widget. A capture that seeded the label directly would keep passing if
+# the parse broke, which is the failure this harness has spent four PRs
+# removing.
+RECOVERY_EVENT = capture_fixtures.RECOVERY_EVENT
 
 
 # The install screen, caught in flight: the real dry-run transcript
@@ -213,13 +210,7 @@ RECOVERY_EVENT = json.dumps({
 # written to match the frontend's own regex), and naming a product in a
 # fixture puts that product's image ref in the rendered docs for every
 # downstream that rebrands this installer.
-def _fixture_log():
-    lines = core.DRY_RUN_TRANSCRIPT
-    cut = next(i for i, ln in enumerate(lines) if "47/71" in ln) + 1
-    return "".join(lines[:cut])
-
-
-FIXTURE_LOG = _fixture_log()
+FIXTURE_LOG = "".join(capture_fixtures.cut_transcript(core.DRY_RUN_TRANSCRIPT))
 
 
 def _seed_progress(page):
@@ -375,33 +366,11 @@ def _audit(pixbuf, name):
     what only holds when the UI really drew: enough non-background pixels, and
     enough distinct colours that it is not one flat fill.
     """
-    data = pixbuf.get_pixels()
-    stride, chans = pixbuf.get_rowstride(), pixbuf.get_n_channels()
-    w, h = pixbuf.get_width(), pixbuf.get_height()
-    counts, samples, dark = {}, 0, 0
-    luma_sum = luma_sq = 0
-    for y in range(0, h, 3):
-        row = y * stride
-        for x in range(0, w, 3):
-            i = row + x * chans
-            px = (data[i], data[i + 1], data[i + 2])
-            counts[px] = counts.get(px, 0) + 1
-            samples += 1
-            luma = (30 * px[0] + 59 * px[1] + 11 * px[2]) // 100
-            luma_sum += luma
-            luma_sq += luma * luma
-            if luma < 160:
-                dark += 1
-    bg = max(counts.values()) / samples
-    # Grayscale stddev, normalised 0..1 — the same "is the screen blank"
-    # measure tunaOS's VM walkthrough takes with ImageMagick, computed here
-    # from the pixels we are already visiting. Reported, never gating: the
-    # thresholds below are this repo's and stay exactly as calibrated.
-    mean = luma_sum / samples
-    var = max(luma_sq / samples - mean * mean, 0.0)
-    return {"name": name, "w": w, "h": h, "colours": len(counts),
-            "background": bg, "ink": dark / samples,
-            "stddev": (var ** 0.5) / 255.0}
+    # `stddev` is the same "is the screen blank" measure tunaOS's VM
+    # walkthrough takes with ImageMagick. Reported, never gating: the
+    # thresholds in main() are this repo's and stay exactly as calibrated.
+    return {"name": name, "w": pixbuf.get_width(), "h": pixbuf.get_height(),
+            **pixel_audit.pixbuf_stats(pixbuf)}
 
 
 def main():
@@ -610,7 +579,7 @@ def main():
             f["rendered"] = False
             continue
         print(f"  {f['name']:12s} {f['w']}x{f['h']}  colours {f['colours']:5d}  "
-              f"largest-flat {f['background']*100:5.1f}%  ink {f['ink']*100:5.1f}%")
+              f"largest-flat {f['flat']*100:5.1f}%  ink {f['ink']*100:5.1f}%")
         # A window that never drew is one flat colour: few distinct values and a
         # background occupying nearly everything.
         # Thresholds calibrated against MEASURED output, not guessed. The eight
@@ -629,8 +598,8 @@ def main():
         page_failures = []
         if f["colours"] < 60:
             page_failures.append(f"{f['name']}: only {f['colours']} distinct colours — did not render")
-        if f["background"] > 0.985:
-            page_failures.append(f"{f['name']}: {f['background']*100:.1f}% one flat colour — blank page")
+        if f["flat"] > 0.985:
+            page_failures.append(f"{f['name']}: {f['flat']*100:.1f}% one flat colour — blank page")
         if f["ink"] < 0.003:
             page_failures.append(f"{f['name']}: {f['ink']*100:.2f}% ink — no text drawn")
         # Same verdict, same thresholds — just also recorded per page so the
@@ -664,7 +633,7 @@ def main():
         return 1
 
     gif = os.path.join(out, "walkthrough.gif")
-    subprocess.run(["convert", "-delay", "240", "-loop", "0", *frames, gif], check=True)
+    capture_fixtures.write_gif(frames, gif)
     print(f"  wrote {len(frames)} screens + {os.path.basename(gif)}")
     return 0
 

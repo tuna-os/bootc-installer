@@ -23,7 +23,7 @@ Human docs: [`README.md`](README.md) (architecture, build, recipe),
 |---|---|
 | `installer/` | the Go backend — **its own module**, with all the unit tests |
 | `ui/` | the Quickshell QML wizard (`installer.qml`, `Theme.qml`, `qmldir`) |
-| `tests/gui/` | headless capture (`capture-screens.py`) and `parity_report.py` |
+| `tests/gui/` | headless capture (`capture-screens.py`; imports `../../shared/walkthrough/`) |
 | `tests/qml-stubs/` | a stub `Quickshell` QML module so the UI can be loaded without the real one |
 
 The QML talks to the backend through its CLI, not a library:

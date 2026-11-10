@@ -1,0 +1,63 @@
+{
+  "_comment": "What a persisted log may hold of fisherman's recovery_key event (README.md, 'Recovery key in a log'). Feed `transcript` to the frontend's log writer: the recovery_key line must come out as `redacted_event`, each other line unchanged, and `key` must not be in the output. `lines` are single lines for the redaction function alone; `known_key` true means the function knows `key` (the event came first).",
+  "key": "fixture-7f3a-recovery-key-91c2-do-not-use",
+  "placeholder": "[redacted]",
+  "transcript": "recovery-key-transcript.ndjson",
+  "redacted_event": "{\"type\":\"recovery_key\",\"key\":\"[redacted]\",\"timestamp\":\"1970-01-01T00:00:00Z\",\"elapsed_ms\":1200}",
+  "lines": [
+    {
+      "name": "compact event",
+      "known_key": false,
+      "line": "{\"type\":\"recovery_key\",\"key\":\"fixture-7f3a-recovery-key-91c2-do-not-use\",\"timestamp\":\"1970-01-01T00:00:00Z\",\"elapsed_ms\":1200}",
+      "redacted": "{\"type\":\"recovery_key\",\"key\":\"[redacted]\",\"timestamp\":\"1970-01-01T00:00:00Z\",\"elapsed_ms\":1200}"
+    },
+    {
+      "name": "event with spaces after the separators",
+      "known_key": false,
+      "line": "{\"elapsed_ms\": 1200, \"key\": \"fixture-7f3a-recovery-key-91c2-do-not-use\", \"type\": \"recovery_key\"}",
+      "redacted": "{\"elapsed_ms\": 1200, \"key\": \"[redacted]\", \"type\": \"recovery_key\"}"
+    },
+    {
+      "name": "event whose key has an escaped quote",
+      "known_key": false,
+      "line": "{\"type\":\"recovery_key\",\"key\":\"ab\\\"cd-fixture-7f3a-recovery-key-91c2-do-not-use\"}",
+      "redacted": "{\"type\":\"recovery_key\",\"key\":\"[redacted]\"}"
+    },
+    {
+      "name": "rendered line",
+      "known_key": false,
+      "line": "Recovery key: fixture-7f3a-recovery-key-91c2-do-not-use",
+      "redacted": "Recovery key: [redacted]"
+    },
+    {
+      "name": "rendered line behind a stream prefix",
+      "known_key": false,
+      "line": "[stderr] Recovery key:  fixture-7f3a-recovery-key-91c2-do-not-use (write it down)",
+      "redacted": "[stderr] Recovery key:  [redacted]"
+    },
+    {
+      "name": "a later line that repeats the key",
+      "known_key": true,
+      "line": "[stderr] enrolled slot 1 with fixture-7f3a-recovery-key-91c2-do-not-use.",
+      "redacted": "[stderr] enrolled slot 1 with [redacted]."
+    },
+    {
+      "name": "the same line when the key is not known stays",
+      "known_key": false,
+      "line": "[stderr] enrolled slot 1 with fixture-7f3a-recovery-key-91c2-do-not-use.",
+      "redacted": "[stderr] enrolled slot 1 with fixture-7f3a-recovery-key-91c2-do-not-use."
+    },
+    {
+      "name": "another event with a key field is not touched",
+      "known_key": false,
+      "line": "{\"type\":\"info\",\"key\":\"value\",\"message\":\"ok\"}",
+      "redacted": "{\"type\":\"info\",\"key\":\"value\",\"message\":\"ok\"}"
+    },
+    {
+      "name": "a line without a key is not touched",
+      "known_key": true,
+      "line": "{\"type\":\"step\",\"step\":1,\"total_steps\":3,\"step_name\":\"Partitioning disk\",\"step_id\":\"partition\",\"cumulative_pct\":0,\"weight_pct\":1,\"overall_pct\":0,\"timestamp\":\"1970-01-01T00:00:00Z\",\"elapsed_ms\":0}",
+      "redacted": "{\"type\":\"step\",\"step\":1,\"total_steps\":3,\"step_name\":\"Partitioning disk\",\"step_id\":\"partition\",\"cumulative_pct\":0,\"weight_pct\":1,\"overall_pct\":0,\"timestamp\":\"1970-01-01T00:00:00Z\",\"elapsed_ms\":0}"
+    }
+  ]
+}

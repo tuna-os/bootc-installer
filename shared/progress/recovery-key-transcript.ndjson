@@ -1,0 +1,6 @@
+{"type":"step","step":1,"total_steps":3,"step_name":"Partitioning disk","step_id":"partition","cumulative_pct":0,"weight_pct":1,"overall_pct":0,"timestamp":"1970-01-01T00:00:00Z","elapsed_ms":0}
+{"type":"step","step":2,"total_steps":3,"step_name":"Enrolling TPM2","step_id":"tpm2_enroll","cumulative_pct":1,"weight_pct":1,"overall_pct":1,"timestamp":"1970-01-01T00:00:00Z","elapsed_ms":400}
+{"type":"info","message":"Enrolled the TPM2 device","timestamp":"1970-01-01T00:00:00Z","elapsed_ms":800}
+{"type":"recovery_key","key":"fixture-7f3a-recovery-key-91c2-do-not-use","timestamp":"1970-01-01T00:00:00Z","elapsed_ms":1200}
+{"type":"step","step":3,"total_steps":3,"step_name":"Finalizing installation","step_id":"finalize","cumulative_pct":2,"weight_pct":98,"overall_pct":2,"timestamp":"1970-01-01T00:00:00Z","elapsed_ms":1600}
+{"type":"complete","message":"Installation complete!","overall_pct":100,"timestamp":"1970-01-01T00:00:00Z","elapsed_ms":2000}

@@ -1,10 +1,7 @@
 """The recipe schema is the contract every frontend writes against.
 
-shared/recipe/fisherman-recipe.schema.json is the canonical copy. The KDE
-frontend still installs its own copy from frontends/kde/ (its Flatpak builds
-from that directory alone, so it cannot reach shared/ at build time). Until
-that build reads the shared file, the two must stay byte-identical, or the
-"shared" schema is a lie.
+shared/recipe/fisherman-recipe.schema.json is the one copy. No frontend
+keeps or installs a second one.
 """
 
 import json
@@ -14,7 +11,6 @@ import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 SHARED = REPO / "shared" / "recipe" / "fisherman-recipe.schema.json"
-KDE = REPO / "frontends" / "kde" / "fisherman-recipe.schema.json"
 
 
 class SharedRecipeSchemaTests(unittest.TestCase):
@@ -225,13 +221,12 @@ class SharedRecipeSchemaTests(unittest.TestCase):
         self.assertFalse(list(validator.iter_errors({**base, "experimental": ["zfs"]})))
         self.assertFalse(list(validator.iter_errors({**base, "filesystem": "xfs"})))
 
-    def test_kde_copy_matches_shared(self):
-        self.assertEqual(
-            KDE.read_bytes(), SHARED.read_bytes(),
-            "frontends/kde/fisherman-recipe.schema.json has diverged from "
-            "shared/recipe/fisherman-recipe.schema.json; change the shared copy "
-            "and copy it over, not the other way round",
-        )
+    def test_no_frontend_keeps_a_second_copy(self):
+        copies = [p.relative_to(REPO).as_posix()
+                  for root in ("frontends", "bootc_installer", "data")
+                  for p in (REPO / root).rglob("fisherman-recipe.schema.json")
+                  if "node_modules" not in p.parts and "target" not in p.parts]
+        self.assertEqual(copies, [], "the recipe schema has one home: shared/recipe/")
 
 
 if __name__ == "__main__":
