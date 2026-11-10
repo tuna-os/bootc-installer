@@ -20,7 +20,7 @@ import "progress.js" as BarMath
 
 ApplicationWindow {
     id: root
-    title: root.productName + " Installer"
+    title: qsTr("%1 Installer").arg(root.productName)
     width: 800
     height: 600
     visible: true
@@ -168,7 +168,8 @@ ApplicationWindow {
     // selected image makes its own first user (needs_user_creation), via
     // flowPages below — currentPage still names the StackLayout child.
     property int currentPage: 0
-    readonly property var pageNames: ["Welcome", "Session", "Source", "Disk", "Encryption", "Account", "Confirm", "Installing", "Done"]
+    readonly property var pageNames: [qsTr("Welcome"), qsTr("Session"), qsTr("Source"), qsTr("Disk"),
+        qsTr("Encryption"), qsTr("Account"), qsTr("Confirm"), qsTr("Installing"), qsTr("Done")]
 
     // The pages the user actually steps through. The account page drops
     // out when the catalog leaf says the image creates its own user
@@ -233,11 +234,11 @@ ApplicationWindow {
     property var selectedDisk: ({})
     property bool hostnameTouched: false
     property string hostname: branding.defaultHostname || "linux"
-    // The account fisherman creates: the recipe's `user` block. Required:
-    // this frontend has no image catalog to say an image makes its own first
-    // user (needs_user_creation), so, as on XFCE without a catalog entry, the
-    // wizard always creates one. Held in memory and sent only on the
-    // install's stdin, with the rest of the recipe.
+    // The account fisherman creates: the recipe's `user` block, asked for
+    // when the selected image needs one (needsUserCreation below). Held in
+    // memory and sent only on the install's stdin, with the rest of the
+    // recipe. The groups are the backend's to write (installer/user.go:
+    // shared/account/groups.json, or the operator's list).
     property string username: ""
     property string fullname: ""
     property string userPassword: ""
@@ -247,7 +248,31 @@ ApplicationWindow {
     // same twice, and no fisherman problem with the username.
     readonly property bool accountReady: username !== "" && userPassword !== ""
         && passwordsMatch && usernameProblem === ""
+    // The reveal toggles (#295): one for the two account password fields,
+    // one for the two passphrase fields. Off each time the wizard starts.
+    property bool showPassword: false
+    property bool showPassphrase: false
     property bool installSuccess: false
+    // Cancel (#299). The progress page's Cancel and the window's close both
+    // ASK first (cancelOpen). After a confirmed cancel, fisherman's exit
+    // code 130, or any failure, is a cancelled install and not a failed one:
+    // the done page then reads done_cancelled_title.
+    property bool cancelOpen: false
+    property bool cancelRequested: false
+    property bool installCancelled: false
+    function confirmCancel() {
+        root.cancelOpen = false
+        if (!installProc.running)
+            return
+        root.cancelRequested = true
+        cancelProc.running = true
+    }
+    function installExited(code) {
+        root.installSuccess = (code === 0)
+        root.installCancelled = code !== 0 && (code === 130 || root.cancelRequested)
+        root.cancelOpen = false
+        root.currentPage = 8
+    }
     // The key fisherman emits once, after TPM enrolment (#129). The
     // "recovery_key" case in renderEvent used to format a log line and keep
     // nothing, so after the install there was nothing left to show.
@@ -325,7 +350,10 @@ ApplicationWindow {
         // block with no username anyway).
         const recipe = { hostname: root.hostname, filesystem: root.filesystem,
             btrfsSubvolumes: root.filesystem === "btrfs" && root.btrfsSubvolumes,
-            encryption: enc, image: root.selectedImage }
+            encryption: enc }
+        // The image keys of the selection (bootloader, composeFsBackend,
+        // imageType too): fisherman checks them against the filesystem.
+        Object.assign(recipe, root.imageRecipe || {})
         if (root.needsUserCreation)
             recipe.user = { username: root.username }
         return recipe
@@ -337,69 +365,193 @@ ApplicationWindow {
     onUsernameChanged: checkFields()
     onFilesystemChanged: checkFields()
     onBtrfsSubvolumesChanged: checkFields()
-    onSelectedImageChanged: checkFields()
+    onSelectedImageChanged: { checkFields(); recheckNetwork() }
     // The image installed off a live ISO: branding.json's default_image.
     // Empty means the backend refuses ("image is required") rather than
     // installing somebody else's product.
     readonly property string defaultImage: branding.defaultImage || ""
 
-    // Filesystem (XFCE SetupPage parity). The default follows the selected
-    // catalog leaf until the user picks one in Advanced; the recipe and the
-    // confirm summary read this, never a literal.
-    readonly property var filesystems: ["xfs", "ext4", "btrfs", "zfs"]
-    property string filesystem: "xfs"
-    property bool fsChosen: false
-    property bool btrfsSubvolumes: false
-    function showFilesystem(fs) {
-        if (root.filesystems.indexOf(fs) === -1 && fs !== "")
-            return
-        root.filesystem = fs || "xfs"
+    // Filesystem (shared/catalog/README.md, "Filesystem"). The choices are
+    // the selected leaf's `filesystems`; a leaf with none gets this
+    // wizard's own list. The selected value follows the leaf each time the
+    // selection changes (applySelection) and is the user's after that; the
+    // recipe and the confirm summary read this, never a literal.
+    readonly property var ownFilesystems: ["xfs", "ext4", "btrfs", "zfs"]
+    readonly property var filesystems: {
+        const offered = root.activeLeaf ? (root.activeLeaf.filesystems || []) : []
+        return offered.length > 0 ? offered : root.ownFilesystems
     }
+    property string filesystem: "xfs"
+    property bool btrfsSubvolumes: false
 
-    // Image catalog (`catalog` subcommand, XFCE SourcePage parity). The
-    // offline mark is the probe's offline.images joined here, so the
-    // backend stays runnable with no probe and no network.
+    // Image catalog (`catalog` subcommand, shared/catalog/README.md). The
+    // backend resolves the inheritance, the labels, the selection at the
+    // start and, per leaf, the recipe keys for this machine (`recipe`: the
+    // NVIDIA rule, the Flatpak list rule). This page shows the leaves and
+    // copies those keys; it works out none of them.
     property var catalogLeaves: []
     property string catalogDefaultImage: ""
     property bool catalogLoaded: false
     property string catalogError: ""
+    // The selection: the live row, one catalog leaf, the branding's image
+    // when there is no catalog at all (selectedFallback), or nothing. With
+    // nothing selected Continue is held: the wizard never picks a row the
+    // branding or the catalog did not name (#289).
     property var selectedLeaf: null
     property bool selectedLive: false
+    property bool selectedFallback: false
+    // The leaf of the image the live media booted (null when the catalog
+    // does not have it) and its account flag (true for an unknown image).
+    property var liveLeaf: null
+    property bool liveNeedsUser: true
+    readonly property var activeLeaf: (root.isLive && root.selectedLive) ? root.liveLeaf : root.selectedLeaf
+    // The filter box of the Source step: the catalog is one flat list.
+    property string sourceFilter: ""
     readonly property var sortedLeaves: {
         const off = root.offlineImages || []
-        return (root.catalogLeaves || []).slice().sort((a, b) =>
-            ((off.indexOf(b.imgref) !== -1) - (off.indexOf(a.imgref) !== -1))
-            || String(a.name).localeCompare(String(b.name)))
+        const words = root.sourceFilter.toLowerCase().split(/\s+/).filter(w => w !== "")
+        const shown = (root.catalogLeaves || []).filter(leaf => {
+            const hay = (root.leafTitle(leaf) + " " + leaf.imgref).toLowerCase()
+            return words.every(w => hay.indexOf(w) !== -1)
+        })
+        // Offline images first; inside each group the catalog's own order.
+        return shown.filter(l => off.indexOf(l.imgref) !== -1)
+            .concat(shown.filter(l => off.indexOf(l.imgref) === -1))
     }
+    // A row of the flat list: the breadcrumb, because the short label
+    // ("Atlas Stable") is not unique across a full catalog.
+    function leafTitle(leaf) { return leaf.breadcrumb || leaf.label || leaf.name || leaf.imgref || "" }
     function isOffline(imgref) { return (root.offlineImages || []).indexOf(imgref) !== -1 }
-    // Whether the wizard asks for an account: the leaf's
-    // needs_user_creation (XFCE's win.needs_user_creation), defaulting to
-    // true the way the manifest does — an unknown image still gets a user.
-    readonly property bool needsUserCreation:
-        !root.selectedLeaf || root.selectedLeaf.needs_user_creation !== false
-    readonly property string selectedImage: {
-        if (root.isLive && root.selectedLive) return ""
-        if (root.selectedLeaf && root.selectedLeaf.imgref) return root.selectedLeaf.imgref
-        return root.catalogDefaultImage || root.defaultImage
+    // Whether the wizard asks for an account: needs_user_creation of the
+    // selected leaf, or of the live image's leaf. True when no leaf says
+    // otherwise: an unknown image still gets a user.
+    readonly property bool needsUserCreation: (root.isLive && root.selectedLive)
+        ? root.liveNeedsUser
+        : (!root.selectedLeaf || root.selectedLeaf.needs_user_creation !== false)
+    // The image keys of the recipe for the selection, or null when nothing
+    // is selected. `filesystem` is left to root.filesystem, which starts at
+    // the leaf's value and is the user's to change.
+    readonly property var imageRecipe: {
+        let keys = null
+        if (root.isLive && root.selectedLive) {
+            // An empty image installs the running system. The live image's
+            // leaf, when the catalog has it, still gives the other keys.
+            keys = Object.assign({}, root.liveLeaf ? (root.liveLeaf.recipe || {}) : {})
+            keys.image = ""
+        } else if (root.selectedLeaf) {
+            keys = Object.assign({ image: root.selectedLeaf.imgref, targetImgref: root.selectedLeaf.imgref },
+                root.selectedLeaf.recipe || {})
+        } else if (root.selectedFallback && root.defaultImage !== "") {
+            keys = { image: root.defaultImage, targetImgref: root.defaultImage }
+        }
+        if (keys !== null)
+            delete keys.filesystem
+        return keys
     }
-    readonly property bool sourceReady: (root.isLive && root.selectedLive) || root.selectedImage !== ""
+    readonly property string selectedImage: root.imageRecipe ? (root.imageRecipe.image || "") : ""
+    readonly property string targetImage: root.imageRecipe ? (root.imageRecipe.targetImgref || "") : ""
+    readonly property bool sourceReady: root.imageRecipe !== null
+    // A new selection takes the leaf's filesystem and hostname seed. The
+    // filesystem of the leaf before it is not kept.
+    function applySelection() {
+        const leaf = root.activeLeaf
+        const fs = leaf ? (leaf.filesystem || "") : ""
+        root.filesystem = fs !== "" ? fs : (root.filesystems.indexOf("xfs") !== -1 ? "xfs" : root.filesystems[0])
+        if (!root.hostnameTouched)
+            root.hostname = (leaf && leaf.default_hostname) || root.branding.defaultHostname || "linux"
+    }
+    function selectLeaf(leaf) {
+        root.selectedLive = false
+        root.selectedFallback = false
+        root.selectedLeaf = leaf
+        root.applySelection()
+    }
+    function selectLive() {
+        root.selectedLeaf = null
+        root.selectedFallback = false
+        root.selectedLive = true
+        root.applySelection()
+    }
+    function selectFallback() {
+        root.selectedLeaf = null
+        root.selectedLive = false
+        root.selectedFallback = true
+        root.applySelection()
+    }
+    // The backend's `catalog` answer. Live media starts on the live row;
+    // otherwise the leaf the backend names (branding default_image, then the
+    // catalog's), else nothing. With no catalog at all the branding's image
+    // is the one row there is.
+    function loadCatalog(doc) {
+        const leaves = doc.leaves || []
+        root.catalogLeaves = leaves
+        root.catalogDefaultImage = doc.default_image || ""
+        root.liveLeaf = doc.live_leaf || null
+        root.liveNeedsUser = doc.live_needs_user_creation !== false
+        if (root.selectedLive || root.selectedLeaf || root.selectedFallback)
+            return
+        const start = leaves.find(l => l.imgref === (doc.selected || ""))
+        if (root.isLive)
+            root.selectLive()
+        else if (start)
+            root.selectLeaf(start)
+        else if (leaves.length === 0 && root.defaultImage !== "")
+            root.selectFallback()
+    }
 
-    // Live-session preflight (`session-get` / `session-set`, GNOME
-    // defaults/* parity for the live session only — the recipe has no
-    // locale keys, and PARITY.md keeps them GNOME-only by design).
+    // Live-session preflight (`session-get` / `session-set`): the keyboard,
+    // language and time zone of the LIVE session. The rules of #291:
+    //   - the current value stays in its list, as an extra entry when the
+    //     host's list does not have it, so nothing else is shown or sent;
+    //   - only a field the user changed is sent;
+    //   - a failure is a warning, and Continue still moves on;
+    //   - off live media the fields are read-only: the settings of an
+    //     installed system are not this wizard's to change.
     property var keyboardLayouts: []
     property string keyboardLayout: ""
     property var localeList: []
     property string localeName: ""
     property var timezoneList: []
     property string timezoneName: ""
-    property bool netConnected: false
     property bool sessionLoaded: false
+    property bool sessionFailed: false
     property string sessionError: ""
-    readonly property var keyboardModel: root.keyboardLayouts.length > 0 ? root.keyboardLayouts : ["us", "de", "fr", "es", "uk"]
-    readonly property var localeModel: root.localeList.length > 0 ? root.localeList : ["en_US.UTF-8", "de_DE.UTF-8", "fr_FR.UTF-8", "es_ES.UTF-8"]
-    readonly property var timezoneModel: root.timezoneList.length > 0 ? root.timezoneList : ["UTC", "Europe/Berlin", "Europe/Paris", "America/New_York"]
+    function withCurrent(list, current) {
+        return (current !== "" && list.indexOf(current) === -1) ? [current].concat(list) : list
+    }
+    readonly property var keyboardModel: root.withCurrent(root.keyboardLayouts, root.keyboardLayout)
+    readonly property var localeModel: root.withCurrent(root.localeList, root.localeName)
+    readonly property var timezoneModel: root.withCurrent(root.timezoneList, root.timezoneName)
     property string pendingSession: ""
+    property var sentSession: ({})
+    // What the user changed: a field whose text is not empty and is not the
+    // value the session has now.
+    function sessionChanges() {
+        const changes = {}
+        if (!root.isLive)
+            return changes
+        const fields = { keyboard: [keyCombo.editText, root.keyboardLayout],
+            locale: [localeCombo.editText, root.localeName],
+            timezone: [tzCombo.editText, root.timezoneName] }
+        for (const name in fields) {
+            const chosen = (fields[name][0] || "").trim()
+            if (chosen !== "" && chosen !== fields[name][1])
+                changes[name] = chosen
+        }
+        return changes
+    }
+
+    // Connectivity (#301). `netcheck <image>` dials the registry of the
+    // selected image on 443, then the shared targets. An image that needs a
+    // download holds Continue and Install while the check says offline; the
+    // live row and an image in the offline stores need no network.
+    property bool netConnected: false
+    property bool netChecked: false
+    property string netToolError: ""
+    readonly property bool needsDownload: root.sourceReady && root.selectedImage !== ""
+        && !root.isOffline(root.selectedImage)
+    readonly property bool downloadBlocked: root.needsDownload && !root.netConnected
+    function recheckNetwork() { netTimer.restart() }
 
     // Requirements gates (GNOME window_cpu/window_ram/window_unsupported
     // parity). The welcome page no longer warns inline: an unmet
@@ -441,8 +593,13 @@ ApplicationWindow {
     // wrapper's process group via `cancel` instead of orphaning fisherman
     // while its SIGHUP forwarding is still only best-effort.
     onClosing: (close) => {
-        if (root.currentPage === 7 && installProc.running)
-            cancelProc.running = true
+        if (root.currentPage === 7 && installProc.running) {
+            // Closing the window mid-install asks, like Cancel does. The
+            // window stays; a confirmed cancel ends on the cancelled page.
+            close.accepted = false
+            root.cancelOpen = true
+            return
+        }
         close.accepted = true
     }
 
@@ -537,57 +694,29 @@ ApplicationWindow {
         }
     }
 
-    // Image catalog for the Source step (`catalog` subcommand): leaves
-    // with inheritance resolved. Empty is not an error — the wizard falls
-    // back to the branding default image, the live-ISO norm.
+    // Image catalog for the Source step (`catalog` subcommand). No catalog
+    // file is not an error: the answer then has no leaves, and the wizard
+    // offers the branding default image. stderr names the files the backend
+    // skipped; only an answer that does not parse is a failure.
     Process {
         id: catalogProc
         command: [root.backendBin, "catalog"]
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    const doc = JSON.parse(text)
-                    const leaves = doc.leaves || []
-                    root.catalogLeaves = leaves
-                    root.catalogDefaultImage = doc.default_image || ""
-                    // GTK's first radio is active from the start; the QML
-                    // list selects nothing on its own. Preselect the same
-                    // row XFCE would: live media first, else the first
-                    // leaf in display order (offline first, then by name).
-                    if (!root.selectedLive && root.selectedLeaf === null) {
-                        if (root.isLive) {
-                            root.selectedLive = true
-                        } else if (leaves.length > 0) {
-                            const off = root.offlineImages || []
-                            const first = leaves.slice().sort((a, b) =>
-                                ((off.indexOf(b.imgref) !== -1) - (off.indexOf(a.imgref) !== -1))
-                                || String(a.name).localeCompare(String(b.name)))[0]
-                            root.selectedLeaf = first
-                        }
-                    }
+                    root.loadCatalog(JSON.parse(text))
+                    root.catalogError = ""
                 } catch (e) {
                     root.catalogLeaves = []
-                    root.catalogError = "Could not read the image catalog."
+                    root.catalogError = qsTr("Could not read the image catalog.")
                 }
-                root.catalogLoaded = true
-            }
-        }
-        stderr: StdioCollector {
-            onStreamFinished: {
-                // An empty stderr is the success path (both streams close
-                // at exit): only a message means the catalog failed.
-                if (text.trim() === "")
-                    return
-                root.catalogLeaves = []
-                root.catalogError = text.trim()
                 root.catalogLoaded = true
             }
         }
     }
 
     // Live-session preflight (`session-get`): keyboard, locale, timezone
-    // and connectivity. Best-effort reads — what fails stays empty and the
-    // page offers its fallbacks.
+    // and connectivity. Best-effort reads: what fails stays empty.
     Process {
         id: sessionProc
         command: [root.backendBin, "session-get"]
@@ -608,7 +737,8 @@ ApplicationWindow {
                         root.timezoneList = state.timezone.available || []
                     }
                     root.netConnected = state.connected === true
-                } catch (e) { /* best-effort: the fallbacks stand in */ }
+                    root.netChecked = true
+                } catch (e) { /* best-effort: the fields stay empty */ }
                 root.sessionLoaded = true
             }
         }
@@ -617,9 +747,10 @@ ApplicationWindow {
         }
     }
 
-    // Applying the preflight (`session-set`): the Session step's choice as
-    // JSON on stdin — the same never-argv rule as the recipe, though these
-    // values are only session configuration. Advances on exit.
+    // Applying the preflight (`session-set`): the fields the user changed,
+    // as JSON on stdin. The wizard moves on whatever the exit code is: a
+    // setting that could not be applied is a warning (sessionFailed), never
+    // a dead end.
     Process {
         id: sessionSetProc
         command: [root.backendBin, "session-set"]
@@ -633,10 +764,50 @@ ApplicationWindow {
             onStreamFinished: root.sessionError = text.trim()
         }
         onExited: (code, status) => {
+            root.sessionFailed = (code !== 0)
             if (code === 0) {
-                root.sessionError = ""
-                root.flowNext()
+                // The session has these values now: sending them again on a
+                // second visit would be a change the user did not make.
+                const sent = root.sentSession
+                if (sent.keyboard) root.keyboardLayout = sent.keyboard
+                if (sent.locale) root.localeName = sent.locale
+                if (sent.timezone) root.timezoneName = sent.timezone
             }
+            root.flowNext()
+        }
+    }
+
+    // Connectivity for the selected image (`netcheck <image>`), after a
+    // pause so a walk down the list does not start a check per row.
+    Timer {
+        id: netTimer
+        interval: 250
+        onTriggered: {
+            if (netProc.running) { netTimer.restart(); return }
+            netProc.command = [root.backendBin, "netcheck", root.selectedImage]
+            netProc.running = true
+        }
+    }
+    Process {
+        id: netProc
+        command: [root.backendBin, "netcheck"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    root.netConnected = JSON.parse(text).connected === true
+                    root.netChecked = true
+                } catch (e) { /* no answer: the last one stands */ }
+            }
+        }
+    }
+    // The desktop's own network tool, on the host (`network-settings`).
+    // Best effort: when the host has none, the page says so.
+    Process {
+        id: netToolProc
+        command: [root.backendBin, "network-settings"]
+        onExited: (code, status) => {
+            root.netToolError = code === 0 ? ""
+                : qsTr("No network settings tool was found. Use the network menu of your desktop.")
         }
     }
 
@@ -677,10 +848,7 @@ ApplicationWindow {
         stderr: SplitParser {
             onRead: data => root.appendLog(data)
         }
-        onExited: (code, status) => {
-            root.installSuccess = (code === 0)
-            root.currentPage = 8
-        }
+        onExited: (code, status) => root.installExited(code)
     }
 
     // One fisherman event, or a plain stderr line. Returns the text to show;
@@ -694,14 +862,13 @@ ApplicationWindow {
         case "info":
             return event.message ? "  " + event.message : ""
         case "complete":
-            return event.message || "Installation complete"
+            return event.message || qsTr("Installation complete")
         case "error":
-            return "ERROR: " + (event.message || "")
+            return qsTr("ERROR: %1").arg(event.message || "")
         case "recovery_key":
-            // Niri has no recovery-key screen (docs/PARITY.md), so this is
-            // the only place the user can read a key they cannot recover
-            // later. Hiding it here would lose it outright.
-            return "Recovery key: " + (event.key || "")
+            // The log line as well as the done page's panel: the persistent
+            // log is where support looks.
+            return qsTr("Recovery key: %1").arg(event.key || "")
         }
         return ""
     }
@@ -743,6 +910,43 @@ ApplicationWindow {
         command: [root.backendBin, "reboot"]
     }
 
+    // The recipe the wizard hands to the backend's `install`. Its image
+    // keys are the backend's own (imageRecipe, from `catalog`); the rest is
+    // what the user chose on the pages.
+    function buildRecipe() {
+        const recipe = {
+            disk: selectedDisk.path,
+            filesystem: root.filesystem,
+            // Subvolumes only on btrfs, whatever the row says.
+            btrfsSubvolumes: root.filesystem === "btrfs" && root.btrfsSubvolumes,
+            encryption: root.needsPassphrase(root.encType)
+                ? { type: root.encType, passphrase: root.passphrase }
+                : { type: root.encType },
+            hostname: hostname,
+            distroID: root.branding.id || "linux",
+            // true makes bootc boot the installed system with selinux=0.
+            selinuxDisabled: false
+            // No additionalImageStores: fisherman exposes the host's stores.
+        }
+        // image, targetImgref, bootloader, composeFsBackend, and flatpaks,
+        // flatpakVarPath and imageType when the leaf gives them. A key that
+        // is not there stays out: an absent `flatpaks` lets fisherman apply
+        // its default, and that is not the same as an empty list. An empty
+        // image installs the running system, which fisherman accepts only
+        // on live media (probe's live.is_live).
+        Object.assign(recipe, root.imageRecipe || {})
+        // The account: left out when the image makes its own first user,
+        // and with no username (the schema's "empty skips"). No groups
+        // here: the backend writes the shared list or the operator's.
+        if (root.needsUserCreation && root.username !== "")
+            recipe.user = {
+                username: root.username,
+                fullname: root.fullname,
+                password: root.userPassword
+            }
+        return recipe
+    }
+
     function startInstall() {
         installLog = ""
         installStep = 0
@@ -750,79 +954,46 @@ ApplicationWindow {
         installFraction = 0
         installStepName = ""
         barState = BarMath.newState()
+        root.cancelRequested = false
+        root.installCancelled = false
+        root.cancelOpen = false
         currentPage = 7
-        const leaf = root.selectedLeaf || {}
-        const recipe = {
-            disk: selectedDisk.path,
-            filesystem: root.filesystem,
-            // XFCE's build_recipe: subvolumes only on btrfs, whatever the
-            // checkbox says; flatpaks split on whitespace, and a
-            // "@"-prefixed value is a catalog reference, not a list.
-            btrfsSubvolumes: root.filesystem === "btrfs" && root.btrfsSubvolumes,
-            encryption: root.needsPassphrase(root.encType)
-                ? { type: root.encType, passphrase: root.passphrase }
-                : { type: root.encType },
-            // Empty image = install the running system, which fisherman
-            // accepts only on live media (probe's live.is_live).
-            image: root.selectedImage,
-            hostname: hostname,
-            distroID: root.branding.id || "linux",
-            // true makes bootc boot the installed system with selinux=0.
-            selinuxDisabled: false
-            // No additionalImageStores: fisherman exposes the host's stores.
-        }
-        // The leaf's install properties: absent keys mean "let fisherman
-        // decide", which is not the same as an empty value.
-        if (leaf.bootloader)
-            recipe.bootloader = leaf.bootloader
-        if (leaf.composefs === true)
-            recipe.composeFsBackend = true
-        const flats = Array.isArray(leaf.flatpaks) ? leaf.flatpaks.join(" ") : (leaf.flatpaks || "")
-        if (flats !== "" && flats.charAt(0) !== "@")
-            recipe.flatpaks = flats.split(/\s+/).filter(s => s !== "")
-        // The account, as XFCE writes it: omitted when the image makes
-        // its own first user, or with no username (the schema's "empty
-        // skips"). The account page never lets the latter through.
-        if (root.needsUserCreation && root.username !== "")
-            recipe.user = {
-                username: root.username,
-                fullname: root.fullname,
-                password: root.userPassword,
-                groups: ["wheel"]
-            }
         installProc.command = [root.backendBin, "install"]
-        root.pendingRecipe = JSON.stringify(recipe)
+        root.pendingRecipe = JSON.stringify(root.buildRecipe())
         installProc.running = true
         // The recipe is fed over stdin on Process.started — never argv, so
         // the LUKS passphrase does not leak via /proc/PID/cmdline. See
         // tuna-os/tuna-installer-niri#22.
     }
 
-    // The Session step's choice, applied to the live session (`session-set`
-    // on stdin, like the recipe) before moving on. Applied even when
-    // unchanged: the tools are idempotent and the page cannot know what a
-    // previous run left behind.
+    // Continue on the Session step. Nothing changed (or not live media):
+    // move on and run nothing. Otherwise `session-set` gets the changed
+    // fields on stdin, and its exit moves on.
     function applySession() {
-        root.pendingSession = JSON.stringify({
-            keyboard: keyCombo.currentText || "",
-            locale: localeCombo.currentText || "",
-            timezone: tzCombo.currentText || ""
-        })
+        if (sessionSetProc.running)
+            return
+        const changes = root.sessionChanges()
+        if (Object.keys(changes).length === 0) {
+            root.sessionFailed = false
+            root.flowNext()
+            return
+        }
+        root.sentSession = changes
+        root.pendingSession = JSON.stringify(changes)
         sessionSetProc.running = true
     }
-    // Leaving the Source step resolves the install's defaults the way
-    // XFCE's SetupPage.on_enter does: the leaf's filesystem until the user
-    // picks one, and the leaf's hostname seed until they type one.
+    // Continue on the Source step: held with nothing selected, and while an
+    // image that needs a download has no network.
+    readonly property bool sourceCanContinue: root.sourceReady && root.catalogLoaded && !root.downloadBlocked
     function chooseAndNext() {
-        if (!root.sourceReady)
+        if (!root.sourceCanContinue)
             return
-        if (!root.fsChosen)
-            root.showFilesystem((root.selectedLeaf && root.selectedLeaf.filesystem) || "")
-        if (!root.hostnameTouched && root.selectedLeaf && root.selectedLeaf.default_hostname)
-            root.hostname = root.selectedLeaf.default_hostname
         root.checkFields()
         root.flowNext()
     }
+    readonly property bool canInstall: root.selectedDisk.path !== undefined && root.sourceReady
+        && root.hostnameProblem === "" && root.filesystemProblem === ""
+        && (!root.needsUserCreation || root.accountReady) && !root.downloadBlocked
     // ── Keyboard: Enter advances, Shift+Enter goes back (the hint bar says so) ──
     function advance() {
         switch (currentPage) {
@@ -837,10 +1008,7 @@ ApplicationWindow {
         case 3: if (selectedDisk.path !== undefined) flowNext(); break
         case 4: encryptionPage.next(); break
         case 5: if (root.accountReady) flowNext(); break
-        case 6:
-            if (selectedDisk.path !== undefined && root.hostnameProblem === ""
-                    && (!root.needsUserCreation || root.accountReady)) startInstall()
-            break
+        case 6: if (root.canInstall) startInstall(); break
         }
     }
     function back() {
@@ -852,9 +1020,21 @@ ApplicationWindow {
             && !userField.activeFocus && !fullnameField.activeFocus
             && !userPassField.activeFocus && !userPassConfirm.activeFocus
             && !keyCombo.activeFocus && !localeCombo.activeFocus && !tzCombo.activeFocus
+            && !sourceSearch.activeFocus && !root.cancelOpen
         onActivated: root.advance()
     }
     Shortcut { sequence: "Shift+Return"; onActivated: root.back() }
+
+    // The done page's tone: installed, cancelled (a warning: the user chose
+    // it) or failed.
+    readonly property color doneColor: root.installSuccess ? Theme.success
+        : (root.installCancelled ? Theme.warning : Theme.error)
+
+    // The Session step's warning, with the backend's reason when it gave one.
+    readonly property string sessionWarning: !root.sessionFailed ? ""
+        : (root.sessionError !== ""
+            ? qsTr("Some settings were not applied: %1").arg(root.sessionError)
+            : qsTr("Some settings were not applied."))
 
     // ── Layout: DMS top bar, page area, hint bar ─────────────────────────────
     ColumnLayout {
@@ -867,7 +1047,7 @@ ApplicationWindow {
             Layout.fillWidth: true
             spacing: Theme.spacingM
             StyledText {
-                text: "Step " + (root.flowPos + 1) + " of " + root.flowCount + " · " + root.pageNames[root.currentPage]
+                text: qsTr("Step %1 of %2 · %3").arg(root.flowPos + 1).arg(root.flowCount).arg(root.pageNames[root.currentPage])
                 color: Theme.surfaceVariantText
                 font.pixelSize: Theme.fontSizeSmall
                 font.weight: Theme.fontWeightMedium
@@ -944,8 +1124,8 @@ ApplicationWindow {
                     }
                     StyledText {
                         text: root.isLive
-                            ? "Install this system — no download required."
-                            : "This wizard will guide you through installing " + root.productName + " onto your computer."
+                            ? qsTr("Install this system — no download required.")
+                            : qsTr("This wizard will guide you through installing %1 onto your computer.").arg(root.productName)
                         color: Theme.surfaceVariantText
                         horizontalAlignment: Text.AlignHCenter
                         Layout.fillWidth: true
@@ -965,20 +1145,20 @@ ApplicationWindow {
                 }
             }
 
-            // Page 1: Session — live-session preflight (GNOME defaults/*
-            // parity, applied to the live session only: the fisherman
-            // recipe has no locale keys). Values apply on Continue via
-            // `session-set`; a check that cannot run leaves its fallback.
+            // Page 1: Session — the live session's keyboard, language and
+            // time zone, and the network. See the rules at sessionChanges().
             ColumnLayout {
                 spacing: Theme.spacingM
 
                 StyledText {
-                    text: "Session"
+                    text: qsTr("Session")
                     font.pixelSize: Theme.fontSizeXLarge
                     font.weight: Theme.fontWeightMedium
                 }
                 StyledText {
-                    text: "Keyboard, language, time and network for this live session. Nothing here goes into the installed system."
+                    text: root.isLive
+                        ? qsTr("Keyboard, language, time and network for this live session. Nothing here goes into the installed system.")
+                        : qsTr("These settings change only on live media. This computer keeps its own keyboard, language and time zone.")
                     color: Theme.surfaceVariantText
                     wrapMode: Text.Wrap
                     Layout.fillWidth: true
@@ -986,40 +1166,46 @@ ApplicationWindow {
 
                 DankCard {
                     Layout.fillWidth: true
-                    title: "Keyboard and language"
+                    title: qsTr("Keyboard and language")
                     GridLayout {
                         width: parent.width
                         columns: 2
                         columnSpacing: Theme.spacingXL
                         rowSpacing: Theme.spacingS
 
-                        StyledText { text: "Keyboard"; color: Theme.surfaceVariantText }
+                        // currentIndex is -1, and the field empty, when the
+                        // host reported no current value: entry 0 is never
+                        // shown as if it were the session's.
+                        StyledText { text: qsTr("Keyboard"); color: Theme.surfaceVariantText }
                         ComboBox {
                             id: keyCombo
                             objectName: "sessionKeyboard"
                             editable: true
+                            enabled: root.isLive
                             model: root.keyboardModel
-                            currentIndex: Math.max(0, root.keyboardModel.indexOf(root.keyboardLayout))
+                            currentIndex: root.keyboardModel.indexOf(root.keyboardLayout)
                             implicitWidth: 300
                         }
 
-                        StyledText { text: "Language"; color: Theme.surfaceVariantText }
+                        StyledText { text: qsTr("Language"); color: Theme.surfaceVariantText }
                         ComboBox {
                             id: localeCombo
                             objectName: "sessionLocale"
                             editable: true
+                            enabled: root.isLive
                             model: root.localeModel
-                            currentIndex: Math.max(0, root.localeModel.indexOf(root.localeName))
+                            currentIndex: root.localeModel.indexOf(root.localeName)
                             implicitWidth: 300
                         }
 
-                        StyledText { text: "Timezone"; color: Theme.surfaceVariantText }
+                        StyledText { text: qsTr("Timezone"); color: Theme.surfaceVariantText }
                         ComboBox {
                             id: tzCombo
                             objectName: "sessionTimezone"
                             editable: true
+                            enabled: root.isLive
                             model: root.timezoneModel
-                            currentIndex: Math.max(0, root.timezoneModel.indexOf(root.timezoneName))
+                            currentIndex: root.timezoneModel.indexOf(root.timezoneName)
                             implicitWidth: 300
                         }
                     }
@@ -1027,29 +1213,55 @@ ApplicationWindow {
 
                 DankCard {
                     Layout.fillWidth: true
-                    title: "Network"
-                    RowLayout {
+                    title: qsTr("Network")
+                    Column {
                         width: parent.width
-                        spacing: Theme.spacingM
-                        StyledText {
-                            text: root.sessionLoaded
-                                ? (root.netConnected ? "Connected — downloads will work." : "Offline — only installed or cached images can be used.")
-                                : "Checking…"
-                            color: root.sessionLoaded && !root.netConnected ? Theme.warning : Theme.surfaceVariantText
-                            Layout.fillWidth: true
+                        spacing: Theme.spacingS
+                        RowLayout {
+                            width: parent.width
+                            spacing: Theme.spacingM
+                            StyledText {
+                                text: root.sessionLoaded
+                                    ? (root.netConnected
+                                        ? qsTr("Connected — downloads will work.")
+                                        : qsTr("Offline — you can install only an image that is on this media."))
+                                    : qsTr("Checking…")
+                                color: root.sessionLoaded && !root.netConnected ? Theme.warning : Theme.surfaceVariantText
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+                            DankButton {
+                                objectName: "sessionNetworkSettings"
+                                text: qsTr("Network settings")
+                                tonal: true
+                                visible: root.sessionLoaded && !root.netConnected
+                                onClicked: netToolProc.running = true
+                            }
+                            DankButton {
+                                text: qsTr("Recheck")
+                                tonal: true
+                                enabled: !sessionProc.running
+                                onClicked: sessionProc.running = true
+                            }
                         }
-                        DankButton {
-                            text: "Recheck"
-                            tonal: true
-                            enabled: !sessionProc.running
-                            onClicked: sessionProc.running = true
+                        StyledText {
+                            text: root.netToolError
+                            visible: text !== "" && !root.netConnected
+                            color: Theme.warning
+                            font.pixelSize: Theme.fontSizeSmall
+                            wrapMode: Text.Wrap
+                            width: parent.width
                         }
                     }
                 }
 
+                // A setting that could not be applied: a warning, and the
+                // wizard has already moved on. Shown here for a user who
+                // comes back, and on the next step (sessionWarning).
                 StyledText {
-                    text: root.sessionError
-                    color: Theme.error
+                    objectName: "sessionWarning"
+                    text: root.sessionWarning
+                    color: Theme.warning
                     visible: text !== ""
                     font.pixelSize: Theme.fontSizeSmall
                     wrapMode: Text.Wrap
@@ -1060,28 +1272,45 @@ ApplicationWindow {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    DankButton { text: "Back"; tonal: true; onClicked: root.back() }
+                    DankButton { text: qsTr("Back"); tonal: true; onClicked: root.back() }
                     Item { Layout.fillWidth: true }
                     DankButton {
-                        text: "Continue"
+                        objectName: "sessionNextButton"
+                        text: qsTr("Continue")
                         enabled: !sessionSetProc.running
                         onClicked: root.applySession()
                     }
                 }
             }
 
-            // Page 2: Source — what to install (XFCE SourcePage parity).
-            // Live media offers the running system; the catalog offers one
-            // row per leaf, offline images first. With no catalog and no
-            // live media the branding default stands in, the way the old
-            // wizard installed it without asking.
+            // Page 2: Source — what to install. Live media offers the
+            // running system; the catalog offers one row per leaf, offline
+            // images first, with a filter box because the list is flat.
+            // With no catalog and no live media the branding default image
+            // is the one row.
             ColumnLayout {
                 spacing: Theme.spacingM
 
                 StyledText {
-                    text: "What do you want to install?"
+                    text: qsTr("What do you want to install?")
                     font.pixelSize: Theme.fontSizeXLarge
                     font.weight: Theme.fontWeightMedium
+                }
+                StyledText {
+                    text: root.sessionWarning
+                    visible: text !== ""
+                    color: Theme.warning
+                    font.pixelSize: Theme.fontSizeSmall
+                    wrapMode: Text.Wrap
+                    Layout.fillWidth: true
+                }
+                DankTextField {
+                    id: sourceSearch
+                    objectName: "sourceSearch"
+                    visible: root.catalogLeaves.length > 0
+                    placeholderText: qsTr("Search images")
+                    Layout.fillWidth: true
+                    onTextChanged: root.sourceFilter = text
                 }
 
                 ListView {
@@ -1096,7 +1325,8 @@ ApplicationWindow {
                             rows.push({ live: true })
                         for (const leaf of root.sortedLeaves)
                             rows.push({ live: false, leaf: leaf })
-                        if (rows.length === 0 && root.catalogLoaded)
+                        if (root.catalogLeaves.length === 0 && !root.isLive && root.catalogLoaded
+                                && root.defaultImage !== "")
                             rows.push({ fallback: true })
                         return rows
                     }
@@ -1108,31 +1338,25 @@ ApplicationWindow {
                         lastInGroup: index === sourceList.count - 1
                         primaryText: modelData.live
                             ? root.text("welcome_install")
-                            : (modelData.fallback
-                                ? (root.catalogDefaultImage || root.defaultImage || "Default image")
-                                : modelData.leaf.name)
+                            : (modelData.fallback ? root.defaultImage : root.leafTitle(modelData.leaf))
                         secondaryText: modelData.live
                             ? root.text("welcome_install_subtitle")
                             : (modelData.fallback
-                                ? "No catalog found"
+                                ? qsTr("No catalog found")
                                 : [modelData.leaf.imgref,
-                                   root.isOffline(modelData.leaf.imgref) ? "available offline" : "requires a download"]
+                                   root.isOffline(modelData.leaf.imgref) ? qsTr("available offline") : qsTr("requires a download")]
                                     .filter(s => s).join("  ·  "))
                         isSelected: modelData.live ? root.selectedLive
-                            : (modelData.fallback ? (root.selectedLeaf === null && !root.selectedLive)
-                                : (root.selectedLeaf !== null && !root.selectedLive
+                            : (modelData.fallback ? root.selectedFallback
+                                : (!!root.selectedLeaf && !root.selectedLive
                                     && root.selectedLeaf.imgref === modelData.leaf.imgref))
                         onClicked: {
-                            if (modelData.live) {
-                                root.selectedLive = true
-                                root.selectedLeaf = null
-                            } else if (modelData.fallback) {
-                                root.selectedLive = false
-                                root.selectedLeaf = null
-                            } else {
-                                root.selectedLive = false
-                                root.selectedLeaf = modelData.leaf
-                            }
+                            if (modelData.live)
+                                root.selectLive()
+                            else if (modelData.fallback)
+                                root.selectFallback()
+                            else
+                                root.selectLeaf(modelData.leaf)
                         }
                     }
                     StyledText {
@@ -1141,7 +1365,9 @@ ApplicationWindow {
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.Wrap
                         visible: sourceList.count === 0
-                        text: root.catalogLoaded ? "No image catalog found." : "Loading images…"
+                        text: !root.catalogLoaded ? qsTr("Loading images…")
+                            : (root.catalogLeaves.length > 0 ? qsTr("No image matches the search.")
+                                : qsTr("No image catalog found."))
                         color: Theme.surfaceVariantText
                     }
                 }
@@ -1154,16 +1380,33 @@ ApplicationWindow {
                     wrapMode: Text.Wrap
                     Layout.fillWidth: true
                 }
-
-                Item { Layout.fillHeight: true }
+                // Nothing is selected until the user picks a row, unless the
+                // branding or the catalog names one.
+                StyledText {
+                    objectName: "sourceChooseHint"
+                    text: qsTr("Choose an image to continue.")
+                    visible: root.catalogLoaded && !root.sourceReady && sourceList.count > 0
+                    color: Theme.surfaceVariantText
+                    font.pixelSize: Theme.fontSizeSmall
+                }
+                OfflineNotice {
+                    Layout.fillWidth: true
+                    visible: root.downloadBlocked
+                    checked: root.netChecked
+                    checking: netProc.running
+                    toolError: root.netToolError
+                    onRecheck: root.recheckNetwork()
+                    onOpenSettings: netToolProc.running = true
+                }
 
                 RowLayout {
                     Layout.fillWidth: true
-                    DankButton { text: "Back"; tonal: true; onClicked: root.back() }
+                    DankButton { text: qsTr("Back"); tonal: true; onClicked: root.back() }
                     Item { Layout.fillWidth: true }
                     DankButton {
-                        text: "Continue"
-                        enabled: root.sourceReady && root.catalogLoaded
+                        objectName: "sourceNextButton"
+                        text: qsTr("Continue")
+                        enabled: root.sourceCanContinue
                         onClicked: root.chooseAndNext()
                     }
                 }
@@ -1174,13 +1417,13 @@ ApplicationWindow {
                 spacing: Theme.spacingM
 
                 StyledText {
-                    text: "Destination"
+                    text: qsTr("Destination")
                     font.pixelSize: Theme.fontSizeXLarge
                     font.weight: Theme.fontWeightMedium
                 }
                 StyledText {
                     text: root.text(root.selectedDisk.removable ? "confirm_warning_removable" : "confirm_warning", { disk: root.selectedDisk.path !== undefined
-                        ? root.selectedDisk.path : "the selected disk" })
+                        ? root.selectedDisk.path : qsTr("the selected disk") })
                     color: Theme.warning
                     Layout.fillWidth: true
                 }
@@ -1213,20 +1456,21 @@ ApplicationWindow {
                         wrapMode: Text.Wrap
                         visible: diskList.count === 0
                         text: root.diskError !== ""
-                            ? "Could not detect disks: " + root.diskError
+                            ? qsTr("Could not detect disks: %1").arg(root.diskError)
                             : root.disksProbed
-                                ? "No disk of at least 50 GiB was found. Connect one to install to."
-                                : "Scanning for disks…"
+                                ? qsTr("No disk of at least 50 GiB was found. Connect one to install to.")
+                                : qsTr("Scanning for disks…")
                         color: Theme.surfaceVariantText
                     }
                 }
 
                 RowLayout {
                     Layout.fillWidth: true
-                    DankButton { text: "Back"; tonal: true; onClicked: root.back() }
+                    DankButton { text: qsTr("Back"); tonal: true; onClicked: root.back() }
                     Item { Layout.fillWidth: true }
                     DankButton {
-                        text: "Continue"
+                        objectName: "diskNextButton"
+                        text: qsTr("Continue")
                         enabled: root.selectedDisk.path !== undefined
                         onClicked: root.advance()
                     }
@@ -1250,7 +1494,7 @@ ApplicationWindow {
                     root.passphrase = passField.text
                     if (root.encryptionProblem !== "" || root.filesystemProblem !== "") return
                     if (root.needsPassphrase(root.encType) && passField.text !== passConfirm.text) {
-                        passError.text = "Passphrases do not match."
+                        passError.text = qsTr("Passphrases do not match.")
                         return
                     }
                     passError.text = ""
@@ -1258,132 +1502,154 @@ ApplicationWindow {
                 }
 
                 StyledText {
-                    text: "Disk encryption"
+                    text: qsTr("Disk encryption")
                     font.pixelSize: Theme.fontSizeXLarge
                     font.weight: Theme.fontWeightMedium
                 }
                 StyledText {
-                    text: "Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling."
+                    text: qsTr("Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling.")
                     color: Theme.surfaceVariantText
                     Layout.fillWidth: true
                 }
 
-                ColumnLayout {
+                // The choices, the passphrase and the filesystem are taller
+                // than a small window. They scroll, so the page never pushes
+                // Back and Continue (and the hint bar) off the screen.
+                Flickable {
+                    id: encryptionScroll
+                    objectName: "encryptionScroll"
                     Layout.fillWidth: true
-                    spacing: Theme.groupedListGap
-                    Repeater {
-                        model: root.offeredEncryptionTypes
-                        DankListItem {
-                            required property string modelData
-                            required property int index
-                            Layout.fillWidth: true
-                            firstInGroup: index === 0
-                            lastInGroup: index === root.offeredEncryptionTypes.length - 1
-                            primaryText: root.encryptionText(modelData, "_label")
-                            secondaryText: root.encryptionText(modelData, "_description")
-                            isSelected: root.encType === modelData
-                            onClicked: root.encType = modelData
-                        }
-                    }
-                }
+                    Layout.fillHeight: true
+                    clip: true
+                    contentWidth: width
+                    contentHeight: encryptionBody.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-                // Only for a choice with needs_passphrase.
-                DankCard {
-                    Layout.fillWidth: true
-                    visible: root.needsPassphrase(root.encType)
-                    title: "Passphrase"
-                    Column {
-                        width: parent.width
-                        spacing: Theme.spacingS
-                        DankTextField {
-                            id: passField
-                            placeholderText: "Enter passphrase"
-                            echoMode: TextInput.Password
-                            width: Math.min(parent.width, 360)
-                            onTextChanged: root.passphrase = text
-                        }
-                        DankTextField {
-                            id: passConfirm
-                            placeholderText: "Confirm passphrase"
-                            echoMode: TextInput.Password
-                            width: Math.min(parent.width, 360)
-                            isError: passError.text !== ""
-                        }
-                        StyledText {
-                            id: passError
-                            color: Theme.error
-                            visible: text !== ""
-                            font.pixelSize: Theme.fontSizeSmall
-                        }
-                        StyledText {
-                            text: root.encryptionProblem
-                            color: Theme.error
-                            visible: text !== ""
-                            font.pixelSize: Theme.fontSizeSmall
-                        }
-                    }
-                }
+                    ColumnLayout {
+                        id: encryptionBody
+                        width: encryptionScroll.width
+                        spacing: Theme.spacingM
 
-                // Filesystem (XFCE SetupPage Advanced parity): the rows
-                // follow the catalog leaf until the user picks one
-                // (showFilesystem without fsChosen does not count).
-                DankCard {
-                    Layout.fillWidth: true
-                    title: "Advanced"
-                    Column {
-                        width: parent.width
-                        spacing: Theme.spacingS
-                        StyledText {
-                            text: root.selectedLeaf && root.selectedLeaf.filesystem
-                                ? "Filesystem (from the selected image — change to override)"
-                                : "Filesystem"
-                            color: Theme.surfaceVariantText
-                            font.pixelSize: Theme.fontSizeSmall
-                        }
                         ColumnLayout {
-                            width: parent.width
+                            Layout.fillWidth: true
                             spacing: Theme.groupedListGap
                             Repeater {
-                                model: root.filesystems
+                                model: root.offeredEncryptionTypes
                                 DankListItem {
                                     required property string modelData
                                     required property int index
                                     Layout.fillWidth: true
                                     firstInGroup: index === 0
-                                    lastInGroup: index === root.filesystems.length - 1
-                                    primaryText: modelData
-                                    monospace: true
-                                    isSelected: root.filesystem === modelData
-                                    onClicked: {
-                                        root.filesystem = modelData
-                                        root.fsChosen = true
-                                    }
+                                    lastInGroup: index === root.offeredEncryptionTypes.length - 1
+                                    primaryText: root.encryptionText(modelData, "_label")
+                                    secondaryText: root.encryptionText(modelData, "_description")
+                                    isSelected: root.encType === modelData
+                                    onClicked: root.encType = modelData
                                 }
                             }
                         }
-                        DankListItem {
-                            width: parent.width
-                            visible: root.filesystem === "btrfs"
-                            primaryText: "Create btrfs subvolumes (@, @home, @snapshots)"
-                            isSelected: root.btrfsSubvolumes
-                            onClicked: root.btrfsSubvolumes = !root.btrfsSubvolumes
+
+                        // Only for a choice with needs_passphrase.
+                        DankCard {
+                            Layout.fillWidth: true
+                            visible: root.needsPassphrase(root.encType)
+                            title: qsTr("Passphrase")
+                            Column {
+                                width: parent.width
+                                spacing: Theme.spacingS
+                                DankTextField {
+                                    id: passField
+                                    objectName: "passphraseField"
+                                    placeholderText: qsTr("Enter passphrase")
+                                    echoMode: root.showPassphrase ? TextInput.Normal : TextInput.Password
+                                    width: Math.min(parent.width, 360)
+                                    onTextChanged: root.passphrase = text
+                                }
+                                DankTextField {
+                                    id: passConfirm
+                                    placeholderText: qsTr("Confirm passphrase")
+                                    echoMode: root.showPassphrase ? TextInput.Normal : TextInput.Password
+                                    width: Math.min(parent.width, 360)
+                                    isError: passError.text !== ""
+                                }
+                                DankButton {
+                                    objectName: "passphraseRevealButton"
+                                    text: root.showPassphrase ? qsTr("Hide passphrase") : qsTr("Show passphrase")
+                                    tonal: true
+                                    onClicked: root.showPassphrase = !root.showPassphrase
+                                }
+                                StyledText {
+                                    id: passError
+                                    color: Theme.error
+                                    visible: text !== ""
+                                    font.pixelSize: Theme.fontSizeSmall
+                                }
+                                StyledText {
+                                    text: root.encryptionProblem
+                                    color: Theme.error
+                                    visible: text !== ""
+                                    font.pixelSize: Theme.fontSizeSmall
+                                }
+                            }
                         }
-                        StyledText {
-                            text: root.filesystemProblem
-                            color: Theme.error
-                            visible: text !== ""
-                            font.pixelSize: Theme.fontSizeSmall
+
+                        // Filesystem: the selected image's choices (its own list for
+                        // an image that names none), starting at the image's value.
+                        DankCard {
+                            Layout.fillWidth: true
+                            title: qsTr("Advanced")
+                            Column {
+                                width: parent.width
+                                spacing: Theme.spacingS
+                                StyledText {
+                                    text: root.activeLeaf && root.activeLeaf.filesystem
+                                        ? qsTr("Filesystem (the choices of the selected image)")
+                                        : qsTr("Filesystem")
+                                    color: Theme.surfaceVariantText
+                                    font.pixelSize: Theme.fontSizeSmall
+                                }
+                                ColumnLayout {
+                                    width: parent.width
+                                    spacing: Theme.groupedListGap
+                                    Repeater {
+                                        model: root.filesystems
+                                        DankListItem {
+                                            required property string modelData
+                                            required property int index
+                                            Layout.fillWidth: true
+                                            firstInGroup: index === 0
+                                            lastInGroup: index === root.filesystems.length - 1
+                                            primaryText: modelData
+                                            monospace: true
+                                            isSelected: root.filesystem === modelData
+                                            onClicked: root.filesystem = modelData
+                                        }
+                                    }
+                                }
+                                DankListItem {
+                                    width: parent.width
+                                    visible: root.filesystem === "btrfs"
+                                    primaryText: qsTr("Create btrfs subvolumes (@, @home, @snapshots)")
+                                    isSelected: root.btrfsSubvolumes
+                                    onClicked: root.btrfsSubvolumes = !root.btrfsSubvolumes
+                                }
+                                StyledText {
+                                    text: root.filesystemProblem
+                                    color: Theme.error
+                                    visible: text !== ""
+                                    font.pixelSize: Theme.fontSizeSmall
+                                }
+                            }
                         }
                     }
                 }
 
-                Item { Layout.fillHeight: true }
-
                 RowLayout {
                     Layout.fillWidth: true
-                    DankButton { text: "Back"; tonal: true; onClicked: root.back() }
+                    DankButton { text: qsTr("Back"); tonal: true; onClicked: root.back() }
                     Item { Layout.fillWidth: true }
-                    DankButton { text: "Continue"; onClicked: encryptionPage.next() }
+                    DankButton { objectName: "encryptionNextButton"; text: qsTr("Continue"); onClicked: encryptionPage.next() }
                 }
             }
 
@@ -1397,12 +1663,12 @@ ApplicationWindow {
                 spacing: Theme.spacingM
 
                 StyledText {
-                    text: "Your account"
+                    text: qsTr("Your account")
                     font.pixelSize: Theme.fontSizeXLarge
                     font.weight: Theme.fontWeightMedium
                 }
                 StyledText {
-                    text: "The account you sign in with. It can administer this computer."
+                    text: qsTr("The account you sign in with. It can administer this computer.")
                     color: Theme.surfaceVariantText
                     wrapMode: Text.Wrap
                     Layout.fillWidth: true
@@ -1410,14 +1676,14 @@ ApplicationWindow {
 
                 DankCard {
                     Layout.fillWidth: true
-                    title: "Account"
+                    title: qsTr("Account")
                     GridLayout {
                         width: parent.width
                         columns: 2
                         columnSpacing: Theme.spacingXL
                         rowSpacing: Theme.spacingS
 
-                        StyledText { text: "Username"; color: Theme.surfaceVariantText }
+                        StyledText { text: qsTr("Username"); color: Theme.surfaceVariantText }
                         ColumnLayout {
                             spacing: 2
                             DankTextField {
@@ -1440,27 +1706,27 @@ ApplicationWindow {
                             }
                         }
 
-                        StyledText { text: "Full name"; color: Theme.surfaceVariantText }
+                        StyledText { text: qsTr("Full name"); color: Theme.surfaceVariantText }
                         DankTextField {
                             id: fullnameField
                             objectName: "accountFullname"
                             text: root.fullname
                             onTextEdited: root.fullname = text
-                            placeholderText: "Optional"
+                            placeholderText: qsTr("Optional")
                             implicitWidth: 300
                         }
 
-                        StyledText { text: "Password"; color: Theme.surfaceVariantText }
+                        StyledText { text: qsTr("Password"); color: Theme.surfaceVariantText }
                         DankTextField {
                             id: userPassField
                             objectName: "accountPassword"
                             text: root.userPassword
                             onTextEdited: root.userPassword = text
-                            echoMode: TextInput.Password
+                            echoMode: root.showPassword ? TextInput.Normal : TextInput.Password
                             implicitWidth: 300
                         }
 
-                        StyledText { text: "Password again"; color: Theme.surfaceVariantText }
+                        StyledText { text: qsTr("Password again"); color: Theme.surfaceVariantText }
                         ColumnLayout {
                             spacing: 2
                             DankTextField {
@@ -1468,16 +1734,26 @@ ApplicationWindow {
                                 objectName: "accountPasswordConfirm"
                                 text: root.userPasswordConfirm
                                 onTextEdited: root.userPasswordConfirm = text
-                                echoMode: TextInput.Password
+                                echoMode: root.showPassword ? TextInput.Normal : TextInput.Password
                                 implicitWidth: 300
                                 isError: root.userPasswordConfirm !== "" && !root.passwordsMatch
                             }
                             StyledText {
-                                text: "Passwords do not match."
+                                text: qsTr("Passwords do not match.")
                                 color: Theme.error
                                 visible: root.userPasswordConfirm !== "" && !root.passwordsMatch
                                 font.pixelSize: Theme.fontSizeSmall
                             }
+                        }
+
+                        // The reveal toggle (#295): the two fields at once,
+                        // so a typo can be found by eye.
+                        Item { implicitWidth: 1; implicitHeight: 1 }
+                        DankButton {
+                            objectName: "accountRevealButton"
+                            text: root.showPassword ? qsTr("Hide passwords") : qsTr("Show passwords")
+                            tonal: true
+                            onClicked: root.showPassword = !root.showPassword
                         }
                     }
                 }
@@ -1486,11 +1762,11 @@ ApplicationWindow {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    DankButton { text: "Back"; tonal: true; onClicked: root.back() }
+                    DankButton { text: qsTr("Back"); tonal: true; onClicked: root.back() }
                     Item { Layout.fillWidth: true }
                     DankButton {
                         objectName: "accountNextButton"
-                        text: "Continue"
+                        text: qsTr("Continue")
                         enabled: root.accountReady
                         onClicked: root.advance()
                     }
@@ -1522,46 +1798,68 @@ ApplicationWindow {
                     StyledText {
                         id: warnText
                         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: Theme.spacingM }
-                        text: "⚠  " + root.text(root.selectedDisk.removable ? "confirm_warning_removable" : "confirm_warning", { disk: root.selectedDisk.path ? root.selectedDisk.path : "the selected disk" })
+                        text: "⚠  " + root.text(root.selectedDisk.removable ? "confirm_warning_removable" : "confirm_warning", { disk: root.selectedDisk.path ? root.selectedDisk.path : qsTr("the selected disk") })
                         color: Theme.warning
                     }
                 }
 
                 DankCard {
                     Layout.fillWidth: true
-                    title: "Summary"
+                    title: qsTr("Summary")
                     GridLayout {
                         width: parent.width
                         columns: 2
                         columnSpacing: Theme.spacingXL
                         rowSpacing: Theme.spacingS
-                        StyledText { text: "Target disk"; color: Theme.surfaceVariantText }
+                        StyledText { text: qsTr("Target disk"); color: Theme.surfaceVariantText }
                         StyledText { text: root.selectedDisk.path ? root.selectedDisk.path : "—"; isMonospace: true }
-                        StyledText { text: "Image"; color: Theme.surfaceVariantText }
+                        StyledText { text: qsTr("Image"); color: Theme.surfaceVariantText }
                         StyledText {
+                            // The image that is installed (the NVIDIA image
+                            // on an NVIDIA machine), with the leaf's label.
                             text: root.isLive && root.selectedLive
-                                ? (root.liveImage || "this system") + "  (this system, no download)"
+                                ? qsTr("%1  (this system, no download)").arg(root.liveImage || qsTr("this system"))
                                 : (root.selectedLeaf
-                                    ? root.selectedLeaf.name + "  (" + root.selectedLeaf.imgref + ")"
+                                    ? (root.selectedLeaf.label || root.selectedLeaf.name) + "  (" + root.selectedImage + ")"
                                     : (root.selectedImage || "—"))
                             isMonospace: true
                             font.pixelSize: Theme.fontSizeSmall
+                            wrapMode: Text.WrapAnywhere
                             Layout.fillWidth: true
                         }
-                        StyledText { text: "Filesystem"; color: Theme.surfaceVariantText }
+                        // The image that updates follow, when it is not the
+                        // image that is installed (shared/catalog/README.md).
                         StyledText {
-                            text: root.filesystem + (root.filesystem === "btrfs" && root.btrfsSubvolumes ? "  (subvolumes)" : "")
+                            text: qsTr("Updates from")
+                            color: Theme.surfaceVariantText
+                            visible: confirmTarget.visible
+                        }
+                        StyledText {
+                            id: confirmTarget
+                            objectName: "confirmTargetImage"
+                            visible: root.targetImage !== "" && root.targetImage !== root.selectedImage
+                                && root.selectedImage !== ""
+                            text: root.targetImage
+                            isMonospace: true
+                            font.pixelSize: Theme.fontSizeSmall
+                            wrapMode: Text.WrapAnywhere
+                            Layout.fillWidth: true
+                        }
+                        StyledText { text: qsTr("Filesystem"); color: Theme.surfaceVariantText }
+                        StyledText {
+                            text: root.filesystem === "btrfs" && root.btrfsSubvolumes
+                                ? qsTr("%1  (subvolumes)").arg(root.filesystem) : root.filesystem
                             isMonospace: true
                         }
-                        StyledText { text: "Encryption"; color: Theme.surfaceVariantText }
+                        StyledText { text: qsTr("Encryption"); color: Theme.surfaceVariantText }
                         StyledText { text: root.encryptionText(root.encType, "_label"); isMonospace: true }
-                        StyledText { text: "Username"; color: Theme.surfaceVariantText; visible: root.needsUserCreation }
+                        StyledText { text: qsTr("Username"); color: Theme.surfaceVariantText; visible: root.needsUserCreation }
                         StyledText {
                             objectName: "confirmUsername"
                             visible: root.needsUserCreation
                             text: root.username || "—"; isMonospace: true
                         }
-                        StyledText { text: "Hostname"; color: Theme.surfaceVariantText }
+                        StyledText { text: qsTr("Hostname"); color: Theme.surfaceVariantText }
                         ColumnLayout {
                             spacing: 2
                             DankTextField {
@@ -1590,19 +1888,27 @@ ApplicationWindow {
                     horizontalAlignment: Text.AlignHCenter
                     Layout.fillWidth: true
                 }
+                OfflineNotice {
+                    Layout.fillWidth: true
+                    visible: root.downloadBlocked
+                    checked: root.netChecked
+                    checking: netProc.running
+                    toolError: root.netToolError
+                    onRecheck: root.recheckNetwork()
+                    onOpenSettings: netToolProc.running = true
+                }
 
                 Item { Layout.fillHeight: true }
 
                 RowLayout {
                     Layout.fillWidth: true
-                    DankButton { text: "Back"; tonal: true; onClicked: root.back() }
+                    DankButton { text: qsTr("Back"); tonal: true; onClicked: root.back() }
                     Item { Layout.fillWidth: true }
                     DankButton {
+                        objectName: "confirmInstallButton"
                         text: root.text("confirm_button")
                         destructive: true
-                        enabled: root.selectedDisk.path !== undefined && root.hostnameProblem === ""
-                            && root.filesystemProblem === ""
-                            && (!root.needsUserCreation || root.accountReady)
+                        enabled: root.canInstall
                         onClicked: root.startInstall()
                     }
                 }
@@ -1620,9 +1926,10 @@ ApplicationWindow {
                 }
                 StyledText {
                     text: root.installStep > 0
-                        ? "Step " + root.installStep + " of " + root.installSteps
-                          + (root.installStepName ? " — " + root.installStepName : "")
-                        : "Starting…"
+                        ? (root.installStepName
+                            ? qsTr("Step %1 of %2 — %3").arg(root.installStep).arg(root.installSteps).arg(root.installStepName)
+                            : qsTr("Step %1 of %2").arg(root.installStep).arg(root.installSteps))
+                        : qsTr("Starting…")
                     color: Theme.surfaceVariantText
                 }
                 Rectangle {
@@ -1651,7 +1958,7 @@ ApplicationWindow {
                         anchors.fill: parent
                         clip: true
                         TextArea {
-                            text: root.installLog === "" ? "Starting…" : root.installLog
+                            text: root.installLog === "" ? qsTr("Starting…") : root.installLog
                             font.family: Theme.monoFontFamily
                             font.pixelSize: Theme.fontSizeSmall
                             color: Theme.surfaceText
@@ -1679,7 +1986,7 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     spacing: Theme.spacingM
                     StyledText {
-                        text: root.logPath !== "" ? "Log: " + root.logPath : ""
+                        text: root.logPath !== "" ? qsTr("Log: %1").arg(root.logPath) : ""
                         visible: text !== ""
                         color: Theme.surfaceVariantText
                         font.pixelSize: Theme.fontSizeSmall
@@ -1688,7 +1995,7 @@ ApplicationWindow {
                         wrapMode: Text.Wrap
                     }
                     DankButton {
-                        text: "Copy log"
+                        text: qsTr("Copy log")
                         tonal: true
                         onClicked: {
                             logClip.selectAll()
@@ -1698,10 +2005,13 @@ ApplicationWindow {
                     }
                     DankButton {
                         objectName: "cancelInstallButton"
-                        text: "Cancel"
+                        text: qsTr("Cancel")
                         tonal: true
-                        visible: installProc.running
-                        onClicked: cancelProc.running = true
+                        // Asks first (the overlay below): a stray click must
+                        // not stop a disk write half-way.
+                        visible: installProc.running || root.cancelOpen
+                        enabled: !root.cancelRequested
+                        onClicked: root.cancelOpen = true
                     }
                 }
             }
@@ -1716,7 +2026,7 @@ ApplicationWindow {
                     Rectangle {
                         Layout.alignment: Qt.AlignHCenter
                         width: 96; height: 96; radius: 48
-                        color: root.installSuccess ? Theme.withAlpha(Theme.success, 0.2) : Theme.withAlpha(Theme.error, 0.2)
+                        color: Theme.withAlpha(root.doneColor, 0.2)
                         Image {
                             id: doneLogo
                             objectName: "doneBrandingLogo"
@@ -1729,13 +2039,17 @@ ApplicationWindow {
                         StyledText {
                             visible: !doneLogo.visible
                             anchors.centerIn: parent
-                            text: root.installSuccess ? "✓" : "✗"
+                            text: root.installSuccess ? "✓" : (root.installCancelled ? "–" : "✗")
                             font.pixelSize: 48
-                            color: root.installSuccess ? Theme.success : Theme.error
+                            color: root.doneColor
                         }
                     }
                     StyledText {
-                        text: root.installSuccess ? root.text("done_title") : root.text("done_failed_title")
+                        objectName: "doneTitle"
+                        // Three endings, three copy keys: installed, cancelled
+                        // (the user's own choice, #299) and failed.
+                        text: root.installSuccess ? root.text("done_title")
+                            : (root.installCancelled ? root.text("done_cancelled_title") : root.text("done_failed_title"))
                         font.pixelSize: Theme.fontSizeXXLarge
                         font.weight: Theme.fontWeightMedium
                         horizontalAlignment: Text.AlignHCenter
@@ -1744,8 +2058,11 @@ ApplicationWindow {
                     StyledText {
                         text: root.installSuccess
                             ? root.text("done_subtitle")
-                            : "Check the installation log for details."
+                            : (root.installCancelled
+                                ? qsTr("You stopped the installer. The disk can be in an incomplete state: start the installer again before you use it.")
+                                : qsTr("Check the installation log for details."))
                         color: Theme.surfaceVariantText
+                        wrapMode: Text.Wrap
                         horizontalAlignment: Text.AlignHCenter
                         Layout.fillWidth: true
                     }
@@ -1826,7 +2143,7 @@ ApplicationWindow {
                     // The phone companion stays GNOME-only (see below).
                     DankButton {
                         Layout.alignment: Qt.AlignHCenter
-                        text: "Take a tour"
+                        text: qsTr("Take a tour")
                         tonal: true
                         visible: root.installSuccess && root.tourSlides.length > 0
                         onClicked: { root.tourIndex = 0; root.tourOpen = true }
@@ -1834,9 +2151,9 @@ ApplicationWindow {
                     RowLayout {
                         Layout.alignment: Qt.AlignHCenter
                         spacing: Theme.spacingM
-                        DankButton { text: "Close"; tonal: true; onClicked: Qt.quit() }
+                        DankButton { text: qsTr("Close"); tonal: true; onClicked: Qt.quit() }
                         DankButton {
-                            text: "Power off"
+                            text: qsTr("Power off")
                             tonal: true
                             visible: root.installSuccess
                             onClicked: root.powerOpen = true
@@ -1861,9 +2178,9 @@ ApplicationWindow {
             visible: root.currentPage <= 6
             Repeater {
                 model: [
-                    { key: "Enter", what: root.currentPage === 6 ? root.text("confirm_button") : "Continue" },
-                    { key: "Shift+Enter", what: "Back" },
-                    { key: "Tab", what: "Next field" }
+                    { key: "Enter", shown: qsTr("Enter"), what: root.currentPage === 6 ? root.text("confirm_button") : qsTr("Continue") },
+                    { key: "Shift+Enter", shown: qsTr("Shift+Enter"), what: qsTr("Back") },
+                    { key: "Tab", shown: qsTr("Tab"), what: qsTr("Next field") }
                 ]
                 RowLayout {
                     required property var modelData
@@ -1877,7 +2194,7 @@ ApplicationWindow {
                         StyledText {
                             id: keyText
                             anchors.centerIn: parent
-                            text: modelData.key
+                            text: modelData.shown
                             isMonospace: true
                             font.pixelSize: Theme.fontSizeSmall
                             color: Theme.surfaceVariantText
@@ -1923,16 +2240,16 @@ ApplicationWindow {
                     Item { Layout.fillWidth: true }
                     DankButton {
                         visible: !root.gateUefi
-                        text: "Continue anyway"
+                        text: qsTr("Continue anyway")
                         onClicked: root.gatesAccepted = true
                     }
                     DankButton {
                         visible: root.gateUefi
-                        text: "Firmware setup"
+                        text: qsTr("Firmware setup")
                         onClicked: firmwareProc.running = true
                     }
                     DankButton {
-                        text: "Power off"
+                        text: qsTr("Power off")
                         tonal: true
                         onClicked: root.powerOpen = true
                     }
@@ -1954,7 +2271,7 @@ ApplicationWindow {
         DankCard {
             anchors.centerIn: parent
             width: Math.min(parent.width - Theme.spacingXL * 2, 420)
-            title: "Power"
+            title: qsTr("Power")
             ColumnLayout {
                 width: parent.width
                 spacing: Theme.groupedListGap
@@ -1962,16 +2279,16 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     firstInGroup: true
                     lastInGroup: root.gateUefi
-                    primaryText: "Power off"
-                    secondaryText: "Shut down this computer"
+                    primaryText: qsTr("Power off")
+                    secondaryText: qsTr("Shut down this computer")
                     onClicked: poweroffProc.running = true
                 }
                 DankListItem {
                     Layout.fillWidth: true
                     firstInGroup: false
                     lastInGroup: !root.gateUefi
-                    primaryText: "Restart"
-                    secondaryText: "Restart this computer"
+                    primaryText: qsTr("Restart")
+                    secondaryText: qsTr("Restart this computer")
                     onClicked: rebootProc.running = true
                 }
                 DankListItem {
@@ -1979,16 +2296,59 @@ ApplicationWindow {
                     visible: !root.gateUefi
                     firstInGroup: false
                     lastInGroup: true
-                    primaryText: "Firmware setup"
-                    secondaryText: "Reboot into the firmware settings"
+                    primaryText: qsTr("Firmware setup")
+                    secondaryText: qsTr("Reboot into the firmware settings")
                     onClicked: firmwareProc.running = true
                 }
                 DankButton {
                     Layout.alignment: Qt.AlignHCenter
                     Layout.topMargin: Theme.spacingS
-                    text: "Close"
+                    text: qsTr("Close")
                     tonal: true
                     onClicked: root.powerOpen = false
+                }
+            }
+        }
+    }
+
+    // Cancel confirmation (#299). Cancel and the window's close open this;
+    // only its destructive button stops the install. The other button, and
+    // a click outside the card, go back to the install.
+    Rectangle {
+        objectName: "cancelConfirmOverlay"
+        anchors.fill: parent
+        visible: root.cancelOpen
+        color: Theme.withAlpha(Theme.surface, 0.75)
+        z: 13
+        MouseArea { anchors.fill: parent; onClicked: root.cancelOpen = false }
+        DankCard {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - Theme.spacingXL * 2, 520)
+            title: qsTr("Stop the installer?")
+            Column {
+                width: parent.width
+                spacing: Theme.spacingM
+                StyledText {
+                    text: qsTr("The disk is already changed. If you stop now, this computer cannot start from it until you run the installer again.")
+                    color: Theme.warning
+                    wrapMode: Text.Wrap
+                    width: parent.width
+                }
+                RowLayout {
+                    width: parent.width
+                    spacing: Theme.spacingM
+                    Item { Layout.fillWidth: true }
+                    DankButton {
+                        objectName: "cancelKeepButton"
+                        text: qsTr("Keep installing")
+                        onClicked: root.cancelOpen = false
+                    }
+                    DankButton {
+                        objectName: "cancelConfirmButton"
+                        text: qsTr("Stop and discard")
+                        destructive: true
+                        onClicked: root.confirmCancel()
+                    }
                 }
             }
         }
@@ -2014,7 +2374,7 @@ ApplicationWindow {
             width: Math.min(parent.width - Theme.spacingXL * 2, 560)
             title: {
                 const slide = root.tourSlides[Math.min(root.tourIndex, root.tourSlides.length - 1)] || {}
-                return slide.title || ("Slide " + (root.tourIndex + 1) + " of " + root.tourSlides.length)
+                return slide.title || qsTr("Slide %1 of %2").arg(root.tourIndex + 1).arg(root.tourSlides.length)
             }
             Column {
                 width: parent.width
@@ -2050,7 +2410,7 @@ ApplicationWindow {
                     }
                     Item { Layout.fillWidth: true }
                     StyledText {
-                        text: (root.tourIndex + 1) + " / " + root.tourSlides.length
+                        text: qsTr("%1 / %2").arg(root.tourIndex + 1).arg(root.tourSlides.length)
                         color: Theme.surfaceVariantText
                         font.pixelSize: Theme.fontSizeSmall
                     }
@@ -2064,7 +2424,7 @@ ApplicationWindow {
                 }
                 DankButton {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: "Close"
+                    text: qsTr("Close")
                     tonal: true
                     onClicked: root.tourOpen = false
                 }

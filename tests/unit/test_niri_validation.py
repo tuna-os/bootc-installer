@@ -105,9 +105,10 @@ class NiriAsksFisherman(unittest.TestCase):
         QMetaObject.invokeMethod(self.root, "startInstall")
         written = next(o.property("written") for o in self.root.findChildren(QObject)
                        if o.property("written") and '"disk"' in o.property("written"))
+        # No groups: the backend writes the shared list or the operator's
+        # (frontends/niri/installer/user.go, shared/account/README.md).
         self.assertEqual(json.loads(written)["user"], {
-            "username": "jo", "fullname": "Jo Doe", "password": "s3cret",
-            "groups": ["wheel"]})
+            "username": "jo", "fullname": "Jo Doe", "password": "s3cret"})
         self.root.setProperty("currentPage", 0)
 
     def offered(self):

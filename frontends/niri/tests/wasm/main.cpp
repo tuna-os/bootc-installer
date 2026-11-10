@@ -17,6 +17,7 @@
 
 #include <QFile>
 #include <QGuiApplication>
+#include <QJSValue>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -47,6 +48,7 @@ const Page kPages[] = {
     {"04-disk", 3},    {"05-encryption", 4}, {"06-account", 5},
     {"07-confirm", 6}, {"08-progress", 7},  {"09-done", 8},
     {"10-recovery", 8}, {"11-tour", 8},
+    {"12-cancel-confirm", 7}, {"13-cancelled", 8}, {"14-offline", 2},
 };
 
 // Page positions by role, as PROGRESS_PAGE / DONE_PAGE in capture-screens.py.
@@ -119,6 +121,49 @@ void pageText(QQuickItem *item, QStringList &acc)
         if (text.typeId() == QMetaType::QString && !text.toString().trimmed().isEmpty())
             acc << text.toString();
         pageText(child, acc);
+    }
+}
+
+// One leaf in the shape the backend's `catalog` prints (installer/catalog.go),
+// as leaf() in capture-screens.py builds it. This image is in no offline
+// store, so it needs a download.
+QVariantMap edgeLeaf()
+{
+    const QString imgref = QStringLiteral("ghcr.io/example/os:edge");
+    QVariantMap recipe{{QStringLiteral("image"), imgref},
+                       {QStringLiteral("targetImgref"), imgref},
+                       {QStringLiteral("bootloader"), QStringLiteral("systemd")},
+                       {QStringLiteral("composeFsBackend"), false}};
+    return QVariantMap{{QStringLiteral("name"), QStringLiteral("Edge")},
+                       {QStringLiteral("imgref"), imgref},
+                       {QStringLiteral("product"), QStringLiteral("Example OS")},
+                       {QStringLiteral("channel"), QStringLiteral("Edge")},
+                       {QStringLiteral("label"), QStringLiteral("Example OS Edge")},
+                       {QStringLiteral("breadcrumb"), QStringLiteral("Example OS \u203a Edge")},
+                       {QStringLiteral("filesystem"), QString()},
+                       {QStringLiteral("filesystems"), QVariantList()},
+                       {QStringLiteral("default_hostname"), QString()},
+                       {QStringLiteral("needs_user_creation"), true},
+                       {QStringLiteral("carousel"), QVariantList()},
+                       {QStringLiteral("recipe"), recipe}};
+}
+
+// Replace the answer of the wizard's `netcheck` Process (the stub), as
+// answer_netcheck() does in capture-screens.py.
+void answerNetcheck(QObject *root, bool connected)
+{
+    const QString answer = QString::fromLatin1(connected
+        ? R"({"connected": true, "target": "", "tried": []})"
+        : R"({"connected": false, "target": "", "tried": []})");
+    for (QObject *child : root->findChildren<QObject *>()) {
+        // `command` is a QML `var`: a JS array until it is converted.
+        QVariant command = child->property("command");
+        if (command.userType() == qMetaTypeId<QJSValue>())
+            command = command.value<QJSValue>().toVariant();
+        if (command.toStringList().contains(QLatin1String("netcheck"))) {
+            child->setProperty("fixtures", QVariantMap{{QStringLiteral("netcheck"), answer}});
+            return;
+        }
     }
 }
 
@@ -196,14 +241,33 @@ std::string niriShow(const std::string &wanted)
     fillAccount(root);
     root->setProperty("currentPage", page->index);
     int settleMs = 300;
-    if (page->index == kProgressPage) {
+    if (name == QLatin1String("08-progress")) {
         // Through appendLog(), the function a real install calls.
         for (const QString &line : fixtureLines())
             appendLog(root, line);
         settleMs = 1000;
     }
-    if (page->index == kDonePage)
-        root->setProperty("installSuccess", true);
+    if (page->index == kDonePage) {
+        root->setProperty("installSuccess", name != QLatin1String("13-cancelled"));
+        root->setProperty("installCancelled", false);
+    }
+    // Cancel asks first: the overlay over the install page.
+    root->setProperty("cancelOpen", name == QLatin1String("12-cancel-confirm"));
+    if (name == QLatin1String("13-cancelled")) {
+        // fisherman's exit code for a cancelled install, through the
+        // function the install Process's exit calls.
+        root->setProperty("recoveryKey", QString());
+        QMetaObject::invokeMethod(root, "installExited", Q_ARG(QVariant, QVariant(130)));
+    }
+    if (name == QLatin1String("14-offline")) {
+        // An image that needs a download and a check that says offline.
+        const QVariantMap leaf = edgeLeaf();
+        root->setProperty("catalogLeaves", QVariantList{leaf});
+        root->setProperty("catalogLoaded", true);
+        answerNetcheck(root, false);
+        QMetaObject::invokeMethod(root, "selectLeaf", Q_ARG(QVariant, QVariant(leaf)));
+        settleMs = 1000;   // the check's pause, then the stub's answer
+    }
     if (name == QLatin1String("10-recovery"))
         appendLog(root, QString::fromLatin1(kRecoveryEvent));
     if (name == QLatin1String("11-tour")) {
