@@ -244,6 +244,13 @@ class Systeminfo:
         return fisherman_probe.live_image(result) if result else ""
 
     @staticmethod
+    def offline_images() -> list[str]:
+        """Image refs in the host's offline stores (offline.images); []
+        when the probe failed."""
+        result = Systeminfo.probe()
+        return fisherman_probe.offline_images(result) if result else []
+
+    @staticmethod
     def has_tpm2() -> bool:
         """Whether a TPM 2.0 is usable, per fisherman's `tpm.usable`.
 

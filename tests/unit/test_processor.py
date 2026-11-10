@@ -673,18 +673,53 @@ class TestNvidiaAutoDetect:
         assert r["image"] == "ghcr.io/projectbluefin/dakota-nvidia:latest"
         assert r["targetImgref"] == "ghcr.io/projectbluefin/dakota-nvidia:latest"
 
+    _BASE = "ghcr.io/projectbluefin/dakota:latest"
+    _NVIDIA = "ghcr.io/projectbluefin/dakota-nvidia:latest"
+
+    def _host(self, monkeypatch, *, gpu, live, offline):
+        base = "bootc_installer.core.system.Systeminfo."
+        monkeypatch.setattr(base + "has_nvidia_gpu", staticmethod(lambda: gpu))
+        monkeypatch.setattr(base + "is_live", staticmethod(lambda: live))
+        monkeypatch.setattr(base + "offline_images", staticmethod(lambda: list(offline)))
+
+    def _recipe(self):
+        finals = _auto_finals(image=self._BASE)
+        finals[0]["nvidia_imgref"] = self._NVIDIA
+        return _load(Processor.gen_install_recipe("log", finals, _SYS_RECIPE))
+
     def test_no_nvidia_gpu_installs_nvidia_tracks_base(self, monkeypatch):
-        """Without NVIDIA GPU, install nvidia (on ISO) but track base for updates."""
-        monkeypatch.setattr(
-            "bootc_installer.core.system.Systeminfo.has_nvidia_gpu",
-            staticmethod(lambda: False),
-        )
-        finals = _auto_finals(image="ghcr.io/projectbluefin/dakota:latest")
-        finals[0]["nvidia_imgref"] = "ghcr.io/projectbluefin/dakota-nvidia:latest"
-        path = Processor.gen_install_recipe("log", finals, _SYS_RECIPE)
-        r = _load(path)
-        assert r["image"] == "ghcr.io/projectbluefin/dakota-nvidia:latest"
-        assert r["targetImgref"] == "ghcr.io/projectbluefin/dakota:latest"
+        """Without an NVIDIA GPU, on live media that carries the nvidia
+        image: install it (no download) and track the base image."""
+        self._host(monkeypatch, gpu=False, live=True, offline=[self._NVIDIA])
+        r = self._recipe()
+        assert r["image"] == self._NVIDIA
+        assert r["targetImgref"] == self._BASE
+
+    def test_no_nvidia_gpu_network_install_uses_the_chosen_image(self, monkeypatch):
+        """#314: not live media, so nothing is "on the ISO". A network
+        install on an Intel or AMD machine pulled the larger nvidia image."""
+        self._host(monkeypatch, gpu=False, live=False, offline=[self._NVIDIA])
+        r = self._recipe()
+        assert r["image"] == self._BASE
+        assert r["targetImgref"] == self._BASE
+
+    def test_no_nvidia_gpu_live_media_without_the_image_uses_the_chosen_image(self, monkeypatch):
+        """Live media whose store does not hold the nvidia image."""
+        self._host(monkeypatch, gpu=False, live=True, offline=[self._BASE])
+        r = self._recipe()
+        assert r["image"] == self._BASE
+        assert r["targetImgref"] == self._BASE
+
+    def test_image_plan_names_what_is_installed_and_tracked(self, monkeypatch):
+        """The confirm page reads this plan (#314)."""
+        self._host(monkeypatch, gpu=False, live=True, offline=[self._NVIDIA])
+        finals = _auto_finals(image=self._BASE)
+        finals[0]["nvidia_imgref"] = self._NVIDIA
+        assert Processor.image_plan(finals, _SYS_RECIPE) == {
+            "selected": self._BASE, "install": self._NVIDIA, "track": self._BASE}
+        self._host(monkeypatch, gpu=False, live=False, offline=[])
+        assert Processor.image_plan(finals, _SYS_RECIPE) == {
+            "selected": self._BASE, "install": self._BASE, "track": self._BASE}
 
     def test_no_nvidia_imgref_skips_detection(self):
         """When nvidia_imgref is empty, no NVIDIA logic runs."""
