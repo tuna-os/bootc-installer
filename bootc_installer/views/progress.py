@@ -24,7 +24,12 @@ from gettext import gettext as _
 
 from bootc_installer.utils import copy as copy_text
 from bootc_installer.utils import fisherman_runner
-from bootc_installer.utils.fisherman_session import FishermanSession
+from bootc_installer.utils.fisherman_session import (
+    FishermanSession,
+    read_log_redacted,
+    redact_recovery_key,
+    scrub_log_file,
+)
 
 
 logger = logging.getLogger("Installer::Progress")
@@ -63,10 +68,12 @@ def _log_line_for_display(line: str) -> str:
     event into a readable line, the same one XFCE shows. Anything that is not
     an event (fisherman's stderr is interleaved) is shown verbatim. The log
     FILE keeps the raw protocol, and Copy Log copies the file, so a bug
-    report still carries exactly what fisherman wrote.
+    report still carries what fisherman wrote, with one exception: the TPM
+    recovery key. This frontend has a page for the key, so the pane, Copy
+    Log and the log dialog show "[redacted]" in its place (#316).
     """
     shown = render_event(line.strip())
-    return line if shown is None else shown
+    return redact_recovery_key(line if shown is None else shown)
 
 
 def _load_demo_transcript(path=None) -> list:
@@ -184,6 +191,7 @@ class BootcProgress(Gtk.Box):
     console_box = Gtk.Template.Child()
     log_view = Gtk.Template.Child()
     copy_log_button = Gtk.Template.Child()
+    btn_cancel = Gtk.Template.Child()
     status_clamp = Gtk.Template.Child()
 
     def __init__(self, window, **kwargs):
@@ -205,6 +213,11 @@ class BootcProgress(Gtk.Box):
         # does not know reads "" and falls back to the step name.
         set_step_label_resolver(lambda step_id: copy_text.text(window, "step_" + step_id))
         self.__session = None    # FishermanSession — owns subprocess + log tailing
+        # One install at a time: True from a start until its result is
+        # handed to the window. start() refuses while it is set (#307, #308).
+        self.__running = False
+        self.__cancel_requested = False
+        self.__demo_run = 0      # generation of the demo replay, for cancel
         self.__log_buf = None    # GtkTextBuffer — set after super().__init__
         self.__pulse_active = True  # whether the progress bar is in pulse mode
         self.__progress_state = new_progress_state()
@@ -230,6 +243,53 @@ class BootcProgress(Gtk.Box):
         self.console_button.connect("clicked", self.__on_console_button)
         self.media_button.connect("clicked", self.__on_media_button)
         self.copy_log_button.connect("clicked", self.__on_copy_log)
+        # Cancel asks first: the window owns the dialog (#299).
+        self.btn_cancel.connect("clicked", self.__on_cancel_clicked)
+        self.btn_cancel.set_visible(False)
+
+    def __on_cancel_clicked(self, *args):
+        self.__window.request_cancel_install()
+
+    def __set_running(self, running: bool):
+        self.__running = running
+        self.btn_cancel.set_visible(running)
+        self.btn_cancel.set_sensitive(running)
+
+    def is_running(self) -> bool:
+        """Whether an install (or the demo replay) is in progress."""
+        return self.__running
+
+    @property
+    def cancel_requested(self) -> bool:
+        return self.__cancel_requested
+
+    def cancel(self) -> bool:
+        """Stop the running install on the user's confirmed request.
+
+        Does not wait: the wrapper gets SIGTERM and the process poller
+        reports its exit, which becomes the "cancelled" result. True when
+        there was an install to stop.
+        """
+        if not self.__running:
+            return False
+        self.__cancel_requested = True
+        self.btn_cancel.set_sensitive(False)
+        self.progress_substep.set_label(_("Stopping the installation\u2026"))
+        if self.__session is None:
+            # The demo replay: no process, so report the result here.
+            self.__demo_run += 1
+            self.__pause_install_video()
+            self.__set_running(False)
+            self.__window.set_installation_result(False, None, cancelled=True)
+            return True
+        self.__session.request_cancel()
+        return True
+
+    def scrub_log(self) -> bool:
+        """Remove the recovery key from the log file (#316): called when
+        the user has confirmed the key is saved, and after a failure."""
+        path = self.__session.log_path if self.__session else _FISHERMAN_LOG_PATH
+        return scrub_log_file(path, self.__recovery_key)
 
 
     def __configure_install_video(self):
@@ -393,16 +453,16 @@ class BootcProgress(Gtk.Box):
         self.__show_selected_media_view()
 
     def __on_copy_log(self, *args):
-        """Copy the fisherman log to the clipboard."""
-        try:
-            with open(self.__session.log_path if self.__session else _FISHERMAN_LOG_PATH) as f:
-                text = f.read()
-        except OSError:
-            text = self.__log_buf.get_text(
+        """Copy the fisherman log to the clipboard, without the recovery key."""
+        text = read_log_redacted(
+            self.__session.log_path if self.__session else _FISHERMAN_LOG_PATH,
+            self.__recovery_key)
+        if text is None:
+            text = redact_recovery_key(self.__log_buf.get_text(
                 self.__log_buf.get_start_iter(),
                 self.__log_buf.get_end_iter(),
                 False,
-            )
+            ), self.__recovery_key)
         if not text:
             return
         try:
@@ -523,9 +583,10 @@ class BootcProgress(Gtk.Box):
             self.__start_time = None
 
     def __pulse_progress(self):
-        if self.__pulse_active:
+        if self.__pulse_active and self.__running:
             self.progressbar.pulse()
-        return self.__pulse_active
+            return True
+        return False
 
     def _start_log_watcher(self):
         """Begin tailing the fisherman log for JSON progress events.
@@ -537,17 +598,28 @@ class BootcProgress(Gtk.Box):
         """
         self.__watcher_lines = 0
         logger.info("_start_log_watcher: scheduling try_open for %s", self.__session.log_path)
-        GLib.timeout_add(200, self.__try_open_log_for_watching)
+        GLib.timeout_add(200, self.__try_open_log_for_watching, self.__session)
 
-    def __try_open_log_for_watching(self) -> bool:
-        if self.__session.open_log_for_tailing():
-            GLib.timeout_add(100, self.__poll_log_file)
+    def __watching(self, session) -> bool:
+        """Whether `session` is the install that is running now. Each timer
+        carries the session it was started for, so it stops when that
+        install ends and never reads for a later one."""
+        return self.__running and session is self.__session
+
+    def __try_open_log_for_watching(self, session) -> bool:
+        if not self.__watching(session):
+            return False
+        if session.open_log_for_tailing():
+            GLib.timeout_add(100, self.__poll_log_file, session)
             return False  # stop retrying
         return True  # retry
 
-    def __poll_log_file(self) -> bool:
-        """Pull any new lines from the session and apply them. Runs every 100ms."""
-        lines = self.__session.read_new_lines()
+    def __poll_log_file(self, session) -> bool:
+        """Pull any new lines from the session and apply them. Runs every
+        100ms, and stops when the install it reads for has ended."""
+        if not self.__watching(session):
+            return False
+        lines = session.read_new_lines()
         for line in lines:
             self.__watcher_lines += 1
             self.__parse_progress_line(line.strip())
@@ -555,7 +627,7 @@ class BootcProgress(Gtk.Box):
         if lines and (self.__watcher_lines <= 5 or self.__watcher_lines % 50 == 0):
             logger.info("Log watcher: %d lines appended to buffer (buf chars=%d)",
                         self.__watcher_lines, self.__log_buf.get_char_count())
-        return True  # keep polling until __finish_install stops the timer
+        return True  # keep polling; __finish_install ends the install
 
     def __append_log_line(self, line: str):
         """Append a line to the TextView buffer, readably, and auto-scroll."""
@@ -569,18 +641,23 @@ class BootcProgress(Gtk.Box):
         self.log_view.scroll_to_iter(end, 0.0, False, 0.0, 1.0)
         return False
 
-    def __poll_proc(self) -> bool:
+    def __poll_proc(self, session) -> bool:
         """Poll fisherman subprocess exit status every 500ms."""
-        ret = self.__session.poll_process()
+        if not self.__watching(session):
+            return False
+        ret = session.poll_process()
         if ret is None:
-            return True  # still running (or no session — either way, keep waiting)
+            return True  # still running
         # Give the log poller 300ms to drain any last bytes before finishing.
-        GLib.timeout_add(300, self.__finish_install, ret)
+        GLib.timeout_add(300, self.__finish_install, ret, session)
         return False
 
-    def __finish_install(self, ret: int) -> bool:
+    def __finish_install(self, ret: int, session=None) -> bool:
         """Final log drain then hand off to the done screen."""
-        for line in self.__session.drain_remaining():
+        session = self.__session if session is None else session
+        if session is not self.__session or not self.__running:
+            return False  # already reported
+        for line in session.drain_remaining():
             self.__parse_progress_line(line.strip())
             self.__append_log_line(line)
         # Compute elapsed before stopping the timer
@@ -591,8 +668,18 @@ class BootcProgress(Gtk.Box):
         self.__cancel_video_fallback_timeout()
         self.__pause_install_video()
         self.__cleanup_video_tmp()
+        # The install is over: the log poller, the pulse and the process
+        # poller all stop on this, and a new start() is accepted again.
+        self.__pulse_active = False
+        cancelled = self.__cancel_requested and ret != 0
+        self.__set_running(False)
+        if ret != 0:
+            # The failure page offers the log. A key for a disk that the
+            # next attempt erases has no use; do not leave it on disk.
+            session.scrub_log(self.__recovery_key)
         self.__window.set_installation_result(
-            ret == 0, None, self.__boot_id, self.__recovery_key, elapsed_secs
+            ret == 0, None, self.__boot_id, self.__recovery_key, elapsed_secs,
+            exit_code=ret, cancelled=cancelled,
         )
         return False
 
@@ -664,6 +751,14 @@ class BootcProgress(Gtk.Box):
         launched. No disk is touched.
         """
         logger.info("start_demo() called")
+        if self.__running:
+            logger.warning("start_demo() refused: an install is already running")
+            return False
+        self.__session = None
+        self.__cancel_requested = False
+        self.__demo_run += 1
+        run = self.__demo_run
+        self.__set_running(True)
         lines = _load_demo_transcript()
         self.__progress_state = new_progress_state()
         self.__boot_id = ""
@@ -681,26 +776,44 @@ class BootcProgress(Gtk.Box):
         self.progress_elapsed.set_label(_("0:00 elapsed"))
 
         def _feed(line):
-            self.feed_line(line)
+            if run == self.__demo_run and self.__running:
+                self.feed_line(line)
+            return False
+
+        def _report():
+            if run != self.__demo_run or not self.__running:
+                return False  # cancelled, or another replay has started
+            self.__set_running(False)
+            # No boot_id: the transcript's is a placeholder, and the done
+            # page would set it as the firmware's BootNext on restart.
+            self.__window.set_installation_result(True, None, "")
             return False
 
         def _finish():
+            if run != self.__demo_run or not self.__running:
+                return False
             self.__pause_install_video()
-            # No boot_id: the transcript's is a placeholder, and the done
-            # page would set it as the firmware's BootNext on restart.
-            GLib.timeout_add(600, lambda: self.__window.set_installation_result(True, None, "") or False)
+            GLib.timeout_add(600, _report)
             return False
 
         # Every event is scheduled up front, one interval apart.
         for i, line in enumerate(lines, start=1):
             GLib.timeout_add(i * _DEMO_INTERVAL_MS, _feed, line)
         GLib.timeout_add((len(lines) + 1) * _DEMO_INTERVAL_MS, _finish)
+        return True
 
     def start(self, recipe):
+        """Start one install. False, and nothing is launched, while an
+        install is already running: two root fisherman processes on one
+        disk is the failure this refuses (#307, #308)."""
+        if self.__running:
+            logger.warning("start() refused: an install is already running")
+            return False
+        self.__cancel_requested = False
         # If VANILLA_FAKE was passed as argument
         if not recipe:
             self.__window.set_installation_result(False, None)
-            return
+            return False
 
         # FishermanSession owns staging, argv construction, launch, handing
         # over the recipe on stdin and log tailing — everything about running
@@ -717,7 +830,10 @@ class BootcProgress(Gtk.Box):
         argv = self.__session.launch()
         if argv is None:
             self.__window.set_installation_result(False, None)
-            return
+            return False
+        session = self.__session
+        self.__set_running(True)
+        self.__log_buf.set_text("")
         self.__progress_state = new_progress_state()
         self.__boot_id = ""
         self.__recovery_key = ""
@@ -733,8 +849,9 @@ class BootcProgress(Gtk.Box):
             self.__configure_install_video()
         GLib.timeout_add(200, self.__pulse_progress)
         self.__start_elapsed_timer()
-        GLib.timeout_add(500, self.__poll_proc)
+        GLib.timeout_add(500, self.__poll_proc, session)
         self._start_log_watcher()
+        return True
 
     def terminate(self):
         """Terminate fisherman if it is still running (e.g. window closed).

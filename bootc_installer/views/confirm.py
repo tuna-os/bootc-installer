@@ -19,6 +19,7 @@ from gettext import gettext as _
 
 from bootc_installer.utils import copy as copy_text
 from bootc_installer.utils.field_check import FieldCheck
+from bootc_installer.utils.processor import Processor
 
 from gi.repository import Adw, GObject, Gtk
 
@@ -56,6 +57,40 @@ def recipe_image(recipe: dict) -> str:
         if img.get("default"):
             return img.get("imgref", "")
     return images[0].get("imgref", "") if images else ""
+
+
+def user_summary(user) -> str:
+    """The account row's value: "name (Full Name)", or "" when the user
+    step made no account."""
+    if not isinstance(user, dict):
+        return ""
+    username = (user.get("username") or "").strip()
+    if not username:
+        return ""
+    fullname = (user.get("fullname") or "").strip()
+    return f"{username} ({fullname})" if fullname else username
+
+
+def var_disk_summary(var_disk) -> tuple[str, bool]:
+    """The /var disk row's value and whether that disk is erased.
+
+    ("", False) when the install uses no second disk. Processor writes
+    `keepExisting` from the same `keep_existing` flag, so the row says what
+    fisherman does.
+    """
+    if not isinstance(var_disk, dict) or not var_disk.get("disk"):
+        return "", False
+    erased = not bool(var_disk.get("keep_existing", False))
+    state = _("will be erased") if erased else _("kept, its data is not erased")
+    return f"{var_disk['disk']}: {state}", erased
+
+
+def erased_disks_text(disks: list) -> str:
+    """The {disk} of the erase warning: every disk the install formats."""
+    disks = [d for d in disks if d]
+    if len(disks) <= 1:
+        return disks[0] if disks else ""
+    return _("{first} and {second}").format(first=", ".join(disks[:-1]), second=disks[-1])
 
 
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/widget-choice.ui")
@@ -107,6 +142,11 @@ class BootcConfirm(Adw.Bin):
         self.delta = False
         self._hostname_entry_row = None
         self._hostname_check = None
+        # Connected once. update() used to connect a handler on each visit
+        # and the click removed only the newest, so three visits and one
+        # click started fisherman twice (#308).
+        self._armed = False
+        self.btn_confirm.connect("clicked", self.__on_confirm)
 
     def update(self, finals):
         self._hostname_entry_row = None  # reset on every update
@@ -127,6 +167,8 @@ class BootcConfirm(Adw.Bin):
                    "hostname": [], "image": []}
         erase_disk = None
         erase_disk_removable = False
+        var_disk_row = None
+        var_disk_erased = None
 
         for final in finals:
             for key, value in final.items():
@@ -147,14 +189,30 @@ class BootcConfirm(Adw.Bin):
                             "preferences-system-time-symbolic",
                         )
                     )
-                elif key == "users":
-                    self.active_widgets.append(
-                        BootcChoiceEntry(
-                            _("Users"),
-                            f"{value['username']} ({value['fullname']})",
-                            "system-users-symbolic",
+                elif key == "user":
+                    # The user step emits `user`. This read `users`, so the
+                    # account never reached the summary (#313).
+                    account = user_summary(value)
+                    if account:
+                        self.active_widgets.append(
+                            BootcChoiceEntry(
+                                _("Users"),
+                                account,
+                                "system-users-symbolic",
+                            )
                         )
-                    )
+                elif key == "var_disk":
+                    # A second disk for /var is formatted too, unless the
+                    # user keeps it (#313).
+                    summary, erased = var_disk_summary(value)
+                    if summary:
+                        var_disk_row = BootcChoiceEntry(
+                            _("/var disk"),
+                            summary,
+                            "drive-harddisk-symbolic",
+                        )
+                        if erased:
+                            var_disk_erased = value["disk"]
                 elif key == "disk":
                     if "auto" in value:
                         auto = value["auto"]
@@ -252,17 +310,47 @@ class BootcConfirm(Adw.Bin):
                         )
                     )
 
+        if var_disk_row is not None:
+            primary["disk"].append(var_disk_row)
+
         # No image step (live media, or a recipe with one image): the image
         # is the one the recipe names, resolved as Processor does.
+        recipe = getattr(self.__window, "recipe", None)
+        recipe = recipe if isinstance(recipe, dict) else {}
         if not primary["image"]:
-            recipe = getattr(self.__window, "recipe", None)
-            imgref = recipe_image(recipe if isinstance(recipe, dict) else {})
+            imgref = recipe_image(recipe)
             if imgref:
                 primary["image"].append(
                     BootcChoiceEntry(
                         _("Image"),
                         imgref,
                         "application-x-appliance-symbolic",
+                    )
+                )
+
+        # The image that is installed is not always the one chosen: a
+        # catalog entry with an NVIDIA variant installs that variant on a
+        # machine with an NVIDIA GPU, or from live media that carries only
+        # it. The row then names what is written to the disk, and a second
+        # row names what updates follow when that differs (#314).
+        try:
+            plan = Processor.image_plan(finals, recipe)
+        except Exception:
+            plan = None
+        if plan and plan["install"] and plan["install"] != plan["selected"]:
+            primary["image"] = [
+                BootcChoiceEntry(
+                    _("Image"),
+                    plan["install"],
+                    "application-x-appliance-symbolic",
+                )
+            ]
+            if plan["track"] and plan["track"] != plan["install"]:
+                primary["image"].append(
+                    BootcChoiceEntry(
+                        _("Updates follow"),
+                        plan["track"],
+                        "software-update-available-symbolic",
                     )
                 )
 
@@ -291,14 +379,22 @@ class BootcConfirm(Adw.Bin):
         # stick or other external drive, flagged by fisherman's probe) gets
         # confirm_warning_removable instead, so the one moment that commits
         # to erasing it says so plainly.
-        warning = ""
-        if erase_disk:
-            warning_key = (
-                "confirm_warning_removable" if erase_disk_removable else "confirm_warning"
-            )
-            warning = (
-                copy_text.text(self.__window, warning_key, disk=erase_disk)
-                or _("All data on this disk will be erased. This cannot be undone."))
+        # A second disk for /var that is formatted is named too (#313): in
+        # the same sentence, or in a sentence of its own after the
+        # removable-drive line, which is about one disk.
+        fallback = _("All data on this disk will be erased. This cannot be undone.")
+        parts = []
+        if erase_disk and erase_disk_removable:
+            parts.append(copy_text.text(
+                self.__window, "confirm_warning_removable", disk=erase_disk) or fallback)
+            if var_disk_erased:
+                parts.append(copy_text.text(
+                    self.__window, "confirm_warning", disk=var_disk_erased) or fallback)
+        elif erase_disk or var_disk_erased:
+            parts.append(copy_text.text(
+                self.__window, "confirm_warning",
+                disk=erased_disks_text([erase_disk, var_disk_erased])) or fallback)
+        warning = " ".join(parts)
         self.row_warning.set_title(warning)
         self.group_warning.set_visible(bool(warning))
 
@@ -316,10 +412,8 @@ class BootcConfirm(Adw.Bin):
         for widget in self.active_widgets:
             self.group_changes.add(widget)
         self.__update_confirm_button()
-
-        self._btn_confirm_signal = self.btn_confirm.connect(
-            "clicked", self.__on_confirm
-        )
+        # One confirmation for each visit to the page.
+        self._armed = True
 
     def __update_confirm_button(self):
         self.btn_confirm.set_sensitive(
@@ -340,8 +434,16 @@ class BootcConfirm(Adw.Bin):
         return text if text else None
 
     def __on_confirm(self, widget):
+        if not self._armed:
+            return
+        self._armed = False
         self.emit("installation-confirmed")
-        self.btn_confirm.disconnect(self._btn_confirm_signal)
+
+    def rearm(self):
+        """Accept one more click: the window calls this when it refused to
+        start (an invalid recipe, no disk), so the user can correct the
+        problem on this page and confirm again."""
+        self._armed = True
 
     def process_keyboards(self, selected_keyboards):
         keyboard_index = ""

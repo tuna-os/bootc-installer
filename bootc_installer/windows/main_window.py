@@ -86,6 +86,9 @@ class BootcWindow(Adw.ApplicationWindow):
 
         self.__install_is_encrypted = False
         self.__install_recovery_key = ""
+        # The exit or cancel dialog that is open, so a second Ctrl+Q does
+        # not stack another one.
+        self.__open_dialog = None
 
         # sensitivity-tracking state for the header btn_next
         self.__next_page_widget = None
@@ -318,11 +321,20 @@ class BootcWindow(Adw.ApplicationWindow):
             page.btn_next.emit("clicked")
 
     def __on_close_request(self, *args):
-        if self.__is_done():
-            self.get_application().quit()
-            return True
-        self.__on_exit_clicked()
+        self.request_quit()
         return True  # block the default close; dialog will quit() if confirmed
+
+    def install_running(self) -> bool:
+        """Whether fisherman (or the demo replay) is running now."""
+        return self.__view_progress.is_running()
+
+    def request_quit(self, *args):
+        """Every way out of the application: the window's close button, the
+        header's exit button and the app.quit action (Ctrl+Q). Ctrl+Q used
+        to call Application.quit() directly, so one keystroke on the
+        progress page removed the window and left fisherman on the disk
+        (#309)."""
+        self.__on_exit_clicked()
 
     def __is_done(self):
         cur_index = int(self.carousel.get_position())
@@ -421,18 +433,84 @@ class BootcWindow(Adw.ApplicationWindow):
         return encryption.get("type", "none") not in ("", "none")
 
     @staticmethod
+    def _autoinstall_paths(path: str, in_flatpak: bool | None = None) -> list:
+        """Where to look for the --autoinstall recipe.
+
+        In a Flatpak the sandbox has its own /etc; the host's is at
+        /run/host/etc (utils/recipe.py reads the system recipe there). A
+        unit that names /etc/bootc-installer/autoinstall.json means the
+        host's file, so that is tried first (#317).
+        """
+        if in_flatpak is None:
+            in_flatpak = os.path.exists("/.flatpak-info")
+        norm = os.path.normpath(path)
+        if in_flatpak and os.path.isabs(norm) and (norm == "/etc" or norm.startswith("/etc/")):
+            return ["/run/host" + norm, path]
+        return [path]
+
+    @staticmethod
+    def _read_autoinstall_recipe(path: str, in_flatpak: bool | None = None):
+        """(recipe, reason): the --autoinstall recipe, or None and the
+        reason it cannot be used, in words for the result page."""
+        reason = ""
+        for candidate in BootcWindow._autoinstall_paths(path, in_flatpak):
+            try:
+                with open(candidate, encoding="utf-8") as recipe_file:
+                    recipe = json.load(recipe_file)
+            except OSError as exc:
+                logger.warning("Failed to read install recipe %s: %s", candidate, exc)
+                reason = reason or _("The recipe file {path} cannot be read: {error}").format(
+                    path=path, error=exc.strerror or exc)
+                continue
+            except json.JSONDecodeError as exc:
+                logger.warning("Install recipe %s is not valid JSON: %s", candidate, exc)
+                return None, _("The recipe file {path} is not valid JSON: {error}").format(
+                    path=path, error=exc)
+            if not isinstance(recipe, dict):
+                return None, _("The recipe file {path} does not hold a JSON object.").format(
+                    path=path)
+            return recipe, ""
+        return None, reason
+
+    @staticmethod
     def _load_autoinstall_recipe(path: str):
         """The --autoinstall recipe file, read here and handed to fisherman on
         stdin like any other recipe. None when it cannot be read."""
+        return BootcWindow._read_autoinstall_recipe(path)[0]
+
+    def _validate_autoinstall_recipe(self, recipe: dict) -> str:
+        """"" when `recipe` can start, else the reason. The wizard checks a
+        recipe field by field with `fisherman validate`; --autoinstall
+        skipped every check, so a bad file failed inside the root process
+        with a generic page (#317). When fisherman cannot be asked, the
+        recipe starts: the install runs the same rules first."""
+        if not Processor.recipe_names_disk(recipe):
+            return _("The recipe names no installation disk.")
+        from bootc_installer.core import fisherman_validate
+        from bootc_installer.utils import fisherman_runner
         try:
-            with open(path, encoding="utf-8") as recipe_file:
-                recipe = json.load(recipe_file)
-        except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("Failed to read install recipe %s: %s", path, exc)
-            return None
-        return recipe if isinstance(recipe, dict) else None
+            if fisherman_runner.IN_FLATPAK and not fisherman_runner.stage_on_host():
+                raise fisherman_validate.ValidateError("could not stage fisherman on the host")
+            result = fisherman_validate.run(
+                fisherman_validate.argv(fisherman_runner.fisherman_argv(), partial=False),
+                recipe)
+        except fisherman_validate.ValidateError as exc:
+            logger.warning("Autoinstall: fisherman validate could not run: %s", exc)
+            return ""
+        from bootc_installer.utils import copy as copy_text
+        lines = [
+            fisherman_validate.render(problem, lambda key: copy_text.text(self, key))
+            for problem in fisherman_validate.problems(result)
+        ]
+        lines = [line for line in lines if line]
+        if not lines and result.get("valid") is False:
+            lines = [_("fisherman did not accept the recipe.")]
+        return " ".join(lines[:3])
 
     def __on_recovery_key_acknowledged(self, *args):
+        # The user has the key now. Take it out of the log file, which a
+        # later Show Log or bug report would otherwise carry (#316).
+        self.__view_progress.scrub_log()
         self.__go_to_page(self.__view_done)
 
     def __on_about_clicked(self, *args):
@@ -455,21 +533,37 @@ class BootcWindow(Adw.ApplicationWindow):
         from bootc_installer.windows.dialog_credits import BootcCreditsWindow
         BootcCreditsWindow(self).show()
 
+    def __present_dialog(self, dialog, on_response):
+        """Present one exit or cancel dialog at a time."""
+        if self.__open_dialog is not None:
+            return False
+
+        def _response(dlg, response):
+            self.__open_dialog = None
+            on_response(dlg, response)
+
+        dialog.connect("response", _response)
+        self.__open_dialog = dialog
+        dialog.present(self)
+        return True
+
     def __on_exit_clicked(self, *args):
-        if self.__is_done():
+        running = self.install_running()
+        if self.__is_done() and not running:
             self.get_application().quit()
             return
         dialog = Adw.AlertDialog(
             heading=_("Exit Installer?"),
-            body=_("Any progress will be lost."),
+            body=(_("An installation is in progress. If you exit now, the installer "
+                    "stops it, and the disk can be left without a system that starts.")
+                  if running else _("Any progress will be lost.")),
         )
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("exit", _("Exit"))
         dialog.set_response_appearance("exit", Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_default_response("cancel")
         dialog.set_close_response("cancel")
-        dialog.connect("response", self.__on_exit_response)
-        dialog.present(self)
+        self.__present_dialog(dialog, self.__on_exit_response)
 
     def __on_exit_response(self, dialog, response):
         if response == "exit":
@@ -477,6 +571,27 @@ class BootcWindow(Adw.ApplicationWindow):
             # root processes and partially-written disk state.
             self.__view_progress.terminate()
             self.get_application().quit()
+
+    def request_cancel_install(self, *args):
+        """The progress page's Cancel button: ask first, then stop the
+        install and show the cancelled page (#299)."""
+        if not self.install_running() or self.__view_progress.cancel_requested:
+            return
+        dialog = Adw.AlertDialog(
+            heading=_("Cancel the installation?"),
+            body=_("The installer stops the work on the disk. "
+                   "The disk can be left without a system that starts."),
+        )
+        dialog.add_response("continue", _("Continue Installation"))
+        dialog.add_response("stop", _("Cancel Installation"))
+        dialog.set_response_appearance("stop", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.set_default_response("continue")
+        dialog.set_close_response("continue")
+        self.__present_dialog(dialog, self.__on_cancel_install_response)
+
+    def __on_cancel_install_response(self, dialog, response):
+        if response == "stop":
+            self.__view_progress.cancel()
 
     def update_finals(self, *args):
         # collect all the finals
@@ -490,6 +605,12 @@ class BootcWindow(Adw.ApplicationWindow):
         self.__view_confirm.update(self.finals)
 
     def on_installation_confirmed(self, *args):
+        # One install at a time. A second confirmation (a handler connected
+        # twice, a second click on Try Again) used to start a second root
+        # fisherman on the same disk (#307, #308).
+        if self.install_running():
+            logger.warning("Install already running: ignoring a second confirmation")
+            return
         self.__install_is_encrypted = self.__finals_use_encryption()
         self.__install_recovery_key = ""
 
@@ -502,7 +623,7 @@ class BootcWindow(Adw.ApplicationWindow):
                     break
 
         if os.environ.get("BOOTC_DEMO"):
-            self.next()
+            self.__go_to_page(self.__view_progress)
             self.__view_progress.start_demo()
             return
 
@@ -515,6 +636,7 @@ class BootcWindow(Adw.ApplicationWindow):
         except ValueError as error:
             logger.error("Refusing invalid installation recipe: %s", error)
             self.toast(_("The installation storage configuration is invalid. Check the system recipe."), timeout=6)
+            self.__view_confirm.rearm()
             return
         # The disk page keeps Next disabled without a disk, but this is the
         # last point before fisherman runs as root, so check what was actually
@@ -523,9 +645,24 @@ class BootcWindow(Adw.ApplicationWindow):
         if not Processor.recipe_names_disk(recipe):
             logger.error("Refusing to install: the recipe names no target disk")
             self.toast(_("No installation disk is selected. Go back and choose a disk."), timeout=6)
+            self.__view_confirm.rearm()
             return
-        self.next()
+        # Go to the progress page by name, not with next(): from the done
+        # page (Try Again) next() does nothing, and the install ran behind
+        # the failure page (#307).
+        self.__go_to_page(self.__view_progress)
         self.__view_progress.start(recipe)
+
+    def retry_installation(self, *args):
+        """Try Again on the done page: the same install once more."""
+        if self.install_running():
+            logger.warning("Install already running: ignoring Try Again")
+            return
+        if self.__autoinstall_recipe:
+            # No wizard ran, so there are no finals to build a recipe from.
+            self._start_autoinstall()
+            return
+        self.on_installation_confirmed()
 
     def _start_autoinstall(self):
         """Called via GLib.idle_add when --autoinstall was passed.
@@ -534,15 +671,21 @@ class BootcWindow(Adw.ApplicationWindow):
         pre-built recipe, bypassing the entire wizard. The file is read here;
         fisherman gets its content on stdin.
         """
+        if self.install_running():
+            return False
         logger.info(f"Autoinstall: starting with recipe {self.__autoinstall_recipe}")
-        recipe = self._load_autoinstall_recipe(self.__autoinstall_recipe)
+        recipe, reason = self._read_autoinstall_recipe(self.__autoinstall_recipe)
+        if recipe is not None:
+            reason = self._validate_autoinstall_recipe(recipe)
         self.__install_is_encrypted = self.__recipe_uses_encryption(recipe or {})
         self.__install_recovery_key = ""
+        if reason:
+            # Nothing was started. Say why on the result page.
+            logger.error("Autoinstall refused: %s", reason)
+            self.set_installation_result(False, None, message=reason)
+            return False
 
-        progress_index = self.__find_page_index(self.__view_progress)
-        if progress_index >= 0:
-            page = self.carousel.get_nth_page(progress_index)
-            self.carousel.scroll_to(page, False)
+        self.__go_to_page(self.__view_progress, animate=False)
         self.__view_progress.start(recipe)
         return False  # remove idle callback
 
@@ -589,11 +732,14 @@ class BootcWindow(Adw.ApplicationWindow):
         toast.props.timeout = timeout
         self.toasts.add_toast(toast)
 
-    def set_installation_result(self, result, terminal, boot_id="", recovery_key="", elapsed_secs=0):
+    def set_installation_result(self, result, terminal, boot_id="", recovery_key="", elapsed_secs=0,
+                                exit_code=None, cancelled=False, message=None):
         if result:
             logger.info("Installation complete!")
+        elif cancelled or exit_code == 130:
+            logger.warning("Installation cancelled (exit code %s)", exit_code)
         else:
-            logger.error("Installation failed!")
+            logger.error("Installation failed! (exit code %s)", exit_code)
 
         self.__install_recovery_key = recovery_key or self.__install_recovery_key
 
@@ -606,7 +752,8 @@ class BootcWindow(Adw.ApplicationWindow):
                     break
 
         self.__view_done.set_result(result, terminal, boot_id, elapsed_secs,
-                                    image_ref=image_ref)
+                                    image_ref=image_ref, exit_code=exit_code,
+                                    cancelled=cancelled, message=message)
 
         if result and self.__install_is_encrypted and self.__install_recovery_key:
             # Only show the recovery key screen when fisherman actually emitted a
