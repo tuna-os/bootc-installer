@@ -14,7 +14,7 @@ from unittest.mock import patch
 REPO = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, REPO)
 
-from bootc_installer.core import fisherman_probe  # noqa: E402
+from bootc_shared import probe as fisherman_probe  # noqa: E402
 from bootc_installer.core.disks import DisksManager  # noqa: E402
 from bootc_installer.core.system import Systeminfo  # noqa: E402
 from bootc_installer.utils import fisherman_runner  # noqa: E402

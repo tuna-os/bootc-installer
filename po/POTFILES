@@ -43,8 +43,6 @@ bootc_installer/gtk/wireless-row.blp
 bootc_installer/__init__.py
 bootc_installer/core/__init__.py
 bootc_installer/core/disks.py
-bootc_installer/core/fisherman_probe.py
-bootc_installer/core/fisherman_validate.py
 bootc_installer/core/keymaps.py
 bootc_installer/core/languages.py
 bootc_installer/core/locale.py
@@ -85,10 +83,7 @@ bootc_installer/layouts/__init__.py
 bootc_installer/layouts/preferences.py
 bootc_installer/layouts/yes_no.py
 bootc_installer/main.py
-bootc_installer/readiness.py
 bootc_installer/utils/__init__.py
-bootc_installer/utils/account.py
-bootc_installer/utils/branding.py
 bootc_installer/utils/builder.py
 bootc_installer/utils/catalog.py
 bootc_installer/utils/codec_check.py
@@ -101,7 +96,6 @@ bootc_installer/utils/i18n.py
 bootc_installer/utils/icons.py
 bootc_installer/utils/phone_companion.py
 bootc_installer/utils/processor.py
-bootc_installer/utils/progress_parser.py
 bootc_installer/utils/recipe.py
 bootc_installer/utils/run_async.py
 bootc_installer/utils/sha512crypt.py

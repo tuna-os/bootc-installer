@@ -97,15 +97,16 @@ would hide it.
 
 | Frontend | Reader | Test against the fixtures |
 |---|---|---|
-| GNOME | `bootc_installer/core/fisherman_probe.py` (copy), used by `core/system.py` and `core/disks.py` | `tests/unit/test_probe_frontend.py` |
-| XFCE | `tuna_installer_xfce/fisherman_probe.py` (copy), used by `core.py` | `tests/test_probe.py` |
+| GNOME | `bootc_shared.probe` (`shared/python/`), used by `core/system.py` and `core/disks.py` | `tests/unit/test_probe_frontend.py` |
+| XFCE | `bootc_shared.probe` (`shared/python/`), used by `core.py` | `tests/test_probe.py` |
 | KDE | `src/probe.{h,cpp}` | `tests/test_backend.cpp` (`probeFixtures`) |
 | COSMIC | `src/probe.rs` | `cargo test probe` |
 | Niri | `installer/probe.go`, sent to the QML by `discover-disks` and `detect` | `go test -run TestProbe` |
 
-`fisherman_probe.py` is canonical. The Python frontends keep byte-identical
-copies of it, and `tests/unit/test_shared_probe.py` checks that they match.
-That test also checks the fixtures against the Go structs in
+The Python frontends import one reader,
+`shared/python/bootc_shared/probe.py`, and `tests/unit/test_shared_probe.py`
+runs it against the fixtures. That test also checks the fixtures against
+the Go structs in
 `fisherman/fisherman/internal/probe`. It also checks that `laptop.json` is
 byte-identical to fisherman's own golden output.
 

@@ -10,8 +10,11 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, GLib, Gtk, Pango
 
-from . import core, fisherman_validate, gates, locale as locale_checks
-from . import progress_parser, tour
+from bootc_shared import progress as progress_parser  # noqa: E402
+from bootc_shared import validate as fisherman_validate  # noqa: E402
+
+from . import core, gates, locale as locale_checks
+from . import tour
 from .i18n import _
 from .logo import product_logo
 

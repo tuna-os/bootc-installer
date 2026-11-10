@@ -4,11 +4,11 @@ fisherman writes **newline-delimited JSON to stdout** and nothing else. One
 event per line. This is the only progress interface a frontend gets; there is
 no human-readable step prefix, and there never has been.
 
-Canonical parser: [`progress_parser.py`](progress_parser.py). Every Python
-frontend keeps a **byte-identical** copy, enforced by
-`tests/unit/test_shared_progress.py` — the same arrangement
-`shared/branding/` and `shared/recipe/` use. Non-Python frontends implement
-the same semantics against this document.
+The Python parser is
+[`bootc_shared.progress`](../python/bootc_shared/progress.py). The two
+Python frontends import that one module, and
+`tests/unit/test_shared_progress.py` runs it against the case files below.
+Non-Python frontends implement the same semantics against this document.
 
 fisherman now computes the bar and names each step itself: `overall_pct`
 and `step_id` (below) are authoritative. The derivation in this parser, and
@@ -22,7 +22,7 @@ writes it from the canonical parser. Every frontend's tests read it: the
 Python tests, COSMIC's `cargo test`, KDE's backend tests and Niri's
 `tests/progress-fraction-test.mjs`. A change to the bar in one parser
 therefore fails the other four until they follow. Regenerate the file after
-you change `progress_parser.py`.
+you change the parser.
 
 [`overall-pct-cases.json`](overall-pct-cases.json) does the same for events
 that carry `overall_pct`, and for a stream without it that must fall back.

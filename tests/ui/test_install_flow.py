@@ -690,7 +690,7 @@ class TestAutoinstallRefusal:
         result = {"protocol_version": 1, "valid": False, "errors": [
             {"field": "hostname", "code": "no_such_code", "message": "hostname is not valid"}]}
 
-        with patch("bootc_installer.core.fisherman_validate.run", return_value=result):
+        with patch("bootc_shared.validate.run", return_value=result):
             flow.window._start_autoinstall()
 
         assert flow.sessions == []

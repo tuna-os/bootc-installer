@@ -220,7 +220,7 @@ class TestPanelTextComesFromTheContract(unittest.TestCase):
         self.mod.BootcRecoveryKey.set_recovery_key(self.obj, "ABC-123")
 
     def test_neutral_defaults(self):
-        from bootc_installer.utils.branding import COPY_DEFAULTS
+        from bootc_shared.branding import COPY_DEFAULTS
         self._show({})
         self.obj.title_label.set_label.assert_called_with(COPY_DEFAULTS["recovery_key_title"])
         self.obj.body_label.set_label.assert_called_with(COPY_DEFAULTS["recovery_key_body"])

@@ -1,9 +1,8 @@
 """Readiness stamp: a compositor-independent record that a window really mapped.
 
-Canonical copy. The Python frontends (GNOME, XFCE) carry byte-identical
-copies and tests/unit/test_shared_readiness.py enforces that they match, the
-same arrangement shared/progress/ and shared/tpm/ use. Edit this file and
-re-copy; never edit a copy.
+The one copy: GNOME and XFCE import it as `bootc_shared.readiness`.
+tests/unit/test_shared_readiness.py covers it. This docstring is the
+specification for the frontends in other languages.
 
 WHY THIS EXISTS
 

@@ -1,7 +1,7 @@
-"""The fisherman progress protocol: canonical parser, copies, and fixture.
+"""The fisherman progress protocol: the Python parser and the fixtures.
 
-shared/progress/ is canonical; each Python frontend keeps a byte-identical
-copy, the same arrangement shared/branding/ and shared/recipe/ use.
+shared/progress/ has the protocol and the case files. The Python parser is
+bootc_shared.progress (shared/python/), which GNOME and XFCE both import.
 
 These tests exist because the XFCE frontend spent its whole life parsing a
 "[n/9] " step prefix that fisherman has never emitted. Nothing caught it: the
@@ -18,22 +18,15 @@ import os
 import unittest
 
 REPO = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
-CANONICAL = os.path.join(REPO, "shared", "progress", "progress_parser.py")
+CANONICAL = os.path.join(REPO, "shared", "python", "bootc_shared", "progress.py")
 TRANSCRIPT = os.path.join(REPO, "shared", "progress", "dry-run-transcript.ndjson")
 
-COPIES = [
-    os.path.join(REPO, "bootc_installer", "utils", "progress_parser.py"),
-    os.path.join(REPO, "frontends", "xfce", "tuna_installer_xfce", "progress_parser.py"),
-]
-TRANSCRIPT_COPIES = [
-    os.path.join(REPO, "bootc_installer", "utils", "dry-run-transcript.ndjson"),
-    os.path.join(REPO, "frontends", "xfce", "tuna_installer_xfce",
-                 "dry-run-transcript.ndjson"),
-]
-
-
 def _load(path, name):
-    spec = importlib.util.spec_from_file_location(name, path)
+    """A new instance of a bootc_shared module, so that a test which sets
+    module state (the product label, a patched function) does not leak
+    into another. The name keeps it inside the package for `from . import`."""
+    import bootc_shared  # noqa: F401  (pytest.ini puts shared/python on the path)
+    spec = importlib.util.spec_from_file_location("bootc_shared." + name.lstrip("_"), path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -44,21 +37,10 @@ def _read(path):
         return fh.read()
 
 
-class CanonicalCopyTest(unittest.TestCase):
-    def test_parser_copies_are_byte_identical(self):
-        want = _read(CANONICAL)
-        for path in COPIES:
-            with self.subTest(copy=os.path.relpath(path, REPO)):
-                self.assertEqual(
-                    want, _read(path),
-                    "copy has drifted from shared/progress/progress_parser.py; "
-                    "edit the canonical file and re-copy, never the copy")
-
-    def test_transcript_copies_are_byte_identical(self):
-        want = _read(TRANSCRIPT)
-        for path in TRANSCRIPT_COPIES:
-            with self.subTest(copy=os.path.relpath(path, REPO)):
-                self.assertEqual(want, _read(path))
+class OneTranscriptTest(unittest.TestCase):
+    def test_the_package_points_at_the_shared_transcript(self):
+        pp = _load(CANONICAL, "progress_transcript")
+        self.assertEqual(os.path.realpath(pp.transcript_path()), os.path.realpath(TRANSCRIPT))
 
 
 class TranscriptShapeTest(unittest.TestCase):
@@ -179,11 +161,11 @@ class FractionCasesTest(unittest.TestCase):
             "fraction-cases.json is stale; run "
             "python3 shared/progress/generate-fraction-cases.py")
 
-    def test_every_python_copy_reproduces_the_fixture(self):
+    def test_the_python_parser_reproduces_the_fixture(self):
         with open(FRACTION_CASES, encoding="utf-8") as fh:
             cases = json.load(fh)["cases"]
         self.assertGreaterEqual(len(cases), 5)
-        for path in [CANONICAL, *COPIES]:
+        for path in [CANONICAL]:
             pp = _load(path, "_pp_" + os.path.basename(os.path.dirname(path)))
             for case in cases:
                 state, bar = pp.new_progress_state(), 0.0
@@ -235,8 +217,8 @@ class OverallPctCasesTest(unittest.TestCase):
             "overall-pct-cases.json is stale; run "
             "python3 shared/progress/generate-fraction-cases.py")
 
-    def test_every_python_copy_reproduces_the_fixture(self):
-        for path in [CANONICAL, *COPIES]:
+    def test_the_python_parser_reproduces_the_fixture(self):
+        for path in [CANONICAL]:
             pp = _load(path, "_pp_overall_" + os.path.basename(os.path.dirname(path)))
             for case in self.cases:
                 got = _replay(pp, case["events"])

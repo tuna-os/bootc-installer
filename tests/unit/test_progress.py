@@ -318,26 +318,26 @@ class TestDemoTranscript(unittest.TestCase):
         with patch.dict("sys.modules", _mock_gtk_imports()):
             self.mod = importlib.import_module("bootc_installer.views.progress")
 
-    def test_demo_reads_the_transcript_installed_next_to_the_parser(self):
+    def test_demo_reads_the_shared_transcript(self):
         repo = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
         self.assertEqual(
             str(self.mod._DEMO_TRANSCRIPT),
-            os.path.join(repo, "bootc_installer", "utils", "dry-run-transcript.ndjson"))
+            os.path.join(repo, "shared", "progress", "dry-run-transcript.ndjson"))
         lines = self.mod._load_demo_transcript()
         self.assertTrue(lines)
         self.assertTrue(all(ln.startswith("{") for ln in lines))
 
     def test_meson_installs_the_transcript(self):
         meson = os.path.join(os.path.dirname(__file__), "..", "..",
-                             "bootc_installer", "utils", "meson.build")
+                             "shared", "python", "meson.build")
         with open(meson) as fh:
-            self.assertIn("'dry-run-transcript.ndjson'", fh.read())
+            self.assertIn("'../progress/dry-run-transcript.ndjson'", fh.read())
 
     def test_missing_transcript_is_empty_not_a_crash(self):
         self.assertEqual(self.mod._load_demo_transcript("/nonexistent/x.ndjson"), [])
 
     def test_demo_drives_the_parser_to_completion(self):
-        from bootc_installer.utils import progress_parser
+        from bootc_shared import progress as progress_parser
         state = progress_parser.new_progress_state()
         last = None
         for line in self.mod._load_demo_transcript():

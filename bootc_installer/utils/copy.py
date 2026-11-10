@@ -6,7 +6,7 @@ product string of their own. Missing branding (unit tests that build a bare
 recipe) falls back to the neutral defaults.
 """
 
-from bootc_installer.utils.branding import COPY_DEFAULTS
+from bootc_shared.branding import COPY_DEFAULTS
 
 
 def _branding(window) -> dict:
