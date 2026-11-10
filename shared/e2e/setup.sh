@@ -26,6 +26,18 @@ as_root install -m 0755 "$HERE/fisherman-shim.sh" /usr/local/bin/fisherman
 "$LIB/fisherman.real" --help >/dev/null 2>&1 || true
 echo "   $(/usr/local/bin/fisherman validate /dev/null 2>&1 | head -1 || true)"
 
+# The real fisherman's checks read the machine: the full `validate` runs
+# lsblk on the target disk (target eligibility, fisherman/docs/VALIDATE.md)
+# and refuses the recipe with disk_unverified when lsblk is missing. A
+# container image can lack it. Stop here with the reason, not later in the
+# frontend's run.
+for tool in lsblk; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "::error::shared/e2e/setup.sh: $tool is not installed (util-linux). fisherman validate needs it." >&2
+    exit 1
+  fi
+done
+
 echo "== loop disk"
 # fisherman accepts a whole disk or a whole loop device as `disk`, and
 # refuses a regular file (`disk_not_disk`, fisherman/docs/VALIDATE.md). So
