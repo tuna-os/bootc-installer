@@ -23,8 +23,10 @@ no Back button here: there is nothing to go back to.
 
 ![Source](screenshots/02-source.png)
 
-Each entry is a bootc image. The tree groups variants under their base image,
-so picking a desktop is one choice rather than a search through tags.
+Each row is a bootc image. The label gives the product and the channel, and
+the search box filters the list. The page selects the branding
+`default_image`, then the catalog `default_image`. If the catalog has
+neither, no row is selected and Next waits.
 
 ## 3. Where to install it
 
@@ -45,8 +47,10 @@ default is right for nearly everyone.
 
 ![Identity](screenshots/05-identity.png)
 
-The computer name becomes the hostname. The account created here is an
-administrator on the new system.
+The computer name becomes the hostname. Its first value comes from the image.
+The account is an administrator on the new system. Type the password two
+times: Next waits until the two match. The eye icon shows what you typed.
+The keyboard layout applies to this session only.
 
 ## 6. Confirm
 
@@ -67,7 +71,7 @@ The log is visible by default — XFCE users want the output. The step label and
 progress bar are driven by fisherman's JSON progress protocol
 (`shared/progress/README.md`) rather than a timer, so the bar reflects real
 progress rather than an estimate. The Back/Next bar is gone: an install
-cannot be backed out of.
+cannot be backed out of. **Cancel** stops the install, and asks first.
 
 ## 8. Done
 
@@ -84,6 +88,14 @@ and restart (`done_subtitle`). The page has its own **Close** and
 fisherman prints a recovery key after TPM enrolment. It stays on the done page
 with a copy button, and **Restart now** stays insensitive until "I have saved
 my recovery key" is ticked.
+
+## 10. Cancelled
+
+![Cancelled](screenshots/10-cancelled.png)
+
+A confirmed Cancel, or fisherman exit code 130, shows this page
+(`done_cancelled_title`). It is not the failure page. It offers the install
+log, and no restart.
 
 ---
 
