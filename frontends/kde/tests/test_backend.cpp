@@ -1,4 +1,6 @@
 #include "offline.h"
+#include "fisherman.h"
+#include "account.h"
 #include "imagecatalog.h"
 #include "region.h"
 #include "branding.h"
@@ -19,12 +21,17 @@
 #include <QJsonObject>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QRegularExpression>
+#include <QSet>
+#include <QCryptographicHash>
+#include <QDirIterator>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUrl>
 
 #include <csignal>
+#include <sys/stat.h>
 #include <unistd.h>
 
 class BackendTest : public QObject
@@ -50,6 +57,11 @@ private slots:
     void brandingNothingReadableIsNeutral();
     void encryptionChoicesReadTheCopyLayer();
     void offlineCommandHelpers();
+    // #290: one resolver, and the staged, host-verified copy in a Flatpak.
+    void fishermanResolverArgv();
+    void fishermanCacheDirIsTheAppCache();
+    void fishermanStagingNeedsTheSameBytesOnTheHost();
+    void fishermanStagingRefusesAnUnsafeDirectory();
     void readinessWriteStampFailsWithEmptyRuntimeDir();
     void readinessWriteStampWritesExpectedFields();
     void readinessWriteStampBlankPageBecomesUnknown();
@@ -104,6 +116,31 @@ private slots:
     void catalogLoadPrefersTheEnvOverride();
     void catalogSelectionDrivesTheRecipeAndTheUserStep();
     void catalogAbsentMeansAccountRequired();
+    // The shared catalog contract (shared/catalog/README.md): this parser
+    // reads fixtures/catalog.json to the answers in fixtures/expected.json.
+    void catalogContractSearchPaths();
+    void catalogContractDefaultSelection();
+    void catalogContractLeaves();
+    void catalogContractRecipes();
+    void catalogBrandingDefaultWinsInTheController();
+    void catalogLoadSkipsAFileThatIsNoCatalog();
+    void catalogLiveMediaReadsTheLeafOfTheLiveImage();
+    void catalogSelectionReplacesThePreviousLeaf();
+    void catalogNvidiaDetection();
+    void catalogFilesystemProblemReachesTheDiskStep();
+    // #302: the shared group list and the operator's.
+    void accountGroupsAreTheSharedFile();
+    void accountGroupCases();
+    // #299: cancel signals the group and is not a crash.
+    void cancelSignalsTheGroupAndIsNotACrash();
+    void exitCode130IsCancelled();
+    void anEndWithoutCancelIsStillAFailure();
+    void cancelAsksFirstInTheQml();
+    // #301
+    void connectivityTriesTheImageRegistryFirst();
+    // #300
+    void qmlStringsGoThroughQsTr();
+    void confirmPageListsNoLocaleRows();
 
     // The user block follows the account step: omitted when the selected
     // image creates its own first user, even with a typed username.
@@ -275,11 +312,11 @@ void BackendTest::recipeJsonRoundTrip()
     QCOMPARE(restoredUser.user.username, withUser.user.username);
     QCOMPARE(restoredUser.user.fullname, withUser.user.fullname);
     QCOMPARE(restoredUser.user.password, withUser.user.password);
-    QCOMPARE(restoredUser.user.groups, QStringList{QStringLiteral("wheel")});
+    QCOMPARE(restoredUser.user.groups, account::defaultGroups());
 }
 
-// The schema's `user` block, the way XFCE's build_recipe writes it:
-// username, fullname, password and groups ["wheel"].
+// The schema's `user` block: username, fullname, password and the shared
+// default groups (shared/account/groups.json, #302).
 void BackendTest::recipeUserBlock()
 {
     Recipe recipe;
@@ -296,7 +333,9 @@ void BackendTest::recipeUserBlock()
     QCOMPARE(user.value(QStringLiteral("username")).toString(), QStringLiteral("alex"));
     QCOMPARE(user.value(QStringLiteral("fullname")).toString(), QStringLiteral("Alex Example"));
     QCOMPARE(user.value(QStringLiteral("password")).toString(), QStringLiteral("s3cret"));
-    QCOMPARE(user.value(QStringLiteral("groups")).toArray(), QJsonArray{QStringLiteral("wheel")});
+    QCOMPARE(user.value(QStringLiteral("groups")).toArray(), QJsonArray::fromStringList(account::defaultGroups()));
+    QVERIFY(account::defaultGroups().contains(QStringLiteral("wheel")));
+    QVERIFY(account::defaultGroups().contains(QStringLiteral("sudo")));
 
     // An empty full name is still written (the schema allows it, and XFCE
     // writes it the same way); fisherman then leaves the GECOS field empty.
@@ -319,7 +358,7 @@ void BackendTest::recipeUserOmittedWithoutUsername()
     QVERIFY(!json.contains(QStringLiteral("user")));
     QVERIFY(!QJsonDocument(json).toJson().contains("left over"));
 
-    QCOMPARE(Recipe::fromJson(QJsonObject{}).user.groups, QStringList{QStringLiteral("wheel")});
+    QCOMPARE(Recipe::fromJson(QJsonObject{}).user.groups, account::defaultGroups());
 }
 
 void BackendTest::controllerAccountFields()
@@ -570,31 +609,172 @@ void BackendTest::brandingNothingReadableIsNeutral()
 
 void BackendTest::offlineCommandHelpers()
 {
-    const QStringList cmd = offline::fishermanCommand();
-    QVERIFY(!cmd.isEmpty());
-
     const QStringList raw = {QStringLiteral("echo"), QStringLiteral("test")};
     const QStringList hostWrapped = offline::hostCommand(raw);
     QVERIFY(!hostWrapped.isEmpty());
-
-    // Flatpak: pkexec inside a host bash, so fisherman's parent is a process
-    // this frontend owns (fisherman cancels when its parent dies). Not
-    // `flatpak-spawn --host pkexec`, whose parent is the session helper.
-    // `-`: the recipe goes on stdin (fisherman#276), never as a path.
-    QCOMPARE(offline::fishermanCommand(true),
-             (QStringList{QStringLiteral("flatpak-spawn"), QStringLiteral("--host"),
-                          QStringLiteral("bash"), QStringLiteral("-c"),
-                          QStringLiteral("pkexec /usr/local/bin/fisherman -; exit $?")}));
-    QCOMPARE(offline::fishermanCommand(false),
-             (QStringList{QStringLiteral("sudo"), QStringLiteral("/usr/local/bin/fisherman"),
-                          QStringLiteral("-")}));
-
     if (offline::inFlatpak()) {
         QCOMPARE(hostWrapped.first(), QStringLiteral("flatpak-spawn"));
         QCOMPARE(hostWrapped.at(1), QStringLiteral("--host"));
     } else {
         QCOMPARE(hostWrapped, raw);
     }
+}
+
+// The one resolver (#290): native, Flatpak and live media.
+void BackendTest::fishermanResolverArgv()
+{
+    const QString native = QStringLiteral("/usr/local/bin/fisherman");
+    const QString staged = QStringLiteral("/home/u/.var/app/org.example.Installer/cache/bootc-installer/fisherman");
+
+    // Native: pkexec, as the GNOME frontend. A bash wrapper, so this
+    // frontend owns a process group it can signal. `-`: the recipe goes on
+    // stdin (fisherman#276), never as a path.
+    const fisherman::Commands installed = fisherman::resolve(false, false, QString());
+    QCOMPARE(installed.unprivileged, QStringList{native});
+    QCOMPARE(installed.install,
+             (QStringList{QStringLiteral("bash"), QStringLiteral("-c"),
+                          QStringLiteral("pkexec /usr/local/bin/fisherman -; exit $?")}));
+
+    // Live media, native: the live user has passwordless sudo and can have
+    // no polkit agent. -n: never a prompt nobody can answer.
+    const fisherman::Commands live = fisherman::resolve(false, true, QString());
+    QCOMPARE(live.unprivileged, QStringList{native});
+    QCOMPARE(live.install,
+             (QStringList{QStringLiteral("bash"), QStringLiteral("-c"),
+                          QStringLiteral("sudo -n /usr/local/bin/fisherman -; exit $?")}));
+
+    // Flatpak: the staged copy, on the host, for all three uses. pkexec
+    // inside a host bash, so fisherman's parent is a process this frontend
+    // owns (fisherman cancels when its parent dies). Never the host's
+    // /usr/local/bin/fisherman, and never sudo.
+    for (const bool isLive : {false, true}) {
+        const fisherman::Commands sandboxed = fisherman::resolve(true, isLive, staged);
+        QCOMPARE(sandboxed.unprivileged,
+                 (QStringList{QStringLiteral("flatpak-spawn"), QStringLiteral("--host"), staged}));
+        QCOMPARE(sandboxed.install,
+                 (QStringList{QStringLiteral("flatpak-spawn"), QStringLiteral("--host"),
+                              QStringLiteral("bash"), QStringLiteral("-c"),
+                              QStringLiteral("pkexec '%1' -; exit $?").arg(staged)}));
+        QVERIFY(!sandboxed.install.join(QLatin1Char(' ')).contains(native));
+    }
+    // A path with a quote cannot leave the argument.
+    QVERIFY(fisherman::resolve(true, false, QStringLiteral("/a'b/fisherman")).install.last()
+                .startsWith(QStringLiteral("pkexec '/a'\\''b/fisherman' -;")));
+
+    // No other file in src/ names the binary: probe, validate and the
+    // install all go through the resolver.
+    QDirIterator it(QStringLiteral(KDE_SOURCE_DIR "/src"), {QStringLiteral("*.cpp"), QStringLiteral("*.h"), QStringLiteral("*.qml")},
+                    QDir::Files, QDirIterator::Subdirectories);
+    int seen = 0;
+    while (it.hasNext()) {
+        const QString path = it.next();
+        ++seen;
+        if (QFileInfo(path).fileName().startsWith(QStringLiteral("fisherman.")))
+            continue;
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        const QByteArray text = f.readAll();
+        QVERIFY2(!text.contains("/usr/local/bin/fisherman\"") && !text.contains("/app/bin/fisherman"),
+                 qPrintable(path + QStringLiteral(" names the fisherman binary; use fisherman.h")));
+    }
+    QVERIFY(seen > 10);
+}
+
+void BackendTest::fishermanCacheDirIsTheAppCache()
+{
+    QProcessEnvironment env;
+    env.insert(QStringLiteral("HOME"), QStringLiteral("/var/home/test"));
+    env.insert(QStringLiteral("XDG_CACHE_HOME"), QStringLiteral("/var/home/test/.var/app/app.id/cache"));
+    QCOMPARE(fisherman::cacheDir(env), QStringLiteral("/var/home/test/.var/app/app.id/cache/bootc-installer"));
+    // Never derived from HOME: no variable, or a relative one, is an error.
+    for (const QString &bad : {QString(), QStringLiteral("relative")}) {
+        QProcessEnvironment e;
+        e.insert(QStringLiteral("HOME"), QStringLiteral("/home/test"));
+        if (!bad.isEmpty())
+            e.insert(QStringLiteral("XDG_CACHE_HOME"), bad);
+        QString error;
+        QVERIFY(fisherman::cacheDir(e, &error).isEmpty());
+        QVERIFY(error.contains(QStringLiteral("absolute")));
+    }
+}
+
+void BackendTest::fishermanStagingNeedsTheSameBytesOnTheHost()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString source = dir.filePath(QStringLiteral("source"));
+    QFile f(source);
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write("test helper bytes");
+    f.close();
+    QVERIFY(QDir().mkpath(dir.filePath(QStringLiteral("cache"))));
+    QFile::setPermissions(dir.filePath(QStringLiteral("cache")),
+                          QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+    const QString cache = dir.filePath(QStringLiteral("cache/bootc-installer"));
+    const QString target = cache + QStringLiteral("/fisherman");
+    const QByteArray digest = QCryptographicHash::hash("test helper bytes", QCryptographicHash::Sha256).toHex();
+
+    QStringList asked;
+    const auto host = [&](int code, const QByteArray &out) {
+        return [&asked, code, out](const QStringList &argv) {
+            asked = argv;
+            return fisherman::HostResult{code, out};
+        };
+    };
+    // The host sees the same bytes: staged, 0700, and that path is returned.
+    fisherman::Staging s = fisherman::stage(source, cache, host(0, digest + "  " + target.toUtf8() + "\n"));
+    QVERIFY2(s.ok, qPrintable(s.error));
+    QCOMPARE(s.path, target);
+    QCOMPARE(asked, (QStringList{QStringLiteral("sha256sum"), QStringLiteral("--"), target}));
+    struct stat st{};
+    QCOMPARE(::stat(QFile::encodeName(target).constData(), &st), 0);
+    QCOMPARE(int(st.st_mode & 0777), 0700);
+    QFile staged(target);
+    QVERIFY(staged.open(QIODevice::ReadOnly));
+    QCOMPARE(staged.readAll(), QByteArray("test helper bytes"));
+    // The host cannot hash it, or sees other bytes: not usable.
+    s = fisherman::stage(source, cache, host(1, QByteArray()));
+    QVERIFY(!s.ok);
+    QVERIFY(s.path.isEmpty());
+    QVERIFY(!s.error.isEmpty());
+    s = fisherman::stage(source, cache, host(0, QByteArray(64, '0') + "  " + target.toUtf8()));
+    QVERIFY(!s.ok);
+    // No packaged binary: an error, and the host is not asked.
+    asked.clear();
+    QVERIFY(!fisherman::stage(dir.filePath(QStringLiteral("absent")), cache, host(0, digest)).ok);
+    QVERIFY(asked.isEmpty());
+    // A relative cache directory is refused.
+    QVERIFY(!fisherman::stage(source, QStringLiteral("relative"), host(0, digest)).ok);
+}
+
+void BackendTest::fishermanStagingRefusesAnUnsafeDirectory()
+{
+#ifndef Q_OS_UNIX
+    QSKIP("POSIX ownership and modes");
+#else
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString source = dir.filePath(QStringLiteral("source"));
+    QFile f(source);
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write("x");
+    f.close();
+    bool asked = false;
+    const auto host = [&asked](const QStringList &) {
+        asked = true;
+        return fisherman::HostResult{0, QByteArray()};
+    };
+    // A cache directory that is a symlink.
+    QVERIFY(QDir().mkpath(dir.filePath(QStringLiteral("real"))));
+    QVERIFY(QFile::link(dir.filePath(QStringLiteral("real")), dir.filePath(QStringLiteral("link"))));
+    QVERIFY(!fisherman::stage(source, dir.filePath(QStringLiteral("link")), host).ok);
+    // A cache directory others can write to.
+    const QString open = dir.filePath(QStringLiteral("open"));
+    QVERIFY(QDir().mkpath(open));
+    QVERIFY(::chmod(QFile::encodeName(open).constData(), 0777) == 0);
+    QVERIFY(!fisherman::stage(source, open, host).ok);
+    QVERIFY2(!asked, "the host was asked about a directory that was refused");
+#endif
 }
 
 // readiness::writeStamp() was split out from armStamp() specifically so the
@@ -1003,11 +1183,13 @@ void BackendTest::probeFailureOffersNothingAndSaysWhy()
 
 void BackendTest::probeCommandIsUnprivileged()
 {
-    const QStringList host{QStringLiteral("/usr/local/bin/fisherman"), QStringLiteral("probe"),
-                           QStringLiteral("--json")};
-    QCOMPARE(probe::command(false), host);
-    QCOMPARE(probe::command(true),
-             QStringList({QStringLiteral("flatpak-spawn"), QStringLiteral("--host")}) + host);
+    // The probe is the resolver's unprivileged command: never pkexec, sudo
+    // or a shell.
+    for (const bool flatpak : {false, true}) {
+        const QStringList argv = fisherman::resolve(flatpak, false, QStringLiteral("/staged/fisherman")).unprivileged;
+        for (const QString &word : {QStringLiteral("pkexec"), QStringLiteral("sudo"), QStringLiteral("bash")})
+            QVERIFY(!argv.contains(word));
+    }
 }
 
 void BackendTest::streamsKeepSeparatePartialLines()
@@ -1058,7 +1240,7 @@ void BackendTest::flatpakWrapperPassesStdinOutputAndStatusThrough()
     f.close();
     f.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
 
-    QStringList cmd = offline::fishermanCommand(true);
+    QStringList cmd = fisherman::resolve(true, false, QStringLiteral("/usr/local/bin/fisherman")).install;
     cmd.removeFirst(); // flatpak-spawn
     cmd.removeFirst(); // --host
 
@@ -1114,11 +1296,9 @@ void BackendTest::validateAnswersBecomeCopyLines()
 
 void BackendTest::validateSendsAPartialRecipeOnStdin()
 {
-    QCOMPARE(validate::command(false),
-             (QStringList{QStringLiteral("/usr/local/bin/fisherman"), QStringLiteral("validate"),
-                          QStringLiteral("--json"), QStringLiteral("--partial"), QStringLiteral("-")}));
-    QCOMPARE(validate::command(true).mid(0, 2),
-             (QStringList{QStringLiteral("flatpak-spawn"), QStringLiteral("--host")}));
+    QCOMPARE(validate::arguments(),
+             (QStringList{QStringLiteral("validate"), QStringLiteral("--json"),
+                          QStringLiteral("--partial"), QStringLiteral("-")}));
     InstallerController c;
     c.setHostname(QStringLiteral("box"));
     c.setEncryptionType(QStringLiteral("tpm2-luks"));
@@ -1130,6 +1310,10 @@ void BackendTest::validateSendsAPartialRecipeOnStdin()
     partial = QJsonDocument::fromJson(c.partialRecipe()).object();
     QCOMPARE(partial.value(QStringLiteral("encryption")).toObject().value(QStringLiteral("passphrase")).toString(),
              QStringLiteral("s3cret"));
+    // composeFsBackend travels with the filesystem (#287): without it
+    // fisherman cannot say that a composefs image needs fs-verity.
+    QVERIFY(partial.contains(QStringLiteral("composeFsBackend")));
+    QVERIFY(!partial.value(QStringLiteral("composeFsBackend")).toBool());
 }
 
 void BackendTest::liveMediaComesFromTheProbe()
@@ -1207,16 +1391,20 @@ void BackendTest::catalogParseComposesTagsAndInherits()
 {
     const imagecatalog::Catalog catalog = imagecatalog::parse(catalogFixture());
     QCOMPARE(catalog.defaultImage, QStringLiteral("ghcr.io/example/blue:stable"));
-    QCOMPARE(catalog.fallbackFlatpaks, QStringList{QStringLiteral("org.example.Base")});
     QCOMPARE(catalog.leaves.size(), 3);
 
-    // tag+registry composition, with the group-qualified display name.
+    // tag+registry composition; the row title of the flat list is the
+    // breadcrumb, the confirm page's is the label.
     const imagecatalog::Leaf stable = catalog.leaves.at(0);
     QCOMPARE(stable.imgref, QStringLiteral("ghcr.io/example/blue:stable"));
-    QCOMPARE(stable.name, QStringLiteral("Blue — Stable"));
-    // Inherited from the group: the @alias flatpaks, the bootloader, the
-    // user flag — and the group's carousel slides.
-    QCOMPARE(stable.flatpakSource, QStringLiteral("https://example.com/brew.flatpakref"));
+    QCOMPARE(stable.name, QStringLiteral("Stable"));
+    QCOMPARE(stable.breadcrumb, QStringLiteral("Blue \u203a Stable"));
+    QCOMPARE(stable.label, QStringLiteral("Blue Stable"));
+    // Inherited from the group: the bootloader, the user flag and the
+    // group's carousel slides. The @alias names a URL, which this frontend
+    // does not download: no list, so no `flatpaks` key (#296).
+    QVERIFY(!stable.hasFlatpaks);
+    QVERIFY(stable.flatpaks.isEmpty());
     QCOMPARE(stable.bootloader, QStringLiteral("systemd"));
     QVERIFY(stable.needsUserCreation);
     QCOMPARE(stable.carousel.size(), 1);
@@ -1266,17 +1454,11 @@ void BackendTest::catalogLoadPrefersTheEnvOverride()
     const imagecatalog::Catalog catalog = imagecatalog::load();
     qunsetenv(imagecatalog::IMAGES_ENV);
     QCOMPARE(catalog.leaves.size(), 3);
-    QVERIFY2(imagecatalog::defaultSearchPaths(false).contains(
-                 QStringLiteral("/etc/tuna-installer/images.json")),
-             "the XFCE search path is mirrored");
-    QVERIFY2(imagecatalog::defaultSearchPaths(false).contains(
-                 QStringLiteral("/etc/bootc-installer/images.json")),
-             "the GNOME live-ISO fallback is mirrored");
-    QVERIFY2(imagecatalog::defaultSearchPaths(true).contains(
-                 QStringLiteral("/run/host/etc/tuna-installer/images.json")),
-             "the Flatpak host /etc prefix is applied");
-    QVERIFY(!imagecatalog::defaultSearchPaths(false).contains(
-        QStringLiteral("/run/host/etc/tuna-installer/images.json")));
+    // The search path itself is the shared contract's: catalogContractSearchPaths.
+    QCOMPARE(imagecatalog::defaultSearchPaths(false).first(),
+             QStringLiteral("/etc/bootc-installer/images.json"));
+    QCOMPARE(imagecatalog::defaultSearchPaths(true).first(),
+             QStringLiteral("/run/host/etc/bootc-installer/images.json"));
 }
 
 void BackendTest::catalogSelectionDrivesTheRecipeAndTheUserStep()
@@ -1308,11 +1490,12 @@ void BackendTest::catalogSelectionDrivesTheRecipeAndTheUserStep()
     QVERIFY(!c.needsUserCreation());
     QVERIFY(!c.recipe().toJson().contains(QStringLiteral("user")));
     // The group inheritance travelled into the recipe: systemd bootloader,
-    // no composefs, and no flatpaks (the leaf's source is a URL, which keeps
-    // fisherman's fallback — see selectCatalogImage).
+    // no composefs, and no `flatpaks` key (the leaf's source is a URL, so
+    // fisherman applies its own default).
     QCOMPARE(c.recipe().bootloader, QStringLiteral("systemd"));
     QVERIFY(!c.recipe().composeFsBackend);
-    QVERIFY(c.recipe().flatpaks.isEmpty());
+    QVERIFY(!c.recipe().toJson().contains(QStringLiteral("flatpaks")));
+    QCOMPARE(c.recipe().targetImgref, QStringLiteral("ghcr.io/example/blue:beta"));
     QVERIFY(!c.tourSlides().isEmpty());
     // Out-of-range and repeated selections are ignored, not errors.
     c.selectCatalogImage(99);
@@ -1459,6 +1642,824 @@ void BackendTest::tourSlidesFollowTheSelection()
     // The red leaf names none: the done screen hides the carousel.
     c.selectCatalogImage(2);
     QVERIFY(c.tourSlides().isEmpty());
+}
+
+// ---- the shared catalog contract (shared/catalog/README.md) ----------------
+
+static QByteArray readFixture(const QString &path)
+{
+    QFile f(path);
+    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+}
+
+static QByteArray sharedCatalog()
+{
+    return readFixture(QStringLiteral(CATALOG_FIXTURES_DIR "/catalog.json"));
+}
+
+static QJsonObject sharedExpected()
+{
+    return QJsonDocument::fromJson(readFixture(QStringLiteral(CATALOG_FIXTURES_DIR "/expected.json"))).object();
+}
+
+static QStringList strings(const QJsonValue &v)
+{
+    QStringList out;
+    for (const QJsonValue &item : v.toArray())
+        out << item.toString();
+    return out;
+}
+
+// A probe answer for a machine: not the fixtures, so the test owns live
+// media and the offline stores.
+static QByteArray probeAnswer(bool live, const QString &liveImage, const QStringList &offlineImages)
+{
+    return QJsonDocument(QJsonObject{
+        {QStringLiteral("protocol_version"), 1},
+        {QStringLiteral("disks"), QJsonArray{}},
+        {QStringLiteral("tpm"), QJsonObject{{QStringLiteral("usable"), false}}},
+        {QStringLiteral("system"), QJsonObject{{QStringLiteral("unmet"), QJsonArray{}}}},
+        {QStringLiteral("live"), QJsonObject{{QStringLiteral("is_live"), live},
+                                              {QStringLiteral("live_image"), liveImage}}},
+        {QStringLiteral("offline"), QJsonObject{{QStringLiteral("images"), QJsonArray::fromStringList(offlineImages)}}},
+    }).toJson();
+}
+
+static bool writeFile(const QString &path, const QByteArray &data)
+{
+    QDir().mkpath(QFileInfo(path).path());
+    QFile f(path);
+    return f.open(QIODevice::WriteOnly) && f.write(data) == data.size();
+}
+
+// A machine for one controller: the catalog, the probe answer and a /sys
+// with or without an NVIDIA display device. The variables are unset again
+// when this goes out of scope.
+struct Machine {
+    QTemporaryDir dir;
+    Machine(const QByteArray &catalog, bool live, const QString &liveImage,
+            const QStringList &offlineImages, bool nvidia, const QByteArray &branding = QByteArray())
+    {
+        writeFile(dir.filePath(QStringLiteral("images.json")), catalog);
+        writeFile(dir.filePath(QStringLiteral("probe.json")), probeAnswer(live, liveImage, offlineImages));
+        // An Intel display device always; the NVIDIA one on request.
+        writeFile(dir.filePath(QStringLiteral("sys/bus/pci/devices/0000:00:02.0/vendor")), "0x8086\n");
+        writeFile(dir.filePath(QStringLiteral("sys/bus/pci/devices/0000:00:02.0/class")), "0x030000\n");
+        if (nvidia) {
+            writeFile(dir.filePath(QStringLiteral("sys/bus/pci/devices/0000:01:00.0/vendor")), "0x10de\n");
+            writeFile(dir.filePath(QStringLiteral("sys/bus/pci/devices/0000:01:00.0/class")), "0x030200\n");
+        }
+        qputenv(imagecatalog::IMAGES_ENV, dir.filePath(QStringLiteral("images.json")).toUtf8());
+        qputenv("BOOTC_INSTALLER_FAKE_PROBE", dir.filePath(QStringLiteral("probe.json")).toUtf8());
+        qputenv("BOOTC_INSTALLER_SYS_ROOT", dir.filePath(QStringLiteral("sys")).toUtf8());
+        if (!branding.isNull()) {
+            writeFile(dir.filePath(QStringLiteral("branding.json")), branding);
+            qputenv("BOOTC_INSTALLER_BRANDING", dir.filePath(QStringLiteral("branding.json")).toUtf8());
+        }
+    }
+    ~Machine()
+    {
+        qunsetenv(imagecatalog::IMAGES_ENV);
+        qunsetenv("BOOTC_INSTALLER_FAKE_PROBE");
+        qunsetenv("BOOTC_INSTALLER_SYS_ROOT");
+        qunsetenv("BOOTC_INSTALLER_BRANDING");
+    }
+};
+
+void BackendTest::catalogContractSearchPaths()
+{
+    const QJsonArray rows = sharedExpected().value(QStringLiteral("search_paths")).toArray();
+    if (rows.isEmpty())
+        QSKIP("shared/catalog/fixtures is absent");
+    for (const QJsonValue &v : rows) {
+        const QJsonObject row = v.toObject();
+        const bool flatpak = row.value(QStringLiteral("in_flatpak")).toBool();
+        QStringList want = strings(row.value(QStringLiteral("paths")));
+        // "<bundled>" is this frontend's own file: fisherman's catalog, as
+        // the Flatpak manifest and a native package install it.
+        QCOMPARE(want.last(), QStringLiteral("<bundled>"));
+        want.last() = flatpak ? QStringLiteral("/app/share/fisherman/data/images.json")
+                              : QStringLiteral("/usr/share/fisherman/data/images.json");
+        const QString xdg = row.value(QStringLiteral("xdg_config_home")).toString();
+        QCOMPARE(imagecatalog::searchPaths(flatpak, xdg), want);
+        QCOMPARE(imagecatalog::searchPaths(flatpak, xdg + QLatin1Char('/')), want);
+    }
+}
+
+void BackendTest::catalogContractDefaultSelection()
+{
+    const QJsonObject expected = sharedExpected();
+    const QJsonArray rows = expected.value(QStringLiteral("default_selection")).toArray();
+    if (rows.isEmpty())
+        QSKIP("shared/catalog/fixtures is absent");
+    const imagecatalog::Catalog with = imagecatalog::parse(sharedCatalog());
+    QJsonObject stripped = QJsonDocument::fromJson(sharedCatalog()).object();
+    stripped.remove(QStringLiteral("default_image"));
+    const imagecatalog::Catalog without = imagecatalog::parse(QJsonDocument(stripped).toJson());
+    for (const QJsonValue &v : rows) {
+        const QJsonObject row = v.toObject();
+        // A row with an empty catalog default applies to the fixture with
+        // that key removed.
+        const imagecatalog::Catalog &catalog =
+            row.value(QStringLiteral("catalog_default_image")).toString().isEmpty() ? without : with;
+        const int index = catalog.defaultIndex(row.value(QStringLiteral("branding_default_image")).toString());
+        const QJsonValue selected = row.value(QStringLiteral("selected"));
+        if (selected.isNull())
+            QCOMPARE(index, -1); // nothing: never the first row
+        else
+            QCOMPARE(catalog.leaves.value(index).imgref, selected.toString());
+    }
+    // An image the catalog does not have needs an account.
+    const QJsonObject unknown = expected.value(QStringLiteral("unknown_image")).toObject();
+    QCOMPARE(with.needsUserCreation(unknown.value(QStringLiteral("imgref")).toString()),
+             unknown.value(QStringLiteral("needs_user_creation")).toBool());
+    QVERIFY(with.needsUserCreation(QString()));
+    QVERIFY(imagecatalog::Catalog{}.needsUserCreation(QStringLiteral("registry.example/os/atlas:beta")));
+}
+
+void BackendTest::catalogContractLeaves()
+{
+    const QJsonArray rows = sharedExpected().value(QStringLiteral("leaves")).toArray();
+    if (rows.isEmpty())
+        QSKIP("shared/catalog/fixtures is absent");
+    const imagecatalog::Catalog catalog = imagecatalog::parse(sharedCatalog());
+    QVERIFY(catalog.valid);
+    QCOMPARE(catalog.leaves.size(), rows.size());
+    for (int i = 0; i < rows.size(); ++i) {
+        const QJsonObject want = rows.at(i).toObject().value(QStringLiteral("leaf")).toObject();
+        const imagecatalog::Leaf &leaf = catalog.leaves.at(i);
+        const QByteArray where = want.value(QStringLiteral("imgref")).toString().toUtf8();
+        QVERIFY2(leaf.imgref == want.value(QStringLiteral("imgref")).toString(), where);
+        QVERIFY2(leaf.name == want.value(QStringLiteral("name")).toString(), where);
+        QVERIFY2(leaf.product == want.value(QStringLiteral("product")).toString(), where);
+        QVERIFY2(leaf.channel == want.value(QStringLiteral("channel")).toString(), where);
+        QVERIFY2(leaf.label == want.value(QStringLiteral("label")).toString(), where);
+        QVERIFY2(leaf.breadcrumb == want.value(QStringLiteral("breadcrumb")).toString(), where);
+        QVERIFY2(leaf.nvidiaImgref == want.value(QStringLiteral("nvidia_imgref")).toString(), where);
+        QVERIFY2(leaf.bootloader == want.value(QStringLiteral("bootloader")).toString(), where);
+        QVERIFY2(leaf.composefs == want.value(QStringLiteral("composefs")).toBool(), where);
+        QVERIFY2(leaf.filesystem == want.value(QStringLiteral("filesystem")).toString(), where);
+        QVERIFY2(leaf.filesystems == strings(want.value(QStringLiteral("filesystems"))), where);
+        QVERIFY2(leaf.defaultHostname == want.value(QStringLiteral("default_hostname")).toString(), where);
+        QVERIFY2(leaf.flatpakVarPath == want.value(QStringLiteral("flatpak_var_path")).toString(), where);
+        QVERIFY2(leaf.needsUserCreation == want.value(QStringLiteral("needs_user_creation")).toBool(), where);
+        QVERIFY2(leaf.imageType == want.value(QStringLiteral("image_type")).toString(), where);
+        // null: no list this frontend can read offline. [] is a list.
+        const QJsonValue flatpaks = want.value(QStringLiteral("flatpaks"));
+        QVERIFY2(leaf.hasFlatpaks == flatpaks.isArray(), where);
+        QVERIFY2(leaf.flatpaks == strings(flatpaks), where);
+    }
+}
+
+// What recipe_matches() of the reference resolver checks: each key of
+// `recipe` is in the recipe with that value, each key of `absent` is not
+// there. A missing bootloader, composeFsBackend or imageType equals "",
+// false or "bootc".
+static QString recipeProblems(const QJsonObject &recipe, const QJsonObject &fragment)
+{
+    static const QJsonObject empty{{QStringLiteral("bootloader"), QString()},
+                                   {QStringLiteral("composeFsBackend"), false},
+                                   {QStringLiteral("imageType"), QStringLiteral("bootc")}};
+    QStringList problems;
+    const QJsonObject want = fragment.value(QStringLiteral("recipe")).toObject();
+    for (auto it = want.begin(); it != want.end(); ++it) {
+        QJsonValue got = recipe.value(it.key());
+        if (got.isUndefined() && empty.contains(it.key()))
+            got = empty.value(it.key());
+        if (got != it.value())
+            problems << QStringLiteral("%1: expected %2, found %3").arg(
+                it.key(), QString::fromUtf8(QJsonDocument(QJsonArray{it.value()}).toJson(QJsonDocument::Compact)),
+                QString::fromUtf8(QJsonDocument(QJsonArray{got}).toJson(QJsonDocument::Compact)));
+    }
+    for (const QJsonValue &key : fragment.value(QStringLiteral("absent")).toArray()) {
+        if (recipe.contains(key.toString()))
+            problems << QStringLiteral("%1: must be left out").arg(key.toString());
+    }
+    return problems.join(QStringLiteral("; "));
+}
+
+void BackendTest::catalogContractRecipes()
+{
+    const QJsonArray rows = sharedExpected().value(QStringLiteral("leaves")).toArray();
+    if (rows.isEmpty())
+        QSKIP("shared/catalog/fixtures is absent");
+    const imagecatalog::Catalog catalog = imagecatalog::parse(sharedCatalog());
+    int controllerCases = 0;
+    int liveCases = 0;
+    for (int i = 0; i < rows.size(); ++i) {
+        const QJsonObject row = rows.at(i).toObject();
+        for (const QJsonValue &c : row.value(QStringLiteral("cases")).toArray()) {
+            const QJsonObject fragment = c.toObject();
+            const QJsonObject in = fragment.value(QStringLiteral("inputs")).toObject();
+            const bool nvidia = in.value(QStringLiteral("has_nvidia")).toBool();
+            const bool live = in.value(QStringLiteral("is_live")).toBool();
+            const QStringList offlineImages = strings(in.value(QStringLiteral("offline_images")));
+            const QByteArray where = (row.value(QStringLiteral("imgref")).toString() + QLatin1Char(' ')
+                                      + QString::fromUtf8(QJsonDocument(in).toJson(QJsonDocument::Compact))).toUtf8();
+
+            // The NVIDIA table, for every machine of the fixture.
+            const imagecatalog::ImageChoice choice =
+                imagecatalog::sourceAndTarget(catalog.leaves.at(i), nvidia, live, offlineImages);
+            const QJsonObject want = fragment.value(QStringLiteral("recipe")).toObject();
+            QVERIFY2(choice.image == want.value(QStringLiteral("image")).toString(), where);
+            QVERIFY2(choice.targetImgref == want.value(QStringLiteral("targetImgref")).toString(), where);
+
+            // The whole recipe, through the controller the wizard uses: the
+            // user selects the leaf and changes nothing. On live media this
+            // frontend shows no catalog (fisherman installs the running
+            // system), so the live rows end at the table above.
+            if (live) {
+                ++liveCases;
+                continue;
+            }
+            Machine machine(sharedCatalog(), false, QString(), offlineImages, nvidia);
+            InstallerController controller;
+            controller.selectCatalogImage(i);
+            QCOMPARE(controller.catalogIndex(), i);
+            const QString problems = recipeProblems(controller.recipe().toJson(), fragment);
+            QVERIFY2(problems.isEmpty(), where + ": " + problems.toUtf8());
+            // The account follows the leaf's flag.
+            QVERIFY2(controller.needsUserCreation()
+                         == row.value(QStringLiteral("leaf")).toObject().value(QStringLiteral("needs_user_creation")).toBool(),
+                     where);
+            ++controllerCases;
+        }
+    }
+    QVERIFY(controllerCases >= rows.size());
+    QVERIFY2(liveCases > 0, "the fixture has no live-media row for the NVIDIA table");
+}
+
+void BackendTest::catalogBrandingDefaultWinsInTheController()
+{
+    if (sharedCatalog().isEmpty())
+        QSKIP("shared/catalog/fixtures is absent");
+    // The catalog's default_image alone.
+    {
+        Machine machine(sharedCatalog(), false, QString(), {}, false, QByteArray("{}"));
+        InstallerController c;
+        QCOMPARE(c.image(), QStringLiteral("registry.example/os/atlas:stable"));
+        QCOMPARE(c.imageLabel(), QStringLiteral("Atlas Stable"));
+        // The list is flat: each row's title is the breadcrumb.
+        QCOMPARE(c.catalogNames().value(2), QStringLiteral("Atlas › Atlas DX › Latest"));
+    }
+    // The branding's default_image wins over it.
+    {
+        Machine machine(sharedCatalog(), false, QString(), {}, false,
+                        QByteArray(R"({"default_image": "registry.example/os/atlas:beta"})"));
+        InstallerController c;
+        QCOMPARE(c.image(), QStringLiteral("registry.example/os/atlas:beta"));
+        QVERIFY(!c.needsUserCreation());
+    }
+    // Neither names a leaf: nothing is selected, never the first row.
+    {
+        QJsonObject stripped = QJsonDocument::fromJson(sharedCatalog()).object();
+        stripped.remove(QStringLiteral("default_image"));
+        Machine machine(QJsonDocument(stripped).toJson(), false, QString(), {}, false,
+                        QByteArray(R"({"default_image": "registry.example/os/not-in-the-catalog:1"})"));
+        InstallerController c;
+        QVERIFY(c.hasCatalog());
+        QCOMPARE(c.catalogIndex(), -1);
+        QVERIFY(c.imageLabel().isEmpty());
+    }
+}
+
+void BackendTest::catalogLoadSkipsAFileThatIsNoCatalog()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QVERIFY(writeFile(dir.filePath(QStringLiteral("broken.json")), "{ not json"));
+    QVERIFY(writeFile(dir.filePath(QStringLiteral("no-images.json")), R"({"default_image": "x"})"));
+    QVERIFY(writeFile(dir.filePath(QStringLiteral("first.json")),
+                      R"({"images": [{"name": "First", "imgref": "example/first:1"}]})"));
+    QVERIFY(writeFile(dir.filePath(QStringLiteral("second.json")),
+                      R"({"images": [{"name": "Second", "imgref": "example/second:1"}]})"));
+    // A file that is missing or is no catalog does not stop the search; the
+    // first catalog is used, an empty `images` list included.
+    const imagecatalog::Catalog catalog = imagecatalog::loadFirst({
+        dir.filePath(QStringLiteral("absent.json")), dir.filePath(QStringLiteral("broken.json")),
+        dir.filePath(QStringLiteral("no-images.json")), dir.filePath(QStringLiteral("first.json")),
+        dir.filePath(QStringLiteral("second.json"))});
+    QCOMPARE(catalog.leaves.size(), 1);
+    QCOMPARE(catalog.leaves.first().imgref, QStringLiteral("example/first:1"));
+    QVERIFY(!imagecatalog::loadFirst({dir.filePath(QStringLiteral("absent.json"))}).valid);
+    QVERIFY(imagecatalog::parse(R"({"images": []})").valid);
+}
+
+void BackendTest::catalogLiveMediaReadsTheLeafOfTheLiveImage()
+{
+    if (sharedCatalog().isEmpty())
+        QSKIP("shared/catalog/fixtures is absent");
+    // The live image is a leaf that needs no account. It is not the first
+    // leaf of the catalog, whose flag the old code read (#288).
+    {
+        Machine machine(sharedCatalog(), true, QStringLiteral("registry.example/os/boreal:latest"), {}, false);
+        InstallerController c;
+        QVERIFY(c.isLive());
+        QVERIFY(!c.needsUserCreation());
+        const QJsonObject recipe = c.recipe().toJson();
+        // The image stays out: fisherman installs the running system. What
+        // fisherman cannot read from the image comes from the leaf (#287).
+        QVERIFY(!recipe.contains(QStringLiteral("image")));
+        QVERIFY(recipe.value(QStringLiteral("composeFsBackend")).toBool());
+        QCOMPARE(recipe.value(QStringLiteral("filesystem")).toString(), QStringLiteral("btrfs"));
+        QCOMPARE(recipe.value(QStringLiteral("bootloader")).toString(), QStringLiteral("systemd"));
+        QCOMPARE(c.filesystemChoices(), (QStringList{QStringLiteral("btrfs"), QStringLiteral("ext4")}));
+        c.setUsername(QStringLiteral("alex"));
+        QVERIFY(!c.recipe().toJson().contains(QStringLiteral("user")));
+    }
+    // The first leaf needs an account, the live image's does not.
+    {
+        Machine machine(sharedCatalog(), true, QStringLiteral("registry.example/os/atlas:beta"), {}, false);
+        QVERIFY(!InstallerController().needsUserCreation());
+    }
+    // An image the catalog does not have needs an account, whatever the
+    // other leaves say.
+    {
+        Machine machine(sharedCatalog(), true, QStringLiteral("registry.example/os/not-in-the-catalog:1"), {}, false);
+        InstallerController c;
+        QVERIFY(c.needsUserCreation());
+        QCOMPARE(c.filesystemChoices(), InstallerController::ownFilesystems());
+    }
+}
+
+void BackendTest::catalogSelectionReplacesThePreviousLeaf()
+{
+    if (sharedCatalog().isEmpty())
+        QSKIP("shared/catalog/fixtures is absent");
+    Machine machine(sharedCatalog(), false, QString(), {}, false, QByteArray("{}"));
+    InstallerController c;
+    const QStringList refs = c.catalogImgrefs();
+    const auto select = [&](const char *ref) { c.selectCatalogImage(refs.indexOf(QLatin1String(ref))); };
+
+    // #287: a composefs leaf brings its filesystem; xfs does not stay.
+    select("registry.example/os/boreal:latest");
+    QVERIFY(c.recipe().composeFsBackend);
+    QCOMPARE(c.filesystem(), QStringLiteral("btrfs"));
+    QCOMPARE(c.filesystemChoices(), (QStringList{QStringLiteral("btrfs"), QStringLiteral("ext4")}));
+    QCOMPARE(c.hostname(), QStringLiteral("boreal"));
+    QCOMPARE(c.recipe().flatpakVarPath, QStringLiteral("state/os/default/var"));
+    // The user picks the other choice; the partial recipe carries both
+    // fields to fisherman.
+    c.setFilesystem(QStringLiteral("ext4"));
+    QJsonObject partial = QJsonDocument::fromJson(c.partialRecipe()).object();
+    QVERIFY(partial.value(QStringLiteral("composeFsBackend")).toBool());
+    QCOMPARE(partial.value(QStringLiteral("filesystem")).toString(), QStringLiteral("ext4"));
+
+    // A leaf that sets nothing: no bootloader, composefs, var path or
+    // filesystem of the leaf before it stays, and the hostname goes back
+    // to the branding's.
+    const QString brandingHostname = InstallerController().hostname();
+    select("registry.example/os/cirrus:1");
+    const QJsonObject recipe = c.recipe().toJson();
+    QVERIFY(!recipe.contains(QStringLiteral("bootloader")));
+    QVERIFY(!recipe.contains(QStringLiteral("composeFsBackend")));
+    QVERIFY(!recipe.contains(QStringLiteral("flatpakVarPath")));
+    QVERIFY(!recipe.contains(QStringLiteral("flatpaks")));
+    QCOMPARE(c.filesystem(), InstallerController::ownFilesystems().first());
+    QCOMPARE(c.filesystemChoices(), InstallerController::ownFilesystems());
+    QVERIFY(c.filesystemChoices().size() > 1);
+    QVERIFY(c.needsUserCreation());
+    QVERIFY(c.hostname() != QStringLiteral("boreal"));
+
+    // One choice only: the disk step shows no picker.
+    select("registry.example/os/atlas:stable");
+    QCOMPARE(c.filesystemChoices(), QStringList{QStringLiteral("xfs")});
+    // [] is a list: "copy no Flatpak" reaches the recipe as [].
+    select("registry.example/os/atlas:beta");
+    QVERIFY(c.recipe().toJson().contains(QStringLiteral("flatpaks")));
+    QVERIFY(c.recipe().toJson().value(QStringLiteral("flatpaks")).toArray().isEmpty());
+    // A hostname the user set is not replaced by the next leaf's.
+    c.setHostname(QStringLiteral("my-box"));
+    select("registry.example/os/boreal:latest");
+    QCOMPARE(c.hostname(), QStringLiteral("my-box"));
+}
+
+void BackendTest::catalogNvidiaDetection()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString devices = dir.filePath(QStringLiteral("bus/pci/devices"));
+    QVERIFY(!imagecatalog::hasNvidiaGpu(dir.path())); // no PCI bus at all
+    // An NVIDIA device that is not a display controller (its audio
+    // function) is not a GPU.
+    QVERIFY(writeFile(devices + QStringLiteral("/0000:01:00.1/vendor"), "0x10de\n"));
+    QVERIFY(writeFile(devices + QStringLiteral("/0000:01:00.1/class"), "0x040300\n"));
+    QVERIFY(writeFile(devices + QStringLiteral("/0000:00:02.0/vendor"), "0x8086\n"));
+    QVERIFY(writeFile(devices + QStringLiteral("/0000:00:02.0/class"), "0x030000\n"));
+    QVERIFY(!imagecatalog::hasNvidiaGpu(dir.path()));
+    QVERIFY(writeFile(devices + QStringLiteral("/0000:01:00.0/vendor"), "0x10de\n"));
+    QVERIFY(writeFile(devices + QStringLiteral("/0000:01:00.0/class"), "0x030200\n"));
+    QVERIFY(imagecatalog::hasNvidiaGpu(dir.path()));
+
+    QCOMPARE(imagecatalog::registryHost(QStringLiteral("ghcr.io/owner/image:tag")), QStringLiteral("ghcr.io"));
+    QCOMPARE(imagecatalog::registryHost(QStringLiteral("registry.example:5000/os/atlas:1")), QStringLiteral("registry.example"));
+    QCOMPARE(imagecatalog::registryHost(QStringLiteral("localhost/os:1")), QStringLiteral("localhost"));
+    QVERIFY(imagecatalog::registryHost(QStringLiteral("library/ubuntu:26.04")).isEmpty());
+    QVERIFY(imagecatalog::registryHost(QStringLiteral("ubuntu")).isEmpty());
+    QVERIFY(imagecatalog::registryHost(QString()).isEmpty());
+}
+
+void BackendTest::catalogFilesystemProblemReachesTheDiskStep()
+{
+    InstallerController c;
+    QVERIFY(c.filesystemProblem().isEmpty());
+    // fisherman's answer for a composefs image on xfs (rules.go): the
+    // problem is against composeFsBackend, and the disk step shows it in
+    // the copy's words.
+    c.applyValidateAnswer(R"({"protocol_version": 1, "valid": false, "errors": [
+        {"field": "composeFsBackend", "code": "composefs_requires_fsverity",
+         "message": "composefs-backend requires fs-verity"}]})");
+    QCOMPARE(c.filesystemProblem(), c.text(QStringLiteral("validate_composefs_requires_fsverity")));
+    QVERIFY(!c.filesystemProblem().isEmpty());
+    c.applyValidateAnswer(R"({"protocol_version": 1, "valid": false, "errors": [
+        {"field": "filesystem", "code": "filesystem_unsupported", "message": "no"}]})");
+    QCOMPARE(c.filesystemProblem(), c.text(QStringLiteral("validate_filesystem_unsupported")));
+    c.applyValidateAnswer(R"({"protocol_version": 1, "valid": true, "errors": []})");
+    QVERIFY(c.filesystemProblem().isEmpty());
+}
+
+// ---- the first account's groups (shared/account/README.md, #302) -----------
+
+void BackendTest::accountGroupsAreTheSharedFile()
+{
+    const QByteArray shared = readFixture(QStringLiteral(SHARED_GROUPS_FILE));
+    if (shared.isEmpty())
+        QSKIP("shared/account/groups.json is absent");
+    // Byte for byte: the compiled-in copy cannot drift from the shared file.
+    QCOMPARE(account::groupsJson(), shared);
+    QCOMPARE(account::defaultGroups(),
+             strings(QJsonDocument::fromJson(shared).object().value(QStringLiteral("default_groups"))));
+    QVERIFY(account::defaultGroups().size() > 1);
+    QCOMPARE(Recipe{}.user.groups, account::defaultGroups());
+    QCOMPARE(account::operatorRecipePath(false), QStringLiteral("/etc/bootc-installer/recipe.json"));
+    QCOMPARE(account::operatorRecipePath(true), QStringLiteral("/run/host/etc/bootc-installer/recipe.json"));
+}
+
+void BackendTest::accountGroupCases()
+{
+    const QJsonArray cases = QJsonDocument::fromJson(readFixture(QStringLiteral(SHARED_GROUPS_FILE)))
+                                 .object().value(QStringLiteral("cases")).toArray();
+    if (cases.isEmpty())
+        QSKIP("shared/account/groups.json is absent");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    for (const QJsonValue &v : cases) {
+        const QJsonObject c = v.toObject();
+        const QByteArray name = c.value(QStringLiteral("name")).toString().toUtf8();
+        const QJsonValue file = c.value(QStringLiteral("operator_recipe"));
+        const QStringList want = strings(c.value(QStringLiteral("groups")));
+        const QString path = dir.filePath(QStringLiteral("recipe.json"));
+        QFile::remove(path);
+        if (file.isNull()) {
+            QVERIFY2(account::groups(QByteArray()) == want, name);
+        } else {
+            const QByteArray json = QJsonDocument(file.toObject()).toJson();
+            QVERIFY2(account::groups(json) == want, name);
+            QVERIFY(writeFile(path, json));
+        }
+        // The same through the file, as the controller reads it.
+        QVERIFY2(account::groupsFromFile(path) == want, name);
+    }
+    // A file that does not parse is the default list.
+    QVERIFY(writeFile(dir.filePath(QStringLiteral("bad.json")), "{ not json"));
+    QCOMPARE(account::groupsFromFile(dir.filePath(QStringLiteral("bad.json"))), account::defaultGroups());
+}
+
+// ---- cancel (#299) ----------------------------------------------------------
+
+// "R", "S", "Z", ... for a live or zombie pid; 0 when it is gone.
+static char processState(qint64 pid)
+{
+    QFile f(QStringLiteral("/proc/%1/stat").arg(pid));
+    if (!f.open(QIODevice::ReadOnly))
+        return 0;
+    const QByteArray stat = f.readAll();
+    const int close = stat.lastIndexOf(')');
+    return close >= 0 && close + 2 < stat.size() ? stat.at(close + 2) : 0;
+}
+
+void BackendTest::cancelSignalsTheGroupAndIsNotACrash()
+{
+#if !QT_CONFIG(process) || !defined(Q_OS_UNIX)
+    QSKIP("needs QProcess and POSIX process groups");
+#else
+    InstallerController c;
+    QSignalSpy done(&c, &InstallerController::installCompleted);
+    // A stand-in for the wrapper: bash with a child, as bash has pkexec or
+    // sudo under it. The child's pid is the first line of output.
+    c.launch({QStringLiteral("bash"), QStringLiteral("-c"), QStringLiteral("sleep 300 & echo child=$!; wait")},
+             QByteArray("{}"));
+    QVERIFY(c.installing());
+    static const QRegularExpression childLine(QStringLiteral("child=(\\d+)"));
+    qint64 child = 0;
+    for (int i = 0; i < 50 && child == 0; ++i) {
+        QVERIFY(!c.waitForInstall(100));
+        child = childLine.match(c.log()).captured(1).toLongLong();
+    }
+    QVERIFY2(child > 0, "the stand-in wrapper printed no child pid");
+    QVERIFY(processState(child) != 0 && processState(child) != 'Z');
+
+    c.cancelInstall();
+    QVERIFY(c.waitForInstall(5000));
+    QCOMPARE(done.count(), 1);
+    // Killed by a signal after a cancel: cancelled, not "fisherman crashed".
+    QVERIFY(c.cancelled());
+    QVERIFY(!c.succeeded());
+    QCOMPARE(c.exitCode(), 130);
+    QVERIFY2(c.log().contains(QStringLiteral("Installation cancelled.")), qPrintable(c.log()));
+    QVERIFY2(!c.log().contains(QStringLiteral("crashed")), qPrintable(c.log()));
+    // The signal went to the whole group: the wrapper's child is gone too.
+    // Signalling the wrapper's pid alone left it running.
+    char state = processState(child);
+    for (int i = 0; i < 50 && state != 0 && state != 'Z'; ++i) {
+        QTest::qSleep(100);
+        state = processState(child);
+    }
+    QVERIFY2(state == 0 || state == 'Z', "the wrapper's child survived the cancel");
+    // This test's own group was not signalled, or it would not be here.
+
+    // A wrapper that ends with its own exit code after the cancel is
+    // cancelled too.
+    InstallerController second;
+    second.launch({QStringLiteral("bash"), QStringLiteral("-c"),
+                   QStringLiteral("trap 'exit 3' TERM; echo trap-is-\"\"set; sleep 300 & wait")}, QByteArray("{}"));
+    // The marker is not in the command line the log repeats, so this waits
+    // for the trap, not for the "Running:" line.
+    for (int i = 0; i < 50 && !second.log().contains(QStringLiteral("trap-is-set")); ++i)
+        QVERIFY(!second.waitForInstall(100));
+    second.cancelInstall();
+    QVERIFY(second.waitForInstall(5000));
+    QVERIFY(second.cancelled());
+    QCOMPARE(second.exitCode(), 130);
+#endif
+}
+
+void BackendTest::exitCode130IsCancelled()
+{
+#if !QT_CONFIG(process)
+    QSKIP("needs QProcess");
+#else
+    // fisherman's own "cancelled" exit code, with no cancel from this side
+    // (the user stopped it some other way).
+    InstallerController c;
+    c.launch({QStringLiteral("bash"), QStringLiteral("-c"), QStringLiteral("exit 130")}, QByteArray("{}"));
+    QVERIFY(c.waitForInstall(5000));
+    QVERIFY(c.cancelled());
+    QVERIFY(!c.succeeded());
+    QVERIFY(!c.log().contains(QStringLiteral("failed")));
+    // The screenshot hook takes the same path.
+    InstallerController demo;
+    demo.loadDemoState(QString(), 130);
+    QVERIFY(demo.cancelled());
+    demo.loadDemoState(QString(), 1);
+    QVERIFY(!demo.cancelled());
+    demo.loadDemoState(QString(), 0);
+    QVERIFY(demo.succeeded() && !demo.cancelled());
+#endif
+}
+
+void BackendTest::anEndWithoutCancelIsStillAFailure()
+{
+#if !QT_CONFIG(process) || !defined(Q_OS_UNIX)
+    QSKIP("needs QProcess and POSIX signals");
+#else
+    InstallerController failed;
+    failed.launch({QStringLiteral("bash"), QStringLiteral("-c"), QStringLiteral("exit 3")}, QByteArray("{}"));
+    QVERIFY(failed.waitForInstall(5000));
+    QVERIFY(!failed.cancelled());
+    QVERIFY(!failed.succeeded());
+    QCOMPARE(failed.exitCode(), 3);
+    // A signal nobody here sent is a crash, and is reported as one.
+    InstallerController crashed;
+    crashed.launch({QStringLiteral("bash"), QStringLiteral("-c"), QStringLiteral("kill -SEGV $$")}, QByteArray("{}"));
+    QVERIFY(crashed.waitForInstall(5000));
+    QVERIFY(!crashed.cancelled());
+    QVERIFY(crashed.log().contains(QStringLiteral("crashed")));
+    // A cancel that arrives after a successful end changes nothing.
+    InstallerController ok;
+    ok.launch({QStringLiteral("bash"), QStringLiteral("-c"), QStringLiteral("exit 0")}, QByteArray("{}"));
+    QVERIFY(ok.waitForInstall(5000));
+    ok.cancelInstall();
+    QVERIFY(ok.succeeded());
+    QVERIFY(!ok.cancelled());
+#endif
+}
+
+// ---- the QML sources ---------------------------------------------------------
+
+// A QML file without its comments. Strings are kept, so "//" inside one is
+// not a comment.
+static QString qmlCode(const QString &text)
+{
+    QString out;
+    bool inString = false;
+    for (int i = 0; i < text.size(); ++i) {
+        const QChar ch = text.at(i);
+        if (inString) {
+            out += ch;
+            if (ch == QLatin1Char('\\') && i + 1 < text.size())
+                out += text.at(++i);
+            else if (ch == QLatin1Char('"'))
+                inString = false;
+        } else if (ch == QLatin1Char('"')) {
+            inString = true;
+            out += ch;
+        } else if (ch == QLatin1Char('/') && text.mid(i, 2) == QLatin1String("//")) {
+            while (i < text.size() && text.at(i) != QLatin1Char('\n'))
+                ++i;
+            out += QLatin1Char('\n');
+        } else if (ch == QLatin1Char('/') && text.mid(i, 2) == QLatin1String("/*")) {
+            const int end = text.indexOf(QLatin1String("*/"), i + 2);
+            const QString comment = text.mid(i, end < 0 ? -1 : end + 2 - i);
+            out += QString(comment.count(QLatin1Char('\n')), QLatin1Char('\n'));
+            i += comment.size() - 1;
+        } else {
+            out += ch;
+        }
+    }
+    return out;
+}
+
+// The lint (#300): string literals in a text, label or title property that
+// are not the argument of qsTr(). Returns "line: literal" for each.
+static QStringList bareUserStrings(const QString &qml)
+{
+    // The properties a person reads.
+    static const QSet<QString> textKeys{
+        QStringLiteral("text"), QStringLiteral("label"), QStringLiteral("title"),
+        QStringLiteral("subtitle"), QStringLiteral("description"), QStringLiteral("placeholderText"),
+        QStringLiteral("statusMessage"), QStringLiteral("displayText"), QStringLiteral("name"),
+        QStringLiteral("Accessible.name"), QStringLiteral("Accessible.description"),
+        QStringLiteral("ToolTip.text"), QStringLiteral("toolTip")};
+    static const QRegularExpression lineKey(QStringLiteral("^\\s*([A-Za-z_][\\w.]*)\\s*:"));
+    static const QRegularExpression inlineKey(QStringLiteral("([A-Za-z_][\\w.]*)\\s*:\\s*[^;{:]*$"));
+    static const QRegularExpression literal(QStringLiteral("\"((?:[^\"\\\\]|\\\\.)*)\""));
+    static const QRegularExpression words(QStringLiteral("[A-Za-z]{2,}"));
+    static const QRegularExpression copyKey(QStringLiteral("^[a-z0-9_]+$"));
+    static const QRegularExpression oneLineObject(QStringLiteral("^\\s*[A-Z][\\w.]*\\s*\\{.*\\}\\s*$"));
+
+    QStringList problems;
+    QString current; // the property whose value the line continues
+    const QStringList lines = qmlCode(qml).split(QLatin1Char('\n'));
+    for (int n = 0; n < lines.size(); ++n) {
+        const QString &line = lines.at(n);
+        const QString trimmed = line.trimmed();
+        const QRegularExpressionMatch own = lineKey.match(line);
+        const bool object = oneLineObject.match(line).hasMatch();
+        if (own.hasMatch())
+            current = own.captured(1);
+        else if (trimmed.isEmpty() || trimmed.endsWith(QLatin1Char('{')) || trimmed.startsWith(QLatin1Char('}')))
+            current.clear();
+
+        QRegularExpressionMatchIterator it = literal.globalMatch(line);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            const QString value = m.captured(1);
+            const QString before = line.left(m.capturedStart()).trimmed();
+            // `ListElement { stepId: "x"; name: qsTr("X") }`: each literal
+            // belongs to the key written before it.
+            QString key = current;
+            if (object)
+                key = inlineKey.match(line.left(m.capturedStart())).captured(1);
+            if (!textKeys.contains(key))
+                continue;
+            if (!words.match(value).hasMatch())
+                continue; // punctuation, a separator, an empty string
+            if (before.endsWith(QLatin1String("qsTr(")))
+                continue;
+            // A branding copy key, the argument of InstallerController.text().
+            if (copyKey.match(value).hasMatch() && line.contains(QLatin1String(".text(")))
+                continue;
+            // A comparison, an index or markup is not a sentence.
+            if (before.endsWith(QLatin1String("===")) || before.endsWith(QLatin1String("!=="))
+                || before.endsWith(QLatin1Char('[')) || value.startsWith(QLatin1Char('<'))
+                || value.startsWith(QLatin1String("\\\"")))
+                continue;
+            problems << QStringLiteral("%1: \"%2\"").arg(n + 1).arg(value);
+        }
+        if (trimmed.endsWith(QLatin1Char('}')) || trimmed.endsWith(QLatin1Char(';')))
+            current.clear();
+    }
+    return problems;
+}
+
+static QStringList qmlSources()
+{
+    QStringList out;
+    for (const QString &root : {QStringLiteral(KDE_SOURCE_DIR "/src/qml"), QStringLiteral(KDE_SOURCE_DIR "/modules")}) {
+        QDirIterator it(root, {QStringLiteral("*.qml")}, QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext())
+            out << it.next();
+    }
+    out.sort();
+    return out;
+}
+
+void BackendTest::qmlStringsGoThroughQsTr()
+{
+    // The lint finds what it is for, in each shape the pages use.
+    QCOMPARE(bareUserStrings(QStringLiteral("Label {\n    text: \"Bare words\"\n}\n")).size(), 1);
+    QCOMPARE(bareUserStrings(QStringLiteral("Button {\n    text: ok ? qsTr(\"Yes\")\n        : \"No way\"\n}\n")),
+             QStringList{QStringLiteral("3: \"No way\"")});
+    QCOMPARE(bareUserStrings(QStringLiteral("X {\n    label: \"Pass\" + word\n    placeholderText: \"Search images\"\n}\n")).size(), 2);
+    QCOMPARE(bareUserStrings(QStringLiteral("    ListElement { stepId: \"welcome\"; name: \"Welcome\"; url: \"a/b.qml\" }\n")),
+             QStringList{QStringLiteral("1: \"Welcome\"")});
+    QCOMPARE(bareUserStrings(QStringLiteral("D {\n    title: \"Exit installer?\"\n    Accessible.name: \"Step \" + n\n}\n")).size(), 2);
+    // And leaves alone what is not a sentence for a person.
+    QVERIFY(bareUserStrings(QStringLiteral(
+        "Label {\n    objectName: \"someName\"\n    icon.name: \"dialog-cancel\"\n"
+        "    text: qsTr(\"Step %1 of %2\").arg(a).arg(b)\n"
+        "    description: InstallerController.text(removable ? \"confirm_warning_removable\" : \"confirm_warning\", disk)\n"
+        "    title: a === \"confirm\" ? InstallerController.text(\"confirm_title\") : qsTr(\"Other\")\n"
+        "    // text: \"a comment\"\n"
+        "    label: x + \" \\u2014 \" + y\n"
+        "    onClicked: {\n        console.log(\"not a property a person reads\");\n    }\n}\n")).isEmpty());
+
+    const QStringList files = qmlSources();
+    QVERIFY2(files.size() >= 9, "the QML sources were not found");
+    QStringList problems;
+    int translated = 0;
+    for (const QString &path : files) {
+        const QString text = QString::fromUtf8(readFixture(path));
+        translated += text.count(QStringLiteral("qsTr("));
+        for (const QString &p : bareUserStrings(text))
+            problems << QDir(QStringLiteral(KDE_SOURCE_DIR)).relativeFilePath(path) + QLatin1Char(':') + p;
+    }
+    QVERIFY2(problems.isEmpty(),
+             qPrintable(QStringLiteral("wrap these in qsTr() (#300):\n  ") + problems.join(QStringLiteral("\n  "))));
+    // Not vacuous: the pages do have strings, and they are wrapped.
+    QVERIFY2(translated > 50, qPrintable(QStringLiteral("only %1 qsTr() calls").arg(translated)));
+}
+
+void BackendTest::cancelAsksFirstInTheQml()
+{
+    // The progress step's Cancel opens the dialog; only the dialog's own
+    // action, and the exit dialog of the window, stop the install (#299).
+    // The capture harness clicks the button and reads the dialog; this
+    // holds the wiring from the other side.
+    const QString progress = qmlCode(QString::fromUtf8(
+        readFixture(QStringLiteral(KDE_SOURCE_DIR "/modules/progress/contents/ui/main.qml"))));
+    QVERIFY(!progress.isEmpty());
+    static const QRegularExpression button(
+        QStringLiteral("objectName: \"cancelInstallButton\"[^}]*onClicked: cancelDialog\\.open\\(\\)"));
+    QVERIFY2(button.match(progress).hasMatch(), "Cancel does not open the confirmation");
+    QCOMPARE(progress.count(QStringLiteral("cancelInstall()")), 1);
+    QVERIFY(progress.indexOf(QStringLiteral("cancelInstall()")) > progress.indexOf(QStringLiteral("cancelConfirmStop")));
+    QVERIFY(progress.indexOf(QStringLiteral("cancelInstall()")) < progress.indexOf(QStringLiteral("cancelConfirmKeep")));
+    // No other page stops an install.
+    for (const QString &path : qmlSources()) {
+        if (path.endsWith(QStringLiteral("progress/contents/ui/main.qml")) || path.endsWith(QStringLiteral("/Main.qml")))
+            continue;
+        QVERIFY2(!qmlCode(QString::fromUtf8(readFixture(path))).contains(QStringLiteral("cancelInstall")),
+                 qPrintable(path));
+    }
+    // The cancelled page's heading is the branding copy key.
+    const QString done = qmlCode(QString::fromUtf8(
+        readFixture(QStringLiteral(KDE_SOURCE_DIR "/modules/done/contents/ui/main.qml"))));
+    QVERIFY(done.contains(QStringLiteral("InstallerController.text(\"done_cancelled_title\")")));
+    QVERIFY(!InstallerController().text(QStringLiteral("done_cancelled_title")).isEmpty());
+}
+
+void BackendTest::confirmPageListsNoLocaleRows()
+{
+    // #292: nothing writes the language, keyboard or time zone to the
+    // installed system, so the page that lists what the install does must
+    // not list them. The welcome step says that its pickers are not applied.
+    const QString confirm = qmlCode(QString::fromUtf8(
+        readFixture(QStringLiteral(KDE_SOURCE_DIR "/modules/confirm/contents/ui/main.qml"))));
+    QVERIFY(!confirm.isEmpty());
+    for (const QString &word : {QStringLiteral("language"), QStringLiteral("keyboardLayout"), QStringLiteral("timezone")})
+        QVERIFY2(!confirm.contains(word, Qt::CaseInsensitive), qPrintable(word));
+    const QString welcome = qmlCode(QString::fromUtf8(
+        readFixture(QStringLiteral(KDE_SOURCE_DIR "/modules/welcome/contents/ui/main.qml"))));
+    QVERIFY(welcome.contains(QStringLiteral("regionNotApplied")));
+}
+
+void BackendTest::connectivityTriesTheImageRegistryFirst()
+{
+    // The registry of the selected image, then the shared targets (#301).
+    const QList<region::Target> targets = region::connectivityTargets(QStringLiteral("quay.io"));
+    QCOMPARE(targets.size(), 3);
+    QCOMPARE(targets.at(0), (region::Target{QStringLiteral("quay.io"), 443}));
+    QCOMPARE(targets.at(1), (region::Target{QStringLiteral("ghcr.io"), 443}));
+    QCOMPARE(targets.at(2), (region::Target{QStringLiteral("8.8.8.8"), 53}));
+    // No registry in the reference, or the shared one: no row twice.
+    QCOMPARE(region::connectivityTargets(QString()).size(), 2);
+    QCOMPARE(region::connectivityTargets(QStringLiteral("ghcr.io")).size(), 2);
+    QVERIFY(!region::networkReachable({region::Target{QStringLiteral("nonexistent.invalid"), 443}}));
+    QVERIFY(!region::networkReachable({}));
+    // The settings tool is the desktop's, and the page offers the action
+    // next to Retry on the two steps that gate on the network.
+    const QStringList settings = region::networkSettingsCommand();
+    QVERIFY(settings.last().startsWith(QStringLiteral("kcmshell6 kcm_networkmanagement")));
+    const QString gate = qmlCode(QString::fromUtf8(readFixture(QStringLiteral(KDE_SOURCE_DIR "/src/qml/NetworkGate.qml"))));
+    QVERIFY(gate.contains(QStringLiteral("InstallerController.openNetworkSettings()")));
+    for (const char *step : {"welcome", "confirm"}) {
+        const QString page = qmlCode(QString::fromUtf8(
+            readFixture(QStringLiteral(KDE_SOURCE_DIR "/modules/%1/contents/ui/main.qml").arg(QLatin1String(step)))));
+        QVERIFY2(page.contains(QStringLiteral("NetworkGate {")), step);
+        QVERIFY2(page.contains(QStringLiteral("!networkGate.blocked")), step);
+    }
 }
 
 QTEST_APPLESS_MAIN(BackendTest)

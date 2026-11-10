@@ -46,7 +46,7 @@ TunaComponents.SetupModule {
             spacing: Kirigami.Units.smallSpacing
 
             Label {
-                text: "Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling."
+                text: qsTr("Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling.")
                 wrapMode: Text.Wrap
                 horizontalAlignment: Text.AlignHCenter
 
@@ -93,7 +93,7 @@ TunaComponents.SetupModule {
                 FormCard.FormPasswordFieldDelegate {
                     id: passphraseField
 
-                    label: "Passphrase"
+                    label: qsTr("Passphrase")
 
                     onTextChanged: {
                         showPasswordQuality = text.length > 0;
@@ -104,12 +104,12 @@ TunaComponents.SetupModule {
                 FormCard.FormPasswordFieldDelegate {
                     id: confirmField
 
-                    label: "Confirm passphrase"
+                    label: qsTr("Confirm passphrase")
 
                     status: (text.length > 0 && text !== passphraseField.text)
                         ? Kirigami.MessageType.Error : Kirigami.MessageType.Information
                     statusMessage: (text.length > 0 && text !== passphraseField.text)
-                        ? "Passphrases do not match." : ""
+                        ? qsTr("Passphrases do not match.") : ""
 
                     onTextChanged: root.commitPassphrase()
                 }

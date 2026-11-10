@@ -36,7 +36,7 @@ E2E_DIR = os.environ.get("TUNA_E2E_DIR", "/tmp/tuna-e2e")
 # must create one. GNOME's and XFCE's drivers use a catalog that says
 # needs_user_creation is false and export nothing, so with no catalog their
 # account is not judged (and the output says so).
-LEGACY_USER_STEP = {"cosmic", "kde"}
+LEGACY_USER_STEP = {"cosmic"}
 
 
 def _catalog_resolver():

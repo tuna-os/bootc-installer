@@ -1,8 +1,9 @@
 #include "probe.h"
 
 #include "log.h"
-#include "offline.h"
+#include "fisherman.h"
 
+#include <QCoreApplication>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -30,13 +31,13 @@ Result parse(const QByteArray &json)
     QJsonParseError err;
     const QJsonDocument doc = QJsonDocument::fromJson(json, &err);
     if (err.error != QJsonParseError::NoError)
-        return failure(QStringLiteral("fisherman probe printed invalid JSON: %1").arg(err.errorString()));
+        return failure(QCoreApplication::translate("probe", "fisherman probe printed invalid JSON: %1").arg(err.errorString()));
     if (!doc.isObject())
-        return failure(QStringLiteral("fisherman probe did not print a JSON object"));
+        return failure(QCoreApplication::translate("probe", "fisherman probe did not print a JSON object"));
     const QJsonObject root = doc.object();
     const int version = root.value(QLatin1String("protocol_version")).toInt(-1);
     if (version != PROTOCOL_VERSION)
-        return failure(QStringLiteral("fisherman probe protocol_version %1 is not %2")
+        return failure(QCoreApplication::translate("probe", "fisherman probe protocol_version %1 is not %2")
                            .arg(version).arg(PROTOCOL_VERSION));
 
     Result r;
@@ -71,40 +72,38 @@ Result parse(const QByteArray &json)
     return r;
 }
 
-QStringList command(bool flatpak)
-{
-    QStringList argv{QStringLiteral("/usr/local/bin/fisherman"), QStringLiteral("probe"),
-                     QStringLiteral("--json")};
-    if (flatpak)
-        return QStringList{QStringLiteral("flatpak-spawn"), QStringLiteral("--host")} + argv;
-    return argv;
-}
-
 Result run()
 {
     const QString fake = qEnvironmentVariable(FAKE_ENV);
     if (!fake.isEmpty()) {
         QFile f(fake);
         if (!f.open(QIODevice::ReadOnly))
-            return failure(QStringLiteral("%1=%2: %3").arg(QLatin1String(FAKE_ENV), fake, f.errorString()));
+            return failure(QCoreApplication::translate("probe", "%1=%2: %3").arg(QLatin1String(FAKE_ENV), fake, f.errorString()));
         return parse(f.readAll());
     }
 #if QT_CONFIG(process)
-    const QStringList argv = command(offline::inFlatpak());
+    // In a Flatpak the probe is the staged, host-verified fisherman.
+    const fisherman::Staging &staging = fisherman::staged();
+    if (!staging.ok)
+        return failure(QCoreApplication::translate("probe", "cannot run fisherman: %1").arg(staging.error));
+    // Live media is what the probe answers, so it cannot be an input here;
+    // the unprivileged command does not depend on it.
+    const QStringList argv = fisherman::commands(false).unprivileged
+        + QStringList{QStringLiteral("probe"), QStringLiteral("--json")};
     QProcess p;
     p.start(argv.first(), argv.mid(1));
     if (!p.waitForStarted(5000))
-        return failure(QStringLiteral("cannot run %1: %2").arg(argv.first(), p.errorString()));
+        return failure(QCoreApplication::translate("probe", "cannot run %1: %2").arg(argv.first(), p.errorString()));
     // lsblk and `bootc status`; a hung host helper must not hang the wizard.
     if (!p.waitForFinished(30000)) {
         p.kill();
         p.waitForFinished(1000);
-        return failure(QStringLiteral("fisherman probe did not finish within 30 s"));
+        return failure(QCoreApplication::translate("probe", "fisherman probe did not finish within 30 s"));
     }
     if (p.exitStatus() != QProcess::NormalExit || p.exitCode() != 0) {
         const QString stderrText = QString::fromUtf8(p.readAllStandardError()).trimmed();
         const QString first = stderrText.section(QLatin1Char('\n'), 0, 0);
-        return failure(QStringLiteral("fisherman probe failed (exit %1): %2")
+        return failure(QCoreApplication::translate("probe", "fisherman probe failed (exit %1): %2")
                            .arg(p.exitCode())
                            .arg(first.isEmpty() ? QStringLiteral("no message") : first));
     }
@@ -112,7 +111,7 @@ Result run()
 #else
     // Qt for WebAssembly: no process to run. The browser harness sets the
     // variable above, so reaching here means it was left out.
-    return failure(QStringLiteral("no %1 and this build cannot run fisherman").arg(QLatin1String(FAKE_ENV)));
+    return failure(QCoreApplication::translate("probe", "no %1 and this build cannot run fisherman").arg(QLatin1String(FAKE_ENV)));
 #endif
 }
 

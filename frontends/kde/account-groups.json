@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "default_groups": ["wheel", "sudo", "docker", "incus-admin", "libvirt", "dialout"],
+  "override": {
+    "file": "bootc-installer/recipe.json",
+    "key": ["user", "groups"]
+  },
+  "cases": [
+    {"name": "no operator file", "operator_recipe": null,
+     "groups": ["wheel", "sudo", "docker", "incus-admin", "libvirt", "dialout"]},
+    {"name": "file without a user", "operator_recipe": {"hostname": "kiosk"},
+     "groups": ["wheel", "sudo", "docker", "incus-admin", "libvirt", "dialout"]},
+    {"name": "user without groups", "operator_recipe": {"user": {}},
+     "groups": ["wheel", "sudo", "docker", "incus-admin", "libvirt", "dialout"]},
+    {"name": "operator list replaces the default", "operator_recipe": {"user": {"groups": ["wheel", "video"]}},
+     "groups": ["wheel", "video"]},
+    {"name": "empty operator list means no supplementary group", "operator_recipe": {"user": {"groups": []}},
+     "groups": []},
+    {"name": "groups that is not a list is ignored", "operator_recipe": {"user": {"groups": "wheel"}},
+     "groups": ["wheel", "sudo", "docker", "incus-admin", "libvirt", "dialout"]},
+    {"name": "user that is not an object is ignored", "operator_recipe": {"user": "live"},
+     "groups": ["wheel", "sudo", "docker", "incus-admin", "libvirt", "dialout"]},
+    {"name": "a list with an entry that is not a string is ignored", "operator_recipe": {"user": {"groups": ["wheel", 7]}},
+     "groups": ["wheel", "sudo", "docker", "incus-admin", "libvirt", "dialout"]}
+  ]
+}
