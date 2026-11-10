@@ -259,3 +259,14 @@ def test_wrong_types_in_a_catalog_do_not_reach_the_recipe():
     assert odd["bootloader"] == ""
     assert odd["flatpaks"] is None
     assert odd["extras"] is None
+
+
+def test_zfs_carries_the_experimental_opt_in():
+    """fisherman refuses filesystem zfs without "experimental": ["zfs"]
+    (zfs_experimental). Only zfs gets the key."""
+    for fs, want in (("zfs", ["zfs"]), ("xfs", None), ("btrfs", None)):
+        disk = build_disk_finals(build_auto_partition_recipe(_Disk()), fs, "host")
+        with patch("bootc_installer.core.system.Systeminfo.has_nvidia_gpu", return_value=False):
+            recipe = Processor.gen_install_recipe("", [disk], {"imgref": "r/x:1"})
+        assert recipe["filesystem"] == fs
+        assert recipe.get("experimental") == want

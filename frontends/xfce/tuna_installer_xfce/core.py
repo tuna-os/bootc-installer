@@ -812,6 +812,7 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
     }
     if needs_passphrase(encryption_type):
         recipe["encryption"]["passphrase"] = passphrase
+    recipe.update(experimental_for(filesystem))
     if target_imgref:
         recipe["targetImgref"] = target_imgref
     if bootloader:
@@ -834,6 +835,13 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
             "groups": list(DEFAULT_GROUPS if groups is None else groups),
         }
     return recipe
+
+
+def experimental_for(filesystem):
+    """The `experimental` key for a filesystem. fisherman refuses zfs
+    unless the recipe accepts it (no VM test boots ZFS): `zfs_experimental`.
+    The page that picks the filesystem sends it in the same fragment."""
+    return {"experimental": ["zfs"]} if filesystem == "zfs" else {}
 
 
 def recipe_for_leaf(leaf, *, has_nvidia=False, live=False, offline=(), **fields):

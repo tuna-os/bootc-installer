@@ -145,3 +145,10 @@ def test_extras_follow_the_nearest_object_and_only_the_four_switches():
     assert "extras" not in recipe
     recipe = core.build_recipe(disk="/dev/vda", filesystem="xfs", extras={})
     assert recipe["extras"] == dict.fromkeys(core.EXTRAS, False)
+
+
+def test_zfs_carries_the_experimental_opt_in():
+    """fisherman refuses zfs without "experimental": ["zfs"]."""
+    assert core.build_recipe(disk="/dev/vda", filesystem="zfs")["experimental"] == ["zfs"]
+    assert "experimental" not in core.build_recipe(disk="/dev/vda", filesystem="xfs")
+    assert core.experimental_for("btrfs") == {}

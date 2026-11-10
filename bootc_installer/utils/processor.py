@@ -442,6 +442,11 @@ class Processor:
             recipe["flatpaks"] = flatpaks
         if extras is not None:
             recipe["extras"] = extras
+        # fisherman refuses zfs unless the recipe accepts that it is
+        # experimental (no VM test boots ZFS): zfs_experimental. The user
+        # picked it, from a list that only an image's catalog entry offers.
+        if filesystem == "zfs":
+            recipe["experimental"] = ["zfs"]
         if image_type and image_type != "bootc":
             recipe["imageType"] = image_type
         if flatpak_var_path:

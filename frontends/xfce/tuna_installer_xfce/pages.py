@@ -411,6 +411,7 @@ class SetupPage(Page):
             enc["passphrase"] = self.pass1.get_text()
         partial = {"filesystem": self.default_filesystem(leaf.filesystem if leaf else ""),
                    "encryption": enc}
+        partial.update(core.experimental_for(partial["filesystem"]))
         if leaf is not None and getattr(leaf, "composefs", False):
             # fisherman's filesystem rule depends on it (composefs needs
             # fs-verity), so the page shows the problem before Install.
