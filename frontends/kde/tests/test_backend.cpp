@@ -4,7 +4,6 @@
 #include "imagecatalog.h"
 #include "region.h"
 #include "branding.h"
-#include "branding_defaults.h"
 #include "readiness.h"
 #include "recipe.h"
 #include "installercontroller.h"
@@ -489,8 +488,8 @@ void BackendTest::brandingFixtures()
             QCOMPARE(got.storeUrl, spec.value(QStringLiteral("expect_store_url")).toString());
     }
 
-    // The compiled-in defaults are the shared file, verbatim.
-    QCOMPARE(QString::fromUtf8(kCopyDefaultsJson), readText(dir + QStringLiteral("/../copy-defaults.json")));
+    // The compiled-in defaults are shared/branding/copy-defaults.json: CMake
+    // reads that file, so there is no copy to compare it with.
     QVERIFY(!branding::copyDefaults().value(QStringLiteral("welcome_title")).isEmpty());
 }
 
@@ -551,7 +550,7 @@ void BackendTest::brandingLogoReachesController()
 void BackendTest::encryptionChoicesReadTheCopyLayer()
 {
     // The ids and their order are fisherman's encryption-choices.json,
-    // compiled in from frontends/kde/encryption-choices.json.
+    // compiled in from shared/recipe/encryption-choices.json.
     const QStringList types = {QStringLiteral("none"), QStringLiteral("luks-passphrase"),
                                QStringLiteral("tpm2-luks"), QStringLiteral("tpm2-luks-passphrase")};
     QCOMPARE(Recipe::encryptionTypes(), types);
@@ -2085,8 +2084,7 @@ void BackendTest::accountGroupsAreTheSharedFile()
     const QByteArray shared = readFixture(QStringLiteral(SHARED_GROUPS_FILE));
     if (shared.isEmpty())
         QSKIP("shared/account/groups.json is absent");
-    // Byte for byte: the compiled-in copy cannot drift from the shared file.
-    QCOMPARE(account::groupsJson(), shared);
+    // CMake compiles this file in (TUNA_SHARED_DIR), so there is no copy.
     QCOMPARE(account::defaultGroups(),
              strings(QJsonDocument::fromJson(shared).object().value(QStringLiteral("default_groups"))));
     QVERIFY(account::defaultGroups().size() > 1);

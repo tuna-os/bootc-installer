@@ -63,17 +63,30 @@ set(BACKEND_SOURCES
     src/validate.h
 )
 
-# copy-defaults.json compiled into branding.cpp as a raw string literal. The
-# file is a byte-identical copy of shared/branding/copy-defaults.json.
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/copy-defaults.json" TUNA_COPY_DEFAULTS_JSON)
+# The data the five frontends share is compiled in from shared/, the one copy
+# in the monorepo. A build that does not have the monorepo around it (the
+# Flatpak, the wasm image) sets -DTUNA_SHARED_DIR to where it put shared/.
+set(TUNA_SHARED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../shared" CACHE PATH
+    "The monorepo's shared/ directory")
+foreach(shared_file branding/copy-defaults.json recipe/encryption-choices.json account/groups.json)
+    if(NOT EXISTS "${TUNA_SHARED_DIR}/${shared_file}")
+        message(FATAL_ERROR
+            "${TUNA_SHARED_DIR}/${shared_file} is missing. "
+            "Set -DTUNA_SHARED_DIR to the monorepo's shared/ directory.")
+    endif()
+    # A change to the shared file configures again, so the header follows it.
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${TUNA_SHARED_DIR}/${shared_file}")
+endforeach()
+# shared/branding/copy-defaults.json compiled into branding.cpp as a raw
+# string literal.
+file(READ "${TUNA_SHARED_DIR}/branding/copy-defaults.json" TUNA_COPY_DEFAULTS_JSON)
 configure_file(src/branding_defaults.h.in "${CMAKE_CURRENT_BINARY_DIR}/branding_defaults.h" @ONLY)
-# encryption-choices.json compiled into recipe.cpp the same way: a
-# byte-identical copy of fisherman's data/encryption-choices.json.
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/encryption-choices.json" TUNA_ENCRYPTION_CHOICES_JSON)
+# shared/recipe/encryption-choices.json (fisherman's table) compiled into
+# recipe.cpp the same way.
+file(READ "${TUNA_SHARED_DIR}/recipe/encryption-choices.json" TUNA_ENCRYPTION_CHOICES_JSON)
 configure_file(src/encryption_choices.h.in "${CMAKE_CURRENT_BINARY_DIR}/encryption_choices.h" @ONLY)
-# account-groups.json compiled into account.cpp the same way: a byte-identical
-# copy of shared/account/groups.json (test_backend holds the two together).
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/account-groups.json" TUNA_ACCOUNT_GROUPS_JSON)
+# shared/account/groups.json compiled into account.cpp the same way.
+file(READ "${TUNA_SHARED_DIR}/account/groups.json" TUNA_ACCOUNT_GROUPS_JSON)
 configure_file(src/account_groups.h.in "${CMAKE_CURRENT_BINARY_DIR}/account_groups.h" @ONLY)
 
 # The whole UI lives in a static library so that both the installer and the
@@ -136,7 +149,7 @@ if(BUILD_CAPTURE)
     # The machine the disk step photographs: fisherman's probe answer for a
     # laptop, the fixture every frontend's capture reads.
     target_compile_definitions(tuna-installer-capture PRIVATE
-        PROBE_FIXTURE_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/probe/fixtures/laptop.json"
+        PROBE_FIXTURE_FILE="${TUNA_SHARED_DIR}/probe/fixtures/laptop.json"
         # The themed logo shared/walkthrough/capture-branding.json names; see
         # the icon search path in tests/capture.cpp.
         CAPTURE_ICON_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../data/icons/hicolor/scalable/apps")
@@ -175,11 +188,11 @@ if(BUILD_TESTING)
     # The branding fixtures every frontend's resolver is judged by; the test
     # skips when this tree is checked out without the monorepo around it.
     target_compile_definitions(tuna-installer-backend-tests PRIVATE
-        BRANDING_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/branding/fixtures"
-        PROBE_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/probe/fixtures"
-        PROGRESS_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/progress"
-        CATALOG_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/catalog/fixtures"
-        SHARED_GROUPS_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/account/groups.json"
+        BRANDING_FIXTURES_DIR="${TUNA_SHARED_DIR}/branding/fixtures"
+        PROBE_FIXTURES_DIR="${TUNA_SHARED_DIR}/probe/fixtures"
+        PROGRESS_FIXTURES_DIR="${TUNA_SHARED_DIR}/progress"
+        CATALOG_FIXTURES_DIR="${TUNA_SHARED_DIR}/catalog/fixtures"
+        SHARED_GROUPS_FILE="${TUNA_SHARED_DIR}/account/groups.json"
         # The QML the strings lint reads (tests/test_backend.cpp, #300).
         KDE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
         VALIDATE_GOLDENS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../fisherman/fisherman/cmd/fisherman/testdata/validate")

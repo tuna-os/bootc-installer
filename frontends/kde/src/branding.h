@@ -53,8 +53,8 @@ struct Logo {
 // icon-theme lookup here; Kirigami handles unavailable artwork via fallback.
 Logo resolveLogo(const QString &spec, bool inFlatpak);
 
-// copy-defaults.json (frontends/kde/copy-defaults.json, a byte-identical copy
-// of shared/branding/copy-defaults.json) minus its "_comment".
+// shared/branding/copy-defaults.json, which CMake compiles in, minus its
+// "_comment".
 QHash<QString, QString> copyDefaults();
 
 // The branding for this machine: $BOOTC_INSTALLER_BRANDING or the standard
