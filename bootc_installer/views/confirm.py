@@ -335,7 +335,7 @@ class BootcConfirm(Adw.Bin):
         # row names what updates follow when that differs (#314).
         try:
             plan = Processor.image_plan(finals, recipe)
-        except Exception:
+        except (AttributeError, KeyError, TypeError, ValueError):
             plan = None
         if plan and plan["install"] and plan["install"] != plan["selected"]:
             primary["image"] = [

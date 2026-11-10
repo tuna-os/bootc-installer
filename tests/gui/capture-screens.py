@@ -387,9 +387,31 @@ def _choose_disk(win):
     SEED_FAILURES.append("confirm: no disk page in the carousel")
 
 
+def _choose_image(win):
+    """Choose an image on the image page when none is selected, as a user
+    must before Next. The bundled recipe names no image, and the capture
+    branding's default is not in fisherman's catalog, so without this the
+    confirm page would have no Image row."""
+    carousel = win.carousel
+    for index in range(carousel.get_n_pages()):
+        page = carousel.get_nth_page(index)
+        if getattr(page, "_bootc_step_key", None) != "image":
+            continue
+        finals = page.get_finals()
+        if finals.get("selected_image") or finals.get("custom_image"):
+            return
+        rows = page._BootcDefaultImage__leaf_rows
+        if not rows:
+            SEED_FAILURES.append("confirm: the image page has no images to choose")
+            return
+        rows[0][1].set_active(True)
+        return
+
+
 def _seed(win, page, name):
     """Put each page into the state a user would see it in."""
     if name == "confirm":
+        _choose_image(win)
         _choose_disk(win)
         win.update_finals()
     elif name == "progress":

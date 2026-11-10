@@ -334,7 +334,7 @@ class BootcDone(Adw.Bin):
                 try:
                     subprocess.run(argv, check=True, capture_output=True, timeout=15)
                     log.info("BootNext set to Boot%s", self.__boot_id)
-                except Exception as e:
+                except (OSError, subprocess.SubprocessError) as e:
                     # Non-fatal: the user can pick the entry in the
                     # firmware's boot menu.
                     log.warning("Could not set BootNext to %s: %s", self.__boot_id, e)

@@ -9,10 +9,12 @@ replaced is FishermanSession: no test starts a root process.
     xvfb-run -a python3 -m pytest tests/ui/test_install_flow.py -q
 """
 
+import json
 import os
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from typing import ClassVar
 from unittest.mock import patch
 
 import gi
@@ -20,11 +22,11 @@ import pytest
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gio, GLib  # noqa: E402
+from gi.repository import Adw, Gio, GLib
 
-from bootc_installer.main import BootcInstaller  # noqa: E402
-from bootc_installer.views import progress as progress_mod  # noqa: E402
-from bootc_installer.windows.main_window import BootcWindow  # noqa: E402
+from bootc_installer.main import BootcInstaller
+from bootc_installer.views import progress as progress_mod
+from bootc_installer.windows.main_window import BootcWindow
 
 _RECIPE_PATH = Path(__file__).resolve().parents[2] / "recipe.json"
 
@@ -57,7 +59,7 @@ class _FakeSession:
     """Stands in for FishermanSession: counts launches, and exits when the
     test says so. Everything else about the progress page is real."""
 
-    created = []
+    created: ClassVar[list] = []
 
     def __init__(self, recipe, **kwargs):
         self.recipe = recipe
@@ -125,7 +127,7 @@ def _view(window, name):
 
 def _current_page(window):
     carousel = window.carousel
-    return carousel.get_nth_page(int(round(carousel.get_position())))
+    return carousel.get_nth_page(round(carousel.get_position()))
 
 
 def _show(window, page):
@@ -149,10 +151,10 @@ class _Flow:
         return _FakeSession.created
 
     def last_step(self):
-        return getattr(self.window, "_BootcWindow__last_step_widget")
+        return self.window._BootcWindow__last_step_widget
 
     def choose_disk(self):
-        builder = getattr(self.window, "_BootcWindow__builder")
+        builder = self.window._BootcWindow__builder
         disk = next(w for w in builder.widgets if getattr(w, "_bootc_step_key", "") == "disk")
         disk._set_auto_partition_recipe(disk._BootcDefaultDisk__disks.all_disks()[0])
         _pump()
@@ -180,13 +182,10 @@ class _Flow:
         return session
 
     def dialog(self):
-        return getattr(self.window, "_BootcWindow__open_dialog")
+        return self.window._BootcWindow__open_dialog
 
     def close(self):
-        try:
-            self.window.destroy()
-        except Exception:
-            pass
+        self.window.destroy()
         _pump()
         for patcher in reversed(self._patchers):
             patcher.stop()
@@ -582,7 +581,7 @@ class TestRecoveryKeyInTheLog:
         """#316. The pane, and Copy Log after it, carried the key."""
         flow.visit_confirm()
         flow.click_install()
-        flow.progress.feed_line('{"type":"recovery_key","key":"%s"}' % self._KEY)
+        flow.progress.feed_line(json.dumps({"type": "recovery_key", "key": self._KEY}))
         buf = flow.progress.log_view.get_buffer()
         text = buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False)
         assert self._KEY not in text
@@ -592,7 +591,7 @@ class TestRecoveryKeyInTheLog:
         flow.window.update_finals()
         flow.window.finals.append({"encryption": {"use_encryption": True, "type": "tpm2-luks"}})
         flow.window.on_installation_confirmed()
-        flow.progress.feed_line('{"type":"recovery_key","key":"%s"}' % self._KEY)
+        flow.progress.feed_line(json.dumps({"type": "recovery_key", "key": self._KEY}))
         session = flow.sessions[0]
         session.exit_code = 0
         key_page = _view(flow.window, "recovery_key")
@@ -609,7 +608,7 @@ class TestRecoveryKeyInTheLog:
     def test_a_failed_install_scrubs_the_log(self, flow):
         flow.visit_confirm()
         flow.click_install()
-        flow.progress.feed_line('{"type":"recovery_key","key":"%s"}' % self._KEY)
+        flow.progress.feed_line(json.dumps({"type": "recovery_key", "key": self._KEY}))
         session = flow.finish(1)
         assert session.scrubbed == [self._KEY]
 

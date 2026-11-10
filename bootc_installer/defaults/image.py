@@ -291,6 +291,14 @@ class BootcDefaultImage(Adw.Bin):
         self.__step = step
         self.delta = False
 
+        # The image selected at the start: the catalog's `default_image`,
+        # else the branding contract's (shared/branding/README.md), which is
+        # how a product names its image now that the bundled recipe names
+        # none (#315). It is selected only when the catalog has it.
+        branding = window.recipe.get("branding") if isinstance(
+            getattr(window, "recipe", None), dict) else None
+        branding_default = branding.get("default_image", "") if isinstance(branding, dict) else ""
+        self.__default_image = _DEFAULT_IMAGE or branding_default or ""
         self.__selected_imgref = _DEFAULT_IMAGE or None
         self.__selected_flatpaks = None  # per-image flatpak list (None = use fallback)
         self.__selected_flatpak_var_path = ""  # override for writable var path (e.g. GnomeOS)
@@ -447,7 +455,7 @@ class BootcDefaultImage(Adw.Bin):
 
     def __select_default(self):
         for _row, check, imgref, _flatpaks, _icon, _carousel, _needs_user, _composefs, _image_type, _bootloader, _image_filesystem, _flatpak_var_path, _hostname, _filesystems, _search, ancestors in self.__leaf_rows:
-            if imgref == _DEFAULT_IMAGE:
+            if imgref == self.__default_image:
                 check.set_active(True)
                 for exp in ancestors:
                     exp.set_expanded(True)
@@ -538,7 +546,7 @@ class BootcDefaultImage(Adw.Bin):
 
     def __expand_default_path(self):
         for _, _, imgref, _, _, _, _, _, _, _, _, _, _, _, _, ancestors in self.__leaf_rows:
-            if imgref == _DEFAULT_IMAGE:
+            if imgref == self.__default_image:
                 for exp in ancestors:
                     exp.set_expanded(True)
                 return

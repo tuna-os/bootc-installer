@@ -339,7 +339,7 @@ class BootcWindow(Adw.ApplicationWindow):
     def __is_done(self):
         # round(), not int(): while the carousel still slides to the done
         # page its position is a fraction below that page's index.
-        cur_index = int(round(self.carousel.get_position()))
+        cur_index = round(self.carousel.get_position())
         return self.carousel.get_nth_page(cur_index) is self.__view_done
 
     def __find_page_index(self, target_page):

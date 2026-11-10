@@ -125,7 +125,7 @@ not use `default_image` yet (#289).
 | Feature | GNOME | KDE | COSMIC | Niri | XFCE |
 |---|---|---|---|---|---|
 | Image catalog choice (fisherman `images.json`) | yes (tree, search) | yes (disk step, search) | yes (and a custom URL row) | yes (flat list) | yes (flat list) |
-| Image selected at start, off live media | catalog `default_image` | none: you must pick | first row of the catalog (#289) | first name in the alphabet (#289) | first name in the alphabet (#289) |
+| Image selected at start, off live media | catalog `default_image`, then branding `default_image` if the catalog has it; else you must pick | none: you must pick | first row of the catalog (#289) | first name in the alphabet (#289) | first name in the alphabet (#289) |
 | Catalog fields that reach the recipe | all | image, bootloader, composefs, hostname; not filesystem (#287) | image and Flatpaks only (#286) | image, filesystem, bootloader, composefs, hostname | image, filesystem, bootloader, composefs |
 | Live-ISO install without download (live media from `fisherman probe --json`) | yes | yes | yes | yes | yes |
 | Offline image stores (found by fisherman on the host) | yes | yes | yes | yes | yes |

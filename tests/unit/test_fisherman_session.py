@@ -438,10 +438,10 @@ class RecoveryKeyRedactionTests(unittest.TestCase):
     def _log(self):
         return "\n".join([
             '{"type":"step","step":8,"total_steps":9,"step_name":"Enrolling TPM2"}',
-            '{"type":"recovery_key","key":"%s"}' % self.KEY,
-            '{"type": "recovery_key", "key": "%s", "message": "keep"}' % self.KEY,
-            "Recovery key: %s" % self.KEY,
-            "systemd-cryptenroll: recovery key is %s (stderr)" % self.KEY,
+            '{"type":"recovery_key","key":"' + self.KEY + '"}',
+            '{"type": "recovery_key", "key": "' + self.KEY + '", "message": "keep"}',
+            "Recovery key: " + self.KEY,
+            "systemd-cryptenroll: recovery key is " + self.KEY + " (stderr)",
             '{"type":"complete","message":"Installation complete!"}',
             "",
         ])
