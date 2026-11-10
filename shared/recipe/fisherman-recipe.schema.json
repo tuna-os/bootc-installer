@@ -1,8 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "title": "Fisherman Install Recipe",
-  "description": "JSON recipe for the fisherman bootc install backend",
+  "description": "JSON recipe for the fisherman bootc install backend. fisherman refuses a key that is not here, at any depth (recipe_unknown_field), so each object is closed.",
   "type": "object",
+  "additionalProperties": false,
   "required": ["disk", "hostname"],
   "properties": {
     "disk": {
@@ -21,6 +22,7 @@
     },
     "encryption": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "type": {
           "type": "string",
@@ -74,7 +76,8 @@
     },
     "flatpaks": {
       "type": "array",
-      "items": {"type": "string"}
+      "items": {"type": "string"},
+      "description": "Whether fisherman copies the host's system Flatpaks (/var/lib/flatpak) to the installed system. Absent: copy them. []: copy nothing. A list with entries also copies all of them: it is not a filter and nothing is downloaded; fisherman reports each listed application that the host does not have."
     },
     "additionalImageStores": {
       "type": "array",
@@ -128,6 +131,7 @@
     "user": {
       "type": "object",
       "description": "Account to create. An empty username skips the step.",
+      "additionalProperties": false,
       "properties": {
         "username": {
           "type": "string",
@@ -153,6 +157,7 @@
       "description": "Manual partitioning. When non-empty, disk/filesystem/btrfsSubvolumes and auto-partitioning are skipped.",
       "items": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
           "partition",
           "target",
@@ -174,6 +179,7 @@
     "varDisk": {
       "type": "object",
       "description": "A separate disk to mount at /var.",
+      "additionalProperties": false,
       "required": [
         "disk"
       ],
@@ -195,6 +201,7 @@
     "slurp": {
       "type": "object",
       "description": "Full user-data migration from an existing Windows partition. Takes priority over slurpWallpapers.",
+      "additionalProperties": false,
       "required": [
         "sourcePartition",
         "users"
@@ -207,6 +214,7 @@
           "type": "array",
           "items": {
             "type": "object",
+            "additionalProperties": false,
             "required": [
               "name"
             ],
@@ -245,6 +253,105 @@
         "enum": ["too_small", "uefi"]
       },
       "description": "The target checks that the caller accepts as failed: too_small (the disk is smaller than 50 GiB) and uefi (the machine did not boot through UEFI). Any other entry is override_unsupported. The checks that protect data (the boot disk, a read-only disk, a path that is not a whole disk) have no override. Needs a fisherman that has the target checks (tuna-os/fisherman#429); an older fisherman ignores the field. fisherman/docs/VALIDATE.md, 'Target eligibility'."
+    },
+    "copyNetworkProfiles": {
+      "type": "boolean",
+      "description": "Copy the host's NetworkManager connection profiles (Wi-Fi passwords, 802.1X credentials) to the installed system. Absent: copy only when the host booted from live media. true copies on any host; false never copies."
+    },
+    "copyBluetoothPairings": {
+      "type": "boolean",
+      "description": "The same choice as copyNetworkProfiles for the host's Bluetooth pairings (/var/lib/bluetooth, which holds the link keys)."
+    },
+    "extras": {
+      "type": "object",
+      "description": "The desktop and product steps of the post-install stage. Each is off unless it is true. Absent: fisherman looks the image up in the catalog it finds on the host and uses that entry's values; an image that no catalog has gets none. An object, {} included, is used exactly as given. A frontend copies the object that the catalog leaf inherits (shared/catalog/README.md).",
+      "additionalProperties": false,
+      "properties": {
+        "printServices": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable cups-browsed, avahi-daemon and ipp-usb, each only when the installed image has the unit."
+        },
+        "oemSetup": {
+          "type": "boolean",
+          "default": false,
+          "description": "Write the first-login unit that installs vendor packages, enable the vendor's service when the image has it, and set a vendor menu icon."
+        },
+        "audioNames": {
+          "type": "boolean",
+          "default": false,
+          "description": "Write WirePlumber rules with friendly device names to the installed system."
+        },
+        "bootSplash": {
+          "type": "boolean",
+          "default": false,
+          "description": "Add `rhgb quiet` to every boot entry."
+        }
+      }
+    },
+    "experimental": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["zfs"]
+      },
+      "description": "The experimental features that the caller accepts. A feature is experimental when no VM test covers it. filesystem \"zfs\" is refused (zfs_experimental) unless this list has \"zfs\"; send it in the same --partial fragment as filesystem. Any other entry is experimental_unsupported."
+    },
+    "setBootNext": {
+      "type": "boolean",
+      "description": "Whether fisherman sets the firmware's BootNext variable to the installed system's boot entry when the install ends. Absent: only when the host booted from live media. true: always. false: never. A frontend does not set BootNext itself."
+    },
+    "locale": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^(([a-z]{2,3}(_[A-Z]{2,3})?|C|POSIX)(\\.[A-Za-z0-9][A-Za-z0-9_-]*)?(@[A-Za-z0-9]+)?)?$",
+      "description": "System locale, written as LANG to /etc/locale.conf of the installed system, e.g. de_DE.UTF-8. Empty or absent: the image's locale is kept. fisherman's rule (CheckLocale, code locale_invalid)."
+    },
+    "keyboard": {
+      "type": "object",
+      "description": "XKB keyboard configuration, written to /etc/vconsole.conf and the X11 keyboard configuration of the installed system. On an encrypted install fisherman also gives the console keymap to the initrd. Absent: the image's keyboard is kept. A present object needs layout (keyboard_layout_required).",
+      "additionalProperties": false,
+      "required": ["layout"],
+      "properties": {
+        "layout": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$",
+          "description": "XKB layout name, e.g. us or de; several separated by a comma (us,ru)."
+        },
+        "variant": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_.+-]*(,[A-Za-z0-9_.+-]*)*$",
+          "description": "XKB variant name, e.g. nodeadkeys; one per layout, separated by a comma, any of them empty."
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^([A-Za-z0-9_.+-]+)?$",
+          "description": "XKB model name, e.g. pc105."
+        }
+      }
+    },
+    "timezone": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^([A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*)?$",
+      "description": "IANA time zone that /etc/localtime of the installed system points to, e.g. Europe/Berlin. Empty or absent: the image's zone is kept. fisherman's rule (CheckTimezone, code timezone_invalid)."
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"filesystem": {"const": "zfs"}},
+        "required": ["filesystem"],
+        "not": {"required": ["customMounts"]}
+      },
+      "then": {
+        "required": ["experimental"],
+        "properties": {"experimental": {"contains": {"const": "zfs"}}}
+      }
+    }
+  ]
 }

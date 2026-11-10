@@ -128,6 +128,103 @@ class SharedRecipeSchemaTests(unittest.TestCase):
         for bad in ["owner", "a/b/c", "-x/y", "x/y;rm", "x y/z", "/y"]:
             self.assertIsNone(re.fullmatch(tap, bad), bad)
 
+    def _struct_tags(self, src, name):
+        start = src.index(f"type {name} struct {{")
+        return re.findall(r'`json:"([A-Za-z0-9]+)', src[start:src.index("\n}", start)])
+
+    def test_nested_objects_have_exactly_fishermans_fields(self):
+        """fisherman refuses an unknown key at any depth, so a nested object
+        of the schema names the fields of the Go struct and no other."""
+        recipe_go = REPO / "fisherman" / "fisherman" / "internal" / "recipe" / "recipe.go"
+        if not recipe_go.exists():
+            self.skipTest("fisherman submodule not checked out")
+        src = recipe_go.read_text()
+        props = json.loads(SHARED.read_text())["properties"]
+        cases = {
+            "Recipe": props,
+            "KeyboardSpec": props["keyboard"]["properties"],
+            "Extras": props["extras"]["properties"],
+            "UserSpec": props["user"]["properties"],
+            "VarDiskSpec": props["varDisk"]["properties"],
+            "CustomMount": props["customMounts"]["items"]["properties"],
+            "Encryption": props["encryption"]["properties"],
+            "SlurpSpec": props["slurp"]["properties"],
+            "SlurpUserSpec": props["slurp"]["properties"]["users"]["items"]["properties"],
+        }
+        for struct, schema_props in cases.items():
+            with self.subTest(struct=struct):
+                self.assertEqual(sorted(schema_props), sorted(self._struct_tags(src, struct)))
+
+    def test_every_object_is_closed(self):
+        """fisherman's recipe_unknown_field rule, in the schema: a recipe
+        with a key that the schema does not have fails check-recipe.py too."""
+        def walk(node, where):
+            if isinstance(node, dict):
+                if node.get("type") == "object":
+                    self.assertIs(node.get("additionalProperties"), False,
+                                  f"{where} accepts unknown keys; fisherman refuses them")
+                for key, value in node.items():
+                    walk(value, f"{where}/{key}")
+            elif isinstance(node, list):
+                for i, value in enumerate(node):
+                    walk(value, f"{where}/{i}")
+        walk(json.loads(SHARED.read_text()), "")
+
+    def test_locale_keyboard_and_timezone_patterns_are_fishermans(self):
+        rules_go = REPO / "fisherman" / "fisherman" / "internal" / "recipe" / "rules.go"
+        if not rules_go.exists():
+            self.skipTest("fisherman submodule not checked out")
+        src = rules_go.read_text()
+        props = json.loads(SHARED.read_text())["properties"]
+        keyboard = props["keyboard"]["properties"]
+
+        def go(var):
+            m = re.search(var + r"\s*=\s*regexp\.MustCompile\(`\^(.*)\$`\)", src)
+            self.assertIsNotNone(m, f"could not read fisherman's {var}")
+            return m.group(1)
+        # Empty is valid for these three in fisherman; layout and variant
+        # take fisherman's pattern as it is.
+        self.assertEqual(props["locale"]["pattern"], f"^({go('localePattern')})?$")
+        self.assertEqual(props["timezone"]["pattern"], f"^({go('timezonePattern')})?$")
+        self.assertEqual(keyboard["model"]["pattern"], f"^({go('xkbModelPattern')})?$")
+        self.assertEqual(keyboard["layout"]["pattern"], f"^{go('xkbLayoutPattern')}$")
+        self.assertEqual(keyboard["variant"]["pattern"], f"^{go('xkbVariantPattern')}$")
+        for field in (props["locale"], props["timezone"], *keyboard.values()):
+            self.assertEqual(field["maxLength"], 64)
+        self.assertEqual(props["keyboard"]["required"], ["layout"])
+        for ok in ["", "de_DE.UTF-8", "sr_RS@latin", "C", "POSIX.UTF-8"]:
+            self.assertRegex(ok, props["locale"]["pattern"])
+        for bad in ["de DE", "de_DE\nLC_ALL=C", "../x", "DE"]:
+            self.assertIsNone(re.fullmatch(props["locale"]["pattern"], bad), bad)
+        for ok in ["", "Europe/Berlin", "Etc/GMT+1", "UTC"]:
+            self.assertRegex(ok, props["timezone"]["pattern"])
+        for bad in ["/etc/passwd", "../UTC", "Europe/", "1/x", "a b"]:
+            self.assertIsNone(re.fullmatch(props["timezone"]["pattern"], bad), bad)
+
+    def test_list_enums_are_fishermans(self):
+        recipe_go = REPO / "fisherman" / "fisherman" / "internal" / "recipe" / "recipe.go"
+        if not recipe_go.exists():
+            self.skipTest("fisherman submodule not checked out")
+        src = recipe_go.read_text()
+        props = json.loads(SHARED.read_text())["properties"]
+        consts = dict(re.findall(r'^\s*(\w+)\s*=\s*"([^"]+)"', src, re.M))
+        for field, var in (("override", "Overrides"), ("experimental", "Experimentals")):
+            with self.subTest(field=field):
+                names = re.search(rf"var {var} = \[\]string\{{([^}}]*)\}}", src).group(1)
+                values = [consts[n.strip()] for n in names.split(",") if n.strip()]
+                self.assertEqual(sorted(props[field]["items"]["enum"]), sorted(values))
+
+    def test_zfs_needs_the_experimental_opt_in(self):
+        try:
+            import jsonschema
+        except ImportError:
+            self.skipTest("python3-jsonschema is not installed")
+        validator = jsonschema.Draft7Validator(json.loads(SHARED.read_text()))
+        base = {"disk": "/dev/sda", "hostname": "a", "filesystem": "zfs"}
+        self.assertTrue(list(validator.iter_errors(base)))
+        self.assertFalse(list(validator.iter_errors({**base, "experimental": ["zfs"]})))
+        self.assertFalse(list(validator.iter_errors({**base, "filesystem": "xfs"})))
+
     def test_kde_copy_matches_shared(self):
         self.assertEqual(
             KDE.read_bytes(), SHARED.read_bytes(),

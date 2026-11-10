@@ -12,6 +12,30 @@ sure that it does. Do not edit the hash of an old entry: add an entry.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-10: recipe schema, the fields of fisherman `7f9021b`, and closed objects
+
+The fisherman pin moved to `7f9021b` (tuna-os/fisherman#429, #432, #433,
+#434, #435). That fisherman refuses a key that it does not know
+(`recipe_unknown_field`).
+
+- Added: `extras`, with `printServices`, `oemSetup`, `audioNames` and
+  `bootSplash`. A frontend copies the object from the catalog leaf
+  (`catalog/README.md`).
+- Added: `experimental`, a list that accepts `zfs`. A recipe with
+  `filesystem` `zfs` on the automatic layout must have it.
+- Added: `locale`, `keyboard` (`layout`, `variant`, `model`) and `timezone`,
+  with fisherman's patterns.
+- Added: `copyNetworkProfiles`, `copyBluetoothPairings` and `setBootNext`.
+  A frontend leaves them out. fisherman then applies its rule for live
+  media.
+- Changed: each object has `additionalProperties: false`. A recipe that has
+  an unknown key was valid before. It is not valid now, because fisherman
+  refuses it.
+- Changed: the description of `flatpaks`. No key copies the Flatpaks of the
+  host. `[]` copies none. A list with entries copies all of them.
+
+Recipe schema sha256: `55a4169f5661764ccdc4e385b561b45328f4f39d3b5ed62b557cbea0dc455245`
+
 ## 2026-11-10: recipe schema, `override` and `unifiedStorage`
 
 - Added: `override`, a list that accepts `too_small` and `uefi`. It names
