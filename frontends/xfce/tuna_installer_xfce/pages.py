@@ -118,10 +118,9 @@ class WelcomePage(Page):
         # instead (gates.py), so there is no warn-inline here anymore.
         # GNOME blocks the same way; warn-and-continue was this
         # frontend's alone.
-        _, _, catalog = core.load_catalog()
         self.tour = tour.TourCarousel()
         self.pack_start(self.tour, False, False, 0)
-        self.tour.set_slides(tour.slides_from_catalog(catalog))
+        self.tour.set_slides(tour.slides_from_catalog(core.load_catalog().roots))
 
 
 class SourcePage(Page):
@@ -134,16 +133,18 @@ class SourcePage(Page):
         self.live = core.is_live()
         self.live_image = core.live_image()
         self.offline_refs = core.offline_images()
-        _, _, self.catalog = core.load_catalog()
-        self.leaves = [l for root in self.catalog for l in root.leaves()]
+        self.catalog = core.load_catalog()
+        self.leaves = list(self.catalog.leaves)
 
         self.radios = []
-        group = None
+        # The group's unseen member: active when no row is. A radio group
+        # always has one active button, and the contract is that nothing is
+        # selected until the branding or the catalog names a default (#289).
+        self._none = Gtk.RadioButton()
+        self._rows = []
 
         def add_radio(label_text, sub, payload, offline):
-            nonlocal group
-            radio = Gtk.RadioButton.new_with_label_from_widget(group, label_text)
-            group = group or radio
+            radio = Gtk.RadioButton.new_with_label_from_widget(self._none, label_text)
             radio.payload = payload
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             box.pack_start(radio, False, False, 0)
@@ -155,32 +156,77 @@ class SourcePage(Page):
             box.pack_start(subline, False, False, 0)
             self.listbox.pack_start(box, False, False, 4)
             self.radios.append(radio)
+            self._rows.append((box, f"{label_text} {sub}".casefold()))
+            return radio
+
+        # The list is flat and the bundled catalog has 177 leaves: a filter
+        # on the row label and the image reference.
+        self.search = Gtk.SearchEntry()
+        self.search.set_placeholder_text("Search images")
+        self.search.connect("search-changed", self._on_search)
+        self.pack_start(self.search, False, False, 0)
 
         self.listbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         scroll = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
         scroll.add(self.listbox)
         self.pack_start(scroll, True, True, 0)
 
+        selected = None
         if self.live:
             # The same row GNOME shows: welcome_install and its subtitle. The
             # "[available offline]" tag already says no download is needed.
-            add_radio(core.BRANDING.text("welcome_install") + " (this system)",
-                      core.BRANDING.text("welcome_install_subtitle"), {"live": True}, True)
+            # On live media this row is the selection at the start.
+            selected = add_radio(
+                core.BRANDING.text("welcome_install") + " (this system)",
+                core.BRANDING.text("welcome_install_subtitle"), {"live": True}, True)
 
         def sort_key(leaf):
-            return (leaf.imgref not in self.offline_refs, leaf.name)
+            return (leaf.imgref not in self.offline_refs, leaf.breadcrumb.casefold())
 
+        # Off live media: the branding's default_image, then the catalog's,
+        # else nothing. Never the first row.
+        default = None if self.live else self.catalog.default_leaf(
+            core.BRANDING.default_image)
         for leaf in sorted(self.leaves, key=sort_key):
-            add_radio(leaf.name, leaf.imgref, {"leaf": leaf},
-                      leaf.imgref in self.offline_refs)
+            # The breadcrumb, not the leaf's name: fifteen leaves of the
+            # bundled catalog are called "Stable".
+            radio = add_radio(leaf.breadcrumb, leaf.imgref, {"leaf": leaf},
+                              leaf.imgref in self.offline_refs)
+            if leaf is default:
+                selected = radio
+        (selected or self._none).set_active(True)
+        for radio in self.radios:
+            radio.connect("toggled", self._on_toggled)
+
+        self.choose = Gtk.Label(label="Choose an image to continue.", xalign=0)
+        self.choose.get_style_context().add_class("dim-label")
+        self.choose.set_no_show_all(True)
+        self.pack_start(self.choose, False, False, 0)
         if not self.radios:
+            self.search.set_no_show_all(True)
             self.pack_start(_warn_row(
                 "No image catalog found and this is not a live system. "
                 "Check that fisherman's images.json is installed."), False, False, 0)
         self.listbox.show_all()
+        self._sync_hint()
+
+    def _on_search(self, entry):
+        needle = entry.get_text().strip().casefold()
+        for box, haystack in self._rows:
+            box.set_visible(needle in haystack)
+
+    def _on_toggled(self, *_args):
+        self._sync_hint()
+        refresh = getattr(self.win, "refresh_nav", None)
+        if refresh is not None:
+            refresh()
+
+    def _sync_hint(self):
+        self.choose.set_visible(bool(self.radios) and self.selection() is None)
 
     def can_continue(self):
-        return bool(self.radios)
+        # Held until a row is selected: there is no silent first choice.
+        return self.selection() is not None
 
     def selection(self):
         for r in self.radios:
@@ -246,7 +292,7 @@ class DestinationPage(Page):
         return None
 
 
-FILESYSTEMS = ("xfs", "ext4", "btrfs", "zfs")
+FILESYSTEMS = core.FILESYSTEMS
 
 
 class SetupPage(Page):
@@ -302,14 +348,15 @@ class SetupPage(Page):
         adv = Gtk.Expander(label="Advanced")
         advbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin=6)
         self.fs_combo = Gtk.ComboBoxText()
-        for fs in FILESYSTEMS:
-            self.fs_combo.append(fs, fs)
         # Whether the person picked a filesystem. Until they do, the combo
         # follows the selected image's catalog default (on_enter), and that
-        # default is what goes in the recipe.
+        # default is what goes in the recipe. The choices are the image's
+        # too (`filesystems`, else its one `filesystem`); this frontend's
+        # own list is for an image that names neither.
         self._fs_chosen = False
         self._fs_syncing = False
-        self._show_filesystem("xfs")
+        self._fs_leaf = None
+        self._load_filesystems(None)
         self.fs_combo.connect("changed", self._on_fs_changed)
         fsrow = Gtk.Box(spacing=8)
         fsrow.pack_start(Gtk.Label(label="Filesystem", xalign=0), False, False, 0)
@@ -332,8 +379,13 @@ class SetupPage(Page):
         enc = {"type": self.enc_type()}
         if core.needs_passphrase(enc["type"]):
             enc["passphrase"] = self.pass1.get_text()
-        return {"filesystem": self.default_filesystem(leaf.filesystem if leaf else ""),
-                "encryption": enc}
+        partial = {"filesystem": self.default_filesystem(leaf.filesystem if leaf else ""),
+                   "encryption": enc}
+        if leaf is not None and getattr(leaf, "composefs", False):
+            # fisherman's filesystem rule depends on it (composefs needs
+            # fs-verity), so the page shows the problem before Install.
+            partial["composeFsBackend"] = True
+        return partial
 
     def _on_checked(self, problems, error):
         problems = problems or []
@@ -358,27 +410,38 @@ class SetupPage(Page):
             return bool(p1) and p1 == p2
         return True
 
-    def _show_filesystem(self, fs):
-        """Select fs in the combo without counting it as the person's pick."""
-        if fs not in FILESYSTEMS and self.fs_combo.get_model() is not None:
-            ids = [row[1] for row in self.fs_combo.get_model()]
-            if fs not in ids:
-                self.fs_combo.append(fs, fs)
+    def _load_filesystems(self, leaf):
+        """Offer the image's filesystems and select its default, without
+        counting that as the person's pick."""
+        choices = list(getattr(leaf, "filesystems", None) or FILESYSTEMS)
+        default = getattr(leaf, "filesystem", "") or core.DEFAULT_FILESYSTEM
+        if default not in choices:
+            # A leaf that lists choices without the frontend's default, and
+            # names no default of its own: its first choice.
+            default = choices[0]
         self._fs_syncing = True
         try:
-            self.fs_combo.set_active_id(fs)
+            self.fs_combo.remove_all()
+            for fs in choices:
+                self.fs_combo.append(fs, fs)
+            self.fs_combo.set_active_id(default)
         finally:
             self._fs_syncing = False
 
-    def _on_fs_changed(self, *_):
+    def _on_fs_changed(self, *_args):
         if not self._fs_syncing:
             self._fs_chosen = True
             self._sync()
 
     def on_enter(self):
-        if not self._fs_chosen:
-            leaf = self.win.selected_leaf()
-            self._show_filesystem((leaf.filesystem if leaf else "") or "xfs")
+        leaf = self.win.selected_leaf()
+        key = getattr(leaf, "imgref", "") if leaf is not None else ""
+        if not self._entered or key != self._fs_leaf:
+            # A different image: its filesystems and its default apply. The
+            # choice made for the image before it does not carry over.
+            self._fs_leaf = key
+            self._fs_chosen = False
+            self._load_filesystems(leaf)
         self._entered = True
         self.check.submit(self.partial_recipe())
 
@@ -387,8 +450,8 @@ class SetupPage(Page):
         # be `get_active_id() or leaf_default`, but the combo always had
         # "xfs" active, so the catalog default could never apply.
         if self._fs_chosen:
-            return self.fs_combo.get_active_id() or leaf_default or "xfs"
-        return leaf_default or "xfs"
+            return self.fs_combo.get_active_id() or leaf_default or core.DEFAULT_FILESYSTEM
+        return leaf_default or core.DEFAULT_FILESYSTEM
 
 
 class IdentityPage(Page):
@@ -397,7 +460,12 @@ class IdentityPage(Page):
     def __init__(self, win):
         super().__init__(win)
         grid = Gtk.Grid(column_spacing=12, row_spacing=6)
+        # Seeded from the selected image's default_hostname, else the
+        # branding's (on_enter), until the person types one.
+        self._hostname_edited = False
+        self._hostname_syncing = False
         self.hostname = Gtk.Entry(text=core.BRANDING.default_hostname)
+        self.hostname.connect("changed", self._on_hostname_changed)
         grid.attach(Gtk.Label(label="Hostname", xalign=0), 0, 0, 1, 1)
         grid.attach(self.hostname, 1, 0, 1, 1)
         self.hostname_problem = problem_label()
@@ -494,7 +562,26 @@ class IdentityPage(Page):
                 self.kb_combo.get_active_id() or "",
                 self.tz_combo.get_active_id() or "")
 
+    def _on_hostname_changed(self, *_args):
+        if not self._hostname_syncing:
+            self._hostname_edited = True
+
+    def seed_hostname(self):
+        """Show the selected image's default hostname until the person has
+        typed one (shared/catalog/README.md, "Hostname")."""
+        if self._hostname_edited:
+            return
+        leaf = self.win.selected_leaf()
+        seed = getattr(leaf, "default_hostname", "") or core.BRANDING.default_hostname
+        if self.hostname.get_text() != seed:
+            self._hostname_syncing = True
+            try:
+                self.hostname.set_text(seed)
+            finally:
+                self._hostname_syncing = False
+
     def on_enter(self):
+        self.seed_hostname()
         self.user_frame.set_visible(self.win.needs_user_creation())
         self.check.submit(self.partial_recipe())
 
@@ -568,6 +655,9 @@ class ConfirmPage(Page):
             ("Image", r.get("image") or self.win.pages["source"].live_image
              or "this live system"),
         ]
+        if r.get("targetImgref") and r["targetImgref"] != r.get("image"):
+            # The image that updates follow, when it is not the one installed.
+            rows.append(("Updates from", r["targetImgref"]))
         if r.get("user", {}).get("username"):
             rows.append(("User", r["user"]["username"]))
         width = max(len(k) for k, _ in rows) + 2

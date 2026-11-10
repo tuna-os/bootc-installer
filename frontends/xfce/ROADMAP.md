@@ -28,16 +28,11 @@ The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 | Issue | Gap |
 |---|---|
 | #295 | The frontend asks for the account password one time only, with no reveal toggle |
-| #298 | The Flatpak cannot see a host catalog in `/etc/bootc-installer` |
-| #289 | Off live media, the frontend ignores the branding `default_image` |
 | #290 | The Flatpak builds fisherman, but does not stage it or verify its SHA256 |
 | #300 | The frontend has no translatable strings |
 | #301 | An offline user gets no help to connect |
 | #299 | The result page reports a cancel as a failure |
-| #288 | The default for `needs_user_creation` is not the same in every frontend |
 | #292 | Language, keyboard and time zone do not reach the installed system |
-| #296 | The catalog's Flatpak list for an image does not reach the recipe |
-| #297 | `nvidia_imgref`, `flatpak_var_path` and `targetImgref` from the catalog do not all reach the recipe |
 | #302 | The first account is only in `wheel` |
 
 When you close one of these issues, remove its row.

@@ -198,8 +198,29 @@ class InstallerWindow(Gtk.ApplicationWindow):
         return sel.get("leaf")
 
     def needs_user_creation(self):
+        """Whether the installer creates the first account
+        (shared/catalog/README.md, "The account"): the selected leaf's flag;
+        for "install this system" on live media, the flag of the catalog
+        leaf the probe's live image names. An image the catalog does not
+        have needs an account."""
+        source = self.pages["source"]
+        sel = source.selection() or {}
+        leaf = sel.get("leaf")
+        if leaf is not None:
+            return leaf.needs_user_creation
+        if sel.get("live"):
+            return source.catalog.needs_user_creation(source.live_image)
+        return True
+
+    def source_and_target(self):
+        """(image, targetImgref) of the selected leaf on this machine, or
+        ("", "") for "install this system"."""
         leaf = self.selected_leaf()
-        return leaf.needs_user_creation if leaf else True
+        if leaf is None:
+            return "", ""
+        source = self.pages["source"]
+        return core.source_and_target(leaf, core.has_nvidia_gpu(),
+                                      bool(source.live), core.offline_images())
 
     def build_recipe(self):
         """Read page widgets and adapt their values to the core recipe API."""
@@ -207,22 +228,26 @@ class InstallerWindow(Gtk.ApplicationWindow):
         leaf = self.selected_leaf()
         disk = self.pages["destination"].selected_disk()
         identity = self.pages["identity"]
-        return core.build_recipe(
+        fields = dict(
             disk=disk["path"],
             filesystem=setup.default_filesystem(leaf.filesystem if leaf else ""),
             btrfs_subvolumes=setup.subvol_check.get_active(),
             encryption_type=setup.enc_type(),
             passphrase=setup.pass1.get_text(),
-            image=leaf.imgref if leaf else "",
             hostname=identity.hostname.get_text(),
-            bootloader=leaf.bootloader if leaf else "",
-            composefs=leaf.composefs if leaf else False,
-            flatpaks=leaf.flatpaks if leaf else "",
-            needs_user=self.needs_user_creation(),
             username=identity.username.get_text(),
             fullname=identity.fullname.get_text(),
             password=identity.password.get_text(),
+            groups=core.account_groups(),
         )
+        if leaf is None:
+            # "Install this system": an empty image, which fisherman accepts
+            # on live media only.
+            return core.build_recipe(needs_user=self.needs_user_creation(), **fields)
+        source = self.pages["source"]
+        return core.recipe_for_leaf(
+            leaf, has_nvidia=core.has_nvidia_gpu(), live=bool(source.live),
+            offline=core.offline_images(), **fields)
 
     def _install_running(self):
         """Whether fisherman is currently running under this window."""
@@ -269,12 +294,11 @@ class InstallerWindow(Gtk.ApplicationWindow):
         already in the host's offline stores needs no download -- both are
         fisherman's facts (probe's live/offline), the same condition
         GNOME's conn_check.should_show inverts."""
-        source = self.pages["source"]
-        live = source.live
-        sel = source.selection() or {}
-        leaf = sel.get("leaf")
-        offline = bool(live) or (leaf is not None
-                                 and leaf.imgref in core.offline_images())
+        sel = self.pages["source"].selection() or {}
+        # The image the install reads: the NVIDIA one on an NVIDIA machine.
+        image = self.source_and_target()[0]
+        offline = bool(sel.get("live")) or (bool(image)
+                                            and image in core.offline_images())
         return (locale_checks.needs_network(offline), offline)
 
     @staticmethod

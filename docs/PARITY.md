@@ -126,31 +126,31 @@ not use `default_image` yet (#289).
 
 | Feature | GNOME | KDE | COSMIC | Niri | XFCE |
 |---|---|---|---|---|---|
-| Image catalog choice (fisherman `images.json`) | yes (tree, search) | yes (disk step, search) | yes (and a custom URL row) | yes (flat list) | yes (flat list) |
-| Image selected at start, off live media | catalog `default_image`, then branding `default_image` if the catalog has it; else you must pick | none: you must pick | first row of the catalog (#289) | first name in the alphabet (#289) | first name in the alphabet (#289) |
-| Catalog fields that reach the recipe | all | image, bootloader, composefs, hostname; not filesystem (#287) | image and Flatpaks only (#286) | image, filesystem, bootloader, composefs, hostname | image, filesystem, bootloader, composefs |
+| Image catalog choice (fisherman `images.json`) | yes (tree, search) | yes (disk step, search) | yes (and a custom URL row) | yes (flat list) | yes (flat list, product and channel in each row, search) |
+| Image selected at start, off live media | catalog `default_image`, then branding `default_image` if the catalog has it; else you must pick | none: you must pick | first row of the catalog (#289) | first name in the alphabet (#289) | branding `default_image`, then catalog `default_image`; else you must pick |
+| Catalog fields that reach the recipe | all | image, bootloader, composefs, hostname; not filesystem (#287) | image and Flatpaks only (#286) | image, filesystem, bootloader, composefs, hostname | all |
 | Live-ISO install without download (live media from `fisherman probe --json`) | yes | yes | yes | yes | yes |
 | Offline image stores (found by fisherman on the host) | yes | yes | yes | yes | yes |
 | Recipe on fisherman's stdin, no recipe file | yes | yes | yes | yes | yes |
 | fisherman staged from the Flatpak, with a SHA256 check | yes | no (#290) | no (#290) | no (#290) | no (#290) |
-| Fields checked by `fisherman validate --json --partial` | hostname, username | hostname, username, passphrase, filesystem | hostname, passphrase, username | hostname, username, passphrase, filesystem | hostname, username, passphrase |
+| Fields checked by `fisherman validate --json --partial` | hostname, username | hostname, username, passphrase, filesystem | hostname, passphrase, username | hostname, username, passphrase, filesystem | hostname, username, passphrase, filesystem |
 | Disk choice with erase warning | yes | yes | yes | yes | yes |
 | Disk list from `fisherman probe --json` (`shared/probe/`) | yes | yes | yes | yes | yes |
 | Disk row: model (path when unknown), path, size label, bus | yes | yes | yes | yes | yes |
 | Disk probe failure shown on the disk page | yes | yes | yes | yes | yes |
 | RAM / CPU / UEFI check (fisherman's `system.unmet`) | blocks (gate window) | holds Next; override for RAM and CPU | blocks (requirements page) | blocks (gate dialog) | blocks (gate window) |
 | Connectivity check | blocks (connection-check step); the Wi-Fi page is not in the bundled recipe | blocks on welcome | blocks (network page) | status line, does not block (#301) | blocks on confirm |
-| Filesystem choice | yes (list from the image) | no (always xfs, #287) | xfs or btrfs | yes (Advanced) | yes (Advanced) |
+| Filesystem choice | yes (list from the image) | no (always xfs, #287) | xfs or btrfs | yes (Advanced) | yes (Advanced, list from the image) |
 | Encryption: none / passphrase | yes | yes | yes | yes | yes |
 | Passphrase typed twice, Next held on a mismatch | yes | yes | yes | yes | yes |
 | Encryption: TPM / TPM + passphrase | yes | yes | yes | yes | yes |
 | Recovery key shown after a `tpm2-luks` install | yes | yes | yes | yes | yes |
-| Hostname | generated, editable on confirm | no (branding default, shown on confirm) | field | field on confirm | field |
+| Hostname | generated, editable on confirm | no (branding default, shown on confirm) | field | field on confirm | field, first value from the image |
 | User account, when the image needs one | yes | yes | yes | yes | yes |
 | Default when the catalog does not set `needs_user_creation` (#288) | no account | account | no account | account | account |
 | Account password | twice, reveal, strength | twice, reveal, strength | twice, reveal | twice, no reveal (#295) | once, no reveal (#295) |
 | Account groups | wheel and developer groups, operator override | wheel (#302) | wheel (#302) | wheel (#302) | wheel (#302) |
-| Phone companion (QR) | yes (TLS on the LAN address only); shows when the image needs an account, and fills the account page | no | yes (plain HTTP, #293) | no | yes (plain HTTP, #293, #294) |
+| Phone companion (QR) | yes (TLS on the LAN address only); shows when the image needs an account, and fills the account page | no | yes (plain HTTP, #293) | no | no |
 | Keyboard / language / timezone (#292) | pages exist; not in the bundled recipe | shown on confirm, applied nowhere | applied to the live session | applied to the live session (#291) | keyboard only |
 | Keyboard / language / timezone in the installed system | no | no | no | no | no |
 | Cancel a running install (#299) | Cancel button, window close and Ctrl+Q: each asks first; a cancelled page follows | Cancel button, does not ask | quit dialog | Cancel button, does not ask | window close, asks first |

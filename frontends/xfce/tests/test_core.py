@@ -108,7 +108,7 @@ class TestLiveAndOffline:
             assert gone not in src, gone
 
 
-class TestImageNode:
+class TestCatalogLeaves:
     def test_parent_child_field_inheritance(self):
         raw_parent = {
             "name": "Desktop",
@@ -122,36 +122,63 @@ class TestImageNode:
                 }
             ],
         }
-        parent = core.ImageNode(raw_parent)
-        assert len(parent.children) == 1
-        child = parent.children[0]
+        leaves = core.catalog_leaves({"images": [raw_parent]})
+        assert len(leaves) == 1
+        child = leaves[0]
 
         assert child.name == "XFCE"
-        assert child.registry == "ghcr.io/tuna-os"
         assert child.imgref == "ghcr.io/tuna-os:xfce"
         assert child.bootloader == "systemd-boot"
         assert child.filesystem == "btrfs"
-        assert child.is_leaf() is True
+        # The row says the product, not only the channel (#289).
+        assert child.label == "Desktop XFCE"
+        assert child.breadcrumb == "Desktop \u203a XFCE"
 
-        leaves = list(parent.leaves())
-        assert len(leaves) == 1
-        assert leaves[0].name == "XFCE"
+    def test_needs_user_creation_defaults_to_an_account(self):
+        leaves = core.catalog_leaves({"images": [
+            {"name": "A", "imgref": "r.example/a:1"},
+            {"name": "B", "registry": "r.example/b", "needs_user_creation": False,
+             "children": [{"name": "One", "tag": "1"},
+                          {"name": "Two", "tag": "2", "needs_user_creation": True}]},
+        ]})
+        assert [leaf.needs_user_creation for leaf in leaves] == [True, False, True]
 
 
 class TestLoadCatalog:
-    def test_loads_images_json_file(self, tmp_path, monkeypatch):
+    def test_loads_images_json_file(self, tmp_path):
         cfg = tmp_path / "images.json"
         cfg.write_text(json.dumps({
             "default_image": "ghcr.io/tuna-os/xfce:latest",
             "fallback_flatpaks": ["org.gnome.Loupe"],
             "images": [{"name": "XFCE", "imgref": "ghcr.io/tuna-os/xfce:latest"}]
         }))
-        monkeypatch.setattr(core, "IMAGES_JSON_PATHS", [str(cfg)])
-        default_img, fallbacks, nodes = core.load_catalog()
-        assert default_img == "ghcr.io/tuna-os/xfce:latest"
-        assert fallbacks == ["org.gnome.Loupe"]
-        assert len(nodes) == 1
-        assert nodes[0].name == "XFCE"
+        catalog = core.load_catalog([str(cfg)])
+        assert catalog.default_image == "ghcr.io/tuna-os/xfce:latest"
+        assert len(catalog.leaves) == 1
+        assert catalog.leaves[0].name == "XFCE"
+        assert catalog.roots[0].name == "XFCE"
+        # fallback_flatpaks is not part of the contract: never read, never
+        # sent (shared/catalog/README.md).
+        assert not hasattr(catalog, "fallback_flatpaks")
+        assert catalog.leaves[0].flatpaks is None
+
+    def test_a_file_that_does_not_load_does_not_stop_the_search(self, tmp_path):
+        broken = tmp_path / "broken.json"
+        broken.write_text("{nope")
+        not_a_catalog = tmp_path / "list.json"
+        not_a_catalog.write_text('{"images": "none"}')
+        good = tmp_path / "images.json"
+        good.write_text(json.dumps({"images": [{"name": "A", "imgref": "r.example/a:1"}]}))
+        catalog = core.load_catalog([str(tmp_path / "missing.json"), str(broken),
+                                     str(not_a_catalog), str(good)])
+        assert catalog.path == str(good)
+        assert [leaf.imgref for leaf in catalog.leaves] == ["r.example/a:1"]
+
+    def test_the_harness_override_is_read_first(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("FISHERMAN_IMAGES_PATH", str(tmp_path / "x.json"))
+        paths = core.images_json_paths()
+        assert paths[0] == str(tmp_path / "x.json")
+        assert paths[1:] == core.catalog_search_paths()
 
 
 # Disks, sizes and the TPM come from `fisherman probe --json` now: see
@@ -235,15 +262,37 @@ class TestBuildRecipe:
         assert r["bootloader"] == "systemd-boot"
         assert r["composeFsBackend"] is True
 
-    def test_flatpaks_split_into_a_list(self):
-        r = core.build_recipe(**MINIMAL, flatpaks="org.gnome.Loupe org.gnome.Calculator")
+    def test_a_flatpak_list_is_written_as_given(self):
+        r = core.build_recipe(**MINIMAL, flatpaks=["org.gnome.Loupe", "org.gnome.Calculator"])
         assert r["flatpaks"] == ["org.gnome.Loupe", "org.gnome.Calculator"]
 
+    def test_an_empty_flatpak_list_is_a_value(self):
+        """`[]` tells fisherman to copy no Flatpak; no key tells it to apply
+        its own default. The two are not the same."""
+        assert core.build_recipe(**MINIMAL, flatpaks=[])["flatpaks"] == []
+        assert "flatpaks" not in core.build_recipe(**MINIMAL, flatpaks=None)
+
     def test_catalog_reference_is_not_a_package_list(self):
-        """A leading @ names another catalog entry — passing it verbatim would
-        ask fisherman to install a flatpak called '@desktop'."""
-        r = core.build_recipe(**MINIMAL, flatpaks="@desktop")
-        assert "flatpaks" not in r
+        """A leading @ names a catalog alias. Passing it verbatim would ask
+        fisherman to install a flatpak called '@desktop'; an alias that names
+        a list is that list, and a URL or an unknown alias is no key."""
+        aliases = {"desktop": ["org.example.A"], "remote": "https://example.org/Brewfile"}
+        assert core.resolve_flatpaks("@desktop", aliases) == ["org.example.A"]
+        assert core.resolve_flatpaks("@remote", aliases) is None
+        assert core.resolve_flatpaks("@missing", aliases) is None
+        assert core.resolve_flatpaks("https://example.org/Brewfile", aliases) is None
+        assert core.resolve_flatpaks(None, aliases) is None
+        assert core.resolve_flatpaks([], aliases) == []
+
+    def test_target_imgref_and_leaf_keys_only_when_set(self):
+        r = core.build_recipe(**MINIMAL, image="r.example/a:1", target_imgref="r.example/a:1",
+                              flatpak_var_path="state/var", image_type="ostree")
+        assert r["targetImgref"] == "r.example/a:1"
+        assert r["flatpakVarPath"] == "state/var"
+        assert r["imageType"] == "ostree"
+        bare = core.build_recipe(**MINIMAL)
+        for key in ("targetImgref", "flatpakVarPath", "imageType"):
+            assert key not in bare
 
     # --- offline stores ---
 
@@ -258,7 +307,12 @@ class TestBuildRecipe:
         r = core.build_recipe(**MINIMAL, needs_user=True, username="jo",
                               fullname="Jo Fish", password="pw")
         assert r["user"] == {"username": "jo", "fullname": "Jo Fish",
-                             "password": "pw", "groups": ["wheel"]}
+                             "password": "pw", "groups": list(core.DEFAULT_GROUPS)}
+        assert {"wheel", "sudo"} <= set(r["user"]["groups"])
+
+    def test_operator_groups_replace_the_default(self):
+        r = core.build_recipe(**MINIMAL, needs_user=True, username="jo", groups=[])
+        assert r["user"]["groups"] == []
 
     def test_no_user_block_when_the_image_creates_its_own(self):
         """The image runs its own first-boot setup; a second user would be
@@ -403,11 +457,11 @@ class TestHostRun:
 
 
 class TestLoadCatalogFallback:
-    def test_missing_file_returns_defaults(self, monkeypatch):
-        monkeypatch.setattr(core, "IMAGES_JSON_PATHS", ["/path/that/does/not/exist.json"])
-        default_img, fallbacks, nodes = core.load_catalog()
-        assert default_img == ""
-        assert fallbacks == []
-        assert nodes == []
-
-
+    def test_missing_file_returns_defaults(self):
+        catalog = core.load_catalog(["/path/that/does/not/exist.json"])
+        assert catalog.default_image == ""
+        assert catalog.leaves == []
+        assert catalog.roots == []
+        assert catalog.default_leaf("anything") is None
+        # An image no catalog has needs an account.
+        assert catalog.needs_user_creation("r.example/unknown:1") is True

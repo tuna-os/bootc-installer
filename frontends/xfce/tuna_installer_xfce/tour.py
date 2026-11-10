@@ -22,7 +22,7 @@ from gi.repository import Gtk  # noqa: E402
 def slides_from_catalog(catalog):
     """One {title, description} slide per catalog root that has both.
 
-    `catalog` is core.load_catalog()'s third element ([ImageNode]). Roots
+    `catalog` is core.load_catalog().roots. Roots
     carry the family name and desc; leaves carry imgrefs, which are not tour
     material. Order is the catalog's own.
     """
