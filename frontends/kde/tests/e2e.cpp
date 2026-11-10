@@ -1,10 +1,11 @@
 // End to end: InstallerController drives the real backend launch path.
 //
 // This is the code the Install button runs, minus the button: the
-// controller writes the 0600 recipe into its private directory, launches
-// `sudo /usr/local/bin/fisherman <recipe>` (the same fishermanCommand() the
-// shipped binary uses outside Flatpak), streams its stdout/stderr into the
-// log, persists the log file and emits installCompleted(exitCode) when the
+// controller selects an image from a catalog, launches
+// `bash -c 'pkexec /usr/local/bin/fisherman -; exit $?'` (fisherman.h's
+// native command; shared/e2e/fake-bin/pkexec stands in for a polkit agent),
+// writes the recipe to its stdin, streams its stdout/stderr into the log,
+// persists the log file and emits installCompleted(exitCode) when the
 // process exits. shared/e2e/setup.sh has put the validating shim at that
 // path, so what runs is the real fisherman's Validate() on the recipe this
 // controller produced.
@@ -13,6 +14,7 @@
 // controller reports success and its log carried fisherman's completion event.
 
 #include "installercontroller.h"
+#include "account.h"
 
 #include <QCoreApplication>
 #include <QEventLoop>
@@ -36,12 +38,55 @@ int main(int argc, char *argv[])
         return 2;
     }
 
+    // The catalog this driver gives the frontend, written next to the recipe
+    // so shared/e2e/check-recipe.py can judge "an account iff the image
+    // needs one" against it. The image is the ostree + grub2 canary the VM
+    // job installs. A second leaf is a composefs image with its own
+    // filesystem: selecting it first shows that the next leaf's values
+    // replace it (#287).
+    const QString e2eDir = qEnvironmentVariable("TUNA_E2E_DIR", QStringLiteral("/tmp/tuna-e2e"));
+    const QString catalogPath = e2eDir + QStringLiteral("/catalog.json");
+    const QString canary = QStringLiteral("quay.io/centos-bootc/centos-bootc:c10s");
+    {
+        QFile catalog(catalogPath);
+        if (!catalog.open(QIODevice::WriteOnly)) {
+            out << "FAIL: cannot write " << catalogPath << "\n";
+            return 2;
+        }
+        catalog.write(R"({
+  "images": [
+    {"name": "Composefs canary", "imgref": "registry.example/os/composefs:1",
+     "composefs": true, "bootloader": "systemd", "filesystems": ["btrfs", "ext4"],
+     "needs_user_creation": false},
+    {"name": "CentOS bootc", "registry": "quay.io/centos-bootc/centos-bootc",
+     "bootloader": "grub2", "filesystem": "xfs", "needs_user_creation": true,
+     "flatpaks": [],
+     "children": [{"name": "Stream 10", "tag": "c10s"}]}
+  ]
+}
+)");
+    }
+    qputenv("FISHERMAN_IMAGES_PATH", catalogPath.toUtf8());
+
     InstallerController controller;
-    // What a user picks on the disk and options steps. The image is the
-    // ostree + grub2 canary the VM job installs; no composefs on xfs.
+    if (controller.catalogIndex() != -1) {
+        out << "FAIL: an image is selected at start, and neither the branding nor the catalog names one\n";
+        return 1;
+    }
+    // What a user picks on the disk step: the disk, then the composefs
+    // image, then the image this run installs.
     controller.setDisk(QString::fromUtf8(disk));
-    controller.setFilesystem(QStringLiteral("xfs"));
-    controller.setImage(QStringLiteral("quay.io/centos-bootc/centos-bootc:c10s"));
+    controller.selectCatalogImage(0);
+    if (controller.filesystem() != QLatin1String("btrfs") || controller.needsUserCreation()) {
+        out << "FAIL: the composefs leaf did not bring its filesystem and its account flag\n";
+        return 1;
+    }
+    controller.selectCatalogImage(controller.catalogImgrefs().indexOf(canary));
+    if (controller.image() != canary || controller.filesystem() != QLatin1String("xfs")
+        || controller.recipe().composeFsBackend || !controller.needsUserCreation()) {
+        out << "FAIL: selecting the canary left values of the leaf before it in the recipe\n";
+        return 1;
+    }
     controller.setEncryptionType(QStringLiteral("none"));
     controller.setHostname(QStringLiteral("kde-e2e"));
 
@@ -124,16 +169,26 @@ int main(int argc, char *argv[])
     // The recipe fisherman was handed on stdin, as the shim kept it: it
     // must create the account (shared/e2e/check-recipe.py then runs the
     // real fisherman's full validate and the schema over the same file).
-    QFile kept(QStringLiteral("/tmp/tuna-e2e/recipe.json"));
+    QFile kept(e2eDir + QStringLiteral("/recipe.json"));
     if (!kept.open(QIODevice::ReadOnly)) {
-        out << "FAIL: the shim kept no recipe at /tmp/tuna-e2e/recipe.json\n";
+        out << "FAIL: the shim kept no recipe at " << kept.fileName() << "\n";
         return 1;
     }
-    const QJsonObject user = QJsonDocument::fromJson(kept.readAll()).object()
-                                 .value(QStringLiteral("user")).toObject();
+    const QJsonObject recipe = QJsonDocument::fromJson(kept.readAll()).object();
+    if (recipe.value(QStringLiteral("image")).toString() != canary
+        || recipe.value(QStringLiteral("targetImgref")).toString() != canary
+        || recipe.value(QStringLiteral("filesystem")).toString() != QLatin1String("xfs")
+        || recipe.value(QStringLiteral("bootloader")).toString() != QLatin1String("grub2")
+        || recipe.contains(QStringLiteral("composeFsBackend"))
+        || !recipe.value(QStringLiteral("flatpaks")).isArray()) {
+        out << "FAIL: the recipe does not carry the selected catalog leaf\n";
+        return 1;
+    }
+    const QJsonObject user = recipe.value(QStringLiteral("user")).toObject();
     if (user.value(QStringLiteral("username")).toString() != username
         || user.value(QStringLiteral("password")).toString().isEmpty()
-        || user.value(QStringLiteral("groups")).toArray() != QJsonArray{QStringLiteral("wheel")}) {
+        || user.value(QStringLiteral("groups")).toArray()
+               != QJsonArray::fromStringList(account::defaultGroups())) {
         out << "FAIL: the recipe's user block is not the account the step created: "
             << QJsonDocument(QJsonObject{{QStringLiteral("username"), user.value(QStringLiteral("username"))},
                                          {QStringLiteral("groups"), user.value(QStringLiteral("groups"))}})
@@ -141,6 +196,6 @@ int main(int argc, char *argv[])
             << "\n";
         return 1;
     }
-    out << "OK: KDE controller reached installCompleted(0) through sudo /usr/local/bin/fisherman\n";
+    out << "OK: KDE controller reached installCompleted(0) through pkexec /usr/local/bin/fisherman\n";
     return 0;
 }

@@ -21,11 +21,13 @@ Kirigami Addons, `org.kde.desktop` Qt Quick Controls style). See
 | ![Welcome](screenshots/01-welcome.png) | **Welcome** — what the wizard is about to do. |
 | ![Target disk](screenshots/02-disk.png) | **Target disk** — the disks `fisherman probe --json` offers, one FormCard radio per disk: the model (the path when unknown), then the path, fisherman's size label and the bus. Re-probed every time the step becomes current, so hotplugged media appear. |
 | ![Disk encryption](screenshots/03-encryption.png) | **Disk encryption** — `none`, `luks-passphrase`, and (only when fisherman reports a usable TPM 2.0) `tpm2-luks` and `tpm2-luks-passphrase`. The passphrase fields appear only for the options that take one. |
-| ![User account](screenshots/04-account.png) | **User account** — username, optional full name and the password typed twice: the recipe's `user` block, in group `wheel`. Next is held until both are filled, the passwords match and `fisherman validate --json --partial -` has no problem with the username (shown under the field in the `validate_username_*` copy). The capture asserts Next is held before the second typing and released after it. |
+| ![User account](screenshots/04-account.png) | **User account** — username, optional full name and the password typed twice: the recipe's `user` block, with the groups of `shared/account/groups.json`. Next is held until both are filled, the passwords match and `fisherman validate --json --partial -` has no problem with the username (shown under the field in the `validate_username_*` copy). The capture asserts Next is held before the second typing and released after it. |
 | ![Confirm](screenshots/05-confirm.png) | **Confirm** — the recipe as it will be written (including the username, never the password), and the only button in the app that starts an install. |
 | ![Installing](screenshots/06-progress.png) | **Installing** — live `fisherman` output. No Back, no Next: the wizard advances itself when the process exits. |
 | ![Finished](screenshots/07-done.png) | **Finished** — success or failure, with the exit code, under the branding artwork. |
 | ![Recovery key](screenshots/08-recovery.png) | **Recovery key** — after a TPM enrolment: the key in a monospace, selectable field with a copy button, and Restart held until "I have saved my recovery key" is ticked. |
+| ![Cancel question](screenshots/09-cancel-confirm.png) | **Cancel** — the progress step asks before it stops an install. The capture clicks Cancel and makes sure that the question opens. |
+| ![Cancelled](screenshots/10-cancelled.png) | **Cancelled** — the done step after a confirmed cancel or fisherman exit code 130. The heading is the copy key `done_cancelled_title`. |
 
 Every step's header shows "Step N of 7 · name" and one dot per step.
 
