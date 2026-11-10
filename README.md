@@ -39,7 +39,7 @@ You supply the image.
 |---|---|
 | The builder of a bootc image | An installer for your live ISO. You set the name, the artwork, the text and the image catalog in `/etc/bootc-installer/`. You do not fork the code. Refer to [Customise the installer for your image](docs/guide/customising.md). |
 | The maintainer of a desktop spin | A frontend in the toolkit of your desktop: GNOME, KDE Plasma, COSMIC, Niri or XFCE. All five drive the same backend with the same recipe. |
-| A person with a computer | A Flatpak that installs Bluefin, Aurora, Bazzite, TunaOS and other bootc images from the catalog. |
+| A person with a computer | The installer on the live ISO of your distribution. You can also run it as a Flatpak on a Linux system that you have now. |
 | An administrator | An unattended install from a JSON recipe. Refer to [Recipes and autoinstall](docs/guide/recipes.md). |
 
 > [!WARNING]
@@ -61,18 +61,19 @@ For the devel build and a tour of each screen, refer to [Install and use the ins
 ## Features
 
 - **Two boot stacks.** systemd-boot with composefs for sealed images such as [Dakota](https://github.com/projectbluefin/dakota). GRUB2 for images such as Bluefin and Bazzite. The partition layout follows the boot stack.
-- **Disk encryption.** LUKS2 with a passphrase, with the TPM2, or with the two together. The installer shows the recovery key and holds the restart until you confirm it.
-- **A user account in each frontend.** The account is an administrator.
+- **Disk encryption.** LUKS2 with a passphrase, with the TPM2, or with the two together. For a TPM-only install, the installer shows a recovery key and holds the restart until you confirm it.
+- **An image catalog.** Each frontend lists the images in fisherman's catalog, or in the catalog that your ISO ships.
+- **A user account**, when the image needs one. The account is an administrator.
 - **A hardware check.** The installer reads RAM, CPU, UEFI, TPM and disks from `fisherman probe`, and tells you what does not qualify.
 - **Offline install.** On a live ISO, the installer uses the image on the media and does not use the network.
 - **Fast first boot.** The backend copies the Wi-Fi and Bluetooth setup from the live session, and fills the caches.
 - **Your brand.** A `branding.json` file sets the product name, the text and the artwork. The code has no product name.
 - **Unattended install** (GNOME and XFCE). `--autoinstall` reads a JSON recipe and does not show the wizard.
-- **A phone companion** (GNOME). Scan a QR code and type your account data on a phone.
-- **Keyboard, language and time zone** (GNOME).
+- **A phone companion** (GNOME, COSMIC and XFCE). Scan a QR code and type your account data on a phone.
 
-The frontends do not have all features yet.
-[`docs/PARITY.md`](docs/PARITY.md) shows what each frontend does.
+The frontends do not have all features yet, and some features have open defects.
+[`docs/PARITY.md`](docs/PARITY.md) shows what each frontend does and links the issues.
+The installer does not set the language, the keyboard layout or the time zone of the new system yet.
 
 ## How it works
 

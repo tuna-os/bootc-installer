@@ -63,8 +63,8 @@ Thus a frontend reads the percentage from fisherman and does not count steps.
 |---|---|
 | `none` | No encryption. |
 | `luks-passphrase` | LUKS2 with your passphrase. |
-| `tpm2-luks` | LUKS2. The TPM2 unlocks the disk at boot, so there is no passphrase prompt. |
-| `tpm2-luks-passphrase` | LUKS2. The TPM2 unlocks the disk, and a passphrase is the fallback. The installer shows a recovery key, and you must confirm it before you continue. |
+| `tpm2-luks` | LUKS2. The TPM2 unlocks the disk at boot, so there is no passphrase prompt. The installer shows a recovery key, and you must confirm it before you restart. |
+| `tpm2-luks-passphrase` | LUKS2. The TPM2 unlocks the disk, and your passphrase is the fallback. There is no recovery key: the passphrase does that job. |
 
 ## Fast first boot
 
@@ -93,12 +93,14 @@ The installer starts a local HTTPS server on port 8443 with a self-signed certif
 It shows a QR code.
 When you scan the code, your phone opens a form.
 Type your account data and settings there.
-The phone sends the data as JSON, and the installer adds it to the recipe.
+The phone sends the data as JSON.
+At this time the installer uses only the hostname from that data, and the page has open defects (#304, #305).
 
 ## Video during the install
 
 The progress screen plays an AV1 or VP9 video.
-A distribution can put its own video at `/etc/bootc-installer/install-video.webm`.
+A distribution sets its own video in `branding.json`, under `extensions.gnome.video`.
+Refer to [`shared/branding/README.md`](../../shared/branding/README.md).
 The installer first makes sure that GStreamer has the codecs.
 If the codecs are not available, it shows a static progress screen.
 
@@ -106,5 +108,6 @@ If the codecs are not available, it shows a static progress screen.
 
 The file `/etc/bootc-installer/live-iso-mode` tells the installer that it runs on a live ISO.
 Then the installer does not pull from the network.
-It gives fisherman the OCI image in the containers-storage of the ISO through `additionalImageStores`.
+fisherman finds the image stores of the ISO by itself.
+The installer sends `additionalImageStores` only when the recipe of the ISO names stores.
 Refer to [Live ISO](../live-iso.md) to build an ISO of this type.

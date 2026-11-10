@@ -9,7 +9,7 @@ The installer reads them from the host when it starts.
 | `/etc/bootc-installer/images.json` | The image catalog. It replaces the catalog in the Flatpak. |
 | `/etc/bootc-installer/recipe.json` | The default recipe values (the sys-recipe). |
 | `$XDG_CONFIG_HOME/bootc-installer/images.json` | The catalog for one user. Use it to develop and test. |
-| `/etc/bootc-installer/install-video.webm` | The video on the progress screen. |
+| `/etc/bootc-installer/branding.json` | The product name, the text, the artwork and the video on the progress screen. Refer to [`shared/branding/README.md`](../../shared/branding/README.md). |
 | `/etc/bootc-installer/live-iso-mode` | Offline mode for a live ISO. Refer to [Live ISO](../live-iso.md). |
 
 ## Your own image catalog

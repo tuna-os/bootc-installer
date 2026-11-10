@@ -34,7 +34,7 @@ go vet ./...                  # lint
 ## Two-component architecture
 
 ### fisherman (Go, `fisherman/fisherman/`)
-Root-level CLI that reads a JSON recipe and executes a 9-step disk install pipeline. Emits newline-delimited JSON progress to stdout.
+Root-level CLI that reads a JSON recipe and executes a disk install pipeline (the step count changes with the recipe). Emits newline-delimited JSON progress to stdout.
 
 **Critical design constraints:**
 - The partition layout follows the selected boot stack:
@@ -78,7 +78,7 @@ would take, with the failing build output for COSMIC.
 
 ## Known issues
 
-- **UI freeze during blob download**: `__on_vte_contents_changed` in `progress.py` scrapes the entire VTE buffer on every character change.
+- The tracker has the open defects. Start with the issues that the 2026-11 review filed: #286 to #321 here, and #402 to #419 in tuna-os/fisherman.
 - **TPM2 enrolment:** Fixed in fisherman v0.2.0-34 — recovery key now emitted and shown in GUI.
 
 ## Don'ts
@@ -89,7 +89,7 @@ would take, with the failing build output for COSMIC.
 - **Don't write the recipe to a file.** Every frontend pipes it to `fisherman -` on stdin through its wrapper (`bash -c 'pkexec /usr/local/bin/fisherman -; exit $?'`, with `flatpak-spawn --host` in front in a Flatpak) and closes stdin; the recipe holds the LUKS passphrase. Leave `additionalImageStores` out unless the ISO's recipe names stores (fisherman finds the host's), take live media from `fisherman probe --json`, and check fields with `fisherman validate --json --partial -`. See `shared/recipe/README.md`.
 - **Don't push to `prod` or cut releases from `dev`.** `promote.yml` owns `prod`; `release.yml` owns tags and the Flatpak remote. Rolling release tags (`latest-stable`) are banned by ruleset history.
 - **Don't add a `.github/` under `frontends/<name>/`.** Workflows only run from the root.
-- **Don't hardcode a product.** No "TunaOS", "Bluefin", image ref, hostname, URL, vendor, quote, tagline, store or artwork in any frontend: read `shared/branding/README.md` and go through that frontend's branding resolver (`copy` keys for every rebrandable line, `assets` for artwork). The screenshot workflows set `BOOTC_INSTALLER_PRODUCT_NAME` for the docs; the bundled GNOME `recipe.json` carries no product strings; Bluefin's live in `shared/branding/examples/bluefin/`, which the live ISO ships. `docs/PARITY.md` says what each frontend renders.
+- **Don't hardcode a product.** No "TunaOS", "Bluefin", image ref, hostname, URL, vendor, quote, tagline, store or artwork in any frontend: read `shared/branding/README.md` and go through that frontend's branding resolver (`copy` keys for every rebrandable line, `assets` for artwork). The screenshot workflows set `BOOTC_INSTALLER_PRODUCT_NAME` for the docs; the bundled GNOME `recipe.json` must carry no product strings (it still names an image, #315); Bluefin's live in `shared/branding/examples/bluefin/`, which the live ISO ships. `docs/PARITY.md` says what each frontend renders.
 
 ## References
 - `fisherman/data/images.json` — recursive distro image catalog
