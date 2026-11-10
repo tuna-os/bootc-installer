@@ -208,7 +208,6 @@ if(BUILD_TESTING)
 endif()
 
 install(TARGETS tuna-installer-kde RUNTIME DESTINATION bin)
-install(FILES fisherman-recipe.schema.json DESTINATION share/tuna-installer-kde)
 
 # Desktop entry, AppStream metainfo and icon.
 #

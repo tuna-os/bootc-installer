@@ -12,6 +12,14 @@ sure that it does. Do not edit the hash of an old entry: add an entry.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-10: data files, KDE reads `shared/`
+
+- Removed: KDE's copies of `recipe/fisherman-recipe.schema.json` (no code
+  read it), `branding/copy-defaults.json`, `recipe/encryption-choices.json`
+  and `account/groups.json`. The KDE build compiles the three data files
+  in from `shared/`. No contract changed. A schema change no longer has a
+  KDE copy to follow.
+
 ## 2026-11-10: progress, the recovery key in a log
 
 - Added: `progress/recovery-key-cases.json` and

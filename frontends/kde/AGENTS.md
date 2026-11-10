@@ -124,7 +124,7 @@ properties, not preferences:
   The key is in memory for the done page and its acknowledgement.
 
 The recipe schema is shared with the other frontends
-(`fisherman-recipe.schema.json`, and the
+(`../../shared/recipe/fisherman-recipe.schema.json`, and the
 [installer frontend contract](https://github.com/tuna-os/tunaos/blob/main/docs/INSTALLER-FRONTENDS.md)).
 A field added here must exist there too, or the sibling installers diverge.
 Encryption types come from `../../shared/recipe/encryption-choices.json`

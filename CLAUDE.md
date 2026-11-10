@@ -8,7 +8,7 @@ bootc-installer is the monorepo for every TunaOS / Bluefin bootc installer front
 |---|---|
 | `bootc_installer/`, `data/`, `flatpak/`, `tests/` | GNOME frontend (this file's original subject) |
 | `frontends/kde|cosmic|niri|xfce/` | the other frontends, imported with history from `tuna-os/tuna-installer-*`; read their `AGENTS.md` first |
-| `shared/recipe/` | canonical recipe schema (KDE keeps a byte-identical copy; a unit test enforces it) |
+| `shared/recipe/` | the recipe schema, the one copy (a unit test fails if a frontend adds a second) |
 | `shared/catalog/` | image catalog contract: search path, fields that reach the recipe, default selection; `fixtures/` + reference `resolve.py` |
 | `shared/account/` | default groups of the first account and the operator override |
 | `shared/branding/` | product identity contract: `branding.json` first, `os-release` second, neutral last; one resolver per language, all tested against `fixtures/` |
