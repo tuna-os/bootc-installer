@@ -51,24 +51,26 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import json
+import os
 import re
 import subprocess
 import sys
 import urllib.request
 from dataclasses import dataclass, field
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import frontend_table  # noqa: E402
+
 INDEX_URL = "https://tunaos.org/flatpak/index/static"
 PACKAGE = "tuna-os/bootc-installer"
 LEGACY_PREFIX = "tuna-os/tuna-installer-"
-FRONTENDS = ("gnome", "kde", "cosmic", "niri", "xfce")
-APP_IDS = {
-    "gnome": "org.bootcinstaller.Installer",
-    "kde": "org.tunaos.InstallerKde",
-    "cosmic": "org.tunaos.InstallerCosmic",
-    "niri": "org.tunaos.InstallerNiri",
-    "xfce": "org.tunaos.InstallerXfce",
-}
-# publish-flatpak*.yml publish x86_64 and aarch64; the index names them in
+# The frontends and their app ids come from frontends.json, the table that
+# publish-flatpak.yml publishes from, so the check cannot expect an app id
+# that the publish does not use.
+_TABLE = frontend_table.load()
+FRONTENDS = tuple(_TABLE)
+APP_IDS = {name: row["app-id"] for name, row in _TABLE.items()}
+# publish-flatpak.yml publishes x86_64 and aarch64; the index names them in
 # OCI terms.
 ARCHS = ("amd64", "arm64")
 

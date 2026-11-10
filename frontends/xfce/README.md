@@ -1,7 +1,7 @@
 > **Part of the [bootc-installer monorepo](../../README.md).** This tree was
 > `tuna-os/tuna-installer-xfce` until 2026-09-17 and was imported with its history. CI for it
 > lives in the root `.github/workflows/` (`screenshots-xfce.yml`,
-> `publish-flatpak-xfce.yml`); releases follow [`docs/RELEASE.md`](../../docs/RELEASE.md).
+> `publish-flatpak.yml`); releases follow [`docs/RELEASE.md`](../../docs/RELEASE.md).
 
 # TunaOS XFCE Installer — GTK3 frontend for fisherman
 

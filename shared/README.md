@@ -59,11 +59,15 @@ parser in a test and compares the result with `fixtures/expected.json`. See
 
 ## `ci/`
 
-Scripts for the workflows: `fisherman_pins.py` moves every fisherman pin
-together, and `published_freshness.py` compares the served Flatpaks with
-`prod`. `tests/unit/test_ci_fisherman_pins.py` and
+Scripts and data for the workflows. `frontends.json` is the table of the
+frontends: the app id, the Flatpak manifest, the builder image, and two
+switches. `publish-flatpak.yml` publishes each frontend from its row, and
+`frontend_table.py` reads the row. `fisherman_pins.py` moves every fisherman
+pin together, and `published_freshness.py` compares the served Flatpaks with
+`prod`. `tests/unit/test_ci_frontend_table.py`,
+`tests/unit/test_ci_fisherman_pins.py` and
 `tests/unit/test_ci_published_freshness.py` cover them. A new frontend adds
-its Flatpak manifest to the lists in the two scripts.
+one row to `frontends.json`, and one `Publish (<name>)` job to `release.yml`.
 
 ## `e2e/`
 

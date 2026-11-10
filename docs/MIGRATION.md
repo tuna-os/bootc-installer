@@ -41,7 +41,9 @@ nothing is lost in the shuffle. Tracking epic:
 - Each old repo's `.github/workflows/*` became a root workflow with the
   frontend's name in it: `screenshots-<name>.yml`, `publish-flatpak-<name>.yml`,
   plus `ci-niri.yml` and `cargo-sources-cosmic.yml`. Bodies are unchanged
-  apart from `working-directory: frontends/<name>` and path filters.
+  apart from `working-directory: frontends/<name>` and path filters. Since
+  then, one `publish-flatpak.yml` with a `frontend` input replaced the
+  per-frontend publish workflows.
 - The GNOME frontend gained the screenshot harness it never had
   (`tests/gui/capture-screens.py`, `screenshots-gnome.yml`).
 - Publishing to the tuna-os Flatpak remote no longer happens on every push.

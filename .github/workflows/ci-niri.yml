@@ -1,7 +1,7 @@
 name: CI (niri backend)
 
 # Go compile + vet + test for frontends/niri/installer. Nothing else gates
-# that module: publish-flatpak-niri only runs on promotion, and
+# that module: publish-flatpak (niri) only runs on promotion, and
 # screenshots-niri drives the QML UI.
 #
 # Moved here from tuna-os/tuna-installer-niri's ci.yml.
