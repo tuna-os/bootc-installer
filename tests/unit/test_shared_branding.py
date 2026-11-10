@@ -3,8 +3,8 @@
 shared/python/bootc_shared/branding.py is the Python resolver. The GNOME
 and XFCE frontends import that one module (tests/unit/
 test_shared_python_package.py makes sure no copy comes back), and it reads
-copy-defaults.json from shared/branding/, so only the compiled frontends
-still keep copies of that file.
+copy-defaults.json from shared/branding/. KDE and COSMIC compile the shared
+file in, so only Niri keeps a copy (go:embed cannot leave its module).
 
 The fixture cases in shared/branding/fixtures/expected.json are the same
 ones the Go, C++ and Rust resolvers test against.
@@ -20,7 +20,6 @@ FIXTURES = REPO / "shared" / "branding" / "fixtures"
 COPY_DEFAULTS = REPO / "shared" / "branding" / "copy-defaults.json"
 COPY_DEFAULT_COPIES = [
     REPO / "frontends" / "niri" / "installer" / "copy-defaults.json",
-    REPO / "frontends" / "cosmic" / "src" / "copy-defaults.json",
 ]
 
 

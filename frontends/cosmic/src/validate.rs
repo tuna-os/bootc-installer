@@ -126,9 +126,9 @@ pub struct Choice {
     pub needs_tpm2: bool,
 }
 
-/// The encryption choices in display order: a byte-identical copy of
-/// fisherman's data/encryption-choices.json, compiled in
-/// (tests/unit/test_encryption_choices.py).
+/// The encryption choices in display order: fisherman's
+/// data/encryption-choices.json, which build.rs takes from
+/// shared/recipe/ and this compiles in (tests/unit/test_encryption_choices.py).
 pub fn choices() -> &'static [Choice] {
     static CHOICES: OnceLock<Vec<Choice>> = OnceLock::new();
     CHOICES.get_or_init(|| {
@@ -136,7 +136,7 @@ pub fn choices() -> &'static [Choice] {
         struct Doc {
             choices: Vec<Choice>,
         }
-        let doc: Doc = serde_json::from_str(include_str!("encryption-choices.json"))
+        let doc: Doc = serde_json::from_str(include_str!(concat!(env!("OUT_DIR"), "/encryption-choices.json")))
             .expect("encryption-choices.json is compiled in and tested");
         doc.choices
     })

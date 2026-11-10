@@ -15,6 +15,7 @@ mod readiness;
 mod offline;
 mod probe;
 mod progress;
+mod redact;
 mod branding;
 mod ui;
 mod validate;
@@ -177,8 +178,8 @@ impl Page {
 }
 
 /// The encryption types offered right now, in display order: fisherman's
-/// encryption-choices.json (`validate::choices`, a byte-identical copy
-/// compiled in). A `needs_tpm2` type is dropped entirely rather than shown
+/// encryption-choices.json (`validate::choices`, compiled in from
+/// shared/recipe/). A `needs_tpm2` type is dropped entirely rather than shown
 /// disabled when fisherman says no TPM 2.0 is usable (tunaOS#734): a dropdown
 /// entry that produces an unenrollable recipe is worse than one that isn't
 /// offered. What each one is called is branding copy
@@ -1213,7 +1214,12 @@ impl cosmic::Application for TunaInstaller {
                 Task::none()
             }
             Message::CopyLog => {
-                cosmic::iced::clipboard::write(self.install_log.clone())
+                // Without the recovery key: a copied log ends up in a bug
+                // report (redact.rs, #337).
+                cosmic::iced::clipboard::write(redact::recovery_key(
+                    &self.install_log,
+                    &self.progress.recovery_key,
+                ))
             }
             Message::LocalesLoaded(locales) => {
                 // The session locale first, so the current choice stays
@@ -1475,7 +1481,7 @@ impl cosmic::Application for TunaInstaller {
                         self.install_log.push_str(&format!("\n=== Error: {e} ===\n"));
                     }
                 }
-                offline::persist_install_log(&self.install_log);
+                offline::persist_install_log(&self.install_log, &self.progress.recovery_key);
                 Task::none()
             }
             Message::Quit => {
