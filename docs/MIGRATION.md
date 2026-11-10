@@ -40,7 +40,9 @@ nothing is lost in the shuffle. Tracking epic:
 - Each old repo's `.github/workflows/*` became a root workflow with the
   frontend's name in it: `screenshots-<name>.yml`, `publish-flatpak-<name>.yml`,
   plus `ci-niri.yml` and `cargo-sources-cosmic.yml`. Bodies are unchanged
-  apart from `working-directory: frontends/<name>` and path filters.
+  apart from `working-directory: frontends/<name>` and path filters. Since
+  then, one `publish-flatpak.yml` with a `frontend` input replaced the
+  per-frontend publish workflows.
 - The GNOME frontend gained the screenshot harness it never had
   (`tests/gui/capture-screens.py`, `screenshots-gnome.yml`).
 - Publishing to the tuna-os Flatpak remote no longer happens on every push.
@@ -50,9 +52,10 @@ nothing is lost in the shuffle. Tracking epic:
   36 = 543). The per-frontend `.ste-budget` files are left in place as a
   record; only the root one is read.
 - Each frontend keeps its own `README.md`, `AGENTS.md`, `DESIGN.md`,
-  `docs/`, `LICENSE`, `codecov.yml`. Codecov reads only the root file, so the
-  per-frontend `codecov.yml` is inert. Each one is a byte-identical copy of
-  the root file, so nothing remains to fold in.
+  `docs/`, `LICENSE`.
+- The per-frontend `codecov.yml` files are gone. Codecov reads only the root
+  file. Each copy had the same values as the root file, so nothing remained
+  to fold in.
 - The per-frontend `renovate.json` files are gone. Renovate reads only the
   repository root. Keeping them as a record was therefore not safe, the way
   it is safe for `.ste-budget`: `frontends/kde/renovate.json` held the rule

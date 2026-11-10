@@ -194,32 +194,42 @@ jobs:
     needs: [guard, release]
     if: needs.guard.outputs.gnome == 'true'
     uses: ./.github/workflows/publish-flatpak.yml
+    with:
+      frontend: gnome
     secrets: inherit
 
   publish-kde:
     name: Publish (kde)
     needs: [guard, release]
     if: needs.guard.outputs.kde == 'true'
-    uses: ./.github/workflows/publish-flatpak-kde.yml
+    uses: ./.github/workflows/publish-flatpak.yml
+    with:
+      frontend: kde
     secrets: inherit
 
   publish-cosmic:
     name: Publish (cosmic)
     needs: [guard, release]
     if: needs.guard.outputs.cosmic == 'true'
-    uses: ./.github/workflows/publish-flatpak-cosmic.yml
+    uses: ./.github/workflows/publish-flatpak.yml
+    with:
+      frontend: cosmic
     secrets: inherit
 
   publish-niri:
     name: Publish (niri)
     needs: [guard, release]
     if: needs.guard.outputs.niri == 'true'
-    uses: ./.github/workflows/publish-flatpak-niri.yml
+    uses: ./.github/workflows/publish-flatpak.yml
+    with:
+      frontend: niri
     secrets: inherit
 
   publish-xfce:
     name: Publish (xfce)
     needs: [guard, release]
     if: needs.guard.outputs.xfce == 'true'
-    uses: ./.github/workflows/publish-flatpak-xfce.yml
+    uses: ./.github/workflows/publish-flatpak.yml
+    with:
+      frontend: xfce
     secrets: inherit
