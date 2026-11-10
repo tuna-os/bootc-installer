@@ -26,7 +26,7 @@ import re
 from gi.repository import Adw, Gio, GLib, Gtk
 
 from bootc_installer.core.keymaps import KeyMaps
-from bootc_installer.utils.field_check import ChoiceCheck
+from bootc_installer.utils.field_check import ChoiceCheck, drop_focus_inside
 
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/widget-keyboard.ui")
 class KeyboardRow(Adw.ActionRow):
@@ -126,6 +126,7 @@ class BootcDefaultKeyboard(Adw.Bin):
             self.all_keyboards_group.append(widget)
 
     def del_deltas(self):
+        drop_focus_inside(self)
         self.all_keyboards_group.remove_all()
 
 

@@ -149,3 +149,13 @@ class ChoiceCheck:
                     self._problem, lambda key: copy_text.text(self._window, key)))
                 self._message.set_visible(True)
         self._on_change()
+
+
+def drop_focus_inside(page):
+    """Take the keyboard focus off `page` before its rows go: a focused row
+    that is removed keeps the focus, and Tab then has nowhere to go."""
+    get_root = getattr(page, "get_root", None)
+    root = get_root() if callable(get_root) else None
+    focus = root.get_focus() if root is not None else None
+    if focus is not None and (focus is page or focus.is_ancestor(page)):
+        root.set_focus(None)

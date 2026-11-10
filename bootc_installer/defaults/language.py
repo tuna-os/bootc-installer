@@ -22,7 +22,7 @@ image keeps its own. fisherman checks the name (`validate --partial`)."""
 import re
 from gi.repository import Adw, Gtk
 from bootc_installer.core.languages import all_languages, current_language
-from bootc_installer.utils.field_check import ChoiceCheck
+from bootc_installer.utils.field_check import ChoiceCheck, drop_focus_inside
 
 
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/widget-language.ui")
@@ -99,6 +99,7 @@ class BootcDefaultLanguage(Adw.Bin):
 
 
     def del_deltas(self):
+        drop_focus_inside(self)
         self.all_languages_group.remove_all()
 
     def __submit(self, *args):

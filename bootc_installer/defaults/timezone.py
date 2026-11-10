@@ -35,7 +35,7 @@ from bootc_installer.core.timezones import (
     get_location,
     get_timezone_preview,
 )
-from bootc_installer.utils.field_check import ChoiceCheck
+from bootc_installer.utils.field_check import ChoiceCheck, drop_focus_inside
 
 logger = logging.getLogger("BootcInstaller::Timezone")
 
@@ -95,6 +95,9 @@ class BootcDefaultTimezone(Adw.Bin):
     dinosaur_label = Gtk.Template.Child()
     problem_label = Gtk.Template.Child()
 
+    # Countries filled in at each idle callback.
+    POPULATE_BATCH = 40
+
 
     expanders_list = dict(
         sorted(
@@ -136,6 +139,7 @@ class BootcDefaultTimezone(Adw.Bin):
 
 
     def del_deltas(self):
+        drop_focus_inside(self)
         self.__tz_entries = []
         for i in self.__expanders:
             self.all_timezones_group.remove(i)
@@ -249,6 +253,7 @@ class BootcDefaultTimezone(Adw.Bin):
                 if tzname == self.selected_timezone:
                     timezone_row.select_button.set_active(True)
 
+        pending = []
         for country, region in self.expanders_list.items():
             if len(all_timezones[region][country]) > 0:
                 expander = Adw.ExpanderRow.new()
@@ -258,4 +263,16 @@ class BootcDefaultTimezone(Adw.Bin):
                 expander.set_subtitle(region)
                 self.all_timezones_group.add(expander)
                 self.__expanders.append(expander)
-                GLib.idle_add(__populate_expander, expander, region, country)
+                pending.append((expander, region, country))
+
+        def __populate_some(*args):
+            # Some countries at each idle, in order: the page draws at once,
+            # and two hundred countries are not two hundred callbacks.
+            for _ in range(min(self.POPULATE_BATCH, len(pending))):
+                __populate_expander(*pending.pop(0))
+            if pending:
+                GLib.idle_add(__populate_some)
+            return False
+
+        if pending:
+            GLib.idle_add(__populate_some)
