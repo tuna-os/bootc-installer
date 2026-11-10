@@ -207,6 +207,17 @@ class InstallerWindow(Gtk.ApplicationWindow):
         sel = self.pages["source"].selection() or {}
         return sel.get("leaf")
 
+    def layout_source(self):
+        """What decides the target's bootloader, backend and filesystem: the
+        selected catalog leaf, or for "install this system" the live image as
+        the ISO builder probed it (core.LiveSystem). None before a choice."""
+        leaf = self.selected_leaf()
+        if leaf is not None:
+            return leaf
+        if (self.pages["source"].selection() or {}).get("live"):
+            return core.live_system()
+        return None
+
     def needs_user_creation(self):
         """Whether the installer creates the first account
         (shared/catalog/README.md, "The account"): the selected leaf's flag;
@@ -236,11 +247,12 @@ class InstallerWindow(Gtk.ApplicationWindow):
         """Read page widgets and adapt their values to the core recipe API."""
         setup = self.pages["setup"]
         leaf = self.selected_leaf()
+        layout = self.layout_source()
         disk = self.pages["destination"].selected_disk()
         identity = self.pages["identity"]
         fields = dict(
             disk=disk["path"],
-            filesystem=setup.default_filesystem(leaf.filesystem if leaf else ""),
+            filesystem=setup.default_filesystem(layout.filesystem if layout else ""),
             btrfs_subvolumes=setup.subvol_check.get_active(),
             encryption_type=setup.enc_type(),
             passphrase=setup.pass1.get_text(),
@@ -252,8 +264,11 @@ class InstallerWindow(Gtk.ApplicationWindow):
         )
         if leaf is None:
             # "Install this system": an empty image, which fisherman accepts
-            # on live media only.
-            return core.build_recipe(needs_user=self.needs_user_creation(), **fields)
+            # on live media only, laid out as the live image needs.
+            return core.build_recipe(
+                needs_user=self.needs_user_creation(),
+                bootloader=layout.bootloader if layout else "",
+                composefs=layout.composefs if layout else False, **fields)
         source = self.pages["source"]
         return core.recipe_for_leaf(
             leaf, has_nvidia=core.has_nvidia_gpu(), live=bool(source.live),
