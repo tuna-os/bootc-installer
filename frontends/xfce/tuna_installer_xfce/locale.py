@@ -23,11 +23,7 @@ import os
 import socket
 import subprocess
 
-# A network check the screenshot harness must be able to skip: without it the
-# capture would stall on the confirm page in a sandbox with no route out.
-# VANILLA_SKIP_CONN_CHECK is GNOME conn_check.py's own name; the longer one
-# is this frontend's, so a harness written against either works.
-SKIP_ENV_VARS = ("TUNA_INSTALLER_SKIP_CONN_CHECK", "VANILLA_SKIP_CONN_CHECK")
+from bootc_shared import network
 
 
 def _run(argv, timeout=10):
@@ -124,61 +120,25 @@ def current_timezone():
     return "UTC"
 
 
-# The targets every frontend falls back to: the registry most bootc images
-# come from, then a plain "is there a route" probe.
-SHARED_TARGETS = (("ghcr.io", 443), ("8.8.8.8", 53))
-
-# The registry a reference with no registry in it names.
-DEFAULT_REGISTRY = "registry-1.docker.io"
-
-
-def registry_target(imgref):
-    """(host, port) of the registry that serves `imgref`, or None.
-
-    The first component of a reference is a registry when it has a dot or a
-    port, or is "localhost"; otherwise the reference is a Docker Hub name.
-    A registry with its own port is probed on that port, any other on 443.
-    """
-    ref = (imgref or "").strip()
-    if "://" in ref:
-        ref = ref.split("://", 1)[1]
-    if not ref:
-        return None
-    first = ref.split("/", 1)[0] if "/" in ref else ""
-    if not first or not ("." in first or ":" in first or first == "localhost"):
-        return (DEFAULT_REGISTRY, 443)
-    host, _, port = first.partition(":")
-    if not host:
-        return None
-    return (host, int(port) if port.isdigit() else 443)
-
-
-def connectivity_targets(imgref=""):
-    """What to probe, in order: the registry of the selected image first --
-    it is what the install downloads from, so it is a better answer than a
-    DNS server -- then the shared targets (#301)."""
-    targets = []
-    for target in (registry_target(imgref), *SHARED_TARGETS):
-        if target and target not in targets:
-            targets.append(target)
-    return targets
+# What to probe, and in which order, is bootc_shared.network, which GNOME
+# also uses: the registry of the selected image first, then the shared
+# targets (#301). Either skipping variable forces True for a harness with
+# no route out.
+SHARED_TARGETS = network.SHARED_TARGETS
+DEFAULT_REGISTRY = network.DEFAULT_REGISTRY
+# A network check that the screenshot harness must be able to skip: without
+# it the capture would stall on the confirm page in a sandbox with no route
+# out.
+SKIP_ENV_VARS = network.SKIP_ENV_VARS
+registry_target = network.registry_target
+connectivity_targets = network.connectivity_targets
 
 
 def has_connectivity(timeout=5, imgref=""):
     """Whether an install image could be downloaded right now: the first of
-    connectivity_targets(imgref) that accepts a connection. Either skipping
-    env var forces True for harnesses with no route out."""
-    if any(os.environ.get(var) not in (None, "", "0")
-           for var in SKIP_ENV_VARS):
-        return True
-    for host, port in connectivity_targets(imgref):
-        try:
-            sock = socket.create_connection((host, port), timeout=timeout)
-        except OSError:
-            continue
-        sock.close()
-        return True
-    return False
+    connectivity_targets(imgref) that accepts a connection."""
+    return network.has_connectivity(imgref, timeout=timeout,
+                                    connect=socket.create_connection)
 
 
 def needs_network(offline_install):

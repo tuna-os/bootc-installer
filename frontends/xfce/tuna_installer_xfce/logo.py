@@ -1,30 +1,17 @@
 """Optional product artwork for GTK3; keep the unbranded layout on failure."""
 
-import os
-
 import gi
+from bootc_shared import branding
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GdkPixbuf, GLib, Gtk  # noqa: E402
 
 
-def logo_path(value, in_flatpak):
-    """Translate host /usr and /etc paths only inside a Flatpak."""
-    if in_flatpak and value.startswith(("/usr/", "/etc/")):
-        return "/run/host" + value
-    return value
-
-
 def logo_source(value, in_flatpak):
-    """Classify portable file/theme sources, plus GTK resource compatibility."""
-    if value.startswith("resource:///"):
-        return "resource", value[len("resource://"):]
-    if os.path.isabs(value):
-        return "file", logo_path(value, in_flatpak)
-    if value and "/" not in value and ":" not in value:
-        return "theme", value
-    return "none", ""
+    """(kind, value) of a logo spec: bootc_shared.branding.logo_source,
+    which GNOME also uses (shared/branding/fixtures/logo-paths.json)."""
+    return branding.logo_source(value, in_flatpak)
 
 
 def load_logo(value, in_flatpak, size=96):

@@ -173,6 +173,60 @@ class TestConnCheckAsyncLogic(unittest.TestCase):
         )
         step.btn_recheck.set_visible.assert_called_once_with(True)
 
+    def test_the_registry_of_the_selected_image_is_probed_first(self):
+        """bootc_shared.network: the image's own registry, then ghcr.io,
+        then the route probe. GNOME used to probe ghcr.io for every image."""
+        mod = _import_conn_check_fresh()
+        step = self._step(mod)
+        asked = []
+        step._BootcDefaultConnCheck__window.image_to_download = (
+            lambda page: asked.append(page) or "quay.io/example/os:1")
+        tried = []
+
+        def connect(address, timeout):
+            tried.append(address)
+            if address[0] == "quay.io":
+                raise OSError("blocked")
+            return MagicMock()
+
+        with patch.object(mod, "RunAsync", _SyncRunAsync), patch.dict(
+            mod.os.environ, {}, clear=True
+        ), patch.object(mod.socket, "create_connection", side_effect=connect):
+            self._show(step, 2)
+
+        self.assertEqual(asked, [step])
+        self.assertEqual(tried, [("quay.io", 443), ("ghcr.io", 443)])
+        step._BootcDefaultConnCheck__window.next.assert_called_once_with()
+
+    def test_without_an_image_the_shared_targets_are_probed(self):
+        mod = _import_conn_check_fresh()
+        step = self._step(mod)
+        tried = []
+
+        def connect(address, timeout):
+            tried.append(address)
+            raise OSError("offline")
+
+        for answer in (None, lambda page: 7, lambda page: 1 / 0):
+            tried.clear()
+            if answer is not None:
+                step._BootcDefaultConnCheck__window.image_to_download = answer
+            with patch.object(mod, "RunAsync", _SyncRunAsync), patch.dict(
+                mod.os.environ, {}, clear=True
+            ), patch.object(mod.socket, "create_connection", side_effect=connect):
+                self._show(step, 2)
+            self.assertEqual(tried, [("ghcr.io", 443), ("8.8.8.8", 53)])
+
+    def test_an_empty_skip_variable_does_not_turn_the_check_off(self):
+        mod = _import_conn_check_fresh()
+        step = self._step(mod)
+        with patch.object(mod, "RunAsync", _SyncRunAsync), patch.dict(
+            mod.os.environ, {"VANILLA_SKIP_CONN_CHECK": ""}, clear=True
+        ), patch.object(mod.socket, "create_connection",
+                        return_value=MagicMock()) as create_conn:
+            self._show(step, 2)
+        create_conn.assert_called()
+
     def test_conn_check_skip_env_bypasses_network_request(self):
         mod = _import_conn_check_fresh()
         step = self._step(mod)

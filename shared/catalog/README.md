@@ -36,6 +36,23 @@ manifests give `--filesystem=host`, which puts the host's files below
 The system file is first because an ISO that ships a catalog must get that
 catalog. A file in a home directory must not replace it.
 
+### The override for a test or an operator
+
+When the environment variable `FISHERMAN_IMAGES_PATH` names a file, try that
+file before path 1. The other rules do not change: when the file is missing
+or is not a catalog, the search continues with path 1. A capture harness and
+an end-to-end driver set the variable, so that a test does not read the
+catalog of the machine. An operator can set it to try a catalog with no
+change to `/etc`. The variable is not a product setting: an ISO ships its
+catalog at path 1.
+
+The Python reader (`shared/python/bootc_shared/catalog.py`, for GNOME and
+XFCE) reads the variable, and so do KDE and Niri. COSMIC does not read it
+at this time.
+
+The Python frontends have one reader, `bootc_shared.catalog`.
+`tests/unit/test_shared_python_catalog.py` runs it against `fixtures/`.
+
 ## Leaves and inheritance
 
 A node is a leaf when it has `imgref`, or when it has `tag` and a `registry`

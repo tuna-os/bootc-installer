@@ -11,6 +11,7 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, GLib, Gtk, Pango
 
 from bootc_shared import progress as progress_parser  # noqa: E402
+from bootc_shared import redact  # noqa: E402
 from bootc_shared import validate as fisherman_validate  # noqa: E402
 
 from . import core, gates, locale as locale_checks
@@ -830,11 +831,14 @@ class ProgressPage(Page):
         buf = self.logview.get_buffer()
         for line in text.splitlines():
             # fisherman's protocol is machine-readable; this pane is not. The
-            # raw line still goes to the log FILE (app.py) — that is what gets
-            # pasted into bug reports — but a human reads this one.
+            # protocol line goes to the log FILE (app.py) — that is what gets
+            # pasted into bug reports — but a human reads this one. Neither
+            # shows the recovery key (#337): the key is for the done page,
+            # which reads it from the event below.
             shown = progress_parser.render_event(line)
             if shown is None:
                 shown = line
+            shown = redact.redact_recovery_key(shown, self._progress.get("recovery_key", ""))
             buf.insert(buf.get_end_iter(), shown + "\n")
         mark = buf.create_mark(None, buf.get_end_iter(), False)
         self.logview.scroll_mark_onscreen(mark)
