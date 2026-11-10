@@ -115,38 +115,54 @@ The plan is to port the tour artwork (welcome and complete images) to the
 other four. Video and credits then leave the contract; nothing else gets
 them.
 
-All five render the identity keys (`name`, `id`, `default_hostname`,
-`default_image`, URLs); see `shared/branding/README.md`.
+All five render the identity keys (`name`, `id`, `default_hostname`, URLs);
+see `shared/branding/README.md`. Off live media, COSMIC, Niri and XFCE do
+not use `default_image` yet (#289).
 
 ## Features
 
 | Feature | GNOME | KDE | COSMIC | Niri | XFCE |
 |---|---|---|---|---|---|
-| Image catalog choice | yes (fisherman `images.json`) | no (live or `default_image`) | no (live or `default_image`) | no (live or `default_image`) | yes |
+| Image catalog choice (fisherman `images.json`) | yes (tree, search); the bundled recipe has no image step (#315) | yes (disk step, search) | yes (and a custom URL row) | yes (flat list) | yes (flat list) |
+| Image selected at start, off live media | catalog `default_image` | none: you must pick | first row of the catalog (#289) | first name in the alphabet (#289) | first name in the alphabet (#289) |
+| Catalog fields that reach the recipe | all | image, bootloader, composefs, hostname; not filesystem (#287) | image and Flatpaks only (#286) | image, filesystem, bootloader, composefs, hostname | image, filesystem, bootloader, composefs |
 | Live-ISO install without download (live media from `fisherman probe --json`) | yes | yes | yes | yes | yes |
 | Offline image stores (found by fisherman on the host) | yes | yes | yes | yes | yes |
 | Recipe on fisherman's stdin, no recipe file | yes | yes | yes | yes | yes |
-| Fields checked by `fisherman validate --json --partial` | hostname, username | passphrase, hostname | hostname, passphrase | hostname, passphrase | hostname, username, passphrase |
+| fisherman staged from the Flatpak, with a SHA256 check | yes | no (#290) | no (#290) | no (#290) | no (#290) |
+| Fields checked by `fisherman validate --json --partial` | hostname, username | hostname, username, passphrase, filesystem | hostname, passphrase, username | hostname, username, passphrase, filesystem | hostname, username, passphrase |
 | Disk choice with erase warning | yes | yes | yes | yes | yes |
 | Disk list from `fisherman probe --json` (`shared/probe/`) | yes | yes | yes | yes | yes |
 | Disk row: model (path when unknown), path, size label, bus | yes | yes | yes | yes | yes |
 | Disk probe failure shown on the disk page | yes | yes | yes | yes | yes |
-| RAM / CPU / UEFI check (fisherman's `system.unmet`) | blocks (gate window) | warns on welcome | warns on welcome | warns on welcome | warns on welcome |
-| Filesystem choice | yes | no (xfs, shown on confirm) | yes | no (xfs) | yes (Advanced) |
+| RAM / CPU / UEFI check (fisherman's `system.unmet`) | blocks (gate window) | holds Next; override for RAM and CPU | blocks (requirements page) | blocks (gate dialog) | blocks (gate window) |
+| Connectivity check | step and Wi-Fi page exist; not in the bundled recipe | blocks on welcome | blocks (network page) | status line, does not block (#301) | blocks on confirm |
+| Filesystem choice | yes (list from the image) | no (always xfs, #287) | xfs or btrfs | yes (Advanced) | yes (Advanced) |
 | Encryption: none / passphrase | yes | yes | yes | yes | yes |
 | Passphrase typed twice, Next held on a mismatch | yes | yes | yes | yes | yes |
 | Encryption: TPM / TPM + passphrase | yes | yes | yes | yes | yes |
-| Recovery key page after TPM enrolment | yes | yes | yes | yes | yes |
+| Recovery key shown after a `tpm2-luks` install | yes | yes | yes | yes | yes |
 | Hostname | generated, editable on confirm | no (branding default, shown on confirm) | field | field on confirm | field |
-| User account | yes (companion or wizard) | yes (account step) | yes (account page) | yes (account page) | yes |
-| Phone companion (QR) | yes | no | no | no | no |
-| Keyboard / language / timezone | yes | no | no | no | no |
+| User account, when the image needs one | yes | yes | yes | yes | yes |
+| Default when the catalog does not set `needs_user_creation` (#288) | no account | account | no account | account | account |
+| Account password | twice, reveal, strength | twice, reveal, strength | twice, reveal | twice, no reveal (#295) | once, no reveal (#295) |
+| Account groups | wheel and developer groups, operator override | wheel (#302) | wheel (#302) | wheel (#302) | wheel (#302) |
+| Phone companion (QR) | yes (TLS); does not work with the bundled recipe (#304, #305) | no | yes (plain HTTP, #293) | no | yes (plain HTTP, #293, #294) |
+| Keyboard / language / timezone (#292) | pages exist; not in the bundled recipe | shown on confirm, applied nowhere | applied to the live session | applied to the live session (#291) | keyboard only |
+| Keyboard / language / timezone in the installed system | no | no | no | no | no |
+| Cancel a running install (#299) | window close, asks first | Cancel button, does not ask | quit dialog | Cancel button, does not ask | window close, asks first |
+| `--autoinstall` | yes | no | no | no | yes |
+| Translatable UI | gettext; no translation loads (#311) | no (#300) | no (#300) | no (#300) | no (#300) |
 | Progress bar from fisherman's protocol | yes | yes | yes | yes | yes |
 | Restart from the done page | yes | yes | yes | yes | yes |
 | Show log after failure | yes | log path | log in page | log in page | log tail |
-| Step indicator for the six-step contract | page header | "Step N of 7 · name" + dots | "Step N of 7 · name" + bar | "Step N of 7 · name" + dots | page title |
 | Screenshot walkthrough + parity report | yes | yes | yes | yes | yes |
 | End-to-end gate (real install and boot) | yes | yes | yes | yes | yes |
+
+This table was read from the code on 2026-11-10, after #280 gave the other
+four frontends a catalog, gates, locale pages and a companion.
+Nothing generates it yet (#303), so check a cell against the code before you
+rely on it.
 
 ## Closing the gaps, in order
 
@@ -167,20 +183,19 @@ All five render the identity keys (`name`, `id`, `default_hostname`,
    enrolment. GNOME shows a page. The other four show a panel on the done
    screen. Each holds the restart button until the user acknowledges the
    key (#129).
-4. ~~**User account** (KDE, COSMIC, Niri)~~ — **closed.** Each now has a
-   required account step (username, optional full name, password typed
-   twice) that writes the recipe's `user` block in `wheel`, as XFCE does.
-   Their TunaOS images all set `needs_user_creation`, so an install used to
-   end with nobody to sign in as. The extra step makes their indicators read
-   "of 7"; the screen contract is unchanged, and the account pages match no
-   contract keyword. `shared/e2e/check-recipe.py` (`USER_STEP`) fails the
-   E2E for any of the three that hands fisherman no user.
+4. **User account**: all five have the step, and each shows it only when
+   the image needs an account. Three things are still open. The frontends
+   do not agree on the default when the catalog does not set
+   `needs_user_creation` (#288). Four of them put the account only in
+   `wheel` (#302). XFCE asks for the password once (#295).
 5. **Store and tour assets**: only worth it where the desktop has a place
    for artwork. Every resolver already resolves the keys, so this is view
    work only. KDE and COSMIC now show `welcome_image` and
    `complete_image` as the welcome and done artwork, ahead of `logo`.
-6. **Companion and locale steps**: GNOME-only by design for now. Windows
-   data migration (slurp) is not an installer feature at all: it belongs to
-   wootc, and no frontend here offers it. The
-   contract keeps their copy keys out of `copy-defaults.json`, so nothing
-   else pretends to have them.
+6. **Companion and locale steps**: no longer GNOME-only. COSMIC and XFCE
+   have a companion, over plain HTTP (#293). All five have locale pages, and
+   they mean five different things (#292). No frontend sends a locale, a
+   keymap or a time zone to the installed system: the recipe has no field
+   for them (tuna-os/fisherman#405). Windows data migration (slurp) is not
+   an installer feature at all: it belongs to wootc, and no frontend here
+   offers it.

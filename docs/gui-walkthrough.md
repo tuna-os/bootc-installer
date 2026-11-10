@@ -22,7 +22,7 @@ by side and the parity matrix on top, is [`walkthrough/`](walkthrough/README.md)
 | ![Install location](screenshots/03-disk.png) | **Install location**: whole disks only, plus the virtual-disk option for VMs. Nothing is written yet. |
 | ![Encryption](screenshots/04-encryption.png) | **Disk encryption**: LUKS with a passphrase, TPM2, or both. |
 | ![Confirm](screenshots/05-confirm.png) | **Confirm**: the last screen before anything is written. |
-| ![Installing](screenshots/06-progress.png) | **Installing**: fisherman's nine steps, with the log one click away. |
+| ![Installing](screenshots/06-progress.png) | **Installing**: fisherman's install steps, with the log one click away. |
 | ![Recovery key](screenshots/07-recovery-key.png) | **Recovery key**: shown once after an encrypted install and must be acknowledged. |
 | ![Done](screenshots/08-done.png) | **Done**: restart into the new system. |
 

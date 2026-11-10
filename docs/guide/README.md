@@ -1,7 +1,7 @@
 # bootc-installer guidebook
 
 This guidebook tells you how to use, configure and build bootc-installer.
-The [project README](../../README.md) gives a short summary.
+The [project README](../../README.md) tells you what the installer is, why you need it and who it is for.
 Read the pages in this order, or go to the page for your task.
 
 | Page | Read it when you want to |
