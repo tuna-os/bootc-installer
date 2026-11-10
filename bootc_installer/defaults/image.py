@@ -21,13 +21,15 @@ import re
 
 from gi.repository import Adw, Gio, Gtk
 
-from bootc_installer.utils import catalog
+from bootc_shared import catalog
+
+from bootc_installer.utils import image_finals
 
 logger = logging.getLogger("Installer::Image")
 
 
 # ── Load the image catalog ────────────────────────────────────────────────────
-# The contract is shared/catalog/README.md; bootc_installer/utils/catalog.py
+# The contract is shared/catalog/README.md; bootc_shared.catalog (shared/python/)
 # is this frontend's reader. Structure: {"default_image", "aliases",
 # "images": [recursive tree]}. Each node is a group {"name", "children", ...}
 # or a leaf {"name", "imgref" | "tag", ...}; a leaf inherits from its parents.
@@ -226,7 +228,7 @@ class BootcDefaultImage(Adw.Bin):
         self.__default_candidates = [ref for ref in (branding_default, _DEFAULT_IMAGE) if ref]
         self.__default_image = ""
         self.__selected_imgref = None
-        self.__selected_leaf = None      # the resolved catalog leaf (utils/catalog.py)
+        self.__selected_leaf = None      # the resolved catalog leaf (bootc_shared.catalog)
         self.__selected_carousel = None  # per-image carousel slides (None = use recipe default)
         self.__selected_icon = None      # icon spec for selected image (str or None)
         self.__selected_pretty_name = None
@@ -260,7 +262,7 @@ class BootcDefaultImage(Adw.Bin):
     # ── Recursive tree construction ───────────────────────────────────────────
 
     def __build_list(self):
-        # utils/catalog.py resolves each leaf: what it inherits, its image
+        # bootc_shared.catalog resolves each leaf: what it inherits, its image
         # reference, its Flatpak list. This page draws the tree.
         resolved = {id(node): leaf
                     for node, leaf in catalog.walk(_IMAGE_TREE, _MANIFEST.get("aliases"))}
@@ -484,7 +486,7 @@ class BootcDefaultImage(Adw.Bin):
 
     def get_finals(self):
         if self.row_custom.get_expanded():
-            return catalog.custom_image_finals(self.image_url_entry.get_text().strip())
+            return image_finals.custom_image_finals(self.image_url_entry.get_text().strip())
         if self.__selected_leaf is None:
             # Nothing selected: Next is off, and no field of an image goes on.
             return {
@@ -501,7 +503,7 @@ class BootcDefaultImage(Adw.Bin):
                 "default_hostname": "",
                 "supported_filesystems": [],
             }
-        finals = catalog.leaf_finals(
+        finals = image_finals.leaf_finals(
             self.__selected_leaf, self.__selected_icon, self.__selected_carousel)
         finals["pretty_name"] = self.__selected_pretty_name
         return finals

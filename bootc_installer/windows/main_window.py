@@ -207,6 +207,20 @@ class BootcWindow(Adw.ApplicationWindow):
         context["finals"] = finals
         return context
 
+    def image_to_download(self, before=None) -> str:
+        """The image that the install pulls, as far as the steps before the
+        page `before` have chosen it; "" when none has. The connection
+        check probes the registry of this image first."""
+        context = self.__step_context(before)
+        try:
+            from bootc_installer.utils.processor import Processor
+            plan = Processor.image_plan(context["finals"], context["sys_recipe"])
+        except Exception as error:  # noqa: BLE001 - a page asks; it must not fail
+            logger.debug("no image plan yet: %s", error)
+            return ""
+        image = plan.get("install") or ""
+        return image if isinstance(image, str) else ""
+
     def __build_ui(self, rebuild=False, mode=0):
         property_list = self.__builder.property_list
         context = self.__step_context()

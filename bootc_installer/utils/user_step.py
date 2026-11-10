@@ -12,7 +12,7 @@ or no leaf has that image, the installer creates an account.
 
 import logging
 
-from bootc_installer.utils import catalog
+from bootc_shared import catalog
 
 logger = logging.getLogger("Installer::User")
 
