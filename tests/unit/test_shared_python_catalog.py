@@ -134,6 +134,40 @@ def test_wrong_types_in_a_catalog_do_not_reach_a_leaf():
     assert odd["flatpaks"] is None
 
 
+def test_extras_are_the_nearest_object_with_the_four_switches():
+    """shared/catalog/README.md, "Desktop extras": the object of the nearest
+    node, not merged; {} is four times off; no object is None; a key that
+    is not a switch is not copied (fisherman refuses unknown recipe keys)."""
+    by_ref = {e["imgref"].rsplit("/", 1)[-1]: e["leaf"]["extras"] for e in EXPECTED["leaves"]}
+    assert by_ref["atlas:beta"] == {"printServices": False, "oemSetup": True,
+                                    "audioNames": False, "bootSplash": False}
+    assert by_ref["boreal:latest"] == dict.fromkeys(catalog.EXTRAS, False)
+    assert by_ref["cirrus:1"] is None
+    for entry in EXPECTED["leaves"]:
+        assert catalog.find(CATALOG, entry["imgref"])["extras"] == entry["leaf"]["extras"]
+    assert catalog.resolve_extras({"bootSplash": True, "notAStep": True}) == {
+        "printServices": False, "oemSetup": False, "audioNames": False, "bootSplash": True}
+    assert catalog.resolve_extras(None) is None
+    # A wrong type: no object (lenient), a CatalogError (strict).
+    for bad in (["bootSplash"], {"bootSplash": "yes"}):
+        assert catalog.resolve_extras(bad) is None
+        with pytest.raises(catalog.CatalogError):
+            catalog.resolve_extras(bad, strict=True)
+        assert catalog.leaves({"images": [{"imgref": "r/a:1", "extras": bad}]})[0]["extras"] is None
+        with pytest.raises(catalog.CatalogError):
+            catalog.find({"images": [{"imgref": "r/a:1", "extras": bad}]}, "r/a:1", strict=True)
+
+
+def test_extras_keys_are_fishermans():
+    recipe_go = REPO / "fisherman" / "fisherman" / "internal" / "recipe" / "recipe.go"
+    if not recipe_go.exists():
+        pytest.skip("fisherman submodule not checked out")
+    import re
+    src = recipe_go.read_text(encoding="utf-8")
+    start = src.index("type Extras struct {")
+    assert tuple(re.findall(r'`json:"([A-Za-z0-9]+)', src[start:src.index("\n}", start)])) == catalog.EXTRAS
+
+
 def test_a_name_is_made_from_a_reference_with_or_without_a_registry():
     assert catalog.pretty_from_imgref("registry.example/os/atlas-dx:latest") == "Atlas DX"
     assert catalog.pretty_from_imgref("atlas-dx:latest") == "Atlas DX"

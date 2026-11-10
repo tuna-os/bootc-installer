@@ -78,9 +78,6 @@ class _Channel:
         self.lines = list(lines)
 
     def read_line(self):
-        # A non-blocking pipe with nothing more to read now.
-        if not self.lines:
-            return GLib.IOStatus.AGAIN, None, 0, 0
         return GLib.IOStatus.NORMAL, self.lines.pop(0), 0, 0
 
 
@@ -94,8 +91,6 @@ class _Page:
 
 class _Window:
     """What InstallerWindow._on_output reads of the window."""
-
-    _read_lines = app.InstallerWindow._read_lines
 
     def __init__(self):
         self._log_tail = []

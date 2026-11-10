@@ -466,7 +466,8 @@ class InstallerWindow(Gtk.ApplicationWindow):
         self._dry_run_source = GLib.timeout_add(400, pump)
 
     def _read_lines(self, channel, page):
-        """Take each complete line that the channel has now."""
+        """Take each complete line that the channel has now (the exit
+        handler: fisherman can exit before the watch reads its last lines)."""
         while True:
             try:
                 status, text, _length, _term = channel.read_line()
@@ -474,20 +475,26 @@ class InstallerWindow(Gtk.ApplicationWindow):
                 return
             if status != GLib.IOStatus.NORMAL or not text:
                 return
-            # The file and the tail that a failed install shows get the
-            # line without the recovery key (#337). The page gets the
-            # line as fisherman wrote it: it reads the key from the
-            # event, for the recovery-key page.
-            clean = text
-            if self._install_log:
-                clean = self._install_log.write(text)
-                self._install_log.flush()
-            self._log_tail = (self._log_tail + [clean])[-15:]
-            page.append_log(text)
+            InstallerWindow._log_line(self, text, page)
+
+    def _log_line(self, text, page):
+        """One line of fisherman's output. The file and the tail that a
+        failed install shows get the line without the recovery key (#337).
+        The page gets the line as fisherman wrote it: it reads the key from
+        the event, for the recovery-key page. Called through the class, so
+        a test window with only the log attributes can drive it."""
+        clean = text
+        if self._install_log:
+            clean = self._install_log.write(text)
+            self._install_log.flush()
+        self._log_tail = (self._log_tail + [clean])[-15:]
+        page.append_log(text)
 
     def _on_output(self, channel, cond, page):
         if cond & GLib.IO_IN:
-            self._read_lines(channel, page)
+            _status, text, _length, _term = channel.read_line()
+            if text:
+                InstallerWindow._log_line(self, text, page)
         return not (cond & GLib.IO_HUP)
 
     def _on_exit(self, pid, status, *_args):

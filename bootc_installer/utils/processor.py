@@ -115,7 +115,7 @@ class Processor:
         """
         leaf = catalog.find({"images": candidates, "aliases": aliases}, imgref, strict=True)
         if leaf is not None:
-            metadata = {
+            return {
                 "composefs": leaf["composefs"],
                 "image_type": leaf["image_type"],
                 "bootloader": leaf["bootloader"],
@@ -125,11 +125,8 @@ class Processor:
                 "filesystem": leaf["filesystem"] if len(leaf["filesystems"]) <= 1 else "",
                 "flatpak_var_path": leaf["flatpak_var_path"],
                 "flatpaks": leaf["flatpaks"],
+                "extras": leaf["extras"],
             }
-            # The desktop extras: only an object that the catalog has.
-            if leaf["extras"] is not None:
-                metadata["extras"] = leaf["extras"]
-            return metadata
         if (len(candidates) == 1
                 and not any(key in candidates[0] for key in ("imgref", "tag", "registry", "children"))):
             return candidates[0]
