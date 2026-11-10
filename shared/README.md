@@ -145,7 +145,13 @@ reads `tpm.usable` from the probe and does not read sysfs itself. See
 The screen contract: the screens that every installer must show
 (`parity_report.py`), and `aggregate.py`, which builds
 [docs/walkthrough/](../docs/walkthrough/README.md) from the reports of all
-five. `tests/unit/test_walkthrough_contract.py` covers the contract. A new
+five. `tests/unit/test_walkthrough_contract.py` covers the contract. The
+Python harnesses (GNOME, XFCE, Niri) import this directory directly. They
+share the pixel audit (`pixel_audit.py`) and the capture fixtures
+(`capture_fixtures.py`: the cut transcript, the recovery event and the GIF
+step). `tests/unit/test_walkthrough_pixel_audit.py` covers both. The
+compiled harnesses (KDE, COSMIC) write their PNGs and a `texts.json`, and
+their workflows run `report_from_pngs.py`. A new
 frontend adds a capture harness and a `screenshots-<name>.yml` workflow
 that writes `walkthrough-<name>.json`, and `walkthrough.yml` adds it to the
 page.

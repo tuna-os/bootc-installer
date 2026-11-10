@@ -27,56 +27,18 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import parity_report
-
-
-def _pixels(path):
-    """Yield (r, g, b) for every third pixel on every third row."""
-    try:
-        from PIL import Image
-        with Image.open(path) as im:
-            im = im.convert("RGB")
-            w, h = im.size
-            px = im.load()
-            for y in range(0, h, 3):
-                for x in range(0, w, 3):
-                    yield px[x, y]
-            return
-    except ImportError:
-        pass
-    import gi
-    gi.require_version("GdkPixbuf", "2.0")
-    from gi.repository import GdkPixbuf
-    pb = GdkPixbuf.Pixbuf.new_from_file(path)
-    data, stride, chans = pb.get_pixels(), pb.get_rowstride(), pb.get_n_channels()
-    for y in range(0, pb.get_height(), 3):
-        row = y * stride
-        for x in range(0, pb.get_width(), 3):
-            i = row + x * chans
-            yield (data[i], data[i + 1], data[i + 2])
+import pixel_audit
 
 
 def audit(path, name):
-    counts, samples, dark = {}, 0, 0
-    luma_sum = luma_sq = 0
     try:
-        for px in _pixels(path):
-            counts[px] = counts.get(px, 0) + 1
-            samples += 1
-            luma = (30 * px[0] + 59 * px[1] + 11 * px[2]) // 100
-            luma_sum += luma
-            luma_sq += luma * luma
-            if luma < 160:
-                dark += 1
+        stats = pixel_audit.png_stats(path)
     except Exception as exc:  # no image library at all
         print(f"  {name}: pixel audit unavailable ({exc})", file=sys.stderr)
         return {"name": name, "png": path, "rendered": None, "text": ""}
-    if not samples:
+    if stats is None:
         return {"name": name, "png": path, "rendered": False, "text": ""}
-    mean = luma_sum / samples
-    var = max(luma_sq / samples - mean * mean, 0.0)
-    f = {"name": name, "png": path, "colours": len(counts),
-         "flat": max(counts.values()) / samples, "ink": dark / samples,
-         "stddev": (var ** 0.5) / 255.0, "text": ""}
+    f = {"name": name, "png": path, **stats, "text": ""}
     f["rendered"] = f["colours"] >= 60 and f["flat"] <= 0.985 and f["ink"] >= 0.003
     return f
 

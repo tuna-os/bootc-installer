@@ -41,7 +41,6 @@ the capture if anything reaches it.
 
 import json
 import os
-import subprocess
 import sys
 import time
 from unittest.mock import patch
@@ -117,7 +116,9 @@ try:
     gi.require_version("Vte", "3.91")
 except ValueError:
     pass
+import capture_fixtures  # noqa: E402
 import parity_report  # noqa: E402
+import pixel_audit  # noqa: E402
 from gi.repository import Adw, GdkPixbuf, Gio, GLib, Graphene, Gtk  # noqa: E402
 
 
@@ -287,28 +288,8 @@ def _audit(path, name):
     """Read the pixels back: enough distinct colours and enough ink that the
     page really drew, not merely that a PNG exists."""
     pixbuf = GdkPixbuf.Pixbuf.new_from_file(path)
-    data = pixbuf.get_pixels()
-    stride, chans = pixbuf.get_rowstride(), pixbuf.get_n_channels()
-    w, h = pixbuf.get_width(), pixbuf.get_height()
-    counts, samples, dark = {}, 0, 0
-    luma_sum = luma_sq = 0
-    for y in range(0, h, 3):
-        row = y * stride
-        for x in range(0, w, 3):
-            i = row + x * chans
-            px = (data[i], data[i + 1], data[i + 2])
-            counts[px] = counts.get(px, 0) + 1
-            samples += 1
-            luma = (30 * px[0] + 59 * px[1] + 11 * px[2]) // 100
-            luma_sum += luma
-            luma_sq += luma * luma
-            if luma < 160:
-                dark += 1
-    mean = luma_sum / samples
-    var = max(luma_sq / samples - mean * mean, 0.0)
-    return {"name": name, "png": path, "w": w, "h": h, "colours": len(counts),
-            "flat": max(counts.values()) / samples, "ink": dark / samples,
-            "stddev": (var ** 0.5) / 255.0}
+    return {"name": name, "png": path, "w": pixbuf.get_width(),
+            "h": pixbuf.get_height(), **pixel_audit.pixbuf_stats(pixbuf)}
 
 
 def _page_name(page):
@@ -319,12 +300,6 @@ def _page_name(page):
             "BootcRecoveryKey": "recovery-key", "BootcDone": "done"}.get(
         type(page).__name__, type(page).__name__.lower())
 
-
-# The install screen, caught in flight: the shared dry-run transcript cut
-# part-way through the image pull, so the bar sits mid-way rather than at
-# either end. KDE, COSMIC, Niri and XFCE cut at the same line and render the
-# same fraction.
-TRANSCRIPT = os.path.join(REPO, "shared", "progress", "dry-run-transcript.ndjson")
 
 # Seeding failures, reported alongside the pixel audit by main().
 SEED_FAILURES = []
@@ -340,10 +315,7 @@ def _seed_progress(page):
     it runs on timers and configures the install video, which a runner has no
     codec for.
     """
-    with open(TRANSCRIPT, encoding="utf-8") as fh:
-        lines = fh.readlines()
-    cut = next(i for i, ln in enumerate(lines) if "47/71" in ln) + 1
-    for line in lines[:cut]:
+    for line in capture_fixtures.fixture_log():
         page._BootcProgress__parse_progress_line(line.strip())
     # An install in flight has a Cancel button (it asks first). No install
     # runs here, so show the button as a running install does.
@@ -427,7 +399,7 @@ def _seed(win, page, name):
     elif name == "progress":
         _seed_progress(page)
     elif name == "recovery-key":
-        page.set_recovery_key("mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf")
+        page.set_recovery_key(capture_fixtures.RECOVERY_KEY)
     elif name == "done":
         win.update_finals()
         page.set_result(True, None)
@@ -519,9 +491,7 @@ def main():
         return 1
 
     gif = os.path.join(out, "walkthrough.gif")
-    has_magick = subprocess.run(["which", "magick"], capture_output=True, check=False).returncode == 0
-    convert = "magick" if has_magick else "convert"
-    subprocess.run([convert, "-delay", "240", "-loop", "0", *frames, gif], check=True)
+    capture_fixtures.write_gif(frames, gif)
     print(f"  wrote {len(frames)} screens + {os.path.basename(gif)}")
     return 0
 
