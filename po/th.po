@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: vanilla-installer\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-01-30 16:48+0530\n"
+"POT-Creation-Date: 2026-11-10 14:32+0000\n"
 "PO-Revision-Date: 2023-06-23 22:52+0000\n"
 "Last-Translator: \"ส. สิทธิชัยวัฒน์\" <phongthon.thuiprasid@gmail.com>\n"
 "Language-Team: Thai <https://hosted.weblate.org/projects/vanilla-os/"
@@ -20,666 +20,1365 @@ msgstr ""
 "Plural-Forms: nplurals=1; plural=0;\n"
 "X-Generator: Weblate 4.18.1\n"
 
-#: data/org.vanillaos.Installer.desktop.in:3 vanilla_installer/gtk/window.ui:8
-msgid "Vanilla OS Installer"
-msgstr "ตัวติดตั้ง Vanilla OS"
+#: data/org.bootcinstaller.Installer.appdata.xml.in:6
+#: data/org.bootcinstaller.Installer.desktop.in:3
+#: bootc_installer/gtk/window.blp:7 bootc_installer/windows/main_window.py:443
+#, fuzzy
+msgid "bootc Installer"
+msgstr "กำลังติดตั้ง..."
 
-#: data/org.vanillaos.Installer.appdata.xml.in:7
-msgid "Tweak your Vanilla OS installation."
-msgstr "ปรับแต่งการติดตั้ง Vanilla OS ของคุณ"
+#: data/org.bootcinstaller.Installer.appdata.xml.in:7
+msgid "Install TunaOS on your computer"
+msgstr ""
 
-#: data/org.vanillaos.Installer.appdata.xml.in:10
-msgid "No description"
-msgstr "ไม่มีคำอธิบาย"
+#: data/org.bootcinstaller.Installer.appdata.xml.in:9
+msgid ""
+"A graphical installer for TunaOS and other bootc-based operating systems."
+msgstr ""
 
-#: data/org.vanillaos.Installer.appdata.xml.in:26
+#: data/org.bootcinstaller.Installer.appdata.xml.in:24
 msgid "First release"
 msgstr "การเปิดตัวครั้งแรก"
 
-#: vanilla_installer/gtk/confirm.ui:10
-msgid "Confirm Installation"
-msgstr ""
-
-#: vanilla_installer/gtk/confirm.ui:11
+#: bootc_installer/gtk/confirm.blp:20
 #, fuzzy
-msgid "The following changes will be made to your system"
-msgstr "เลือกแบบแผนชุดสีสำหรับระบบของคุณ"
-
-#: vanilla_installer/gtk/confirm.ui:28
-msgid "Install Vanilla OS"
-msgstr ""
-
-#: vanilla_installer/gtk/default-conn-check.ui:12
-msgid "Checking Connection…"
-msgstr ""
-
-#: vanilla_installer/gtk/default-conn-check.ui:13
-msgid "Please wait until the connection check is done"
-msgstr ""
-
-#: vanilla_installer/gtk/default-disk.ui:19
-#: vanilla_installer/gtk/default-encryption.ui:18
-#: vanilla_installer/gtk/default-keyboard.ui:30
-#: vanilla_installer/gtk/default-language.ui:18
-#: vanilla_installer/gtk/default-network.ui:18
-#: vanilla_installer/gtk/default-theme.ui:49
-#: vanilla_installer/gtk/default-users.ui:19
-#: vanilla_installer/gtk/layout-preferences.ui:29
-#: vanilla_installer/gtk/progress.ui:41
-msgid "Next"
-msgstr "ถัดไป"
-
-#: vanilla_installer/gtk/default-disk.ui:29
-#, fuzzy
-msgid "Install Location"
+msgid "Confirm installation"
 msgstr "กำลังติดตั้ง..."
 
-#: vanilla_installer/gtk/default-disk.ui:30
-msgid ""
-"Select the disk where you want to install Vanilla OS. Alternatively, you can "
-"select one or more disks to configure manually."
+#: bootc_installer/gtk/confirm.blp:47
+msgid "Summary"
 msgstr ""
 
-#: vanilla_installer/gtk/default-disk.ui:44
-msgid "Use Entire Disk"
-msgstr ""
-
-#: vanilla_installer/gtk/default-disk.ui:56
-msgid "Manual"
-msgstr ""
-
-#: vanilla_installer/gtk/default-disk.ui:86
-msgid "You need at least %s of disk space to proceed with the installation."
-msgstr ""
-
-#: vanilla_installer/gtk/default-encryption.ui:28
-msgid "Device Encryption"
-msgstr ""
-
-#: vanilla_installer/gtk/default-encryption.ui:29
-msgid "Vanilla OS encrypts your disk to protect your personal information"
-msgstr ""
-
-#: vanilla_installer/gtk/default-encryption.ui:36
-msgid "Encrypt Device"
-msgstr ""
-
-#: vanilla_installer/gtk/default-encryption.ui:37
-msgid "Use a memorable password to encrypt your data"
-msgstr ""
-
-#: vanilla_installer/gtk/default-encryption.ui:49
-#: vanilla_installer/gtk/default-users.ui:60
-msgid "Password"
-msgstr "รหัสผ่าน"
-
-#: vanilla_installer/gtk/default-encryption.ui:55
-#: vanilla_installer/gtk/default-users.ui:66
-msgid "Confirm Password"
-msgstr "ยืนยันรหัสผ่าน"
-
-#: vanilla_installer/gtk/default-keyboard.ui:42
-msgid "Keyboard Layout"
-msgstr "รูปแบบแป้นพิมพ์"
-
-#: vanilla_installer/gtk/default-keyboard.ui:43
-msgid "Select your preferred keyboard layout"
-msgstr "เลือกรูปแบบแป้นพิมพ์ที่คุณต้องการ"
-
-#: vanilla_installer/gtk/default-keyboard.ui:53
-#, fuzzy
-msgid "Search keyboard layouts"
-msgstr "ค้นหารูปแบบแป้นพิมพ์"
-
-#: vanilla_installer/gtk/default-language.ui:28
-#: vanilla_installer/gtk/widget-language.ui:12
-#: vanilla_installer/views/confirm.py:75
-msgid "Language"
-msgstr "ภาษา"
-
-#: vanilla_installer/gtk/default-language.ui:29
-msgid "Select your language"
-msgstr "เลือกภาษาของคุณ"
-
-#: vanilla_installer/gtk/default-language.ui:39
-#, fuzzy
-msgid "Search languages"
-msgstr "ค้นหาภาษา"
-
-#: vanilla_installer/gtk/default-network.ui:27
-msgid "Internet"
-msgstr ""
-
-#: vanilla_installer/gtk/default-network.ui:28
-msgid "An active internet connection is required to install the system"
-msgstr ""
-
-#: vanilla_installer/gtk/default-network.ui:39
-msgid "Wired"
-msgstr ""
-
-#: vanilla_installer/gtk/default-network.ui:44
-msgid "Wireless Networks"
-msgstr ""
-
-#: vanilla_installer/gtk/default-network.ui:49
-msgid "Advanced"
-msgstr ""
-
-#: vanilla_installer/gtk/default-network.ui:52
-msgid "Connect to Hidden Network..."
-msgstr ""
-
-#: vanilla_installer/gtk/default-network.ui:79
-msgid "Open Proxy Settings..."
-msgstr ""
-
-#: vanilla_installer/gtk/default-nvidia.ui:14
-msgid "NVIDIA® Drivers"
-msgstr ""
-
-#: vanilla_installer/gtk/default-nvidia.ui:15
-msgid ""
-"Choose whether to install proprietary NVIDIA drivers for better "
-"compatibility and performance."
-msgstr ""
-
-#: vanilla_installer/gtk/default-nvidia.ui:29
-#: vanilla_installer/gtk/default-vm.ui:29
-msgid "Skip"
-msgstr ""
-
-#: vanilla_installer/gtk/default-nvidia.ui:38
-#: vanilla_installer/gtk/default-vm.ui:38
-msgid "Install  (Recommended)"
-msgstr ""
-
-#: vanilla_installer/gtk/default-nvidia.ui:70
-msgid "About Proprietary Drivers"
-msgstr ""
-
-#: vanilla_installer/gtk/default-nvidia.ui:78
-msgid ""
-"A proprietary driver has private code that neither Vanilla OS nor Debian "
-"developers can review.\n"
-"\n"
-"Security and other updates are dependent on the driver vendor."
-msgstr ""
-
-#: vanilla_installer/gtk/default-vm.ui:14
-msgid "VM Tools"
-msgstr ""
-
-#: vanilla_installer/gtk/default-vm.ui:15
-msgid ""
-"Choose whether to install VM Tools for better compatibility and performance."
-msgstr ""
-
-#: vanilla_installer/gtk/default-theme.ui:17
-msgid "Default"
-msgstr "ค่าเริ่มต้น"
-
-#: vanilla_installer/gtk/default-theme.ui:29
-msgid "Dark"
-msgstr "มืด"
-
-#: vanilla_installer/gtk/default-theme.ui:42
-msgid "Color Scheme"
-msgstr "แบบแผนชุดสี"
-
-#: vanilla_installer/gtk/default-theme.ui:43
-msgid "Choose a color scheme for your system"
-msgstr "เลือกแบบแผนชุดสีสำหรับระบบของคุณ"
-
-#: vanilla_installer/gtk/default-users.ui:40
-msgid "Create User"
-msgstr "สร้างผู้ใช้"
-
-#: vanilla_installer/gtk/default-users.ui:41
-msgid "Provide details for your user account"
-msgstr "กรอกข้อมูลสำหรับบัญชีผู้ใช้ของคุณ"
-
-#: vanilla_installer/gtk/default-users.ui:48
-msgid "Name"
-msgstr "ชื่อ"
-
-#: vanilla_installer/gtk/default-users.ui:54
-msgid "Username"
-msgstr "ชื่อผู้ใช้"
-
-#: vanilla_installer/gtk/default-welcome.ui:17
+#: bootc_installer/gtk/confirm.blp:67 bootc_installer/gtk/default-nvidia.blp:40
+#: bootc_installer/gtk/default-vm.blp:40
+#: bootc_installer/gtk/default-welcome.blp:23
+#: bootc_installer/views/confirm.py:314
 #, fuzzy
 msgid "Install"
 msgstr "กำลังติดตั้ง..."
 
-#: vanilla_installer/gtk/default-welcome.ui:34
-#: vanilla_installer/gtk/dialog-recovery.ui:6
+#: bootc_installer/gtk/default-conn-check.blp:19
+#: bootc_installer/defaults/conn_check.py:114
+msgid "Checking Connection"
+msgstr ""
+
+#: bootc_installer/gtk/default-conn-check.blp:20
+#: bootc_installer/defaults/conn_check.py:116
+msgid "Please wait until the connection check is done"
+msgstr ""
+
+#: bootc_installer/gtk/default-disk.blp:22
+#: bootc_installer/gtk/default-encryption.blp:21
+#: bootc_installer/gtk/default-image.blp:22
+#: bootc_installer/gtk/default-keyboard.blp:28
+#: bootc_installer/gtk/default-language.blp:20
+#: bootc_installer/gtk/default-network.blp:21
+#: bootc_installer/gtk/default-theme.blp:48
+#: bootc_installer/gtk/default-timezone.blp:23
+#: bootc_installer/gtk/default-users.blp:21
+#: bootc_installer/gtk/layout-preferences.blp:26
+#: bootc_installer/gtk/window.blp:66 bootc_installer/gtk/window.blp:67
+msgid "Next"
+msgstr "ถัดไป"
+
+#: bootc_installer/gtk/default-disk.blp:37
+msgid "Exit installer"
+msgstr ""
+
+#: bootc_installer/gtk/default-disk.blp:53
+msgid "Computer is not plugged in — connect power before installing"
+msgstr ""
+
+#: bootc_installer/gtk/default-disk.blp:63
+#, fuzzy
+msgid "Install Location"
+msgstr "กำลังติดตั้ง..."
+
+#: bootc_installer/gtk/default-disk.blp:65
+#, fuzzy
+msgid ""
+"Select the disk where you want to install. All data on the selected disk "
+"will be permanently erased."
+msgstr "เลือกดิสก์ที่จะติดตั้ง Vanilla OS ลงไป"
+
+#: bootc_installer/gtk/default-disk.blp:78
+msgid "Use Entire Disk"
+msgstr ""
+
+#: bootc_installer/gtk/default-disk.blp:93
+msgid "System"
+msgstr ""
+
+#: bootc_installer/gtk/default-disk.blp:96
+msgid "Root Filesystem"
+msgstr ""
+
+#: bootc_installer/gtk/default-disk.blp:111
+msgid "Device Name"
+msgstr ""
+
+#: bootc_installer/gtk/default-disk.blp:112
+msgid "Choose a unique name to identify this computer on your network."
+msgstr ""
+
+#: bootc_installer/gtk/default-disk.blp:115
+#: bootc_installer/utils/phone_companion.py:143
+#: bootc_installer/views/confirm.py:220
+#, fuzzy
+msgid "Hostname"
+msgstr "ชื่อผู้ใช้"
+
+#: bootc_installer/gtk/default-disk.blp:120
+msgid "Data disk (/var) — optional"
+msgstr ""
+
+#: bootc_installer/gtk/default-disk.blp:121
+msgid ""
+"Use a second disk for home directories, applications, and containers. You "
+"can reinstall the OS without losing your data."
+msgstr ""
+
+#: bootc_installer/gtk/default-disk.blp:124
+msgid "Use a separate data disk"
+msgstr ""
+
+#: bootc_installer/gtk/default-disk.blp:129
+#, fuzzy
+msgid "Select data disk"
+msgstr "เลือกดิสก์"
+
+#: bootc_installer/gtk/default-disk.blp:137
+msgid "Keep existing data"
+msgstr ""
+
+#: bootc_installer/gtk/default-disk.blp:138
+msgid "Mount the disk as-is — files in /var will be preserved"
+msgstr ""
+
+#: bootc_installer/gtk/default-encryption.blp:38
+msgid "Disk Encryption"
+msgstr ""
+
+#: bootc_installer/gtk/default-encryption.blp:39
+#: bootc_installer/defaults/encryption.py:211
+#, fuzzy
+msgid "Choose how to protect the data on your disk."
+msgstr "เลือกดิสก์ที่จะติดตั้ง Vanilla OS ลงไป"
+
+#: bootc_installer/gtk/default-encryption.blp:47
+msgid "Encrypt this disk"
+msgstr ""
+
+#: bootc_installer/gtk/default-encryption.blp:59
+#: bootc_installer/gtk/default-users.blp:64
+#: bootc_installer/utils/phone_companion.py:138
+msgid "Password"
+msgstr "รหัสผ่าน"
+
+#: bootc_installer/gtk/default-encryption.blp:64
+#: bootc_installer/gtk/default-users.blp:85
+#: bootc_installer/utils/phone_companion.py:140
+msgid "Confirm Password"
+msgstr "ยืนยันรหัสผ่าน"
+
+#: bootc_installer/gtk/default-encryption.blp:81
+msgid "Use hardware-backed encryption"
+msgstr ""
+
+#: bootc_installer/gtk/default-hardware.blp:19
+msgid "System Check"
+msgstr ""
+
+#: bootc_installer/gtk/default-hardware.blp:20
+msgid "Verifying hardware compatibility"
+msgstr ""
+
+#: bootc_installer/gtk/default-hardware.blp:44
+msgid "Your system is ready"
+msgstr ""
+
+#: bootc_installer/gtk/default-hardware.blp:59
+msgid "Hardware"
+msgstr ""
+
+#: bootc_installer/gtk/default-hardware.blp:60
+msgid ""
+"We’ll quickly review the main components needed for a smooth installation "
+"and first boot."
+msgstr ""
+
+#: bootc_installer/gtk/default-hardware.blp:63
+#: bootc_installer/views/confirm.py:280
+msgid "Graphics"
+msgstr ""
+
+#: bootc_installer/gtk/default-hardware.blp:68
+#: bootc_installer/gtk/default-hardware.blp:84
+#: bootc_installer/gtk/default-hardware.blp:100
+#: bootc_installer/gtk/default-hardware.blp:116
+#: bootc_installer/gtk/default-hardware.blp:132
+#: bootc_installer/gtk/default-hardware.blp:148
+msgid "Scanning…"
+msgstr ""
+
+#: bootc_installer/gtk/default-hardware.blp:79
+msgid "Processor"
+msgstr ""
+
+#: bootc_installer/gtk/default-hardware.blp:95
+msgid "Memory"
+msgstr ""
+
+#: bootc_installer/gtk/default-hardware.blp:111
+msgid "Storage"
+msgstr ""
+
+#: bootc_installer/gtk/default-hardware.blp:127
+msgid "Security Chip"
+msgstr ""
+
+#: bootc_installer/gtk/default-hardware.blp:143
+msgid "Secure Boot"
+msgstr ""
+
+#: bootc_installer/gtk/default-hardware.blp:170
+msgid "Scanning hardware"
+msgstr ""
+
+#: bootc_installer/gtk/default-image.blp:40
+msgid "Choose an Image"
+msgstr ""
+
+#: bootc_installer/gtk/default-image.blp:41
+msgid ""
+"Select a BootcOS image to install, or enter a custom bootc-compatible image "
+"URL."
+msgstr ""
+
+#: bootc_installer/gtk/default-image.blp:54
+#, fuzzy
+msgid "Search images…"
+msgstr "ค้นหาภาษา"
+
+#: bootc_installer/gtk/default-image.blp:83
+msgid "Custom bootc image"
+msgstr ""
+
+#: bootc_installer/gtk/default-image.blp:84
+msgid "Enter any OCI image reference"
+msgstr ""
+
+#: bootc_installer/gtk/default-image.blp:87
+msgid "Image URL"
+msgstr ""
+
+#: bootc_installer/gtk/default-keyboard.blp:45
+msgid "Keyboard Layout"
+msgstr "รูปแบบแป้นพิมพ์"
+
+#: bootc_installer/gtk/default-keyboard.blp:46
+msgid "Select your preferred keyboard layout"
+msgstr "เลือกรูปแบบแป้นพิมพ์ที่คุณต้องการ"
+
+#: bootc_installer/gtk/default-keyboard.blp:53
+#, fuzzy
+msgid "Search keyboard layouts"
+msgstr "ค้นหารูปแบบแป้นพิมพ์"
+
+#: bootc_installer/gtk/default-language.blp:37
+#: bootc_installer/gtk/widget-language.blp:13
+#: bootc_installer/views/confirm.py:137
+msgid "Language"
+msgstr "ภาษา"
+
+#: bootc_installer/gtk/default-language.blp:38
+msgid "Select your language"
+msgstr "เลือกภาษาของคุณ"
+
+#: bootc_installer/gtk/default-language.blp:45
+#, fuzzy
+msgid "Search languages"
+msgstr "ค้นหาภาษา"
+
+#: bootc_installer/gtk/default-network.blp:38
+msgid "Internet"
+msgstr ""
+
+#: bootc_installer/gtk/default-network.blp:39
+msgid "An active internet connection is required to install the system"
+msgstr ""
+
+#: bootc_installer/gtk/default-network.blp:44
+msgid "Wired"
+msgstr ""
+
+#: bootc_installer/gtk/default-network.blp:48
+msgid "Wireless Networks"
+msgstr ""
+
+#: bootc_installer/gtk/default-network.blp:52
+msgid "Advanced"
+msgstr ""
+
+#: bootc_installer/gtk/default-network.blp:55
+msgid "Connect to Hidden Network..."
+msgstr ""
+
+#: bootc_installer/gtk/default-network.blp:80
+msgid "Open Proxy Settings..."
+msgstr ""
+
+#: bootc_installer/gtk/default-nvidia.blp:19
+msgid "NVIDIA® Drivers"
+msgstr ""
+
+#: bootc_installer/gtk/default-nvidia.blp:20
+msgid ""
+"Choose whether to install proprietary NVIDIA drivers for better "
+"compatibility and performance"
+msgstr ""
+
+#: bootc_installer/gtk/default-nvidia.blp:31
+#: bootc_installer/gtk/default-vm.blp:31
+#: bootc_installer/defaults/qr_companion.py:290
+msgid "Skip"
+msgstr ""
+
+#: bootc_installer/gtk/default-nvidia.blp:70
+msgid "About Proprietary Drivers"
+msgstr ""
+
+#: bootc_installer/gtk/default-nvidia.blp:79
+msgid ""
+"A proprietary driver has private code that neither bootc installer nor "
+"Debian developers can review.\n"
+"\n"
+"Security and other updates are dependent on the driver vendor."
+msgstr ""
+
+#: bootc_installer/gtk/default-theme.blp:15
+msgid "Default"
+msgstr "ค่าเริ่มต้น"
+
+#: bootc_installer/gtk/default-theme.blp:27
+msgid "Dark"
+msgstr "มืด"
+
+#: bootc_installer/gtk/default-theme.blp:40
+msgid "Color Scheme"
+msgstr "แบบแผนชุดสี"
+
+#: bootc_installer/gtk/default-theme.blp:41
+msgid "Choose a color scheme for your system"
+msgstr "เลือกแบบแผนชุดสีสำหรับระบบของคุณ"
+
+#: bootc_installer/gtk/default-timezone.blp:40
+msgid "Date & Time"
+msgstr "วันที่และเวลา"
+
+#: bootc_installer/gtk/default-timezone.blp:41
+msgid "Select your preferred timezone"
+msgstr "เลือกเขตเวลาที่คุณต้องการ"
+
+#: bootc_installer/gtk/default-timezone.blp:48
+#, fuzzy
+msgid "Search timezones"
+msgstr "ค้นหาเขตเวลา"
+
+#: bootc_installer/gtk/default-timezone.blp:78
+msgid "Current timezone: "
+msgstr ""
+
+#: bootc_installer/gtk/default-users.blp:38
+msgid "Create User"
+msgstr "สร้างผู้ใช้"
+
+#: bootc_installer/gtk/default-users.blp:39
+msgid "Provide details for your user account"
+msgstr "กรอกข้อมูลสำหรับบัญชีผู้ใช้ของคุณ"
+
+#: bootc_installer/gtk/default-users.blp:54
+msgid "Name"
+msgstr "ชื่อ"
+
+#: bootc_installer/gtk/default-users.blp:59
+#: bootc_installer/utils/phone_companion.py:136
+msgid "Username"
+msgstr "ชื่อผู้ใช้"
+
+#: bootc_installer/gtk/default-vm.blp:19
+msgid "VM Tools"
+msgstr ""
+
+#: bootc_installer/gtk/default-vm.blp:20
+msgid ""
+"Choose whether to install VM Tools for better compatibility and performance"
+msgstr ""
+
+#: bootc_installer/gtk/default-welcome.blp:24
+msgid "Installs to your internal disk. Takes about 5–10 minutes."
+msgstr ""
+
+#: bootc_installer/gtk/default-welcome.blp:40
+msgid "Connect Bluetooth Devices"
+msgstr ""
+
+#: bootc_installer/gtk/default-welcome.blp:41
+msgid "Pair your keyboard or mouse to continue"
+msgstr ""
+
+#: bootc_installer/gtk/default-welcome.blp:58
+#: bootc_installer/gtk/dialog-recovery.blp:5
 msgid "Recovery"
 msgstr ""
 
-#: vanilla_installer/gtk/default-welcome.ui:51
-#: vanilla_installer/gtk/dialog-poweroff.ui:6
-#: vanilla_installer/gtk/dialog-poweroff.ui:26
+#: bootc_installer/gtk/default-welcome.blp:59
+msgid "Troubleshoot or repair an existing installation."
+msgstr ""
+
+#: bootc_installer/gtk/default-welcome.blp:76
+#: bootc_installer/gtk/dialog-poweroff.blp:5
+#: bootc_installer/gtk/dialog-poweroff.blp:22
 msgid "Power Off"
 msgstr ""
 
-#: vanilla_installer/gtk/dialog.ui:6
-msgid "Showing Information"
-msgstr "กำลังแสดงข้อมูล"
-
-#: vanilla_installer/gtk/dialog-disk.ui:5
-msgid "Configure Disk"
+#: bootc_installer/gtk/default-welcome.blp:94
+msgid "Press Super+Alt+S to enable the screen reader"
 msgstr ""
 
-#: vanilla_installer/gtk/dialog-disk.ui:17
-#: vanilla_installer/gtk/dialog-disk-confirm.ui:18
-msgid "Cancel"
+#: bootc_installer/gtk/default-welcome.blp:105
+#: bootc_installer/gtk/dialog-credits.blp:5 bootc_installer/gtk/window.blp:56
+msgid "Credits"
 msgstr ""
 
-#: vanilla_installer/gtk/dialog-disk.ui:22
-msgid "Apply"
-msgstr ""
-
-#: vanilla_installer/gtk/dialog-disk-confirm.ui:6
-#: vanilla_installer/gtk/dialog-disk-confirm.ui:25
-#: vanilla_installer/gtk/dialog-disk-confirm.ui:36
+#: bootc_installer/gtk/dialog-disk-confirm.blp:5
+#: bootc_installer/gtk/dialog-disk-confirm.blp:22
+#: bootc_installer/gtk/dialog-disk-confirm.blp:34
 msgid "Confirm Changes"
 msgstr ""
 
-#: vanilla_installer/gtk/dialog-disk-confirm.ui:26
+#: bootc_installer/gtk/dialog-disk-confirm.blp:17
+#: bootc_installer/gtk/dialog-disk.blp:17
+#: bootc_installer/windows/main_window.py:466
+msgid "Cancel"
+msgstr ""
+
+#: bootc_installer/gtk/dialog-disk-confirm.blp:23
 msgid ""
 "The following changes will be made to your disk. Please review them "
 "carefully."
 msgstr ""
 
-#: vanilla_installer/gtk/dialog-output.ui:6
+#: bootc_installer/gtk/dialog-disk.blp:5
+msgid "Configure Disk"
+msgstr ""
+
+#: bootc_installer/gtk/dialog-disk.blp:22
+msgid "Apply"
+msgstr ""
+
+#: bootc_installer/gtk/dialog-output.blp:5
 msgid "Log"
 msgstr ""
 
-#: vanilla_installer/gtk/dialog-poweroff.ui:42
+#: bootc_installer/gtk/dialog-output.blp:17
+msgid "Copy All"
+msgstr ""
+
+#: bootc_installer/gtk/dialog-poweroff.blp:38
 msgid "Restart"
 msgstr ""
 
-#: vanilla_installer/gtk/dialog-poweroff.ui:58
-msgid "Restart into Firmware Setup"
+#: bootc_installer/gtk/dialog-poweroff.blp:54
+msgid "Restart Into Firmware Setup"
 msgstr ""
 
-#: vanilla_installer/gtk/dialog-recovery.ui:26
+#: bootc_installer/gtk/dialog-recovery.blp:22
 msgid "Console"
 msgstr ""
 
-#: vanilla_installer/gtk/dialog-recovery.ui:27
+#: bootc_installer/gtk/dialog-recovery.blp:23
 msgid "Open a terminal"
 msgstr ""
 
-#: vanilla_installer/gtk/dialog-recovery.ui:43
+#: bootc_installer/gtk/dialog-recovery.blp:39
 msgid "Documentation"
 msgstr ""
 
-#: vanilla_installer/gtk/dialog-recovery.ui:44
+#: bootc_installer/gtk/dialog-recovery.blp:40
 #, fuzzy
-msgid "Open the Vanilla OS documentation"
+msgid "Open the documentation"
 msgstr "ปรับแต่งการติดตั้ง Vanilla OS ของคุณ"
 
-#: vanilla_installer/gtk/dialog-recovery.ui:60
-msgid "GParted"
+#: bootc_installer/gtk/dialog-recovery.blp:56
+msgid "Disks manager"
 msgstr ""
 
-#: vanilla_installer/gtk/dialog-recovery.ui:61
+#: bootc_installer/gtk/dialog-recovery.blp:57
 msgid "Manage disks and partitions"
 msgstr ""
 
-#: vanilla_installer/gtk/dialog-recovery.ui:77
-msgid "Handbook"
+#: bootc_installer/gtk/dialog-recovery.blp:73
+msgid "Get help"
 msgstr ""
 
-#: vanilla_installer/gtk/dialog-recovery.ui:78
-msgid "Read tutorials and guides about Vanilla OS"
+#: bootc_installer/gtk/dialog-recovery.blp:74
+msgid "Open the support site"
 msgstr ""
 
-#: vanilla_installer/gtk/dialog-recovery.ui:94
+#: bootc_installer/gtk/dialog-recovery.blp:90
 msgid "Web Browser"
 msgstr ""
 
-#: vanilla_installer/gtk/dialog-recovery.ui:95
+#: bootc_installer/gtk/dialog-recovery.blp:91
 msgid "Search help online"
 msgstr ""
 
-#: vanilla_installer/gtk/done.ui:12
+#: bootc_installer/gtk/dialog.blp:5
+msgid "Showing Information"
+msgstr "กำลังแสดงข้อมูล"
+
+#: bootc_installer/gtk/done.blp:19
 msgid "Finished!"
 msgstr ""
 
-#: vanilla_installer/gtk/done.ui:13
-msgid "Restart your device to enjoy your Vanilla OS experience"
-msgstr ""
+#: bootc_installer/gtk/done.blp:20
+#, fuzzy
+msgid "Restart your device to enjoy your new experience"
+msgstr "รีสตาร์ทอุปกรณ์ของคุณเพื่อเพลิดเพลินกับประสบการณ์ {} ของคุณ"
 
-#: vanilla_installer/gtk/done.ui:23
+#: bootc_installer/gtk/done.blp:30
 msgid "Show Log"
 msgstr ""
 
-#: vanilla_installer/gtk/done.ui:32
+#: bootc_installer/gtk/done.blp:39
+msgid "Try Again"
+msgstr ""
+
+#: bootc_installer/gtk/done.blp:49
 msgid "Reboot Now"
 msgstr ""
 
-#: vanilla_installer/gtk/done.ui:42
+#: bootc_installer/gtk/done.blp:59
 msgid "Close"
 msgstr ""
 
-#: vanilla_installer/gtk/layout-yes-no.ui:36
-msgid "Yes, enable it"
+#: bootc_installer/gtk/done.blp:89 bootc_installer/gtk/progress.blp:109
+msgid "Visit the store"
 msgstr ""
 
-#: vanilla_installer/gtk/progress.ui:27
-msgid "Previous"
+#: bootc_installer/gtk/layout-yes-no.blp:37
+msgid "Enable"
 msgstr ""
 
-#: vanilla_installer/gtk/progress.ui:110
-msgid "Installing..."
+#: bootc_installer/gtk/progress.blp:77
+msgid "Installation Video Coming Soon!"
+msgstr ""
+
+#: bootc_installer/gtk/progress.blp:87
+msgid "Installation will continue normally. Feel free to browse around. Rawr."
+msgstr ""
+
+#: bootc_installer/gtk/progress.blp:191 bootc_installer/views/progress.py:674
+#: bootc_installer/views/progress.py:727
+#, fuzzy
+msgid "Installing"
 msgstr "กำลังติดตั้ง..."
 
-#: vanilla_installer/gtk/progress.ui:131
-msgid "Show Console output"
+#: bootc_installer/gtk/progress.blp:225 bootc_installer/views/progress.py:681
+msgid "0:00 elapsed"
+msgstr ""
+
+#: bootc_installer/gtk/progress.blp:280
+#, fuzzy
+msgid "Copy Console Log"
 msgstr "แสดงเอาต์พุตของคอนโซล"
 
-#: vanilla_installer/gtk/progress.ui:146
-msgid "Show Slideshow"
-msgstr "แสดงสไลด์"
+#: bootc_installer/gtk/progress.blp:290
+#, fuzzy
+msgid "Show Console Output"
+msgstr "แสดงเอาต์พุตของคอนโซล"
 
-#: vanilla_installer/gtk/widget-keyboard.ui:12
+#: bootc_installer/gtk/progress.blp:300
+#, fuzzy
+msgid "Show Installation Media"
+msgstr "กำลังติดตั้ง..."
+
+#: bootc_installer/gtk/widget-keyboard.blp:13
 msgid "key"
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:10
+#: bootc_installer/gtk/widget-partition.blp:8
 msgid "Manually Partition"
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:11
+#: bootc_installer/gtk/widget-partition.blp:9
 msgid "Open GParted to manually partition the disk"
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:29
+#: bootc_installer/gtk/widget-partition.blp:27
 msgid "Boot Partition"
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:30
+#: bootc_installer/gtk/widget-partition.blp:29
 msgid ""
 "The partition to mount under “/boot”. This directory stores files for "
-"booting into Vanilla OS."
+"booting into bootc installer. Minimum space required in the partition is "
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:33
-#: vanilla_installer/gtk/widget-partition.ui:53
-#: vanilla_installer/gtk/widget-partition.ui:73
-#: vanilla_installer/gtk/widget-partition.ui:94
-#: vanilla_installer/gtk/widget-partition.ui:114
-#: vanilla_installer/gtk/widget-partition.ui:147
+#: bootc_installer/gtk/widget-partition.blp:33
+#: bootc_installer/gtk/widget-partition.blp:53
+#: bootc_installer/gtk/widget-partition.blp:85
+#: bootc_installer/gtk/widget-partition.blp:106
+#: bootc_installer/gtk/widget-partition.blp:126
+#: bootc_installer/gtk/widget-partition.blp:160
 msgid "No Partition Selected"
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:34
-#: vanilla_installer/gtk/widget-partition.ui:54
-#: vanilla_installer/gtk/widget-partition.ui:74
-#: vanilla_installer/gtk/widget-partition.ui:95
-#: vanilla_installer/gtk/widget-partition.ui:115
-#: vanilla_installer/gtk/widget-partition.ui:148
-#: vanilla_installer/defaults/disk.py:404
+#: bootc_installer/gtk/widget-partition.blp:34
+#: bootc_installer/gtk/widget-partition.blp:54
+#: bootc_installer/gtk/widget-partition.blp:86
+#: bootc_installer/gtk/widget-partition.blp:107
+#: bootc_installer/gtk/widget-partition.blp:127
+#: bootc_installer/gtk/widget-partition.blp:161
+#: bootc_installer/defaults/disk.py:460
 msgid "Please select a partition from the options below"
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:49
+#: bootc_installer/gtk/widget-partition.blp:47
 msgid "EFI Partition"
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:50
+#: bootc_installer/gtk/widget-partition.blp:49
 msgid ""
 "The partition to mount under “/boot/efi”. This directory stores files for "
-"booting in the bootloader."
+"booting in the bootloader. Minimum space required in the partition is "
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:69
+#: bootc_installer/gtk/widget-partition.blp:58
+msgid "Keep EFI"
+msgstr ""
+
+#: bootc_installer/gtk/widget-partition.blp:59
+msgid ""
+"Choose to not format your EFI partition. Make sure this is turned on if you "
+"are dual-booting"
+msgstr ""
+
+#: bootc_installer/gtk/widget-partition.blp:79
 msgid "BIOS Boot Partition"
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:70
+#: bootc_installer/gtk/widget-partition.blp:81
 msgid ""
 "The partition required by GPT-formatted disks to support booting from BIOS "
 "systems. It must be located in the first 2 TB of the disk and must be "
 "exactly 1 Mebibyte (1 MiB)."
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:85
+#: bootc_installer/gtk/widget-partition.blp:96
 msgid "BIOS partition must be exactly 1 MiB."
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:90
+#: bootc_installer/gtk/widget-partition.blp:100
 msgid "Root Partition"
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:91
+#: bootc_installer/gtk/widget-partition.blp:102
 msgid ""
 "The partition to mount under “/”. It will be automatically converted into an "
-"LVM thin pool during installation."
+"LVM thin pool during installation. Minimum space required in the partition "
+"is "
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:110
+#: bootc_installer/gtk/widget-partition.blp:120
 msgid "Var Partition"
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:111
+#: bootc_installer/gtk/widget-partition.blp:122
 msgid ""
 "The partition to mount under “/var”. This directory stores all user data "
-"like personal documents and system-wide configuration."
+"like personal documents and system-wide configuration. Minimum space "
+"required in the partition is "
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:130
-#: vanilla_installer/gtk/widget-partition.ui:134
+#: bootc_installer/gtk/widget-partition.blp:141
+#: bootc_installer/gtk/widget-partition.blp:147
 msgid "Swap Partition"
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:131
+#: bootc_installer/gtk/widget-partition.blp:143
 msgid ""
-"Swap acts as a virtual extension of your RAM and enables hibernation. "
-"Vanilla OS already uses zram to provide swapping at no storage cost."
+"Swap acts as a virtual extension of your RAM and enables hibernation. bootc "
+"installer already uses zram to provide swapping at no storage cost."
 msgstr ""
 
-#: vanilla_installer/gtk/widget-partition.ui:135
+#: bootc_installer/gtk/widget-partition.blp:148
 msgid ""
 "Choose a partition to use for swap alongside zram. This is not required for "
 "hibernation."
 msgstr ""
 
-#: vanilla_installer/gtk/window-unsupported.ui:58
+#: bootc_installer/gtk/window-cpu.blp:52 bootc_installer/gtk/window-ram.blp:52
+msgid "Continue..."
+msgstr ""
+
+#: bootc_installer/gtk/window-unsupported.blp:52
 msgid "Power Off..."
 msgstr ""
 
-#: vanilla_installer/gtk/window.ui:37
+#: bootc_installer/gtk/window.blp:20
 msgid "Back"
 msgstr ""
 
-#: vanilla_installer/gtk/wireless-row.ui:34
-#: vanilla_installer/defaults/network.py:372
+#: bootc_installer/gtk/window.blp:36
+#, fuzzy
+msgid "Exit Installer"
+msgstr "กำลังติดตั้ง..."
+
+#: bootc_installer/gtk/window.blp:46
+msgid "About"
+msgstr ""
+
+#: bootc_installer/gtk/wireless-row.blp:35
+#: bootc_installer/defaults/network.py:389
 msgid "Connected"
 msgstr ""
 
-#: vanilla_installer/defaults/disk.py:298
+#: bootc_installer/defaults/conn_check.py:103
+msgid "No Internet Connection!"
+msgstr ""
+
+#: bootc_installer/defaults/conn_check.py:105
+msgid "Installer requires an active internet connection"
+msgstr ""
+
+#: bootc_installer/defaults/disk.py:338
 msgid "GParted is already running. Only one instance of GParted is permitted."
 msgstr ""
 
-#: vanilla_installer/defaults/disk.py:363
+#: bootc_installer/defaults/disk.py:403
 msgid "Partition must be at least {}"
 msgstr ""
 
-#: vanilla_installer/defaults/disk.py:387
+#: bootc_installer/defaults/disk.py:427
 msgid "Partition must EXACTLY {}"
 msgstr ""
 
-#: vanilla_installer/defaults/disk.py:402
+#: bootc_installer/defaults/disk.py:458
 msgid "No partition selected"
 msgstr ""
 
-#: vanilla_installer/defaults/disk.py:500
+#: bootc_installer/defaults/disk.py:565
 msgid "Partitions have changed. Current selections have been cleared."
 msgstr ""
 
-#: vanilla_installer/defaults/disk.py:558
+#: bootc_installer/defaults/disk.py:636
 msgid "Entire disk will be used."
 msgstr ""
 
-#: vanilla_installer/defaults/disk.py:565
+#: bootc_installer/defaults/disk.py:643
+msgid "Will be mounted in {}"
+msgstr ""
+
+#: bootc_installer/defaults/disk.py:649
 msgid "Will be formatted in {} and mounted in {}"
 msgstr ""
 
-#: vanilla_installer/defaults/network.py:37
+#: bootc_installer/defaults/disk.py:659 bootc_installer/defaults/disk.py:684
+#, python-format
+msgid "LVM volume group: %s"
+msgstr ""
+
+#: bootc_installer/defaults/disk.py:660 bootc_installer/defaults/disk.py:685
+msgid "Volume group will be removed."
+msgstr ""
+
+#: bootc_installer/defaults/disk.py:664 bootc_installer/defaults/disk.py:679
+#, python-format
+msgid "LVM physical volume: %s"
+msgstr ""
+
+#: bootc_installer/defaults/disk.py:665 bootc_installer/defaults/disk.py:680
+msgid "Physical volume will be removed."
+msgstr ""
+
+#: bootc_installer/defaults/disk.py:751
+msgid "Could not detect disks"
+msgstr ""
+
+#: bootc_installer/defaults/disk.py:754
+msgid "No disks detected"
+msgstr ""
+
+#: bootc_installer/defaults/disk.py:756
+msgid ""
+"Connect a disk of at least 50 GiB to install to. Nothing can be installed "
+"until one is available."
+msgstr ""
+
+#: bootc_installer/defaults/disk.py:894
+msgid "Btrfs (with subvolumes)"
+msgstr ""
+
+#: bootc_installer/defaults/disk.py:932
+msgid "Install the \"{}\" package on the host to use this filesystem"
+msgstr ""
+
+#: bootc_installer/defaults/disk.py:935
+msgid "Missing host tool: \"{}\" — install the \"{}\" package"
+msgstr ""
+
+#: bootc_installer/defaults/disk.py:1013
+msgid "Virtual disk (for VMs / testing)"
+msgstr ""
+
+#: bootc_installer/defaults/disk.py:1015
+#, python-format
+msgid "Creates a %s disk image and attaches it as a loop device"
+msgstr ""
+
+#: bootc_installer/defaults/encryption.py:204
+#: bootc_installer/defaults/encryption.py:210
+msgid "Encryption type"
+msgstr ""
+
+#: bootc_installer/defaults/encryption.py:308
+msgid "Weak \\u2014 make it longer or more complex"
+msgstr ""
+
+#: bootc_installer/defaults/encryption.py:313
+msgid "Fair \\u2014 consider making it longer"
+msgstr ""
+
+#: bootc_installer/defaults/encryption.py:318
+msgid "Strong passphrase"
+msgstr ""
+
+#: bootc_installer/defaults/network.py:40
 msgid "Insecure network (WEP)"
 msgstr ""
 
-#: vanilla_installer/defaults/network.py:38
+#: bootc_installer/defaults/network.py:41
 msgid "Secure network (WPA)"
 msgstr ""
 
-#: vanilla_installer/defaults/network.py:39
+#: bootc_installer/defaults/network.py:42
 msgid "Secure network (WPA2)"
 msgstr ""
 
-#: vanilla_installer/defaults/network.py:40
+#: bootc_installer/defaults/network.py:43
 msgid "Secure network (WPA3)"
 msgstr ""
 
-#: vanilla_installer/defaults/network.py:375
+#: bootc_installer/defaults/network.py:392
 msgid "Authentication required"
 msgstr ""
 
-#: vanilla_installer/defaults/network.py:383
+#: bootc_installer/defaults/network.py:400
 msgid "Connecting"
 msgstr ""
 
-#: vanilla_installer/defaults/network.py:385
+#: bootc_installer/defaults/network.py:402
 msgid "Disconnected"
 msgstr ""
 
-#: vanilla_installer/defaults/network.py:387
+#: bootc_installer/defaults/network.py:404
 msgid "Disconnecting"
 msgstr ""
 
-#: vanilla_installer/defaults/network.py:389
+#: bootc_installer/defaults/network.py:406
 msgid "Connection Failed"
 msgstr ""
 
-#: vanilla_installer/defaults/network.py:391
+#: bootc_installer/defaults/network.py:408
 msgid "Status Unknown"
 msgstr ""
 
-#: vanilla_installer/defaults/network.py:393
+#: bootc_installer/defaults/network.py:410
 msgid "Unmanaged"
 msgstr ""
 
-#: vanilla_installer/defaults/network.py:395
+#: bootc_installer/defaults/network.py:412
 msgid "Unavailable"
 msgstr ""
 
-#: vanilla_installer/defaults/network.py:397
+#: bootc_installer/defaults/network.py:414
 msgid "Unknown"
 msgstr ""
 
-#: vanilla_installer/defaults/network.py:409
+#: bootc_installer/defaults/network.py:426
 msgid "Cable Unplugged"
 msgstr ""
 
-#: vanilla_installer/defaults/timezone.py:58
+#: bootc_installer/defaults/qr_companion.py:162
+msgid "Set Up From Your Phone"
+msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:168
+msgid ""
+"Type your account details on your phone instead of this keyboard. Both "
+"devices need to be on the same network."
+msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:193
+msgid "QR code for the phone setup page"
+msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:217
+msgid "No QR code on this system. Copy the link and open it on your phone."
+msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:234
+msgid "Open the camera on your phone"
+msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:235
+msgid "Point it at the code and open the link"
+msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:236
+msgid "Fill in the form and send it. This screen moves on by itself."
+msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:262
+msgid "Waiting for your phone…"
+msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:270
+msgid "Can't scan?"
+msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:279
+#: bootc_installer/defaults/qr_companion.py:455
+msgid "Copy link"
+msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:293
+msgid "Enter your details on this computer instead"
+msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:308
+msgid "Phone Setup Unavailable"
+msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:310
+#: bootc_installer/defaults/qr_companion.py:365
+msgid ""
+"This computer can't open a secure connection for your phone. Continue to "
+"enter your details here instead."
+msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:312
+msgid "Continue on This Computer"
+msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:361
+msgid ""
+"This computer is not connected to a network your phone can reach. Continue "
+"to enter your details here instead."
+msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:451
+msgid "Copied"
+msgstr ""
+
+#: bootc_installer/defaults/timezone.py:196
 #, python-format
 msgid "(at %s, %s)"
 msgstr ""
 
-#: vanilla_installer/layouts/preferences.py:67
+#: bootc_installer/defaults/user.py:165
+msgid "Weak"
+msgstr ""
+
+#: bootc_installer/defaults/user.py:167
+msgid "Fair"
+msgstr ""
+
+#: bootc_installer/defaults/user.py:169
+msgid "Good"
+msgstr ""
+
+#: bootc_installer/defaults/user.py:171
+msgid "Strong"
+msgstr ""
+
+#: bootc_installer/layouts/preferences.py:67
 msgid "Please select at least one option."
 msgstr ""
 
-#: vanilla_installer/utils/builder.py:73
+#: bootc_installer/utils/builder.py:66
 msgid "Missing 'log_file' in the recipe."
 msgstr ""
 
-#: vanilla_installer/utils/builder.py:82
+#: bootc_installer/utils/builder.py:75
 #, python-format
 msgid "failed to create log file: %s"
 msgstr ""
 
-#: vanilla_installer/utils/builder.py:83
+#: bootc_installer/utils/builder.py:76
 msgid "No log will be stored."
 msgstr ""
 
-#: vanilla_installer/utils/builder.py:90
+#: bootc_installer/utils/builder.py:79
 #, python-format
-msgid "Performing display-condition: %s"
+msgid "(%s) Processing step..."
 msgstr ""
 
-#: vanilla_installer/utils/builder.py:99 vanilla_installer/utils/builder.py:104
+#: bootc_installer/utils/builder.py:83
+#, python-format
+msgid "(%s) Display-conditions found"
+msgstr ""
+
+#: bootc_installer/utils/builder.py:88
+#, python-format
+msgid "(%s) Performing display-condition: %s"
+msgstr ""
+
+#: bootc_installer/utils/builder.py:97
+#, python-format
+msgid "(%s) Display-conditions not met"
+msgstr ""
+
+#: bootc_installer/utils/builder.py:99
+#, python-format
+msgid "(%s) Display-conditions met"
+msgstr ""
+
+#: bootc_installer/utils/builder.py:102
 #, python-format
 msgid "Step %s skipped due to display-conditions"
 msgstr ""
 
-#: vanilla_installer/utils/recipe.py:43
-msgid "Invalid recipe file"
+#: bootc_installer/utils/builder.py:113
+#, python-format
+msgid "(%s) Initializing widgets for template: %s"
 msgstr ""
 
-#: vanilla_installer/utils/recipe.py:52
+#: bootc_installer/utils/builder.py:120
+#, python-format
+msgid "(%s) Widgets initialized"
+msgstr ""
+
+#: bootc_installer/utils/phone_companion.py:131
+#, fuzzy, python-brace-format
+msgid "{name} Installer Companion"
+msgstr "กำลังติดตั้ง..."
+
+#: bootc_installer/utils/phone_companion.py:132
+#, python-brace-format
+msgid "{name} Setup"
+msgstr ""
+
+#: bootc_installer/utils/phone_companion.py:133
+msgid "Complete your installation settings from your phone"
+msgstr ""
+
+#: bootc_installer/utils/phone_companion.py:134
+#, fuzzy
+msgid "Full Name"
+msgstr "ชื่อ"
+
+#: bootc_installer/utils/phone_companion.py:135
+msgid "e.g. John Doe"
+msgstr ""
+
+#: bootc_installer/utils/phone_companion.py:137
+msgid "e.g. johndoe"
+msgstr ""
+
+#: bootc_installer/utils/phone_companion.py:139
+#, fuzzy
+msgid "Create user password"
+msgstr "สร้างผู้ใช้"
+
+#: bootc_installer/utils/phone_companion.py:141
+msgid "Type the password again"
+msgstr ""
+
+#: bootc_installer/utils/phone_companion.py:142
+#, fuzzy
+msgid "Show passwords"
+msgstr "รหัสผ่าน"
+
+#: bootc_installer/utils/phone_companion.py:144
+#, python-brace-format
+msgid "e.g. {hostname}-desktop"
+msgstr ""
+
+#: bootc_installer/utils/phone_companion.py:145
+msgid "Submit Setup"
+msgstr ""
+
+#: bootc_installer/utils/phone_companion.py:146
+msgid "Setup Completed!"
+msgstr ""
+
+#: bootc_installer/utils/phone_companion.py:147
+msgid ""
+"You can now look back at the installer screen to confirm and finish the "
+"installation."
+msgstr ""
+
+#: bootc_installer/utils/phone_companion.py:149
+msgid "Please fill out all required fields."
+msgstr ""
+
+#: bootc_installer/utils/phone_companion.py:150
+msgid "The passwords do not match."
+msgstr ""
+
+#: bootc_installer/utils/phone_companion.py:151
+msgid "Submission failed, please try again."
+msgstr ""
+
+#: bootc_installer/utils/phone_companion.py:152
+msgid "Connection error."
+msgstr ""
+
+#: bootc_installer/utils/recipe.py:139
+#, fuzzy, python-brace-format
+msgid "Installing {name}"
+msgstr "กำลังติดตั้ง..."
+
+#: bootc_installer/utils/recipe.py:140
+msgid "This will take a few minutes."
+msgstr ""
+
+#: bootc_installer/utils/recipe.py:144
+#, fuzzy
+msgid "Installation complete"
+msgstr "กำลังติดตั้ง..."
+
+#: bootc_installer/utils/recipe.py:145
+msgid "Your system is ready to use."
+msgstr ""
+
+#: bootc_installer/utils/recipe.py:200
 msgid "Recipe is not a dictionary"
 msgstr ""
 
-#: vanilla_installer/utils/recipe.py:57
+#: bootc_installer/utils/recipe.py:205
 #, python-brace-format
 msgid "Recipe is missing the '{key}' key"
 msgstr ""
 
-#: vanilla_installer/utils/recipe.py:61
-msgid "Recipe steps is not a list"
+#: bootc_installer/utils/recipe.py:209
+msgid "Recipe steps is not a dictionary"
 msgstr ""
 
-#: vanilla_installer/utils/recipe.py:66
+#: bootc_installer/utils/recipe.py:214
 #, python-brace-format
-msgid "Step {step} is not a dictionary"
+msgid "Step {step_key} is not a dictionary"
 msgstr ""
 
-#: vanilla_installer/views/confirm.py:81
-#, fuzzy
-msgid "Keyboard"
-msgstr "รูปแบบแป้นพิมพ์"
-
-#: vanilla_installer/views/confirm.py:87
+#: bootc_installer/views/confirm.py:145
 msgid "Timezone"
 msgstr ""
 
-#: vanilla_installer/views/confirm.py:95
+#: bootc_installer/views/confirm.py:153
 #, fuzzy
 msgid "Users"
 msgstr "ชื่อผู้ใช้"
 
-#: vanilla_installer/views/confirm.py:104
-#: vanilla_installer/views/confirm.py:120
-msgid "Disk"
+#: bootc_installer/views/confirm.py:165 bootc_installer/views/confirm.py:192
+msgid "Target disk"
 msgstr ""
 
-#: vanilla_installer/views/done.py:40
-msgid "Restart your device to enjoy your {} experience."
-msgstr "รีสตาร์ทอุปกรณ์ของคุณเพื่อเพลิดเพลินกับประสบการณ์ {} ของคุณ"
-
-#: vanilla_installer/views/done.py:54
-msgid "Something went wrong"
+#: bootc_installer/views/confirm.py:174
+msgid "Filesystem"
 msgstr ""
 
-#: vanilla_installer/views/done.py:56
-msgid "Please contact the distribution developers."
-msgstr "โปรดติดต่อผู้พัฒนาดิสทริบิวชัน"
+#: bootc_installer/views/confirm.py:213
+msgid "Encryption"
+msgstr ""
 
-#~ msgid "Date & Time"
-#~ msgstr "วันที่และเวลา"
+#: bootc_installer/views/confirm.py:241 bootc_installer/views/confirm.py:249
+#: bootc_installer/views/confirm.py:263
+msgid "Image"
+msgstr ""
 
-#~ msgid "Select your preferred timezone"
-#~ msgstr "เลือกเขตเวลาที่คุณต้องการ"
+#: bootc_installer/views/confirm.py:301
+msgid "All data on this disk will be erased. This cannot be undone."
+msgstr ""
+
+#: bootc_installer/views/confirm.py:358
+#, python-brace-format
+msgid "Keyboard {keyboard_index}"
+msgstr ""
+
+#: bootc_installer/views/done.py:158
+#, fuzzy, python-format
+msgid "Installed in %s. "
+msgstr "กำลังติดตั้ง..."
+
+#: bootc_installer/views/done.py:160
+msgid "Restart now"
+msgstr ""
+
+#: bootc_installer/views/done.py:183
+#, fuzzy
+msgid "Installation failed"
+msgstr "กำลังติดตั้ง..."
+
+#: bootc_installer/views/done.py:218
+msgid "Check the log for details. Click 'Show Log' below."
+msgstr ""
+
+#: bootc_installer/views/done.py:227
+msgid "The installer exited unexpectedly. Check the log for details."
+msgstr ""
+
+#: bootc_installer/views/done.py:232
+msgid ""
+"A required system tool is missing. Ensure you are running from the official "
+"live media."
+msgstr ""
+
+#: bootc_installer/views/done.py:234
+msgid ""
+"Network error during image download. Check your internet connection and try "
+"again."
+msgstr ""
+
+#: bootc_installer/views/done.py:236
+msgid "Not enough disk space. Select a larger disk or free up space."
+msgstr ""
+
+#: bootc_installer/views/done.py:238
+msgid "Permission denied. The installer needs administrator access to proceed."
+msgstr ""
+
+#: bootc_installer/views/done.py:240
+msgid ""
+"Disk encryption setup failed. Try disabling encryption or check your "
+"passphrase."
+msgstr ""
+
+#: bootc_installer/views/done.py:242
+msgid "Disk partitioning failed. The disk may be in use or damaged."
+msgstr ""
+
+#: bootc_installer/views/done.py:244
+msgid "Filesystem mount failed. The disk may be in use by another process."
+msgstr ""
+
+#: bootc_installer/views/done.py:248
+msgid "Error: {}"
+msgstr ""
+
+#: bootc_installer/views/done.py:274
+msgid "Could not reboot"
+msgstr ""
+
+#: bootc_installer/views/done.py:275
+msgid "Please reboot manually by running: systemctl reboot"
+msgstr ""
+
+#: bootc_installer/views/done.py:277
+msgid "OK"
+msgstr ""
+
+#: bootc_installer/views/progress.py:153
+#, python-format
+msgid "Downloading\\u2026 (%s of %s parts)"
+msgstr ""
+
+#: bootc_installer/views/progress.py:155 bootc_installer/views/progress.py:157
+msgid "Downloading system image\\u2026"
+msgstr ""
+
+#: bootc_installer/views/progress.py:159
+msgid "Compressing\\u2026"
+msgstr ""
+
+#: bootc_installer/views/progress.py:161
+msgid "Optimizing drive\\u2026"
+msgstr ""
+
+#: bootc_installer/views/progress.py:497
+#, python-format
+msgid "~%d sec remaining"
+msgstr ""
+
+#: bootc_installer/views/progress.py:500
+#, python-format
+msgid "~%d min remaining"
+msgstr ""
+
+#: bootc_installer/views/progress.py:507
+#, python-format
+msgid "%s elapsed"
+msgstr ""
+
+#: bootc_installer/views/recovery_key.py:10
+msgid "Recovery key will be displayed here once the installer reports it."
+msgstr ""
+
+#: bootc_installer/views/recovery_key.py:54
+msgid "Copy to clipboard"
+msgstr ""
+
+#: bootc_installer/views/recovery_key.py:56
+msgid "I have saved my recovery key"
+msgstr ""
+
+#. Continue is a plain control label, not a line in the product's
+#. voice, and GNOME is the one frontend with this button (the others
+#. gate their Restart button instead), so it is not a contract key.
+#: bootc_installer/views/recovery_key.py:60
+msgid "Continue"
+msgstr ""
+
+#: bootc_installer/windows/dialog_output.py:24
+msgid "Log not available."
+msgstr ""
+
+#: bootc_installer/windows/main_window.py:463
+#, fuzzy
+msgid "Exit Installer?"
+msgstr "กำลังติดตั้ง..."
+
+#: bootc_installer/windows/main_window.py:464
+msgid "Any progress will be lost."
+msgstr ""
+
+#: bootc_installer/windows/main_window.py:467
+msgid "Exit"
+msgstr ""
+
+#: bootc_installer/windows/main_window.py:517
+msgid ""
+"The installation storage configuration is invalid. Check the system recipe."
+msgstr ""
+
+#: bootc_installer/windows/main_window.py:525
+msgid "No installation disk is selected. Go back and choose a disk."
+msgstr ""
+
+#~ msgid "Vanilla OS Installer"
+#~ msgstr "ตัวติดตั้ง Vanilla OS"
+
+#~ msgid "Tweak your Vanilla OS installation."
+#~ msgstr "ปรับแต่งการติดตั้ง Vanilla OS ของคุณ"
+
+#~ msgid "No description"
+#~ msgstr "ไม่มีคำอธิบาย"
 
 #, fuzzy
-#~| msgid "Search for a Timezone"
-#~ msgid "Search timezones"
-#~ msgstr "ค้นหาเขตเวลา"
+#~ msgid "The following changes will be made to your system"
+#~ msgstr "เลือกแบบแผนชุดสีสำหรับระบบของคุณ"
+
+#~ msgid "Show Slideshow"
+#~ msgstr "แสดงสไลด์"
+
+#, fuzzy
+#~ msgid "Keyboard"
+#~ msgstr "รูปแบบแป้นพิมพ์"
+
+#~ msgid "Please contact the distribution developers."
+#~ msgstr "โปรดติดต่อผู้พัฒนาดิสทริบิวชัน"
 
 #~ msgid "Region"
 #~ msgstr "ภูมิภาค"
@@ -691,19 +1390,8 @@ msgstr "โปรดติดต่อผู้พัฒนาดิสทริ
 #~ msgid "Vanilla OS Recovery"
 #~ msgstr "ตัวติดตั้ง Vanilla OS"
 
-#~ msgid "Select a Disk"
-#~ msgstr "เลือกดิสก์"
-
-#, fuzzy
-#~ msgid "Select the disk where you want to install Vanilla OS"
-#~ msgstr "เลือกดิสก์ที่จะติดตั้ง Vanilla OS ลงไป"
-
 #~ msgid "Configure"
 #~ msgstr "กำหนดค่า"
-
-#, fuzzy
-#~ msgid "Choose how to install Vanilla OS on your drive."
-#~ msgstr "เลือกดิสก์ที่จะติดตั้ง Vanilla OS ลงไป"
 
 #~ msgid "Welcome"
 #~ msgstr "ยินดีต้อนรับ"

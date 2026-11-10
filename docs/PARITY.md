@@ -149,12 +149,12 @@ not use `default_image` yet (#289).
 | Default when the catalog does not set `needs_user_creation` (#288) | no account | account | no account | account | account |
 | Account password | twice, reveal, strength | twice, reveal, strength | twice, reveal | twice, no reveal (#295) | once, no reveal (#295) |
 | Account groups | wheel and developer groups, operator override | wheel (#302) | wheel (#302) | wheel (#302) | wheel (#302) |
-| Phone companion (QR) | yes (TLS); does not work with the bundled recipe (#304, #305) | no | yes (plain HTTP, #293) | no | yes (plain HTTP, #293, #294) |
+| Phone companion (QR) | yes (TLS on the LAN address only); shows when the image needs an account, and fills the account page | no | yes (plain HTTP, #293) | no | yes (plain HTTP, #293, #294) |
 | Keyboard / language / timezone (#292) | pages exist; not in the bundled recipe | shown on confirm, applied nowhere | applied to the live session | applied to the live session (#291) | keyboard only |
 | Keyboard / language / timezone in the installed system | no | no | no | no | no |
 | Cancel a running install (#299) | window close, asks first | Cancel button, does not ask | quit dialog | Cancel button, does not ask | window close, asks first |
 | `--autoinstall` | yes | no | no | no | yes |
-| Translatable UI | gettext; no translation loads (#311) | no (#300) | no (#300) | no (#300) | no (#300) |
+| Translatable UI | gettext, one domain (`bootc-installer`); branding copy stays in one language (#311) | no (#300) | no (#300) | no (#300) | no (#300) |
 | Progress bar from fisherman's protocol | yes | yes | yes | yes | yes |
 | Restart from the done page | yes | yes | yes | yes | yes |
 | Show log after failure | yes | log path | log in page | log in page | log tail |

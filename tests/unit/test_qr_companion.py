@@ -107,14 +107,15 @@ def mod():
     sys.modules.pop("bootc_installer.defaults.qr_companion", None)
 
 
-def _page(mod, start_ok=True):
+def _page(mod, start_ok=True, reason="no-tls"):
     window = MagicMock()
     page = mod.BootcDefaultQrCompanion(window, {}, "qr_companion", {"num": 2})
     server = MagicMock()
     server.start.return_value = start_ok
     server.auth_token = TOKEN if start_ok else None
-    with patch.object(mod, "CompanionServer", return_value=server), \
-         patch.object(mod, "get_local_ip", return_value="192.0.2.10"):
+    server.host = "192.0.2.10" if start_ok else None
+    server.unavailable_reason = None if start_ok else reason
+    with patch.object(mod, "CompanionServer", return_value=server):
         page._BootcDefaultQrCompanion__start_companion()
     return page, window
 
@@ -137,7 +138,6 @@ def test_qr_companion_step_lifecycle(mod):
     step_widget = mod.BootcDefaultQrCompanion(window_mock, {}, "qr_companion", {"num": 2})
 
     assert step_widget.step_id == "qr_companion"
-    assert step_widget.should_show({}) is True
 
     window_mock.companion_config = None
     assert step_widget.get_finals() == {}
@@ -147,9 +147,60 @@ def test_qr_companion_step_lifecycle(mod):
         "username": "johndoe",
         "password": "mypassword",
         "hostname": "test-host",
-        "sshkey": "ssh-rsa ABC"
     }
     assert step_widget.get_finals() == {"hostname": "test-host"}
+
+
+@pytest.mark.parametrize("needs_user", [True, False])
+def test_the_page_shows_only_when_the_user_step_does(mod, needs_user):
+    """#305: the form asks for an account. When the image creates none, the
+    user step hides and so does this page."""
+    window = MagicMock()
+    window.image_step = None
+    page = mod.BootcDefaultQrCompanion(window, {}, "qr_companion", {"num": 2})
+    context = {"sys_recipe": {"images": [{"needs_user_creation": needs_user}]}}
+    assert page.should_show(context) is needs_user
+
+
+def test_the_server_follows_the_page_not_the_step_number(mod):
+    """#304: steps are numbered from 0 and hidden steps leave the carousel,
+    so a step number says nothing about where the page is. The server runs
+    while this page is the current one, wherever that is."""
+    window = MagicMock()
+    # Step number 1, but the page sits at carousel index 3.
+    page = mod.BootcDefaultQrCompanion(window, {}, "qr_companion", {"num": 1})
+    others = [object(), object(), object()]
+    carousel = MagicMock()
+    carousel.get_nth_page.side_effect = lambda i: ([*others, page])[int(i)]
+    on_page_changed = window.carousel.connect.call_args[0][1]
+    server = MagicMock()
+    server.start.return_value = True
+    server.auth_token = TOKEN
+    server.host = "192.0.2.10"
+
+    with patch.object(mod, "CompanionServer", return_value=server) as server_cls:
+        for index in (0.0, 1.0, 2.0):
+            on_page_changed(carousel, index)
+        server_cls.assert_not_called()
+
+        on_page_changed(carousel, 3.0)
+        server_cls.assert_called_once()
+        server.start.assert_called_once_with()
+        server.stop.assert_not_called()
+
+        on_page_changed(carousel, 2.0)
+        server.stop.assert_called_once_with()
+
+
+def test_no_route_says_so_and_shows_no_code(mod):
+    """#306: without a LAN address the page is "unavailable" and names the
+    network, not the certificate."""
+    page, _ = _page(mod, start_ok=False, reason="no-network")
+    assert page.state_stack.props_["visible_child_name"] == "unavailable"
+    assert "network" in page.unavailable_page.props_["description"]
+    assert not page.address_label.props_.get("text")
+    assert page.copy_button.props_["sensitive"] is False
+    assert not any("127.0.0.1" in s for s in _visible_strings())
 
 
 # ── rendering ────────────────────────────────────────────────────────────────

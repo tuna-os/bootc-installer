@@ -162,8 +162,9 @@ PATCHERS = [
     patch("bootc_installer.defaults.qr_companion.CompanionServer", **{
         "return_value.start.return_value": True,
         "return_value.auth_token": "capture-session-token",
+        # The address the server would have bound; the page shows it.
+        "return_value.host": "192.0.2.10",
     }),
-    patch("bootc_installer.defaults.qr_companion.get_local_ip", return_value="192.0.2.10"),
     patch.object(progress_mod.BootcProgress, "start", _refuse_to_install),
 ]
 
