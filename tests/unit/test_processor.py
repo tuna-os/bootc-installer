@@ -59,7 +59,7 @@ class TestAutoDisk:
         r = _load(path)
         assert r["disk"] == "/dev/vda"
         assert r["filesystem"] == "xfs"
-        assert "customMounts" not in r or r.get("customMounts") == []
+        assert "customMounts" not in r
 
     def test_non_composefs_live_iso_mode_emits_empty_image(self, tmp_path):
         sys_recipe = {
@@ -180,9 +180,13 @@ class TestEncryption:
         assert r["encryption"]["type"] == "tpm2-luks"
 
 
-# ── Manual partitioning tests ──────────────────────────────────────────────────
+# ── Manual partitioning is refused ─────────────────────────────────────────────
 
 class TestManualDisk:
+    """No page makes a manual layout (#312), and fisherman needs /boot/efi
+    (and /boot for GRUB on XFS) in customMounts. The Processor refuses the
+    shape and never writes customMounts."""
+
     def _manual_finals(self, partitions: dict):
         return [{
             "disk": partitions,
@@ -192,53 +196,19 @@ class TestManualDisk:
             "encryption": {"use_encryption": False},
         }]
 
-    def test_basic_manual_layout(self):
-        partitions = {
-            "/dev/sda1": {"fs": "fat32", "mp": "/boot/efi"},
-            "/dev/sda2": {"fs": "ext4",  "mp": "/boot"},
-            "/dev/sda3": {"fs": "xfs",   "mp": "/"},
-        }
-        path = Processor.gen_install_recipe("log", self._manual_finals(partitions), _SYS_RECIPE)
-        r = _load(path)
-        assert "customMounts" in r
-        mounts = {m["target"]: m for m in r["customMounts"]}
-        assert mounts["/"]["partition"] == "/dev/sda3"
-        assert mounts["/"]["fstype"] == "xfs"
-        assert mounts["/boot/efi"]["partition"] == "/dev/sda1"
-        assert mounts["/boot/efi"]["fstype"] == "fat32"
-        assert mounts["/boot"]["partition"] == "/dev/sda2"
-        assert mounts["/boot"]["fstype"] == "ext4"
-
-    def test_manual_does_not_set_disk_field(self):
-        partitions = {
-            "/dev/sda1": {"fs": "fat32", "mp": "/boot/efi"},
-            "/dev/sda2": {"fs": "xfs",   "mp": "/"},
-        }
-        path = Processor.gen_install_recipe("log", self._manual_finals(partitions), _SYS_RECIPE)
-        r = _load(path)
-        assert r.get("disk", "") == ""
-
-    def test_unformatted_partition(self):
-        partitions = {
-            "/dev/sda1": {"fs": "unformatted", "mp": "/boot/efi"},
-            "/dev/sda2": {"fs": "xfs",         "mp": "/"},
-        }
-        path = Processor.gen_install_recipe("log", self._manual_finals(partitions), _SYS_RECIPE)
-        r = _load(path)
-        mounts = {m["target"]: m for m in r["customMounts"]}
-        assert mounts["/boot/efi"]["fstype"] == "unformatted"
-
-    def test_swap_partition_included(self):
-        partitions = {
-            "/dev/sda1": {"fs": "fat32", "mp": "/boot/efi"},
-            "/dev/sda2": {"fs": "xfs",   "mp": "/"},
-            "/dev/sda3": {"fs": "swap",  "mp": "swap"},
-        }
-        path = Processor.gen_install_recipe("log", self._manual_finals(partitions), _SYS_RECIPE)
-        r = _load(path)
-        mounts = {m["target"]: m for m in r["customMounts"]}
-        assert "swap" in mounts
-        assert mounts["swap"]["partition"] == "/dev/sda3"
+    @pytest.mark.parametrize("partitions", [
+        {"/dev/sda1": {"fs": "fat32", "mp": "/boot/efi"},
+         "/dev/sda2": {"fs": "ext4", "mp": "/boot"},
+         "/dev/sda3": {"fs": "xfs", "mp": "/"}},
+        # The layout the next fisherman refuses: no /boot/efi.
+        {"/dev/sda2": {"fs": "xfs", "mp": "/"}},
+        {"/dev/sda1": {"fs": "swap", "mp": ""}},
+        # A partition key next to other keys is refused too.
+        {"/dev/sda2": {"fs": "xfs", "mp": "/"}, "filesystem": "xfs"},
+    ])
+    def test_manual_layout_is_refused(self, partitions):
+        with pytest.raises(ValueError, match="Manual partition layouts"):
+            Processor.gen_install_recipe("log", self._manual_finals(partitions), _SYS_RECIPE)
 
     def test_auto_takes_precedence_over_manual_check(self):
         """auto key means auto-partition, not manual."""
@@ -246,7 +216,7 @@ class TestManualDisk:
                    "hostname": "h", "encryption": {"use_encryption": False}}]
         path = Processor.gen_install_recipe("log", finals, _SYS_RECIPE)
         r = _load(path)
-        assert "customMounts" not in r or not r.get("customMounts")
+        assert "customMounts" not in r
         assert r["disk"] == "/dev/sda"
 
 
@@ -412,16 +382,29 @@ class TestSha512Crypt:
 
 
 class TestUnifiedStorage:
-    def test_unified_storage_true_by_default(self):
+    """fisherman refuses `unifiedStorage: true` (tuna-os/fisherman#366):
+    the installer must not ask for it on its own."""
+
+    def test_unified_storage_is_not_sent_by_default(self):
         path = Processor.gen_install_recipe("log", _auto_finals(), _SYS_RECIPE)
         r = _load(path)
-        assert r.get("unifiedStorage") is True
+        assert "unifiedStorage" not in r
 
-    def test_sys_recipe_can_disable_unified_storage(self):
+    def test_sys_recipe_false_is_not_sent(self):
         sys = {**_SYS_RECIPE, "unifiedStorage": False}
         path = Processor.gen_install_recipe("log", _auto_finals(), sys)
         r = _load(path)
-        assert r.get("unifiedStorage") is False
+        assert "unifiedStorage" not in r
+
+    def test_only_the_system_recipe_can_ask_for_it(self):
+        sys = {**_SYS_RECIPE, "unifiedStorage": True}
+        r = _load(Processor.gen_install_recipe("log", _auto_finals(), sys))
+        assert r["unifiedStorage"] is True
+
+    def test_a_value_that_is_not_true_is_not_sent(self):
+        sys = {**_SYS_RECIPE, "unifiedStorage": "yes"}
+        r = _load(Processor.gen_install_recipe("log", _auto_finals(), sys))
+        assert "unifiedStorage" not in r
 
 
 # ── composefs + image_type tests ──────────────────────────────────────────────
@@ -731,52 +714,6 @@ class TestNvidiaAutoDetect:
 
 
 # ── Hostname generation tests ─────────────────────────────────────────────────
-
-class TestManualPartitionLayout:
-    """Tests for manual partition mode (all keys start with /dev/)."""
-
-    def _manual_finals(self, partitions, image="ghcr.io/t/img:latest", hostname="h"):
-        return [{
-            "disk": partitions,
-            "selected_image": image,
-            "hostname": hostname,
-            "encryption": {"use_encryption": False},
-        }]
-
-    def test_custom_mounts_populated(self):
-        finals = self._manual_finals({
-            "/dev/sda1": {"fs": "fat32", "mp": "/boot/efi"},
-            "/dev/sda2": {"fs": "xfs", "mp": "/"},
-        })
-        path = Processor.gen_install_recipe("log", finals, _SYS_RECIPE)
-        r = _load(path)
-        assert "customMounts" in r
-        mounts = {m["partition"]: m for m in r["customMounts"]}
-        assert mounts["/dev/sda1"]["target"] == "/boot/efi"
-        assert mounts["/dev/sda2"]["fstype"] == "xfs"
-
-    def test_partition_without_mountpoint_skipped(self):
-        """Partitions with no mp= are silently skipped."""
-        finals = self._manual_finals({
-            "/dev/sda1": {"fs": "swap", "mp": ""},
-            "/dev/sda2": {"fs": "xfs", "mp": "/"},
-        })
-        path = Processor.gen_install_recipe("log", finals, _SYS_RECIPE)
-        r = _load(path)
-        mounts = r.get("customMounts", [])
-        partitions = [m["partition"] for m in mounts]
-        assert "/dev/sda1" not in partitions
-        assert "/dev/sda2" in partitions
-
-    def test_all_partitions_no_mountpoint_no_custom_mounts_key(self):
-        """If every partition lacks a mountpoint, customMounts is omitted."""
-        finals = self._manual_finals({
-            "/dev/sda1": {"fs": "swap", "mp": ""},
-        })
-        path = Processor.gen_install_recipe("log", finals, _SYS_RECIPE)
-        r = _load(path)
-        assert "customMounts" not in r
-
 
 class TestDiskInfoVariants:
     """Tests for alternate disk_info shapes (dict with 'disk'/'device' key, plain string)."""

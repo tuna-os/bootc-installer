@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import collections
 import json
 import logging
 import os
@@ -74,6 +75,33 @@ def _log_line_for_display(line: str) -> str:
     """
     shown = render_event(line.strip())
     return redact_recovery_key(line if shown is None else shown)
+
+
+# How many lines of fisherman's output the installer's own log keeps when an
+# install fails.
+FAILURE_LOG_LINES = 20
+
+
+def failure_report(exit_code, error, tail, recovery_key="") -> list:
+    """The lines the installer's log gets when fisherman exits non-zero:
+    the exit code, fisherman's `error` event when there was one (message,
+    code, field), and the last lines of its output. The recovery key is
+    redacted in each line: this log is what a user attaches to a report.
+    """
+    def clean(text):
+        return redact_recovery_key(str(text), recovery_key)
+
+    lines = [f"fisherman exited with code {exit_code}"]
+    if isinstance(error, dict) and (error.get("message") or error.get("code")):
+        lines.append("fisherman error: %s (code=%s, field=%s)" % (
+            clean(error.get("message", "")), error.get("code") or "-",
+            error.get("field") or "-"))
+    else:
+        lines.append("fisherman sent no error event")
+    tail = list(tail)[-FAILURE_LOG_LINES:]
+    lines.append(f"last {len(tail)} lines of the fisherman log:")
+    lines.extend("  " + clean(line.rstrip("\n")) for line in tail)
+    return lines
 
 
 def _load_demo_transcript(path=None) -> list:
@@ -223,6 +251,8 @@ class BootcProgress(Gtk.Box):
         self.__progress_state = new_progress_state()
         self.__boot_id = ""  # EFI boot entry ID from fisherman complete event
         self.__recovery_key = ""
+        self.__last_error = None  # the last fisherman `error` event
+        self.__log_tail = collections.deque(maxlen=FAILURE_LOG_LINES)
         self.__start_time = None
         self.__elapsed_timer_id = None
         self.__last_fraction = 0.0  # for ETA computation
@@ -631,6 +661,7 @@ class BootcProgress(Gtk.Box):
 
     def __append_log_line(self, line: str):
         """Append a line to the TextView buffer, readably, and auto-scroll."""
+        self.__log_tail.append(_log_line_for_display(line))
         end = self.__log_buf.get_end_iter()
         self.__log_buf.insert(end, _log_line_for_display(line) + "\n")
         if self.console_box.get_visible():
@@ -677,11 +708,30 @@ class BootcProgress(Gtk.Box):
             # The failure page offers the log. A key for a disk that the
             # next attempt erases has no use; do not leave it on disk.
             session.scrub_log(self.__recovery_key)
+            self.__log_failure(ret)
         self.__window.set_installation_result(
             ret == 0, None, self.__boot_id, self.__recovery_key, elapsed_secs,
             exit_code=ret, cancelled=cancelled,
+            error=self.__last_error if ret != 0 else None,
         )
         return False
+
+    def __redact(self, text: str) -> str:
+        return redact_recovery_key(text, self.__recovery_key)
+
+    def __log_failure(self, ret: int):
+        """Put the exit code, fisherman's reason and the end of its log
+        into the installer's own log (#64). The fisherman log is replaced
+        by the next attempt; this copy stays. The recovery key is redacted."""
+        for line in failure_report(ret, self.__last_error, self.__log_tail,
+                                   self.__recovery_key):
+            logger.error("%s", line)
+
+    @property
+    def last_error(self):
+        """The last `error` event of this install: {"message", "code",
+        "field"}, or None."""
+        return self.__last_error
 
     def __cleanup_video_tmp(self):
         """Remove the temp video file extracted from GResource."""
@@ -700,6 +750,14 @@ class BootcProgress(Gtk.Box):
             event = {}
 
         update = apply_progress_event(line, self.__progress_state)
+        if update is not None and update.get("error"):
+            # fisherman's reason. The last one is kept for the done page.
+            self.__last_error = update["error"]
+            logger.error("fisherman reported an error: %s (code=%s field=%s)",
+                         self.__redact(self.__last_error["message"]),
+                         self.__last_error["code"] or "-",
+                         self.__last_error["field"] or "-")
+            return
         if event.get("type") == "recovery_key":
             self.__recovery_key = self.__progress_state.get("recovery_key", "")
             logger.info("Fisherman reported recovery key")
@@ -763,6 +821,8 @@ class BootcProgress(Gtk.Box):
         self.__progress_state = new_progress_state()
         self.__boot_id = ""
         self.__recovery_key = ""
+        self.__last_error = None
+        self.__log_tail.clear()
         self.__pulse_active = False
         self.__set_progress_fraction(0.0)
         self.progressbar_text.set_label(
@@ -837,6 +897,8 @@ class BootcProgress(Gtk.Box):
         self.__progress_state = new_progress_state()
         self.__boot_id = ""
         self.__recovery_key = ""
+        self.__last_error = None
+        self.__log_tail.clear()
         self.__pulse_active = True
         self.__set_progress_fraction(0.0)
         self.progressbar_text.set_label(

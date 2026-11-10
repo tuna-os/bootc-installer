@@ -38,9 +38,6 @@ def _mock_welcome_imports():
     done = types.ModuleType("bootc_installer.views.done")
     done.apply_icon = lambda *args, **kwargs: None
 
-    dialog_recovery = types.ModuleType("bootc_installer.windows.dialog_recovery")
-    dialog_recovery.BootcRecoveryDialog = type("BootcRecoveryDialog", (), {"show": lambda self: None})
-
     dialog_poweroff = types.ModuleType("bootc_installer.windows.dialog_poweroff")
     dialog_poweroff.BootcPoweroffDialog = type("BootcPoweroffDialog", (), {"show": lambda self: None})
 
@@ -50,7 +47,6 @@ def _mock_welcome_imports():
         "gi.repository.Adw": adw,
         "gi.repository.Gtk": gtk,
         "bootc_installer.views.done": done,
-        "bootc_installer.windows.dialog_recovery": dialog_recovery,
         "bootc_installer.windows.dialog_poweroff": dialog_poweroff,
     }
 

@@ -4,8 +4,8 @@ import json
 import os
 import sys
 import types
+import tempfile
 import unittest
-import urllib.error
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -132,7 +132,6 @@ def _import_image_fresh():
 import bootc_installer.defaults.image as image_mod  # noqa: E402
 from bootc_installer.defaults.image import (  # noqa: E402
     _count_leaves,
-    _fetch_remote_flatpak_list,
     _find_icon_for_imgref,
     _imgref_to_pretty_name,
     _load_manifest,
@@ -294,243 +293,109 @@ class TestCountLeaves(unittest.TestCase):
         self.assertEqual(_count_leaves(nodes), 2)
 
 
-class TestFetchRemoteFlatpakList(unittest.TestCase):
+class TestNoFlatpakDownload(unittest.TestCase):
+    """shared/catalog/README.md: a frontend does not download a Flatpak list.
+    The page used to fetch and parse a Brewfile from a web server."""
 
-    @staticmethod
-    def _mock_urlopen(text):
-        response = MagicMock()
-        response.read.return_value = text.encode("utf-8")
-        context = MagicMock()
-        context.__enter__.return_value = response
-        context.__exit__.return_value = False
-        return context
-
-    def test_fetch_remote_flatpak_list_parses_brewfile_format(self):
-        text = '\n# comment\nflatpak "com.example.App"\n\nflatpak "org.mozilla.Firefox"\n'
-        with patch("urllib.request.urlopen", return_value=self._mock_urlopen(text)):
-            self.assertEqual(
-                _fetch_remote_flatpak_list("https://example.test/Brewfile"),
-                ["com.example.App", "org.mozilla.Firefox"],
-            )
-
-    def test_fetch_remote_flatpak_list_parses_plain_ref_format(self):
-        text = "app/com.example.App/x86_64/stable\napp/org.mozilla.Firefox/x86_64/stable\n"
-        with patch("urllib.request.urlopen", return_value=self._mock_urlopen(text)):
-            self.assertEqual(
-                _fetch_remote_flatpak_list("https://example.test/refs.txt"),
-                ["com.example.App", "org.mozilla.Firefox"],
-            )
-
-    def test_fetch_remote_flatpak_list_parses_plain_app_ids(self):
-        text = "com.example.App\norg.mozilla.Firefox\n"
-        with patch("urllib.request.urlopen", return_value=self._mock_urlopen(text)):
-            self.assertEqual(
-                _fetch_remote_flatpak_list("https://example.test/appids.txt"),
-                ["com.example.App", "org.mozilla.Firefox"],
-            )
-
-    def test_fetch_remote_flatpak_list_handles_mixed_content(self):
-        text = (
-            "# comment\n"
-            "flatpak \"com.example.BrewfileApp\"\n"
-            "app/com.example.RefApp/x86_64/stable\n"
-            "runtime/org.freedesktop.Platform/x86_64/24.08\n"
-            "org.mozilla.Firefox\n"
-            "\n"
-        )
-        with patch("urllib.request.urlopen", return_value=self._mock_urlopen(text)):
-            self.assertEqual(
-                _fetch_remote_flatpak_list("https://example.test/mixed.txt"),
-                ["com.example.BrewfileApp", "com.example.RefApp", "org.mozilla.Firefox"],
-            )
-
-    def test_fetch_remote_flatpak_list_returns_none_on_network_error(self):
-        with patch(
-            "urllib.request.urlopen",
-            side_effect=urllib.error.URLError("boom"),
-        ):
-            self.assertIsNone(_fetch_remote_flatpak_list("https://example.test/down.txt"))
-
-    def test_fetch_remote_flatpak_list_returns_none_when_no_apps_found(self):
-        text = "# comment\n\nruntime/org.freedesktop.Platform/x86_64/24.08\n"
-        with patch("urllib.request.urlopen", return_value=self._mock_urlopen(text)):
-            self.assertIsNone(_fetch_remote_flatpak_list("https://example.test/empty.txt"))
+    def test_the_module_has_no_network_code(self):
+        self.assertFalse(hasattr(image_mod, "_fetch_remote_flatpak_list"))
+        self.assertFalse(hasattr(image_mod, "urllib"))
+        with open(image_mod.__file__, encoding="utf-8") as stream:
+            source = stream.read()
+        for word in ("urllib", "urlopen", "requests", "fallback_flatpaks"):
+            self.assertNotIn(word, source)
 
 
 class TestLoadManifestOverrides(unittest.TestCase):
+    """The catalog files, in the contract's order: the system file, its
+    legacy name, the per-user file, then the package's own catalog."""
 
-    def test_load_manifest_prefers_user_override(self):
-        user_override = "/custom/config/bootc-installer/images.json"
-        manifest = {"fallback_flatpaks": [], "images": [{"imgref": "user"}]}
+    def setUp(self):
+        self.mod = _import_image_fresh()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = self.tmp.name
+        self.system = os.path.join(root, "etc", "bootc-installer", "images.json")
+        self.legacy = os.path.join(root, "etc", "tuna-installer", "images.json")
+        self.user = os.path.join(root, "config", "bootc-installer", "images.json")
+        patcher = patch.object(self.mod.catalog, "default_search_paths",
+                               return_value=[self.system, self.legacy, self.user])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.bundled = {"images": [{"imgref": "bundled"}]}
+        data = MagicMock()
+        data.get_data.return_value = json.dumps(self.bundled).encode()
+        self.mod.Gio.resources_lookup_data = MagicMock(return_value=data)
 
-        def exists_side_effect(path):
-            return str(path) == user_override
+    def _write(self, path, content):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as stream:
+            stream.write(content if isinstance(content, str) else json.dumps(content))
 
-        with (
-            patch.dict(os.environ, {"XDG_CONFIG_HOME": "/custom/config"}, clear=False),
-            patch("pathlib.Path.exists", new=lambda path: exists_side_effect(path)),
-            patch("pathlib.Path.read_text", new=lambda path, *args, **kwargs: json.dumps(manifest)),
-            patch("bootc_installer.defaults.image.Gio.resources_lookup_data") as lookup,
-        ):
-            self.assertEqual(_load_manifest(), manifest)
-            lookup.assert_not_called()
+    def test_the_system_file_wins_over_the_user_file(self):
+        """#298: a file in a home directory must not replace the catalog an
+        ISO ships. The user file used to be first."""
+        self._write(self.system, {"images": [{"imgref": "system"}]})
+        self._write(self.user, {"images": [{"imgref": "user"}]})
+        self.assertEqual(self.mod._load_manifest()["images"], [{"imgref": "system"}])
+        self.mod.Gio.resources_lookup_data.assert_not_called()
 
-    def test_load_manifest_uses_system_override_when_user_missing(self):
-        system_override = "/etc/bootc-installer/images.json"
-        manifest = {"fallback_flatpaks": ["org.mozilla.firefox"], "images": []}
+    def test_the_legacy_path_is_read(self):
+        self._write(self.legacy, {"images": [{"imgref": "legacy"}]})
+        self._write(self.user, {"images": [{"imgref": "user"}]})
+        self.assertEqual(self.mod._load_manifest()["images"], [{"imgref": "legacy"}])
 
-        def exists_side_effect(path):
-            return str(path) == system_override
+    def test_the_system_file_wins_over_the_legacy_file(self):
+        self._write(self.system, {"images": [{"imgref": "system"}]})
+        self._write(self.legacy, {"images": [{"imgref": "legacy"}]})
+        self.assertEqual(self.mod._load_manifest()["images"], [{"imgref": "system"}])
 
-        with (
-            patch.dict(os.environ, {}, clear=False),
-            patch("pathlib.Path.exists", new=lambda path: exists_side_effect(path)),
-            patch("pathlib.Path.read_text", new=lambda path, *args, **kwargs: json.dumps(manifest)),
-            patch("bootc_installer.defaults.image.Gio.resources_lookup_data") as lookup,
-        ):
-            self.assertEqual(_load_manifest(), manifest)
-            lookup.assert_not_called()
+    def test_the_user_file_is_used_when_there_is_no_system_file(self):
+        self._write(self.user, {"images": [{"imgref": "user"}]})
+        self.assertEqual(self.mod._load_manifest()["images"], [{"imgref": "user"}])
+        self.mod.Gio.resources_lookup_data.assert_not_called()
 
-    def test_load_manifest_falls_back_to_system_when_user_override_is_invalid(self):
-        user_override = "/custom/config/bootc-installer/images.json"
-        system_override = "/etc/bootc-installer/images.json"
-        system_manifest = {"fallback_flatpaks": [], "images": [{"imgref": "system"}]}
+    def test_a_file_that_does_not_parse_does_not_stop_the_search(self):
+        self._write(self.system, "{not-json}")
+        self._write(self.user, {"images": [{"imgref": "user"}]})
+        self.assertEqual(self.mod._load_manifest()["images"], [{"imgref": "user"}])
 
-        def exists_side_effect(path):
-            return str(path) in {user_override, system_override}
+    def test_a_file_that_is_not_a_catalog_does_not_stop_the_search(self):
+        self._write(self.system, {"name": "no images list"})
+        self._write(self.legacy, [1, 2])
+        self.assertEqual(self.mod._load_manifest(), self.bundled)
 
-        def read_text_side_effect(path, *args, **kwargs):
-            if str(path) == user_override:
-                return "{not-json}"
-            if str(path) == system_override:
-                return json.dumps(system_manifest)
-            raise AssertionError(f"unexpected path: {path}")
+    def test_the_bundled_catalog_is_used_when_no_file_is_there(self):
+        self.assertEqual(self.mod._load_manifest(), self.bundled)
 
-        with (
-            patch.dict(os.environ, {"XDG_CONFIG_HOME": "/custom/config"}, clear=False),
-            patch("pathlib.Path.exists", new=lambda path: exists_side_effect(path)),
-            patch("pathlib.Path.read_text", new=lambda path, *args, **kwargs: read_text_side_effect(path, *args, **kwargs)),
-            patch("bootc_installer.defaults.image.Gio.resources_lookup_data") as lookup,
-        ):
-            self.assertEqual(_load_manifest(), system_manifest)
-            lookup.assert_not_called()
+    def test_a_catalog_needs_no_fallback_flatpaks_key(self):
+        self._write(self.system, {"images": []})
+        self.assertEqual(self.mod._load_manifest(), {"images": []})
 
-    def test_load_manifest_system_override_invalid_json_falls_through(self):
-        """When system override exists but has invalid JSON, fall through to GResource."""
-        fresh_mod = _import_image_fresh()
-        system_override = "/etc/bootc-installer/images.json"
-        gresource_manifest = {"fallback_flatpaks": [], "images": [{"imgref": "gresource"}]}
+    def test_installed_path_when_the_gresource_fails(self):
+        self.mod.Gio.resources_lookup_data = MagicMock(side_effect=Exception("gresource missing"))
+        installed = {"images": [{"imgref": "installed"}]}
 
-        def exists_side_effect(path):
-            return str(path) == system_override
+        def load(path):
+            return installed if path == "/app/share/bootc-installer/images.json" else None
 
-        def read_text_side_effect(path, *a, **kw):
-            return "{not-valid-json}"
+        with patch.object(self.mod.catalog, "load", side_effect=load):
+            self.assertEqual(self.mod._load_manifest(), installed)
 
-        gresource_data = MagicMock()
-        gresource_data.get_data.return_value = json.dumps(gresource_manifest).encode()
-        fresh_mod.Gio.resources_lookup_data = MagicMock(return_value=gresource_data)
+    def test_dev_path_when_the_gresource_and_installed_paths_fail(self):
+        self.mod.Gio.resources_lookup_data = MagicMock(side_effect=Exception("gresource missing"))
+        dev = {"images": [{"imgref": "dev"}]}
 
-        with (
-            patch.dict(os.environ, {}, clear=False),
-            patch("pathlib.Path.exists", new=lambda path: exists_side_effect(path)),
-            patch("pathlib.Path.read_text", new=lambda path, *a, **kw: read_text_side_effect(path)),
-        ):
-            result = fresh_mod._load_manifest()
-        self.assertEqual(result, gresource_manifest)
+        def load(path):
+            return dev if path.endswith("fisherman/data/images.json") else None
 
-    def test_load_manifest_uses_gresource_when_no_overrides(self):
-        """When no override files exist, load from GResource."""
-        fresh_mod = _import_image_fresh()
-        gresource_manifest = {"fallback_flatpaks": [], "images": [{"imgref": "bundled"}]}
-        gresource_data = MagicMock()
-        gresource_data.get_data.return_value = json.dumps(gresource_manifest).encode()
-        fresh_mod.Gio.resources_lookup_data = MagicMock(return_value=gresource_data)
+        with patch.object(self.mod.catalog, "load", side_effect=load):
+            self.assertEqual(self.mod._load_manifest(), dev)
 
-        with patch("pathlib.Path.exists", return_value=False):
-            result = fresh_mod._load_manifest()
-        self.assertEqual(result, gresource_manifest)
-
-    def test_load_manifest_installed_path_fallback(self):
-        """When GResource fails, load from installed data path."""
-        fresh_mod = _import_image_fresh()
-        installed_manifest = {"fallback_flatpaks": [], "images": [{"imgref": "installed"}]}
-        fresh_mod.Gio.resources_lookup_data = MagicMock(side_effect=Exception("gresource missing"))
-
-        def read_text_side_effect(path, *a, **kw):
-            if str(path).startswith("/app/share") or str(path).startswith("/usr/share"):
-                return json.dumps(installed_manifest)
-            raise FileNotFoundError(path)
-
-        with patch("pathlib.Path.read_text",
-                   new=lambda path, *a, **kw: read_text_side_effect(path)):
-            result = fresh_mod._load_manifest()
-        self.assertEqual(result, installed_manifest)
-
-    def test_load_manifest_dev_path_fallback(self):
-        """When GResource and installed paths fail, fall back to the dev repo path."""
-        fresh_mod = _import_image_fresh()
-        dev_manifest = {"fallback_flatpaks": [], "images": [{"imgref": "dev"}]}
-        fresh_mod.Gio.resources_lookup_data = MagicMock(side_effect=Exception("gresource missing"))
-
-        def read_text_side_effect(path, *a, **kw):
-            if "fisherman/data/images.json" in str(path):
-                return json.dumps(dev_manifest)
-            raise FileNotFoundError(path)
-
-        with patch("pathlib.Path.read_text",
-                   new=lambda path, *a, **kw: read_text_side_effect(path)):
-            result = fresh_mod._load_manifest()
-        self.assertEqual(result, dev_manifest)
-
-    def test_load_manifest_returns_empty_fallback_when_all_fail(self):
-        """When all manifest sources fail, return the hardcoded empty fallback."""
-        fresh_mod = _import_image_fresh()
-        fresh_mod.Gio.resources_lookup_data = MagicMock(side_effect=Exception("gresource missing"))
-
-        with patch("pathlib.Path.read_text", side_effect=FileNotFoundError("not found")):
-            result = fresh_mod._load_manifest()
-        self.assertEqual(result, {"fallback_flatpaks": [], "images": []})
-
-
-    def test_load_manifest_uses_run_host_etc_in_flatpak(self):
-        """Inside a Flatpak sandbox, system override is read from /run/host/etc."""
-        flatpak_system_override = "/run/host/etc/bootc-installer/images.json"
-        manifest = {"fallback_flatpaks": [], "images": [{"imgref": "flatpak-host"}]}
-
-        def exists_side_effect(path):
-            return str(path) == flatpak_system_override
-
-        with (
-            patch("os.path.exists", new=lambda p: p == "/.flatpak-info"),
-            patch("pathlib.Path.exists", new=lambda path: exists_side_effect(path)),
-            patch("pathlib.Path.read_text", new=lambda path, *a, **kw: json.dumps(manifest)),
-            patch("bootc_installer.defaults.image.Gio.resources_lookup_data") as lookup,
-        ):
-            result = _load_manifest()
-        self.assertEqual(result, manifest)
-        lookup.assert_not_called()
-
-    def test_load_manifest_uses_etc_outside_flatpak(self):
-        """Outside a Flatpak sandbox, system override is read from /etc (not /run/host/etc)."""
-        plain_system_override = "/etc/bootc-installer/images.json"
-        manifest = {"fallback_flatpaks": [], "images": [{"imgref": "plain-etc"}]}
-
-        def exists_side_effect(path):
-            # /.flatpak-info does not exist, system override at /etc does
-            if str(path) == "/.flatpak-info":
-                return False
-            return str(path) == plain_system_override
-
-        with (
-            patch("os.path.exists", new=lambda p: exists_side_effect(p)),
-            patch("pathlib.Path.exists", new=lambda path: exists_side_effect(path)),
-            patch("pathlib.Path.read_text", new=lambda path, *a, **kw: json.dumps(manifest)),
-            patch("bootc_installer.defaults.image.Gio.resources_lookup_data") as lookup,
-        ):
-            result = _load_manifest()
-        self.assertEqual(result, manifest)
-        lookup.assert_not_called()
+    def test_empty_catalog_when_all_sources_fail(self):
+        self.mod.Gio.resources_lookup_data = MagicMock(side_effect=Exception("gresource missing"))
+        with patch.object(self.mod.catalog, "load", return_value=None):
+            self.assertEqual(self.mod._load_manifest(), {"images": []})
 
 
 class TestMakeIcon(unittest.TestCase):
@@ -575,6 +440,10 @@ class TestBootcDefaultImagePureLogic(unittest.TestCase):
         self.mod = _import_image_fresh()
         self.cls = self.mod.BootcDefaultImage
 
+    def _leaf(self, **fields):
+        node = {"name": "Example", "imgref": "ghcr.io/example/default:latest", **fields}
+        return self.mod.catalog.leaves({"images": [node]})[0]
+
     def _make_widget(self):
         widget = object.__new__(self.cls)
         widget.row_custom = MagicMock()
@@ -582,57 +451,56 @@ class TestBootcDefaultImagePureLogic(unittest.TestCase):
         widget.btn_next = MagicMock()
         widget._BootcDefaultImage__update_btn_next = MagicMock()
         widget._BootcDefaultImage__radio_anchor = MagicMock()
-        widget._BootcDefaultImage__selected_imgref = "ghcr.io/example/default:latest"
-        widget._BootcDefaultImage__selected_flatpaks = ["org.default.App"]
-        widget._BootcDefaultImage__selected_flatpak_var_path = "/var/lib/flatpak"
+        leaf = self._leaf(
+            flatpaks=["org.default.App"], flatpak_var_path="/var/lib/flatpak",
+            needs_user_creation=True, composefs=True, image_type="ostree",
+            bootloader="grub2", filesystem="xfs", filesystems=["xfs", "btrfs"],
+            default_hostname="example-host")
+        widget._BootcDefaultImage__selected_leaf = leaf
+        widget._BootcDefaultImage__selected_imgref = leaf["imgref"]
         widget._BootcDefaultImage__selected_carousel = ["slide1"]
-        widget._BootcDefaultImage__selected_needs_user_creation = True
-        widget._BootcDefaultImage__selected_composefs_backend = True
-        widget._BootcDefaultImage__selected_image_type = "ostree"
-        widget._BootcDefaultImage__selected_bootloader = "grub2"
-        widget._BootcDefaultImage__selected_image_filesystem = "xfs"
         widget._BootcDefaultImage__selected_icon = "computer-symbolic"
         widget._BootcDefaultImage__selected_pretty_name = "Example"
-        widget._BootcDefaultImage__selected_default_hostname = "example-host"
-        widget._BootcDefaultImage__selected_filesystems = ["xfs", "btrfs"]
         return widget
 
-    def test_on_check_toggled_updates_selected_state_for_remote_flatpaks(self):
+    def test_on_check_toggled_selects_the_leaf(self):
         widget = self._make_widget()
         check = MagicMock()
         check.get_active.return_value = True
         widget.row_custom.get_expanded.return_value = True
+        leaf = self.mod.catalog.leaves({"images": [{
+            "name": "New", "imgref": "ghcr.io/example/new:latest",
+            "flatpaks": "https://example.test/flatpaks.txt",
+            "needs_user_creation": False, "bootloader": "systemd",
+            "filesystem": "btrfs", "flatpak_var_path": "/var/lib/custom-flatpak",
+            "default_hostname": "new-host"}]})[0]
 
-        with patch.object(
-            self.mod,
-            "_fetch_remote_flatpak_list",
-            return_value=["org.remote.App"],
-        ) as fetch_remote:
-            self.cls._BootcDefaultImage__on_check_toggled(
-                widget,
-                check,
-                "ghcr.io/example/new:latest",
-                "https://example.test/flatpaks.txt",
-                "computer-symbolic",
-                ["slide2"],
-                False,
-                False,
-                "bootc",
-                "systemd",
-                "btrfs",
-                "/var/lib/custom-flatpak",
-                "new-host",
-                ["btrfs"],
-            )
+        self.cls._BootcDefaultImage__on_check_toggled(
+            widget, check, leaf, "computer-symbolic", ["slide2"])
 
-        fetch_remote.assert_called_once_with("https://example.test/flatpaks.txt")
         self.assertEqual(widget._BootcDefaultImage__selected_imgref, "ghcr.io/example/new:latest")
-        self.assertEqual(widget._BootcDefaultImage__selected_flatpaks, ["org.remote.App"])
+        self.assertIs(widget._BootcDefaultImage__selected_leaf, leaf)
         self.assertEqual(widget._BootcDefaultImage__selected_pretty_name, "New")
-        self.assertEqual(widget._BootcDefaultImage__selected_default_hostname, "new-host")
-        self.assertEqual(widget._BootcDefaultImage__selected_filesystems, ["btrfs"])
+        self.assertEqual(widget._BootcDefaultImage__selected_carousel, ["slide2"])
         widget.row_custom.set_expanded.assert_called_once_with(False)
         widget._BootcDefaultImage__update_btn_next.assert_called_once_with()
+
+        widget.row_custom.get_expanded.return_value = False
+        finals = self.cls.get_finals(widget)
+        # A URL is not a list the installer can read offline: no key.
+        self.assertNotIn("flatpaks", finals)
+        self.assertFalse(finals["needs_user_creation"])
+        self.assertEqual(finals["default_hostname"], "new-host")
+        self.assertEqual(finals["supported_filesystems"], ["btrfs"])
+        self.assertEqual(finals["image_filesystem"], "btrfs")
+
+    def test_an_unchecked_row_changes_nothing(self):
+        widget = self._make_widget()
+        check = MagicMock()
+        check.get_active.return_value = False
+        before = widget._BootcDefaultImage__selected_leaf
+        self.cls._BootcDefaultImage__on_check_toggled(widget, check, self._leaf(name="Other"))
+        self.assertIs(widget._BootcDefaultImage__selected_leaf, before)
 
     def test_on_custom_toggled_resets_selection_for_custom_image(self):
         widget = self._make_widget()
@@ -643,17 +511,20 @@ class TestBootcDefaultImagePureLogic(unittest.TestCase):
 
         widget._BootcDefaultImage__radio_anchor.set_active.assert_called_once_with(True)
         self.assertIsNone(widget._BootcDefaultImage__selected_imgref)
+        self.assertIsNone(widget._BootcDefaultImage__selected_leaf)
         self.assertIsNone(widget._BootcDefaultImage__selected_icon)
         self.assertIsNone(widget._BootcDefaultImage__selected_carousel)
-        self.assertFalse(widget._BootcDefaultImage__selected_needs_user_creation)
-        self.assertFalse(widget._BootcDefaultImage__selected_composefs_backend)
-        self.assertEqual(widget._BootcDefaultImage__selected_image_type, "bootc")
-        self.assertEqual(widget._BootcDefaultImage__selected_bootloader, "")
-        self.assertEqual(widget._BootcDefaultImage__selected_image_filesystem, "")
         self.assertIsNone(widget._BootcDefaultImage__selected_pretty_name)
-        self.assertEqual(widget._BootcDefaultImage__selected_default_hostname, "")
-        self.assertEqual(widget._BootcDefaultImage__selected_filesystems, [])
+        # An image that is not in the catalog gets an account (#288).
+        self.assertTrue(self.cls.selected_needs_user_creation.fget(widget))
         widget._BootcDefaultImage__update_btn_next.assert_called_once_with()
+
+    def test_needs_user_creation_follows_the_selected_leaf(self):
+        widget = self._make_widget()
+        widget._BootcDefaultImage__selected_leaf = self._leaf(needs_user_creation=False)
+        self.assertFalse(self.cls.selected_needs_user_creation.fget(widget))
+        widget._BootcDefaultImage__selected_leaf = self._leaf()
+        self.assertTrue(self.cls.selected_needs_user_creation.fget(widget))
 
     def test_update_btn_next_uses_custom_url_validation(self):
         widget = self._make_widget()
@@ -698,12 +569,24 @@ class TestBootcDefaultImagePureLogic(unittest.TestCase):
         self.assertTrue(finals["composefs_backend"])
         self.assertEqual(finals["image_type"], "ostree")
         self.assertEqual(finals["bootloader"], "grub2")
-        self.assertEqual(finals["image_filesystem"], "xfs")
+        # The leaf offers a choice of filesystems, so the image decides
+        # nothing: the disk page starts at `default_filesystem`.
+        self.assertEqual(finals["image_filesystem"], "")
+        self.assertEqual(finals["default_filesystem"], "xfs")
         self.assertEqual(finals["icon"], "computer-symbolic")
         self.assertEqual(finals["default_hostname"], "example-host")
         self.assertEqual(finals["supported_filesystems"], ["xfs", "btrfs"])
 
-    def test_get_finals_for_custom_image_uses_fallbacks(self):
+    def test_get_finals_with_nothing_selected(self):
+        widget = self._make_widget()
+        widget.row_custom.get_expanded.return_value = False
+        widget._BootcDefaultImage__selected_leaf = None
+        finals = self.cls.get_finals(widget)
+        self.assertIsNone(finals["selected_image"])
+        self.assertNotIn("flatpaks", finals)
+        self.assertTrue(finals["needs_user_creation"])
+
+    def test_get_finals_for_custom_image(self):
         widget = self._make_widget()
         widget.row_custom.get_expanded.return_value = True
         widget.image_url_entry.get_text.return_value = "ghcr.io/example/custom-dx:stable"
@@ -712,9 +595,11 @@ class TestBootcDefaultImagePureLogic(unittest.TestCase):
 
         self.assertEqual(finals["custom_image"], "ghcr.io/example/custom-dx:stable")
         self.assertEqual(finals["pretty_name"], "Custom DX")
-        self.assertEqual(finals["flatpaks"], ["org.mozilla.firefox"])
+        # No list of the installer's own (it sent `fallback_flatpaks`), and
+        # an account: the catalog does not have this image.
+        self.assertNotIn("flatpaks", finals)
         self.assertIsNone(finals["carousel"])
-        self.assertFalse(finals["needs_user_creation"])
+        self.assertTrue(finals["needs_user_creation"])
         self.assertFalse(finals["composefs_backend"])
         self.assertEqual(finals["image_type"], "bootc")
         self.assertEqual(finals["bootloader"], "")

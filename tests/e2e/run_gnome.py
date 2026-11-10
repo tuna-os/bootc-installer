@@ -47,7 +47,10 @@ _sys["imgref"] = _sys["images"][0]["imgref"]
 # loader does on live media; `imgref` then names the image. The other
 # steps (the connection check included) run as shipped.
 _sys["steps"].pop("image", None)
-_sys["log_file"] = os.path.join(E2E_DIR, "gnome-install.log")
+# The catalog this run gave the frontend, for shared/e2e/check-recipe.py:
+# it judges "an account if, and only if, the image needs one" against it.
+with open(os.path.join(E2E_DIR, "catalog.json"), "w") as fh:
+    json.dump({"images": _sys["images"]}, fh, indent=2)
 _sys_path = os.path.join(E2E_DIR, "gnome-sys-recipe.json")
 with open(_sys_path, "w") as fh:
     json.dump(_sys, fh, indent=2)

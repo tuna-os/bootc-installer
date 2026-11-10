@@ -54,24 +54,6 @@ template $BootcDefaultWelcome: Adw.Bin {
           }
         }
 
-        Adw.ActionRow row_recovery {
-          title: _("Recovery");
-          subtitle: _("Troubleshoot or repair an existing installation.");
-          icon-name: "emoji-symbols-symbolic";
-          activatable: true;
-          visible: false;
-
-          Image {
-            icon-name: "go-next-symbolic";
-            halign: center;
-            valign: center;
-
-            styles [
-              "flat",
-            ]
-          }
-        }
-
         Adw.ActionRow row_poweroff {
           title: _("Power Off");
           icon-name: "system-shutdown-symbolic";

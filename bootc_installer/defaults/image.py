@@ -17,93 +17,65 @@
 
 import json
 import logging
-import os
 import re
-import urllib.request
-import urllib.error
 
 from gi.repository import Adw, Gio, Gtk
+
+from bootc_installer.utils import catalog
 
 logger = logging.getLogger("Installer::Image")
 
 
-# ── Load image catalog from bundled JSON ──────────────────────────────────────
-# The manifest lives in data/images.json and is bundled as a GResource.
-# Structure: {"default_image", "fallback_flatpaks", "images": [recursive tree]}
-# Each node is a group {"name", "children", ...} or leaf {"name", "imgref", ...}.
-# Leaves and groups may carry a "flatpaks" list; leaves inherit from ancestors.
+# ── Load the image catalog ────────────────────────────────────────────────────
+# The contract is shared/catalog/README.md; bootc_installer/utils/catalog.py
+# is this frontend's reader. Structure: {"default_image", "aliases",
+# "images": [recursive tree]}. Each node is a group {"name", "children", ...}
+# or a leaf {"name", "imgref" | "tag", ...}; a leaf inherits from its parents.
 #
-# Distros can ship a custom image catalog by placing their own images.json at:
-#   /etc/bootc-installer/images.json          (system-wide override)
-#   $XDG_CONFIG_HOME/bootc-installer/images.json  (per-user override, dev/testing)
-# The first file found takes priority over the bundled GResource default.
+# The files, in the order they are tried (the first that is a catalog wins):
+#   <etc>/bootc-installer/images.json             the ISO or the operator
+#   <etc>/tuna-installer/images.json              the legacy name of that file
+#   $XDG_CONFIG_HOME/bootc-installer/images.json  a developer, for a test
+#   the catalog in the package (GResource)
+# <etc> is /run/host/etc in a Flatpak. The system file is first: a file in a
+# home directory must not replace the catalog an ISO ships (#298).
 
 def _load_manifest():
     import pathlib
 
-    # When running inside a Flatpak sandbox, /etc is reserved by the runtime
-    # and inaccessible.  The host filesystem /etc is available at /run/host/etc
-    # instead.  Apply the same prefix used by RecipeLoader in recipe.py.
-    _in_flatpak = os.path.exists("/.flatpak-info")
-    _etc = "/run/host/etc" if _in_flatpak else "/etc"
+    # 1-3. The files of the contract, system file first.
+    manifest, path = catalog.load_first(catalog.default_search_paths())
+    if manifest is not None:
+        logger.info(f"Loaded image manifest from {path}")
+        return manifest
 
-    # 1. Per-user override (useful for testing custom catalogs without root).
-    xdg_config = pathlib.Path(
-        os.environ.get("XDG_CONFIG_HOME", pathlib.Path.home() / ".config")
-    )
-    user_override = xdg_config / "bootc-installer" / "images.json"
-    if user_override.exists():
-        try:
-            manifest = json.loads(user_override.read_text())
-            logger.info(f"Loaded image manifest from user override: {user_override}")
-            return manifest
-        except Exception as e:
-            logger.warning(f"Failed to parse user override {user_override}: {e}")
-
-    # 2. System-wide override (distros drop their catalog here).
-    # Inside a Flatpak sandbox the host /etc is at /run/host/etc — use the
-    # same prefix that RecipeLoader applies so live-ISO images.json is found.
-    system_override = pathlib.Path(f"{_etc}/bootc-installer/images.json")
-    if system_override.exists():
-        try:
-            manifest = json.loads(system_override.read_text())
-            logger.info(f"Loaded image manifest from system override: {system_override}")
-            return manifest
-        except Exception as e:
-            logger.warning(f"Failed to parse system override {system_override}: {e}")
-
-    # 3. Bundled GResource (default shipped with the installer).
+    # 4. Bundled GResource (default shipped with the installer).
     try:
         data = Gio.resources_lookup_data(
             "/org/bootcinstaller/Installer/images.json",
             Gio.ResourceLookupFlags.NONE,
         )
-        logger.debug("Loaded image manifest from GResource")
-        return json.loads(data.get_data().decode())
+        manifest = json.loads(data.get_data().decode())
+        if catalog.is_catalog(manifest):
+            logger.debug("Loaded image manifest from GResource")
+            return manifest
+        logger.warning("images.json in the GResource is not a catalog")
     except Exception:
         logger.warning("Could not load images.json from GResource, trying filesystem")
 
-    # 4. Installed data path (flatpak: /app/share/bootc-installer/images.json).
-    for installed in [
-        pathlib.Path("/app/share/bootc-installer/images.json"),
-        pathlib.Path("/usr/share/bootc-installer/images.json"),
-    ]:
-        try:
-            manifest = json.loads(installed.read_text())
-            logger.info(f"Loaded image manifest from installed path: {installed}")
-            return manifest
-        except Exception:
-            pass
-
-    # 5. Filesystem fallback for development (run from repo root).
+    # The same bundled catalog as a file: the installed data path
+    # (flatpak: /app/share/bootc-installer/images.json), then the source
+    # tree for a run from the repository.
     dev_path = pathlib.Path(__file__).resolve().parent.parent.parent / "fisherman" / "data" / "images.json"
-    try:
-        manifest = json.loads(dev_path.read_text())
-        logger.info(f"Loaded image manifest from dev path: {dev_path}")
-        return manifest
-    except Exception as e:
-        logger.error(f"Failed to load image manifest from all sources: {e}")
-        return {"fallback_flatpaks": [], "images": []}
+    for bundled in ("/app/share/bootc-installer/images.json",
+                    "/usr/share/bootc-installer/images.json", str(dev_path)):
+        manifest = catalog.load(bundled)
+        if manifest is not None:
+            logger.info(f"Loaded image manifest from {bundled}")
+            return manifest
+
+    logger.error("Failed to load image manifest from all sources")
+    return {"images": []}
 
 
 def _resolve_aliases(obj: object, aliases: dict) -> None:
@@ -147,7 +119,6 @@ if _aliases:
 
 _IMAGE_TREE = _MANIFEST["images"]
 _DEFAULT_IMAGE = _MANIFEST.get("default_image", "")
-_FALLBACK_FLATPAKS = _MANIFEST["fallback_flatpaks"]
 _APP_NAME = _MANIFEST.get("app_name", "bootc Installer")
 
 
@@ -197,57 +168,11 @@ def _imgref_to_pretty_name(imgref: str) -> str:
 
 
 def _count_leaves(nodes: list) -> int:
-    """Recursively count selectable leaf image nodes in the tree."""
-    count = 0
-    for node in nodes:
-        if "imgref" in node:
-            count += 1
-        else:
-            count += _count_leaves(node.get("children", []))
-    return count
+    """Count the selectable leaf image nodes in the tree."""
+    return sum(1 for _ in catalog.walk(nodes))
 
 
 _LEAF_COUNT = _count_leaves(_IMAGE_TREE)
-
-
-def _fetch_remote_flatpak_list(url: str) -> list[str] | None:
-    """Fetch a remote flatpak list and return app IDs.
-
-    Handles two formats:
-    - Brewfile:  ``flatpak "com.example.App"`` lines
-    - Plain ref: ``app/com.example.App/x86_64/stable`` lines (one per line)
-    - Plain IDs: ``com.example.App`` lines (one per line, no slash)
-
-    Returns None on network/parse error so the caller can fall back gracefully.
-    Only app entries are included; runtime entries are excluded.
-    """
-    try:
-        with urllib.request.urlopen(url, timeout=10) as resp:
-            text = resp.read().decode("utf-8")
-        apps = []
-        for line in text.splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            # Brewfile format: flatpak "com.example.App"
-            m = re.match(r'^flatpak\s+"([^"]+)"', line)
-            if m:
-                apps.append(m.group(1))
-                continue
-            # Plain ref format: app/com.example.App/x86_64/stable
-            if line.startswith("app/"):
-                parts = line.split("/")
-                if len(parts) >= 2:
-                    apps.append(parts[1])
-                continue
-            # Plain app ID: com.example.App (must look like a reverse-DNS ID)
-            if re.match(r'^[a-zA-Z][a-zA-Z0-9_-]*(\.[a-zA-Z][a-zA-Z0-9_-]*){1,}$', line):
-                apps.append(line)
-        logger.info(f"Fetched {len(apps)} flatpaks from {url}")
-        return apps if apps else None
-    except Exception as e:
-        logger.warning(f"Could not fetch flatpaks from {url}: {e}")
-        return None
 
 
 def _make_icon(icon_spec: str, size: int = 32) -> "Gtk.Image | None":
@@ -291,29 +216,26 @@ class BootcDefaultImage(Adw.Bin):
         self.__step = step
         self.delta = False
 
-        # The image selected at the start: the catalog's `default_image`,
-        # else the branding contract's (shared/branding/README.md), which is
-        # how a product names its image now that the bundled recipe names
-        # none (#315). It is selected only when the catalog has it.
+        # The image selected at the start (shared/catalog/README.md): the
+        # branding contract's `default_image`, then the catalog's. Each
+        # counts only when the catalog has that leaf; with neither, nothing
+        # is selected and the user must choose. Never the first row.
         branding = window.recipe.get("branding") if isinstance(
             getattr(window, "recipe", None), dict) else None
         branding_default = branding.get("default_image", "") if isinstance(branding, dict) else ""
-        self.__default_image = _DEFAULT_IMAGE or branding_default or ""
-        self.__selected_imgref = _DEFAULT_IMAGE or None
-        self.__selected_flatpaks = None  # per-image flatpak list (None = use fallback)
-        self.__selected_flatpak_var_path = ""  # override for writable var path (e.g. GnomeOS)
+        self.__default_candidates = [ref for ref in (branding_default, _DEFAULT_IMAGE) if ref]
+        self.__default_image = ""
+        self.__selected_imgref = None
+        self.__selected_leaf = None      # the resolved catalog leaf (utils/catalog.py)
         self.__selected_carousel = None  # per-image carousel slides (None = use recipe default)
-        self.__selected_needs_user_creation = False
-        self.__selected_composefs_backend = False  # image requires composefs backend
-        self.__selected_image_type = "bootc"        # "bootc" or "ostree"
-        self.__selected_bootloader = ""             # "grub2", "systemd", or "" (default)
-        self.__selected_image_filesystem = ""       # filesystem required by image, or ""
         self.__selected_icon = None      # icon spec for selected image (str or None)
-        self.__selected_pretty_name = _imgref_to_pretty_name(_DEFAULT_IMAGE)
-        self.__selected_default_hostname = ""       # suggested hostname from images.json
-        self.__selected_filesystems = []            # user-selectable filesystems from images.json
+        self.__selected_pretty_name = None
         self.__all_expanders = []   # every ExpanderRow widget
-        self.__leaf_rows = []       # [(row, check, imgref, flatpaks, icon, carousel, needs_user, composefs, image_type, bootloader, image_filesystem, flatpak_var_path, default_hostname, filesystems, search_str, [ancestor_exps])]
+        # One tuple for each leaf: (row, check, imgref, flatpaks, icon,
+        # carousel, needs_user, composefs, image_type, bootloader,
+        # image_filesystem, flatpak_var_path, default_hostname, filesystems,
+        # search_str, [ancestor_exps], leaf).
+        self.__leaf_rows = []
 
         # Hidden anchor for the radio CheckButton group.
         self.__radio_anchor = Gtk.CheckButton()
@@ -338,67 +260,47 @@ class BootcDefaultImage(Adw.Bin):
     # ── Recursive tree construction ───────────────────────────────────────────
 
     def __build_list(self):
+        # utils/catalog.py resolves each leaf: what it inherits, its image
+        # reference, its Flatpak list. This page draws the tree.
+        resolved = {id(node): leaf
+                    for node, leaf in catalog.walk(_IMAGE_TREE, _MANIFEST.get("aliases"))}
         for node in _IMAGE_TREE:
-            self.__build_node(self.list_images, node, [], "")
+            self.__build_node(self.list_images, node, [], "", resolved)
 
         # Recipe-defined extra images (flat group).
         extra = self.__window.recipe.get("images", [])
         if extra:
             exp = Adw.ExpanderRow(title="Recipe Images")
             self.__all_expanders.append(exp)
-            for img in extra:
-                imgref = img.get("imgref", "")
-                if not imgref:
-                    continue
+            for img, leaf in catalog.walk([i for i in extra if isinstance(i, dict)
+                                           and i.get("imgref")]):
                 self.__add_leaf(
-                    exp, img.get("name", imgref), imgref,
-                    img.get("description", ""), "", [exp],
-                    pretty_name=_catalog_pretty_name(img.get("name"), imgref))
+                    exp, img.get("name", leaf["imgref"]), leaf,
+                    img.get("description", ""), "", [exp], img.get("icon"),
+                    img.get("carousel"))
             self.list_images.append(exp)
 
-    def __build_node(self, parent, node, ancestors, search_ctx, flatpaks_ctx=None, icon_ctx=None, carousel_ctx=None, needs_user_ctx=False, composefs_ctx=False, image_type_ctx="bootc", bootloader_ctx="", image_filesystem_ctx="", flatpak_var_path_ctx="", registry_ctx="", default_hostname_ctx="", filesystems_ctx=None, registry_name_ctx=""):
+    def __build_node(self, parent, node, ancestors, search_ctx, resolved,
+                     icon_ctx=None, carousel_ctx=None):
         """Recursively build ExpanderRow groups and ActionRow leaves."""
-        # Inherit all per-image metadata from nearest ancestor that defines each field.
-        node_flatpaks = node.get("flatpaks", flatpaks_ctx)
+        if not isinstance(node, dict):
+            return
+        # The icon and the carousel are for the page only; they inherit as
+        # the contract fields do.
         node_icon = node.get("icon", icon_ctx)
         node_carousel = node.get("carousel", carousel_ctx)
-        node_needs_user = node.get("needs_user_creation", needs_user_ctx)
-        node_composefs = node.get("composefs", composefs_ctx)
-        node_image_type = node.get("image_type", image_type_ctx)
-        node_bootloader = node.get("bootloader", bootloader_ctx)
-        node_image_filesystem = node.get("filesystem", image_filesystem_ctx)
-        node_flatpak_var_path = node.get("flatpak_var_path", flatpak_var_path_ctx)
-        node_registry = node.get("registry", registry_ctx)
-        # A tag leaf's label (e.g. Stable) is a channel, not the product.
-        # The nearest registry-owning node supplies that product's identity.
-        node_registry_name = node.get("name", "") if "registry" in node else registry_name_ctx
-        node_default_hostname = node.get("default_hostname", default_hostname_ctx)
-        node_filesystems = node.get("filesystems", filesystems_ctx if filesystems_ctx is not None else [])
 
-        # A leaf can use "tag" instead of a full "imgref" when a "registry" is
-        # available from this node or an ancestor.  The full imgref is composed
-        # as "registry:tag" so the rest of the code never sees the shorthand.
-        imgref = node.get("imgref")
-        if imgref is None and "tag" in node:
-            if node_registry:
-                imgref = f"{node_registry}:{node['tag']}"
-            else:
-                logger.warning(
-                    f"images.json: node '{node.get('name')}' has 'tag' but no "
-                    f"'registry' in scope — skipping leaf"
-                )
-
-        if imgref is not None:
-            self.__add_leaf(parent, node["name"], imgref,
+        leaf = resolved.get(id(node))
+        if leaf is not None:
+            self.__add_leaf(parent, node.get("name") or leaf["imgref"], leaf,
                             node.get("desc", ""), search_ctx, ancestors,
-                            node_flatpaks, node_icon, node_carousel, node_needs_user,
-                            node_composefs, node_image_type, node_bootloader, node_image_filesystem,
-                            node_flatpak_var_path, node_default_hostname, node_filesystems,
-                            pretty_name=_catalog_pretty_name(
-                                node_registry_name if node.get("imgref") is None else node.get("name"), imgref))
+                            node_icon, node_carousel)
             return
+        if "tag" in node or "imgref" in node:
+            return  # a leaf the catalog reader refused (no registry in scope)
 
-        exp = Adw.ExpanderRow(title=node["name"])
+        name = node.get("name", "")
+        exp = Adw.ExpanderRow(title=name)
         if "subtitle" in node:
             exp.set_subtitle(node["subtitle"])
 
@@ -411,23 +313,23 @@ class BootcDefaultImage(Adw.Bin):
 
         self.__all_expanders.append(exp)
 
-        child_ctx = search_ctx + " " + node["name"]
+        child_ctx = search_ctx + " " + name
         if "search_extra" in node:
             child_ctx += " " + node["search_extra"]
         child_ancestors = ancestors + [exp]
 
         for child in node.get("children", []):
-            self.__build_node(exp, child, child_ancestors, child_ctx, node_flatpaks, node_icon, node_carousel, node_needs_user, node_composefs, node_image_type, node_bootloader, node_image_filesystem, node_flatpak_var_path, node_registry, node_default_hostname, node_filesystems, node_registry_name)
+            self.__build_node(exp, child, child_ancestors, child_ctx, resolved,
+                              node_icon, node_carousel)
 
         if parent is self.list_images:
             parent.append(exp)
         else:
             parent.add_row(exp)
 
-    def __add_leaf(self, parent, name, imgref, desc, search_ctx, ancestors,
-                   flatpaks=None, icon=None, carousel=None, needs_user=False,
-                   composefs=False, image_type="bootc", bootloader="", image_filesystem="",
-                   flatpak_var_path="", default_hostname="", filesystems=None, pretty_name=None):
+    def __add_leaf(self, parent, name, leaf, desc, search_ctx, ancestors,
+                   icon=None, carousel=None):
+        imgref = leaf["imgref"]
         search_str = f"{search_ctx} {name} {desc} {imgref}".lower()
 
         row = Adw.ActionRow(title=name, subtitle=imgref)
@@ -439,7 +341,7 @@ class BootcDefaultImage(Adw.Bin):
         check.set_group(self.__radio_anchor)
         row.add_prefix(check)
         row.set_activatable_widget(check)
-        check.connect("toggled", self.__on_check_toggled, imgref, flatpaks, icon, carousel, needs_user, composefs, image_type, bootloader, image_filesystem, flatpak_var_path, default_hostname, filesystems or [], _catalog_pretty_name(pretty_name if pretty_name is not None else name, imgref))
+        check.connect("toggled", self.__on_check_toggled, leaf, icon, carousel)
 
         # Leaf icon — only for nodes that explicitly define one (e.g. BootcOS variants).
         if icon:
@@ -451,39 +353,36 @@ class BootcDefaultImage(Adw.Bin):
             parent.append(row)
         else:
             parent.add_row(row)
-        self.__leaf_rows.append((row, check, imgref, flatpaks, icon, carousel, needs_user, composefs, image_type, bootloader, image_filesystem, flatpak_var_path, default_hostname, filesystems or [], search_str, list(ancestors)))
+        self.__leaf_rows.append((
+            row, check, imgref, leaf["flatpaks"], icon, carousel,
+            leaf["needs_user_creation"], leaf["composefs"], leaf["image_type"],
+            leaf["bootloader"], leaf["filesystem"], leaf["flatpak_var_path"],
+            leaf["default_hostname"], leaf["filesystems"], search_str,
+            list(ancestors), leaf))
 
     def __select_default(self):
-        for _row, check, imgref, _flatpaks, _icon, _carousel, _needs_user, _composefs, _image_type, _bootloader, _image_filesystem, _flatpak_var_path, _hostname, _filesystems, _search, ancestors in self.__leaf_rows:
-            if imgref == self.__default_image:
-                check.set_active(True)
-                for exp in ancestors:
-                    exp.set_expanded(True)
-                return
+        known = {entry[2]: entry for entry in self.__leaf_rows}
+        for candidate in self.__default_candidates:
+            entry = known.get(candidate)
+            if entry is None:
+                continue
+            self.__default_image = candidate
+            entry[1].set_active(True)
+            for exp in entry[15]:
+                exp.set_expanded(True)
+            return
         # No default image — leave everything collapsed, nothing pre-selected.
 
     # ── Selection handlers ────────────────────────────────────────────────────
 
-    def __on_check_toggled(self, check, imgref, flatpaks, icon, carousel, needs_user, composefs, image_type, bootloader, image_filesystem, flatpak_var_path, default_hostname, filesystems, pretty_name=None):
+    def __on_check_toggled(self, check, leaf, icon=None, carousel=None):
         if check.get_active():
-            self.__selected_imgref = imgref
+            self.__selected_leaf = leaf
+            self.__selected_imgref = leaf["imgref"]
             self.__selected_icon = icon
             self.__selected_carousel = carousel
-            self.__selected_needs_user_creation = needs_user
-            self.__selected_composefs_backend = composefs
-            self.__selected_image_type = image_type
-            self.__selected_bootloader = bootloader
-            self.__selected_image_filesystem = image_filesystem
-            self.__selected_flatpak_var_path = flatpak_var_path or ""
-            self.__selected_pretty_name = _catalog_pretty_name(pretty_name, imgref)
-            self.__selected_default_hostname = default_hostname or ""
-            self.__selected_filesystems = filesystems or []
-            # flatpaks may be a list of app IDs or a URL string pointing to a remote list.
-            if isinstance(flatpaks, str) and flatpaks.startswith("http"):
-                self.__selected_flatpaks = _fetch_remote_flatpak_list(flatpaks)
-            else:
-                self.__selected_flatpaks = flatpaks
-            logger.info(f"Image selected: {imgref} ({self.__selected_pretty_name})")
+            self.__selected_pretty_name = _catalog_pretty_name(leaf["product"], leaf["imgref"])
+            logger.info(f"Image selected: {leaf['imgref']} ({self.__selected_pretty_name})")
             if self.row_custom.get_expanded():
                 self.row_custom.set_expanded(False)
             self.__update_btn_next()
@@ -491,17 +390,11 @@ class BootcDefaultImage(Adw.Bin):
     def __on_custom_toggled(self, expander, _param):
         if expander.get_expanded():
             self.__radio_anchor.set_active(True)
+            self.__selected_leaf = None
             self.__selected_imgref = None
             self.__selected_icon = None
             self.__selected_carousel = None
-            self.__selected_needs_user_creation = False
-            self.__selected_composefs_backend = False
-            self.__selected_image_type = "bootc"
-            self.__selected_bootloader = ""
-            self.__selected_image_filesystem = ""
             self.__selected_pretty_name = None
-            self.__selected_default_hostname = ""
-            self.__selected_filesystems = []
         self.__update_btn_next()
 
     def __on_url_changed(self, entry):
@@ -522,14 +415,15 @@ class BootcDefaultImage(Adw.Bin):
             for exp in self.__all_expanders:
                 exp.set_visible(True)
                 exp.set_expanded(False)
-            for row, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _ in self.__leaf_rows:
-                row.set_visible(True)
+            for entry_row in self.__leaf_rows:
+                entry_row[0].set_visible(True)
             self.__expand_default_path()
             return
 
         # Determine which leaves match and which expanders are needed.
         visible_expanders = set()
-        for row, _, _, _flatpaks, _icon, _carousel, _needs_user, _composefs, _image_type, _bootloader, _image_filesystem, _flatpak_var_path, _hostname, _filesystems, search_str, ancestors in self.__leaf_rows:
+        for entry_row in self.__leaf_rows:
+            row, search_str, ancestors = entry_row[0], entry_row[14], entry_row[15]
             if query in search_str:
                 row.set_visible(True)
                 for exp in ancestors:
@@ -545,9 +439,9 @@ class BootcDefaultImage(Adw.Bin):
                 exp.set_visible(False)
 
     def __expand_default_path(self):
-        for _, _, imgref, _, _, _, _, _, _, _, _, _, _, _, _, ancestors in self.__leaf_rows:
-            if imgref == self.__default_image:
-                for exp in ancestors:
+        for entry_row in self.__leaf_rows:
+            if self.__default_image and entry_row[2] == self.__default_image:
+                for exp in entry_row[15]:
                     exp.set_expanded(True)
                 return
         # No default image — leave everything collapsed.
@@ -578,41 +472,36 @@ class BootcDefaultImage(Adw.Bin):
 
     @property
     def selected_needs_user_creation(self) -> bool:
-        """True if the selected image requires an explicit user creation step."""
-        return self.__selected_needs_user_creation
+        """True if the installer creates the first account for the selected
+        image. The default is True (shared/catalog/README.md): also for an
+        image the user typed, and while nothing is selected."""
+        if self.__selected_leaf is None:
+            return True
+        return self.__selected_leaf["needs_user_creation"]
 
     def test_auto_advance(self):
         self.btn_next.emit("clicked")
 
     def get_finals(self):
-        flatpaks = self.__selected_flatpaks or _FALLBACK_FLATPAKS
         if self.row_custom.get_expanded():
-            url = self.image_url_entry.get_text().strip()
+            return catalog.custom_image_finals(self.image_url_entry.get_text().strip())
+        if self.__selected_leaf is None:
+            # Nothing selected: Next is off, and no field of an image goes on.
             return {
-                "custom_image": url,
-                "pretty_name": _imgref_to_pretty_name(url),
-                "flatpaks": _FALLBACK_FLATPAKS,
+                "selected_image": None,
+                "pretty_name": None,
+                "flatpak_var_path": "",
                 "carousel": None,
-                "needs_user_creation": False,
+                "needs_user_creation": True,
                 "composefs_backend": False,
                 "image_type": "bootc",
                 "bootloader": "",
                 "image_filesystem": "",
                 "icon": None,
+                "default_hostname": "",
+                "supported_filesystems": [],
             }
-        return {
-            "selected_image": self.__selected_imgref,
-            "pretty_name": self.__selected_pretty_name,
-            "flatpaks": flatpaks,
-            "flatpak_var_path": self.__selected_flatpak_var_path,
-            "carousel": self.__selected_carousel,
-            "needs_user_creation": self.__selected_needs_user_creation,
-            "composefs_backend": self.__selected_composefs_backend,
-            "image_type": self.__selected_image_type,
-            "bootloader": self.__selected_bootloader,
-            "image_filesystem": self.__selected_image_filesystem,
-            "icon": self.__selected_icon,
-            "default_hostname": self.__selected_default_hostname,
-            "supported_filesystems": self.__selected_filesystems,
-        }
-
+        finals = catalog.leaf_finals(
+            self.__selected_leaf, self.__selected_icon, self.__selected_carousel)
+        finals["pretty_name"] = self.__selected_pretty_name
+        return finals
