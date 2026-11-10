@@ -2,16 +2,14 @@
 facts, recipe emission, validation and fisherman invocation. See
 ../INSTALLER-FRONTENDS.md."""
 
-import hashlib
 import json
 import os
 import shlex
-import shutil
-import stat
 import subprocess
 
 from bootc_shared import account as shared_account
-from bootc_shared import branding, progress
+from bootc_shared import branding, fisherman_host, hardware, progress, redact
+from bootc_shared import catalog as shared_catalog
 from bootc_shared import probe as fisherman_probe
 from bootc_shared import validate as fisherman_validate
 
@@ -82,108 +80,29 @@ def dry_run():
 #             the host by SHA256 before anything runs it. The host needs no
 #             fisherman of its own, and the binary is the one this build's
 #             progress and validate contracts were written against.
-FISHERMAN_PATH = "/usr/local/bin/fisherman"
-BUNDLED_FISHERMAN = "/app/bin/fisherman"
-
-# The install escalates inside a bash this frontend owns, never straight
-# from flatpak-spawn or as the spawned process: fisherman runs as root, so
-# this process can never signal it, and fisherman cancels itself when its
-# PARENT dies (tuna-os/fisherman#267). The parent is this bash, and the app
-# signals its process group. The wrapper does no redirection: stdout and
-# stderr come back through the pipes.
 #
-# `-`: fisherman reads the recipe from stdin (tuna-os/fisherman#276). The
-# app writes the JSON to the wrapper's stdin and closes it, so no file ever
-# holds the passphrase or the user password. bash, pkexec, sudo and
-# flatpak-spawn all pass stdin through.
-FISHERMAN_WRAPPER_SCRIPT = 'pkexec /usr/local/bin/fisherman -; exit $?'
-FISHERMAN_LIVE_SCRIPT = 'sudo -n /usr/local/bin/fisherman -; exit $?'
-
-
-class StageError(Exception):
-    """The bundled fisherman could not be put where the host can run it."""
-
-
-def fisherman_stage_dir(environ=None):
-    """$XDG_CACHE_HOME/bootc-installer: Flatpak's persistent app cache.
-
-    Never HOME/.cache. --filesystem=host does not expose /var/home on every
-    host, and a HOME the sandbox made up can live only in its own tmpfs;
-    Flatpak always shares the app's XDG_CACHE_HOME with the host.
-    """
-    environ = os.environ if environ is None else environ
-    cache_home = environ.get("XDG_CACHE_HOME", "")
-    if not cache_home or not os.path.isabs(cache_home):
-        raise StageError("Flatpak XDG_CACHE_HOME must be an absolute path")
-    return os.path.join(cache_home, "bootc-installer")
+# The rules are bootc_shared.fisherman_host, which GNOME also uses. This
+# module keeps the paths of this process, the one stage per run, and the
+# transport: stdout and stderr come back through the pipes (no log path).
+FISHERMAN_PATH = fisherman_host.FISHERMAN_PATH
+BUNDLED_FISHERMAN = fisherman_host.BUNDLED_FISHERMAN
+StageError = fisherman_host.StageError
+fisherman_stage_dir = fisherman_host.stage_dir
+_sha256 = fisherman_host.sha256
+_host_sha256 = fisherman_host.host_sha256
 
 
 def staged_fisherman_path(environ=None):
     return os.path.join(fisherman_stage_dir(environ), "fisherman")
 
 
-def _private_path_problem(path, check_mode=True):
-    """Why `path` is not safe to stage a root-executed helper at, or ""."""
-    try:
-        path_stat = os.lstat(path)
-    except FileNotFoundError:
-        return ""
-    except OSError as error:
-        return f"cannot stat {path}: {error}"
-    if stat.S_ISLNK(path_stat.st_mode):
-        return f"{path} is a symlink"
-    if path_stat.st_uid != os.getuid():
-        return f"{path} is owned by uid {path_stat.st_uid}, not {os.getuid()}"
-    if check_mode and path_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
-        return f"{path} is group- or world-writable"
-    return ""
-
-
-def _sha256(path):
-    digest = hashlib.sha256()
-    with open(path, "rb") as stream:
-        for block in iter(lambda: stream.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
-def _host_sha256(path):
-    """The SHA256 of `path` as the HOST sees it, or "" when it cannot say."""
-    try:
-        seen = subprocess.run(["flatpak-spawn", "--host", "sha256sum", "--", path],
-                              capture_output=True, text=True, timeout=10, check=False)
-    except (OSError, subprocess.SubprocessError):
-        return ""
-    if seen.returncode:
-        return ""
-    return (seen.stdout.split(maxsplit=1) or [""])[0]
-
-
-def stage_fisherman(source=None, environ=None, host_sha256=_host_sha256):
-    """Copy the bundled fisherman to the app cache and return its path.
-
-    The copy is then hashed THROUGH THE HOST PORTAL: success inside the
-    sandbox does not prove that pkexec and the probe see the same bytes.
+def stage_fisherman(source=None, environ=None, host_sha256=None):
+    """Copy the bundled fisherman to the app cache and return its path
+    (fisherman_host.stage). The user's home base, the cache directory and
+    the file must be the user's own, and the host must see the same bytes.
     StageError when any step fails; nothing may run the staged file then.
     """
-    source = source or os.environ.get("BOOTC_FISHERMAN_PATH", BUNDLED_FISHERMAN)
-    cache_dir = fisherman_stage_dir(environ)
-    host_path = os.path.join(cache_dir, "fisherman")
-    for path in (os.path.dirname(cache_dir), cache_dir, host_path):
-        problem = _private_path_problem(path)
-        if problem:
-            raise StageError(f"cannot stage fisherman: {problem}")
-    try:
-        os.makedirs(cache_dir, mode=0o700, exist_ok=True)
-        shutil.copy2(source, host_path)
-        os.chmod(host_path, stat.S_IRWXU)
-        expected = _sha256(source)
-    except OSError as error:
-        raise StageError(f"cannot stage fisherman: {error}") from error
-    if host_sha256(host_path) != expected:
-        raise StageError(
-            f"the staged fisherman is not byte-identical on the host: {host_path}")
-    return host_path
+    return fisherman_host.stage(source, environ=environ, host_hash=host_sha256)
 
 
 _stage_cache = {}
@@ -197,14 +116,13 @@ def staged_fisherman():
     return _stage_cache["path"]
 
 
-FISHERMAN_PURPOSES = ("probe", "validate", "validate-full", "install")
+FISHERMAN_PURPOSES = fisherman_host.PURPOSES
 
 
 def fisherman_command(purpose, *, in_flatpak=None, live=None, host_path=None):
-    """The argv that runs fisherman for `purpose`. The only resolver.
+    """The argv that runs fisherman for `purpose` (fisherman_host.command).
 
-    "probe" (`probe --json`), "validate" (`validate --json --partial -`) and
-    "validate-full" (`validate --json -`) run unprivileged, never through
+    "probe", "validate" and "validate-full" run unprivileged, never through
     pkexec or sudo. "install" runs with privileges and reads the recipe on
     stdin. In a Flatpak `host_path` is the staged binary (staged here when
     not given; StageError when that fails). `live` is fisherman's
@@ -214,22 +132,12 @@ def fisherman_command(purpose, *, in_flatpak=None, live=None, host_path=None):
         raise ValueError(f"unknown fisherman purpose {purpose!r}")
     if in_flatpak is None:
         in_flatpak = IN_FLATPAK
-    if in_flatpak:
-        binary = host_path or staged_fisherman()
-        if purpose == "install":
-            return ["flatpak-spawn", "--host", "bash", "-c",
-                    f"pkexec {shlex.quote(binary)} -; exit $?"]
-        unprivileged = ["flatpak-spawn", "--host", binary]
-    else:
-        if purpose == "install":
-            if live is None:
-                live = is_live()
-            return ["bash", "-c",
-                    FISHERMAN_LIVE_SCRIPT if live else FISHERMAN_WRAPPER_SCRIPT]
-        unprivileged = [FISHERMAN_PATH]
-    if purpose == "probe":
-        return unprivileged + ["probe", "--json"]
-    return fisherman_validate.argv(unprivileged, partial=purpose == "validate")
+    if in_flatpak and not host_path:
+        host_path = staged_fisherman()
+    if not in_flatpak and purpose == "install" and live is None:
+        live = is_live()
+    return fisherman_host.command(purpose, in_flatpak=in_flatpak, live=bool(live),
+                                  host_path=host_path)
 
 
 def validate_argv():
@@ -374,21 +282,15 @@ def catalog_search_paths(in_flatpak=None, xdg_config_home=None, bundled=BUNDLED_
     if not xdg_config_home:
         xdg_config_home = os.environ.get("XDG_CONFIG_HOME") or os.path.join(
             os.path.expanduser("~"), ".config")
-    etc = "/run/host/etc" if in_flatpak else "/etc"
-    return [
-        f"{etc}/bootc-installer/images.json",
-        f"{etc}/tuna-installer/images.json",
-        f"{xdg_config_home.rstrip('/')}/bootc-installer/images.json",
-        *bundled,
-    ]
+    return [*shared_catalog.search_paths(in_flatpak, xdg_config_home), *bundled]
 
 
 def images_json_paths():
-    """`catalog_search_paths()` for this process. FISHERMAN_IMAGES_PATH is
-    the harness override (the capture and the E2E driver set it); it is
-    first so a test never reads the machine's own catalog."""
-    override = os.environ.get("FISHERMAN_IMAGES_PATH", "")
-    return ([override] if override else []) + catalog_search_paths()
+    """The catalog files for this process: bootc_shared.catalog's list
+    (FISHERMAN_IMAGES_PATH first, the override that a capture and the E2E
+    driver set, so a test never reads the machine's own catalog), then
+    this frontend's bundled catalogs."""
+    return [*shared_catalog.default_search_paths(flatpak=IN_FLATPAK), *BUNDLED_CATALOGS]
 
 
 # --- product branding --------------------------------------------------------
@@ -397,8 +299,7 @@ def images_json_paths():
 # contract: a branding.json under /etc/bootc-installer (host first, since this
 # ships as a Flatpak) names the product, seeds the hostname and the recipe's
 # distroID; keys it does not set come from os-release; the last resort is a
-# neutral "Linux". tuna_installer_xfce/branding.py is a byte-identical copy of
-# the shared resolver.
+# neutral "Linux". bootc_shared.branding is the resolver.
 
 
 def resolve_branding():
@@ -462,116 +363,36 @@ def open_network_settings():
 # fixture through this parser. Nothing here downloads anything, and
 # `fallback_flatpaks` is never read.
 
-# Catalog key -> the value a leaf has when neither it nor a parent sets it.
-# needs_user_creation is True: an install with no account and no first-boot
-# setup leaves nobody to sign in as (#288).
-_INHERITED = {
-    "registry": "",
-    "nvidia_imgref": "",
-    "bootloader": "",
-    "composefs": False,
-    "filesystem": "",
-    "filesystems": [],
-    "default_hostname": "",
-    "flatpaks": None,
-    "flatpak_var_path": "",
-    "needs_user_creation": True,
-    "image_type": "bootc",
-}
-
-
-def resolve_flatpaks(value, aliases):
-    """The list a catalog `flatpaks` value names, or None.
-
-    A list is the list, `[]` included. `@name` is the list `aliases.name`
-    holds. A URL, an alias that is a URL, an alias that does not exist and
-    no value are all None: the recipe then has no `flatpaks` key and
-    fisherman applies its own default. A frontend does not download a list.
-    """
-    if isinstance(value, str) and value.startswith("@"):
-        value = (aliases or {}).get(value[1:])
-    if isinstance(value, list) and all(isinstance(item, str) for item in value):
-        return list(value)
-    return None
-
-
-def _pretty_from_imgref(imgref):
-    slug = imgref.rsplit("/", 1)[-1].split("@", 1)[0].split(":", 1)[0]
-    parts = [part for part in slug.replace("_", "-").split("-") if part]
-    if not parts:
-        return imgref
-    return " ".join(part.capitalize() if index == 0 else part.upper()
-                    for index, part in enumerate(parts))
+# The reader is bootc_shared.catalog, which GNOME also uses: the search
+# path, what a leaf inherits, the types, the Flatpak-list rule, the default
+# selection and the NVIDIA table. What is here is this frontend's view of
+# it: objects with attributes, which the pages read.
+resolve_flatpaks = shared_catalog.resolve_flatpaks
 
 
 class ImageLeaf:
-    """One installable image, with the fields it inherits resolved."""
+    """One installable image: a view of the leaf that bootc_shared.catalog
+    resolved, plus the words of the node itself that a page shows."""
 
-    def __init__(self, node, context, product, owns_registry, aliases, path):
-        name = node.get("name", "")
-        self.name = name.strip() if isinstance(name, str) else ""
-        self.desc = node.get("desc", "") or ""
-        self.subtitle = node.get("subtitle", "") or ""
-        own = node.get("imgref")
-        if own:
-            self.imgref, self.channel = own, ""
-            self.product = self.name or _pretty_from_imgref(own)
-        else:
-            self.imgref = f"{context['registry']}:{node['tag']}"
-            # A tag leaf that sets its own registry is its own product.
-            self.channel = "" if owns_registry else self.name
-            self.product = product or _pretty_from_imgref(self.imgref)
-        # Product and channel: a tag leaf's own name is a channel ("Stable"),
-        # and fifteen leaves of the bundled catalog have that one (#289).
-        self.label = f"{self.product} {self.channel}".strip()
-        self.path = list(path)
-        self.breadcrumb = " \u203a ".join(path) or self.label
-        self.nvidia_imgref = context["nvidia_imgref"] or ""
-        self.bootloader = context["bootloader"] or ""
-        self.composefs = bool(context["composefs"])
-        declared = context["filesystem"] or ""
-        choices = [fs for fs in context["filesystems"] or [] if isinstance(fs, str)]
-        # What the user may pick ([] means this frontend's own list), and
-        # what is selected before they pick ("" means this frontend's
-        # default): shared/catalog/README.md, "Filesystem".
-        self.filesystems = choices or ([declared] if declared else [])
-        self.filesystem = declared or (choices[0] if choices else "")
-        self.default_hostname = context["default_hostname"] or ""
-        self.flatpaks = resolve_flatpaks(context["flatpaks"], aliases)
-        self.flatpak_var_path = context["flatpak_var_path"] or ""
-        self.needs_user_creation = bool(context["needs_user_creation"])
-        self.image_type = context["image_type"] or "bootc"
+    def __init__(self, node, leaf):
+        for key, value in leaf.items():
+            setattr(self, key, value)
+        self.path = list(leaf["path"])
+        self.filesystems = list(leaf["filesystems"])
+        self.flatpaks = None if leaf["flatpaks"] is None else list(leaf["flatpaks"])
+        # A flat list shows the breadcrumb; a leaf with no name anywhere
+        # above it still needs a row label.
+        self.breadcrumb = leaf["breadcrumb"] or leaf["label"]
+        desc, subtitle = node.get("desc", ""), node.get("subtitle", "")
+        self.desc = desc if isinstance(desc, str) else ""
+        self.subtitle = subtitle if isinstance(subtitle, str) else ""
 
 
 def catalog_leaves(raw):
     """Every installable leaf of a parsed images.json, in catalog order."""
-    aliases = raw.get("aliases") if isinstance(raw.get("aliases"), dict) else {}
-    found = []
-
-    def walk(nodes, inherited, product, path):
-        for node in nodes if isinstance(nodes, list) else []:
-            if not isinstance(node, dict):
-                continue
-            context = dict(inherited)
-            for key in _INHERITED:
-                # A value of false, "" or [] is a value and stops the search.
-                if key in node and node[key] is not None:
-                    context[key] = node[key]
-            name = node.get("name", "")
-            name = name if isinstance(name, str) else ""
-            here = path + [name] if name else path
-            # The product is the name of the nearest node that sets a
-            # registry.
-            owns_registry = bool(node.get("registry"))
-            node_product = name.strip() if owns_registry else product
-            if node.get("imgref") or ("tag" in node and context["registry"]):
-                found.append(ImageLeaf(node, context, node_product, owns_registry,
-                                       aliases, here))
-                continue
-            walk(node.get("children", []), context, node_product, here)
-
-    walk(raw.get("images", []), dict(_INHERITED), "", [])
-    return found
+    raw = raw if isinstance(raw, dict) else {}
+    return [ImageLeaf(node, leaf) for node, leaf in
+            shared_catalog.walk(raw.get("images", []), raw.get("aliases"))]
 
 
 class CatalogRoot:
@@ -588,109 +409,67 @@ class Catalog:
 
     def __init__(self, raw=None, path=""):
         raw = raw if isinstance(raw, dict) else {}
+        self.raw = raw
         self.path = path
-        self.default_image = raw.get("default_image", "") or ""
+        default_image = raw.get("default_image", "")
+        self.default_image = default_image if isinstance(default_image, str) else ""
         self.leaves = catalog_leaves(raw)
         self.roots = [CatalogRoot(node) for node in raw.get("images", [])
                       if isinstance(node, dict)]
 
-    def find(self, imgref):
-        """The leaf for `imgref`, or None. The NVIDIA variant of a leaf is
-        that leaf."""
-        if not imgref:
-            return None
+    def _view(self, imgref):
         for leaf in self.leaves:
             if leaf.imgref == imgref:
                 return leaf
-        for leaf in self.leaves:
-            if leaf.nvidia_imgref == imgref:
-                return leaf
         return None
+
+    def find(self, imgref):
+        """The leaf for `imgref`, or None. The NVIDIA variant of a leaf is
+        that leaf (bootc_shared.catalog.find)."""
+        found = shared_catalog.find(self.raw, imgref)
+        return self._view(found["imgref"]) if found else None
 
     def needs_user_creation(self, imgref):
         """Whether the install of `imgref` creates an account. An image the
         catalog does not have needs one."""
-        leaf = self.find(imgref)
-        return True if leaf is None else leaf.needs_user_creation
+        return shared_catalog.needs_user_creation(self.raw, imgref)
 
     def default_leaf(self, branding_default_image=""):
         """The leaf selected at start: the branding's default_image, then
         the catalog's, else None. None means the user must choose; this
         frontend used to select the first name in the alphabet (#289)."""
-        for candidate in (branding_default_image, self.default_image):
-            if not candidate:
-                continue
-            for leaf in self.leaves:
-                if leaf.imgref == candidate:
-                    return leaf
-        return None
+        selected = shared_catalog.default_imgref(self.raw, branding_default_image)
+        return self._view(selected) if selected else None
 
 
 def read_catalog_file(path):
     """The Catalog in `path`, or None when the file is missing, does not
     parse, or is not an object with an `images` list."""
-    try:
-        with open(path, encoding="utf-8") as stream:
-            raw = json.load(stream)
-    except (OSError, ValueError):
-        return None
-    if not isinstance(raw, dict) or not isinstance(raw.get("images"), list):
-        return None
-    return Catalog(raw, path)
+    raw = shared_catalog.load(path)
+    return None if raw is None else Catalog(raw, path)
 
 
 def load_catalog(paths=None):
     """The first catalog on the search path that loads; an empty Catalog
     when none does. A file that does not load does not stop the search."""
-    for path in images_json_paths() if paths is None else paths:
-        catalog = read_catalog_file(path) if path else None
-        if catalog is not None:
-            return catalog
-    return Catalog()
+    raw, path = shared_catalog.load_first(images_json_paths() if paths is None else paths)
+    return Catalog() if raw is None else Catalog(raw, path)
 
 
 # --- NVIDIA ------------------------------------------------------------------
 
-PCI_DEVICES = "/sys/bus/pci/devices"
-NVIDIA_VENDOR = "0x10de"
-
-
-def has_nvidia_gpu(pci_devices=PCI_DEVICES):
-    """Whether a PCI display device has NVIDIA's vendor id. The probe does
-    not report the GPU yet (shared/catalog/README.md, "Image and NVIDIA
-    image"), so this reads sysfs, which a Flatpak sees too."""
-    try:
-        devices = os.listdir(pci_devices)
-    except OSError:
-        return False
-    for device in devices:
-        try:
-            with open(os.path.join(pci_devices, device, "class")) as stream:
-                pci_class = stream.read().strip()
-            with open(os.path.join(pci_devices, device, "vendor")) as stream:
-                vendor = stream.read().strip()
-        except OSError:
-            continue
-        if pci_class.startswith("0x03") and vendor.lower() == NVIDIA_VENDOR:
-            return True
-    return False
+# Whether a PCI display device has NVIDIA's vendor id. The probe does not
+# report the GPU yet (shared/catalog/README.md, "Image and NVIDIA image"),
+# so bootc_shared.hardware reads sysfs, which a Flatpak sees too.
+PCI_DEVICES = hardware.PCI_DEVICES
+has_nvidia_gpu = hardware.has_nvidia_gpu
 
 
 def source_and_target(leaf, has_nvidia=False, live=False, offline=()):
-    """(image, targetImgref) for a leaf on this machine.
-
-    With an NVIDIA GPU both are the NVIDIA image. Without one, the NVIDIA
-    image is the source only on live media whose store has it and not the
-    base image; updates then follow the base image.
-    """
-    base, nvidia = leaf.imgref, leaf.nvidia_imgref
-    if not nvidia:
-        return base, base
-    if has_nvidia:
-        return nvidia, nvidia
-    if live and nvidia in offline and base not in offline:
-        return nvidia, base
-    return base, base
+    """(image, targetImgref) for a leaf on this machine: the table of
+    shared/catalog/README.md, "Image and NVIDIA image"."""
+    return shared_catalog.source_and_target(
+        leaf.imgref, leaf.nvidia_imgref, has_nvidia, live, offline)
 
 
 # --- the first account -------------------------------------------------------
@@ -920,8 +699,39 @@ def install_log_path():
     return os.path.join(log_dir, INSTALL_LOG_FILE_NAME)
 
 
+class InstallLog:
+    """The persistent install log. Each line goes through the recovery-key
+    redaction before it reaches the file (#337).
+
+    fisherman prints the TPM recovery key in its output. The key is for the
+    recovery-key page and nowhere else: a user attaches this file to a bug
+    report. The line keeps its event type and loses the value
+    (shared/progress/README.md, "Recovery key in a log"). The redactor
+    remembers the key, so a later line that repeats it loses it too.
+    """
+
+    def __init__(self, stream):
+        self._stream = stream
+        self._redactor = redact.LogRedactor()
+
+    def write(self, text):
+        """Write `text` (one line, or some lines) without the key, and
+        return what was written."""
+        clean = "".join(self._redactor.line(line)
+                        for line in text.splitlines(keepends=True))
+        self._stream.write(clean)
+        return clean
+
+    def flush(self):
+        self._stream.flush()
+
+    def close(self):
+        self._stream.close()
+
+
 def open_install_log():
-    """Open the persistent install log for appending, creating it 0600."""
+    """Open the persistent install log for appending, creating it 0600.
+    The object redacts the recovery key from each line it writes."""
     path = install_log_path()
     fd = os.open(path, os.O_CREAT | os.O_APPEND | os.O_WRONLY, 0o600)
-    return os.fdopen(fd, "a")
+    return InstallLog(os.fdopen(fd, "a", encoding="utf-8"))

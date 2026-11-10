@@ -6,22 +6,17 @@ Host /usr and /etc are mounted below /run/host in Flatpak. Never prefix
 
 import os
 
+from bootc_shared import branding
+
 
 def resolve_icon(icon_spec, *, in_flatpak=None):
-    """Return (resource|file|theme, value), or None for an empty spec."""
-    if not isinstance(icon_spec, str) or not icon_spec:
-        return None
-    if icon_spec.startswith("resource://"):
-        return "resource", icon_spec[len("resource://"):]
-    if icon_spec.startswith("/"):
-        if in_flatpak is None:
-            in_flatpak = os.path.exists("/.flatpak-info")
-        if in_flatpak and icon_spec.startswith(("/usr/", "/etc/")):
-            icon_spec = "/run/host" + icon_spec
-        return "file", icon_spec
-    if "/" in icon_spec or ":" in icon_spec:
-        return None  # not a theme name; never fetch a remote or relative URL
-    return "theme", icon_spec
+    """Return (resource|file|theme, value), or None when there is nothing
+    to show. The rule is bootc_shared.branding.logo_source, which XFCE
+    also uses (shared/branding/fixtures/logo-paths.json)."""
+    if in_flatpak is None:
+        in_flatpak = os.path.exists("/.flatpak-info")
+    kind, value = branding.logo_source(icon_spec, in_flatpak)
+    return None if kind == "none" else (kind, value)
 
 
 def set_image_icon(image, icon_spec):

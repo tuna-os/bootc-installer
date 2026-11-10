@@ -1,17 +1,20 @@
-"""GNOME reads the catalog fixture to the contract's answers.
+"""GNOME writes the contract's recipe for each leaf of the catalog fixture.
 
 shared/catalog/README.md is the contract, shared/catalog/fixtures/catalog.json
-a catalog that uses each rule, and fixtures/expected.json the answers. This
-test feeds the fixture through GNOME's own code and compares:
+a catalog that uses each rule, and fixtures/expected.json the answers.
 
-    utils/catalog.py      where the catalog is, the leaves, the default
-                          selection, the account flag
-    catalog.leaf_finals   what the image page hands on for a selected leaf
-    disk_plan             what the disk page selects before the user picks
-    Processor             the recipe
+The reader is bootc_shared.catalog, which XFCE also uses;
+tests/unit/test_shared_python_catalog.py holds it to the fixture (the search
+path, the leaves, the default selection, the account flag). This file is
+the GNOME half: what GNOME's own code does with a leaf.
 
-It does not import shared/catalog/resolve.py: that is the reference, and a
-frontend must agree with it through the two fixture files only.
+    image_finals.leaf_finals   what the image page hands on for a leaf
+    disk_plan                  what the disk page selects before the user picks
+    Processor                  the recipe
+    user_step                  the account, when there is no image page
+
+and that the page, the Processor and the user step read the shared reader
+and no copy of it.
 """
 
 import copy
@@ -27,7 +30,8 @@ sys.path.insert(0, REPO)
 
 from bootc_installer.defaults.disk_plan import (  # noqa: E402
     build_auto_partition_recipe, build_disk_finals, filesystem_options)
-from bootc_installer.utils import catalog  # noqa: E402
+from bootc_shared import catalog  # noqa: E402
+from bootc_installer.utils import image_finals  # noqa: E402
 from bootc_installer.utils import user_step  # noqa: E402
 from bootc_installer.utils.processor import Processor  # noqa: E402
 
@@ -78,8 +82,8 @@ def _resolved_like_the_page():
 def _recipe_for(leaf, inputs, loaded):
     """The recipe GNOME writes when the user selects `leaf` and changes
     nothing: the image step's finals, the disk step's finals, the Processor."""
-    image_finals = catalog.leaf_finals(leaf)
-    options, selected = filesystem_options(image_finals)
+    image_finals_ = image_finals.leaf_finals(leaf)
+    options, selected = filesystem_options(image_finals_)
     disk_finals = build_disk_finals(
         build_auto_partition_recipe(_Disk()), options[selected], "host")
     fake_image_module = type(sys)("bootc_installer.defaults.image")
@@ -91,18 +95,7 @@ def _recipe_for(leaf, inputs, loaded):
                   return_value=inputs["is_live"]), \
             patch("bootc_installer.core.system.Systeminfo.offline_images",
                   return_value=list(inputs["offline_images"])):
-        return Processor.gen_install_recipe("", [image_finals, disk_finals], {})
-
-
-@pytest.mark.parametrize("variant", ["as written", "aliases resolved at load"])
-def test_leaves_match_the_contract(variant):
-    loaded = CATALOG if variant == "as written" else _resolved_like_the_page()
-    leaves = catalog.leaves(loaded)
-    assert [leaf["imgref"] for leaf in leaves] == [e["imgref"] for e in EXPECTED["leaves"]]
-    for leaf, entry in zip(leaves, EXPECTED["leaves"], strict=True):
-        want = dict(entry["leaf"])
-        want.pop("flatpaks_url")  # for the record only; a frontend does not read a URL
-        assert leaf == want, leaf["imgref"]
+        return Processor.gen_install_recipe("", [image_finals_, disk_finals], {})
 
 
 @pytest.mark.parametrize("imgref,index,entry,case", CASES,
@@ -122,62 +115,11 @@ def test_recipe_matches_the_contract(imgref, index, entry, case):
         assert "org.example.NeverSent" not in json.dumps(recipe)
 
 
-def test_the_fixture_covers_each_flatpak_rule():
-    """A literal list, [], an alias that names a list, an alias that names a
-    URL and an alias that does not exist: the test above has a case for each."""
-    by_ref = {entry["imgref"].rsplit("/", 1)[-1]: entry for entry in EXPECTED["leaves"]}
-    assert by_ref["atlas:stable"]["cases"][0]["recipe"]["flatpaks"]
-    assert by_ref["atlas:beta"]["cases"][0]["recipe"]["flatpaks"] == []
-    assert "flatpaks" in by_ref["atlas-dx:latest"]["cases"][0]["absent"]
-    assert "flatpaks" in by_ref["drift:edge"]["cases"][0]["absent"]
-
-
-@pytest.mark.parametrize("case", EXPECTED["search_paths"],
-                         ids=lambda case: "flatpak" if case["in_flatpak"] else "native")
-def test_search_paths_match_the_contract(case):
-    paths = catalog.search_paths(case["in_flatpak"], case["xdg_config_home"])
-    assert [*paths, "<bundled>"] == case["paths"]
-
-
-def test_default_search_paths_read_the_environment():
-    with patch.object(catalog, "in_flatpak", return_value=False):
-        assert catalog.default_search_paths({"XDG_CONFIG_HOME": "/x"}, "/home/u")[2] == \
-            "/x/bootc-installer/images.json"
-        # An empty XDG_CONFIG_HOME means $HOME/.config.
-        assert catalog.default_search_paths({"XDG_CONFIG_HOME": ""}, "/home/u")[2] == \
-            "/home/u/.config/bootc-installer/images.json"
-    with patch.object(catalog, "in_flatpak", return_value=True):
-        assert catalog.default_search_paths({}, "/home/u")[0] == \
-            "/run/host/etc/bootc-installer/images.json"
-
-
-def test_the_first_file_that_is_a_catalog_is_used(tmp_path):
-    system, legacy, user = (tmp_path / name for name in ("system.json", "legacy.json", "user.json"))
-    system.write_text("{not json")
-    legacy.write_text(json.dumps({"no": "images"}))
-    user.write_text(json.dumps({"images": [{"name": "U", "imgref": "r/u:1"}]}))
-    loaded, path = catalog.load_first([str(tmp_path / "absent.json"), str(system),
-                                       str(legacy), str(user)])
-    assert path == str(user)
-    assert loaded["images"][0]["imgref"] == "r/u:1"
-    assert catalog.load_first([str(system)]) == (None, None)
-
-
-@pytest.mark.parametrize("case", EXPECTED["default_selection"], ids=lambda case: (
-    f"branding={case['branding_default_image'].rsplit('/', 1)[-1] or '-'},"
-    f"catalog={case['catalog_default_image'].rsplit('/', 1)[-1] or '-'}"))
-def test_default_selection_matches_the_contract(case):
-    loaded = dict(CATALOG)
-    if not case["catalog_default_image"]:
-        loaded.pop("default_image")
-    assert catalog.default_imgref(loaded, case["branding_default_image"]) == case["selected"]
-
-
 def test_an_image_the_catalog_does_not_have_needs_an_account():
     unknown = EXPECTED["unknown_image"]
     assert catalog.needs_user_creation(CATALOG, unknown["imgref"]) is unknown["needs_user_creation"]
     assert catalog.needs_user_creation(None, unknown["imgref"]) is True
-    assert catalog.custom_image_finals(unknown["imgref"])["needs_user_creation"] is True
+    assert image_finals.custom_image_finals(unknown["imgref"])["needs_user_creation"] is True
 
 
 @pytest.mark.parametrize("entry", EXPECTED["leaves"], ids=lambda e: e["imgref"].rsplit("/", 1)[-1])
@@ -210,7 +152,7 @@ def test_a_choice_of_filesystems_is_the_users():
     """Drift Edge offers ext4 and btrfs and starts at ext4. The user's pick
     from that list stands; the image's `filesystem` is only the start."""
     leaf = catalog.find(CATALOG, "registry.example/os/drift:edge")
-    finals = catalog.leaf_finals(leaf)
+    finals = image_finals.leaf_finals(leaf)
     assert filesystem_options(finals) == (["ext4", "btrfs"], 0)
     disk = build_disk_finals(build_auto_partition_recipe(_Disk()), "btrfs", "host")
     with patch("bootc_installer.core.system.Systeminfo.has_nvidia_gpu", return_value=False):
@@ -223,17 +165,44 @@ def test_a_choice_of_filesystems_is_the_users():
     assert filesystem_options({}) == (["xfs"], 0)
 
 
-def test_wrong_types_in_a_catalog_do_not_reach_the_recipe():
-    leaves = catalog.leaves({"images": [
-        {"name": "Odd", "imgref": "r/odd:1", "needs_user_creation": "no", "composefs": 1,
-         "filesystems": "xfs", "bootloader": 7, "flatpaks": ["ok", 3]},
-        "not a node",
-        {"name": "No registry", "tag": "stable"},
-    ]})
-    assert len(leaves) == 1
-    odd = leaves[0]
-    assert odd["needs_user_creation"] is True
-    assert odd["composefs"] is False
-    assert odd["filesystems"] == []
-    assert odd["bootloader"] == ""
-    assert odd["flatpaks"] is None
+def test_gnome_reads_the_shared_reader_and_has_no_copy():
+    import bootc_shared.catalog as shared
+    from bootc_installer.utils import processor
+    assert catalog is shared
+    assert processor.catalog is shared
+    assert user_step.catalog is shared
+    assert image_finals.catalog is shared
+    assert not os.path.exists(os.path.join(REPO, "bootc_installer", "utils", "catalog.py"))
+    source = open(os.path.join(REPO, "bootc_installer", "defaults", "image.py"),
+                  encoding="utf-8").read()
+    assert "from bootc_shared import catalog" in source
+    # One walk of the tree: the Processor has no second one.
+    text = open(processor.__file__, encoding="utf-8").read()
+    assert '"children"' not in text.replace('("imgref", "tag", "registry", "children")', "")
+    assert "catalog.find(" in text
+
+
+def test_the_processor_finds_metadata_through_the_shared_reader():
+    """Processor.find_metadata is catalog.find plus one special case."""
+    nested = [{"registry": "r.example/os/atlas", "composefs": True, "bootloader": "systemd",
+               "filesystems": ["ext4"], "flatpaks": "@desktop",
+               "children": [{"name": "Stable", "tag": "stable"}]}]
+    found = Processor.find_metadata(nested, {"desktop": ["org.example.A"]},
+                                    "r.example/os/atlas:stable")
+    assert found == {"composefs": True, "image_type": "bootc", "bootloader": "systemd",
+                     "filesystem": "ext4", "flatpak_var_path": "",
+                     "flatpaks": ["org.example.A"]}
+    # A choice of filesystems is the user's: the image forces none.
+    nested[0]["filesystems"] = ["ext4", "btrfs"]
+    assert Processor.find_metadata(nested, {}, "r.example/os/atlas:stable")["filesystem"] == ""
+    # No leaf for the image: nothing, never the first row.
+    assert Processor.find_metadata(nested, {}, "r.example/other:1") == {}
+    # A single entry that names no image is the metadata of the one image.
+    only = [{"composefs": True, "filesystem": "ext4"}]
+    assert Processor.find_metadata(only, {}, "r.example/other:1") is only[0]
+    # A wrong type in the leaf of this image stops the install.
+    with pytest.raises(ValueError):
+        Processor.find_metadata([{"imgref": "r/a:1", "composefs": "yes"}], {}, "r/a:1")
+    for broken in ([None], [{"children": None}], None):
+        with pytest.raises(ValueError):
+            Processor.find_metadata(broken, {}, "r/a:1")

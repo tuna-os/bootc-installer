@@ -36,17 +36,23 @@ DETECTION = {
 
 # How each frontend hands the recipe over: the fisherman command reads `-`.
 STDIN_COMMAND = {
-    "gnome": ("bootc_installer/utils/fisherman_runner.py", "/usr/local/bin/fisherman -"),
+    "gnome": ("bootc_installer/utils/fisherman_runner.py", "fisherman_host.command("),
     "kde": ("frontends/kde/src/fisherman.cpp", 'pkexec /usr/local/bin/fisherman -; exit $?'),
     "cosmic": ("frontends/cosmic/src/offline.rs", "pkexec /usr/local/bin/fisherman -; exit $?"),
     "niri": ("frontends/niri/installer/offline.go", "pkexec /usr/local/bin/fisherman -; exit $?"),
-    "xfce": ("frontends/xfce/tuna_installer_xfce/core.py", "pkexec /usr/local/bin/fisherman -; exit $?"),
+    "xfce": ("frontends/xfce/tuna_installer_xfce/core.py", "fisherman_host.command("),
 }
+# GNOME and XFCE build the command with one function of the shared package
+# (STDIN_COMMAND holds each to the call); the test below runs it.
+PYTHON_PACKAGE = REPO / "shared" / "python" / "bootc_shared"
 
 
 def frontend_files(frontend):
     """(path, code) for a frontend's own sources, comments removed."""
     paths = list(sources_for(frontend))
+    if frontend in ("gnome", "xfce"):
+        # The code that both import is their code too.
+        paths += sorted(PYTHON_PACKAGE.glob("*.py"))
     if frontend == "niri":
         paths += [p for p in (REPO / "frontends/niri/installer").glob("*.go")
                   if not p.name.endswith("_test.go")]
@@ -76,6 +82,20 @@ class NoFrontendDetectsItself(unittest.TestCase):
         for frontend, (path, needle) in STDIN_COMMAND.items():
             with self.subTest(frontend=frontend):
                 self.assertIn(needle, (REPO / path).read_text())
+
+    def test_the_python_frontends_pipe_the_recipe_to_fisherman_dash(self):
+        import sys
+        sys.path.insert(0, str(PYTHON_PACKAGE.parent))
+        from bootc_shared import fisherman_host
+        self.assertEqual(
+            fisherman_host.command("install", in_flatpak=False),
+            ["bash", "-c", "pkexec /usr/local/bin/fisherman -; exit $?"])
+        self.assertEqual(
+            fisherman_host.command("install", in_flatpak=False, live=True),
+            ["bash", "-c", "sudo -n /usr/local/bin/fisherman -; exit $?"])
+        self.assertEqual(
+            fisherman_host.command("install", in_flatpak=True, host_path="/cache/fisherman"),
+            ["flatpak-spawn", "--host", "bash", "-c", "pkexec /cache/fisherman -; exit $?"])
 
     def test_the_scan_sees_code(self):
         """Guards the guard: the patterns match what used to be there."""

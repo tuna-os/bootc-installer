@@ -98,13 +98,14 @@ def test_the_catalog_default_is_used_when_the_branding_default_is_not_a_leaf():
 
 def test_the_page_reads_the_contract_fixture():
     """The real page, on shared/catalog/fixtures/catalog.json: each row
-    hands on what utils/catalog.py resolves, and the account flag follows
+    hands on what bootc_shared.catalog resolves, and the account flag follows
     the selected leaf (default: an account)."""
     import copy
     import json
     import pathlib
 
-    from bootc_installer.utils import catalog
+    from bootc_installer.utils import image_finals
+    from bootc_shared import catalog
 
     fixtures = pathlib.Path(__file__).resolve().parents[2] / 'shared' / 'catalog' / 'fixtures'
     manifest = json.loads((fixtures / 'catalog.json').read_text())
@@ -137,7 +138,7 @@ def test_the_page_reads_the_contract_fixture():
         assert finals['default_hostname'] == leaf['default_hostname']
         assert finals['nvidia_imgref'] == leaf['nvidia_imgref']
         assert finals['pretty_name'] == leaf['product']
-        expected_finals = catalog.leaf_finals(catalog.find(manifest, leaf['imgref']))
+        expected_finals = image_finals.leaf_finals(catalog.find(manifest, leaf['imgref']))
         assert {k: v for k, v in finals.items() if k not in ('icon', 'carousel')} == \
             {k: v for k, v in expected_finals.items() if k not in ('icon', 'carousel')}
     page.row_custom.set_expanded(True)

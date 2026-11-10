@@ -35,7 +35,7 @@
     "progress_bar": "yes",
     "restart_from_done": "yes",
     "log_after_failure": "log tail",
-    "recovery_key_not_in_log": "no (#337)",
+    "recovery_key_not_in_log": "yes (install.log, log pane and failure tail redacted)",
     "walkthrough": "yes",
     "e2e_gate": "yes"
   }

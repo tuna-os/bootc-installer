@@ -40,8 +40,10 @@ and it is GTK-free enough to reason about without a display.
 ## How it invokes fisherman: one resolver
 
 `core.fisherman_command(purpose)` is the only place that builds a fisherman
-command, for `probe`, `validate` and `install`. `tests/test_core.py` holds
-the argv for each case, and fails when another module names the binary.
+command, for `probe`, `validate` and `install`. It calls
+`bootc_shared.fisherman_host.command`, which GNOME also uses, so the two
+frontends cannot differ. `tests/test_core.py` holds the argv for each case,
+and fails when another module names the binary.
 
 - **Outside Flatpak:** `/usr/local/bin/fisherman` for the probe and the
   checks. The install is `bash -c 'pkexec /usr/local/bin/fisherman -; exit
@@ -51,8 +53,9 @@ the argv for each case, and fails when another module names the binary.
   `/app/bin/fisherman` to `$XDG_CACHE_HOME/bootc-installer/fisherman` and
   compares its SHA256 with `flatpak-spawn --host sha256sum`. All three
   purposes then run that copy through `flatpak-spawn --host`. Do not make the
-  path from `HOME/.cache`. If the stage step fails, nothing runs: the
-  destination page and the result page give the reason.
+  path from `HOME/.cache`. The stage step also refuses a `HOME` that is a
+  symlink or that a different user owns. If the stage step fails, nothing
+  runs: the destination page and the result page give the reason.
 
 The install runs in a bash that this frontend owns, in its own process group
 (`app.spawn_fisherman`). fisherman cancels when its parent dies, so a cancel
@@ -60,6 +63,14 @@ signals that group.
 
 The recipe goes to fisherman on stdin: `spawn_fisherman` writes the JSON and
 closes the pipe. Nothing writes it to a file.
+
+fisherman's output goes to `~/.local/state/tuna-installer/install.log`
+through `core.open_install_log()`. That object removes the recovery key
+from each line (`bootc_shared.redact`, #337). The log pane and the tail on
+the result page do not show the key. Only the recovery-key panel of the
+done page shows it. Do not add a second writer of fisherman's output:
+`tests/test_recovery_key_log.py` sends the shared transcript through the
+real output handler and fails when the key is in the file.
 
 You can test the Flatpak path only from a built Flatpak:
 
@@ -76,8 +87,11 @@ Runtime is `org.gnome.Platform` (it ships GTK3 + PyGObject).
 `core.load_catalog()` follows `shared/catalog/README.md`: the search path
 (with `/run/host/etc` in a Flatpak), the fields that reach the recipe, the
 NVIDIA rule, the offline Flatpak-list rule, and the selection at the start.
-`tests/test_catalog_contract.py` reads `shared/catalog/fixtures/` through
-this parser. Do not read `fallback_flatpaks`, do not download a list, and do
+The reader is `bootc_shared.catalog`, which GNOME also uses; `core.Catalog`
+and `core.ImageLeaf` are the view of it that the pages read.
+`tests/unit/test_shared_python_catalog.py` at the repository root holds the
+reader to `shared/catalog/fixtures/`, and `tests/test_catalog_contract.py`
+holds the recipe that this frontend writes for each leaf. Do not read `fallback_flatpaks`, do not download a list, and do
 not select the first row.
 
 `core.DEFAULT_GROUPS` is the list in `shared/account/groups.json`, read
@@ -88,7 +102,8 @@ differ.
 
 `bootc_shared` (`../../shared/python/`) has the code that this frontend
 shares with GNOME: `probe`, `validate`, `progress`, `readiness`, `branding`
-and `account`. Import it; do not copy a module into this tree. In a
+and `account`, and also `catalog`, `hardware`, `network`, `fisherman_host`
+and `redact`. Import it; do not copy a module into this tree. In a
 checkout, `tuna_installer_xfce/__init__.py` puts `shared/python` on the
 path. The Flatpak manifest copies the package, and the data files that it
 reads, to `/app/lib/tuna-installer-xfce/bootc_shared/`. When a module reads

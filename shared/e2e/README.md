@@ -10,7 +10,7 @@ installed and booted.
 | Job | What runs |
 |---|---|
 | `E2E (gnome)` | `tests/e2e/run_gnome.py`: the wizard from Welcome to Done under Xvfb, `BootcProgress.start()` launches fisherman through `pkexec` |
-| `E2E (xfce)` | `frontends/xfce/tests/e2e/run.py`: the wizard from Welcome to Done under Xvfb, `start_install()` launches `sudo /usr/local/bin/fisherman -` and pipes the recipe |
+| `E2E (xfce)` | `frontends/xfce/tests/e2e/run.py`: the wizard from Welcome to Done under Xvfb, `start_install()` launches `pkexec /usr/local/bin/fisherman -` in a bash and pipes the recipe |
 | `E2E (niri)` | `frontends/niri/tests/e2e/run.py`: the QML writes its recipe to the stub Process, the same bytes go to the real Go backend on stdin, which launches fisherman |
 | `E2E (kde)` | `frontends/kde/tests/e2e.cpp`: `InstallerController::startInstall()` launches `fisherman -` and writes the recipe to its stdin, waits for `installCompleted` |
 | `E2E (cosmic)` | the ignored test `e2e_install_path_reaches_fisherman`: `TunaInstaller::stream_fisherman()` launches `fisherman -` and writes the recipe to its stdin |
