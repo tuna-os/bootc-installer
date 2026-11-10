@@ -23,8 +23,11 @@ import (
 )
 
 // encryptionChoicesJSON is a byte-identical copy of fisherman's
-// data/encryption-choices.json (tests/unit/test_encryption_choices.py).
+// data/encryption-choices.json, by way of shared/recipe/: go:embed cannot
+// leave the module. `go generate ./...` refreshes it;
+// tests/unit/test_encryption_choices.py holds the two together.
 //
+//go:generate cp ../../../shared/recipe/encryption-choices.json encryption-choices.json
 //go:embed encryption-choices.json
 var encryptionChoicesJSON []byte
 
