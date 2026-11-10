@@ -12,6 +12,16 @@ sure that it does. Do not edit the hash of an old entry: add an entry.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-10: data files, COSMIC reads `shared/`; the key out of Niri's log
+
+- Removed: COSMIC's copies of `branding/copy-defaults.json`,
+  `recipe/encryption-choices.json` and `account/groups.json`. Its `build.rs`
+  takes them from `shared/`. Niri keeps its copies; `go generate ./...`
+  refreshes them. No contract changed.
+- COSMIC's and Niri's `install.log` and Copy log now follow
+  `progress/recovery-key-cases.json` (#337). COSMIC does keep a log file;
+  the entry below was wrong about that.
+
 ## 2026-11-10: data files, KDE reads `shared/`
 
 - Removed: KDE's copies of `recipe/fisherman-recipe.schema.json` (no code
