@@ -37,7 +37,7 @@ DETECTION = {
 # How each frontend hands the recipe over: the fisherman command reads `-`.
 STDIN_COMMAND = {
     "gnome": ("bootc_installer/utils/fisherman_runner.py", "/usr/local/bin/fisherman -"),
-    "kde": ("frontends/kde/src/offline.cpp", 'pkexec /usr/local/bin/fisherman -; exit $?'),
+    "kde": ("frontends/kde/src/fisherman.cpp", 'pkexec /usr/local/bin/fisherman -; exit $?'),
     "cosmic": ("frontends/cosmic/src/offline.rs", "pkexec /usr/local/bin/fisherman -; exit $?"),
     "niri": ("frontends/niri/installer/offline.go", "pkexec /usr/local/bin/fisherman -; exit $?"),
     "xfce": ("frontends/xfce/tuna_installer_xfce/core.py", "pkexec /usr/local/bin/fisherman -; exit $?"),

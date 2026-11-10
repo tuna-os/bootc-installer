@@ -18,9 +18,16 @@ TunaComponents.SetupModule {
     // without one the installed system has nobody to sign in as — unless
     // the selected image creates its own first user, in which case the
     // account step was skipped and nothing is required here either.
+    // No network for an image that needs a download holds it too (#301):
+    // the check runs again here, against the registry of the chosen image.
     nextEnabled: InstallerController.disk.length > 0 && InstallerController.hostnameProblem === ""
         && (!InstallerController.needsUserCreation
             || (InstallerController.username.length > 0 && InstallerController.usernameProblem === ""))
+        && !networkGate.blocked
+
+    function onPageActivated(): void {
+        InstallerController.checkConnectivity();
+    }
 
     contentItem: ScrollView {
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
@@ -45,6 +52,14 @@ TunaComponents.SetupModule {
                 Layout.maximumWidth: root.cardWidth
                 Layout.alignment: Qt.AlignHCenter
                 Layout.bottomMargin: Kirigami.Units.largeSpacing
+            }
+
+            NetworkGate {
+                id: networkGate
+
+                Layout.fillWidth: true
+                Layout.maximumWidth: root.cardWidth
+                Layout.alignment: Qt.AlignHCenter
             }
 
             // fisherman's problem with the hostname, in the copy's words.
@@ -78,29 +93,30 @@ TunaComponents.SetupModule {
                 Layout.alignment: Qt.AlignHCenter
 
                 FormCard.FormTextDelegate {
-                    text: "Target disk"
+                    text: qsTr("Target disk")
                     description: InstallerController.disk
                 }
 
                 FormCard.FormDelegateSeparator {}
 
                 FormCard.FormTextDelegate {
-                    text: "Filesystem"
-                    description: InstallerController.filesystem
-                        + (InstallerController.btrfsSubvolumes ? " (with subvolumes)" : "")
+                    text: qsTr("Filesystem")
+                    description: InstallerController.btrfsSubvolumes
+                        ? qsTr("%1 (with subvolumes)").arg(InstallerController.filesystem)
+                        : InstallerController.filesystem
                 }
 
                 FormCard.FormDelegateSeparator {}
 
                 FormCard.FormTextDelegate {
-                    text: "Encryption"
+                    text: qsTr("Encryption")
                     description: InstallerController.encryptionLabel(InstallerController.encryptionType)
                 }
 
                 FormCard.FormDelegateSeparator {}
 
                 FormCard.FormTextDelegate {
-                    text: "Hostname"
+                    text: qsTr("Hostname")
                     description: InstallerController.hostname
                 }
 
@@ -113,9 +129,9 @@ TunaComponents.SetupModule {
                 FormCard.FormTextDelegate {
                     objectName: "confirmUsername"
                     visible: InstallerController.needsUserCreation
-                    text: "Username"
+                    text: qsTr("Username")
                     description: InstallerController.fullname.length > 0
-                        ? InstallerController.username + " (" + InstallerController.fullname + ")"
+                        ? qsTr("%1 (%2)").arg(InstallerController.username).arg(InstallerController.fullname)
                         : InstallerController.username
                 }
 
@@ -123,37 +139,38 @@ TunaComponents.SetupModule {
                     visible: InstallerController.needsUserCreation
                 }
 
+                // The image the recipe installs: the catalog's name for it
+                // (product and channel) over the reference.
                 FormCard.FormTextDelegate {
-                    text: "Image"
+                    objectName: "confirmImage"
+                    text: qsTr("Image")
                     // Empty on live media: bootc installs the running container,
                     // so the recipe legitimately omits `image`.
-                    description: InstallerController.image.length > 0
-                        ? InstallerController.image
-                        : "the running live system"
+                    description: InstallerController.image.length === 0
+                        ? qsTr("the running live system")
+                        : (InstallerController.imageLabel.length > 0
+                           ? InstallerController.imageLabel + "\n" + InstallerController.image
+                           : InstallerController.image)
                 }
 
-                FormCard.FormDelegateSeparator {}
-
-                // The welcome step's region & language, as the GNOME confirm
-                // screen shows its language/keyboard/timezone finals back.
-                FormCard.FormTextDelegate {
-                    text: "Language"
-                    description: InstallerController.language
+                // The image updates follow, only when it is not the image
+                // that is installed (shared/catalog/README.md).
+                FormCard.FormDelegateSeparator {
+                    visible: updatesRow.visible
                 }
-
-                FormCard.FormDelegateSeparator {}
 
                 FormCard.FormTextDelegate {
-                    text: "Keyboard"
-                    description: InstallerController.keyboardLayout
+                    id: updatesRow
+                    objectName: "confirmTargetImgref"
+                    visible: InstallerController.targetImgref.length > 0
+                        && InstallerController.targetImgref !== InstallerController.image
+                    text: qsTr("Updates come from")
+                    description: InstallerController.targetImgref
                 }
 
-                FormCard.FormDelegateSeparator {}
-
-                FormCard.FormTextDelegate {
-                    text: "Time zone"
-                    description: InstallerController.timezoneDisplay(InstallerController.timezone)
-                }
+                // No language, keyboard or time zone rows: nothing writes
+                // them to the installed system (#292), and this page lists
+                // only what the install does.
             }
             Label {
                 text: InstallerController.text("confirm_body")

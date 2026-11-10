@@ -20,6 +20,8 @@ TunaComponents.SetupModule {
     // page without scrolling.
     readonly property bool showRecovery: InstallerController.succeeded
         && InstallerController.recoveryKey.length > 0
+    readonly property string failureIcon: InstallerController.cancelled
+        ? "dialog-cancel" : "dialog-error"
 
     // A plain Item, not a ScrollView. These two steps are short enough never to
     // scroll, and inside a ScrollView the content item collapses to its
@@ -35,15 +37,16 @@ TunaComponents.SetupModule {
 
             // Success shows the product's artwork from the branding resolver
             // (assets.complete_image, then the logo) with a themed check as
-            // the fallback; a failure keeps the error icon.
+            // the fallback; a failure keeps the error icon. A cancelled
+            // install is neither (#299): the user stopped it.
             Kirigami.Icon {
                 objectName: "doneLogo"
                 source: InstallerController.succeeded
                     ? (InstallerController.completeImageSource
                        || InstallerController.logoSource
                        || "checkmark")
-                    : "dialog-error"
-                fallback: InstallerController.succeeded ? "checkmark" : "dialog-error"
+                    : root.failureIcon
+                fallback: InstallerController.succeeded ? "checkmark" : root.failureIcon
                 implicitWidth: root.showRecovery ? Kirigami.Units.iconSizes.huge
                                                  : Kirigami.Units.iconSizes.enormous
                 implicitHeight: implicitWidth
@@ -55,9 +58,12 @@ TunaComponents.SetupModule {
             // "<product> is installed": the one heading on this page. The
             // header shows only the step indicator here (Wizard.heroStep).
             Kirigami.Heading {
+                objectName: "doneHeading"
                 text: InstallerController.succeeded
                     ? InstallerController.text("done_title")
-                    : InstallerController.text("done_failed_title")
+                    : InstallerController.cancelled
+                        ? InstallerController.text("done_cancelled_title")
+                        : InstallerController.text("done_failed_title")
                 level: 1
                 type: Kirigami.Heading.Type.Primary
                 horizontalAlignment: Text.AlignHCenter
@@ -69,8 +75,9 @@ TunaComponents.SetupModule {
             Label {
                 text: InstallerController.succeeded
                     ? InstallerController.text("done_subtitle")
-                    : "The installation did not finish. The log above has the details — exit code "
-                      + InstallerController.exitCode + "."
+                    : InstallerController.cancelled
+                        ? qsTr("You stopped the installation. The selected disk is erased and has no complete system. Start the installer again to install.")
+                        : qsTr("The installation did not finish. The log has the details — exit code %1.").arg(InstallerController.exitCode)
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
 
@@ -205,7 +212,7 @@ TunaComponents.SetupModule {
                 readonly property string slideDescription: ((slide["description"] ?? slide["desc"]) ?? "") + ""
 
                 Label {
-                    text: "Take a tour"
+                    text: qsTr("Take a tour")
                     font.bold: true
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
@@ -238,14 +245,14 @@ TunaComponents.SetupModule {
                     Layout.alignment: Qt.AlignHCenter
 
                     Button {
-                        text: "Previous"
+                        text: qsTr("Previous")
                         icon.name: "arrow-left-symbolic"
                         enabled: tourCarousel.tourIndex > 0
                         onClicked: tourCarousel.tourIndex--
                     }
 
                     Label {
-                        text: (tourCarousel.tourIndex + 1) + " of " + InstallerController.tourSlides.length
+                        text: qsTr("%1 of %2").arg(tourCarousel.tourIndex + 1).arg(InstallerController.tourSlides.length)
                         color: Kirigami.Theme.disabledTextColor
 
                         Layout.leftMargin: Kirigami.Units.smallSpacing
@@ -253,7 +260,7 @@ TunaComponents.SetupModule {
                     }
 
                     Button {
-                        text: "Next"
+                        text: qsTr("Next")
                         icon.name: "arrow-right-symbolic"
                         enabled: tourCarousel.tourIndex < InstallerController.tourSlides.length - 1
                         onClicked: tourCarousel.tourIndex++
@@ -294,7 +301,7 @@ TunaComponents.SetupModule {
             // BootcDialogOutput copy action); the label says where the file
             // is for later.
             Label {
-                text: "Log saved to " + InstallerController.logPath
+                text: qsTr("Log saved to %1").arg(InstallerController.logPath)
                 visible: InstallerController.logPath.length > 0
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
@@ -307,7 +314,7 @@ TunaComponents.SetupModule {
 
             Button {
                 objectName: "copyLogButton"
-                text: "Copy install log"
+                text: qsTr("Copy install log")
                 icon.name: "edit-copy-symbolic"
                 visible: InstallerController.logPath.length > 0
                 onClicked: InstallerController.copyLogToClipboard()

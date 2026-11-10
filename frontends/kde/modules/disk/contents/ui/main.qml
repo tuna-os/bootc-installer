@@ -19,9 +19,13 @@ TunaComponents.SetupModule {
     // With a catalog on screen an image must be chosen too, the way the
     // GNOME step holds its Next until a leaf is checked. Live media hides
     // the catalog (the running system is installed), so nothing is required.
+    // fisherman's problem with the filesystem also holds Next: a composefs
+    // image on a filesystem without fs-verity is refused at install time,
+    // and this is the page that can fix it (#287).
     nextEnabled: InstallerController.disk.length > 0
         && (!InstallerController.hasCatalog || InstallerController.isLive
             || InstallerController.catalogIndex >= 0)
+        && InstallerController.filesystemProblem === ""
 
     // Called by the wizard whenever this step becomes current, so hotplugged
     // media show up. Re-runs `fisherman probe --json`: the disks, their
@@ -56,7 +60,7 @@ TunaComponents.SetupModule {
             // substitution because neither one spans it. That is why the
             // sentence keeps the name in the MIDDLE and not at either end.
             Label {
-                text: "Choose the disk where " + InstallerController.productName + " will be installed."
+                text: qsTr("Choose the disk where %1 will be installed.").arg(InstallerController.productName)
                 wrapMode: Text.Wrap
                 horizontalAlignment: Text.AlignHCenter
 
@@ -70,7 +74,7 @@ TunaComponents.SetupModule {
                 type: Kirigami.MessageType.Warning
                 visible: true
                 position: Kirigami.InlineMessage.Header
-                text: "Everything on the selected disk will be erased."
+                text: qsTr("Everything on the selected disk will be erased.")
 
                 Layout.fillWidth: true
                 Layout.maximumWidth: root.cardWidth
@@ -80,14 +84,14 @@ TunaComponents.SetupModule {
 
             // The image catalog (fisherman's images.json): which OS to
             // install, and the per-image choices that follow from it — the
-            // account step, bootloader, tour. Hidden on live media, where
-            // the running system is installed, and when no manifest is
-            // installed. The GNOME step groups leaves in expanders; here the
-            // group path is part of each row's title, so a flat searchable
-            // list carries the same information.
+            // account step, bootloader, filesystem, tour. Hidden on live
+            // media, where the running system is installed, and when no
+            // manifest is installed. The list is flat, so each row's title
+            // is the breadcrumb (every name from the root): a channel name
+            // such as "Stable" is not unique (shared/catalog/README.md).
             Label {
                 visible: InstallerController.hasCatalog && !InstallerController.isLive
-                text: "Choose what to install."
+                text: qsTr("Choose what to install.")
                 wrapMode: Text.Wrap
                 horizontalAlignment: Text.AlignHCenter
 
@@ -101,7 +105,7 @@ TunaComponents.SetupModule {
                 id: catalogSearch
                 visible: InstallerController.hasCatalog && !InstallerController.isLive
                 objectName: "catalogSearch"
-                placeholderText: "Search images"
+                placeholderText: qsTr("Search images")
 
                 Layout.fillWidth: true
                 Layout.maximumWidth: root.cardWidth
@@ -150,6 +154,36 @@ TunaComponents.SetupModule {
                 }
             }
 
+            // The filesystem (#287): the selected image's choices, or this
+            // frontend's own list for an image that names none. One choice
+            // is no question, so the row shows only with more than one.
+            // fisherman's problem with the value is shown here and holds
+            // Next.
+            FormCard.FormCard {
+                visible: InstallerController.filesystemChoices.length > 1
+                    || InstallerController.filesystemProblem !== ""
+                maximumWidth: root.cardWidth
+
+                Layout.alignment: Qt.AlignHCenter
+                Layout.bottomMargin: Kirigami.Units.largeSpacing
+
+                FormCard.FormComboBoxDelegate {
+                    objectName: "filesystemCombo"
+                    text: qsTr("Filesystem")
+                    model: InstallerController.filesystemChoices
+                    currentIndex: InstallerController.filesystemChoices.indexOf(InstallerController.filesystem)
+                    onActivated: (index) => InstallerController.filesystem = InstallerController.filesystemChoices[index]
+                }
+
+                FormCard.FormTextDelegate {
+                    objectName: "filesystemProblem"
+                    visible: InstallerController.filesystemProblem !== ""
+                    text: InstallerController.filesystemProblem
+                    textItem.wrapMode: Text.Wrap
+                    textItem.color: Kirigami.Theme.negativeTextColor
+                }
+            }
+
             FormCard.FormCard {
                 maximumWidth: root.cardWidth
 
@@ -185,10 +219,10 @@ TunaComponents.SetupModule {
                 Layout.alignment: Qt.AlignHCenter
 
                 FormCard.FormTextDelegate {
-                    text: disks.error.length > 0 ? "Could not detect disks" : "No disks found"
+                    text: disks.error.length > 0 ? qsTr("Could not detect disks") : qsTr("No disks found")
                     description: disks.error.length > 0
                         ? disks.error
-                        : "Connect a disk of at least 50 GiB to install to."
+                        : qsTr("Connect a disk of at least 50 GiB to install to.")
                 }
             }
         }

@@ -67,29 +67,30 @@ the process exit status or actionable backend output.
 The wizard keeps its seven modules; the GNOME steps that have no module here
 are folded into the existing ones rather than added as new steps:
 
-- The **image catalog** (fisherman's `images.json`, resolved like the GNOME
-  and XFCE frontends resolve it) lives on the **disk** step, and the account
-  step is skipped when the selected leaf sets `needs_user_creation: false`
-  (`src/imagecatalog.{h,cpp}`). A leaf without the flag defaults to `true`:
-  an undescribed image installs with an account step rather than with nobody
-  to sign in as. Remote (`http`) per-leaf flatpak lists are deliberately not
-  fetched — leaving `flatpaks` empty keeps fisherman's fallback, the same
-  default a leaf without flatpaks gets everywhere.
+- The **image catalog** is on the **disk** step. The contract is
+  `shared/catalog/README.md`, and `src/imagecatalog.{h,cpp}` reads it. The
+  wizard skips the account step when the selected leaf sets
+  `needs_user_creation: false`. A leaf without the flag gets `true`. The
+  frontend does not download a Flatpak list: for a URL, the recipe has no
+  `flatpaks` key and fisherman applies its default. The leaf also gives the
+  filesystem and its choices, and the NVIDIA image on a machine with an
+  NVIDIA GPU.
 - The **hardware gates** live on the **welcome** step: unmet RAM/CPU hold
   Next until an explicit override is ticked (the cpu/ram windows), while a
   non-UEFI boot has no continue path, only power off (the unsupported
-  window). The **power off**, **copy install log** and **cancel install**
-  actions mirror `dialog_poweroff.py`, `dialog_output.py` and the exit
-  handler's `view_progress.terminate()`; quitting mid-install asks first
-  and kills the wrapper, which is the cancel contract (fisherman exits when
-  its parent dies).
-- **Language, keyboard and timezone** live on the **welcome** step and are
-  shown back on the **confirm** screen, where GNOME shows its finals. They
-  are wizard state, never recipe state: fisherman's Recipe struct has no
-  such fields, and `tests/unit/test_shared_recipe_schema.py` pins this
-  frontend's recipe to exactly those fields. The **connectivity check**
-  blocks Next only when the install needs the network (not live media, image
-  not already in the host's offline stores).
+  window). The **power off** and **copy install log** actions mirror
+  `dialog_poweroff.py` and `dialog_output.py`. **Cancel** on the progress
+  step and a window close during an install each ask first. A confirmed
+  cancel signals the process group of the wrapper. fisherman stops when its
+  parent stops. The done step then shows the cancelled page.
+- **Language, keyboard and timezone** are on the **welcome** step. They
+  are wizard state, not recipe state: the recipe has no field for them yet
+  (#292). Nothing applies them. The welcome step says so, and the confirm
+  step does not list them. The **connectivity check** holds Next on the
+  welcome step and Install on the confirm step, only when the install needs
+  the network. It tries the registry of the selected image first. The
+  message has a "Network settings" action that opens the Plasma tool on the
+  host.
 - The **tour** is the selected leaf's `carousel` slides on the **done**
   screen. Slide titles and descriptions travel; the artwork does not — the
   manifest names GNOME GResource paths (`resource:///...`), which nothing in

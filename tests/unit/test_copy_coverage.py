@@ -69,7 +69,6 @@ KNOWN_GAPS = {
     "kde": {
         "welcome_install": "modules/welcome hardcodes its two body sentences",
         "welcome_install_subtitle": "modules/welcome hardcodes its two body sentences",
-        "done_cancelled_title": "exit code 130 shows the failure page; the cancelled page is the open part of #299",
     },
     "cosmic": {
         "welcome_install": "the welcome page has no install row to label",

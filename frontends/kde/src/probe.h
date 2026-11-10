@@ -51,10 +51,6 @@ struct Result {
 // Parses probe output. A failure is a Result with ok == false and an error.
 Result parse(const QByteArray &json);
 
-// The unprivileged command: the fisherman the install runs, on the host
-// (flatpak-spawn --host when sandboxed). Never pkexec or sudo.
-QStringList command(bool flatpak);
-
 // Runs the probe (or reads BOOTC_INSTALLER_FAKE_PROBE). There is no
 // fallback scan: on failure, `error` says why and `disks` is empty.
 Result run();
