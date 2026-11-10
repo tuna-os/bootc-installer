@@ -69,7 +69,7 @@ jobs:
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg \
             kf6-kirigami kf6-kirigami-addons kf6-qqc2-desktop-style \
             kf6-breeze-icons dejavu-sans-fonts dejavu-sans-mono-fonts \
-            ImageMagick
+            ImageMagick python3
           # Fatal on purpose: the KF6 icon theme the UI needs is
           # kf6-breeze-icons, and dnf will happily resolve "breeze-icons" to
           # something else.
@@ -116,6 +116,16 @@ jobs:
           $IM -delay 240 -loop 0 docs/screenshots/0*.png docs/screenshots/walkthrough.gif
           ls -l docs/screenshots
 
+      # The harness writes texts.json (each step's QML item text) and
+      # audit.json (its own pixel verdict) next to the PNGs; the shared
+      # report matches the text against the screen contract, as COSMIC does.
+      - name: emit parity report
+        if: always()
+        run: |
+          python3 ../../shared/walkthrough/report_from_pngs.py kde docs/screenshots \
+            --harness "tests/capture.cpp (Kirigami/QML, offscreen)" \
+            --text-source qml-item-tree
+
       # Proves the branding resolves from the host os-release rather than
       # being hardcoded. Rendered into a scratch directory, never committed.
       - name: render a variant ISO's branding (verification only)
@@ -137,23 +147,6 @@ jobs:
         with:
           name: branding-check-kde
           path: /tmp/branding-check/
-
-      # Warns if the screen contract vendored into tests/parity_report.h has
-      # fallen behind the shared spec. Never fails the build.
-      - name: check screen spec has not drifted
-        if: always()
-        continue-on-error: true
-        run: |
-          python3 - <<'EOF' || true
-          import sys
-          sys.path.insert(0, "../../shared/walkthrough")
-          import parity_report
-          vendored = open("tests/parity_report.h").read().lower()
-          for screen in parity_report.SCREENS:
-              for kw in screen["keywords"]:
-                  if kw.lower() not in vendored:
-                      print(f"::warning::shared keyword missing from vendored spec: {kw}")
-          EOF
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()

@@ -2,7 +2,7 @@
 """Build a `walkthrough-<flavor>.json` from a directory of captured PNGs.
 
 For frontends whose capture harness does not emit the parity report itself
--- today that is the COSMIC crate -- this produces the same file shape:
+-- the compiled ones, COSMIC and KDE -- this produces the same file shape:
 
   * every `NN-<page>.png` becomes a page, with the same pixel audit
     (colours / flat / ink / stddev / rendered) the Python harnesses compute;
@@ -12,71 +12,58 @@ For frontends whose capture harness does not emit the parity report itself
   * without `texts.json`, `text_source` is "none" and `screens` is null for
     every contract screen. The aggregator renders those cells as "not
     measured" rather than as a gap. That is the honest answer: nothing here
-    can tell which screen a picture shows.
+    can tell which screen a picture shows;
+  * when the harness left an `audit.json` ({"<page>": {"rendered": ...,
+    "colours": ..., "flat": ..., "ink": ..., "stddev": ...}}), those values
+    replace this script's pixel audit for that page. KDE writes one: it
+    audits the step content area against floors calibrated for Kirigami,
+    and its verdict is the one its capture gates on.
 
     python3 report_from_pngs.py <flavor> <dir> [--harness "..."]
+        [--text-source rendered-strings|qml-item-tree]
 
 Requires Pillow or GdkPixbuf for the pixel audit; falls back to
 `rendered: null` when neither is importable.
 """
 
 import argparse
+import json
 import os
 import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import parity_report
+import pixel_audit
 
+_NOT_MEASURED = (
+    "so this reports SCREEN PARITY only. It does not measure keyboard "
+    "navigation, compositor rendering, or that the frontend launches under "
+    "its real desktop \u2014 those stay the VM walkthrough's job.")
 
-def _pixels(path):
-    """Yield (r, g, b) for every third pixel on every third row."""
-    try:
-        from PIL import Image
-        with Image.open(path) as im:
-            im = im.convert("RGB")
-            w, h = im.size
-            px = im.load()
-            for y in range(0, h, 3):
-                for x in range(0, w, 3):
-                    yield px[x, y]
-            return
-    except ImportError:
-        pass
-    import gi
-    gi.require_version("GdkPixbuf", "2.0")
-    from gi.repository import GdkPixbuf
-    pb = GdkPixbuf.Pixbuf.new_from_file(path)
-    data, stride, chans = pb.get_pixels(), pb.get_rowstride(), pb.get_n_channels()
-    for y in range(0, pb.get_height(), 3):
-        row = y * stride
-        for x in range(0, pb.get_width(), 3):
-            i = row + x * chans
-            yield (data[i], data[i + 1], data[i + 2])
+# What `notes` says for each kind of texts.json.
+TEXT_NOTES = {
+    # COSMIC: iced has no widget tree to read.
+    "rendered-strings": (
+        "Text comes from the strings the harness rendered each page from "
+        "(the same constants the view reads), not from a widget tree or "
+        "OCR, " + _NOT_MEASURED),
+    # KDE: the visible QML items of the step on screen.
+    "qml-item-tree": (
+        "GPU-less capture: pages are driven programmatically and text is "
+        "read from the item tree, " + _NOT_MEASURED),
+}
 
 
 def audit(path, name):
-    counts, samples, dark = {}, 0, 0
-    luma_sum = luma_sq = 0
     try:
-        for px in _pixels(path):
-            counts[px] = counts.get(px, 0) + 1
-            samples += 1
-            luma = (30 * px[0] + 59 * px[1] + 11 * px[2]) // 100
-            luma_sum += luma
-            luma_sq += luma * luma
-            if luma < 160:
-                dark += 1
+        stats = pixel_audit.png_stats(path)
     except Exception as exc:  # no image library at all
         print(f"  {name}: pixel audit unavailable ({exc})", file=sys.stderr)
         return {"name": name, "png": path, "rendered": None, "text": ""}
-    if not samples:
+    if stats is None:
         return {"name": name, "png": path, "rendered": False, "text": ""}
-    mean = luma_sum / samples
-    var = max(luma_sq / samples - mean * mean, 0.0)
-    f = {"name": name, "png": path, "colours": len(counts),
-         "flat": max(counts.values()) / samples, "ink": dark / samples,
-         "stddev": (var ** 0.5) / 255.0, "text": ""}
+    f = {"name": name, "png": path, **stats, "text": ""}
     f["rendered"] = f["colours"] >= 60 and f["flat"] <= 0.985 and f["ink"] >= 0.003
     return f
 
@@ -86,23 +73,34 @@ def main():
     ap.add_argument("flavor")
     ap.add_argument("directory")
     ap.add_argument("--harness", default="PNG-only report (no widget text)")
+    ap.add_argument("--text-source", choices=sorted(TEXT_NOTES),
+                    default="rendered-strings",
+                    help="where the strings in texts.json came from")
     args = ap.parse_args()
 
     pngs = sorted(f for f in os.listdir(args.directory)
                   if re.match(r"^\d\d-.*\.png$", f))
     if not pngs:
         sys.exit(f"no NN-<page>.png files in {args.directory}")
-    import json
     texts = None
     texts_path = os.path.join(args.directory, "texts.json")
     if os.path.exists(texts_path):
         with open(texts_path) as fh:
             texts = json.load(fh)
 
+    audits = {}
+    audit_path = os.path.join(args.directory, "audit.json")
+    if os.path.exists(audit_path):
+        with open(audit_path) as fh:
+            audits = json.load(fh)
+
     pages = []
     for f in pngs:
         name = re.sub(r"^\d\d-", "", f[:-4])
-        page = audit(os.path.join(args.directory, f), name)
+        if name in audits:
+            page = {"name": name, **audits[name], "text": ""}
+        else:
+            page = audit(os.path.join(args.directory, f), name)
         page["png"] = os.path.join(args.directory, f)
         if texts is not None:
             page["text"] = texts.get(name, "")
@@ -112,14 +110,8 @@ def main():
     _path, summary = parity_report.write_report(
         args.directory, args.flavor, pages, harness=args.harness)
     if texts is not None:
-        summary["text_source"] = "rendered-strings"
-        summary["notes"] = (
-            "Text comes from the strings the harness rendered each page from "
-            "(the same constants the view reads), not from a widget tree or "
-            "OCR, so this reports SCREEN PARITY only. It does not measure "
-            "keyboard navigation, compositor rendering, or that the frontend "
-            "launches under its real desktop \u2014 those stay the VM "
-            "walkthrough's job.")
+        summary["text_source"] = args.text_source
+        summary["notes"] = TEXT_NOTES[args.text_source]
     else:
         # Overwrite the fields that only hold when text was actually read.
         summary["text_source"] = "none"

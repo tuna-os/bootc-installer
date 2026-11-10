@@ -2,8 +2,8 @@
 
 // The first account's supplementary groups (shared/account/README.md).
 //
-// The default list is shared by the five frontends: account-groups.json here
-// is a byte-identical copy of shared/account/groups.json, compiled in.
+// The default list is shared by the five frontends: CMake compiles
+// shared/account/groups.json in (TUNA_SHARED_DIR).
 // fisherman removes each group the image does not have, so the full list
 // goes into the recipe whatever the image is. An ISO builder replaces the
 // list with `user.groups` in <etc>/bootc-installer/recipe.json.

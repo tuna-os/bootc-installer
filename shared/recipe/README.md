@@ -6,7 +6,7 @@ to write the recipe and to show fisherman's answer about it.
 
 | File | What |
 |---|---|
-| `fisherman-recipe.schema.json` | The recipe schema. KDE keeps a byte-identical copy (`tests/unit/test_shared_recipe_schema.py`). |
+| `fisherman-recipe.schema.json` | The recipe schema. This is the only copy (`tests/unit/test_shared_recipe_schema.py`). |
 | `encryption-choices.json` | fisherman's `data/encryption-choices.json`, byte for byte: the encryption types in display order, with `needs_passphrase`, `needs_tpm2` and the branding `copy_key`. |
 | `../python/bootc_shared/validate.py` | The Python reader for `fisherman validate --json` and the choices file. GNOME and XFCE import it as `bootc_shared.validate`. |
 

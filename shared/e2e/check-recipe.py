@@ -30,13 +30,11 @@ import sys
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 REAL = "/usr/local/lib/tuna-e2e/fisherman.real"
 E2E_DIR = os.environ.get("TUNA_E2E_DIR", "/tmp/tuna-e2e")
-# TODO(#288): remove once every driver writes <e2e dir>/catalog.json. Until
-# then these three drivers, which do not export the catalog they used, keep
-# the old verdict: their wizard always asks for an account, so the recipe
-# must create one. GNOME's and XFCE's drivers use a catalog that says
-# needs_user_creation is false and export nothing, so with no catalog their
-# account is not judged (and the output says so).
-LEGACY_USER_STEP = {"cosmic"}
+# Every driver now writes <e2e dir>/catalog.json, so this set is empty. A
+# frontend named here would keep the old verdict (the recipe must create an
+# account) when no catalog is exported. With no catalog, an account is not
+# judged, and the output says so.
+LEGACY_USER_STEP = set()
 
 
 def _catalog_resolver():

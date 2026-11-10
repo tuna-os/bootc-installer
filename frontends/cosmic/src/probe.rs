@@ -113,17 +113,6 @@ pub fn parse(json: &str) -> Result<Facts, String> {
     })
 }
 
-/// The unprivileged command: the fisherman the install runs, on the host
-/// (`flatpak-spawn --host` when sandboxed). Never pkexec or sudo.
-pub fn command(flatpak: bool) -> Vec<String> {
-    let mut argv = Vec::new();
-    if flatpak {
-        argv.extend(["flatpak-spawn".to_string(), "--host".to_string()]);
-    }
-    argv.extend(["/usr/local/bin/fisherman", "probe", "--json"].map(String::from));
-    argv
-}
-
 /// Runs the probe, or reads `BOOTC_INSTALLER_FAKE_PROBE`. Blocking: call it
 /// off the UI thread. There is no fallback scan; the error says why.
 pub fn run() -> Result<Facts, String> {
@@ -133,7 +122,9 @@ pub fn run() -> Result<Facts, String> {
             return parse(&text);
         }
     }
-    let argv = command(crate::offline::in_flatpak());
+    // The one resolver (offline.rs): unprivileged, and in a Flatpak the
+    // staged copy of the packaged fisherman.
+    let argv = crate::offline::fisherman(crate::offline::Use::Probe, false)?;
     let mut child = Command::new(&argv[0])
         .args(&argv[1..])
         .stdin(Stdio::null())
@@ -277,11 +268,10 @@ mod tests {
     }
 
     #[test]
-    fn command_is_unprivileged_and_on_the_host() {
-        assert_eq!(command(false), ["/usr/local/bin/fisherman", "probe", "--json"]);
-        assert_eq!(
-            command(true),
-            ["flatpak-spawn", "--host", "/usr/local/bin/fisherman", "probe", "--json"]
-        );
+    fn command_is_unprivileged_and_from_the_resolver() {
+        use crate::offline::{fisherman, Use};
+        let argv = fisherman(Use::Probe, false).unwrap();
+        assert_eq!(argv[1..], ["probe", "--json"]);
+        assert!(!argv.iter().any(|a| a == "pkexec" || a == "sudo"));
     }
 }

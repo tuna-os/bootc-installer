@@ -166,11 +166,17 @@ def verify_spec_matches_upstream(timeout=5):
 def changed_pixels(a, b):
     """Pixels differing between two PNGs — same ImageMagick metric, same fuzz
     as the VM harness, so the counts mean the same thing in both reports."""
-    try:
-        r = subprocess.run(
-            ["compare", "-metric", "AE", "-fuzz", "5%", a, b, "null:"],
-            capture_output=True, text=True)
-    except FileNotFoundError:
+    # ImageMagick 6 ships `compare`; an ImageMagick 7 build may ship only
+    # `magick` (the KDE job runs in a Fedora container).
+    for tool in (["compare"], ["magick", "compare"]):
+        try:
+            r = subprocess.run(
+                [*tool, "-metric", "AE", "-fuzz", "5%", a, b, "null:"],
+                capture_output=True, text=True)
+            break
+        except FileNotFoundError:
+            continue
+    else:
         return None
     import re
     m = re.search(r"(\d+)", (r.stderr or "").strip())

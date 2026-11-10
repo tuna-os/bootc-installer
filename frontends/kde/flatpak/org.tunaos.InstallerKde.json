@@ -75,8 +75,14 @@
     {
       "name": "tuna-installer-kde",
       "buildsystem": "cmake-ninja",
-      "config-opts": ["-DCMAKE_BUILD_TYPE=Release"],
-      "sources": [{ "type": "dir", "path": ".." }]
+      "config-opts": [
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DTUNA_SHARED_DIR=/run/build/tuna-installer-kde/shared"
+      ],
+      "sources": [
+        { "type": "dir", "path": ".." },
+        { "type": "dir", "path": "../../../shared", "dest": "shared" }
+      ]
     }
   ]
 }

@@ -21,7 +21,6 @@ COPY_DEFAULTS = REPO / "shared" / "branding" / "copy-defaults.json"
 COPY_DEFAULT_COPIES = [
     REPO / "frontends" / "niri" / "installer" / "copy-defaults.json",
     REPO / "frontends" / "cosmic" / "src" / "copy-defaults.json",
-    REPO / "frontends" / "kde" / "copy-defaults.json",
 ]
 
 

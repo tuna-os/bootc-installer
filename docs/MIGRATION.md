@@ -24,14 +24,13 @@ nothing is lost in the shuffle. Tracking epic:
 `shared/` is where parity work lands from now on:
 
 - `shared/recipe/fisherman-recipe.schema.json`: the recipe every frontend
-  writes for fisherman. Canonical copy; `frontends/kde/` keeps a byte-identical
-  copy because its Flatpak builds from that directory alone, and
-  `tests/unit/test_shared_recipe_schema.py` fails when they diverge.
+  writes for fisherman. It is the only copy:
+  `tests/unit/test_shared_recipe_schema.py` fails when a frontend adds one.
 - `shared/walkthrough/parity_report.py`: the screen contract (which screens
   every installer must show, matched by heading text) and the report writer.
-  The niri and xfce harnesses import it; the GNOME harness imports it; KDE
-  (`tests/parity_report.h`) and COSMIC still vendor their own copy and are
-  checked for drift in CI.
+  The GNOME, niri and xfce harnesses import it. The KDE and COSMIC harnesses
+  write their page text to `texts.json`, and `report_from_pngs.py` makes
+  their report with this module.
 - `shared/walkthrough/aggregate.py`: builds
   [`docs/walkthrough/`](walkthrough/README.md), the one page that shows all
   five installers screen by screen with the parity matrix on top.
