@@ -1,9 +1,9 @@
-import glob
 import hashlib
 import logging
 import os
 import re
 
+from bootc_shared import hardware
 from bootc_shared import probe as fisherman_probe
 
 logger = logging.getLogger("Installer::System")
@@ -75,6 +75,9 @@ def _sanitize_hostname_part(s: str) -> str:
     return s
 
 
+# Where the PCI devices are (a test points this at a directory of its own).
+PCI_DEVICES = hardware.PCI_DEVICES
+
 # PCI vendor IDs for GPU manufacturers.
 _GPU_VENDORS = {
     "0x10de": "nvidia",
@@ -98,23 +101,12 @@ def _detect_display_devices() -> list[dict]:
     """
     results = []
     seen_vendors = set()
-    for class_file in glob.glob("/sys/bus/pci/devices/*/class"):
-        dev_dir = os.path.dirname(class_file)
-        try:
-            with open(class_file) as f:
-                class_code = int(f.read().strip(), 16)
-            # Display class: top byte == 0x03 (VGA, 3D controller, display controller)
-            if (class_code >> 16) != 0x03:
-                continue
-            with open(os.path.join(dev_dir, "vendor")) as f:
-                vendor_id = f.read().strip()
-        except (OSError, ValueError):
-            continue
-
+    # The scan itself (class 0x03, the vendor file) is bootc_shared.hardware,
+    # which XFCE also uses for the NVIDIA rule.
+    for pci_addr, vendor_id in hardware.display_devices(PCI_DEVICES):
         vendor_name = _GPU_VENDORS.get(vendor_id)
         if vendor_name and vendor_name not in seen_vendors:
             seen_vendors.add(vendor_name)
-            pci_addr = os.path.basename(dev_dir)
             results.append({"vendor": vendor_name, "pci_addr": pci_addr})
     return results
 

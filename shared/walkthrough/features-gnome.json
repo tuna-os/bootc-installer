@@ -15,7 +15,7 @@
     "disk_row": "yes",
     "disk_probe_failure": "yes",
     "requirements_check": "blocks (gate window)",
-    "connectivity_check": "blocks (connection-check step); the Wi-Fi page is not in the bundled recipe",
+    "connectivity_check": "blocks (connection-check step); probes the image's registry first; the Wi-Fi page is not in the bundled recipe",
     "filesystem_choice": "yes (list from the image)",
     "encryption_passphrase": "yes",
     "passphrase_confirmation": "yes",

@@ -1,10 +1,12 @@
-"""The shared catalog contract, read through this frontend's own parser.
+"""What this frontend does with the shared catalog reader.
 
 shared/catalog/fixtures/catalog.json is a small catalog that uses each rule
-of shared/catalog/README.md, and expected.json holds the answers. Every
-frontend reads the two files with its own code; none imports
-shared/catalog/resolve.py. A row that fails here is a recipe this frontend
-would write differently from the other four.
+of shared/catalog/README.md, and expected.json holds the answers. The
+reader is bootc_shared.catalog, which GNOME also uses; the test of the
+reader itself is tests/unit/test_shared_python_catalog.py at the repository
+root. This file is the XFCE half: the view that the pages read
+(core.Catalog, core.ImageLeaf), the bundled catalog, and the recipe that
+this frontend writes for each leaf on each machine.
 """
 
 import json
@@ -38,14 +40,6 @@ def _catalog(raw=RAW):
 
 def test_contract_version():
     assert EXPECTED["contract_version"] == 1
-
-
-@pytest.mark.parametrize("row", EXPECTED["search_paths"],
-                         ids=lambda row: "flatpak" if row["in_flatpak"] else "native")
-def test_search_paths(row):
-    paths = core.catalog_search_paths(row["in_flatpak"], row["xdg_config_home"],
-                                      bundled=("<bundled>",))
-    assert paths == row["paths"]
 
 
 def test_the_bundled_catalog_is_last_and_is_this_frontends_own():
@@ -113,17 +107,49 @@ def test_the_nvidia_variant_of_a_leaf_is_that_leaf():
     assert leaf is not None and leaf.imgref == row["imgref"]
 
 
-def test_nvidia_detection_reads_pci_display_devices(tmp_path):
-    def device(name, pci_class, vendor):
-        folder = tmp_path / name
-        folder.mkdir()
-        (folder / "class").write_text(pci_class + "\n")
-        (folder / "vendor").write_text(vendor + "\n")
+def test_this_frontend_reads_the_shared_reader_and_has_no_copy():
+    import inspect
 
-    device("0000:00:02.0", "0x030000", "0x8086")
-    # NVIDIA's audio function is not a display device.
-    device("0000:01:00.1", "0x040300", "0x10de")
-    assert core.has_nvidia_gpu(str(tmp_path)) is False
-    device("0000:01:00.0", "0x030200", "0x10de")
-    assert core.has_nvidia_gpu(str(tmp_path)) is True
-    assert core.has_nvidia_gpu(str(tmp_path / "missing")) is False
+    from bootc_shared import catalog as shared
+    from bootc_shared import hardware
+
+    assert core.shared_catalog is shared
+    assert core.resolve_flatpaks is shared.resolve_flatpaks
+    assert core.has_nvidia_gpu is hardware.has_nvidia_gpu
+    source = inspect.getsource(core)
+    # No second walk of the tree, and no second table of inherited keys.
+    assert '"children"' not in source
+    assert "_INHERITED" not in source
+    assert "shared_catalog.walk(" in source
+
+
+def test_the_harness_override_is_the_shared_one(monkeypatch, tmp_path):
+    monkeypatch.setenv("FISHERMAN_IMAGES_PATH", CATALOG_FILE)
+    assert core.images_json_paths()[0] == CATALOG_FILE
+    assert core.load_catalog().path == CATALOG_FILE
+    monkeypatch.delenv("FISHERMAN_IMAGES_PATH")
+    assert CATALOG_FILE not in core.images_json_paths()
+    assert tuple(core.images_json_paths()[-len(core.BUNDLED_CATALOGS):]) == core.BUNDLED_CATALOGS
+
+
+def test_a_wrong_type_in_a_catalog_does_not_reach_the_recipe():
+    """`"filesystem": 5` used to reach the recipe of this frontend."""
+    catalog = core.Catalog({"images": [
+        {"name": "Odd", "imgref": "r.example/odd:1", "filesystem": 5, "bootloader": 7,
+         "composefs": "yes", "needs_user_creation": "no", "image_type": None}]})
+    leaf = catalog.find("r.example/odd:1")
+    recipe = core.recipe_for_leaf(leaf, disk="/dev/vda", username="jo", password="pw")
+    assert recipe["filesystem"] == core.DEFAULT_FILESYSTEM
+    assert recipe.get("bootloader", "") == ""
+    assert recipe.get("composeFsBackend", False) is False
+    assert "user" in recipe
+
+
+def test_the_view_has_the_words_of_the_node():
+    catalog = core.Catalog({"images": [
+        {"imgref": "r.example/plain:1"},
+        {"name": "Atlas", "desc": "A desktop", "subtitle": 7, "imgref": "r.example/atlas:1"}]})
+    plain, atlas = catalog.leaves
+    # A leaf with no name above it still has a row label.
+    assert plain.breadcrumb == plain.label == "Plain"
+    assert (atlas.desc, atlas.subtitle, atlas.breadcrumb) == ("A desktop", "", "Atlas")

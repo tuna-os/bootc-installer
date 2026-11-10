@@ -16,12 +16,20 @@ def test_native_argv_uses_pkexec_and_reads_the_recipe_from_stdin():
     )
 
     assert argv == ["bash", "-c",
-                    'pkexec /usr/local/bin/fisherman - >"/tmp/fisherman.log" 2>&1; exit $?']
+                    'pkexec /usr/local/bin/fisherman - >/tmp/fisherman.log 2>&1; exit $?']
 
 
-def test_live_media_argv_uses_sudo():
+def test_live_media_argv_uses_sudo_that_does_not_ask():
+    """`sudo -n`, as the other four frontends: with no terminal, a sudo
+    that asks for a password would wait for ever."""
     argv = fisherman_runner.build_argv(in_flatpak=False, use_sudo=True, log_path="/l")
-    assert argv[-1].startswith("sudo /usr/local/bin/fisherman - ")
+    assert argv[-1] == "sudo -n /usr/local/bin/fisherman - >/l 2>&1; exit $?"
+
+
+def test_a_path_with_a_space_or_a_dollar_is_one_shell_word():
+    argv = fisherman_runner.build_argv(
+        in_flatpak=True, host_path="/home/a b/$x/fisherman", log_path="/home/a b/$x/log")
+    assert argv[-1] == ("pkexec '/home/a b/$x/fisherman' - >'/home/a b/$x/log' 2>&1; exit $?")
 
 
 def test_the_unprivileged_command_is_the_install_binary():
@@ -41,8 +49,8 @@ def test_flatpak_argv_runs_redirect_on_host():
 
     assert argv[:3] == ["flatpak-spawn", "--host", "bash"]
     command = argv[argv.index("-c") + 1]
-    assert 'pkexec "/private/fisherman" - ' in command
-    assert '>"/private/fisherman.log"' in command
+    assert 'pkexec /private/fisherman - ' in command
+    assert '>/private/fisherman.log' in command
 
 
 def test_native_staging_is_a_noop():
