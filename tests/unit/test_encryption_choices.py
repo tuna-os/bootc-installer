@@ -36,7 +36,8 @@ CLOSERS = {"(": ")", "[": "]", "{": "}"}
 # keeping a list: (file, the text that shows it reads the copy). Their order
 # and their passphrase / TPM logic are then the file's.
 LOADS_THE_FILE = {
-    "kde": [("frontends/kde/CMakeLists.txt", 'encryption-choices.json" TUNA_ENCRYPTION_CHOICES_JSON'),
+    "kde": [("frontends/kde/CMakeLists.txt",
+             'file(READ "${TUNA_SHARED_DIR}/recipe/encryption-choices.json" TUNA_ENCRYPTION_CHOICES_JSON)'),
             ("frontends/kde/src/recipe.cpp", '#include "encryption_choices.h"')],
     "xfce": [("frontends/xfce/tuna_installer_xfce/core.py",
               "fisherman_validate.load_choices()")],
@@ -101,12 +102,12 @@ def frontend_code(frontend):
 
 # fisherman's table of encryption types (data/encryption-choices.json,
 # generated from recipe.EncryptionChoices), copied byte for byte. GNOME and
-# XFCE read this file through bootc_shared.validate. The compiled frontends
-# that still carry a copy are held equal to it here.
+# XFCE read this file through bootc_shared.validate, and the KDE build reads
+# it from shared/ (TUNA_SHARED_DIR). The compiled frontends that still carry
+# a copy are held equal to it here.
 CHOICES = REPO / "shared" / "recipe" / "encryption-choices.json"
 CHOICES_UPSTREAM = REPO / "fisherman" / "data" / "encryption-choices.json"
 CHOICES_COPIES = {
-    "kde": REPO / "frontends" / "kde" / "encryption-choices.json",
     "cosmic": REPO / "frontends" / "cosmic" / "src" / "encryption-choices.json",
     "niri": REPO / "frontends" / "niri" / "installer" / "encryption-choices.json",
 }

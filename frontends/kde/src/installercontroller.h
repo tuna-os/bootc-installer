@@ -307,7 +307,11 @@ public:
     // Copies the in-window install log to the clipboard: the file outlives
     // the window, but a failed install pasted into a bug report usually
     // starts from this button (the GNOME BootcDialogOutput copy action).
+    // The copy is logForSharing(), not the pane's text.
     Q_INVOKABLE void copyLogToClipboard();
+    // The log as it may leave the installer: without the recovery key
+    // (#337). The log file gets the same form, line by line.
+    QString logForSharing() const;
     // Stops a running install. The progress step calls this only after the
     // user confirmed. SIGTERM to the wrapper's whole process group, SIGKILL
     // five seconds later if it is still there: fisherman runs as root and
@@ -367,6 +371,11 @@ public:
     // Blocks until the install process ends, at most `ms`. For tests, which
     // run without an event loop; true when no process is left.
     bool waitForInstall(int ms);
+    // The log file an install writes as it runs. startInstall() opens it and
+    // the end of the install closes it; they are public so the tests can
+    // hold the file to what it may contain.
+    void openLogFile();
+    void closeLogFile();
 
 Q_SIGNALS:
     void recipeChanged();
@@ -383,8 +392,6 @@ Q_SIGNALS:
     void installCompleted(int exitCode);
 
 private:
-    void openLogFile();
-    void closeLogFile();
     void appendLine(const QString &line, bool parse = true);
     // Parses one fisherman event and updates the progress properties.
     // Returns the text to show in the log pane: the event rendered for a

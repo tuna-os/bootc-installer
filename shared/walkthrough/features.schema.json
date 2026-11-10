@@ -60,6 +60,7 @@
         "progress_bar",
         "restart_from_done",
         "log_after_failure",
+        "recovery_key_not_in_log",
         "walkthrough",
         "e2e_gate"
       ],
@@ -261,6 +262,12 @@
           "minLength": 1,
           "pattern": "^[^|\\n]+$",
           "description": "Show log after failure"
+        },
+        "recovery_key_not_in_log": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Recovery key kept out of log files (#337)"
         },
         "walkthrough": {
           "type": "string",
