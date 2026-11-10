@@ -12,6 +12,7 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
 from . import core, gates, readiness
+from .i18n import _
 from . import locale as locale_checks
 from .pages import (
     PAGE_ORDER,
@@ -102,7 +103,7 @@ def terminate_process_group(pid):
 
 class InstallerWindow(Gtk.ApplicationWindow):
     def __init__(self, app, autoinstall_recipe=None):
-        super().__init__(application=app, title=f"{core.PRODUCT_NAME} Installer",
+        super().__init__(application=app, title=_("{product} Installer").format(product=core.PRODUCT_NAME),
                          default_width=640, default_height=520)
         # The running install, if any: spawn_fisherman's wrapper pid (the
         # group leader terminate_process_group() signals). None otherwise.
@@ -130,10 +131,10 @@ class InstallerWindow(Gtk.ApplicationWindow):
         outer.pack_start(self.stack, True, True, 0)
 
         nav = Gtk.Box(spacing=8, margin=12)
-        self.back_btn = Gtk.Button(label="Back")
-        self.next_btn = Gtk.Button(label="Next")
-        self.back_btn.connect("clicked", lambda *_: self.go(-1))
-        self.next_btn.connect("clicked", lambda *_: self.go(+1))
+        self.back_btn = Gtk.Button(label=_("Back"))
+        self.next_btn = Gtk.Button(label=_("Next"))
+        self.back_btn.connect("clicked", lambda *_args: self.go(-1))
+        self.next_btn.connect("clicked", lambda *_args: self.go(+1))
         nav.pack_end(self.next_btn, False, False, 0)
         nav.pack_end(self.back_btn, False, False, 0)
         outer.pack_end(nav, False, False, 0)
@@ -192,7 +193,7 @@ class InstallerWindow(Gtk.ApplicationWindow):
         # Branding copy on the two buttons that carry a product's voice:
         # leaving the welcome page and starting the install.
         branded = {"welcome": "welcome_button", "confirm": "confirm_button"}.get(name)
-        self.next_btn.set_label(core.BRANDING.text(branded) if branded else "Next")
+        self.next_btn.set_label(core.BRANDING.text(branded) if branded else _("Next"))
         ctx = self.next_btn.get_style_context()
         if name == "confirm":
             ctx.add_class("destructive-action")

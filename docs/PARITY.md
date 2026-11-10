@@ -155,7 +155,7 @@ not use `default_image` yet (#289).
 | Keyboard / language / timezone in the installed system | no | no | no | no | no |
 | Cancel a running install (#299) | Cancel button, window close and Ctrl+Q: each asks first; a cancelled page follows | Cancel button, does not ask | quit dialog | Cancel button, does not ask | Cancel button and window close: each asks first; a cancelled page follows |
 | `--autoinstall` | yes (the recipe is validated first) | no | no | no | yes (the recipe is validated first) |
-| Translatable UI | gettext, one domain (`bootc-installer`); branding copy stays in one language (#311) | no (#300) | no (#300) | no (#300) | no (#300) |
+| Translatable UI | gettext, one domain (`bootc-installer`); branding copy stays in one language (#311) | no (#300) | no (#300) | no (#300) | gettext, one domain (`tuna-installer-xfce`), lint test; no translation ships yet; branding copy stays in one language (#311) |
 | Progress bar from fisherman's protocol | yes | yes | yes | yes | yes |
 | Restart from the done page | yes | yes | yes | yes | yes |
 | Show log after failure | yes (recovery key redacted) | log path | log in page | log in page | log tail |

@@ -18,6 +18,8 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk  # noqa: E402
 
+from .i18n import _  # noqa: E402
+
 
 def slides_from_catalog(catalog):
     """One {title, description} slide per catalog root that has both.
@@ -56,8 +58,8 @@ class TourCarousel(Gtk.Box):
         pager.set_halign(Gtk.Align.CENTER)
         self.prev_btn = Gtk.Button(label="<")
         self.next_btn = Gtk.Button(label=">")
-        self.prev_btn.connect("clicked", lambda *_: self.show(self._index - 1))
-        self.next_btn.connect("clicked", lambda *_: self.show(self._index + 1))
+        self.prev_btn.connect("clicked", lambda *_args: self.show(self._index - 1))
+        self.next_btn.connect("clicked", lambda *_args: self.show(self._index + 1))
         self.position = Gtk.Label()
         pager.pack_start(self.prev_btn, False, False, 0)
         pager.pack_start(self.position, False, False, 0)
@@ -93,7 +95,8 @@ class TourCarousel(Gtk.Box):
             return
         self._index = max(0, min(len(self._slides) - 1, index))
         self.stack.set_visible_child_name(str(self._index))
-        self.position.set_text(f"{self._index + 1} of {len(self._slides)}")
+        self.position.set_text(_("{current} of {total}").format(
+            current=self._index + 1, total=len(self._slides)))
         self.prev_btn.set_sensitive(self._index > 0)
         self.next_btn.set_sensitive(self._index < len(self._slides) - 1)
 

@@ -27,7 +27,6 @@ The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 
 | Issue | Gap |
 |---|---|
-| #300 | The frontend has no translatable strings |
 | #292 | Language, keyboard and time zone do not reach the installed system |
 
 When you close one of these issues, remove its row.

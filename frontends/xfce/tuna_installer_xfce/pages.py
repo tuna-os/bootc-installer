@@ -12,6 +12,7 @@ from gi.repository import Gdk, GLib, Gtk, Pango
 
 from . import core, fisherman_validate, gates, locale as locale_checks
 from . import progress_parser, tour
+from .i18n import _
 from .logo import product_logo
 
 # The recipe's encryption types, in display order: fisherman's
@@ -57,7 +58,7 @@ def toggle_reveal(entry, *_args):
         Gtk.EntryIconPosition.SECONDARY,
         "view-conceal-symbolic" if shown else "view-reveal-symbolic")
     entry.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY,
-                                "Hide" if shown else "Show")
+                                _("Hide") if shown else _("Show"))
 
 
 def password_entry():
@@ -67,7 +68,7 @@ def password_entry():
     entry.set_icon_from_icon_name(Gtk.EntryIconPosition.SECONDARY,
                                   "view-reveal-symbolic")
     entry.set_icon_activatable(Gtk.EntryIconPosition.SECONDARY, True)
-    entry.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, "Show")
+    entry.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, _("Show"))
     entry.connect("icon-press", toggle_reveal)
     return entry
 
@@ -130,10 +131,11 @@ class WelcomePage(Page):
             self.pack_start(sub, False, False, 0)
         body = Gtk.Label(xalign=0)
         body.set_line_wrap(True)
-        body.set_text(
-            f"This assistant installs {core.PRODUCT_NAME} on this computer.\n\n"
+        body.set_text(_(
+            "This assistant installs {product} on this computer.\n\n"
             "You'll choose what to install and where; nothing is written to "
-            "any disk until you confirm on the final step.")
+            "any disk until you confirm on the final step.").format(
+                product=core.PRODUCT_NAME))
         self.pack_start(body, False, False, 0)
         # A first-run tour of the catalog's image families (tour.py), shown
         # where a newcomer actually waits. Below-minimum machines never
@@ -147,7 +149,7 @@ class WelcomePage(Page):
 
 
 class SourcePage(Page):
-    title = "What do you want to install?"
+    title = _("What do you want to install?")
 
     def __init__(self, win):
         super().__init__(win)
@@ -172,7 +174,7 @@ class SourcePage(Page):
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             box.pack_start(radio, False, False, 0)
             subline = Gtk.Label(xalign=0)
-            tagged = f"{sub}   [available offline]".strip() if offline else sub
+            tagged = (sub + "   " + _("[available offline]")).strip() if offline else sub
             subline.set_markup(
                 f"<small><tt>{GLib.markup_escape_text(tagged)}</tt></small>")
             subline.set_margin_start(26)
@@ -185,7 +187,7 @@ class SourcePage(Page):
         # The list is flat and the bundled catalog has 177 leaves: a filter
         # on the row label and the image reference.
         self.search = Gtk.SearchEntry()
-        self.search.set_placeholder_text("Search images")
+        self.search.set_placeholder_text(_("Search images"))
         self.search.connect("search-changed", self._on_search)
         self.pack_start(self.search, False, False, 0)
 
@@ -200,7 +202,7 @@ class SourcePage(Page):
             # "[available offline]" tag already says no download is needed.
             # On live media this row is the selection at the start.
             selected = add_radio(
-                core.BRANDING.text("welcome_install") + " (this system)",
+                core.BRANDING.text("welcome_install") + " " + _("(this system)"),
                 core.BRANDING.text("welcome_install_subtitle"), {"live": True}, True)
 
         def sort_key(leaf):
@@ -221,15 +223,15 @@ class SourcePage(Page):
         for radio in self.radios:
             radio.connect("toggled", self._on_toggled)
 
-        self.choose = Gtk.Label(label="Choose an image to continue.", xalign=0)
+        self.choose = Gtk.Label(label=_("Choose an image to continue."), xalign=0)
         self.choose.get_style_context().add_class("dim-label")
         self.choose.set_no_show_all(True)
         self.pack_start(self.choose, False, False, 0)
         if not self.radios:
             self.search.set_no_show_all(True)
-            self.pack_start(_warn_row(
+            self.pack_start(_warn_row(_(
                 "No image catalog found and this is not a live system. "
-                "Check that fisherman's images.json is installed."), False, False, 0)
+                "Check that fisherman's images.json is installed.")), False, False, 0)
         self.listbox.show_all()
         self._sync_hint()
 
@@ -266,7 +268,7 @@ def disk_label(disk):
 
 
 class DestinationPage(Page):
-    title = f"Where should {core.PRODUCT_NAME} be installed?"
+    title = _("Where should {product} be installed?").format(product=core.PRODUCT_NAME)
 
     def __init__(self, win):
         super().__init__(win)
@@ -292,17 +294,18 @@ class DestinationPage(Page):
             self.radios.append(radio)
         if not disks:
             self.listbox.pack_start(_warn_row(
-                f"Could not detect disks: {error}" if error else
-                "No disk of at least 50 GiB was found. Connect one to install to."),
+                _("Could not detect disks: {error}").format(error=error) if error else
+                _("No disk of at least 50 GiB was found. Connect one to install to.")),
                 False, False, 4)
         self.listbox.show_all()
         self._update_warning()
 
-    def _update_warning(self, *_):
+    def _update_warning(self, *_args):
         d = self.selected_disk()
         if d:
             self.warn_label.set_text(
-                f"Everything on {d['title']} ({d['path']}) will be erased.")
+                _("Everything on {title} ({path}) will be erased.").format(
+                    title=d["title"], path=d["path"]))
         self.warn.set_visible(d is not None)
 
     def can_continue(self):
@@ -323,7 +326,7 @@ class SetupPage(Page):
     # (shared/walkthrough/parity_report.py). With the old title, "Filesystem
     # and encryption", this page matched nothing and the parity matrix showed
     # XFCE as the one frontend without an encryption screen it plainly has.
-    title = "Disk encryption"
+    title = _("Disk encryption")
 
     def __init__(self, win):
         super().__init__(win)
@@ -352,9 +355,9 @@ class SetupPage(Page):
         self.pass2 = password_entry()
         for e in (self.pass1, self.pass2):
             e.connect("changed", self._sync)
-        grid.attach(Gtk.Label(label="Passphrase", xalign=0), 0, 0, 1, 1)
+        grid.attach(Gtk.Label(label=_("Passphrase"), xalign=0), 0, 0, 1, 1)
         grid.attach(self.pass1, 1, 0, 1, 1)
-        grid.attach(Gtk.Label(label="Confirm", xalign=0), 0, 1, 1, 1)
+        grid.attach(Gtk.Label(label=_("Confirm"), xalign=0), 0, 1, 1, 1)
         grid.attach(self.pass2, 1, 1, 1, 1)
         self.pass_grid = grid
         self.pack_start(grid, False, False, 0)
@@ -368,7 +371,7 @@ class SetupPage(Page):
         # image selection to take the filesystem from.
         self._entered = False
 
-        adv = Gtk.Expander(label="Advanced")
+        adv = Gtk.Expander(label=_("Advanced"))
         advbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin=6)
         self.fs_combo = Gtk.ComboBoxText()
         # Whether the person picked a filesystem. Until they do, the combo
@@ -382,16 +385,17 @@ class SetupPage(Page):
         self._load_filesystems(None)
         self.fs_combo.connect("changed", self._on_fs_changed)
         fsrow = Gtk.Box(spacing=8)
-        fsrow.pack_start(Gtk.Label(label="Filesystem", xalign=0), False, False, 0)
+        fsrow.pack_start(Gtk.Label(label=_("Filesystem"), xalign=0), False, False, 0)
         fsrow.pack_start(self.fs_combo, False, False, 0)
         advbox.pack_start(fsrow, False, False, 0)
-        self.subvol_check = Gtk.CheckButton(label="Create btrfs subvolumes (@, @home, @snapshots)")
+        self.subvol_check = Gtk.CheckButton(
+            label=_("Create btrfs subvolumes (@, @home, @snapshots)"))
         advbox.pack_start(self.subvol_check, False, False, 0)
         adv.add(advbox)
         self.pack_start(adv, False, False, 0)
         self._sync()
 
-    def _sync(self, *_):
+    def _sync(self, *_args):
         self.pass_grid.set_sensitive(core.needs_passphrase(self.enc_type()))
         self.win.refresh_nav()
         if getattr(self, "check", None) is not None and self._entered:
@@ -478,7 +482,7 @@ class SetupPage(Page):
 
 
 class IdentityPage(Page):
-    title = "Name this computer"
+    title = _("Name this computer")
 
     def __init__(self, win):
         super().__init__(win)
@@ -489,13 +493,13 @@ class IdentityPage(Page):
         self._hostname_syncing = False
         self.hostname = Gtk.Entry(text=core.BRANDING.default_hostname)
         self.hostname.connect("changed", self._on_hostname_changed)
-        grid.attach(Gtk.Label(label="Hostname", xalign=0), 0, 0, 1, 1)
+        grid.attach(Gtk.Label(label=_("Hostname"), xalign=0), 0, 0, 1, 1)
         grid.attach(self.hostname, 1, 0, 1, 1)
         self.hostname_problem = problem_label()
         grid.attach(self.hostname_problem, 1, 1, 1, 1)
         self.pack_start(grid, False, False, 0)
 
-        self.user_frame = Gtk.Frame(label="Your account", margin_top=8)
+        self.user_frame = Gtk.Frame(label=_("Your account"), margin_top=8)
         ug = Gtk.Grid(column_spacing=12, row_spacing=6, margin=10)
         self.username = Gtk.Entry()
         self.fullname = Gtk.Entry()
@@ -503,17 +507,17 @@ class IdentityPage(Page):
         # entry made an account nobody could sign in to (#295).
         self.password = password_entry()
         self.password2 = password_entry()
-        for i, (lbl, entry) in enumerate((("Username", self.username),
-                                          ("Full name", self.fullname),
-                                          ("Password", self.password),
-                                          ("Confirm password", self.password2))):
+        for i, (lbl, entry) in enumerate(((_("Username"), self.username),
+                                          (_("Full name"), self.fullname),
+                                          (_("Password"), self.password),
+                                          (_("Confirm password"), self.password2))):
             ug.attach(Gtk.Label(label=lbl, xalign=0), 0, i * 2, 1, 1)
             ug.attach(entry, 1, i * 2, 1, 1)
             entry.connect("changed", self._on_account_changed)
         self.username_problem = problem_label()
         ug.attach(self.username_problem, 1, 1, 1, 1)
         self.password_problem = problem_label()
-        self.password_problem.set_text("The passwords do not match.")
+        self.password_problem.set_text(_("The passwords do not match."))
         ug.attach(self.password_problem, 1, 7, 1, 1)
         self.user_frame.add(ug)
         self.pack_start(self.user_frame, False, False, 0)
@@ -524,14 +528,14 @@ class IdentityPage(Page):
         # here reaches the installed system. This expander also held a
         # Language and a Timezone combo whose values nothing read (#292).
         # The recipe has no field for the three yet (tuna-os/fisherman#405).
-        loc = Gtk.Expander(label="Keyboard layout (this session only)")
+        loc = Gtk.Expander(label=_("Keyboard layout (this session only)"))
         locbox = Gtk.Grid(column_spacing=12, row_spacing=6, margin=6)
         self.kb_combo = Gtk.ComboBoxText()
         for name in locale_checks.available_keyboard_layouts():
             self.kb_combo.append(name, name)
         self._select_combo(self.kb_combo, locale_checks.current_keyboard_layout())
         self.kb_combo.connect("changed", self._on_keyboard_changed)
-        locbox.attach(Gtk.Label(label="Keyboard", xalign=0), 0, 0, 1, 1)
+        locbox.attach(Gtk.Label(label=_("Keyboard"), xalign=0), 0, 0, 1, 1)
         locbox.attach(self.kb_combo, 1, 0, 1, 1)
         loc.add(locbox)
         self.locale_expander = loc
@@ -544,7 +548,7 @@ class IdentityPage(Page):
         self.problems = {}
         self.check = live_check(self._on_checked)
         for entry in (self.hostname, self.username):
-            entry.connect("changed", lambda *_: self.check.submit(self.partial_recipe()))
+            entry.connect("changed", lambda *_args: self.check.submit(self.partial_recipe()))
 
     def partial_recipe(self):
         partial = {"hostname": self.hostname.get_text()}
@@ -640,7 +644,7 @@ class ConfirmPage(Page):
         self.pack_start(self.body, False, False, 0)
         # confirm_warning names the disk that is about to be erased; on_enter
         # fills in the selected one's path, as KDE, COSMIC and Niri do.
-        self.warn_label = _warn_row(core.BRANDING.text("confirm_warning", disk="the selected disk"))
+        self.warn_label = _warn_row(core.BRANDING.text("confirm_warning", disk=_("the selected disk")))
         self.warn_text = self.warn_label.get_children()[1]
         self.pack_start(self.warn_label, False, False, 0)
         # Connectivity gate (defaults/conn_check.py): an install that must
@@ -651,18 +655,18 @@ class ConfirmPage(Page):
         # real window's async check can turn it False, so test stubs (no
         # check_connectivity) never gate.
         self.net_ok = True
-        self.net_row = _warn_row("Checking network connection…")
+        self.net_row = _warn_row(_("Checking network connection…"))
         self.net_row.set_no_show_all(True)
         self.pack_start(self.net_row, False, False, 0)
         netbar = Gtk.Box(spacing=8)
         netbar.set_halign(Gtk.Align.END)
         # Help to get online, not only a verdict (#301): the desktop's own
         # network tool, opened on the host.
-        self.net_settings = Gtk.Button(label="Network settings")
+        self.net_settings = Gtk.Button(label=_("Network settings"))
         self.net_settings.connect("clicked", self._on_network_settings)
         self.net_settings.set_no_show_all(True)
         netbar.pack_start(self.net_settings, False, False, 0)
-        self.net_recheck = Gtk.Button(label="Recheck")
+        self.net_recheck = Gtk.Button(label=_("Recheck"))
         self.net_recheck.connect("clicked", lambda *_args: self._check_network())
         self.net_recheck.set_no_show_all(True)
         netbar.pack_start(self.net_recheck, False, False, 0)
@@ -678,19 +682,19 @@ class ConfirmPage(Page):
         disk = r.get("disk") or self.win.pages["destination"].selected_disk()["path"]
         # The same rows, in the same order, as KDE's confirm step.
         rows = [
-            ("Target disk", disk),
-            ("Filesystem", r["filesystem"]),
-            ("Encryption", encryption_text(r["encryption"]["type"] or "none", "_label")),
-            ("Hostname", r["hostname"]),
-            ("Image", r.get("image") or self.win.pages["source"].live_image
-             or "this live system"),
+            (_("Target disk"), disk),
+            (_("Filesystem"), r["filesystem"]),
+            (_("Encryption"), encryption_text(r["encryption"]["type"] or "none", "_label")),
+            (_("Hostname"), r["hostname"]),
+            (_("Image"), r.get("image") or self.win.pages["source"].live_image
+             or _("this live system")),
         ]
         if r.get("targetImgref") and r["targetImgref"] != r.get("image"):
             # The image that updates follow, when it is not the one installed.
-            rows.append(("Updates from", r["targetImgref"]))
+            rows.append((_("Updates from"), r["targetImgref"]))
         if r.get("user", {}).get("username"):
-            rows.append(("User", r["user"]["username"]))
-        width = max(len(k) for k, _ in rows) + 2
+            rows.append((_("User"), r["user"]["username"]))
+        width = max(len(k) for k, _value in rows) + 2
         lines = [f"{k + ':':<{width}}{v}" for k, v in rows]
         self.summary.set_markup("<tt>" + GLib.markup_escape_text("\n".join(lines)) + "</tt>")
         selected = self.win.pages["destination"].selected_disk()
@@ -722,7 +726,7 @@ class ConfirmPage(Page):
         if not needs:
             self._set_net(True, "")
             return
-        self._set_net(True, "Checking network connection…")
+        self._set_net(True, _("Checking network connection…"))
         self.win.refresh_nav()
         # The registry of the image this install downloads is probed first.
         image = self.win.source_and_target()[0]
@@ -733,13 +737,13 @@ class ConfirmPage(Page):
 
         threading.Thread(target=probe, daemon=True).start()
 
-    NO_NETWORK = ("No network connection. The selected image must be "
-                  "downloaded. Open Network settings to connect, then press "
-                  "Recheck; or go back and choose an image marked "
-                  "[available offline].")
-    NO_NETWORK_TOOL = ("No network settings tool was found on this system. "
-                       "Connect with the network icon of the panel, then "
-                       "press Recheck.")
+    NO_NETWORK = _("No network connection. The selected image must be "
+                   "downloaded. Open Network settings to connect, then press "
+                   "Recheck; or go back and choose an image marked "
+                   "[available offline].")
+    NO_NETWORK_TOOL = _("No network settings tool was found on this system. "
+                        "Connect with the network icon of the panel, then "
+                        "press Recheck.")
 
     def _on_net_result(self, ok, offline):
         if ok:
@@ -803,7 +807,7 @@ class ProgressPage(Page):
         # (gates.ConfirmCancelDialog, through the window).
         actions = Gtk.Box(spacing=8)
         actions.set_halign(Gtk.Align.END)
-        self.cancel_btn = Gtk.Button(label="Cancel")
+        self.cancel_btn = Gtk.Button(label=_("Cancel"))
         self.cancel_btn.connect("clicked", self._on_cancel)
         actions.pack_start(self.cancel_btn, False, False, 0)
         self.pack_end(actions, False, False, 0)
@@ -937,15 +941,15 @@ class DonePage(Page):
         # with a Copy button (mirroring dialog_output.py) and shows only
         # on failure, when there is something to diagnose.
         actions = Gtk.Box(spacing=8)
-        self.reboot_btn = Gtk.Button(label=core.BRANDING.text("done_restart") or "Restart now")
+        self.reboot_btn = Gtk.Button(label=core.BRANDING.text("done_restart") or _("Restart now"))
         self.reboot_btn.get_style_context().add_class("suggested-action")
-        self.reboot_btn.connect("clicked", lambda *_: core.host_run(["systemctl", "reboot"]))
-        self.poweroff_btn = Gtk.Button(label="Power off")
+        self.reboot_btn.connect("clicked", lambda *_args: core.host_run(["systemctl", "reboot"]))
+        self.poweroff_btn = Gtk.Button(label=_("Power off"))
         self.poweroff_btn.connect("clicked", self.__on_poweroff)
-        self.log_btn = Gtk.Button(label="View install log")
+        self.log_btn = Gtk.Button(label=_("View install log"))
         self.log_btn.connect("clicked", self.__on_view_log)
         self.log_btn.set_no_show_all(True)
-        self.close_btn = Gtk.Button(label="Close")
+        self.close_btn = Gtk.Button(label=_("Close"))
         self.close_btn.connect("clicked", self.__on_close)
         actions.pack_end(self.reboot_btn, False, False, 0)
         actions.pack_end(self.poweroff_btn, False, False, 0)
@@ -953,22 +957,22 @@ class DonePage(Page):
         actions.pack_end(self.close_btn, False, False, 0)
         self.pack_end(actions, False, False, 0)
 
-    def __on_poweroff(self, *_):
+    def __on_poweroff(self, *_args):
         dialog = gates.PoweroffDialog(self.get_toplevel())
         dialog.run()
         dialog.destroy()
 
-    def __on_view_log(self, *_):
+    def __on_view_log(self, *_args):
         dialog = gates.InstallLogDialog(self.get_toplevel())
         dialog.run()
         dialog.destroy()
 
-    def __on_close(self, *_):
+    def __on_close(self, *_args):
         top = self.get_toplevel()
         if isinstance(top, Gtk.Window):
             top.close()
 
-    def __on_copy(self, *_):
+    def __on_copy(self, *_args):
         clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
         clipboard.set_text(self.recovery_key_label.get_text(), -1)
 
@@ -1025,16 +1029,16 @@ class DonePage(Page):
         if cancelled:
             self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
                 core.BRANDING.text("done_cancelled_title")) + "</b></big>")
-            self.body.set_text(
+            self.body.set_text(_(
                 "You stopped the installation. The target disk holds an "
                 "incomplete system: start the installer again to use it."
-                "\n\nFull log: " + core.install_log_path())
+                "\n\nFull log: {path}").format(path=core.install_log_path()))
         else:
             self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
                 core.BRANDING.text("done_failed_title")) + "</b></big>")
-            self.body.set_text(
-                "The last lines of the install log:\n\n" + log_tail +
-                "\n\nFull log: " + core.install_log_path())
+            self.body.set_text(_(
+                "The last lines of the install log:\n\n{log}"
+                "\n\nFull log: {path}").format(log=log_tail, path=core.install_log_path()))
 
 
 PAGE_ORDER = ["welcome", "source", "destination", "setup", "identity",

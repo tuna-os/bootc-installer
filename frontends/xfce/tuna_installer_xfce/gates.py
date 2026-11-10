@@ -37,6 +37,7 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, Gtk  # noqa: E402
 
 from . import core, locale as locale_checks
+from .i18n import _
 
 
 def required_gate(unmet=None):
@@ -61,7 +62,7 @@ def required_gate(unmet=None):
 
 def _gate_window(title, body):
     """A small blocking window: title, wrapped message, action row."""
-    win = Gtk.Window(title=f"{core.PRODUCT_NAME} Installer")
+    win = Gtk.Window(title=_("{product} Installer").format(product=core.PRODUCT_NAME))
     win.set_default_size(440, 200)
     win.set_position(Gtk.WindowPosition.CENTER)
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
@@ -101,12 +102,12 @@ def _gate_body(key):
 
 def make_ram_gate():
     """Below-minimum-memory gate (GNOME's BootcRamWindow)."""
-    win, actions = _gate_window("Not enough memory",
+    win, actions = _gate_window(_("Not enough memory"),
                                 _gate_body("requirements_ram"))
-    go = Gtk.Button(label="Continue anyway")
-    go.connect("clicked", lambda *_: _relaunch_ignoring("IGNORE_RAM"))
-    close = Gtk.Button(label="Close")
-    close.connect("clicked", lambda *_: win.close())
+    go = Gtk.Button(label=_("Continue anyway"))
+    go.connect("clicked", lambda *_args: _relaunch_ignoring("IGNORE_RAM"))
+    close = Gtk.Button(label=_("Close"))
+    close.connect("clicked", lambda *_args: win.close())
     actions.pack_start(close, False, False, 0)
     actions.pack_start(go, False, False, 0)
     return win
@@ -114,12 +115,12 @@ def make_ram_gate():
 
 def make_cpu_gate():
     """Below-minimum-CPU gate (GNOME's BootcCpuWindow)."""
-    win, actions = _gate_window("Not enough processing power",
+    win, actions = _gate_window(_("Not enough processing power"),
                                 _gate_body("requirements_cpu"))
-    go = Gtk.Button(label="Continue anyway")
-    go.connect("clicked", lambda *_: _relaunch_ignoring("IGNORE_CPU"))
-    close = Gtk.Button(label="Close")
-    close.connect("clicked", lambda *_: win.close())
+    go = Gtk.Button(label=_("Continue anyway"))
+    go.connect("clicked", lambda *_args: _relaunch_ignoring("IGNORE_CPU"))
+    close = Gtk.Button(label=_("Close"))
+    close.connect("clicked", lambda *_args: win.close())
     actions.pack_start(close, False, False, 0)
     actions.pack_start(go, False, False, 0)
     return win
@@ -128,13 +129,13 @@ def make_cpu_gate():
 def make_unsupported_gate():
     """No-UEFI gate (GNOME's BootcUnsupportedWindow): nothing to continue
     to, so the action is Power off."""
-    win, actions = _gate_window("Unsupported firmware",
+    win, actions = _gate_window(_("Unsupported firmware"),
                                 _gate_body("requirements_uefi"))
-    close = Gtk.Button(label="Close")
-    close.connect("clicked", lambda *_: win.close())
-    off = Gtk.Button(label="Power off")
+    close = Gtk.Button(label=_("Close"))
+    close.connect("clicked", lambda *_args: win.close())
+    off = Gtk.Button(label=_("Power off"))
     off.connect("clicked",
-                lambda *_: core.host_run(["systemctl", "poweroff"]))
+                lambda *_args: core.host_run(["systemctl", "poweroff"]))
     actions.pack_start(close, False, False, 0)
     actions.pack_start(off, False, False, 0)
     return win
@@ -155,7 +156,7 @@ class PoweroffDialog(Gtk.Dialog):
     """
 
     def __init__(self, parent):
-        super().__init__(title="Power off", transient_for=parent, modal=True)
+        super().__init__(title=_("Power off"), transient_for=parent, modal=True)
         self.set_default_size(360, 120)
         box = self.get_content_area()
         box.set_spacing(6)
@@ -163,22 +164,22 @@ class PoweroffDialog(Gtk.Dialog):
         box.set_margin_bottom(12)
         box.set_margin_start(12)
         box.set_margin_end(12)
-        self.row_poweroff = Gtk.Button(label="Power off")
-        self.row_reboot = Gtk.Button(label="Restart")
-        self.row_firmware_setup = Gtk.Button(label="Firmware setup")
+        self.row_poweroff = Gtk.Button(label=_("Power off"))
+        self.row_reboot = Gtk.Button(label=_("Restart"))
+        self.row_firmware_setup = Gtk.Button(label=_("Firmware setup"))
         self.row_poweroff.connect(
-            "clicked", lambda *_: core.host_run(["systemctl", "poweroff"]))
+            "clicked", lambda *_args: core.host_run(["systemctl", "poweroff"]))
         self.row_reboot.connect(
-            "clicked", lambda *_: core.host_run(["systemctl", "reboot"]))
+            "clicked", lambda *_args: core.host_run(["systemctl", "reboot"]))
         self.row_firmware_setup.connect(
-            "clicked", lambda *_: core.host_run(
+            "clicked", lambda *_args: core.host_run(
                 ["systemctl", "reboot", "--firmware-setup"]))
         for row in (self.row_poweroff, self.row_reboot,
                     self.row_firmware_setup):
             box.pack_start(row, False, False, 0)
         # GNOME hides the firmware row off UEFI; local check, same rule.
         self.row_firmware_setup.set_visible(locale_checks.is_uefi())
-        close = self.add_button("Close", Gtk.ResponseType.CLOSE)
+        close = self.add_button(_("Close"), Gtk.ResponseType.CLOSE)
         close.grab_default()
         self.show_all()
         # show_all() reveals the firmware row despite set_visible(False):
@@ -195,7 +196,7 @@ class InstallLogDialog(Gtk.Dialog):
     """
 
     def __init__(self, parent):
-        super().__init__(title="Install log", transient_for=parent,
+        super().__init__(title=_("Install log"), transient_for=parent,
                          modal=True)
         self.set_default_size(560, 360)
         box = self.get_content_area()
@@ -213,16 +214,16 @@ class InstallLogDialog(Gtk.Dialog):
                       errors="replace") as fh:
                 content = fh.read()
         except OSError:
-            content = "Log not available."
+            content = _("Log not available.")
         buf = self.log_view.get_buffer()
-        buf.set_text(content or "Log not available.")
+        buf.set_text(content or _("Log not available."))
         self.log_view.scroll_mark_onscreen(buf.get_insert())
         row = Gtk.Box(spacing=8)
         row.set_halign(Gtk.Align.END)
-        self.btn_copy = Gtk.Button(label="Copy")
+        self.btn_copy = Gtk.Button(label=_("Copy"))
         self.btn_copy.connect("clicked", self._on_copy)
-        close = Gtk.Button(label="Close")
-        close.connect("clicked", lambda *_: self.destroy())
+        close = Gtk.Button(label=_("Close"))
+        close.connect("clicked", lambda *_args: self.destroy())
         row.pack_start(self.btn_copy, False, False, 0)
         row.pack_start(close, False, False, 0)
         box.pack_start(row, False, False, 0)
@@ -233,7 +234,7 @@ class InstallLogDialog(Gtk.Dialog):
         start, end = buf.get_bounds()
         Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD).set_text(
             buf.get_text(start, end, False), -1)
-        self.btn_copy.set_label("Copied")
+        self.btn_copy.set_label(_("Copied"))
 
 
 class ConfirmExitDialog(Gtk.Dialog):
@@ -241,7 +242,7 @@ class ConfirmExitDialog(Gtk.Dialog):
     guard while fisherman runs (GNOME's __on_exit_clicked AlertDialog)."""
 
     def __init__(self, parent):
-        super().__init__(title="Exit Installer?", transient_for=parent,
+        super().__init__(title=_("Exit Installer?"), transient_for=parent,
                          modal=True)
         self.set_default_size(380, 120)
         box = self.get_content_area()
@@ -252,15 +253,15 @@ class ConfirmExitDialog(Gtk.Dialog):
         box.set_margin_end(12)
         body = Gtk.Label(xalign=0)
         body.set_line_wrap(True)
-        body.set_text("Any progress will be lost.")
+        body.set_text(_("Any progress will be lost."))
         box.pack_start(body, True, True, 0)
         row = Gtk.Box(spacing=8)
         row.set_halign(Gtk.Align.END)
-        cancel = Gtk.Button(label="Cancel")
-        cancel.connect("clicked", lambda *_: self.response(Gtk.ResponseType.CANCEL))
-        done = Gtk.Button(label="Exit")
+        cancel = Gtk.Button(label=_("Cancel"))
+        cancel.connect("clicked", lambda *_args: self.response(Gtk.ResponseType.CANCEL))
+        done = Gtk.Button(label=_("Exit"))
         done.get_style_context().add_class("destructive-action")
-        done.connect("clicked", lambda *_: self.response(Gtk.ResponseType.OK))
+        done.connect("clicked", lambda *_args: self.response(Gtk.ResponseType.OK))
         row.pack_start(cancel, False, False, 0)
         row.pack_start(done, False, False, 0)
         box.pack_start(row, False, False, 0)
@@ -273,7 +274,7 @@ class ConfirmCancelDialog(Gtk.Dialog):
     half-way, so the safe answer is the default."""
 
     def __init__(self, parent):
-        super().__init__(title="Cancel the installation?", transient_for=parent,
+        super().__init__(title=_("Cancel the installation?"), transient_for=parent,
                          modal=True)
         self.set_default_size(400, 120)
         box = self.get_content_area()
@@ -284,14 +285,14 @@ class ConfirmCancelDialog(Gtk.Dialog):
         box.set_margin_end(12)
         body = Gtk.Label(xalign=0)
         body.set_line_wrap(True)
-        body.set_text("The installation stops and the disk is left "
-                      "incomplete. You can start again afterwards.")
+        body.set_text(_("The installation stops and the disk is left "
+                        "incomplete. You can start again afterwards."))
         box.pack_start(body, True, True, 0)
         row = Gtk.Box(spacing=8)
         row.set_halign(Gtk.Align.END)
-        self.keep_btn = Gtk.Button(label="Continue installing")
+        self.keep_btn = Gtk.Button(label=_("Continue installing"))
         self.keep_btn.connect("clicked", lambda *_a: self.response(Gtk.ResponseType.CANCEL))
-        self.stop_btn = Gtk.Button(label="Cancel installation")
+        self.stop_btn = Gtk.Button(label=_("Cancel installation"))
         self.stop_btn.get_style_context().add_class("destructive-action")
         self.stop_btn.connect("clicked", lambda *_a: self.response(Gtk.ResponseType.OK))
         row.pack_start(self.keep_btn, False, False, 0)

@@ -133,6 +133,23 @@ def _running_install(win, argv=("sleep", "30")):
     return pid
 
 
+def _group_members(pgid):
+    """The live (not zombie) processes of process group `pgid`."""
+    members = []
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        try:
+            with open(f"/proc/{entry}/stat") as stream:
+                fields = stream.read().rsplit(")", 1)[1].split()
+        except (OSError, IndexError):
+            continue
+        state, group = fields[0], int(fields[2])
+        if group == pgid and state not in ("Z", "X"):
+            members.append(int(entry))
+    return members
+
+
 def _shows(win):
     return win.stack.get_visible_child_name()
 
@@ -179,7 +196,8 @@ def test_a_confirmed_cancel_kills_the_group_and_shows_the_cancelled_page(
     # group goes, not only the wrapper.
     pid = _running_install(win, ("bash", "-c", "sleep 30; exit $?"))
     try:
-        time.sleep(0.2)
+        assert _pump_until(lambda: len(_group_members(pid)) == 2, seconds=5), \
+            "the wrapper and its child are both in the group"
         assert win.request_cancel(confirm=lambda: True) is True
         assert _pump_until(lambda: _shows(win) == "done"), "no result page"
         done = win.pages["done"]
@@ -188,13 +206,9 @@ def test_a_confirmed_cancel_kills_the_group_and_shows_the_cancelled_page(
         assert done.headline.get_text() != core.BRANDING.text("done_failed_title")
         assert not done.reboot_btn.get_visible()
         assert done.close_btn.get_visible()
-        # Nothing of the group is left.
-        try:
-            os.killpg(pid, 0)
-            alive = True
-        except OSError:
-            alive = False
-        assert not alive
+        # Nothing of the group is left running: the wrapper's child went
+        # with it. (A zombie that nobody has reaped yet is not running.)
+        assert _pump_until(lambda: not _group_members(pid), seconds=5), _group_members(pid)
     finally:
         app.terminate_process_group(pid)
         win.destroy()

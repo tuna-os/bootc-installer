@@ -31,7 +31,7 @@
     "locale_installed": "no",
     "cancel_install": "Cancel button and window close: each asks first; a cancelled page follows",
     "autoinstall": "yes (the recipe is validated first)",
-    "translatable": "no (#300)",
+    "translatable": "gettext, one domain (`tuna-installer-xfce`), lint test; no translation ships yet; branding copy stays in one language (#311)",
     "progress_bar": "yes",
     "restart_from_done": "yes",
     "log_after_failure": "log tail",

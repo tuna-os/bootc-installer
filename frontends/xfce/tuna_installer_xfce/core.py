@@ -11,6 +11,7 @@ import stat
 import subprocess
 
 from tuna_installer_xfce import branding, fisherman_probe, fisherman_validate
+from tuna_installer_xfce.i18n import _
 
 IN_FLATPAK = os.path.exists("/.flatpak-info")
 
@@ -273,7 +274,7 @@ def has_tpm():
     BOOTC_INSTALLER_FAKE_TPM is honoured by fisherman itself, and a capture
     can point BOOTC_INSTALLER_FAKE_PROBE at a fixture with a usable TPM.
     """
-    result, _ = probe()
+    result, _error = probe()
     return fisherman_probe.tpm_usable(result) if result else False
 
 
@@ -284,14 +285,14 @@ def is_live():
     system; fisherman rejects an empty image anywhere else. This frontend
     used to ask `bootc status` and read /proc/cmdline itself, inside its
     Flatpak sandbox. False when the probe failed."""
-    result, _ = probe()
+    result, _error = probe()
     return fisherman_probe.is_live(result) if result else False
 
 
 def live_image():
     """The booted image on live media (live.live_image); "" otherwise or
     when bootc could not name it."""
-    result, _ = probe()
+    result, _error = probe()
     return fisherman_probe.live_image(result) if result else ""
 
 
@@ -299,14 +300,14 @@ def offline_images():
     """Image refs in the host's offline stores (probe's offline.images), for
     the "[available offline]" tag. fisherman exposes those stores to the
     install itself when the recipe leaves additionalImageStores out."""
-    result, _ = probe()
+    result, _error = probe()
     return set(fisherman_probe.offline_images(result)) if result else set()
 
 
 def unmet_requirements():
     """fisherman's system.unmet ("ram", "cpu", "uefi"); empty when the probe
     failed, so a failed probe never warns."""
-    result, _ = probe()
+    result, _error = probe()
     return fisherman_probe.unmet_requirements(result) if result else []
 
 
@@ -840,7 +841,7 @@ def recipe_problems(recipe):
     rules before it touches a disk.
     """
     if not isinstance(recipe.get("disk"), str) or not recipe["disk"].strip():
-        return ["The recipe names no installation disk."]
+        return [_("The recipe names no installation disk.")]
     try:
         result = fisherman_validate.run(fisherman_command("validate-full"), recipe)
     except (fisherman_validate.ValidateError, StageError):
@@ -849,7 +850,7 @@ def recipe_problems(recipe):
              for problem in fisherman_validate.problems(result)]
     lines = [line for line in lines if line]
     if not lines and result.get("valid") is False:
-        lines = ["fisherman did not accept the recipe."]
+        lines = [_("fisherman did not accept the recipe.")]
     return lines
 
 
