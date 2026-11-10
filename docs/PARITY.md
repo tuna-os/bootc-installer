@@ -39,6 +39,7 @@ claimed a render that nobody had wired up.
 | `encryption_tpm2_luks_description` | no (the page cannot select this type) | radio row description | dropdown description | list row subtitle | caption under the radio |
 | `encryption_tpm2_luks_passphrase_label` | confirm summary row | radio row, confirm row | dropdown entry, confirm row | list row, confirm row | radio, confirm summary |
 | `encryption_tpm2_luks_passphrase_description` | subtitle of the TPM switch | radio row description | dropdown description | list row subtitle | caption under the radio |
+| `filesystem_zfs_label` | filesystem picker entry, confirm row | no (offers no ZFS) | dropdown entry, confirm row | list row, confirm row | combo entry, confirm summary |
 | `confirm_title` | page header | step heading | page title | heading | page title |
 | `confirm_subtitle` | header subtitle | italic label, hidden | page subtitle | label, hidden | label, hidden |
 | `confirm_body` | dim label, hidden | label, hidden | body, hidden | label, hidden | label, hidden |

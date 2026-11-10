@@ -69,6 +69,7 @@ KNOWN_GAPS = {
     "kde": {
         "welcome_install": "modules/welcome hardcodes its two body sentences",
         "welcome_install_subtitle": "modules/welcome hardcodes its two body sentences",
+        "filesystem_zfs_label": "the disk step offers no ZFS (src/recipe.cpp has no zfs choice)",
     },
     "cosmic": {
         "welcome_install": "the welcome page has no install row to label",
