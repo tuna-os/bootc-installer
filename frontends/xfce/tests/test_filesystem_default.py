@@ -16,7 +16,7 @@ from gi.repository import Gtk  # noqa: E402,F401
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tuna_installer_xfce import pages  # noqa: E402
+from tuna_installer_xfce import app, core, pages  # noqa: E402
 
 
 class _Leaf:
@@ -38,6 +38,9 @@ class _Win:
         pass
 
     def selected_leaf(self):
+        return self.leaf
+
+    def layout_source(self):
         return self.leaf
 
 
@@ -114,3 +117,46 @@ def test_composefs_reaches_the_live_check():
     page = pages.SetupPage(_Win(leaf))
     assert page.partial_recipe()["composeFsBackend"] is True
     assert "composeFsBackend" not in pages.SetupPage(_Win(_Leaf("xfs"))).partial_recipe()
+
+
+def test_install_this_system_takes_the_live_images_layout():
+    """"Install this system" on composefs-native live media (tunaOS grouper):
+    the operator recipe's ext4 is selected, not this frontend's xfs, and the
+    live check sees composefs (#343)."""
+    live = core.LiveSystem({"bootloader": "systemd", "composeFsBackend": True,
+                            "filesystem": "ext4"})
+    page = pages.SetupPage(_Win(live))
+    page.on_enter()
+    assert _offered(page) == ["ext4"]
+    assert page.default_filesystem(live.filesystem) == "ext4"
+    assert page.partial_recipe() == {"filesystem": "ext4", "encryption": {"type": "none"},
+                                     "composeFsBackend": True}
+
+
+def test_the_window_sends_the_live_layout_to_fisherman(monkeypatch, tmp_path):
+    """The whole path: "install this system" selected, the operator recipe
+    on disk, and the recipe the window builds for fisherman."""
+    import json
+    import types
+
+    operator = tmp_path / "recipe.json"
+    operator.write_text(json.dumps({"bootloader": "systemd", "composeFsBackend": True,
+                                    "filesystem": "ext4"}))
+    monkeypatch.setattr(core, "operator_recipe_path", lambda in_flatpak=None: str(operator))
+    source = types.SimpleNamespace(selection=lambda: {"live": True})
+    win = types.SimpleNamespace(pages={"source": source}, needs_user_creation=lambda: False,
+                                refresh_nav=lambda: None)
+    win.selected_leaf = lambda: app.InstallerWindow.selected_leaf(win)
+    win.layout_source = lambda: app.InstallerWindow.layout_source(win)
+    setup = pages.SetupPage(win)
+    setup.on_enter()
+    identity = types.SimpleNamespace(get_text=lambda: "")
+    win.pages.update(
+        setup=setup,
+        destination=types.SimpleNamespace(selected_disk=lambda: {"path": "/dev/vda"}),
+        identity=types.SimpleNamespace(hostname=identity, username=identity,
+                                       fullname=identity, password=identity))
+    recipe = app.InstallerWindow.build_recipe(win)
+    assert recipe["image"] == ""
+    assert (recipe["bootloader"], recipe["composeFsBackend"], recipe["filesystem"]) == (
+        "systemd", True, "ext4")

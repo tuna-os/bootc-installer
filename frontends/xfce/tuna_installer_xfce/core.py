@@ -746,6 +746,38 @@ def account_groups(path=None):
         shared_account.read_operator_recipe(path or operator_recipe_path()))
 
 
+class LiveSystem:
+    """"Install this system" on live media, laid out the way the ISO builder
+    probed the running image: the operator recipe's `bootloader`,
+    `composeFsBackend` and `filesystem`. The GNOME frontend reads the same
+    three keys (bootc_installer/utils/processor.py). fisherman does not find
+    the backend from the image, so without them a composefs-native image
+    (tunaOS grouper) goes down bootc's ostree path and fails "bootupd is
+    required for ostree-based installs" (#343).
+
+    It has ImageLeaf's backend attributes, so the setup page and the recipe
+    read either one the same way."""
+
+    imgref = ""
+
+    def __init__(self, operator_recipe):
+        recipe = operator_recipe if isinstance(operator_recipe, dict) else {}
+        bootloader = recipe.get("bootloader")
+        filesystem = recipe.get("filesystem")
+        self.bootloader = bootloader if isinstance(bootloader, str) else ""
+        self.composefs = recipe.get("composeFsBackend") is True
+        self.filesystem = filesystem if isinstance(filesystem, str) else ""
+        # As for a leaf that names one `filesystem`: that one is the choice.
+        self.filesystems = [self.filesystem] if self.filesystem else []
+
+
+def live_system(path=None):
+    """The running live image's install layout (LiveSystem) from the
+    operator recipe; an absent or unreadable file gives fisherman's
+    defaults."""
+    return LiveSystem(shared_account.read_operator_recipe(path or operator_recipe_path()))
+
+
 # --- disks --------------------------------------------------------------------
 
 def candidate_disks():

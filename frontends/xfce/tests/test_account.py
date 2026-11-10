@@ -65,6 +65,9 @@ class _Win:
     def selected_leaf(self):
         return None
 
+    def layout_source(self):
+        return None
+
 
 def _identity(monkeypatch):
     monkeypatch.setattr(pages, "live_check", lambda on_result: types.SimpleNamespace(

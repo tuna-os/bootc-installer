@@ -405,7 +405,7 @@ class SetupPage(Page):
             self.check.submit(self.partial_recipe())
 
     def partial_recipe(self):
-        leaf = self.win.selected_leaf()
+        leaf = self.win.layout_source()
         enc = {"type": self.enc_type()}
         if core.needs_passphrase(enc["type"]):
             enc["passphrase"] = self.pass1.get_text()
@@ -465,7 +465,7 @@ class SetupPage(Page):
             self._sync()
 
     def on_enter(self):
-        leaf = self.win.selected_leaf()
+        leaf = self.win.layout_source()
         key = getattr(leaf, "imgref", "") if leaf is not None else ""
         if not self._entered or key != self._fs_leaf:
             # A different image: its filesystems and its default apply. The
