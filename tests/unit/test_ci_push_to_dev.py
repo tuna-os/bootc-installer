@@ -2,10 +2,12 @@
 
 Five screenshot workflows and walkthrough.yml each carried a copy of the
 same commit, rebase and retry step. These tests keep the copies from coming
-back, and hold the two properties that the release flow depends on: each
+back, and hold the properties that the release flow depends on: each
 message has `[skip ci]` (promote.yml does not take such a commit as a
-candidate, docs/RELEASE.md), and a frontend workflow adds paths in its own
-tree.
+candidate, docs/RELEASE.md), a frontend workflow adds paths in its own
+tree, and the push goes through the DEV_PUSH_DEPLOY_KEY deploy key, the one
+identity the "tier-a: required checks" ruleset lets land a commit that has
+no check runs (a GITHUB_TOKEN push is rejected with GH013).
 """
 
 import os
@@ -20,7 +22,8 @@ USE = re.compile(
     r"        with:\n"
     r"(?:          working-directory: (?P<wd>\S+)\n)?"
     r"          paths: (?P<paths>.+)\n"
-    r"          message: \"(?P<message>.+)\"\n")
+    r"          message: \"(?P<message>.+)\"\n"
+    r"          ssh-key: \$\{\{ secrets\.DEV_PUSH_DEPLOY_KEY \}\}\n")
 CALLERS = {
     "screenshots-gnome.yml": (None, "docs/screenshots", "docs(gnome): refresh GUI screenshots [skip ci]"),
     "screenshots-kde.yml": ("frontends/kde", "docs/screenshots", "docs(kde): refresh GUI screenshots [skip ci]"),
@@ -45,6 +48,8 @@ class PushToDevTest(unittest.TestCase):
         self.assertIn("git rebase -q origin/dev", text)
         self.assertIn("git push origin HEAD:dev", text)
         self.assertIn("could not push after 6 attempts", text)
+        self.assertIn('git remote set-url --push origin "git@github.com:${GITHUB_REPOSITORY}.git"', text)
+        self.assertIn("StrictHostKeyChecking=yes", text)
         # The inputs reach the script through the environment only.
         script = text.split("      run: |\n")[1]
         self.assertNotIn("${{", script)

@@ -37,7 +37,7 @@ jobs:
     name: Screenshots (xfce)
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: read
     defaults:
       run:
         working-directory: frontends/xfce
@@ -83,3 +83,4 @@ jobs:
           working-directory: frontends/xfce
           paths: docs/screenshots
           message: "docs(xfce): refresh GUI screenshots [skip ci]"
+          ssh-key: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}
