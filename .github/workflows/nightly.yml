@@ -68,7 +68,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - run: pip install pytest
+      # PyYAML: tests/unit/test_promote_gate.py reads the workflow files.
+      - run: pip install pytest pyyaml==6.0.2
 
       - run: pytest tests/unit/ -v --tb=short
 
