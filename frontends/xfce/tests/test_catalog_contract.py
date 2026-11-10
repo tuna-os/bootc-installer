@@ -178,3 +178,17 @@ def test_zfs_carries_the_experimental_opt_in():
     assert core.build_recipe(disk="/dev/vda", filesystem="zfs")["experimental"] == ["zfs"]
     assert "experimental" not in core.build_recipe(disk="/dev/vda", filesystem="xfs")
     assert core.experimental_for("btrfs") == {}
+
+
+def test_the_override_follows_the_fixture(monkeypatch):
+    """FISHERMAN_IMAGES_PATH, for each case of expected.json: the file is
+    first, then the shared list, then this frontend's bundled catalogs."""
+    override = EXPECTED["override"]
+    assert override["env"] == "FISHERMAN_IMAGES_PATH"
+    for case in override["cases"]:
+        monkeypatch.setenv(override["env"], case["value"])
+        monkeypatch.setenv("XDG_CONFIG_HOME", case["xdg_config_home"])
+        monkeypatch.setattr(core, "IN_FLATPAK", case["in_flatpak"])
+        paths = core.images_json_paths()
+        assert paths[:len(case["paths"]) - 1] == case["paths"][:-1], case
+        assert tuple(paths[len(case["paths"]) - 1:]) == core.BUNDLED_CATALOGS

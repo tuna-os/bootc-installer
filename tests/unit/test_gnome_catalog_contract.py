@@ -255,3 +255,16 @@ def test_the_processor_finds_metadata_through_the_shared_reader():
     for broken in ([None], [{"children": None}], None):
         with pytest.raises(ValueError):
             Processor.find_metadata(broken, {}, "r/a:1")
+
+
+def test_the_override_follows_the_fixture():
+    """FISHERMAN_IMAGES_PATH (shared/catalog/README.md): the search path
+    that GNOME's image page reads, for each case of expected.json. The
+    bundled catalog follows the list."""
+    override = EXPECTED["override"]
+    assert override["env"] == catalog.OVERRIDE_ENV == "FISHERMAN_IMAGES_PATH"
+    for case in override["cases"]:
+        environ = {override["env"]: case["value"], "XDG_CONFIG_HOME": case["xdg_config_home"]}
+        assert catalog.default_search_paths(environ, "/home/user", flatpak=case["in_flatpak"]) \
+            == case["paths"][:-1], case
+        assert case["paths"][-1] == "<bundled>"

@@ -25,6 +25,15 @@ type expectedCatalog struct {
 		XDGConfigHome string   `json:"xdg_config_home"`
 		Paths         []string `json:"paths"`
 	} `json:"search_paths"`
+	Override struct {
+		Env   string `json:"env"`
+		Cases []struct {
+			Value         string   `json:"value"`
+			InFlatpak     bool     `json:"in_flatpak"`
+			XDGConfigHome string   `json:"xdg_config_home"`
+			Paths         []string `json:"paths"`
+		} `json:"cases"`
+	} `json:"override"`
 	DefaultSelection []struct {
 		Branding string  `json:"branding_default_image"`
 		Catalog  string  `json:"catalog_default_image"`
@@ -95,6 +104,22 @@ func TestSharedCatalogSearchPaths(t *testing.T) {
 	for _, path := range catalogSearchPaths(true, "/cfg")[:2] {
 		if !strings.HasPrefix(path, "/run/host/etc/") {
 			t.Errorf("%s is not below /run/host in a Flatpak", path)
+		}
+	}
+}
+
+// FISHERMAN_IMAGES_PATH, for each case of the shared fixture: its file
+// first when it names one, then the search path as without it.
+func TestSharedCatalogOverride(t *testing.T) {
+	_, want := loadShared(t)
+	if want.Override.Env != imagesPathEnv || len(want.Override.Cases) == 0 {
+		t.Fatalf("the fixture's override is %q with %d cases; this backend reads %q",
+			want.Override.Env, len(want.Override.Cases), imagesPathEnv)
+	}
+	for _, c := range want.Override.Cases {
+		got := catalogPathsWith(c.Value, c.InFlatpak, c.XDGConfigHome, "<bundled>")
+		if !reflect.DeepEqual(got, c.Paths) {
+			t.Errorf("override=%q flatpak=%v\n got %v\nwant %v", c.Value, c.InFlatpak, got, c.Paths)
 		}
 	}
 }

@@ -294,7 +294,7 @@ QString registryHost(const QString &imgref)
     return first.section(QLatin1Char(':'), 0, 0);
 }
 
-QStringList searchPaths(bool flatpak, const QString &xdgConfigHome)
+QStringList searchPaths(bool flatpak, const QString &xdgConfigHome, const QString &override)
 {
     // The system file is first: an ISO that ships a catalog must get that
     // catalog, and a file in a home directory must not replace it. In a
@@ -303,18 +303,21 @@ QStringList searchPaths(bool flatpak, const QString &xdgConfigHome)
     QString xdg = xdgConfigHome;
     while (xdg.size() > 1 && xdg.endsWith(QLatin1Char('/')))
         xdg.chop(1);
-    return {
-        etc + QStringLiteral("/bootc-installer/images.json"),
-        etc + QStringLiteral("/tuna-installer/images.json"),
-        xdg + QStringLiteral("/bootc-installer/images.json"),
-        flatpak ? QStringLiteral("/app/share/fisherman/data/images.json")
-                : QStringLiteral("/usr/share/fisherman/data/images.json"),
-    };
+    QStringList paths;
+    if (!override.isEmpty())
+        paths << override;
+    paths << etc + QStringLiteral("/bootc-installer/images.json")
+          << etc + QStringLiteral("/tuna-installer/images.json")
+          << xdg + QStringLiteral("/bootc-installer/images.json")
+          << (flatpak ? QStringLiteral("/app/share/fisherman/data/images.json")
+                      : QStringLiteral("/usr/share/fisherman/data/images.json"));
+    return paths;
 }
 
 QStringList defaultSearchPaths(bool flatpak)
 {
-    return searchPaths(flatpak, xdgConfigHome(QProcessEnvironment::systemEnvironment()));
+    const QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    return searchPaths(flatpak, xdgConfigHome(env), env.value(QString::fromLatin1(IMAGES_ENV)));
 }
 
 Catalog parse(const QByteArray &json)
@@ -353,14 +356,11 @@ Catalog loadFirst(const QStringList &paths)
 
 Catalog load()
 {
-    const QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    const QString override = env.value(QString::fromLatin1(IMAGES_ENV));
-    if (!override.isEmpty())
-        return loadFirst({override});
     // Flatpak detection without fisherman.h: the sentinel file. imagecatalog
     // stays dependency-free so the tests link only QtCore-adjacent units.
-    const bool flatpak = QFile::exists(QStringLiteral("/.flatpak-info"));
-    return loadFirst(searchPaths(flatpak, xdgConfigHome(env)));
+    // The IMAGES_ENV file is first; a missing or broken one does not stop
+    // the search (it used to: the override was the only file tried).
+    return loadFirst(defaultSearchPaths(QFile::exists(QStringLiteral("/.flatpak-info"))));
 }
 
 } // namespace imagecatalog

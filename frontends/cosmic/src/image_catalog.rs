@@ -112,6 +112,27 @@ pub fn search_paths(in_flatpak: bool, xdg_config_home: &str, bundled: &[&str]) -
     paths
 }
 
+/// The file of a test harness or an operator (`shared/catalog/README.md`,
+/// "The override for a test or an operator"): tried before the system
+/// file, and a missing or broken one does not stop the search.
+pub const OVERRIDE_ENV: &str = "FISHERMAN_IMAGES_PATH";
+
+/// [`search_paths`] with the [`OVERRIDE_ENV`] file in front when it names
+/// one. An empty value is no override.
+pub fn search_paths_with(
+    override_path: &str,
+    in_flatpak: bool,
+    xdg_config_home: &str,
+    bundled: &[&str],
+) -> Vec<String> {
+    let mut paths = Vec::new();
+    if !override_path.is_empty() {
+        paths.push(override_path.to_string());
+    }
+    paths.extend(search_paths(in_flatpak, xdg_config_home, bundled));
+    paths
+}
+
 /// The catalog in the package: the Flatpak's copy, then a native install's.
 pub const BUNDLED: [&str; 2] = [
     "/app/share/fisherman/data/images.json",
@@ -127,14 +148,16 @@ pub fn etc_dir() -> &'static str {
     }
 }
 
-/// [`search_paths`] for this process. An empty `XDG_CONFIG_HOME` means
+/// [`search_paths_with`] for this process: the [`OVERRIDE_ENV`] file
+/// first, when it names one. An empty `XDG_CONFIG_HOME` means
 /// `$HOME/.config`.
 pub fn manifest_paths() -> Vec<String> {
     let config_home = std::env::var("XDG_CONFIG_HOME")
         .ok()
         .filter(|v| !v.is_empty())
         .unwrap_or_else(|| format!("{}/.config", std::env::var("HOME").unwrap_or_default()));
-    search_paths(
+    search_paths_with(
+        &std::env::var(OVERRIDE_ENV).unwrap_or_default(),
         std::path::Path::new("/.flatpak-info").exists(),
         &config_home,
         &BUNDLED,
@@ -619,11 +642,48 @@ mod tests {
             );
         }
         // This process: the system file first, the package last.
+        if std::env::var_os(OVERRIDE_ENV).is_some() {
+            return;
+        }
         let paths = manifest_paths();
         assert_eq!(paths[0], "/etc/bootc-installer/images.json");
         assert_eq!(paths[1], "/etc/tuna-installer/images.json");
         assert!(paths[2].ends_with("/bootc-installer/images.json"));
         assert_eq!(paths[3..], BUNDLED.map(String::from));
+    }
+
+    #[test]
+    fn the_override_is_the_shared_one() {
+        // FISHERMAN_IMAGES_PATH, for each case of expected.json: its file
+        // first when it names one, then the search path as without it.
+        let expected: Value = serde_json::from_str(&fixture("expected.json")).unwrap();
+        let over = &expected["override"];
+        assert_eq!(over["env"], OVERRIDE_ENV);
+        let cases = over["cases"].as_array().unwrap();
+        assert!(cases.len() >= 3);
+        for case in cases {
+            assert_eq!(
+                search_paths_with(
+                    case["value"].as_str().unwrap(),
+                    case["in_flatpak"].as_bool().unwrap(),
+                    case["xdg_config_home"].as_str().unwrap(),
+                    &["<bundled>"],
+                ),
+                strings(&case["paths"]),
+                "{case}"
+            );
+        }
+        // A missing override file does not stop the search; a catalog is
+        // read from it.
+        let dir = std::env::temp_dir().join(format!("cosmic-override-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let good = dir.join("images.json");
+        std::fs::write(&good, fixture("catalog.json")).unwrap();
+        let missing = dir.join("absent.json").display().to_string();
+        let paths = search_paths_with(&missing, false, "/nonexistent", &[good.to_str().unwrap()]);
+        assert_eq!(paths[0], missing);
+        assert!(load_first(&paths).is_some());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

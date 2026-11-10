@@ -101,15 +101,20 @@ QString registryHost(const QString &imgref);
 // file, its legacy name, the user's file, then the packaged catalog. `etc`
 // is /run/host/etc in a Flatpak. The packaged catalog is fisherman's
 // images.json, at /app/share in the Flatpak and /usr/share natively.
-QStringList searchPaths(bool flatpak, const QString &xdgConfigHome);
+//
+// `override` is the value of IMAGES_ENV: when it names a file, that file
+// is tried first and the search goes on after it (shared/catalog/README.md,
+// "The override for a test or an operator").
+QStringList searchPaths(bool flatpak, const QString &xdgConfigHome,
+                        const QString &override = QString());
 QStringList defaultSearchPaths(bool flatpak);
 
 // Parses one manifest document. Pure: no filesystem, no environment.
 Catalog parse(const QByteArray &json);
 
-// Loads the catalog: IMAGES_ENV alone when set, else the first of
-// defaultSearchPaths() that is a catalog. A file that is missing or that
-// does not parse does not stop the search. No catalog at all is an empty
+// Loads the catalog: the first of defaultSearchPaths() that is a catalog,
+// with the IMAGES_ENV file in front when it names one. A file that is
+// missing or that does not parse does not stop the search. No catalog at all is an empty
 // one, not an error: live media and branding-default installs go on.
 Catalog load();
 // The same, over an explicit list (tests).

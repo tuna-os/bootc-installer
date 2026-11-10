@@ -121,6 +121,7 @@ private slots:
     // The shared catalog contract (shared/catalog/README.md): this parser
     // reads fixtures/catalog.json to the answers in fixtures/expected.json.
     void catalogContractSearchPaths();
+    void catalogContractOverride();
     void catalogContractDefaultSelection();
     void catalogContractLeaves();
     void catalogContractRecipes();
@@ -1849,6 +1850,38 @@ void BackendTest::catalogContractSearchPaths()
         QCOMPARE(imagecatalog::searchPaths(flatpak, xdg), want);
         QCOMPARE(imagecatalog::searchPaths(flatpak, xdg + QLatin1Char('/')), want);
     }
+}
+
+void BackendTest::catalogContractOverride()
+{
+    // FISHERMAN_IMAGES_PATH, for each case of expected.json: its file first
+    // when it names one, then the search path as without it.
+    const QJsonObject override = sharedExpected().value(QStringLiteral("override")).toObject();
+    const QJsonArray cases = override.value(QStringLiteral("cases")).toArray();
+    if (cases.isEmpty())
+        QSKIP("shared/catalog/fixtures is absent");
+    QCOMPARE(override.value(QStringLiteral("env")).toString(), QString::fromLatin1(imagecatalog::IMAGES_ENV));
+    for (const QJsonValue &v : cases) {
+        const QJsonObject row = v.toObject();
+        const bool flatpak = row.value(QStringLiteral("in_flatpak")).toBool();
+        QStringList want = strings(row.value(QStringLiteral("paths")));
+        QCOMPARE(want.last(), QStringLiteral("<bundled>"));
+        want.last() = flatpak ? QStringLiteral("/app/share/fisherman/data/images.json")
+                              : QStringLiteral("/usr/share/fisherman/data/images.json");
+        QCOMPARE(imagecatalog::searchPaths(flatpak, row.value(QStringLiteral("xdg_config_home")).toString(),
+                                           row.value(QStringLiteral("value")).toString()),
+                 want);
+    }
+    // load(): a missing override file does not stop the search, and a good
+    // one is the catalog.
+    QTemporaryDir dir;
+    qputenv(imagecatalog::IMAGES_ENV, dir.filePath(QStringLiteral("absent.json")).toUtf8());
+    QCOMPARE(imagecatalog::defaultSearchPaths(false).first(), dir.filePath(QStringLiteral("absent.json")));
+    QCOMPARE(imagecatalog::defaultSearchPaths(false).size(), 5);
+    qputenv(imagecatalog::IMAGES_ENV, QByteArray(CATALOG_FIXTURES_DIR "/catalog.json"));
+    QVERIFY(!imagecatalog::load().leaves.isEmpty());
+    qunsetenv(imagecatalog::IMAGES_ENV);
+    QCOMPARE(imagecatalog::defaultSearchPaths(false).size(), 4);
 }
 
 void BackendTest::catalogContractDefaultSelection()
