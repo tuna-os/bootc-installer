@@ -4,13 +4,15 @@ from gettext import gettext as _
 
 from gi.repository import Adw, Gtk
 
+from bootc_installer.utils.account import DEFAULT_GROUPS as _DEFAULT_GROUPS
 from bootc_installer.utils.field_check import FieldCheck
 from bootc_installer.utils.user_step import user_step_shows
 
 logger = logging.getLogger("Installer::User")
 
-# Groups added to every created user.
-_DEFAULT_GROUPS = ["wheel", "docker", "incus-admin", "libvirt", "dialout"]
+# The groups of the first account are the shared list
+# (shared/account/groups.json, kept in utils/account.py). The Processor
+# applies the operator's list from the system recipe.
 
 
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/default-users.ui")
@@ -104,7 +106,7 @@ class BootcDefaultUsers(Adw.Bin):
                 "username": username,
                 "fullname": self.fullname_entry.get_text().strip(),
                 "password": self.password_entry.get_text(),
-                "groups": _DEFAULT_GROUPS,
+                "groups": list(_DEFAULT_GROUPS),
             }
         }
 

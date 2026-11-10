@@ -78,12 +78,72 @@ def test_branding_default_image_is_selected_when_the_catalog_names_none():
     assert page.btn_next.get_sensitive()
 
 
-def test_the_catalog_default_wins_over_the_branding_default():
+def test_the_branding_default_wins_over_the_catalog_default():
+    """shared/catalog/README.md: the branding's `default_image` first, then
+    the catalog's. GNOME had the two the other way round."""
     controller = SimpleNamespace(recipe={'branding': {'default_image': 'localhost/product:latest'}})
     with patch.object(image, '_IMAGE_TREE', _tree()), \
          patch.object(image, '_DEFAULT_IMAGE', 'localhost/first:latest'):
         page = image.BootcDefaultImage(controller, {}, 'image', {})
+    assert page.get_finals()['selected_image'] == 'localhost/product:latest'
+
+
+def test_the_catalog_default_is_used_when_the_branding_default_is_not_a_leaf():
+    controller = SimpleNamespace(recipe={'branding': {'default_image': 'localhost/absent:latest'}})
+    with patch.object(image, '_IMAGE_TREE', _tree()), \
+         patch.object(image, '_DEFAULT_IMAGE', 'localhost/first:latest'):
+        page = image.BootcDefaultImage(controller, {}, 'image', {})
     assert page.get_finals()['selected_image'] == 'localhost/first:latest'
+
+
+def test_the_page_reads_the_contract_fixture():
+    """The real page, on shared/catalog/fixtures/catalog.json: each row
+    hands on what utils/catalog.py resolves, and the account flag follows
+    the selected leaf (default: an account)."""
+    import copy
+    import json
+    import pathlib
+
+    from bootc_installer.utils import catalog
+
+    fixtures = pathlib.Path(__file__).resolve().parents[2] / 'shared' / 'catalog' / 'fixtures'
+    manifest = json.loads((fixtures / 'catalog.json').read_text())
+    expected = json.loads((fixtures / 'expected.json').read_text())
+    loaded = copy.deepcopy(manifest)
+    image._resolve_aliases(loaded, loaded['aliases'])
+    controller = SimpleNamespace(recipe={})
+    with patch.object(image, '_MANIFEST', loaded), \
+         patch.object(image, '_IMAGE_TREE', loaded['images']), \
+         patch.object(image, '_DEFAULT_IMAGE', loaded['default_image']):
+        page = image.BootcDefaultImage(controller, {}, 'image', {})
+    rows = page._BootcDefaultImage__leaf_rows
+    assert [row[2] for row in rows] == [entry['imgref'] for entry in expected['leaves']]
+    # The catalog's default_image is selected at the start.
+    assert page.get_finals()['selected_image'] == manifest['default_image']
+    for row, entry in zip(rows, expected['leaves'], strict=True):
+        row[1].set_active(True)
+        finals = page.get_finals()
+        leaf = entry['leaf']
+        assert finals['selected_image'] == leaf['imgref']
+        assert page.selected_needs_user_creation is leaf['needs_user_creation']
+        assert finals['needs_user_creation'] is leaf['needs_user_creation']
+        assert finals.get('flatpaks') == leaf['flatpaks']
+        assert ('flatpaks' in finals) is (leaf['flatpaks'] is not None)
+        assert finals['supported_filesystems'] == leaf['filesystems']
+        assert finals['default_filesystem'] == leaf['filesystem']
+        assert finals['composefs_backend'] is leaf['composefs']
+        assert finals['bootloader'] == leaf['bootloader']
+        assert finals['flatpak_var_path'] == leaf['flatpak_var_path']
+        assert finals['default_hostname'] == leaf['default_hostname']
+        assert finals['nvidia_imgref'] == leaf['nvidia_imgref']
+        assert finals['pretty_name'] == leaf['product']
+        expected_finals = catalog.leaf_finals(catalog.find(manifest, leaf['imgref']))
+        assert {k: v for k, v in finals.items() if k not in ('icon', 'carousel')} == \
+            {k: v for k, v in expected_finals.items() if k not in ('icon', 'carousel')}
+    page.row_custom.set_expanded(True)
+    page.image_url_entry.set_text('localhost/custom-system:latest')
+    assert page.selected_needs_user_creation is True
+    assert 'flatpaks' not in page.get_finals()
 
 
 def test_a_branding_default_that_the_catalog_lacks_selects_nothing():

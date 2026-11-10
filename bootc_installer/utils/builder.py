@@ -17,7 +17,6 @@
 import logging
 import os
 import subprocess
-import sys
 from gettext import gettext as _
 
 from bootc_installer.defaults.conn_check import BootcDefaultConnCheck
@@ -59,21 +58,6 @@ class Builder:
             logger.info("VANILLA_FAKE is set, skipping the installation process.")
 
         self.__window.recipe = self.recipe
-
-        # here we create a temporary file to store the output of the commands
-        # the log path is defined in the recipe
-        if "log_file" not in self.__recipe.raw:
-            logger.critical(_("Missing 'log_file' in the recipe."))
-            sys.exit(1)
-
-        log_path = self.__recipe.raw["log_file"]
-
-        if not os.path.exists(log_path):
-            try:
-                open(log_path, "a").close()
-            except OSError:
-                logger.warning(_("failed to create log file: %s") % log_path)
-                logging.warning(_("No log will be stored."))
 
         for i, (key, step) in enumerate(self.__recipe.raw["steps"].items()):
             logger.info(_("(%s) Processing step...") % key)

@@ -62,8 +62,14 @@ class TestRecipeValidation(unittest.TestCase):
         loader = _load_with_custom_recipe(_VALID_RECIPE)
         self.assertEqual(loader.raw["distro_name"], "TestOS")
 
-    def test_missing_log_file_fails(self):
-        bad = {k: v for k, v in _VALID_RECIPE.items() if k != "log_file"}
+    def test_missing_log_file_is_allowed(self):
+        """`log_file` is not required: nothing wrote to that file (#312)."""
+        recipe = {k: v for k, v in _VALID_RECIPE.items() if k != "log_file"}
+        loader = _load_with_custom_recipe(recipe, exist_override=lambda p: p == "/fake/recipe.json")
+        self.assertNotIn("log_file", loader.raw)
+
+    def test_missing_steps_fails(self):
+        bad = {k: v for k, v in _VALID_RECIPE.items() if k != "steps"}
         with self.assertRaises(SystemExit):
             _load_with_custom_recipe(bad, exist_override=lambda p: p == "/fake/recipe.json")
 
@@ -149,8 +155,8 @@ class TestNoRecipeFallback(unittest.TestCase):
              patch("bootc_installer.utils.recipe.os.environ.get",
                    side_effect=lambda k, d=None: "1" if k in ("BOOTC_DEMO", "BOOTC_PREVIEW_SCREEN") else d):
             loader = RecipeLoader()
-        self.assertIn("log_file", loader.raw)
-        self.assertEqual(loader.raw["log_file"], "/tmp/bootc-installer-demo.log")
+        self.assertEqual(loader.raw["steps"], {})
+        self.assertNotIn("log_file", loader.raw)
 
     def test_preview_mode_continues_without_recipe(self):
         with patch.dict(os.environ, {"BOOTC_PREVIEW_SCREEN": "1"}, clear=False), \

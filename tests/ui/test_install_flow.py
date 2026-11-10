@@ -71,6 +71,8 @@ class _FakeSession:
         self.terminated = 0
         self.cancel_requests = 0
         self.scrubbed = []
+        # What fisherman wrote that the poller has not read yet.
+        self.pending_lines = []
         _FakeSession.created.append(self)
 
     def launch(self):
@@ -88,7 +90,8 @@ class _FakeSession:
         return []
 
     def drain_remaining(self):
-        return []
+        lines, self.pending_lines = self.pending_lines, []
+        return lines
 
     def scrub_log(self, known_key=""):
         self.scrubbed.append(known_key)
@@ -387,6 +390,48 @@ class TestExitCodes:
         assert title == "Installation failed"
         assert "password prompt" not in subtitle
         assert subtitle
+
+    def test_the_error_event_is_the_reason_on_the_failure_page(self, flow, caplog):
+        """#64: fisherman's `error` event is shown, and the installer's own
+        log gets the exit code, the reason and the end of the output."""
+        import logging
+
+        flow.visit_confirm()
+        flow.click_install()
+        key = "abcd-efgh-ijkl-mnop"
+        flow.sessions[-1].pending_lines = [
+            '{"type":"step","step":1,"total_steps":9,"step_name":"Preparing disk"}\n',
+            '{"type":"recovery_key","key":"%s"}\n' % key,
+            "fatal: sfdisk failed to partition disk\n",
+            '{"type":"error","message":"target disk vanished","code":"","field":""}\n',
+        ]
+        with caplog.at_level(logging.ERROR):
+            flow.finish(1)
+        assert flow.done.page_header.title == "Installation failed"
+        # The event wins over the "fatal:" line of the log.
+        assert flow.done.page_header.subtitle == "Error: target disk vanished"
+        assert flow.progress.last_error["message"] == "target disk vanished"
+        logged = "\n".join(record.getMessage() for record in caplog.records)
+        assert "fisherman exited with code 1" in logged
+        assert "target disk vanished" in logged
+        assert "sfdisk failed to partition disk" in logged
+        assert key not in logged
+
+    def test_an_error_event_of_one_install_does_not_reach_the_next(self, flow):
+        flow.visit_confirm()
+        flow.click_install()
+        flow.sessions[-1].pending_lines = ['{"type":"error","message":"first failure"}\n']
+        flow.finish(1)
+        assert flow.done.page_header.subtitle == "Error: first failure"
+        flow.done.btn_retry.emit("clicked")
+        _pump()
+        assert flow.progress.last_error is None
+        flow.finish(1)
+        assert "first failure" not in flow.done.page_header.subtitle
+
+    def test_126_keeps_its_own_line_when_there_is_no_event(self, flow):
+        title, subtitle = self._fail_with(flow, 126)
+        assert "password prompt was closed" in subtitle
 
     def test_success_shows_the_installed_page(self, flow):
         title, _subtitle = self._fail_with(flow, 0)

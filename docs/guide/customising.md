@@ -6,9 +6,9 @@ The installer reads them from the host when it starts.
 
 | Path | What it changes |
 |---|---|
-| `/etc/bootc-installer/images.json` | The image catalog. It replaces the catalog in the Flatpak. |
+| `/etc/bootc-installer/images.json` | The image catalog. It replaces the catalog in the Flatpak, and the catalog of a user. |
 | `/etc/bootc-installer/recipe.json` | The default recipe values (the sys-recipe). |
-| `$XDG_CONFIG_HOME/bootc-installer/images.json` | The catalog for one user. Use it to develop and test. |
+| `$XDG_CONFIG_HOME/bootc-installer/images.json` | The catalog for one user. Use it to develop and test. The installer reads it only when `/etc/bootc-installer/images.json` is not there. |
 | `/etc/bootc-installer/branding.json` | The product name, the text, the artwork and the video on the progress screen. Refer to [`shared/branding/README.md`](../../shared/branding/README.md). |
 | `/etc/bootc-installer/live-iso-mode` | Offline mode for a live ISO. Refer to [Live ISO](../live-iso.md). |
 
@@ -21,7 +21,6 @@ The installer then shows only your images.
 ```json
 {
   "default_image": "ghcr.io/my-org/my-image:stable",
-  "fallback_flatpaks": [],
   "images": [
     {
       "name": "My Distro",
@@ -49,12 +48,11 @@ This example for Bluefin shows only Bluefin variants, and selects LTS first:
 ```json
 {
   "default_image": "ghcr.io/ublue-os/bluefin:lts",
-  "fallback_flatpaks": [],
   "images": [
     {
       "name": "Bluefin",
       "icon": "/usr/share/pixmaps/bluefin.png",
-      "flatpaks": "https://raw.githubusercontent.com/projectbluefin/common/refs/heads/main/system_files/bluefin/usr/share/ublue-os/homebrew/system-flatpaks.Brewfile",
+      "flatpaks": ["org.mozilla.firefox", "org.gnome.Console"],
       "needs_user_creation": true,
       "children": [
         {
@@ -90,7 +88,6 @@ These values are the defaults, and the user can change each of them.
 {
   "hostname": "bluefin",
   "selinuxDisabled": false,
-  "unifiedStorage": true,
   "flatpaks": [
     "org.mozilla.firefox",
     "org.gnome.Console"
@@ -105,8 +102,7 @@ This example for Bazzite sets btrfs and TPM2 LUKS as the defaults, and sets the 
   "hostname": "bazzite",
   "filesystem": "btrfs",
   "btrfsSubvolumes": true,
-  "encryption": { "type": "tpm2-luks" },
-  "unifiedStorage": true
+  "encryption": { "type": "tpm2-luks" }
 }
 ```
 
@@ -150,9 +146,9 @@ A child gets these fields from the nearest parent group:
 
 | Field | Description |
 |---|---|
-| `flatpaks` | A URL to a Flatpak list, or an array of app IDs. |
+| `flatpaks` | An array of app IDs, or `@name` for a list in `aliases`. The installer does not download a list: for a URL it writes no `flatpaks`, and fisherman applies its default. |
 | `icon` | A `resource:///…/images/name.svg` path, an absolute path or an XDG icon name. |
-| `needs_user_creation` | Show the account screen. The default is `false`. |
+| `needs_user_creation` | Show the account screen. The default is `true`. Set `false` for an image that makes the account at first boot. |
 | `composefs` | Use the composefs backend. |
 | `bootloader` | `"grub2"` or `"systemd"`. |
 | `filesystem` | `"xfs"` or `"btrfs"`. |

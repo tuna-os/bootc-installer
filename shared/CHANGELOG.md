@@ -12,6 +12,18 @@ sure that it does. Do not edit the hash of an old entry: add an entry.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-10: recipe schema, `override` and `unifiedStorage`
+
+- Added: `override`, a list that accepts `too_small` and `uefi`. It names
+  the target checks that the caller accepts as failed. The fisherman with
+  the target checks reads it (tuna-os/fisherman#429). An older fisherman
+  ignores it, so no frontend writes it before the pin moves.
+- Changed: the description of `unifiedStorage`. fisherman does not pass a
+  bootc flag for it, and it refuses `true` (tuna-os/fisherman#366). A
+  frontend leaves the field out. The type did not change.
+
+Recipe schema sha256: `4b30f4bb1d4a81ed2ab5ba38725d3f69e2d97e55c4f233075be530c70fe534f5`
+
 ## 2026-11-10: this changelog starts
 
 - `README.md` and this file are new. No contract changed.

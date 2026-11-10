@@ -127,7 +127,7 @@ not use `default_image` yet (#289).
 | Feature | GNOME | KDE | COSMIC | Niri | XFCE |
 |---|---|---|---|---|---|
 | Image catalog choice (fisherman `images.json`) | yes (tree, search) | yes (disk step, breadcrumb rows, search) | yes (search, breadcrumb rows, a custom image row) | yes (flat list) | yes (flat list, product and channel in each row, search) |
-| Image selected at start, off live media | catalog `default_image`, then branding `default_image` if the catalog has it; else you must pick | branding `default_image`, then the catalog's; else you must pick | branding default_image, then the catalog's, else none: you must pick | first name in the alphabet (#289) | branding `default_image`, then catalog `default_image`; else you must pick |
+| Image selected at start, off live media | branding `default_image`, then catalog `default_image`, each only if the catalog has it; else you must pick | branding `default_image`, then the catalog's; else you must pick | branding default_image, then the catalog's, else none: you must pick | first name in the alphabet (#289) | branding `default_image`, then catalog `default_image`; else you must pick |
 | Catalog fields that reach the recipe | all | all of the contract (shared/catalog) | all contract fields (shared fixture test) | image, filesystem, bootloader, composefs, hostname | all |
 | Live-ISO install without download (live media from `fisherman probe --json`) | yes | yes | yes | yes | yes |
 | Offline image stores (found by fisherman on the host) | yes | yes | yes | yes | yes |
@@ -147,9 +147,9 @@ not use `default_image` yet (#289).
 | Recovery key shown after a `tpm2-luks` install | yes | yes | yes | yes | yes |
 | Hostname | generated, editable on confirm | no (branding default, shown on confirm) | field | field on confirm | field, first value from the image |
 | User account, when the image needs one | yes | yes | yes | yes | yes |
-| Default when the catalog does not set `needs_user_creation` (#288) | no account | account | account | account | account |
+| Default when the catalog does not set `needs_user_creation` (#288) | account | account | account | account | account |
 | Account password | twice, reveal, strength | twice, reveal, strength | twice, reveal | twice, no reveal (#295) | twice, reveal |
-| Account groups | wheel and developer groups, operator override | shared list, operator override | shared list, operator override | wheel (#302) | wheel, sudo and developer groups, operator override |
+| Account groups | wheel, sudo and developer groups (`shared/account/`), operator override | shared list, operator override | shared list, operator override | wheel (#302) | wheel, sudo and developer groups, operator override |
 | Phone companion (QR) | yes (TLS on the LAN address only); shows when the image needs an account, and fills the account page | no | no (removed, #293) | no | no |
 | Keyboard / language / timezone (#292) | pages exist; not in the bundled recipe | pickers on welcome, marked as not applied (#292) | applied to the live session; each page says so | applied to the live session (#291) | keyboard only, for this session; says so |
 | Keyboard / language / timezone in the installed system | no | no | no | no | no |
@@ -158,7 +158,7 @@ not use `default_image` yet (#289).
 | Translatable UI | gettext, one domain (`bootc-installer`); branding copy stays in one language (#311) | strings marked (qsTr, tr); no catalog ships (#300) | one tr() shim and a lint; no catalog ships (#300) | no (#300) | gettext, one domain (`tuna-installer-xfce`), lint test; no translation ships yet; branding copy stays in one language (#311) |
 | Progress bar from fisherman's protocol | yes | yes | yes | yes | yes |
 | Restart from the done page | yes | yes | yes | yes | yes |
-| Show log after failure | yes (recovery key redacted) | log path | log in page | log in page | log tail |
+| Show log after failure | yes (recovery key redacted); the page shows fisherman's `error` event | log path | log in page | log in page | log tail |
 | Screenshot walkthrough + parity report | yes | yes | yes | yes | yes |
 | End-to-end gate (real install and boot) | yes | yes | yes | yes | yes |
 
