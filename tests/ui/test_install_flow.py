@@ -612,3 +612,30 @@ class TestRecoveryKeyInTheLog:
         flow.progress.feed_line('{"type":"recovery_key","key":"%s"}' % self._KEY)
         session = flow.finish(1)
         assert session.scrubbed == [self._KEY]
+
+
+class TestAutoinstallRefusal:
+    def test_an_unreadable_recipe_starts_nothing_and_says_why(self, flow, tmp_path):
+        """#317. The page said only "Installation failed"."""
+        path = str(tmp_path / "absent.json")
+        flow.window._BootcWindow__autoinstall_recipe = path
+
+        flow.window._start_autoinstall()
+
+        assert flow.sessions == []
+        assert _wait(lambda: _current_page(flow.window) is flow.done)
+        assert flow.done.page_header.title == "Installation failed"
+        assert path in flow.done.page_header.subtitle
+
+    def test_a_recipe_fisherman_rejects_starts_nothing_and_says_why(self, flow, tmp_path):
+        recipe = tmp_path / "auto.json"
+        recipe.write_text('{"disk": "/dev/vdb", "hostname": "Bad_Name"}')
+        flow.window._BootcWindow__autoinstall_recipe = str(recipe)
+        result = {"protocol_version": 1, "valid": False, "errors": [
+            {"field": "hostname", "code": "no_such_code", "message": "hostname is not valid"}]}
+
+        with patch("bootc_installer.core.fisherman_validate.run", return_value=result):
+            flow.window._start_autoinstall()
+
+        assert flow.sessions == []
+        assert flow.done.page_header.subtitle == "hostname is not valid"
