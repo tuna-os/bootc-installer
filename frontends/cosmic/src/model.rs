@@ -36,6 +36,16 @@ pub struct Recipe {
     /// The catalog leaf's `image_type`; left out for `bootc`.
     #[serde(default, skip_serializing_if = "is_bootc")]
     pub image_type: String,
+    /// The catalog leaf's `extras`: the desktop steps fisherman does after
+    /// the install. `None` leaves the key out, and fisherman looks the image
+    /// up in the catalog that it finds; a staged fisherman has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extras: Option<Extras>,
+    /// The experimental features the user accepted: `zfs` with a zfs
+    /// filesystem, which fisherman refuses without it. Set by
+    /// [`Recipe::accept_experimental`] before the recipe goes out.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub experimental: Vec<String>,
     /// Embedded OCI stores for offline installs (spec §4B).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub additional_image_stores: Vec<String>,
@@ -49,6 +59,31 @@ pub struct Recipe {
     /// Built only by [`user_block`], so the groups are always the same.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user: Option<User>,
+}
+
+/// The recipe's `extras` (shared/catalog/README.md, "Desktop extras"): the
+/// four switches, each written, so `{}` in a catalog is four times false.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Extras {
+    #[serde(default)]
+    pub print_services: bool,
+    #[serde(default, rename = "oemSetup")]
+    pub oem_setup: bool,
+    #[serde(default)]
+    pub audio_names: bool,
+    #[serde(default)]
+    pub boot_splash: bool,
+}
+
+/// The `experimental` list for a filesystem: fisherman refuses `zfs`
+/// without `"experimental": ["zfs"]` (zfs_experimental).
+pub fn experimental_for(filesystem: &str) -> Vec<String> {
+    if filesystem == "zfs" {
+        vec!["zfs".to_string()]
+    } else {
+        Vec::new()
+    }
 }
 
 /// The recipe's `user` block, as XFCE writes it.
@@ -167,6 +202,12 @@ impl Recipe {
         self.flatpaks.clone_from(&leaf.flatpaks);
         self.flatpak_var_path.clone_from(&leaf.flatpak_var_path);
         self.image_type.clone_from(&leaf.image_type);
+        self.extras.clone_from(&leaf.extras);
+    }
+
+    /// Writes `experimental` for the filesystem the recipe has now.
+    pub fn accept_experimental(&mut self) {
+        self.experimental = experimental_for(&self.filesystem);
     }
 
     /// An image that is not in the catalog (a custom reference, or the
@@ -181,6 +222,7 @@ impl Recipe {
         self.flatpaks = None;
         self.flatpak_var_path.clear();
         self.image_type.clear();
+        self.extras = None;
         // The user's filesystem stays, unless only the leaf before could
         // offer it.
         if !crate::image_catalog::OWN_FILESYSTEMS.contains(&self.filesystem.as_str()) {
@@ -227,6 +269,8 @@ impl Default for Recipe {
             flatpaks: None,
             flatpak_var_path: String::new(),
             image_type: String::new(),
+            extras: None,
+            experimental: Vec::new(),
             additional_image_stores: Vec::new(),
             distro_id: crate::branding::NEUTRAL_ID.into(),
             selinux_disabled: false,
@@ -299,11 +343,27 @@ mod tests {
     }
 
     #[test]
+    fn zfs_carries_the_experimental_opt_in_and_extras_round_trip() {
+        let mut recipe = Recipe { filesystem: "zfs".into(), ..Recipe::default() };
+        recipe.accept_experimental();
+        let json = serde_json::to_value(&recipe).unwrap();
+        assert_eq!(json["experimental"], serde_json::json!(["zfs"]));
+        recipe.filesystem = "xfs".into();
+        recipe.accept_experimental();
+        assert!(serde_json::to_value(&recipe).unwrap().get("experimental").is_none());
+        recipe.extras = Some(Extras { boot_splash: true, ..Extras::default() });
+        let json = serde_json::to_value(&recipe).unwrap();
+        assert_eq!(json["extras"], serde_json::json!(
+            {"printServices": false, "oemSetup": false, "audioNames": false, "bootSplash": true}));
+        assert!(serde_json::from_value::<Extras>(serde_json::json!({"desktopIcons": true})).is_err());
+    }
+
+    #[test]
     fn an_unlisted_image_is_its_own_target_and_drops_the_leaf_fields() {
         let catalog = crate::image_catalog::parse_manifest(
             r#"{"images": [{"name": "A", "imgref": "registry.example/os/a:1",
                 "bootloader": "systemd", "composefs": true, "filesystem": "zfs",
-                "flatpaks": [], "flatpak_var_path": "state/var"}]}"#,
+                "flatpaks": [], "flatpak_var_path": "state/var", "extras": {"bootSplash": true}}]}"#,
         )
         .unwrap();
         let mut recipe = Recipe::default();
@@ -313,7 +373,7 @@ mod tests {
         let json = serde_json::to_value(&recipe).unwrap();
         assert_eq!(json["image"], "registry.example/os/custom:1");
         assert_eq!(json["targetImgref"], "registry.example/os/custom:1");
-        for key in ["bootloader", "composeFsBackend", "flatpaks", "flatpakVarPath", "imageType"] {
+        for key in ["bootloader", "composeFsBackend", "flatpaks", "flatpakVarPath", "imageType", "extras"] {
             assert!(json.get(key).is_none(), "{key}: {json}");
         }
         // zfs was the leaf's own offer; this frontend's list has no zfs.
