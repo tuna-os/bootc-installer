@@ -17,7 +17,8 @@ PR ──merge──▶ dev ──validate──▶ promote.yml ──fast-forwa
                                     ▲                                     │
                     Flatpak, Python Tests, Go Tests,                      ├─ GitHub release (GNOME bundles, --latest)
                     Screenshots (×5), Flatpak (frontends),                └─ Publish Flatpak (×5) to the tuna-os remote
-                    CI (niri backend), cargo-sources (cosmic)
+                    CI (niri backend), cargo-sources (cosmic),
+                    and each other workflow that runs on dev
 ```
 
 ### 1. Validate on `dev`
@@ -35,6 +36,11 @@ on the actual `dev` commit, never the PR's.
 | `screenshots-*.yml` | each frontend launches, renders every page, pixel audit passes | when that frontend changed |
 | `ci-niri.yml`, `cargo-sources-cosmic.yml` | frontend-specific checks | when relevant |
 | `e2e.yml` | every frontend drives its real backend path to Done, and the recipe each produced is installed by fisherman and booted in a VM | every push |
+| `validate-flatpak.yml` | each GNOME Flatpak manifest is valid JSON with an app id, a runtime and a command | every push |
+| `cargo-test-cosmic.yml` | COSMIC frontend `cargo test` | when the COSMIC sources changed |
+| `browser-walkthrough.yml`, `wasm-kde.yml` | GNOME, XFCE and Niri advance in a browser; the KDE frontend compiles for WebAssembly | when that frontend changed |
+| `actionlint.yml` | the workflow files pass actionlint | when a workflow changed |
+| `ste.yml` | the Markdown prose stays in the `.ste-budget` | when a Markdown file changed |
 | `walkthrough.yml` | cross-frontend parity page regenerates | after any screenshot job |
 
 A push to `dev` also refreshes the `latest-dev` **pre-release** with the GNOME
@@ -131,7 +137,28 @@ All in `.github/workflows/promote.yml`:
   workflow's job name here when it should block promotion even on commits
   that did not trigger it by path.
 - The `workflow_run` list: workflows whose completion re-evaluates the gate.
-  A new validation workflow belongs in both lists.
+  Every workflow that a push to `dev` can start belongs in this list. The
+  gate reads the check runs of all of them, and only the last one to finish
+  can promote.
+
+`tests/unit/test_promote_gate.py` reads the workflow files and keeps the two
+lists true:
+
+- Each `workflow_run` entry is the `name:` of a workflow file.
+- Each workflow that a push to `dev` starts is in the `workflow_run` list.
+- Each `REQUIRED_CHECKS` entry is the name of one job, in one workflow that
+  runs on every push to `dev`.
+- Each workflow that runs on every push to `dev` (no path filter) has a job
+  in `REQUIRED_CHECKS`. If such a workflow does not start, the gate refuses
+  the commit.
+
+The test has two exclusion sets, `NOT_A_TRIGGER` and `NOT_REQUIRED`. The two
+sets are empty. An entry needs a reason in the test file.
+
+When you add a workflow that runs on `dev`, add its `name:` to the
+`workflow_run` list. If it has no path filter, also add one of its job names
+to `REQUIRED_CHECKS`. When you rename a workflow or a job, change the name
+in `promote.yml` in the same commit.
 
 ## Action pinning
 
