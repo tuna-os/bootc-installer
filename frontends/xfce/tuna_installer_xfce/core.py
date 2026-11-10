@@ -793,6 +793,30 @@ def recipe_for_leaf(leaf, *, has_nvidia=False, live=False, offline=(), **fields)
         needs_user=leaf.needs_user_creation, **fields)
 
 
+def recipe_problems(recipe):
+    """Why a complete recipe (the --autoinstall file) cannot start, as lines
+    for the result page; [] when it can.
+
+    The wizard checks a recipe field by field while the person types;
+    --autoinstall skipped every check, so a bad file failed inside the root
+    process. This asks `fisherman validate --json -`, unprivileged. When
+    fisherman cannot be asked the recipe starts: the install runs the same
+    rules before it touches a disk.
+    """
+    if not isinstance(recipe.get("disk"), str) or not recipe["disk"].strip():
+        return ["The recipe names no installation disk."]
+    try:
+        result = fisherman_validate.run(fisherman_command("validate-full"), recipe)
+    except (fisherman_validate.ValidateError, StageError):
+        return []
+    lines = [fisherman_validate.render(problem, BRANDING.text)
+             for problem in fisherman_validate.problems(result)]
+    lines = [line for line in lines if line]
+    if not lines and result.get("valid") is False:
+        lines = ["fisherman did not accept the recipe."]
+    return lines
+
+
 def recipe_stdin(recipe):
     """The bytes the app writes to fisherman's stdin (`fisherman -`)."""
     return json.dumps(recipe).encode("utf-8")

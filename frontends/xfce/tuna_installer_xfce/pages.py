@@ -781,9 +781,24 @@ class ProgressPage(Page):
         scroll = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
         scroll.add(self.logview)
         self.pack_start(scroll, True, True, 0)
+        # A visible way out (#299). The window's Back/Next bar is hidden
+        # here, so this row takes its place. The button asks first
+        # (gates.ConfirmCancelDialog, through the window).
+        actions = Gtk.Box(spacing=8)
+        actions.set_halign(Gtk.Align.END)
+        self.cancel_btn = Gtk.Button(label="Cancel")
+        self.cancel_btn.connect("clicked", self._on_cancel)
+        actions.pack_start(self.cancel_btn, False, False, 0)
+        self.pack_end(actions, False, False, 0)
 
     def on_enter(self):
+        self.cancel_btn.set_sensitive(True)
         self.win.start_install(self)
+
+    def _on_cancel(self, *_args):
+        request = getattr(self.win, "request_cancel", None)
+        if request is not None:
+            request()
 
     def append_log(self, text):
         buf = self.logview.get_buffer()
@@ -855,6 +870,8 @@ class DonePage(Page):
         self.pack_start(self.logo, False, False, 0)
         self.headline = _page_title("")
         self.pack_start(self.headline, False, False, 0)
+        # "installed", "cancelled" or "failed" once set_result() has run.
+        self.result = ""
         self.body = Gtk.Label(xalign=0)
         self.body.set_line_wrap(True)
         self.pack_start(self.body, False, False, 0)
@@ -967,10 +984,16 @@ class DonePage(Page):
         self.recovery_box.show_all()
         self.recovery_box.set_no_show_all(True)
 
-    def set_result(self, ok, log_tail, recovery_key=""):
-        # A failed install never enrolled a TPM, so there is no key to show.
+    def set_result(self, ok, log_tail, recovery_key="", cancelled=False):
+        """Show how the install ended: installed, cancelled or failed.
+
+        `cancelled` is a cancel the person confirmed, or fisherman's exit
+        code 130. It is not a failure and has its own heading, the copy key
+        done_cancelled_title (#299)."""
+        # Only a finished install enrolled a TPM, so only it has a key.
         self.show_recovery_key(recovery_key if ok else "")
         self.logo.set_visible(ok and self.logo.get_pixbuf() is not None)
+        self.result = "installed" if ok else ("cancelled" if cancelled else "failed")
         if ok:
             self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
                 core.BRANDING.text("done_title")) + "</b></big>")
@@ -978,14 +1001,23 @@ class DonePage(Page):
             self.store_btn.set_visible(bool(core.BRANDING.store_url))
             self.reboot_btn.show()
             self.log_btn.set_visible(False)
+            return
+        self.store_btn.set_visible(False)
+        self.reboot_btn.hide()
+        self.log_btn.set_visible(True)
+        if cancelled:
+            self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
+                core.BRANDING.text("done_cancelled_title")) + "</b></big>")
+            self.body.set_text(
+                "You stopped the installation. The target disk holds an "
+                "incomplete system: start the installer again to use it."
+                "\n\nFull log: " + core.install_log_path())
         else:
             self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
                 core.BRANDING.text("done_failed_title")) + "</b></big>")
             self.body.set_text(
                 "The last lines of the install log:\n\n" + log_tail +
                 "\n\nFull log: " + core.install_log_path())
-            self.reboot_btn.hide()
-            self.log_btn.set_visible(True)
 
 
 PAGE_ORDER = ["welcome", "source", "destination", "setup", "identity",

@@ -68,7 +68,7 @@ claimed a render that nobody had wired up.
 | `done_subtitle` | header subtitle (+ elapsed time) | label | body | label | label |
 | `done_restart` | Reboot Now button | Restart button | suggested button | button | suggested button beside Close |
 | `done_failed_title` | page header | heading | title2 | heading | headline |
-| `done_cancelled_title` | page header, after a confirmed Cancel or fisherman exit code 130 | no (failure page, #299) | no (failure page, #299) | no (failure page, #299) | no (failure page, #299) |
+| `done_cancelled_title` | page header, after a confirmed Cancel or fisherman exit code 130 | no (failure page, #299) | no (failure page, #299) | no (failure page, #299) | headline, after a confirmed Cancel or fisherman exit code 130 |
 | `validate_*` | error line under the hostname (disk and confirm pages) and the username | inline message on the encryption step (passphrase) and the confirm step (hostname) | hostname row description; encryption row description | line under the hostname (confirm) and under the passphrase | line under the hostname, the username and the encryption choice |
 | `store_label` | done page link to `store_url` (+ QR from `assets.store_qr`, US locale) | done page link | done page link | done page link | done page link |
 | `logo` | product icon (GNOME file adapter tracked separately) | theme/file on welcome and successful done, after the asset; else `system-software-install` / `checkmark` | theme/file on welcome and successful done, after the asset; else `computer-symbolic` in an accent disc / the check | theme/file on welcome and successful done | theme/file/resource on welcome and successful done |
@@ -153,8 +153,8 @@ not use `default_image` yet (#289).
 | Phone companion (QR) | yes (TLS on the LAN address only); shows when the image needs an account, and fills the account page | no | yes (plain HTTP, #293) | no | no |
 | Keyboard / language / timezone (#292) | pages exist; not in the bundled recipe | shown on confirm, applied nowhere | applied to the live session | applied to the live session (#291) | keyboard only, for this session; says so |
 | Keyboard / language / timezone in the installed system | no | no | no | no | no |
-| Cancel a running install (#299) | Cancel button, window close and Ctrl+Q: each asks first; a cancelled page follows | Cancel button, does not ask | quit dialog | Cancel button, does not ask | window close, asks first |
-| `--autoinstall` | yes (the recipe is validated first) | no | no | no | yes |
+| Cancel a running install (#299) | Cancel button, window close and Ctrl+Q: each asks first; a cancelled page follows | Cancel button, does not ask | quit dialog | Cancel button, does not ask | Cancel button and window close: each asks first; a cancelled page follows |
+| `--autoinstall` | yes (the recipe is validated first) | no | no | no | yes (the recipe is validated first) |
 | Translatable UI | gettext, one domain (`bootc-installer`); branding copy stays in one language (#311) | no (#300) | no (#300) | no (#300) | no (#300) |
 | Progress bar from fisherman's protocol | yes | yes | yes | yes | yes |
 | Restart from the done page | yes | yes | yes | yes | yes |

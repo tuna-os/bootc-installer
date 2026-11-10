@@ -111,6 +111,11 @@ class InstallerWindow(Gtk.ApplicationWindow):
         self._install_pid = None
         self._closing = False
         self._autoinstall_pending = None
+        # True once the person confirmed the progress page's Cancel: the
+        # wrapper's death by signal is then a cancel, not a failure.
+        self._cancel_requested = False
+        # The dry run's timer, so that Cancel works there too.
+        self._dry_run_source = None
         # Closing the window mid-install asks first (GNOME's
         # __on_exit_clicked AlertDialog) and kills the install on confirm;
         # anywhere else the close goes through untouched.
@@ -268,6 +273,46 @@ class InstallerWindow(Gtk.ApplicationWindow):
         terminate_process_group(self._install_pid)
         self._install_pid = None
 
+    def request_cancel(self, confirm=None):
+        """The progress page's Cancel: ask first, then stop the install.
+
+        Returns whether the install was cancelled. `confirm` answers the
+        question (a test passes one); the default is ConfirmCancelDialog.
+        Nothing is asked, and nothing happens, when no install runs."""
+        if not (self._install_running() or self._dry_run_source):
+            return False
+        if not (confirm or self._confirm_cancel)():
+            return False
+        self.cancel_install()
+        return True
+
+    def _confirm_cancel(self):
+        dialog = gates.ConfirmCancelDialog(self)
+        response = dialog.run()
+        dialog.destroy()
+        return response == Gtk.ResponseType.OK
+
+    def cancel_install(self):
+        """Stop the install after a confirmed cancel: SIGTERM the wrapper's
+        whole process group. fisherman runs as root and cannot be signalled;
+        it sees its parent die, cleans up and exits 130. The wrapper's exit
+        then reaches _on_exit, which shows the cancelled page."""
+        self._cancel_requested = True
+        self.pages["progress"].cancel_btn.set_sensitive(False)
+        if self._dry_run_source:
+            GLib.source_remove(self._dry_run_source)
+            self._dry_run_source = None
+            self._show_result(False, cancelled=True)
+            return
+        terminate_process_group(self._install_pid)
+
+    def _show_result(self, ok, cancelled=False, message=None):
+        """Fill the done page and show it."""
+        log_tail = "".join(self._log_tail) if message is None else message
+        self.pages["done"].set_result(
+            ok, log_tail, self.pages["progress"].recovery_key(), cancelled=cancelled)
+        self._enter(PAGE_ORDER.index("done"))
+
     def _on_delete(self, *_args):
         """Guard the window close: confirm and kill the install when one is
         running (GNOME's __on_exit_clicked/__on_exit_response), otherwise
@@ -324,15 +369,25 @@ class InstallerWindow(Gtk.ApplicationWindow):
         """Go straight to the progress page and start fisherman with the
         pre-built recipe, bypassing the wizard (GNOME's _start_autoinstall).
         An unreadable recipe falls back to the wizard instead of installing
-        nothing."""
+        nothing. A recipe that fisherman does not accept starts nothing
+        either: the result page says why (core.recipe_problems)."""
         recipe = self._load_autoinstall_recipe(path)
         if recipe is None:
+            return False
+        problems = core.recipe_problems(recipe)
+        if problems:
+            print("Install recipe refused: " + " ".join(problems), file=sys.stderr)
+            self._show_result(False, message="\n".join(problems) + "\n")
             return False
         self._autoinstall_pending = recipe
         self._enter(PAGE_ORDER.index("progress"))
         return False
 
     def start_install(self, progress_page, recipe=None):
+        if self._install_running() or self._dry_run_source:
+            # One install at a time: entering the page twice starts one.
+            return
+        self._cancel_requested = False
         if core.dry_run():
             self._start_dry_run(progress_page)
             return
@@ -348,8 +403,7 @@ class InstallerWindow(Gtk.ApplicationWindow):
             # SHA256 on the host; nothing runs when that fails.
             argv = core.fisherman_argv()
         except core.StageError as exc:
-            self.pages["done"].set_result(False, str(exc) + "\n")
-            self._enter(PAGE_ORDER.index("done"))
+            self._show_result(False, message=str(exc) + "\n")
             return
         self._install_log = core.open_install_log()
         self._install_log.write(
@@ -372,17 +426,15 @@ class InstallerWindow(Gtk.ApplicationWindow):
 
         def pump():
             if not lines:
-                self.pages["done"].set_result(
-                    True, "".join(self._log_tail),
-                    progress_page.recovery_key())
-                self._enter(PAGE_ORDER.index("done"))
+                self._dry_run_source = None
+                self._show_result(True)
                 return False
             text = lines.pop(0)
             self._log_tail = (self._log_tail + [text])[-15:]
             progress_page.append_log(text)
             return True
 
-        GLib.timeout_add(400, pump)
+        self._dry_run_source = GLib.timeout_add(400, pump)
 
     def _on_output(self, channel, cond, page):
         if cond & GLib.IO_IN:
@@ -395,23 +447,29 @@ class InstallerWindow(Gtk.ApplicationWindow):
                 page.append_log(text)
         return not (cond & GLib.IO_HUP)
 
-    def _on_exit(self, pid, status, *_):
+    def _on_exit(self, pid, status, *_args):
         GLib.spawn_close_pid(pid)
         self._install_pid = None
         if self._closing:
             # The user confirmed quitting mid-install; the window is gone.
             return
-        ok = os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+        code = os.WEXITSTATUS(status) if os.WIFEXITED(status) else None
+        ok = code == 0
+        # fisherman exits 130 when it is cancelled. After a cancel the
+        # person confirmed, the wrapper dies by the signal this app sent;
+        # that is a cancel too, not a failure (#299).
+        cancelled = not ok and (code == EXIT_CANCELLED or self._cancel_requested)
         if self._install_log:
-            outcome = "ok" if ok else f"failed (status {status})"
+            outcome = "ok" if ok else (
+                "cancelled" if cancelled else f"failed (status {status})")
             self._install_log.write(f"=== fisherman exited: {outcome} ===\n")
             self._install_log.close()
             self._install_log = None
-        self.pages["done"].set_result(
-            ok, "".join(self._log_tail),
-            self.pages["progress"].recovery_key())
-        self._enter(PAGE_ORDER.index("done"))
+        self._show_result(ok, cancelled=cancelled)
 
+
+# fisherman's exit code for a cancelled install (shared/recipe/README.md).
+EXIT_CANCELLED = 130
 
 APP_ID = "org.tunaos.InstallerXfce"
 

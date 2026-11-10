@@ -23,6 +23,8 @@ all. These are the GTK3 equivalents, in theme colors only (DESIGN.md):
   same per-install file core.open_install_log() appends to here.
 - ConfirmExitDialog: "Exit Installer? Any progress will be lost." with
   Cancel / Exit, the delete-event guard for a running install.
+- ConfirmCancelDialog: the question the progress page's Cancel button asks
+  before it stops a disk write half-way (#299).
 """
 
 import os
@@ -263,3 +265,37 @@ class ConfirmExitDialog(Gtk.Dialog):
         row.pack_start(done, False, False, 0)
         box.pack_start(row, False, False, 0)
         self.show_all()
+
+
+class ConfirmCancelDialog(Gtk.Dialog):
+    """"Cancel the installation?" -- asked before the progress page's Cancel
+    button stops fisherman. A stray click must not stop a disk write
+    half-way, so the safe answer is the default."""
+
+    def __init__(self, parent):
+        super().__init__(title="Cancel the installation?", transient_for=parent,
+                         modal=True)
+        self.set_default_size(400, 120)
+        box = self.get_content_area()
+        box.set_spacing(8)
+        box.set_margin_top(12)
+        box.set_margin_bottom(12)
+        box.set_margin_start(12)
+        box.set_margin_end(12)
+        body = Gtk.Label(xalign=0)
+        body.set_line_wrap(True)
+        body.set_text("The installation stops and the disk is left "
+                      "incomplete. You can start again afterwards.")
+        box.pack_start(body, True, True, 0)
+        row = Gtk.Box(spacing=8)
+        row.set_halign(Gtk.Align.END)
+        self.keep_btn = Gtk.Button(label="Continue installing")
+        self.keep_btn.connect("clicked", lambda *_a: self.response(Gtk.ResponseType.CANCEL))
+        self.stop_btn = Gtk.Button(label="Cancel installation")
+        self.stop_btn.get_style_context().add_class("destructive-action")
+        self.stop_btn.connect("clicked", lambda *_a: self.response(Gtk.ResponseType.OK))
+        row.pack_start(self.keep_btn, False, False, 0)
+        row.pack_start(self.stop_btn, False, False, 0)
+        box.pack_start(row, False, False, 0)
+        self.show_all()
+        self.keep_btn.grab_focus()

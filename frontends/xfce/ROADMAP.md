@@ -29,7 +29,6 @@ The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 |---|---|
 | #300 | The frontend has no translatable strings |
 | #301 | An offline user gets no help to connect |
-| #299 | The result page reports a cancel as a failure |
 | #292 | Language, keyboard and time zone do not reach the installed system |
 
 When you close one of these issues, remove its row.
