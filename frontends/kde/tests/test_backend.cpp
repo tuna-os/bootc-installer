@@ -2439,17 +2439,42 @@ void BackendTest::cancelAsksFirstInTheQml()
 
 void BackendTest::confirmPageListsNoLocaleRows()
 {
-    // #292: nothing writes the language, keyboard or time zone to the
-    // installed system, so the page that lists what the install does must
-    // not list them. The welcome step says that its pickers are not applied.
+    // #292: the welcome step's pickers go into the recipe, and the confirm
+    // step lists them. The welcome step no longer says "not applied".
     const QString confirm = qmlCode(QString::fromUtf8(
         readFixture(QStringLiteral(KDE_SOURCE_DIR "/modules/confirm/contents/ui/main.qml"))));
-    QVERIFY(!confirm.isEmpty());
-    for (const QString &word : {QStringLiteral("language"), QStringLiteral("keyboardLayout"), QStringLiteral("timezone")})
-        QVERIFY2(!confirm.contains(word, Qt::CaseInsensitive), qPrintable(word));
+    for (const QString &name : {QStringLiteral("confirmLanguage"), QStringLiteral("confirmKeyboard"),
+                                QStringLiteral("confirmTimezone"), QStringLiteral("regionProblem")})
+        QVERIFY2(confirm.contains(name), qPrintable(name));
     const QString welcome = qmlCode(QString::fromUtf8(
         readFixture(QStringLiteral(KDE_SOURCE_DIR "/modules/welcome/contents/ui/main.qml"))));
-    QVERIFY(welcome.contains(QStringLiteral("regionNotApplied")));
+    QVERIFY(!welcome.contains(QStringLiteral("regionNotApplied")));
+    QVERIFY(welcome.contains(QStringLiteral("regionProblem")));
+
+    // The pickers' values reach the recipe, in fisherman's shape.
+    InstallerController c;
+    c.setLanguage(QStringLiteral("de"));
+    c.setKeyboardLayout(QStringLiteral("de"));
+    c.setTimezone(QStringLiteral("Europe/Berlin"));
+    const QJsonObject recipe = c.recipe().toJson();
+    QCOMPARE(recipe.value(QStringLiteral("locale")).toString(), QStringLiteral("de_DE.UTF-8"));
+    QCOMPARE(recipe.value(QStringLiteral("keyboard")).toObject(),
+             (QJsonObject{{QStringLiteral("layout"), QStringLiteral("de")}}));
+    QCOMPARE(recipe.value(QStringLiteral("timezone")).toString(), QStringLiteral("Europe/Berlin"));
+    // And the partial recipe that the live check sends has them.
+    const QJsonObject partial = QJsonDocument::fromJson(c.partialRecipe()).object();
+    QCOMPARE(partial.value(QStringLiteral("locale")).toString(), QStringLiteral("de_DE.UTF-8"));
+    QCOMPARE(partial.value(QStringLiteral("timezone")).toString(), QStringLiteral("Europe/Berlin"));
+    // A language with no locale name of fisherman's form: no key.
+    QCOMPARE(region::localeName(QString()), QString());
+    QCOMPARE(region::localeName(QStringLiteral("en")).left(3), QStringLiteral("en_"));
+    Recipe empty;
+    empty.disk = QStringLiteral("/dev/vda");
+    const QJsonObject none = empty.toJson();
+    for (const char *key : {"locale", "keyboard", "timezone"})
+        QVERIFY2(!none.contains(QLatin1String(key)), key);
+    // Round trip.
+    QCOMPARE(Recipe::fromJson(recipe).toJson().value(QStringLiteral("keyboard")), recipe.value(QStringLiteral("keyboard")));
 }
 
 void BackendTest::connectivityTriesTheImageRegistryFirst()

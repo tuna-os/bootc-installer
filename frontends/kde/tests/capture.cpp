@@ -931,13 +931,13 @@ int main(int argc, char *argv[])
                 return 1;
             }
         }
-        // The confirm page lists what the install does. Nothing writes the
-        // language, keyboard or time zone to the installed system (#292).
+        // The confirm page lists what the install does, the language,
+        // keyboard and time zone included: the recipe carries them (#292).
         if (step.second == u"05-confirm"_s) {
             const QString shown = itemText(window->contentItem());
             for (const auto &row : {u"Language"_s, u"Keyboard"_s, u"Time zone"_s}) {
-                if (shown.contains(row)) {
-                    out << "FAIL: the confirm step lists \"" << row << "\", which the install does not apply\n";
+                if (!shown.contains(row)) {
+                    out << "FAIL: the confirm step does not list \"" << row << "\", which the install applies\n";
                     return 1;
                 }
             }

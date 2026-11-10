@@ -66,8 +66,9 @@ are `account-groups.json`, a byte-identical copy of
 image creates its own first user (`needs_user_creation: false`). The wizard
 then skips the step and the recipe has no block. The welcome step also has
 the hardware gates, the region and language pickers and the connectivity
-check. Nothing applies the pickers yet (#292): the page says so, and the
-confirm step does not list them. See the GNOME parity notes in DESIGN.md.
+check. The pickers go into the recipe as `locale`, `keyboard.layout` and
+`timezone` (#292), the live check sends them to `fisherman validate`, and the
+confirm step lists them.
 
 ## How fisherman runs
 
