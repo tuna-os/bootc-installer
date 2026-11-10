@@ -65,7 +65,7 @@ class PushToDevTest(unittest.TestCase):
                 self.assertEqual(found, [expected])
                 # The job's run steps and the action must agree on the
                 # directory, or `git add` names a path that is not there.
-                default = re.search(r"^      run:\n        working-directory: (\S+)$", text, re.M)
+                default = re.search(r"^      run:\n        working-directory: (\S+)$", text, re.MULTILINE)
                 self.assertEqual(default.group(1) if default else None, expected[0])
 
     def test_a_screenshot_job_pushes_only_from_a_push_to_dev(self):

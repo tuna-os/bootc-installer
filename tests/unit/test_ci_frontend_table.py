@@ -137,7 +137,7 @@ class WorkflowsTest(unittest.TestCase):
         self.assertEqual(found, ["publish-flatpak.yml"])
 
     def test_the_manual_dispatch_offers_the_frontends_of_the_table(self):
-        options = re.findall(r"^        options: \[(.*)\]$", workflow("publish-flatpak.yml"), re.M)
+        options = re.findall(r"^        options: \[(.*)\]$", workflow("publish-flatpak.yml"), re.MULTILINE)
         self.assertEqual([o.split(", ") for o in options], [self.names])
 
     def test_the_workflow_passes_each_column_to_publish_oci(self):
@@ -155,7 +155,7 @@ class WorkflowsTest(unittest.TestCase):
         # The inputs of publish-oci.yml that have no default are all passed.
         oci = workflow("publish-oci.yml")
         required = re.findall(r"^      ([\w-]+):\n(?:        description: .*\n)?        required: true$",
-                              oci, re.M)
+                              oci, re.MULTILINE)
         self.assertEqual(sorted(required),
                          ["app-id", "flatpak-builder-image", "frontend", "manifest-path"])
 
