@@ -152,7 +152,7 @@ not use `default_image` yet (#289).
 | Keyboard / language / timezone in the installed system | no | no | no | no | no |
 | Cancel a running install (#299) | window close, asks first | Cancel button, does not ask | quit dialog | Cancel button, does not ask | window close, asks first |
 | `--autoinstall` | yes | no | no | no | yes |
-| Translatable UI | gettext; no translation loads (#311) | no (#300) | no (#300) | no (#300) | no (#300) |
+| Translatable UI | gettext, one domain (`bootc-installer`); branding copy stays in one language (#311) | no (#300) | no (#300) | no (#300) | no (#300) |
 | Progress bar from fisherman's protocol | yes | yes | yes | yes | yes |
 | Restart from the done page | yes | yes | yes | yes | yes |
 | Show log after failure | yes | log path | log in page | log in page | log tail |

@@ -19,6 +19,7 @@ sources = [
   'copy.py',
   'sha512crypt.py',
   'user_step.py',
+  'i18n.py',
 ]
 
 # The demo mode (BOOTC_DEMO=1) replays this byte-identical copy of

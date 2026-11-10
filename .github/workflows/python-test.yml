@@ -142,6 +142,12 @@ jobs:
           echo "TUNA_RESOURCE=${RESOURCE}" >> "$GITHUB_ENV"
           echo "GResource built at: ${RESOURCE}"
 
+      # #311: the template had gone two years without the tree it describes.
+      # This job has gettext and the ITS rules (appstream, libglib2.0-dev)
+      # that the check needs to read the data files.
+      - name: Check that po/POTFILES and the translation template are current
+        run: python3 po/update-pot.py --check
+
       - name: Run UI integration tests (Xvfb)
         env:
           GTK_A11Y: none

@@ -656,12 +656,12 @@ class BootcDefaultDiskConfirmModal(Adw.Window):
         if "auto" in partition_recipe:
             for vg in partition_recipe["auto"]["vgs_to_remove"]:
                 entry = Adw.ActionRow()
-                entry.set_title("LVM volume group: " + vg)
+                entry.set_title(_("LVM volume group: %s") % vg)
                 entry.set_subtitle(_("Volume group will be removed."))
                 self.group_partitions.add(entry)
             for pv in partition_recipe["auto"]["pvs_to_remove"]:
                 entry = Adw.ActionRow()
-                entry.set_title("LVM physical volume: " + pv)
+                entry.set_title(_("LVM physical volume: %s") % pv)
                 entry.set_subtitle(_("Physical volume will be removed."))
                 self.group_partitions.add(entry)
         else:
@@ -676,12 +676,12 @@ class BootcDefaultDiskConfirmModal(Adw.Window):
                 if vg is not None and vg not in vgs_to_remove:
                     vgs_to_remove.append(values["existing_vg"])
                 entry = Adw.ActionRow()
-                entry.set_title("LVM physical volume: " + pv)
+                entry.set_title(_("LVM physical volume: %s") % pv)
                 entry.set_subtitle(_("Physical volume will be removed."))
                 self.group_partitions.add(entry)
             for vg in vgs_to_remove:
                 entry = Adw.ActionRow()
-                entry.set_title("LVM volume group: " + vg)
+                entry.set_title(_("LVM volume group: %s") % vg)
                 entry.set_subtitle(_("Volume group will be removed."))
                 self.group_partitions.add(entry)
 
@@ -891,7 +891,7 @@ class BootcDefaultDisk(Adw.Bin):
             self.__check_fs_tool(self.__filesystem_options[0] if self.__filesystem_options else "xfs")
             return
 
-        _LABELS = {"xfs": "XFS", "btrfs": "Btrfs (with subvolumes)", "zfs": "ZFS"}
+        _LABELS = {"xfs": "XFS", "btrfs": _("Btrfs (with subvolumes)"), "zfs": "ZFS"}
         model = Gtk.StringList.new([_LABELS.get(fs, fs.upper()) for fs in self.__filesystem_options])
         self.filesystem_row.set_model(model)
         self.filesystem_row.set_selected(0)
