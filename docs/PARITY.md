@@ -159,7 +159,7 @@ not use `default_image` yet (#289).
 | Progress bar from fisherman's protocol | yes | yes | yes | yes | yes |
 | Restart from the done page | yes | yes | yes | yes | yes |
 | Show log after failure | yes (recovery key redacted); the page shows fisherman's `error` event | log path | log in page | log in page | log tail |
-| Recovery key kept out of log files (#337) | yes (log file scrubbed; dialog and clipboard redacted) | yes (log file and clipboard copy redacted) | no log file | no (#337) | yes (install.log, log pane and failure tail redacted) |
+| Recovery key kept out of log files (#337) | yes (log file scrubbed; dialog and clipboard redacted) | yes (log file and clipboard copy redacted) | yes (install.log and Copy log redacted) | yes (install.log and Copy log redacted) | yes (install.log, log pane and failure tail redacted) |
 | Screenshot walkthrough + parity report | yes | yes | yes | yes | yes |
 | End-to-end gate (real install and boot) | yes | yes | yes | yes | yes |
 

@@ -6,8 +6,10 @@ name: Flatpak (frontends)
 # instead of failing the promotion (or, as before the monorepo, failing on the
 # old repos' `main` after the merge, on a branch nobody was looking at).
 #
-# Each frontend builds only when its own tree changed, on x86_64 only. The
-# full two-arch publish happens in release.yml.
+# Each frontend builds only when its own tree changed, on x86_64 only. A
+# change to the publish path that all of them share (publish-flatpak.yml,
+# publish-oci.yml, shared/ci/frontends.json) builds all four. The full
+# two-arch publish happens in release.yml.
 
 on:
   pull_request:
@@ -17,7 +19,7 @@ on:
   workflow_dispatch:
 
 # A called reusable workflow may only narrow the permissions its caller
-# passes, never widen them, and publish-flatpak-<name>.yml declares
+# passes, never widen them, and publish-flatpak.yml declares
 # contents/packages write for its publishing path. Granting less here is a
 # startup failure of the whole workflow (run 35254136098), not a skipped
 # publish. The build-only path never uses the write scopes.
@@ -53,8 +55,14 @@ jobs:
           else
             changed=$(git diff --name-only "$BASE" "$HEAD")
           fi
+          # Every frontend builds the data files in shared/account, branding
+          # and recipe. XFCE also ships the shared Python package and the
+          # dry-run transcript (shared/python/bootc_shared/_data.py, FILES).
+          xfce_shared='shared/python/|shared/progress/dry-run-transcript\.ndjson|'
           for n in kde cosmic niri xfce; do
-            if echo "$changed" | grep -qE "^(frontends/$n/|shared/(account|branding|recipe)/|\.github/workflows/(flatpak-frontends|publish-flatpak-$n)\.yml)"; then
+            extra=""
+            [ "$n" = xfce ] && extra="$xfce_shared"
+            if echo "$changed" | grep -qE "^(${extra}frontends/$n/|shared/(account|branding|recipe)/|shared/ci/frontends\.json|shared/ci/frontend_table\.py|\.github/workflows/(flatpak-frontends|publish-flatpak|publish-oci)\.yml)"; then
               echo "$n=true" >> "$GITHUB_OUTPUT"
             else
               echo "$n=false" >> "$GITHUB_OUTPUT"
@@ -65,8 +73,9 @@ jobs:
   kde:
     needs: changes
     if: needs.changes.outputs.kde == 'true'
-    uses: ./.github/workflows/publish-flatpak-kde.yml
+    uses: ./.github/workflows/publish-flatpak.yml
     with:
+      frontend: kde
       publish: false
       archs: '["x86_64"]'
     secrets: inherit
@@ -74,8 +83,9 @@ jobs:
   cosmic:
     needs: changes
     if: needs.changes.outputs.cosmic == 'true'
-    uses: ./.github/workflows/publish-flatpak-cosmic.yml
+    uses: ./.github/workflows/publish-flatpak.yml
     with:
+      frontend: cosmic
       publish: false
       archs: '["x86_64"]'
     secrets: inherit
@@ -83,8 +93,9 @@ jobs:
   niri:
     needs: changes
     if: needs.changes.outputs.niri == 'true'
-    uses: ./.github/workflows/publish-flatpak-niri.yml
+    uses: ./.github/workflows/publish-flatpak.yml
     with:
+      frontend: niri
       publish: false
       archs: '["x86_64"]'
     secrets: inherit
@@ -92,8 +103,9 @@ jobs:
   xfce:
     needs: changes
     if: needs.changes.outputs.xfce == 'true'
-    uses: ./.github/workflows/publish-flatpak-xfce.yml
+    uses: ./.github/workflows/publish-flatpak.yml
     with:
+      frontend: xfce
       publish: false
       archs: '["x86_64"]'
     secrets: inherit

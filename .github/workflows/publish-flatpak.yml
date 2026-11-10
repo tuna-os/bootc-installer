@@ -1,14 +1,24 @@
-name: Publish Flatpak (gnome)
+name: Publish Flatpak
 
-# Publishes the gnome frontend as ghcr.io/tuna-os/bootc-installer:gnome through
+# Publishes one frontend as ghcr.io/tuna-os/bootc-installer:<frontend> through
 # the local reusable publish-oci.yml (one package, one tag per frontend; see
 # that file for why not the tuna-os/.github reusable). release.yml calls this
-# after `prod` is promoted (docs/RELEASE.md); the manual dispatch is an
-# escape hatch.
+# once per frontend after `prod` is promoted (docs/RELEASE.md), and
+# flatpak-frontends.yml calls it with publish=false as a build-only check;
+# the manual dispatch is an escape hatch.
+#
+# The values that differ between the frontends (app id, manifest, builder
+# image, submodules, the `latest` alias) are one row each in
+# shared/ci/frontends.json. The `resolve` job reads the row; this file has
+# no per-frontend value of its own.
 
 on:
   workflow_call:
     inputs:
+      frontend:
+        description: gnome | kde | cosmic | niri | xfce (a row of shared/ci/frontends.json)
+        required: true
+        type: string
       publish:
         description: Push to GHCR and the central index (false = build-only validation)
         required: false
@@ -23,6 +33,11 @@ on:
         required: false
   workflow_dispatch:
     inputs:
+      frontend:
+        description: The frontend to publish
+        required: true
+        type: choice
+        options: [gnome, kde, cosmic, niri, xfce]
       publish:
         description: Push to GHCR and the central index (false = build-only validation)
         required: false
@@ -38,18 +53,47 @@ permissions:
   packages: write
 
 jobs:
+  resolve:
+    name: Resolve
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      app-id: ${{ steps.row.outputs.app-id }}
+      manifest-path: ${{ steps.row.outputs.manifest-path }}
+      flatpak-builder-image: ${{ steps.row.outputs.flatpak-builder-image }}
+      checkout-submodules: ${{ steps.row.outputs.checkout-submodules }}
+      also-latest: ${{ steps.row.outputs.also-latest }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          sparse-checkout: shared/ci
+
+      # An unknown frontend, or a row with a missing column, fails here, and
+      # `publish` below then does not start.
+      - name: Read the frontend's row
+        id: row
+        env:
+          FRONTEND: ${{ inputs.frontend }}
+        run: |
+          set -euo pipefail
+          python3 shared/ci/frontend_table.py --frontend "$FRONTEND" --github-output "$GITHUB_OUTPUT"
+
   publish:
+    needs: resolve
     uses: ./.github/workflows/publish-oci.yml
     with:
-      frontend: gnome
-      app-id: org.bootcinstaller.Installer
-      manifest-path: flatpak/org.bootcinstaller.Installer.json
-      # Must track "runtime-version" in the manifest.
-      flatpak-builder-image: gnome-50
+      frontend: ${{ inputs.frontend }}
+      app-id: ${{ needs.resolve.outputs.app-id }}
+      manifest-path: ${{ needs.resolve.outputs.manifest-path }}
+      # Must track "runtime-version" in the manifest
+      # (tests/unit/test_ci_frontend_table.py).
+      flatpak-builder-image: ${{ needs.resolve.outputs.flatpak-builder-image }}
       # aarch64 alongside x86_64: the tunaOS live-ISO build installs this
       # Flatpak from the tuna-os remote on both architectures.
       archs: ${{ inputs.archs }}
-      checkout-submodules: true
-      also-latest: true
+      checkout-submodules: ${{ needs.resolve.outputs.checkout-submodules == 'true' }}
+      also-latest: ${{ needs.resolve.outputs.also-latest == 'true' }}
       publish: ${{ inputs.publish }}
     secrets: inherit

@@ -222,6 +222,8 @@ impl Progress {
             // existed on a screen the user already dismissed is no better
             // than one that was never shown.
             "recovery_key" => {
+                // Shown in the pane and on the done page. install.log and
+                // Copy log get the redacted form (redact.rs, #337).
                 self.recovery_key = str_field("key").to_string();
                 Some(format!("Recovery key: {}", str_field("key")))
             }

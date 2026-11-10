@@ -20,8 +20,9 @@ name: Publish OCI (frontend)
 # steps below are the same ones; the artifact and the tags carry the
 # frontend.
 #
-# Called by the five publish-flatpak*.yml wrappers, which release.yml runs
-# after `prod` is promoted (docs/RELEASE.md).
+# Called by publish-flatpak.yml, which takes the frontend's name and reads
+# the other inputs from shared/ci/frontends.json. release.yml runs it once
+# per frontend after `prod` is promoted (docs/RELEASE.md).
 
 on:
   workflow_call:

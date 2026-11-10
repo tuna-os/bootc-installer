@@ -223,21 +223,26 @@ pub fn host_command(argv: &[&str]) -> Vec<String> {
     cmd
 }
 
-/// Best-effort persistence of the fisherman install log, 0600 (it can hold
-/// the recovery key), so a failed install can be diagnosed after the wizard
-/// closes. Never fails the install: logging the log is not worth failing
-/// the install over.
-pub fn persist_install_log(log: &str) {
-    use std::io::Write;
-
+/// Best-effort persistence of the fisherman install log, 0600, so a failed
+/// install can be diagnosed after the wizard closes. The file gets the log
+/// without the recovery key (`recovery_key` is the one the done page
+/// shows; redact.rs, #337). Never fails the install: logging the log is not
+/// worth failing the install over.
+pub fn persist_install_log(log: &str, recovery_key: &str) {
     let home = std::env::var("HOME").unwrap_or_default();
     let base = std::env::var("XDG_STATE_HOME").unwrap_or_else(|_| format!("{home}/.local/state"));
-    let dir = Path::new(&base).join("tuna-installer");
-    if let Err(e) = std::fs::create_dir_all(&dir) {
+    write_install_log(&Path::new(&base).join("tuna-installer"), log, recovery_key);
+}
+
+/// persist_install_log, into `dir`.
+pub fn write_install_log(dir: &Path, log: &str, recovery_key: &str) {
+    use std::io::Write;
+
+    if let Err(e) = std::fs::create_dir_all(dir) {
         tracing::warn!("could not create {}: {e}", dir.display());
         return;
     }
-
+    let log = crate::redact::recovery_key(log, recovery_key);
     let path = dir.join("install.log");
     let write = || -> std::io::Result<()> {
         let mut f = std::fs::OpenOptions::new()
