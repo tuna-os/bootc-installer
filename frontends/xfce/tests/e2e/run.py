@@ -11,8 +11,9 @@ shared/e2e/setup.sh has put the validating shim at that path (it also answers
 is not live media), and shared/e2e/fake-bin/pkexec stands in for the polkit
 agent a headless runner does not have.
 
-The catalog below goes to the frontend AND to <e2e dir>/catalog.json, so
-shared/e2e/check-recipe.py can judge "an account exactly when the image
+The catalog is shared/e2e/catalog.json, the one every E2E driver reads. It
+goes to the frontend (FISHERMAN_IMAGES_PATH) AND to <e2e dir>/catalog.json,
+so shared/e2e/check-recipe.py can judge "an account exactly when the image
 needs one" against the catalog this run used.
 
     xvfb-run -a python3 tests/e2e/run.py
@@ -32,31 +33,23 @@ E2E_DIR = os.environ.get("TUNA_E2E_DIR", "/tmp/tuna-e2e")
 TIMEOUT = float(os.environ.get("TUNA_E2E_TIMEOUT", "120"))
 os.environ.pop("TUNA_INSTALLER_DRY_RUN", None)
 
-# One image the real fisherman validates (grub2 + xfs, no composefs, no user).
-CATALOG = {
-    "default_image": "quay.io/centos-bootc/centos-bootc:c10s",
-    "fallback_flatpaks": [],
-    "images": [{
-        "name": "E2E", "registry": "quay.io/centos-bootc/centos-bootc",
-        "desc": "End-to-end canary.", "bootloader": "grub2", "filesystem": "xfs",
-        "composefs": False, "needs_user_creation": False,
-        # The desktop steps that each install did before fisherman made
-        # them a choice. check-recipe.py requires them in the recipe.
-        "extras": {"printServices": True, "oemSetup": True,
-                   "audioNames": True, "bootSplash": True},
-        "children": [{"name": "CentOS bootc", "tag": "c10s", "subtitle": "canary",
-                      "desc": "The image the VM job installs."}],
-    }],
-}
+# The catalog every E2E driver gives its frontend (shared/e2e/README.md,
+# "The catalog"). Its default_image is the selection at the start, and that
+# leaf needs an account: the identity page asks for one, the driver types
+# it, and the VM job installs it. `fallback_flatpaks` is there to show that
+# the frontend never reads it.
+CATALOG_FILE = os.path.normpath(os.path.join(REPO, "..", "..", "shared", "e2e", "catalog.json"))
+with open(CATALOG_FILE, encoding="utf-8") as fh:
+    CATALOG = json.load(fh)
+# The account the e2e user types. The VM job installs it for real, so it is
+# a valid name for fisherman (not reserved) and names no product.
+ACCOUNT = {"username": "e2euser", "fullname": "E2E User", "password": "e2e-password"}
 _tmp = tempfile.mkdtemp(prefix="tuna-e2e-xfce-")
-_catalog = os.path.join(_tmp, "images.json")
-with open(_catalog, "w") as fh:
-    json.dump(CATALOG, fh)
 # The same catalog, where check-recipe.py looks for it.
 os.makedirs(E2E_DIR, exist_ok=True)
 with open(os.path.join(E2E_DIR, "catalog.json"), "w") as fh:
     json.dump(CATALOG, fh)
-os.environ["FISHERMAN_IMAGES_PATH"] = _catalog
+os.environ["FISHERMAN_IMAGES_PATH"] = CATALOG_FILE
 os.environ.setdefault("XDG_RUNTIME_DIR", _tmp)
 os.environ.setdefault("XDG_STATE_HOME", os.path.join(_tmp, "state"))
 os.environ.setdefault("GTK_A11Y", "none")
@@ -113,6 +106,21 @@ def main():
                     app.quit()
                     return
                 radios[0].set_active(True)
+            if name == "identity":
+                if not win.needs_user_creation():
+                    outcome["error"] = "the image needs an account and the identity page asks for none"
+                    app.quit()
+                    return
+                page.username.set_text(ACCOUNT["username"])
+                page.fullname.set_text(ACCOUNT["fullname"])
+                page.password.set_text(ACCOUNT["password"])
+                page.password2.set_text(ACCOUNT["password"])
+                # fisherman's answer on the name (`validate --json
+                # --partial -`, through the shim) comes back on the loop.
+                deadline = time.monotonic() + 15
+                while not page.can_continue() and time.monotonic() < deadline:
+                    _pump(0.2)
+                print(f"[e2e] account typed: {ACCOUNT['username']}")
             if not page.can_continue():
                 outcome["error"] = f"page {name} would not let a user continue"
                 app.quit()
@@ -170,8 +178,16 @@ def main():
               "the frontend is not parsing fisherman's progress protocol "
               "(shared/progress/README.md)", file=sys.stderr)
         return 1
-    if not os.path.exists(os.path.join(E2E_DIR, "recipe.json")):
+    received_path = os.path.join(E2E_DIR, "recipe.json")
+    if not os.path.exists(received_path):
         print("FAIL: the shim recorded no recipe", file=sys.stderr)
+        return 1
+    with open(received_path, encoding="utf-8") as fh:
+        received = json.load(fh)
+    user = received.get("user") or {}
+    if user.get("username") != ACCOUNT["username"] or not user.get("password"):
+        print(f"FAIL: fisherman received the user {user.get('username')!r}, "
+              "not the account typed on the identity page", file=sys.stderr)
         return 1
     print("OK: XFCE reached Done through " + core.shell_line(core.fisherman_argv()))
     return 0

@@ -1932,20 +1932,16 @@ mod tests {
         });
     }
 
-    /// The catalog the end-to-end test gives this frontend. It is written
-    /// next to the recipe so `shared/e2e/check-recipe.py` can judge "an
-    /// account exactly when the image needs one". One leaf sets nothing
-    /// (the contract's default: an account); the other makes its own user.
-    const E2E_CATALOG: &str = r#"{
-  "images": [
-    {"name": "CentOS bootc", "imgref": "quay.io/centos-bootc/centos-bootc:c10s",
-     "filesystem": "xfs",
-     "extras": {"printServices": true, "oemSetup": true, "audioNames": true, "bootSplash": true}},
-    {"name": "Own first user", "imgref": "registry.example/os/first-boot-setup:1",
-     "needs_user_creation": false}
-  ]
-}
-"#;
+    /// The catalog every end-to-end driver gives its frontend
+    /// (`shared/e2e/catalog.json`). It is written next to the recipe so
+    /// `shared/e2e/check-recipe.py` can judge "an account exactly when the
+    /// image needs one".
+    const E2E_CATALOG: &str =
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/e2e/catalog.json"));
+    /// The leaf this frontend installs: the canary image with no account.
+    /// GNOME, XFCE, KDE and Niri install the leaf with an account, so the
+    /// VM job boots both cases.
+    const E2E_IMAGE: &str = "quay.io/centos-bootc/centos-bootc:stream10";
 
     /// End to end: the Install button's code path against the real backend.
     ///
@@ -1969,16 +1965,15 @@ mod tests {
         let catalog = image_catalog::parse_manifest(E2E_CATALOG).unwrap();
         std::fs::write(format!("{e2e_dir}/catalog.json"), E2E_CATALOG)
             .expect("the e2e directory is writable");
-        let leaf = &catalog.leaves[catalog.find("quay.io/centos-bootc/centos-bootc:c10s").unwrap()];
+        let leaf = &catalog.leaves[catalog.find(E2E_IMAGE).unwrap()];
 
         let mut recipe = Recipe::default();
         recipe.disk = disk;
         recipe.apply_leaf(leaf, &model::Machine::default());
         recipe.hostname = "cosmic-e2e".into();
-        // The account page, exactly when the catalog says the image needs
-        // one, through the same rule and the same builder the page uses.
-        assert!(super::account_required_for(&catalog, None, "", Some(leaf)));
-        recipe.user = model::user_block("tester", "E2E Tester", "e2e-password", &model::default_groups());
+        // No account page: the catalog says the image makes its own first
+        // user, through the same rule the page uses.
+        assert!(!super::account_required_for(&catalog, None, "", Some(leaf)));
 
         // Drive the real stream and feed it through the real parser, which
         // is what the install page does. The old form called run_fisherman()
@@ -2032,13 +2027,13 @@ mod tests {
         let recorded = std::fs::read_to_string(format!("{e2e_dir}/recipe.json"))
             .expect("the shim recorded no recipe");
         let recorded: serde_json::Value = serde_json::from_str(&recorded).unwrap();
-        assert_eq!(recorded["user"]["username"], "tester", "no user block reached fisherman");
-        assert_eq!(recorded["user"]["groups"], serde_json::json!(model::default_groups()));
-        assert_eq!(recorded["image"], "quay.io/centos-bootc/centos-bootc:c10s");
+        assert!(recorded.get("user").is_none(), "an account for an image that needs none: {recorded}");
+        assert_eq!(recorded["image"], E2E_IMAGE);
         assert_eq!(recorded["targetImgref"], recorded["image"]);
         assert_eq!(recorded["filesystem"], "xfs");
-        // No list in the catalog: no key, never `[]` and never a list of
-        // this frontend's own.
+        // No list in the catalog for this leaf: no key, never `[]`, never
+        // the catalog's `fallback_flatpaks` and never a list of this
+        // frontend's own.
         assert!(recorded.get("flatpaks").is_none(), "{recorded}");
     }
 

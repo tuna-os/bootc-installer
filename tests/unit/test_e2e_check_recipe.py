@@ -144,3 +144,72 @@ class VmInstallDoesNotRepairTheRecipe(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+E2E_CATALOG = os.path.join(REPO, "shared", "e2e", "catalog.json")
+# The file of each E2E driver, and how it names the shared catalog.
+DRIVERS = {
+    "gnome": ("tests/e2e/run_gnome.py", '"shared" / "e2e" / "catalog.json"'),
+    "xfce": ("frontends/xfce/tests/e2e/run.py", '"shared", "e2e", "catalog.json"'),
+    "niri": ("frontends/niri/tests/e2e/run.py", '"shared", "e2e", "catalog.json"'),
+    "kde": ("frontends/kde/CMakeLists.txt", "${TUNA_SHARED_DIR}/e2e/catalog.json"),
+    "cosmic": ("frontends/cosmic/src/main.rs", '"/../../shared/e2e/catalog.json"'),
+}
+
+
+def _e2e_catalog():
+    with open(E2E_CATALOG, encoding="utf-8") as stream:
+        return json.load(stream)
+
+
+def _read(path):
+    with open(os.path.join(REPO, path), encoding="utf-8") as stream:
+        return stream.read()
+
+
+class OneCatalogForTheFiveDrivers(unittest.TestCase):
+    """shared/e2e/catalog.json is the one catalog of the E2E drivers
+    (shared/e2e/README.md, "The catalog")."""
+
+    def test_every_driver_reads_the_shared_catalog(self):
+        for frontend, (path, reference) in DRIVERS.items():
+            self.assertIn(reference, _read(path), frontend)
+        self.assertIn("E2E_CATALOG_FILE", _read("frontends/kde/tests/e2e.cpp"))
+        self.assertFalse(os.path.exists(os.path.join(REPO, "frontends", "niri", "tests",
+                                                     "e2e", "images.json")))
+
+    def test_the_catalog_has_a_leaf_with_and_one_without_an_account(self):
+        resolver = check._catalog_resolver()
+        leaves = {leaf["imgref"]: leaf for leaf in resolver.leaves(_e2e_catalog())}
+        self.assertEqual({leaf["needs_user_creation"] for leaf in leaves.values()}, {True, False})
+        default = _e2e_catalog()["default_image"]
+        self.assertIs(leaves[default]["needs_user_creation"], True)
+        # The fallback list is there to show that no frontend sends it.
+        self.assertTrue(_e2e_catalog()["fallback_flatpaks"])
+        for leaf in leaves.values():
+            self.assertNotEqual(leaf["flatpaks"], _e2e_catalog()["fallback_flatpaks"])
+
+    def test_the_vm_matrix_installs_an_account_and_no_account(self):
+        """GNOME, XFCE, KDE and Niri install the default_image leaf (an
+        account); COSMIC installs the leaf with no account."""
+        resolver = check._catalog_resolver()
+        catalog = _e2e_catalog()
+        cosmic = _read("frontends/cosmic/src/main.rs")
+        marker = 'const E2E_IMAGE: &str = "'
+        cosmic_image = cosmic[cosmic.index(marker) + len(marker):].split('"', 1)[0]
+        picked = {"gnome": catalog["default_image"], "xfce": catalog["default_image"],
+                  "kde": "quay.io/centos-bootc/centos-bootc:c10s",
+                  "niri": catalog["default_image"], "cosmic": cosmic_image}
+        self.assertIn(picked["kde"], _read("frontends/kde/tests/e2e.cpp"))
+        accounts = {frontend: resolver.find(catalog, imgref)["needs_user_creation"]
+                    for frontend, imgref in picked.items()}
+        self.assertEqual(accounts, {"gnome": True, "xfce": True, "kde": True,
+                                    "niri": True, "cosmic": False})
+
+    def test_an_exported_catalog_must_be_the_shared_one(self):
+        self.assertEqual(check.shared_catalog_failures(_e2e_catalog()), [])
+        self.assertEqual(check.shared_catalog_failures(None), [])
+        own = {"images": [{"name": "Own", "imgref": "r/own:1"}]}
+        self.assertEqual(len(check.shared_catalog_failures(own)), 1)
+        # A catalog the job passes with --catalog is the job's choice.
+        self.assertEqual(check.shared_catalog_failures(own, "/tmp/own.json"), [])
