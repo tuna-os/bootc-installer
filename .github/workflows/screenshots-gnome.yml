@@ -47,7 +47,7 @@ jobs:
     name: Screenshots (gnome)
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -104,3 +104,4 @@ jobs:
         with:
           paths: docs/screenshots
           message: "docs(gnome): refresh GUI screenshots [skip ci]"
+          ssh-key: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}
