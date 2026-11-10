@@ -62,6 +62,9 @@ feature/xyz ──PR──▶ dev ──promote.yml (all checks green + soak)─
 Names matter: `promote.yml` lists workflow *names* in its `workflow_run`
 trigger and job *names* in `REQUIRED_CHECKS`. Renaming a job or workflow
 means updating both.
+`tests/unit/test_promote_gate.py` fails when a name in one of
+the two lists matches nothing, and when a workflow that runs on `dev` is
+absent from the trigger list (`docs/RELEASE.md`, "Knobs").
 
 ---
 
