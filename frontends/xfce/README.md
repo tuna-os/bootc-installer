@@ -27,7 +27,7 @@ backend. The plainest of the TunaOS installer frontends by design — see
 Welcome (with a tour of the image families) → Source (image catalog with a
 search box, offline tags, "install this system" on live media) → Destination
 → Disk encryption (filesystem under Advanced) → Identity (hostname, account,
-keyboard layout for this session) → Confirm (connectivity gate when the
+language, keyboard layout and time zone of the new system) → Confirm (connectivity gate when the
 install must download the image) → Progress (with Cancel) → Done.
 
 - A machine below the minimum does not get the wizard. A RAM, CPU or UEFI

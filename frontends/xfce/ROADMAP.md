@@ -27,7 +27,6 @@ The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 
 | Issue | Gap |
 |---|---|
-| #292 | Language, keyboard and time zone do not reach the installed system |
 
 When you close one of these issues, remove its row.
 `tests/unit/test_frontend_roadmaps.py` examines this file.

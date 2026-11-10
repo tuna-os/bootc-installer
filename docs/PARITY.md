@@ -152,8 +152,8 @@ not use `default_image` yet (#289).
 | Account password | twice, reveal, strength | twice, reveal, strength | twice, reveal | twice, reveal | twice, reveal |
 | Account groups | wheel, sudo and developer groups (`shared/account/`), operator override | shared list, operator override | shared list, operator override | wheel, sudo and developer groups, operator override | wheel, sudo and developer groups, operator override |
 | Phone companion (QR) | yes (TLS on the LAN address only); shows when the image needs an account, and fills the account page | no | no (removed, #293) | no | no |
-| Keyboard / language / timezone (#292) | pages exist; not in the bundled recipe | pickers on welcome; listed on confirm; checked by fisherman validate | language, keyboard (XKB layout) and time zone pages; a pick changes the live session and the recipe; listed on confirm; checked by fisherman validate | Session step: a change applies to the live session and goes into the recipe; XKB layouts; listed on confirm; checked by fisherman validate | keyboard only, for this session; says so |
-| Keyboard / language / timezone in the installed system | no | yes: `locale`, `keyboard.layout`, `timezone` in the recipe | yes, after a pick: `locale`, `keyboard.layout`, `timezone` | yes, after a change: `locale`, `keyboard.layout`, `timezone` | no |
+| Keyboard / language / timezone (#292) | language, keyboard (XKB layout and variant) and time zone (IANA) steps in the bundled recipe; listed on confirm; checked by fisherman validate | pickers on welcome; listed on confirm; checked by fisherman validate | language, keyboard (XKB layout) and time zone pages; a pick changes the live session and the recipe; listed on confirm; checked by fisherman validate | Session step: a change applies to the live session and goes into the recipe; XKB layouts; listed on confirm; checked by fisherman validate | language, keyboard (XKB layout) and time zone pickers on the identity page; each starts at "keep"; listed on confirm; checked by fisherman validate |
+| Keyboard / language / timezone in the installed system | yes, for a selected value: `locale`, `keyboard.layout` and `keyboard.variant`, `timezone` | yes: `locale`, `keyboard.layout`, `timezone` in the recipe | yes, after a pick: `locale`, `keyboard.layout`, `timezone` | yes, after a change: `locale`, `keyboard.layout`, `timezone` | yes, after a pick: `locale`, `keyboard.layout`, `timezone` |
 | Cancel a running install (#299) | Cancel button, window close and Ctrl+Q: each asks first; a cancelled page follows | Cancel button, asks first; cancelled page | Cancel button, asks first; cancelled page | Cancel button and window close: each asks first; a cancelled page follows | Cancel button and window close: each asks first; a cancelled page follows |
 | `--autoinstall` | yes (the recipe is validated first) | no | no | no | yes (the recipe is validated first) |
 | Translatable UI | gettext, one domain (`bootc-installer`); branding copy stays in one language (#311) | strings marked (qsTr, tr); no catalog ships (#300) | one tr() shim and a lint; no catalog ships (#300) | strings marked with qsTr, no translations shipped (#300) | gettext, one domain (`tuna-installer-xfce`), lint test; no translation ships yet; branding copy stays in one language (#311) |
@@ -211,9 +211,9 @@ four frontends a catalog, gates, locale pages and a companion.
    `complete_image` as the welcome and done artwork, ahead of `logo`.
 6. **Companion and locale steps**: no longer GNOME-only. XFCE
    has a companion, over plain HTTP (#293). COSMIC had one and removed it.
-   All five have locale pages, and
-   they mean five different things (#292). No frontend sends a locale, a
-   keymap or a time zone to the installed system: the recipe has no field
-   for them (tuna-os/fisherman#405). Windows data migration (slurp) is not
+   All five have locale pages. Each one now sends the
+   choice to the installed system in the recipe's `locale`, `keyboard` and
+   `timezone` (#292, tuna-os/fisherman#405), and only a choice: without
+   one the image keeps its own value. Windows data migration (slurp) is not
    an installer feature at all: it belongs to wootc, and no frontend here
    offers it.
