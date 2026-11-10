@@ -69,8 +69,10 @@ jobs:
 
       # segno draws the phone companion's QR code; the Flatpak ships the
       # same pinned version (flatpak/org.bootcinstaller.Installer.json).
-      - name: Install pytest, coverage and segno
-        run: pip install pytest pytest-cov segno==1.6.6
+      # PyYAML is for tests/unit/test_promote_gate.py, which reads the
+      # workflow files.
+      - name: Install pytest, coverage, segno and PyYAML
+        run: pip install pytest pytest-cov segno==1.6.6 pyyaml==6.0.2
 
       - name: Run unit tests
         run: pytest tests/unit/ -v --tb=short --cov=bootc_installer --cov-report=xml --cov-report=term-missing --cov-fail-under=51
