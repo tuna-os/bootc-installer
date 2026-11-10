@@ -126,7 +126,7 @@ check and the soak window. A consumer that wants `dev` bits takes the
 | Promote a specific older commit on `dev` | Same dispatch with `sha:`. It must be on `dev` and ahead of `prod`. |
 | Hotfix that cannot wait for `dev` | Push a `v*` tag on a commit; `release.yml` runs for the tag. Prefer a normal PR to `dev` and a forced promotion. |
 | A bad release is `latest` | `runbooks/auto-release-rollback.md`: demote it with `gh release edit --latest=false` and promote the last good one. Never delete releases or tags. |
-| Republish a frontend's Flatpak by hand | Actions → *Publish Flatpak (<frontend>)* → Run workflow on `prod`. |
+| Republish a frontend's Flatpak by hand | Actions → *Publish Flatpak* → Run workflow on `prod`, and select the frontend. |
 | A publish job fails with `permission_denied: write_package` | Every frontend now publishes to the one package `ghcr.io/tuna-os/bootc-installer` (tags `gnome`, `kde`, `cosmic`, `niri`, `xfce`, each also `-<arch>` and `-<tag>-<arch>`; GNOME keeps `latest`). That package belongs to this repository, so this should not recur. If it does, the token lacks `packages: write` on the calling workflow. |
 | Pause promotion | Disable the *Promote dev → prod* workflow in the Actions UI. Merges keep landing on `dev`; nothing ships until it is re-enabled. |
 

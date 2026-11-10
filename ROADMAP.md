@@ -214,7 +214,6 @@ duplicate them.
 | Disk wizard collapses six boundaries into one GTK module | #85 | P1 |
 | Frozen KDE repository retains a second live publication authority | #106 | P1 |
 | Committed OSTree store (17,364 objects) still in git history | #62 | P2 |
-| Per-frontend `renovate.json` and `codecov.yml` are inert after the merge | docs/MIGRATION.md | P3 |
 
 ---
 

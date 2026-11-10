@@ -3,7 +3,7 @@
 > **Monorepo note.** This directory is one of five frontends in
 > `tuna-os/bootc-installer`. Every path below is relative to THIS directory.
 > Workflows referenced as `screenshots.yml` / `publish-flatpak.yml` / `ci.yml`
-> are now `.github/workflows/screenshots-cosmic.yml`, `publish-flatpak-cosmic.yml`
+> are now `.github/workflows/screenshots-cosmic.yml`, `publish-flatpak.yml` (`frontend: cosmic`)
 > (plus `ci-niri.yml` for the niri Go backend) at the repository root, running with
 > `working-directory: frontends/cosmic`. The shared recipe schema and screen
 > contract live in `../../shared/`. Do not add a `.github/` here.
