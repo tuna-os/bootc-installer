@@ -374,6 +374,17 @@ class Processor:
                 break
         if flatpaks is None:
             flatpaks = catalog.resolve_flatpaks(metadata.get("flatpaks"), metadata_aliases)
+        # --- Desktop extras ---
+        # shared/catalog/README.md, "Desktop extras". The object of the
+        # selected leaf, then the system recipe's, then the catalog entry
+        # of the image. A staged fisherman has no catalog next to it, so
+        # the installer copies the object; with no object the key is left
+        # out and fisherman applies its own lookup.
+        extras = None
+        for source in (merged, sys_recipe, metadata):
+            if isinstance(source.get("extras"), dict):
+                extras = catalog.resolve_extras(source["extras"])
+                break
         # Overriding a btrfs disk selection with ext4 must clear its stale flag.
         btrfs_subvolumes = (filesystem == "btrfs" and isinstance(disk_info, dict)
                            and bool(disk_info.get("btrfsSubvolumes", False)))
@@ -428,6 +439,8 @@ class Processor:
             recipe["unifiedStorage"] = True
         if flatpaks is not None:
             recipe["flatpaks"] = flatpaks
+        if extras is not None:
+            recipe["extras"] = extras
         if image_type and image_type != "bootc":
             recipe["imageType"] = image_type
         if flatpak_var_path:

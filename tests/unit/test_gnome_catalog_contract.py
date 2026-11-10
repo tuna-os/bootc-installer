@@ -223,10 +223,31 @@ def test_a_choice_of_filesystems_is_the_users():
     assert filesystem_options({}) == (["xfs"], 0)
 
 
+def test_extras_come_from_the_system_recipe_or_the_host_catalog_on_live_media():
+    """Live media has no image step. The object is then the system recipe's,
+    or the one of the catalog entry of the installed image."""
+    disk = build_disk_finals(build_auto_partition_recipe(_Disk()), "xfs", "host")
+    on = {"printServices": True, "oemSetup": False, "audioNames": True, "bootSplash": True}
+    with patch("bootc_installer.core.system.Systeminfo.has_nvidia_gpu", return_value=False):
+        from_images = Processor.gen_install_recipe("", [disk], {
+            "imgref": "registry.example/os/atlas:stable", "images": CATALOG["images"]})
+        from_recipe = Processor.gen_install_recipe("", [disk], {
+            "imgref": "r/x:1", "extras": {"bootSplash": True, "notAStep": True}})
+        none = Processor.gen_install_recipe("", [disk], {"imgref": "r/x:1"})
+        wrong = Processor.gen_install_recipe("", [disk], {
+            "imgref": "r/x:1", "extras": {"bootSplash": "yes"}})
+    assert from_images["extras"] == on
+    assert from_recipe["extras"] == {"printServices": False, "oemSetup": False,
+                                     "audioNames": False, "bootSplash": True}
+    assert "extras" not in none
+    assert "extras" not in wrong
+
+
 def test_wrong_types_in_a_catalog_do_not_reach_the_recipe():
     leaves = catalog.leaves({"images": [
         {"name": "Odd", "imgref": "r/odd:1", "needs_user_creation": "no", "composefs": 1,
-         "filesystems": "xfs", "bootloader": 7, "flatpaks": ["ok", 3]},
+         "filesystems": "xfs", "bootloader": 7, "flatpaks": ["ok", 3],
+         "extras": ["bootSplash"]},
         "not a node",
         {"name": "No registry", "tag": "stable"},
     ]})
@@ -237,3 +258,4 @@ def test_wrong_types_in_a_catalog_do_not_reach_the_recipe():
     assert odd["filesystems"] == []
     assert odd["bootloader"] == ""
     assert odd["flatpaks"] is None
+    assert odd["extras"] is None

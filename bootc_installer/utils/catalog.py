@@ -48,7 +48,13 @@ INHERITED = {
     "flatpak_var_path": "",
     "needs_user_creation": True,
     "image_type": "bootc",
+    "extras": None,
 }
+
+# The switches of `extras`: the keys of the recipe's `extras` object.
+# fisherman refuses a recipe key that it does not know, so no other key of
+# a catalog object is copied.
+EXTRAS = ("printServices", "oemSetup", "audioNames", "bootSplash")
 
 
 # ── Where the catalog is ─────────────────────────────────────────────────────
@@ -128,6 +134,26 @@ def resolve_flatpaks(value, aliases=None):
     return None
 
 
+# ── Desktop extras ───────────────────────────────────────────────────────────
+
+def resolve_extras(value):
+    """The recipe's `extras` object for a catalog `extras` value, or None.
+
+    The value is the object of the nearest node that has one: objects are
+    not merged, and a switch that the object leaves out is off. `{}` turns
+    the four off. None (no node has the object, or the value is not an
+    object of booleans) means: leave `extras` out of the recipe, and
+    fisherman looks the image up in the catalog that it finds.
+    """
+    if not isinstance(value, dict):
+        return None
+    if not all(isinstance(value.get(key, False), bool) for key in EXTRAS):
+        logger.warning("images.json: `extras` has a switch that is not true or false; "
+                       "it is not used")
+        return None
+    return {key: value.get(key, False) for key in EXTRAS}
+
+
 # ── Leaves ───────────────────────────────────────────────────────────────────
 
 def pretty_from_imgref(imgref: str) -> str:
@@ -163,7 +189,7 @@ def _typed(context: dict) -> dict:
     clean = dict(context)
     for key, default in INHERITED.items():
         value = clean.get(key, default)
-        if key == "flatpaks":
+        if key in ("flatpaks", "extras"):
             continue
         if isinstance(default, bool):
             ok = isinstance(value, bool)
@@ -208,6 +234,7 @@ def _leaf(node, context, product, owns_registry, aliases, path):
         "flatpak_var_path": context["flatpak_var_path"],
         "needs_user_creation": context["needs_user_creation"],
         "image_type": context["image_type"],
+        "extras": resolve_extras(context["extras"]),
     }
 
 
@@ -319,7 +346,7 @@ def leaf_finals(leaf: dict, icon=None, carousel=None) -> dict:
 
     `flatpaks` is there only when the catalog has the list itself: without
     the key the Processor writes no `flatpaks`, and fisherman applies its
-    default. `image_filesystem` is the image's one filesystem; it is empty
+    default. `extras` follows the same rule. `image_filesystem` is the image's one filesystem; it is empty
     when the leaf offers a choice, and the disk page then decides.
     """
     choices = leaf["filesystems"]
@@ -341,6 +368,8 @@ def leaf_finals(leaf: dict, icon=None, carousel=None) -> dict:
     }
     if leaf["flatpaks"] is not None:
         finals["flatpaks"] = list(leaf["flatpaks"])
+    if leaf["extras"] is not None:
+        finals["extras"] = dict(leaf["extras"])
     return finals
 
 
