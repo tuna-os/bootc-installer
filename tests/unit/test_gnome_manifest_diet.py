@@ -30,6 +30,7 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "shared" / "ci"))
 import flatpak_manifest  # noqa: E402
+
 FLATPAK = ROOT / "flatpak"
 PRODUCTION = FLATPAK / "org.bootcinstaller.Installer.json"
 DEVEL = FLATPAK / "org.bootcinstaller.Installer.Devel.json"
