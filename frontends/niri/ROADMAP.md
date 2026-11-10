@@ -1,77 +1,45 @@
-# TunaOS Niri Installer — Roadmap
+# Niri frontend roadmap
 
-**Last updated**: 2026-08-29 | **Evidence through**: 2026-08-29 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-11-10
 
----
+This frontend (Quickshell QML and a Go backend) is one of five in the `tuna-os/bootc-installer`
+monorepo. It has no plan of its own. The plan for all five is the root
+[ROADMAP.md](../../ROADMAP.md).
 
-## Mission
+The repository `tuna-os/tuna-installer-niri` does not exist any more. An issue
+number in this file is an issue in `tuna-os/bootc-installer`.
 
-Ship the Niri desktop's install experience: a Quickshell/QML + Go installer
-(modeled on DankMaterialShell's architecture) that drives the fisherman bootc
-backend, so a first-time Niri user gets a native install on the
-scrollable-tiling Wayland compositor.
+## Where to look
 
----
+| Topic | Document |
+|---|---|
+| The plan for the monorepo | [ROADMAP.md](../../ROADMAP.md) |
+| The move from the old repository, and the issues that were open then | [docs/MIGRATION.md](../../docs/MIGRATION.md) |
+| The path from `dev` to `prod`, and how the Flatpak ships | [docs/RELEASE.md](../../docs/RELEASE.md) |
+| The contracts that all five frontends share | [shared/](../../shared/) |
+| The screens of all five frontends, with the parity matrix | [docs/walkthrough/](../../docs/walkthrough/README.md) |
+| What each frontend renders and does | [docs/PARITY.md](../../docs/PARITY.md) |
+| The rules for this tree | [AGENTS.md](AGENTS.md) |
 
-## Current Status
+## Open items for this frontend
 
-- **App**: Quickshell/QML frontend + Go backend for fisherman; CI-rendered
-  walkthrough in docs/gui-walkthrough.md.
-- **Distribution**: published to the TunaOS Flatpak index on every `main` push;
-  the latest verified publish run succeeded on 2026-08-29. There are no tags or
-  standalone GitHub Releases. Whether the Flatpak remote is the durable release
-  contract remains an open family-level decision (tunaOS #2020).
-- **Parity**: covered by `installer-smoke.yml` + `docs/INSTALLER-FRONTENDS.md`
-  checks (readiness stamp, non-blank, advances, per-screen OCR).
-- **Health**: active (pushed 08-29). LUKS recipe transport was hardened by #28;
-  current risks concentrate on privileged dependency/workflow pinning
-  (#39-#41), missing backend PR CI (#27), and incomplete recipe fields (#25).
+The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 
-### Priorities
+| Issue | Gap |
+|---|---|
+| #291 | The Session step blocks the wizard when `localectl` or `timedatectl` fails, and can change the keymap |
+| #289 | Off live media, the frontend ignores the branding `default_image` |
+| #295 | The account password has no reveal toggle |
+| #298 | The Flatpak cannot see a host catalog in `/etc/bootc-installer` |
+| #290 | The Flatpak builds fisherman, but does not stage it or verify its SHA256 |
+| #300 | The frontend has no translatable strings |
+| #301 | The connectivity check does not block, and it probes a different host |
+| #299 | Cancel does not ask first, and the result page reports a cancel as a failure |
+| #288 | The default for `needs_user_creation` is not the same in every frontend |
+| #292 | Language, keyboard and time zone do not reach the installed system |
+| #296 | The catalog's Flatpak list for an image does not reach the recipe |
+| #297 | `nvidia_imgref`, `flatpak_var_path` and `targetImgref` from the catalog do not all reach the recipe |
+| #302 | The first account is only in `wheel` |
 
-| Priority | Item | Tracking | Status |
-|----------|------|----------|--------|
-| P0 | Pin the privileged fisherman source and reusable publishing workflow | #40/#41 | 🟡 Open |
-| P0 | Remove write-capable CI exposure to unpinned PyQt6 | #39 | 🟡 Open |
-| P0 | No CI runs on `installer/**` — Go backend untested in CI | #27 | 🟡 Open |
-| P1 | User-account creation broken — recipe missing required field | #25 | 🟡 Open |
-| P1 | Reconcile the superseded LUKS boundary tracker after the stdin fix landed | #26/#28 | 🟡 Open |
-| P2 | Keep roadmap outcomes synchronized with repository evidence | #43 | 🟡 Open |
-
----
-
-## Quarterly Goals
-
-### Current Quarter (2026 Q3)
-
-**Theme**: harden the privileged install and publishing paths
-
-| Goal | Owner | Tracking | Status |
-|------|-------|----------|--------|
-| Pin privileged install and publishing dependencies | hanthor | #39-#41 | ⬜ Not started |
-| CI coverage on the Go backend | hanthor | #27 | ⬜ Not started |
-| Reconcile LUKS boundary follow-up after stdin transport landed | hanthor | #26/#28 | 🟡 In review |
-
-### Next Quarter (2026 Q4)
-
-**Theme**: parity and cadence
-
-| Goal | Owner | Tracking | Status |
-|------|-------|----------|--------|
-| Fix user-account creation | hanthor | #25 | ⬜ Not started |
-| Document release/versioning model (image-baked vs tagged) | tuna-os | (org #2020) | ⬜ Not started |
-
----
-
-## Review Cadence
-
-Review this roadmap monthly and after any material install-path, distribution,
-or privileged-supply-chain change. Each refresh must record an evidence-through
-date and reconcile priorities against merged changes, open issues, releases or
-tags, and the latest publishing runs. A merged outcome is evidence even when a
-follow-up tracker has not yet been closed; record that mismatch explicitly
-rather than reporting completed work as not started.
-
----
-
-*ROADMAP added by strategist agent (ACMM L6 — full mode). Signed-off-by: hanthor-hive-agent[bot] <290068839+hanthor-hive-agent[bot]@users.noreply.github.com>*
+When you close one of these issues, remove its row.
+`tests/unit/test_frontend_roadmaps.py` examines this file.
