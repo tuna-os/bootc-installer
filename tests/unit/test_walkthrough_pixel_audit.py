@@ -12,8 +12,8 @@ import unittest
 REPO = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "shared" / "walkthrough"))
 
-import capture_fixtures  # noqa: E402
-import pixel_audit  # noqa: E402
+import capture_fixtures
+import pixel_audit
 
 
 def _image(rows):
