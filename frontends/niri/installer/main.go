@@ -66,6 +66,32 @@ type Recipe struct {
 	TargetMount     string          `json:"targetMount,omitempty"`
 	LuksMapperName  string          `json:"luksMapperName,omitempty"`
 	BrewTap         string          `json:"brewTap,omitempty"`
+	// Extras is the catalog leaf's object (catalog.go). Left out (nil),
+	// fisherman looks the image up in the catalog that it finds; a staged
+	// fisherman has none, so the wizard sends the object.
+	Extras *Extras `json:"extras,omitempty"`
+	// Experimental names the experimental features the user accepted
+	// ("zfs"): fisherman refuses filesystem zfs without it.
+	Experimental []string `json:"experimental,omitempty"`
+	// Locale, Keyboard and Timezone are written into the installed system.
+	// Left out, the image's own values stay.
+	Locale   string    `json:"locale,omitempty"`
+	Keyboard *Keyboard `json:"keyboard,omitempty"`
+	Timezone string    `json:"timezone,omitempty"`
+	// The wizard writes none of these three: left out, fisherman copies
+	// the network profiles and the Bluetooth pairings and sets BootNext
+	// only when the host booted from live media.
+	CopyNetworkProfiles   *bool `json:"copyNetworkProfiles,omitempty"`
+	CopyBluetoothPairings *bool `json:"copyBluetoothPairings,omitempty"`
+	SetBootNext           *bool `json:"setBootNext,omitempty"`
+}
+
+// Keyboard is the recipe's `keyboard` block: XKB names. fisherman needs
+// `layout` when the block is there.
+type Keyboard struct {
+	Layout  string `json:"layout"`
+	Variant string `json:"variant,omitempty"`
+	Model   string `json:"model,omitempty"`
 }
 
 // User is the recipe's `user` block (shared/recipe/fisherman-recipe.schema.json).
