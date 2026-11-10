@@ -22,7 +22,7 @@ mod image_catalog;
 mod hardware;
 mod preflight;
 mod tour;
-mod phone;
+mod i18n;
 
 use cosmic::app::{Core, Settings, Task};
 use cosmic::iced::{Length, Size};
@@ -33,7 +33,7 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as TokioCommand;
 
-pub use model::{DiskInfo, Recipe, FILESYSTEMS};
+pub use model::{DiskInfo, Recipe};
 
 pub const APP_ID: &str = "org.tunaos.InstallerCosmic";
 
@@ -105,8 +105,6 @@ pub enum Page {
     Account,
     /// Per-image tour carousel (views/tour.py). Skipped without slides.
     Tour,
-    /// Phone companion form (utils/phone_companion.py).
-    Companion,
     Confirm,
     Installing,
     Done,
@@ -115,7 +113,7 @@ pub enum Page {
 impl Page {
     /// Wizard order. Also the capture order, so a new page cannot be added
     /// without appearing in the walkthrough.
-    pub const ORDER: [Page; 15] = [
+    pub const ORDER: [Page; 14] = [
         Page::Requirements,
         Page::Welcome,
         Page::Image,
@@ -127,7 +125,6 @@ impl Page {
         Page::Options,
         Page::Account,
         Page::Tour,
-        Page::Companion,
         Page::Confirm,
         Page::Installing,
         Page::Done,
@@ -146,30 +143,31 @@ impl Page {
             Page::Options => "options",
             Page::Account => "account",
             Page::Tour => "tour",
-            Page::Companion => "companion",
             Page::Confirm => "confirm",
             Page::Installing => "installing",
             Page::Done => "done",
         }
     }
 
+    /// The page's name in the header: a message id of `ui::copy`, shown
+    /// through `i18n::tr`.
     pub const fn title(self) -> &'static str {
+        use ui::copy;
         match self {
-            Page::Requirements => "Requirements",
-            Page::Welcome => "Welcome",
-            Page::Image => "Choose a system",
-            Page::Language => "Language",
-            Page::Keyboard => "Keyboard",
-            Page::Timezone => "Time zone",
-            Page::Network => "Network",
-            Page::DiskSelect => "Select a disk",
-            Page::Options => "Options",
-            Page::Account => "Account",
-            Page::Tour => "Tour",
-            Page::Companion => "Use your phone",
-            Page::Confirm => "Confirm",
-            Page::Installing => "Installing",
-            Page::Done => "Finished",
+            Page::Requirements => copy::REQUIREMENTS_TITLE,
+            Page::Welcome => copy::PAGE_WELCOME,
+            Page::Image => copy::IMAGE_TITLE,
+            Page::Language => copy::LANGUAGE_TITLE,
+            Page::Keyboard => copy::KEYBOARD_TITLE,
+            Page::Timezone => copy::TIMEZONE_TITLE,
+            Page::Network => copy::NETWORK_TITLE,
+            Page::DiskSelect => copy::DISK_TITLE,
+            Page::Options => copy::OPTIONS_TITLE,
+            Page::Account => copy::ACCOUNT_SECTION,
+            Page::Tour => copy::TOUR_TITLE,
+            Page::Confirm => copy::PAGE_CONFIRM,
+            Page::Installing => copy::PAGE_INSTALLING,
+            Page::Done => copy::PAGE_DONE,
         }
     }
 
@@ -204,13 +202,19 @@ fn partial_recipe(r: &Recipe) -> serde_json::Value {
         encryption["passphrase"] = serde_json::json!(r.encryption.passphrase);
     }
     let username = r.user.as_ref().map_or("", |u| u.username.as_str());
-    serde_json::json!({
+    let mut partial = serde_json::json!({
         "hostname": r.hostname,
         "filesystem": r.filesystem,
         "btrfsSubvolumes": r.btrfs_subvolumes,
         "encryption": encryption,
         "user": { "username": username },
-    })
+    });
+    // fisherman refuses zfs without the opt-in, in the same fragment.
+    let experimental = model::experimental_for(&r.filesystem);
+    if !experimental.is_empty() {
+        partial["experimental"] = serde_json::json!(experimental);
+    }
+    partial
 }
 
 /// Whether a fisherman problem belongs to the account page (`user.*`). The
@@ -225,16 +229,55 @@ fn account_complete(username: &str, password: &str, confirm: &str) -> bool {
     !username.is_empty() && !password.is_empty() && password == confirm
 }
 
-/// Whether the account page is required for this install. A custom image
-/// URL never needs one (`get_finals`, custom branch); otherwise the
-/// selected catalog leaf decides (`needs_user_creation`, image.py). With
-/// no catalog or no selection yet there is no image on record to say
-/// otherwise, so the account stays required — the previous behavior.
-fn account_required_for(custom_image: &str, selected_needs_user: Option<bool>) -> bool {
-    if !custom_image.trim().is_empty() {
-        return false;
+/// Whether the installer creates the first account
+/// (`shared/catalog/README.md`, "The account").
+///
+/// - On live media there is no image page: the flag is the one of the leaf
+///   whose reference is the booted image (`live.live_image`).
+/// - Else it is the flag of the typed custom image, when the catalog has
+///   it, or of the selected leaf.
+/// - An image that the catalog does not have needs an account, and so does
+///   an install with no image on record yet. A custom reference used to
+///   skip the account, which left an image with nobody to sign in as.
+fn account_required_for(
+    catalog: &image_catalog::Catalog,
+    live_image: Option<&str>,
+    custom_image: &str,
+    selected: Option<&image_catalog::ImageLeaf>,
+) -> bool {
+    if let Some(live) = live_image {
+        return catalog.needs_user_creation(live);
     }
-    selected_needs_user.unwrap_or(true)
+    let custom = custom_image.trim();
+    if !custom.is_empty() {
+        return catalog.needs_user_creation(custom);
+    }
+    selected.map_or(true, |leaf| leaf.needs_user_creation)
+}
+
+/// How an install ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Outcome {
+    Succeeded,
+    /// The user stopped it. Not a failure: it has its own page (#299).
+    Cancelled,
+    Failed,
+}
+
+/// The wrapper's exit status as an outcome. `code` is `None` when a signal
+/// ended the wrapper. fisherman exits 130 when it is cancelled
+/// (shared/recipe/README.md), whoever asked. A signal, or a shell's
+/// 128 + signal, is a cancel only after the user confirmed one: this
+/// frontend signals the wrapper's group then, and that is what it looks
+/// like. Any other signal is a crash.
+pub fn install_outcome(code: Option<i32>, cancel_confirmed: bool) -> Outcome {
+    match code {
+        Some(0) => Outcome::Succeeded,
+        Some(130) => Outcome::Cancelled,
+        Some(c) if cancel_confirmed && c > 128 => Outcome::Cancelled,
+        None if cancel_confirmed => Outcome::Cancelled,
+        _ => Outcome::Failed,
+    }
 }
 
 // -------------------------------------------------------------- messages ----
@@ -269,9 +312,11 @@ pub enum Message {
     StartInstall,
     /// The catalog choice (image.py / XFCE SourcePage).
     SelectImage(usize),
-    /// A custom image URL, typed instead of picked. Non-empty wins over
-    /// the catalog choice and never needs a user (`get_finals`).
+    /// A custom image reference, typed instead of picked. Non-empty wins
+    /// over the catalog choice.
     CustomImageChanged(String),
+    /// The image page's search box.
+    ImageQueryChanged(String),
     /// "Continue anyway" on one overridable hardware gate (window_cpu /
     /// window_ram relaunch with IGNORE_CPU / IGNORE_RAM; here the override
     /// stays in-process, under the same names).
@@ -300,12 +345,15 @@ pub enum Message {
     RecheckNetwork,
     /// The connectivity probe answered.
     NetworkChecked(bool),
-    /// Companion-page heartbeat: drain accepted phone configs into the
-    /// account fields, and keep polling while the page is shown.
-    CompanionTick,
-    /// Copy the pairing link (the token rides in the URL, so the page
-    /// shows only host:port and the code — as on qr_companion.py).
-    CopyPairingLink,
+    /// "Network settings" on the offline network page: the desktop's own
+    /// tool, on the host, best effort (#301).
+    OpenNetworkSettings,
+    /// The progress page's Cancel: ask first (#299).
+    RequestCancelInstall,
+    /// "Cancel installation" in that dialog: signal the wrapper's group.
+    ConfirmCancelInstall,
+    /// "Keep installing" in that dialog.
+    DismissCancelInstall,
     /// Tour carousel steps (views/tour.py): within the slides, then on.
     TourNext,
     TourBack,
@@ -318,7 +366,8 @@ pub enum Message {
     /// this frontend a working bar; it needed the output to arrive while the
     /// install is running.
     InstallLine(String),
-    InstallFinished(Result<i32, String>),
+    /// The wrapper's exit code, or `None` when a signal ended it.
+    InstallFinished(Result<Option<i32>, String>),
     Quit,
     /// The done page's Restart: `systemctl reboot` on the host.
     Reboot,
@@ -355,7 +404,13 @@ pub struct TunaInstaller {
     /// indeterminate bar for the whole install — docs/PARITY.md gap #2.
     progress: progress::Progress,
     install_ok: bool,
+    /// The install ended because the user cancelled it (`install_outcome`).
+    install_cancelled: bool,
     installing: bool,
+    /// The cancel dialog is open over the progress page.
+    show_cancel_dialog: bool,
+    /// The user confirmed a cancel and the wrapper's group was signalled.
+    cancel_confirmed: bool,
     passphrase_hidden: bool,
     /// The passphrase typed a second time. Never in the recipe and never
     /// sent to fisherman: matching it is this frontend's only rule
@@ -384,13 +439,28 @@ pub struct TunaInstaller {
     /// `Some` only in capture mode. Its presence is also the hard interlock
     /// that stops the capture harness ever running a real install.
     capture: Option<capture::Capture>,
-    /// Image catalog (image.py / XFCE SourcePage): the default ref, the
-    /// fallback flatpaks and the leaves. Empty when no catalog file was
-    /// found; the wizard then falls back to the branding default image.
+    /// Image catalog (shared/catalog/README.md): the default ref and the
+    /// leaves. Empty when no catalog file was found.
     catalog: image_catalog::Catalog,
+    /// `None` until the user, the branding or the catalog names a leaf.
+    /// Never the first row by default.
     selected_image: Option<usize>,
-    /// A custom image URL, typed instead of picked. Wins over the leaf.
+    /// An image was on record at start-up (a default leaf, or the branding
+    /// default with no catalog). Without one the image page must show.
+    image_preselected: bool,
+    /// A custom image reference, typed instead of picked. Wins over the leaf.
     custom_image: String,
+    /// The image page's search box.
+    image_query: String,
+    /// The user typed a hostname: a new leaf's default no longer replaces it.
+    hostname_edited: bool,
+    /// An NVIDIA GPU is in this machine (`hardware::has_nvidia_gpu`).
+    has_nvidia: bool,
+    /// fisherman's `offline.images`: what the live media's stores hold.
+    offline_images: Vec<String>,
+    /// The first account's groups: shared/account/groups.json, or the
+    /// operator's `user.groups`.
+    user_groups: Vec<String>,
     /// "Continue anyway" overrides for the RAM/CPU gates.
     hw_overrides: hardware::Overrides,
     /// The exit-confirm state (RequestQuit): the view renders the confirm
@@ -409,11 +479,6 @@ pub struct TunaInstaller {
     net_online: Option<bool>,
     /// Tour carousel position within [`TunaInstaller::tour_slides`].
     tour_index: usize,
-    /// Phone companion pairing token and the port its server bound.
-    companion_token: String,
-    companion_port: Option<u16>,
-    /// A phone submitted its form (CompanionTick applied it).
-    companion_applied: bool,
     /// The install wrapper's pid while it runs, so exiting mid-install can
     /// signal its process group (shared contract, spawn_wrapper).
     install_pid: std::sync::Arc<std::sync::Mutex<Option<u32>>>,
@@ -458,6 +523,15 @@ impl TunaInstaller {
     }
     pub fn install_ok(&self) -> bool {
         self.install_ok
+    }
+    pub fn install_cancelled(&self) -> bool {
+        self.install_cancelled
+    }
+    pub fn show_cancel_dialog(&self) -> bool {
+        self.show_cancel_dialog
+    }
+    pub fn cancel_confirmed(&self) -> bool {
+        self.cancel_confirmed
     }
     pub fn installing(&self) -> bool {
         self.installing
@@ -504,7 +578,12 @@ impl TunaInstaller {
     }
     /// The recipe's `user` block, from the account page's fields.
     fn sync_user(&mut self) {
-        self.recipe.user = model::user_block(&self.username, &self.fullname, &self.password);
+        self.recipe.user = model::user_block(
+            &self.username,
+            &self.fullname,
+            &self.password,
+            &self.user_groups,
+        );
     }
     pub fn capturing(&self) -> bool {
         self.capture.is_some()
@@ -530,17 +609,46 @@ impl TunaInstaller {
     pub fn custom_image(&self) -> &str {
         &self.custom_image
     }
-    /// The image Continue would install: the custom URL when one is typed,
-    /// else the selected leaf, else the branding default.
-    pub fn effective_image(&self) -> String {
+    pub fn image_query(&self) -> &str {
+        &self.image_query
+    }
+    pub fn selected_leaf(&self) -> Option<&image_catalog::ImageLeaf> {
+        self.selected_image.and_then(|i| self.catalog.leaves.get(i))
+    }
+    /// The leaf the recipe was built from: on live media the leaf of the
+    /// booted image, else the typed custom image when the catalog has it,
+    /// else the selected leaf.
+    pub fn active_leaf(&self) -> Option<&image_catalog::ImageLeaf> {
+        if !self.capturing() {
+            if let Some(live) = self.live_image.as_deref() {
+                return self.catalog.find(live).map(|i| &self.catalog.leaves[i]);
+            }
+        }
         let custom = self.custom_image.trim();
         if !custom.is_empty() {
-            return custom.to_string();
+            return self.catalog.find(custom).map(|i| &self.catalog.leaves[i]);
         }
-        if let Some(leaf) = self.selected_image.and_then(|i| self.catalog.leaves.get(i)) {
-            return leaf.imgref.clone();
+        self.selected_leaf()
+    }
+    /// The filesystems the options page offers: the active leaf's, else
+    /// this frontend's own list (shared/catalog/README.md, "Filesystem").
+    pub fn filesystem_choices(&self) -> Vec<String> {
+        self.active_leaf().map_or_else(
+            || {
+                image_catalog::OWN_FILESYSTEMS
+                    .iter()
+                    .map(|f| (*f).to_string())
+                    .collect()
+            },
+            image_catalog::ImageLeaf::filesystem_choices,
+        )
+    }
+    fn machine(&self) -> model::Machine {
+        model::Machine {
+            has_nvidia: self.has_nvidia,
+            is_live: self.live_image.is_some(),
+            offline_images: self.offline_images.clone(),
         }
-        branding::get().default_image.clone()
     }
     pub fn hw_overrides(&self) -> hardware::Overrides {
         self.hw_overrides
@@ -582,24 +690,14 @@ impl TunaInstaller {
     pub fn tour_index(&self) -> usize {
         self.tour_index
     }
-    pub fn companion_token(&self) -> &str {
-        &self.companion_token
-    }
-    pub fn companion_port(&self) -> Option<u16> {
-        self.companion_port
-    }
-    pub fn companion_applied(&self) -> bool {
-        self.companion_applied
-    }
-    /// Whether the account page is required: the catalog's answer for the
-    /// selected image (or custom URL), defaulting to required with no
-    /// image on record.
+    /// Whether the account page is required (`account_required_for`).
     pub fn account_required(&self) -> bool {
         account_required_for(
+            &self.catalog,
+            // The capture walks every page with the live fixture loaded.
+            if self.capturing() { None } else { self.live_image.as_deref() },
             &self.custom_image,
-            self.selected_image
-                .and_then(|i| self.catalog.leaves.get(i))
-                .map(|l| l.needs_user_creation),
+            self.selected_leaf(),
         )
     }
     /// The tour slides: the selected leaf's carousel, or none (and then
@@ -617,7 +715,12 @@ impl TunaInstaller {
             Page::Requirements => {
                 !hardware::blocking_gates(&self.unmet, &self.hw_overrides).is_empty()
             }
-            Page::Image => self.live_image.is_none() && self.catalog.has_choice(),
+            // Off live media the user chooses, unless one image was on
+            // record at start-up and there is nothing else to choose.
+            Page::Image => {
+                self.live_image.is_none()
+                    && (self.catalog.leaves.len() > 1 || !self.image_preselected)
+            }
             Page::Network => self.live_image.is_none(),
             Page::Account => self.account_required(),
             Page::Tour => !self.tour_slides().is_empty(),
@@ -628,6 +731,8 @@ impl TunaInstaller {
     /// Takes in a probe answer: the disks, TPM, requirements and live media
     /// together.
     fn apply_probe(&mut self, result: Result<probe::Facts, String>) {
+        let first = !self.probed;
+        let machine_before = self.machine();
         self.probed = true;
         match result {
             Ok(facts) => {
@@ -637,14 +742,14 @@ impl TunaInstaller {
                 // Live media is fisherman's answer. This used to be a
                 // `bootc status` of our own plus /run/ostree-live and
                 // /proc/cmdline, read inside the Flatpak sandbox.
-                if facts.is_live {
-                    self.live_image = Some(facts.live_image);
-                    self.recipe.image.clear();
-                } else {
-                    self.live_image = None;
-                    if self.recipe.image.is_empty() {
-                        self.recipe.image = branding::get().default_image.clone();
-                    }
+                self.live_image = facts.is_live.then_some(facts.live_image);
+                self.offline_images = facts.offline_images;
+                // The image fields depend on live media and on the offline
+                // stores. Build them again when those changed, and only
+                // then: a later probe (the disk page runs one) must not
+                // put the leaf's filesystem back over the user's choice.
+                if first || self.machine() != machine_before {
+                    self.sync_image();
                 }
                 let keep = self
                     .selected_disk
@@ -724,68 +829,76 @@ impl TunaInstaller {
         )
     }
 
-    /// The recipe's image follows the catalog choice: the custom URL when
-    /// one is typed, else the selected leaf, else the branding default.
-    /// Flatpaks follow the same selection (the leaf's list, else the
-    /// catalog fallback — `get_finals`). Called on every selection change
-    /// and at init, so Confirm and the install always see the choice the
-    /// page shows.
-    fn sync_image(&mut self) {
-        if !self.capturing() && self.live_image.is_some() {
-            // Live media installs the running system; no image is written.
+    /// The hostname field's first value: the leaf's `default_hostname`,
+    /// else the branding's. A hostname the user typed stays.
+    fn apply_default_hostname(&mut self, leaf_default: &str) {
+        if self.hostname_edited {
             return;
+        }
+        self.recipe.hostname = if leaf_default.is_empty() {
+            branding::get().default_hostname.clone()
+        } else {
+            leaf_default.to_string()
+        };
+    }
+
+    /// The recipe's image fields follow the image on record
+    /// (`Recipe::apply_leaf`): every contract field of the leaf, and the
+    /// NVIDIA rule for this machine. Called at init, on every selection
+    /// change and when the probe's machine facts change, so Confirm and
+    /// the install always see the choice the page shows.
+    fn sync_image(&mut self) {
+        let machine = self.machine();
+        if !self.capturing() {
+            if let Some(live) = self.live_image.clone() {
+                // Live media installs the running system: `image` stays
+                // empty. The leaf of the booted image still says how
+                // (bootloader, composefs, filesystem) and what updates
+                // follow.
+                match self.catalog.find(&live).map(|i| self.catalog.leaves[i].clone()) {
+                    Some(leaf) => {
+                        self.recipe.apply_leaf(&leaf, &machine);
+                        self.apply_default_hostname(&leaf.default_hostname);
+                    }
+                    None => self.recipe.apply_unlisted_image(&live),
+                }
+                self.recipe.image.clear();
+                return;
+            }
         }
         let custom = self.custom_image.trim().to_string();
-        if !custom.is_empty() {
-            self.recipe.image = custom;
-            self.recipe
-                .flatpaks
-                .clone_from(&self.catalog.fallback_flatpaks);
-            return;
-        }
-        if let Some(leaf) = self
-            .selected_image
-            .and_then(|i| self.catalog.leaves.get(i))
-        {
-            self.recipe.image = leaf.imgref.clone();
-            self.recipe.flatpaks.clone_from(&leaf.flatpaks);
+        let leaf = if custom.is_empty() {
+            self.selected_leaf().cloned()
+        } else {
+            self.catalog.find(&custom).map(|i| self.catalog.leaves[i].clone())
+        };
+        if let Some(leaf) = leaf {
+            self.recipe.apply_leaf(&leaf, &machine);
+            self.apply_default_hostname(&leaf.default_hostname);
+        } else if !custom.is_empty() {
+            self.recipe.apply_unlisted_image(&custom);
+            self.apply_default_hostname("");
+        } else if self.catalog.leaves.is_empty() {
+            // No catalog at all: the branding's image is the only one on
+            // record. With a catalog, an image that is not in it selects
+            // nothing and the user must choose.
+            let default_image = branding::get().default_image.clone();
+            self.recipe.apply_unlisted_image(&default_image);
+        } else {
+            self.recipe.apply_unlisted_image("");
         }
     }
 
     /// Side effects of arriving on a page: connectivity starts checking,
-    /// the companion server starts serving, the tour restarts its slides.
+    /// the tour restarts its slides.
     fn on_enter_page(&mut self, page: Page) -> Task<Message> {
         match page {
             Page::Network => {
                 if self.capturing() || self.live_image.is_some() {
                     return Task::none();
                 }
-                self.net_checking = true;
-                self.net_online = None;
-                Task::perform(
-                    async move {
-                        tokio::task::spawn_blocking(preflight::check_connectivity)
-                            .await
-                            .unwrap_or(false)
-                    },
-                    |ok| cosmic::action::app(Message::NetworkChecked(ok)),
-                )
-            }
-            Page::Companion => {
-                if self.capturing() {
-                    return Task::none();
-                }
-                if self.companion_token.is_empty() {
-                    self.companion_token = phone::new_token();
-                }
-                let token = self.companion_token.clone();
-                self.companion_port = Some(phone::ensure_server(&token));
-                Task::perform(
-                    async move {
-                        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                    },
-                    |_| cosmic::action::app(Message::CompanionTick),
-                )
+                let image = self.recipe.image.clone();
+                check_network_task(&mut self.net_checking, &mut self.net_online, false, false, image)
             }
             Page::Tour => {
                 self.tour_index = 0;
@@ -795,21 +908,11 @@ impl TunaInstaller {
         }
     }
 
-    /// Leaving the companion page stops its server: the form must not
-    /// outlive the install it feeds.
-    fn on_leave_page(&mut self, page: Page) {
-        if page == Page::Companion {
-            phone::stop_server();
-            self.companion_port = None;
-        }
-    }
-
     fn advance(&mut self) -> (Option<Page>, Task<Message>) {
         let from = self.page.index();
         for i in (from + 1)..Page::ORDER.len() {
             let candidate = Page::ORDER[i];
             if self.page_visible(candidate) {
-                self.on_leave_page(self.page);
                 self.page = candidate;
                 let task = self.on_enter_page(candidate);
                 return (Some(candidate), task);
@@ -823,7 +926,6 @@ impl TunaInstaller {
         for i in (0..from).rev() {
             let candidate = Page::ORDER[i];
             if self.page_visible(candidate) {
-                self.on_leave_page(self.page);
                 self.page = candidate;
                 return;
             }
@@ -863,24 +965,22 @@ impl cosmic::Application for TunaInstaller {
         // No additional_image_stores: left out, fisherman exposes the offline
         // stores it finds on the host (tuna-os/fisherman#276).
 
-        // The image catalog (image.py / XFCE SourcePage). The default leaf
-        // is selected up front, so a skipped image page still installs the
-        // default instead of the branding fallback. Nothing shells out: it
-        // is flat files, read here.
+        // The image catalog (shared/catalog/README.md). The selection at
+        // the start is the branding's default image, then the catalog's,
+        // else nothing: never the first row. Nothing shells out: it is flat
+        // files, read here.
         let mut catalog = image_catalog::Catalog::default();
-        let mut selected_image: Option<usize> = None;
+        let mut user_groups = model::default_groups();
         if !capturing {
             if let Some(loaded) = image_catalog::load_catalog() {
-                selected_image = loaded
-                    .default_index()
-                    .or((!loaded.leaves.is_empty()).then_some(0));
                 catalog = loaded;
             }
+            user_groups = model::groups_from_etc(image_catalog::etc_dir());
         }
-        if let Some(leaf) = selected_image.and_then(|i| catalog.leaves.get(i)) {
-            recipe.image = leaf.imgref.clone();
-            recipe.flatpaks.clone_from(&leaf.flatpaks);
-        }
+        let default_image = branding::get().default_image.clone();
+        let selected_image = catalog.default_index(&default_image);
+        let image_preselected =
+            selected_image.is_some() || (catalog.leaves.is_empty() && !default_image.is_empty());
         let mut app = Self {
             core,
             page: Page::Welcome,
@@ -893,7 +993,10 @@ impl cosmic::Application for TunaInstaller {
             install_log: String::new(),
             progress: progress::Progress::new(branding::name()),
             install_ok: false,
+            install_cancelled: false,
             installing: false,
+            show_cancel_dialog: false,
+            cancel_confirmed: false,
             passphrase_hidden: true,
             passphrase_confirm: String::new(),
             username: String::new(),
@@ -910,7 +1013,13 @@ impl cosmic::Application for TunaInstaller {
             capture: flags.capture,
             catalog,
             selected_image,
+            image_preselected,
             custom_image: String::new(),
+            image_query: String::new(),
+            hostname_edited: false,
+            has_nvidia: !capturing && hardware::has_nvidia_gpu(),
+            offline_images: Vec::new(),
+            user_groups,
             hw_overrides: hardware::Overrides::default(),
             show_exit_dialog: false,
             locales: Vec::new(),
@@ -923,11 +1032,10 @@ impl cosmic::Application for TunaInstaller {
             net_checking: false,
             net_online: None,
             tour_index: 0,
-            companion_token: String::new(),
-            companion_port: None,
-            companion_applied: false,
             install_pid: std::sync::Arc::new(std::sync::Mutex::new(None)),
         };
+        // The selected leaf's fields, before the probe answers.
+        app.sync_image();
         if capturing {
             // The shared laptop fixture, through the same reader. A capture
             // without it would photograph an error, so refuse.
@@ -941,7 +1049,7 @@ impl cosmic::Application for TunaInstaller {
 
         // The product name from the branding contract (branding.json, then
         // os-release), never a literal — see `branding`.
-        let window_title = format!("{} Installer", branding::name());
+        let window_title = i18n::tr_with(ui::copy::WINDOW_TITLE, &[("product", branding::name())]);
         let mut tasks = vec![app.set_window_title(window_title.clone())];
         if app.capture.is_some() {
             tasks.push(capture::begin());
@@ -988,11 +1096,12 @@ impl cosmic::Application for TunaInstaller {
         // drawn by hand in the page body, which is what makes this read as a
         // COSMIC app instead of a generic iced window.
         let spacing = cosmic::theme::active().cosmic().spacing;
-        vec![widget::text::caption(format!(
-            "Step {} of {} · {}",
-            self.page.index() + 1,
-            Page::ORDER.len(),
-            self.page.title()
+        vec![widget::text::caption(i18n::tr_with(ui::copy::HEADER_STEP,
+            &[
+                ("n", &(self.page.index() + 1).to_string()),
+                ("total", &Page::ORDER.len().to_string()),
+                ("title", &i18n::tr(self.page.title())),
+            ],
         ))
         .apply(widget::container)
         .padding([0, spacing.space_xs])
@@ -1008,7 +1117,7 @@ impl cosmic::Application for TunaInstaller {
             .into(),
             // GNOME's header exit (btn_exit): confirm first, and kill the
             // install's process group when one is running.
-            widget::button::standard(crate::ui::copy::EXIT_BUTTON)
+            widget::button::standard(i18n::tr(crate::ui::copy::EXIT_BUTTON))
                 .on_press(Message::RequestQuit)
                 .into(),
         ]
@@ -1039,11 +1148,18 @@ impl cosmic::Application for TunaInstaller {
                     self.selected_image = Some(idx);
                     self.sync_image();
                 }
-                Task::none()
+                // The leaf can change the filesystem and the hostname:
+                // ask fisherman about the new values.
+                self.check_fields()
             }
             Message::CustomImageChanged(s) => {
                 self.custom_image = s;
                 self.sync_image();
+                self.check_fields()
+            }
+            Message::ImageQueryChanged(q) => {
+                // A selected row stays selected while the query hides it.
+                self.image_query = q;
                 Task::none()
             }
             Message::OverrideGate(kind) => {
@@ -1158,50 +1274,44 @@ impl cosmic::Application for TunaInstaller {
             Message::RecheckNetwork => {
                 let capturing = self.capturing();
                 let is_live = self.live_image.is_some();
-                check_network_task(&mut self.net_checking, &mut self.net_online, capturing, is_live)
+                let image = self.recipe.image.clone();
+                check_network_task(&mut self.net_checking, &mut self.net_online, capturing, is_live, image)
             }
             Message::NetworkChecked(online) => {
                 self.net_checking = false;
                 self.net_online = Some(online);
                 Task::none()
             }
-            Message::CompanionTick => {
-                // A phone submitted its form: fill the account entries the
-                // way typing would (sync_user), so validation and Confirm
-                // see exactly what a typed entry would produce.
-                let mut tasks = Vec::new();
-                let mut applied = false;
-                for config in phone::drain_inbox() {
-                    applied = true;
-                    self.username = config.username;
-                    self.fullname = config.fullname;
-                    self.password = config.password.clone();
-                    self.password_confirm = config.password;
-                    if !config.hostname.is_empty() {
-                        self.recipe.hostname = config.hostname;
-                    }
-                    self.sync_user();
-                    tasks.push(self.check_fields());
-                }
-                if applied {
-                    self.companion_applied = true;
-                }
-                // Keep polling while the page is shown.
-                if self.page == Page::Companion && !self.capturing() {
-                    tasks.push(Task::perform(
-                        async move {
-                            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                        },
-                        |_| cosmic::action::app(Message::CompanionTick),
-                    ));
-                }
-                Task::batch(tasks)
+            Message::OpenNetworkSettings => {
+                // Best effort: the page still has Recheck when no tool
+                // starts.
+                spawn_host(&hardware::network_settings_command());
+                Task::none()
             }
-            Message::CopyPairingLink => {
-                let host = phone::local_ip().unwrap_or_default();
-                let port = self.companion_port.unwrap_or(0);
-                let token = self.companion_token.clone();
-                cosmic::iced::clipboard::write(phone::pairing_url(&host, port, &token))
+            Message::RequestCancelInstall => {
+                if self.installing && !self.cancel_confirmed {
+                    self.show_cancel_dialog = true;
+                }
+                Task::none()
+            }
+            Message::DismissCancelInstall => {
+                self.show_cancel_dialog = false;
+                Task::none()
+            }
+            Message::ConfirmCancelInstall => {
+                self.show_cancel_dialog = false;
+                // The wrapper leads its own process group, so the signal
+                // reaches the whole install and not this process. fisherman
+                // then cleans up (unmounts, closes LUKS) and the wrapper
+                // ends; InstallFinished shows the cancelled page. The pid
+                // stays in the slot until the wrapper is reaped.
+                let pid = *self.install_pid.lock().unwrap();
+                if let (true, Some(pid)) = (self.installing, pid) {
+                    if hardware::terminate_process_group(pid).is_ok() {
+                        self.cancel_confirmed = true;
+                    }
+                }
+                Task::none()
             }
             Message::TourNext => {
                 if self.tour_index + 1 < self.tour_slides().len() {
@@ -1241,13 +1351,16 @@ impl cosmic::Application for TunaInstaller {
                 Task::none()
             }
             Message::HostnameChanged(h) => {
+                self.hostname_edited = true;
                 self.recipe.hostname = h;
                 self.check_fields()
             }
             Message::FilesystemChanged(idx) => {
-                if let Some(fs) = FILESYSTEMS.get(idx) {
-                    self.recipe.filesystem = (*fs).to_string();
-                    self.recipe.btrfs_subvolumes = *fs == "btrfs";
+                // A position in the list the page drew: the active leaf's
+                // choices (`filesystem_choices`).
+                if let Some(fs) = self.filesystem_choices().get(idx) {
+                    self.recipe.btrfs_subvolumes = fs == "btrfs";
+                    self.recipe.filesystem.clone_from(fs);
                 }
                 self.check_fields()
             }
@@ -1325,12 +1438,20 @@ impl cosmic::Application for TunaInstaller {
                     tracing::error!("StartInstall ignored: capture mode");
                     return Task::none();
                 }
+                // One install at a time.
+                if self.installing {
+                    return Task::none();
+                }
                 self.page = Page::Installing;
                 self.installing = true;
+                self.install_cancelled = false;
+                self.cancel_confirmed = false;
+                self.show_cancel_dialog = false;
                 self.progress.reset();
                 let recipe = self.recipe.clone();
                 let pid_slot = self.install_pid.clone();
-                Task::stream(Self::stream_fisherman(recipe, pid_slot).map(cosmic::action::app))
+                let live = self.live_image.is_some();
+                Task::stream(Self::stream_fisherman(recipe, pid_slot, live).map(cosmic::action::app))
             }
             Message::InstallLine(line) => {
                 // Through the same parser the capture harness drives, so the
@@ -1344,14 +1465,19 @@ impl cosmic::Application for TunaInstaller {
             Message::InstallFinished(result) => {
                 self.page = Page::Done;
                 self.installing = false;
+                self.show_cancel_dialog = false;
                 match result {
                     Ok(code) => {
-                        self.install_ok = code == 0;
+                        let outcome = install_outcome(code, self.cancel_confirmed);
+                        self.install_ok = outcome == Outcome::Succeeded;
+                        self.install_cancelled = outcome == Outcome::Cancelled;
+                        let how = code.map_or("a signal".to_string(), |c| format!("code {c}"));
                         self.install_log
-                            .push_str(&format!("\n=== fisherman exited with code {code} ===\n"));
+                            .push_str(&format!("\n=== fisherman exited with {how} ===\n"));
                     }
                     Err(e) => {
                         self.install_ok = false;
+                        self.install_cancelled = false;
                         self.install_log.push_str(&format!("\n=== Error: {e} ===\n"));
                     }
                 }
@@ -1390,6 +1516,10 @@ impl cosmic::Application for TunaInstaller {
         if self.show_exit_dialog {
             return ui::exit_confirm(self);
         }
+        // The cancel dialog asks before a half-written disk is abandoned.
+        if self.show_cancel_dialog {
+            return ui::cancel_confirm(self);
+        }
         ui::view(self)
     }
 }
@@ -1423,8 +1553,11 @@ impl TunaInstaller {
     fn stream_fisherman(
         recipe: Recipe,
         pid_slot: std::sync::Arc<std::sync::Mutex<Option<u32>>>,
+        live: bool,
     ) -> impl Stream<Item = Message> {
         cosmic::iced::stream::channel(64, async move |mut output| {
+            let mut recipe = recipe;
+            recipe.accept_experimental();
             let json = match serde_json::to_string_pretty(&recipe) {
                 Ok(json) => json,
                 Err(e) => {
@@ -1432,11 +1565,22 @@ impl TunaInstaller {
                     return;
                 }
             };
-            // flatpak-spawn --host bash -c 'pkexec /usr/local/bin/fisherman -'
-            // in Flatpak, sudo /usr/local/bin/fisherman - otherwise. The
-            // recipe goes to the wrapper's stdin, never to a file: it may
-            // hold a passphrase (tuna-os/fisherman#276).
-            let cmd = offline::fisherman_command();
+            // The one resolver (offline::fisherman_argv): pkexec, or
+            // `sudo -n` on native live media, inside a bash this user can
+            // signal; in a Flatpak the staged and verified copy, on the
+            // host. The recipe goes to the wrapper's stdin, never to a
+            // file: it may hold a passphrase (tuna-os/fisherman#276).
+            let cmd = match offline::fisherman(offline::Use::Install, live) {
+                Ok(cmd) => cmd,
+                Err(e) => {
+                    let _ = output
+                        .send(Message::InstallFinished(Err(format!(
+                            "Failed to prepare fisherman: {e}"
+                        ))))
+                        .await;
+                    return;
+                }
+            };
             let mut child = match spawn_wrapper(&cmd, json.into_bytes()).await {
                 Ok(child) => {
                     // Published for the exit path: ConfirmQuit signals this
@@ -1467,8 +1611,9 @@ impl TunaInstaller {
                 }
             }
 
+            // `None` when a signal ended the wrapper (a confirmed cancel).
             let code = match child.wait().await {
-                Ok(status) => status.code().unwrap_or(-1),
+                Ok(status) => status.code(),
                 Err(e) => {
                     let _ = output.send(Message::InstallFinished(Err(e.to_string()))).await;
                     return;
@@ -1477,8 +1622,8 @@ impl TunaInstaller {
             // The wrapper is reaped: clear the slot so a later exit no
             // longer signals a recycled pid.
             *pid_slot.lock().unwrap() = None;
-            if code != 0 {
-                tracing::error!("fisherman exited with code {code}");
+            if code != Some(0) {
+                tracing::error!("fisherman exited with {code:?}");
             }
             let _ = output.send(Message::InstallFinished(Ok(code))).await;
         })
@@ -1503,6 +1648,7 @@ fn check_network_task(
     online: &mut Option<bool>,
     capturing: bool,
     is_live: bool,
+    image: String,
 ) -> Task<Message> {
     if capturing || is_live {
         return Task::none();
@@ -1511,7 +1657,8 @@ fn check_network_task(
     *online = None;
     Task::perform(
         async move {
-            tokio::task::spawn_blocking(preflight::check_connectivity)
+            // The registry of the selected image first (#301).
+            tokio::task::spawn_blocking(move || preflight::check_connectivity(&image))
                 .await
                 .unwrap_or(false)
         },
@@ -1527,7 +1674,8 @@ fn check_network_task(
 /// fisherman runs as root and cancels when its parent dies
 /// (tuna-os/fisherman#267). The shared contract is "kill your wrapper's
 /// process group", which must never be the installer's own group. This
-/// frontend has no cancel UI, so nothing signals it yet.
+/// The progress page's Cancel (after its dialog) and the header's Exit
+/// both signal that group (`hardware::terminate_process_group`).
 async fn spawn_wrapper(argv: &[String], stdin_data: Vec<u8>) -> std::io::Result<tokio::process::Child> {
     use tokio::io::AsyncWriteExt;
     let mut child = TokioCommand::new(&argv[0])
@@ -1610,6 +1758,14 @@ mod tests {
         assert!(json.get("image").is_none());
         assert!(json.get("targetImgref").is_none());
         assert!(json.get("bootloader").is_none());
+        // No list on record: no key. `[]` would tell fisherman to copy no
+        // Flatpak at all.
+        assert!(json.get("flatpaks").is_none());
+        assert!(json.get("flatpakVarPath").is_none());
+        assert!(json.get("imageType").is_none());
+        let mut none = Recipe::default();
+        none.flatpaks = Some(Vec::new());
+        assert_eq!(serde_json::to_value(&none).unwrap()["flatpaks"], serde_json::json!([]));
     }
 
     #[test]
@@ -1640,17 +1796,6 @@ mod tests {
         assert_eq!(with_tpm[3], "tpm2-luks-passphrase");
     }
 
-    /// End to end: the Install button's code path against the real backend.
-    ///
-    /// `run_fisherman` is what `Message::StartInstall` performs: it writes
-    /// the 0600 recipe, runs `fisherman_command()` (sudo
-    /// /usr/local/bin/fisherman outside Flatpak), collects the output and
-    /// persists the log. In the end-to-end job shared/e2e/setup.sh has put
-    /// the validating shim at that path, so this exercises the real
-    /// fisherman's Validate() on the recipe this crate serialises. Ignored
-    /// by default: it needs TUNA_E2E_DISK and the shim.
-    ///
-    ///     TUNA_E2E_DISK=/dev/loopN cargo test --release -- --ignored e2e
     /// The process group a pid belongs to: field 5 of /proc/<pid>/stat.
     fn pgrp_of(pid: &str) -> u32 {
         let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).unwrap();
@@ -1698,7 +1843,9 @@ mod tests {
             let out = child.wait_with_output().await.unwrap();
             assert!(out.status.success());
             assert_eq!(String::from_utf8_lossy(&out.stdout), json);
-            assert_eq!(super::offline::fisherman_command().last().map(String::as_str), Some("-"));
+            // The install's wrapper ends in `fisherman -`: stdin, no file.
+            let argv = super::offline::fisherman(super::offline::Use::Install, false).unwrap();
+            assert!(argv.last().unwrap().ends_with("fisherman -; exit $?"), "{argv:?}");
         });
     }
 
@@ -1729,6 +1876,8 @@ mod tests {
                 "user": {"username": ""},
             })
         );
+        let zfs = Recipe { filesystem: "zfs".into(), ..r.clone() };
+        assert_eq!(super::partial_recipe(&zfs)["experimental"], serde_json::json!(["zfs"]));
         let mut with_passphrase = r.clone();
         with_passphrase.encryption.enc_type = "tpm2-luks-passphrase".into();
         assert_eq!(super::partial_recipe(&with_passphrase)["encryption"]["passphrase"], "stale");
@@ -1777,18 +1926,53 @@ mod tests {
         });
     }
 
+    /// The catalog the end-to-end test gives this frontend. It is written
+    /// next to the recipe so `shared/e2e/check-recipe.py` can judge "an
+    /// account exactly when the image needs one". One leaf sets nothing
+    /// (the contract's default: an account); the other makes its own user.
+    const E2E_CATALOG: &str = r#"{
+  "images": [
+    {"name": "CentOS bootc", "imgref": "quay.io/centos-bootc/centos-bootc:c10s",
+     "filesystem": "xfs",
+     "extras": {"printServices": true, "oemSetup": true, "audioNames": true, "bootSplash": true}},
+    {"name": "Own first user", "imgref": "registry.example/os/first-boot-setup:1",
+     "needs_user_creation": false}
+  ]
+}
+"#;
+
+    /// End to end: the Install button's code path against the real backend.
+    ///
+    /// `stream_fisherman` is what `Message::StartInstall` performs: it
+    /// resolves the wrapper (`offline::fisherman`: natively `bash -c
+    /// 'pkexec /usr/local/bin/fisherman -; exit $?'`), pipes the recipe to
+    /// its stdin and reads the progress protocol. In the end-to-end job
+    /// shared/e2e/setup.sh has put the validating shim at that path and a
+    /// pass-through pkexec first on PATH, so this exercises the real
+    /// fisherman's Validate() on the recipe this crate serialises. The
+    /// recipe is built the way the wizard builds it: a leaf of a catalog
+    /// through `Recipe::apply_leaf`, the account through `user_block`.
+    /// Ignored by default: it needs TUNA_E2E_DISK and the shim.
+    ///
+    ///     TUNA_E2E_DISK=/dev/loopN cargo test --release -- --ignored e2e
     #[test]
     #[ignore]
     fn e2e_install_path_reaches_fisherman() {
         let disk = std::env::var("TUNA_E2E_DISK").expect("TUNA_E2E_DISK (run shared/e2e/setup.sh)");
+        let e2e_dir = std::env::var("TUNA_E2E_DIR").unwrap_or_else(|_| "/tmp/tuna-e2e".into());
+        let catalog = image_catalog::parse_manifest(E2E_CATALOG).unwrap();
+        std::fs::write(format!("{e2e_dir}/catalog.json"), E2E_CATALOG)
+            .expect("the e2e directory is writable");
+        let leaf = &catalog.leaves[catalog.find("quay.io/centos-bootc/centos-bootc:c10s").unwrap()];
+
         let mut recipe = Recipe::default();
         recipe.disk = disk;
-        recipe.filesystem = "xfs".into();
-        recipe.image = "quay.io/centos-bootc/centos-bootc:c10s".into();
+        recipe.apply_leaf(leaf, &model::Machine::default());
         recipe.hostname = "cosmic-e2e".into();
-        // The account page's fields, through the same builder the page uses
-        // (sync_user): every TunaOS COSMIC image needs its first user made.
-        recipe.user = model::user_block("tester", "E2E Tester", "e2e-password");
+        // The account page, exactly when the catalog says the image needs
+        // one, through the same rule and the same builder the page uses.
+        assert!(super::account_required_for(&catalog, None, "", Some(leaf)));
+        recipe.user = model::user_block("tester", "E2E Tester", "e2e-password", &model::default_groups());
 
         // Drive the real stream and feed it through the real parser, which
         // is what the install page does. The old form called run_fisherman()
@@ -1801,6 +1985,7 @@ mod tests {
             let mut stream = Box::pin(TunaInstaller::stream_fisherman(
                 recipe,
                 Default::default(),
+                false,
             ));
             let mut progress = super::progress::Progress::new("ExampleOS");
             let mut log = String::new();
@@ -1822,38 +2007,51 @@ mod tests {
             (code.expect("the stream ended without a result"), log, progress.fraction)
         });
         println!("{log}");
-        assert_eq!(code, 0, "fisherman exit code");
+        assert_eq!(code, Some(0), "fisherman exit code");
+        assert_eq!(super::install_outcome(code, false), super::Outcome::Succeeded);
         // Where the bar ended up, which is the property that was broken and
         // the one no string match could see: a frontend that does not parse
         // fisherman's protocol still reaches the Done page and still reports
         // success, and only the bar shows the difference.
         assert_eq!(
             fraction, 1.0,
-            "the progress bar ended at {fraction}, not 1.0 — the install page              is not parsing fisherman's progress protocol              (shared/progress/README.md)"
+            "the progress bar ended at {fraction}, not 1.0: the install page \
+             is not parsing fisherman's progress protocol \
+             (shared/progress/README.md)"
         );
         assert!(
             log.contains("Installation complete"),
             "the log carried no completion event"
         );
-        let recorded = std::fs::read_to_string("/tmp/tuna-e2e/recipe.json")
+        let recorded = std::fs::read_to_string(format!("{e2e_dir}/recipe.json"))
             .expect("the shim recorded no recipe");
         let recorded: serde_json::Value = serde_json::from_str(&recorded).unwrap();
         assert_eq!(recorded["user"]["username"], "tester", "no user block reached fisherman");
-        assert_eq!(recorded["user"]["groups"], serde_json::json!(["wheel"]));
+        assert_eq!(recorded["user"]["groups"], serde_json::json!(model::default_groups()));
+        assert_eq!(recorded["image"], "quay.io/centos-bootc/centos-bootc:c10s");
+        assert_eq!(recorded["targetImgref"], recorded["image"]);
+        assert_eq!(recorded["filesystem"], "xfs");
+        // No list in the catalog: no key, never `[]` and never a list of
+        // this frontend's own.
+        assert!(recorded.get("flatpaks").is_none(), "{recorded}");
     }
 
     #[test]
-    fn the_user_block_carries_the_account_and_wheel() {
+    fn the_user_block_carries_the_account_and_the_shared_groups() {
         let mut recipe = Recipe::default();
-        recipe.user = model::user_block("alex", "Alex Example", "s3cret");
+        recipe.user = model::user_block("alex", "Alex Example", "s3cret", &model::default_groups());
         let json: serde_json::Value = serde_json::to_value(&recipe).unwrap();
         assert_eq!(
             json["user"],
             serde_json::json!({
                 "username": "alex", "fullname": "Alex Example",
-                "password": "s3cret", "groups": ["wheel"],
+                "password": "s3cret",
+                "groups": ["wheel", "sudo", "docker", "incus-admin", "libvirt", "dialout"],
             })
         );
+        // An operator's list replaces it, an empty one included.
+        let none = model::user_block("alex", "", "s3cret", &[]).unwrap();
+        assert!(none.groups.is_empty());
         // The partial for validate has the username and never the password.
         let partial = super::partial_recipe(&recipe);
         assert_eq!(partial["user"], serde_json::json!({"username": "alex"}));
@@ -1865,7 +2063,7 @@ mod tests {
 
     #[test]
     fn no_username_leaves_the_user_block_out() {
-        assert_eq!(model::user_block("", "Alex Example", "s3cret"), None);
+        assert_eq!(model::user_block("", "Alex Example", "s3cret", &model::default_groups()), None);
         let recipe = Recipe::default();
         let json: serde_json::Value = serde_json::to_value(&recipe).unwrap();
         assert!(json.get("user").is_none(), "{json}");
@@ -1905,8 +2103,8 @@ mod tests {
     fn wizard_order_matches_gnome_parity() {
         let order = Page::ORDER;
         let at = |p: Page| order.iter().position(|q| *q == p).unwrap();
-        // Preflight runs before the disk page; the tour and the companion
-        // run after the account and before the summary.
+        // Preflight runs before the disk page; the tour runs after the
+        // account and before the summary. No phone companion (#293).
         assert!(at(Page::Requirements) < at(Page::Welcome));
         assert!(at(Page::Welcome) < at(Page::Image));
         assert!(at(Page::Image) < at(Page::Language));
@@ -1917,24 +2115,105 @@ mod tests {
         assert!(at(Page::DiskSelect) < at(Page::Options));
         assert!(at(Page::Options) < at(Page::Account));
         assert!(at(Page::Account) < at(Page::Tour));
-        assert!(at(Page::Tour) < at(Page::Companion));
-        assert!(at(Page::Companion) < at(Page::Confirm));
+        assert!(at(Page::Tour) < at(Page::Confirm));
         assert!(at(Page::Confirm) < at(Page::Installing));
         assert!(at(Page::Installing) < at(Page::Done));
-        assert_eq!(order.len(), 15);
+        assert_eq!(order.len(), 14);
+        assert!(!order.iter().any(|p| p.slug() == "companion"));
+    }
+
+    fn two_leaf_catalog() -> image_catalog::Catalog {
+        image_catalog::parse_manifest(
+            r#"{"images": [
+                {"name": "Needs", "imgref": "registry.example/os/needs:1",
+                 "nvidia_imgref": "registry.example/os/needs-nvidia:1"},
+                {"name": "Own", "imgref": "registry.example/os/own:1", "needs_user_creation": false}
+            ]}"#,
+        )
+        .unwrap()
     }
 
     #[test]
-    fn account_is_required_until_a_catalog_image_says_otherwise() {
+    fn the_account_follows_the_image_on_record() {
         use super::account_required_for;
-        // No catalog, no selection: required, as before.
-        assert!(account_required_for("", None));
-        assert!(account_required_for("", Some(true)));
+        let catalog = two_leaf_catalog();
+        let (needs, own) = (&catalog.leaves[0], &catalog.leaves[1]);
+        let empty = image_catalog::Catalog::default();
+        // No catalog, no selection: required.
+        assert!(account_required_for(&empty, None, "", None));
+        // A leaf that sets nothing: required (the contract's default).
+        assert!(account_required_for(&catalog, None, "", Some(needs)));
         // The image makes its own first user: skipped.
-        assert!(!account_required_for("", Some(false)));
-        // A custom URL never needs one (get_finals, custom branch).
-        assert!(!account_required_for("ghcr.io/example/custom:latest", None));
-        assert!(!account_required_for("  ghcr.io/example/custom:latest  ", Some(true)));
+        assert!(!account_required_for(&catalog, None, "", Some(own)));
+        // A custom reference the catalog does not have needs an account.
+        // It used to skip the page, and nobody could sign in.
+        assert!(account_required_for(&catalog, None, "ghcr.io/example/custom:latest", Some(own)));
+        // A custom reference that IS a leaf takes that leaf's flag.
+        assert!(!account_required_for(&catalog, None, " registry.example/os/own:1 ", Some(needs)));
+        // Live media: the leaf of the booted image, whatever is selected.
+        assert!(!account_required_for(&catalog, Some("registry.example/os/own:1"), "", Some(needs)));
+        assert!(account_required_for(&catalog, Some("registry.example/os/needs-nvidia:1"), "", Some(own)));
+        // A booted image the catalog does not have, or an unknown one.
+        assert!(account_required_for(&catalog, Some("registry.example/os/other:1"), "", Some(own)));
+        assert!(account_required_for(&catalog, Some(""), "", Some(own)));
+    }
+
+    /// fisherman exits 130 when cancelled; a signal ends the wrapper after
+    /// this frontend signals its group. Neither is a failure (#299).
+    #[test]
+    fn a_cancel_is_not_a_failure() {
+        use super::{install_outcome, Outcome};
+        assert_eq!(install_outcome(Some(0), false), Outcome::Succeeded);
+        assert_eq!(install_outcome(Some(0), true), Outcome::Succeeded, "it finished first");
+        // 130 is fisherman's own word for "cancelled", whoever asked.
+        assert_eq!(install_outcome(Some(130), false), Outcome::Cancelled);
+        assert_eq!(install_outcome(Some(130), true), Outcome::Cancelled);
+        // A signal after a confirmed cancel: SIGTERM to the wrapper's group.
+        assert_eq!(install_outcome(None, true), Outcome::Cancelled);
+        assert_eq!(install_outcome(Some(143), true), Outcome::Cancelled);
+        // The same without a cancel is a crash.
+        assert_eq!(install_outcome(None, false), Outcome::Failed);
+        assert_eq!(install_outcome(Some(143), false), Outcome::Failed);
+        // A real failure stays one, cancel or not.
+        assert_eq!(install_outcome(Some(1), false), Outcome::Failed);
+        assert_eq!(install_outcome(Some(1), true), Outcome::Failed);
+        assert_eq!(install_outcome(Some(126), true), Outcome::Failed);
+    }
+
+    /// The cancel's whole path short of the UI: the wrapper's group is
+    /// signalled, the wrapper ends by that signal, and the outcome is
+    /// "cancelled".
+    #[test]
+    fn a_confirmed_cancel_signals_the_group_and_ends_cancelled() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            // A wrapper with a child, as bash has pkexec: both must go.
+            let argv = ["bash", "-c", "sleep 30 & wait"].map(String::from);
+            let mut child = super::spawn_wrapper(&argv, Vec::new()).await.expect("bash");
+            let pid = child.id().unwrap();
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            hardware::terminate_process_group(pid).unwrap();
+            let status = tokio::time::timeout(std::time::Duration::from_secs(10), child.wait())
+                .await
+                .expect("the wrapper outlived the signal")
+                .unwrap();
+            assert_eq!(super::install_outcome(status.code(), true), super::Outcome::Cancelled);
+            // Nothing of the group is left running. The child dies by the
+            // same signal a moment after the wrapper, so look for a while.
+            let mut left = String::new();
+            for _ in 0..50 {
+                let out = std::process::Command::new("pgrep")
+                    .args(["-g", &pid.to_string()])
+                    .output()
+                    .unwrap();
+                left = String::from_utf8_lossy(&out.stdout).into_owned();
+                if left.is_empty() {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+            assert!(left.is_empty(), "still in the group: {left}");
+        });
     }
 
     #[test]
@@ -1943,10 +2222,11 @@ mod tests {
         recipe.disk = "/dev/nvme0n1".into();
         recipe.filesystem = "btrfs".into();
         recipe.btrfs_subvolumes = true;
-        recipe.target_imgref = "ghcr.io/tuna-os/albacore:stable".into();
+        recipe.target_imgref = "registry.example/os/atlas:stable".into();
         recipe.bootloader = "systemd".into();
         recipe.compose_fs_backend = true;
-        recipe.flatpaks = vec!["org.mozilla.firefox".into()];
+        recipe.flatpaks = Some(vec!["org.example.Browser".into()]);
+        recipe.flatpak_var_path = "state/os/default/var".into();
         recipe.additional_image_stores = vec!["/run/media/oci".into()];
         recipe.encryption.enc_type = "luks-passphrase".into();
         recipe.encryption.passphrase = "secret123".into();
@@ -1961,6 +2241,7 @@ mod tests {
         assert_eq!(restored.bootloader, recipe.bootloader);
         assert_eq!(restored.compose_fs_backend, recipe.compose_fs_backend);
         assert_eq!(restored.flatpaks, recipe.flatpaks);
+        assert_eq!(restored.flatpak_var_path, recipe.flatpak_var_path);
         assert_eq!(restored.additional_image_stores, recipe.additional_image_stores);
         assert_eq!(restored.encryption.enc_type, recipe.encryption.enc_type);
         assert_eq!(restored.encryption.passphrase, recipe.encryption.passphrase);
@@ -1993,10 +2274,10 @@ mod tests {
     #[test]
     fn a_populated_image_round_trips_unchanged() {
         let mut recipe = Recipe::default();
-        recipe.image = "ghcr.io/tuna-os/albacore:latest".into();
+        recipe.image = "registry.example/os/atlas:latest".into();
 
         let json_str = serde_json::to_string(&recipe).unwrap();
         let restored: Recipe = serde_json::from_str(&json_str).unwrap();
-        assert_eq!(restored.image, "ghcr.io/tuna-os/albacore:latest");
+        assert_eq!(restored.image, "registry.example/os/atlas:latest");
     }
 }

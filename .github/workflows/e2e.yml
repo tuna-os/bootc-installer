@@ -207,7 +207,7 @@ jobs:
         working-directory: /
         run: |
           dnf -y install --setopt=install_weak_deps=False \
-            git tar findutils which sudo golang python3 python3-jsonschema \
+            git tar findutils which sudo golang python3 python3-jsonschema util-linux \
             cmake ninja-build gcc-c++ \
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg \
             kf6-kirigami kf6-kirigami-addons kf6-qqc2-desktop-style kf6-breeze-icons

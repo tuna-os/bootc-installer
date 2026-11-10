@@ -12,77 +12,117 @@ never touches a disk.
 
 ---
 
-## 1. Welcome
+## 1. Requirements
 
-![Welcome](screenshots/01-welcome.png)
+![Requirements](screenshots/01-requirements.png)
 
-The COSMIC header bar carries the step counter and a progress bar for the whole
-wizard, so the chrome does the navigation reporting instead of the page body.
-Nothing is written to any disk until you confirm on the last step.
+fisherman's probe says which requirements the machine does not meet. The
+wizard shows this page only while a gate stands. The capture shows the
+state with no gate.
 
-## 2. Select a disk
+## 2. Welcome
 
-![Select a disk](screenshots/02-disk.png)
+![Welcome](screenshots/02-welcome.png)
 
-Disks come from `fisherman probe --json` (`shared/probe/README.md`). Each row
-is a COSMIC list item with the model (the device node when the model is
-unknown), then the device node, fisherman's size label and the bus. **Continue** stays unavailable until something
-is selected, so there is no way to walk past this screen without a target.
+The COSMIC header bar has the step counter and a progress bar for the whole
+wizard. Nothing is written to a disk until you confirm on the last step.
 
-## 3. Options
+## 3. Choose a system
 
-![Options](screenshots/03-options.png)
+![Choose a system](screenshots/03-image.png)
 
-COSMIC settings sections: computer name, filesystem, and encryption. The
-defaults are already right for nearly everyone. The passphrase field does not
-exist at all until you pick an encryption mode that needs one — the KDE sibling
-crashed on exactly this relationship by wiring the toggle up before the
-passphrase widgets existed.
-Such a mode adds two fields, **Passphrase** and **Confirm passphrase**; a
-mismatch shows under the second and holds **Continue**. The capture renders
-this state.
+The image catalog as a flat list with a search box. A row shows the product
+and the channel ("Capture Desktop › Stable"), not the channel alone. The
+selection at the start is the `default_image` of the branding, then of the
+catalog. With neither, nothing is selected and **Continue** is not there.
+The last row takes a custom image reference. Live media skips this page.
 
-## 4. Account
+## 4. Language, keyboard and time zone
 
-![Account](screenshots/04-account.png)
+![Language](screenshots/04-language.png)
+![Keyboard](screenshots/05-keyboard.png)
+![Time zone](screenshots/06-timezone.png)
 
-The account the installed system is created with: the recipe's `user` block
-(username, full name, password, in the `wheel` group). It is required, since
-this frontend has no image catalog to say an image makes its own first user.
-**Continue** waits for a username and a password typed the same twice, and
-for fisherman to accept the username (`fisherman validate --json --partial`,
-shown under the field). The capture fills it in.
+A pick changes the live session, best effort. Each page says that it
+changes this session only: the installed system keeps the values of its
+image.
 
-## 5. Confirm
+## 5. Network
 
-![Confirm](screenshots/05-confirm.png)
+![Network](screenshots/07-network.png)
+![No connection](screenshots/18-offline.png)
 
-The summary of everything chosen, under a COSMIC warning banner. This is the
-last screen before anything is written, and the only one whose action button is
-styled destructive rather than suggested. Everything above this point is
-reversible by quitting.
+The check tries the registry of the selected image on port 443 first.
+**Continue** is there only when the check passes. With no connection,
+**Network settings** opens the desktop's own tool and **Recheck** runs the
+check again. Live media skips this page.
 
-## 6. Installing
+## 6. Select a disk
 
-![Installing](screenshots/06-installing.png)
+![Select a disk](screenshots/08-disk.png)
 
-`fisherman` reads the recipe JSON on stdin, never from a file (it holds the
-passphrase and the account password), and its output streams into the log card.
+Disks come from `fisherman probe --json` (`shared/probe/README.md`). Each
+row has the model, the device node, fisherman's size label and the bus.
+**Continue** is not there until a disk is selected.
 
-The log shown here is fixture text. The capture harness sets this page
-directly and never sends `StartInstall`; the message handler additionally
-refuses `StartInstall` outright whenever capture mode is on. That interlock is
-not decorative — in `tuna-installer-xfce` the page-enter hook called
-`start_install()`, so a capture written the obvious way would have partitioned
-the CI runner's disk.
+## 7. Options
 
-## 7. Finished
+![Options](screenshots/09-options.png)
 
-![Finished](screenshots/07-done.png)
+The computer name, the filesystem and the encryption. The filesystem list
+is the list of the selected image. An encryption type that needs a
+passphrase adds **Passphrase** and **Confirm passphrase**; a mismatch shows
+under the second field and holds **Continue**. The capture shows this state.
 
-Success or failure, coloured from the COSMIC theme's `success_text_color` /
-`destructive_text_color` rather than hardcoded RGB. Remove the installation
-media and restart into the new system.
+## 8. Account
+
+![Account](screenshots/10-account.png)
+
+The account of the installed system: the recipe's `user` block (username,
+full name, password and the groups of `shared/account/groups.json`). The
+password is typed two times, and the eye button reveals it. **Continue**
+waits for a username, for two passwords that are the same, and for
+fisherman to accept the username. The wizard skips this page only when the
+catalog says that the image makes its own first user.
+
+## 9. Tour
+
+![Tour](screenshots/11-tour.png)
+
+The slides of the selected image, when its catalog entry has a `carousel`.
+
+## 10. Confirm
+
+![Confirm](screenshots/12-confirm.png)
+
+All the choices, below a warning that names the disk. This is the last
+screen before the installer writes to the disk, and the only screen with a
+destructive button.
+
+## 11. Installing
+
+![Installing](screenshots/13-installing.png)
+![Stop the installation?](screenshots/16-cancel.png)
+
+`fisherman` reads the recipe JSON on stdin, never from a file (it has the
+passphrase and the account password). Its progress events move the bar and
+fill the log card. **Cancel** asks first. "Stop the installation" then
+signals the whole install, and fisherman cleans up.
+
+The log here is fixture text. The capture harness sets this page directly
+and never sends `StartInstall`, and the message handler refuses
+`StartInstall` in capture mode.
+
+## 12. Finished
+
+![Finished](screenshots/14-done.png)
+![Recovery key](screenshots/15-recovery.png)
+![Cancelled](screenshots/17-cancelled.png)
+
+Installed, cancelled or failed, in the colours of the COSMIC theme. After
+a TPM install the page shows the recovery key and holds **Restart now**
+until you tick the box. A cancelled install has its own heading: it is not
+a failure.
 
 ---
 

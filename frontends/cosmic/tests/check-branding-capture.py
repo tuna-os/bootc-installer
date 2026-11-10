@@ -23,10 +23,19 @@ def prepare(directory):
     (directory / "branding.json").write_text(json.dumps(branding))
 
 
+def frame(directory, page):
+    """The one `NN-<page>.png` of a capture. The number is the page's place
+    in the wizard, which changes when a page is added or removed; a fixed
+    number here went stale and failed the job."""
+    found = sorted(directory.glob(f"[0-9][0-9]-{page}.png"))
+    assert len(found) == 1, f"{page}: expected one frame, found {[f.name for f in found]}"
+    return found[0]
+
+
 def check(directory):
     texts = json.loads((directory / "texts.json").read_text())
-    for filename, page in [("01-welcome.png", "welcome"), ("07-done.png", "done")]:
-        with Image.open(directory / filename) as image:
+    for page in ["welcome", "done"]:
+        with Image.open(frame(directory, page)) as image:
             count = sum(
                 all(abs(value - expected) <= 2 for value, expected in zip(pixel, COLOR))
                 for pixel in image.convert("RGB").getdata()
@@ -43,10 +52,10 @@ def self_test():
         directory = Path(tmp)
         prepare(directory)
         (directory / "texts.json").write_text(json.dumps({"welcome": NAME, "done": NAME}))
-        for filename in ["01-welcome.png", "07-done.png"]:
+        for filename in ["02-welcome.png", "14-done.png"]:
             Image.new("RGB", (64, 32), COLOR).save(directory / filename)
         check(directory)
-        for filename, page in [("01-welcome.png", "welcome"), ("07-done.png", "done")]:
+        for filename, page in [("02-welcome.png", "welcome"), ("14-done.png", "done")]:
             Image.new("RGB", (64, 32), "white").save(directory / filename)
             try:
                 check(directory)
