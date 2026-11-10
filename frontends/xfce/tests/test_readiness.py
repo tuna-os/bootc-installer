@@ -1,4 +1,4 @@
-# test_readiness.py - Unit tests for tuna_installer_xfce.readiness (stamp)
+# test_readiness.py - Unit tests for bootc_shared.readiness (stamp), as XFCE uses it
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # readiness.py records, in a file the smoke test reads over SSH, that a
@@ -9,8 +9,9 @@
 import os
 
 import pytest
+from bootc_shared import readiness
 
-from tuna_installer_xfce import readiness
+import tuna_installer_xfce  # noqa: F401  (puts shared/python on the path)
 
 
 class TestStampPath:

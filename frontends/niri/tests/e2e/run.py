@@ -2,19 +2,27 @@
 """End to end: the Niri wizard's recipe, through the real Go backend, into
 fisherman.
 
-The chain on a live ISO is QML -> `tuna-installer-niri install` (recipe on
-stdin) -> `sudo /usr/local/bin/fisherman -` (recipe on stdin again).
-Quickshell cannot run headless, so the QML is loaded under PyQt6 with the
-stub modules from tests/qml-stubs, driven to Confirm, and its Install button
-pressed (startInstall). The stub Process records what the QML wrote to the
-backend's stdin instead of spawning it. That exact byte string is then piped
-to the REAL backend binary, which pipes it on to fisherman
-(shared/e2e/setup.sh's validating shim) and streams its output.
+The chain on a real machine is QML -> `tuna-installer-niri install` (recipe
+on stdin) -> `pkexec /usr/local/bin/fisherman -` (recipe on stdin again;
+`sudo -n` on live media). Quickshell cannot run headless, so the QML is
+loaded under PyQt6 with the stub modules from tests/qml-stubs and walked the
+way a user walks it: Source, Disk, Encryption, Account, Confirm, Install.
+The stub Process records what the QML wrote to the backend's stdin instead
+of spawning it. That exact byte string is then piped to the REAL backend
+binary, which pipes it on to fisherman (shared/e2e/setup.sh's validating
+shim) and streams its output.
+
+The catalog is tests/e2e/images.json, read by the REAL backend (`catalog`):
+the image the wizard starts on is the branding's default_image, and its
+recipe keys are the backend's. The driver copies that catalog to
+<e2e dir>/catalog.json, so shared/e2e/check-recipe.py can hold the recipe's
+account to the catalog (shared/catalog/README.md).
 
     python3 tests/e2e/run.py            # after: cd installer && go build -o tuna-installer-niri .
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -23,14 +31,16 @@ E2E_DIR = os.environ.get("TUNA_E2E_DIR", "/tmp/tuna-e2e")
 BACKEND = os.environ.get("TUNA_BACKEND", os.path.join(REPO, "installer", "tuna-installer-niri"))
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-# The branding the backend and the QML resolve from (shared/branding): this
-# frontend has no image chooser, so the image it installs is the branding's
-# default_image; on a runner that is the canary shared/e2e later rewrites.
+# The branding the backend and the QML resolve from (shared/branding): its
+# default_image names the leaf of the catalog below that the wizard starts
+# on; on a runner that is the canary shared/e2e later rewrites.
 os.environ.setdefault("BOOTC_INSTALLER_BRANDING", os.path.join(REPO, "tests", "e2e", "branding.json"))
+# The catalog the backend reads (installer/catalog.go, FISHERMAN_IMAGES_PATH).
+CATALOG = os.environ.setdefault("FISHERMAN_IMAGES_PATH", os.path.join(REPO, "tests", "e2e", "images.json"))
 os.environ["QML2_IMPORT_PATH"] = os.path.join(REPO, "tests", "qml-stubs")
 os.environ["QML_IMPORT_PATH"] = os.environ["QML2_IMPORT_PATH"]
 
-from PyQt6.QtCore import (QEventLoop, QMetaObject, QObject, QTimer, QUrl,
+from PyQt6.QtCore import (QEventLoop, QMetaObject, QObject, QTimer, QUrl,  # noqa: E402
                           Q_ARG, QVariant)
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtQml import QQmlApplicationEngine
@@ -73,31 +83,91 @@ def main():
     if chosen is None:
         sys.exit(f"FAIL: the backend did not list the e2e disk {name}: {disks}")
 
-    # Drive the wizard the way a user would reach Install: pick the disk,
-    # fill the account, walk to Confirm, press Install.
+    # The catalog the REAL backend resolved: the leaves, the selection at
+    # the start and each leaf's recipe keys for this machine.
+    catalog = json.loads(subprocess.run([BACKEND, "catalog"], capture_output=True, text=True, check=True).stdout)
+    print(f"[e2e] backend catalog: {catalog['path']}, selected {catalog['selected']!r}, "
+          f"{len(catalog['leaves'])} leaves")
+    with open(os.environ["BOOTC_INSTALLER_BRANDING"], encoding="utf-8") as fh:
+        want_image = json.load(fh)["default_image"]
+    if catalog["path"] != CATALOG or catalog["selected"] != want_image:
+        sys.exit(f"FAIL: the backend read {catalog['path']!r} and selected "
+                 f"{catalog['selected']!r}; expected {CATALOG!r} and the "
+                 f"branding's default_image {want_image!r}")
+    # What check-recipe.py judges the account against: the catalog this
+    # driver gave the frontend.
+    shutil.copyfile(CATALOG, os.path.join(E2E_DIR, "catalog.json"))
+
+    def call(method, *args):
+        QMetaObject.invokeMethod(root, method, *[Q_ARG(QVariant, a) for a in args])
+
+    def page():
+        return root.property("currentPage")
+
+    # Drive the wizard the way a user reaches Install. advance() is the call
+    # each page's Continue and Enter make, so a page that will not let a user
+    # through fails here and not in the VM.
     root.setProperty("branding", facts.get("branding") or {})
     root.setProperty("isLive", facts.get("isLive") is True)
     root.setProperty("liveImage", facts.get("liveImage") or "")
+    root.setProperty("offlineImages", facts.get("offlineImages") or [])
     root.setProperty("encryptionChoices", facts.get("encryptionChoices") or [])
     root.setProperty("disks", disks)
+    root.setProperty("disksProbed", True)
+    # The connectivity check is the backend's `netcheck`; a runner's network
+    # is not this job's subject, so the answer is given: the registry answers.
+    root.setProperty("netConnected", True)
+    root.setProperty("netChecked", True)
+
+    # Source: the backend's answer selects the branding's image; nothing
+    # else is touched.
+    call("loadCatalog", catalog)
+    root.setProperty("catalogLoaded", True)
+    root.setProperty("currentPage", 2)
+    settle(500)  # the netcheck pause, then the stub's answer
+    if root.property("selectedImage") != want_image:
+        sys.exit(f"FAIL: the Source step starts on {root.property('selectedImage')!r}, "
+                 f"not the branding's default_image {want_image!r}")
+    # A leaf whose image makes its own first user has no account step.
+    no_account = next(l for l in catalog["leaves"] if not l["needs_user_creation"])
+    call("selectLeaf", no_account)
+    if root.property("needsUserCreation") or 5 in list(root.property("flowPages").toVariant()):
+        sys.exit("FAIL: the account step stays for an image with needs_user_creation false")
+    call("selectLeaf", next(l for l in catalog["leaves"] if l["imgref"] == want_image))
+    settle(500)
+    call("advance")
+    if page() != 3:
+        sys.exit(f"FAIL: Continue on the Source step went to page {page()}, not Disk")
+
+    # Disk: the e2e loop disk, by the row the backend listed.
     root.setProperty("selectedDisk", chosen)
-    # The account page (required: this frontend has no image catalog). Its
-    # Continue is held until these are set; advance() is the same call the
-    # button and Enter make, so a page that will not let a user through
-    # fails here rather than in the VM.
-    root.setProperty("currentPage", 3)
+    call("advance")
+    if page() != 4:
+        sys.exit(f"FAIL: Continue on the Disk step went to page {page()}, not Encryption")
+    # Encryption: none, the default.
+    call("advance")
+    if page() != 5:
+        sys.exit(f"FAIL: Continue on the Encryption step went to page {page()}, not Account")
+    # Account: Continue is held until the fields are set.
+    call("advance")
+    if page() != 5:
+        sys.exit("FAIL: the empty account page let Continue through")
     for prop, value in ACCOUNT.items():
         root.setProperty(prop, value)
     settle(500)  # the validate debounce, then the stub's answer
     if not root.property("accountReady"):
         sys.exit("FAIL: the filled account page holds Continue")
-    QMetaObject.invokeMethod(root, "advance")
+    call("advance")
     settle(200)
-    if root.property("currentPage") != 4:
-        sys.exit(f"FAIL: Continue on the account page went to page "
-                 f"{root.property('currentPage')}, not Confirm")
-    QMetaObject.invokeMethod(root, "startInstall")
+    if page() != 6:
+        sys.exit(f"FAIL: Continue on the account page went to page {page()}, not Confirm")
+    # Confirm: Install, the way Enter presses it.
+    call("advance")
     settle(300)
+    # The stub's install ends at once, so the wizard is on the install page
+    # or already past it; what it wrote is read below.
+    if page() not in (7, 8):
+        sys.exit(f"FAIL: Install on the Confirm step went to page {page()}, not the install")
 
     # The install Process's write(); the stub keeps it. The validate Process
     # writes too (the page's fields, for `fisherman validate --partial`), so
@@ -115,11 +185,22 @@ def main():
     print("[e2e] recipe the QML wrote:\n" + json.dumps(recipe, indent=2))
     if recipe.get("disk") != disk:
         sys.exit(f"FAIL: QML chose {recipe.get('disk')!r}, expected {disk!r}")
+    # The account: the fields the user typed, and NO groups. The backend
+    # writes the shared list (installer/user.go), checked below on the
+    # recipe fisherman received.
     want_user = {"username": ACCOUNT["username"], "fullname": ACCOUNT["fullname"],
-                 "password": ACCOUNT["userPassword"], "groups": ["wheel"]}
+                 "password": ACCOUNT["userPassword"]}
     if recipe.get("user") != want_user:
         sys.exit(f"FAIL: the recipe's user block is {recipe.get('user')!r}, "
                  f"expected {want_user!r}")
+    # The image keys are the backend's for the selected leaf, as they came.
+    leaf = next(l for l in catalog["leaves"] if l["imgref"] == want_image)
+    for key, value in leaf["recipe"].items():
+        if recipe.get(key) != value:
+            sys.exit(f"FAIL: the recipe's {key} is {recipe.get(key)!r}; the "
+                     f"backend's catalog answer says {value!r}")
+    if recipe.get("targetImgref") != want_image:
+        sys.exit(f"FAIL: the recipe's targetImgref is {recipe.get('targetImgref')!r}")
 
     print(f"[e2e] piping it to {BACKEND} install")
     r = subprocess.run([BACKEND, "install"], input=written, capture_output=True, text=True,
@@ -156,8 +237,21 @@ def main():
     if label != want:
         sys.exit(f"FAIL: the last step reads {label!r}, not the copy line {want!r} -- "
                  "the QML is not labelling steps by step_id")
-    if not os.path.exists(os.path.join(E2E_DIR, "recipe.json")):
+    received_path = os.path.join(E2E_DIR, "recipe.json")
+    if not os.path.exists(received_path):
         sys.exit("FAIL: the shim recorded no recipe")
+    # What fisherman received: the QML's recipe, with the account's groups
+    # the backend wrote from shared/account/groups.json.
+    with open(received_path, encoding="utf-8") as fh:
+        received = json.load(fh)
+    with open(os.path.join(REPO, "..", "..", "shared", "account", "groups.json"), encoding="utf-8") as fh:
+        want_groups = json.load(fh)["default_groups"]
+    if (received.get("user") or {}).get("groups") != want_groups:
+        sys.exit(f"FAIL: fisherman received the groups {(received.get('user') or {}).get('groups')!r}, "
+                 f"expected the shared list {want_groups!r}")
+    for key in ("image", "targetImgref", "disk", "hostname", "filesystem"):
+        if received.get(key) != recipe.get(key):
+            sys.exit(f"FAIL: fisherman received {key}={received.get(key)!r}; the QML wrote {recipe.get(key)!r}")
     print("OK: Niri's recipe went QML -> backend -> fisherman")
     return 0
 

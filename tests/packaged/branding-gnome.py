@@ -20,7 +20,8 @@ Gio.Resource.load(pkg + '/bootc-installer.gresource')._register()
 Adw.init()
 from bootc_installer.defaults.image import _make_icon
 from bootc_installer.defaults.welcome import BootcDefaultWelcome
-from bootc_installer.utils import branding, icons
+from bootc_installer.utils import icons
+from bootc_shared import branding
 from bootc_installer.views.done import BootcDone
 
 assert branding.__file__.startswith('/app/'), branding.__file__

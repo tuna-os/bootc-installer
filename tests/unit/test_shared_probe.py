@@ -1,4 +1,4 @@
-"""`fisherman probe --json`: the shared fixtures, the reader, and its copies.
+"""`fisherman probe --json`: the shared fixtures and the reader.
 
 shared/probe/ is canonical (README.md says what a frontend renders). These
 tests keep it honest in three directions:
@@ -11,7 +11,8 @@ tests keep it honest in three directions:
 2. Each `<name>.expected.json` is what every frontend must render from
    `<name>.json`: the same disks, in the same order, with the same size
    strings and models. The per-frontend tests read the same files.
-3. The Python frontends' copies of the reader match the canonical one.
+3. The Python frontends import the one reader, bootc_shared.probe
+   (tests/unit/test_shared_python_package.py).
 """
 
 import glob
@@ -26,14 +27,9 @@ import unittest
 REPO = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 SHARED = os.path.join(REPO, "shared", "probe")
 FIXTURES = os.path.join(SHARED, "fixtures")
-CANONICAL = os.path.join(SHARED, "fisherman_probe.py")
+CANONICAL = os.path.join(REPO, "shared", "python", "bootc_shared", "probe.py")
 PROBE_PKG = os.path.join(REPO, "fisherman", "fisherman", "internal", "probe")
 GOLDEN = os.path.join(PROBE_PKG, "testdata", "golden", "probe.json")
-
-COPIES = [
-    os.path.join(REPO, "bootc_installer", "core", "fisherman_probe.py"),
-    os.path.join(REPO, "frontends", "xfce", "tuna_installer_xfce", "fisherman_probe.py"),
-]
 
 FIXTURE_NAMES = sorted(
     f[:-len(".json")] for f in os.listdir(FIXTURES)
@@ -41,7 +37,11 @@ FIXTURE_NAMES = sorted(
 
 
 def _load(path, name):
-    spec = importlib.util.spec_from_file_location(name, path)
+    """A new instance of a bootc_shared module, so that a test which sets
+    module state (the product label, a patched function) does not leak
+    into another. The name keeps it inside the package for `from . import`."""
+    import bootc_shared  # noqa: F401  (pytest.ini puts shared/python on the path)
+    spec = importlib.util.spec_from_file_location("bootc_shared." + name.lstrip("_"), path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -321,17 +321,6 @@ class TestNoFrontendScansDisks(unittest.TestCase):
         self.assertEqual(offenders, [],
                          "these frontend files run lsblk; the disk list is "
                          "`fisherman probe --json` (shared/probe/README.md)")
-
-
-class TestCopies(unittest.TestCase):
-    def test_copies_are_byte_identical(self):
-        with open(CANONICAL, "rb") as fh:
-            canonical = fh.read()
-        for copy in COPIES:
-            with self.subTest(copy=os.path.relpath(copy, REPO)):
-                with open(copy, "rb") as fh:
-                    self.assertEqual(fh.read(), canonical,
-                                     f"{copy} drifted from shared/probe/fisherman_probe.py")
 
 
 class TestFishermanPin(unittest.TestCase):

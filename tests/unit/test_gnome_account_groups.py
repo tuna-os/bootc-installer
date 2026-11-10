@@ -16,7 +16,7 @@ import pytest
 REPO = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, REPO)
 
-from bootc_installer.utils import account  # noqa: E402
+from bootc_shared import account  # noqa: E402
 from bootc_installer.utils.processor import Processor  # noqa: E402
 
 with open(os.path.join(REPO, "shared", "account", "groups.json"), encoding="utf-8") as _stream:
@@ -31,7 +31,7 @@ def test_the_default_list_is_the_shared_list():
 def test_the_user_page_sends_the_shared_list():
     with open(os.path.join(REPO, "bootc_installer", "defaults", "user.py"), encoding="utf-8") as stream:
         source = stream.read()
-    assert "from bootc_installer.utils.account import DEFAULT_GROUPS as _DEFAULT_GROUPS" in source
+    assert "from bootc_shared.account import DEFAULT_GROUPS as _DEFAULT_GROUPS" in source
     assert '"groups": list(_DEFAULT_GROUPS)' in source
 
 

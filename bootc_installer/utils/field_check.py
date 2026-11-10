@@ -12,7 +12,7 @@ install runs the same rules before it touches a disk.
 
 import logging
 
-from bootc_installer.core import fisherman_validate
+from bootc_shared import validate as fisherman_validate
 from bootc_installer.utils import copy as copy_text
 from bootc_installer.utils import fisherman_runner
 

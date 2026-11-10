@@ -13,7 +13,7 @@ call into this adapter, but it does not itself touch os.unlink, subprocess,
 or file descriptors for the fisherman transport. That split is what makes
 this module importable, and testable, without a display.
 
-apply_progress_event() in progress_parser.py remains the protocol-translation
+apply_progress_event() in bootc_shared.progress remains the protocol-translation
 boundary; this module only decides *when* to hand it a line, not how to
 interpret one.
 """

@@ -11,6 +11,7 @@ bootc-installer is the monorepo for every TunaOS / Bluefin bootc installer front
 | `shared/recipe/` | the recipe schema, the one copy (a unit test fails if a frontend adds a second) |
 | `shared/catalog/` | image catalog contract: search path, fields that reach the recipe, default selection; `fixtures/` + reference `resolve.py` |
 | `shared/account/` | default groups of the first account and the operator override |
+| `shared/python/` | `bootc_shared`: the one Python package that GNOME and XFCE both import for the probe, validate, progress, readiness, branding and account contracts. Do not copy a module into a frontend; `tests/unit/test_shared_python_package.py` holds the two builds to it |
 | `shared/branding/` | product identity contract: `branding.json` first, `os-release` second, neutral last; one resolver per language, all tested against `fixtures/` |
 | `shared/walkthrough/` | screen contract + parity report + `aggregate.py` that builds `docs/walkthrough/` |
 | `fisherman/` | backend submodule |

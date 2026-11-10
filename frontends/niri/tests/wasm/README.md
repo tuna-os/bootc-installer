@@ -52,6 +52,8 @@ different directory. The images and `browser-walkthrough-niri.json` go to
 The pages and the steps for each page are the same as `PAGES` in
 `capture-screens.py`. The install page gets the real fisherman transcript
 through `appendLog()`. The recovery page gets the `recovery_key` event.
+The cancelled page gets exit code 130 through `installExited()`. The offline
+page gets an offline answer from the stub of `netcheck`.
 
 `current` changes only after Qt draws a frame of the page. Thus the browser
 does not take a screenshot during a page change.

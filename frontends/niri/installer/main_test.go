@@ -71,7 +71,7 @@ func TestRecipeUnmarshal(t *testing.T) {
 	if r.Bootloader != "systemd" || !r.ComposeFsBackend {
 		t.Errorf("unexpected boot/composefs config: %+v", r)
 	}
-	if len(r.Flatpaks) != 1 || r.Flatpaks[0] != "org.mozilla.firefox" {
+	if r.Flatpaks == nil || len(*r.Flatpaks) != 1 || (*r.Flatpaks)[0] != "org.mozilla.firefox" {
 		t.Errorf("unexpected flatpaks: %+v", r.Flatpaks)
 	}
 	if len(r.AdditionalImageStores) != 1 || r.AdditionalImageStores[0] != "/run/media/store" {

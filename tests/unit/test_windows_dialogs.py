@@ -10,7 +10,7 @@ import types
 import unittest
 from unittest.mock import MagicMock, patch, mock_open
 
-from bootc_installer.utils.branding import COPY_DEFAULTS
+from bootc_shared.branding import COPY_DEFAULTS
 
 
 def _build_gi_stubs():

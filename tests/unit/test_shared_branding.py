@@ -1,26 +1,21 @@
 """The branding contract: shared/branding/README.md.
 
-shared/branding/branding.py is the canonical resolver. The GNOME frontend
-(bootc_installer/utils/branding.py) and the XFCE frontend
-(frontends/xfce/tuna_installer_xfce/branding.py) ship byte-identical copies
-because each Flatpak builds from its own tree; if a copy drifts, "shared"
-is a lie, so this test fails.
+shared/python/bootc_shared/branding.py is the Python resolver. The GNOME
+and XFCE frontends import that one module (tests/unit/
+test_shared_python_package.py makes sure no copy comes back), and it reads
+copy-defaults.json from shared/branding/, so only the compiled frontends
+still keep copies of that file.
 
 The fixture cases in shared/branding/fixtures/expected.json are the same
 ones the Go, C++ and Rust resolvers test against.
 """
 
-import importlib.util
 import json
 import pathlib
 import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-SHARED = REPO / "shared" / "branding" / "branding.py"
-COPIES = [
-    REPO / "bootc_installer" / "utils" / "branding.py",
-    REPO / "frontends" / "xfce" / "tuna_installer_xfce" / "branding.py",
-]
+SHARED = REPO / "shared" / "python" / "bootc_shared" / "branding.py"
 FIXTURES = REPO / "shared" / "branding" / "fixtures"
 COPY_DEFAULTS = REPO / "shared" / "branding" / "copy-defaults.json"
 COPY_DEFAULT_COPIES = [
@@ -29,32 +24,18 @@ COPY_DEFAULT_COPIES = [
 ]
 
 
-def _load(path):
-    spec = importlib.util.spec_from_file_location("branding_under_test", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-branding = _load(SHARED)
-
-
-class CopiesAreIdentical(unittest.TestCase):
-    def test_every_copy_matches_the_shared_module(self):
-        canonical = SHARED.read_bytes()
-        for copy in COPIES:
-            self.assertEqual(
-                copy.read_bytes(), canonical,
-                f"{copy.relative_to(REPO)} has diverged from shared/branding/branding.py; "
-                "edit the shared copy and cp it over",
-            )
+from bootc_shared import branding  # noqa: E402  (pytest.ini: shared/python)
 
 
 class CopyDefaultsAreIdentical(unittest.TestCase):
-    def test_embedded_and_per_frontend_copies_match(self):
+    def test_the_resolver_reads_the_file_and_per_frontend_copies_match(self):
         canonical = COPY_DEFAULTS.read_text()
-        self.assertEqual(branding.COPY_DEFAULTS_JSON, canonical,
-                         "COPY_DEFAULTS_JSON in branding.py must be copy-defaults.json verbatim")
+        self.assertEqual(
+            branding.COPY_DEFAULTS,
+            {k: v for k, v in json.loads(canonical).items() if not k.startswith("_")},
+            "COPY_DEFAULTS in branding.py must be copy-defaults.json")
+        self.assertNotIn("COPY_DEFAULTS_JSON", SHARED.read_text(),
+                         "branding.py must read the file, not embed a copy of it")
         for copy in COPY_DEFAULT_COPIES:
             self.assertEqual(copy.read_text(), canonical,
                              f"{copy.relative_to(REPO)} has diverged from shared/branding/copy-defaults.json")

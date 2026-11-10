@@ -397,7 +397,7 @@ class TestGenerateHostname:
     def test_generate_hostname_stem_defaults_to_branding(self):
         """No stem given: the branding contract's default_hostname, never a
         product literal (shared/branding/README.md)."""
-        from bootc_installer.utils import branding as branding_mod
+        from bootc_shared import branding as branding_mod
         fake = branding_mod.Branding(default_hostname="marlin")
         with patch("bootc_installer.core.system._read_dmi", return_value=""), patch(
             "bootc_installer.core.system.os.urandom", return_value=b"\x01\x02\x03\x04"

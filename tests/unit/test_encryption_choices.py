@@ -101,16 +101,15 @@ def frontend_code(frontend):
 
 
 # fisherman's table of encryption types (data/encryption-choices.json,
-# generated from recipe.EncryptionChoices), copied byte for byte. The
-# frontends that build from their own directory carry a further copy each.
-# KDE has none: its build reads the shared file (TUNA_SHARED_DIR).
+# generated from recipe.EncryptionChoices), copied byte for byte. GNOME and
+# XFCE read this file through bootc_shared.validate, and the KDE build reads
+# it from shared/ (TUNA_SHARED_DIR). The compiled frontends that still carry
+# a copy are held equal to it here.
 CHOICES = REPO / "shared" / "recipe" / "encryption-choices.json"
 CHOICES_UPSTREAM = REPO / "fisherman" / "data" / "encryption-choices.json"
 CHOICES_COPIES = {
-    "gnome": REPO / "bootc_installer" / "core" / "encryption-choices.json",
     "cosmic": REPO / "frontends" / "cosmic" / "src" / "encryption-choices.json",
     "niri": REPO / "frontends" / "niri" / "installer" / "encryption-choices.json",
-    "xfce": REPO / "frontends" / "xfce" / "tuna_installer_xfce" / "encryption-choices.json",
 }
 
 

@@ -20,42 +20,87 @@ whatever machine rendered the docs.
 
 ![Welcome](screenshots/01-welcome.png)
 
-## 2. Choose a disk
+The capture shows the requirements gate. It stops the wizard until you
+accept it.
 
-![Disk](screenshots/02-disk.png)
+## 2. Session
 
-Populated from `tuna-installer-niri discover-disks`, which reads `fisherman probe --json`.
+![Session](screenshots/02-session.png)
 
-## 3. Encryption
+The keyboard, language and time zone of the live session. The wizard sends
+only the fields that you changed. Off live media the fields are read-only,
+as in this capture.
 
-![Encryption](screenshots/03-encryption.png)
+## 3. Source
 
-Encryption used to be hardcoded to `none` in the recipe with no UI at all, so
-every install came out unencrypted (tuna-os/tunaOS#734). This screen is the fix.
+![Source](screenshots/03-source.png)
 
-## 4. Account
+Each row shows the product and the channel. The search box filters the list.
 
-![Account](screenshots/04-account.png)
+## 4. Disk
 
-The user the install creates: the recipe's `user` block, in the wheel group.
-Continue is held until there is a username fisherman accepts
-(`validate --json --partial`) and a password typed the same twice.
+![Disk](screenshots/04-disk.png)
 
-## 5. Confirm
+The disks come from `tuna-installer-niri discover-disks`, which reads
+`fisherman probe --json`.
 
-![Confirm](screenshots/05-confirm.png)
+## 5. Encryption
 
-The last screen before anything is written.
+![Encryption](screenshots/05-encryption.png)
 
-## 6. Installing
+The filesystem choices under Advanced come from the selected image.
 
-![Progress](screenshots/06-progress.png)
+## 6. Account
 
-Backend output streams into the log as it arrives.
+![Account](screenshots/06-account.png)
 
-## 7. Done
+The first user. Continue stays off until fisherman accepts the username
+(`validate --json --partial`) and the two passwords are the same.
 
-![Done](screenshots/07-done.png)
+## 7. Confirm
+
+![Confirm](screenshots/07-confirm.png)
+
+The last screen before the install writes to the disk.
+
+## 8. Install
+
+![Progress](screenshots/08-progress.png)
+
+The output of the backend goes into the log.
+
+## 9. Done
+
+![Done](screenshots/09-done.png)
+
+## 10. Recovery key
+
+![Recovery](screenshots/10-recovery.png)
+
+A TPM install shows the recovery key. Restart stays off until you confirm
+that you saved the key.
+
+## 11. Tour
+
+![Tour](screenshots/11-tour.png)
+
+## 12. Cancel asks first
+
+![Cancel](screenshots/12-cancel-confirm.png)
+
+Cancel and the window close button open this dialog. The install continues
+until you confirm.
+
+## 13. Cancelled
+
+![Cancelled](screenshots/13-cancelled.png)
+
+## 14. Offline
+
+![Offline](screenshots/14-offline.png)
+
+The selected image needs a download and the network check failed. Continue
+stays off.
 
 ---
 

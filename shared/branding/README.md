@@ -220,8 +220,8 @@ One per language, each reading the same fixtures under `fixtures/`:
 
 | Frontend | Resolver | Test |
 |---|---|---|
-| GNOME | `bootc_installer/utils/branding.py` (byte-identical copy of `branding.py`) | `tests/unit/test_shared_branding.py` |
-| XFCE | `frontends/xfce/tuna_installer_xfce/branding.py` (byte-identical copy) | `frontends/xfce/tests/test_branding.py` |
+| GNOME | `bootc_shared.branding` (`shared/python/bootc_shared/branding.py`) | `tests/unit/test_shared_branding.py` |
+| XFCE | `bootc_shared.branding`, the same module | `frontends/xfce/tests/test_branding.py` |
 | Niri | `frontends/niri/installer/branding.go` | `frontends/niri/installer/branding_test.go` |
 | KDE | `frontends/kde/src/branding.{h,cpp}` | `frontends/kde/tests/test_backend.cpp` |
 | COSMIC | `frontends/cosmic/src/branding.rs` | its `#[cfg(test)]` module |
