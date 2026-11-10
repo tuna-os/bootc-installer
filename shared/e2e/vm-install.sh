@@ -5,14 +5,15 @@
 #
 # This is fisherman's own bootcrew VM test (fisherman/justfile,
 # bootcrew-ci-test) fed with the recipe a frontend actually produced in the
-# E2E (<frontend>) job, instead of one generated from a matrix entry. Two
+# E2E (<frontend>) job, instead of one generated from a matrix entry. Three
 # fields are rewritten and nothing else:
 #   disk   -> the loop device this runner just created;
 #   image  -> the pre-built SSH-enabled canary that matches the recipe's
 #             boot stack (composefs -> dakota, otherwise centos-bootc), so
-#             the VM can be reached over SSH afterwards.
+#             the VM can be reached over SSH afterwards;
+#   bootloader -> the one that canary ships (systemd for dakota, else grub2).
 # additionalImageStores is dropped (no live medium here) and flatpaks are
-# emptied (post-install downloads, not the install). Filesystem, bootloader,
+# emptied (post-install downloads, not the install). Filesystem,
 # composefs, encryption, hostname and user come from the frontend, and are
 # what fisherman installs.
 set -euo pipefail
@@ -46,8 +47,10 @@ r["image"] = ("ghcr.io/tuna-os/fisherman/dakota:ssh-enabled" if composefs
 # A frontend recipe may carry the live-ISO defaults; the canary images do
 # not ship a matching bootloader for the other stack.
 r["bootloader"] = "systemd" if composefs else "grub2"
-if composefs and r.get("filesystem") == "xfs":
-    r["filesystem"] = "btrfs"   # composefs needs fs-verity; xfs is rejected
+# The filesystem is NOT rewritten. A composefs recipe on xfs is the
+# frontend's defect (#287): check-recipe.py already fails it through
+# `fisherman validate` (composefs_requires_fs_verity), and the install below
+# would fail the same way.
 json.dump(r, open(dst, "w"), indent=2)
 print(json.dumps(r, indent=2))
 PY

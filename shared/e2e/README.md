@@ -27,13 +27,26 @@ fisherman accepts it (`fisherman validate --json -`, each problem reported
 with its code), it conforms to `shared/recipe/fisherman-recipe.schema.json`,
 and it targets the disk the job set up.
 
+It also judges the account against `shared/catalog/README.md`. The recipe
+must create a user in `wheel` when the image needs an account, and must
+create no user when the catalog says `needs_user_creation` is `false`. For
+that, the driver writes the catalog that it gave the frontend to
+`/tmp/tuna-e2e/catalog.json` (or the job passes `--catalog <file>`). An
+image that is not in that catalog needs an account. No driver writes the
+file yet (#288). Until one does, the COSMIC, KDE and Niri recipes must
+create a user, as before, and the script prints `account: NOT JUDGED` for
+GNOME and XFCE.
+
 ## Layer 2: the recipe is installed and booted
 
 `E2E (install <frontend>)` downloads that recipe and runs `vm-install.sh`:
 fisherman's own bootcrew tooling installs it onto a loop disk, enables SSH
 in the result, verifies the layout and boots it in QEMU until `bootc status`
-answers over SSH. Only `disk` and `image` are rewritten (the loop device and
-the SSH-enabled canary that matches the recipe's boot stack).
+answers over SSH. The script rewrites only `disk`, `image` and `bootloader`
+(the loop device, and the SSH-enabled canary that matches the recipe's boot
+stack with the bootloader that the canary ships). It does not rewrite the
+filesystem: a composefs recipe on `xfs` fails here, as it fails on a real
+machine (#287).
 
 The SSH-enable step is fisherman's `scripts/enable-ssh-installed.sh` and
 needs the submodule at `7c3c738` or later: that revision writes root's
