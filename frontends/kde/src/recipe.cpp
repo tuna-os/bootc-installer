@@ -29,6 +29,8 @@ QJsonObject Recipe::toJson() const
         obj["flatpakVarPath"] = flatpakVarPath;
     if (!imageType.isEmpty() && imageType != QLatin1String("bootc"))
         obj["imageType"] = imageType;
+    if (extrasSet)
+        obj["extras"] = extras;
     if (!additionalImageStores.isEmpty())
         obj["additionalImageStores"] = QJsonArray::fromStringList(additionalImageStores);
     obj["distroID"] = distroID;
@@ -61,6 +63,8 @@ Recipe Recipe::fromJson(const QJsonObject &obj)
     r.flatpaksSet = obj.contains(QLatin1String("flatpaks"));
     r.flatpakVarPath = obj["flatpakVarPath"].toString();
     r.imageType = obj["imageType"].toString();
+    r.extrasSet = obj["extras"].isObject();
+    r.extras = obj["extras"].toObject();
     for (const auto &val : obj["flatpaks"].toArray()) {
         r.flatpaks.append(val.toString());
     }

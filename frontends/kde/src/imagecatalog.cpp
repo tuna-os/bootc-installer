@@ -50,7 +50,29 @@ struct Context {
     QString nvidiaImgref;
     QString registry;
     QString defaultHostname;
+    bool hasExtras = false;
+    QJsonObject extras;
 };
+
+// The four switches of an `extras` object, or false when the value is not
+// an object or a switch is not a boolean. Only these keys are copied:
+// fisherman refuses a recipe key that it does not know. A switch that the
+// object leaves out is off.
+bool resolveExtras(const QJsonValue &value, QJsonObject &out)
+{
+    if (!value.isObject())
+        return false;
+    const QJsonObject object = value.toObject();
+    QJsonObject extras;
+    for (const char *key : {"printServices", "oemSetup", "audioNames", "bootSplash"}) {
+        const QJsonValue v = object.value(QLatin1String(key));
+        if (!v.isUndefined() && !v.isBool())
+            return false;
+        extras.insert(QLatin1String(key), v.toBool(false));
+    }
+    out = extras;
+    return true;
+}
 
 // A value of false, "" or [] is a value and stops the search; null is not.
 bool sets(const QJsonObject &node, const char *key)
@@ -118,6 +140,11 @@ void collectLeaves(const QJsonObject &node, const QStringList &path, const Conte
         child.registry = node.value(QLatin1String("registry")).toString();
     if (sets(node, "default_hostname"))
         child.defaultHostname = node.value(QLatin1String("default_hostname")).toString();
+    // The nearest object replaces the parent's whole: the two are not merged.
+    if (sets(node, "extras")) {
+        child.extras = QJsonObject();
+        child.hasExtras = resolveExtras(node.value(QLatin1String("extras")), child.extras);
+    }
 
     const QString name = node.value(QLatin1String("name")).toString().trimmed();
     QStringList here = path;
@@ -161,6 +188,8 @@ void collectLeaves(const QJsonObject &node, const QStringList &path, const Conte
         leaf.filesystem = child.filesystem.isEmpty() ? child.filesystems.value(0) : child.filesystem;
         leaf.flatpakVarPath = child.flatpakVarPath;
         leaf.defaultHostname = child.defaultHostname;
+        leaf.hasExtras = child.hasExtras;
+        leaf.extras = child.extras;
         leaf.carousel = child.carousel;
         out << leaf;
         return;

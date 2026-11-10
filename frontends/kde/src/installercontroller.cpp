@@ -360,6 +360,8 @@ void InstallerController::applyLeaf(const imagecatalog::Leaf &leaf)
     m_recipe.composeFsBackend = leaf.composefs;
     m_recipe.imageType = leaf.imageType;
     m_recipe.flatpakVarPath = leaf.flatpakVarPath;
+    m_recipe.extrasSet = leaf.hasExtras;
+    m_recipe.extras = leaf.extras;
     // A list this frontend could read offline, or no key at all: it never
     // downloads a list and never sends one of its own (#296).
     m_recipe.flatpaksSet = leaf.hasFlatpaks;
