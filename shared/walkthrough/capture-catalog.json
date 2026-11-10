@@ -1,0 +1,50 @@
+{
+  "default_image": "ghcr.io/example/os:stable",
+  "fallback_flatpaks": [],
+  "images": [
+    {
+      "name": "Capture Desktop",
+      "registry": "ghcr.io/example/os",
+      "desc": "The photographed system.",
+      "bootloader": "systemd",
+      "composefs": true,
+      "filesystems": ["btrfs", "ext4"],
+      "default_hostname": "example",
+      "flatpaks": ["org.example.App"],
+      "children": [
+        {
+          "name": "Stable",
+          "tag": "stable",
+          "subtitle": "The standard desktop",
+          "desc": "The photographed system. Everything is where you left it.",
+          "carousel": [
+            {"title": "Capture at a glance", "description": "Everything is where you left it."}
+          ]
+        },
+        {
+          "name": "Beta",
+          "tag": "beta",
+          "subtitle": "Early updates",
+          "desc": "The next release, before it is stable. It makes its own first user.",
+          "filesystems": ["ext4"],
+          "needs_user_creation": false,
+          "flatpaks": []
+        },
+        {
+          "name": "Edge",
+          "tag": "edge",
+          "subtitle": "Needs a download",
+          "desc": "Not on the live medium: the install downloads it."
+        }
+      ]
+    },
+    {
+      "name": "Capture Minimal",
+      "imgref": "registry.example/os/capture-minimal:stable",
+      "desc": "A small system that makes its own first user.",
+      "bootloader": "grub2",
+      "filesystem": "xfs",
+      "needs_user_creation": false
+    }
+  ]
+}

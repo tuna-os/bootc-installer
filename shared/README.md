@@ -80,6 +80,9 @@ the gate on each push. `promote.yml` requires its jobs. A new frontend adds
 an `E2E (<name>)` job and an entry in the install matrix of `e2e.yml`, and
 the two job names in `REQUIRED_CHECKS`. See [e2e/README.md](e2e/README.md).
 
+Each driver gives its frontend `e2e/catalog.json`, the one E2E catalog. A
+new driver reads that file and picks a leaf from it.
+
 ## `probe/`
 
 How a frontend reads hardware facts: the disk list, the TPM, live media and
@@ -166,6 +169,9 @@ their workflows run `report_from_pngs.py`. A new
 frontend adds a capture harness and a `screenshots-<name>.yml` workflow
 that writes `walkthrough-<name>.json`, and `walkthrough.yml` adds it to the
 page.
+
+Each harness that shows an image list reads `capture-catalog.json`, which
+names no real product. `tests/unit/test_capture_catalog.py` covers it.
 
 ## How a new frontend starts
 

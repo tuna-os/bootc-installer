@@ -38,41 +38,14 @@ os.environ.setdefault("TUNA_INSTALLER_DRY_RUN", "1")
 
 # ── fixtures, installed BEFORE the app imports anything ──────────────────────
 
-CATALOG = {
-    "default_image": "ghcr.io/tuna-os/bonito:latest",
-    "fallback_flatpaks": [],
-    "images": [
-        {
-            "name": "TunaOS", "registry": "ghcr.io/tuna-os/bonito",
-            "desc": "The default TunaOS image.",
-            "bootloader": "systemd", "filesystem": "btrfs", "composefs": True,
-            "children": [
-                {"name": "GNOME", "tag": "latest",
-                 "subtitle": "The standard desktop",
-                 "desc": "A clean GNOME desktop. The best-tested option."},
-                {"name": "KDE Plasma", "tag": "kde",
-                 "subtitle": "More to configure",
-                 "desc": "KDE Plasma, for a more customisable desktop."},
-            ],
-        },
-        {
-            "name": "Bluefin", "registry": "ghcr.io/ublue-os/bluefin",
-            "desc": "Universal Blue's developer image.",
-            "bootloader": "grub2", "filesystem": "xfs",
-            "children": [
-                {"name": "Bluefin", "tag": "latest",
-                 "subtitle": "Developer-focused",
-                 "desc": "Tracks upstream Universal Blue closely."},
-            ],
-        },
-    ],
-}
+# The capture catalog of every harness (shared/walkthrough/README.md): no
+# product of ours, a default_image that needs an account, a leaf with a tour.
+CATALOG_FILE = os.path.join(SHARED_WALKTHROUGH, "capture-catalog.json")
+with open(CATALOG_FILE, encoding="utf-8") as fh:
+    CATALOG = json.load(fh)
 
 _tmp = tempfile.mkdtemp(prefix="tuna-shots-")
-_catalog_path = os.path.join(_tmp, "images.json")
-with open(_catalog_path, "w") as fh:
-    json.dump(CATALOG, fh)
-os.environ["FISHERMAN_IMAGES_PATH"] = _catalog_path
+os.environ["FISHERMAN_IMAGES_PATH"] = CATALOG_FILE
 os.environ.setdefault("XDG_RUNTIME_DIR", _tmp)
 os.environ.setdefault("GTK_A11Y", "none")
 
@@ -489,7 +462,7 @@ def main():
                     problems.append("the catalog default_image is not the selection")
                 if not source.search.get_visible():
                     problems.append("the image list has no search box")
-                if "TunaOS \u203a GNOME" not in finding["text"]:
+                if "Capture Desktop \u203a Stable" not in finding["text"]:
                     problems.append("a row does not name the product and the channel")
             elif name == "identity":
                 identity = win.pages["identity"]
