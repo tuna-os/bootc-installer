@@ -96,4 +96,5 @@ would take, with the failing build output for COSMIC.
 ## References
 - `fisherman/data/images.json` — recursive distro image catalog
 - `flatpak/org.bootcinstaller.Installer.json` — Flatpak manifest
+- `flatpak/org.bootcinstaller.Installer.Devel.json` — generated: edit the production manifest, then run `python3 flatpak/generate-devel.py`
 - Recipe JSON fields: `disk`, `filesystem`, `encryption`, `image`, `targetImgref`, `hostname`, `flatpaks[]`
