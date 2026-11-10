@@ -20,6 +20,11 @@ import (
 	"strings"
 )
 
+// A copy of shared/branding/copy-defaults.json: go:embed cannot leave the
+// module. `go generate ./...` refreshes it; branding_test.go holds the two
+// together.
+//
+//go:generate cp ../../../shared/branding/copy-defaults.json copy-defaults.json
 //go:embed copy-defaults.json
 var copyDefaultsJSON []byte
 

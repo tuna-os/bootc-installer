@@ -902,11 +902,20 @@ ApplicationWindow {
         case "error":
             return qsTr("ERROR: %1").arg(event.message || "")
         case "recovery_key":
-            // The log line as well as the done page's panel: the persistent
-            // log is where support looks.
+            // The log pane shows it to the user, as the done page's panel
+            // does. install.log (redact.go) and Copy log (sharedLog) get
+            // the redacted form (#337).
             return qsTr("Recovery key: %1").arg(event.key || "")
         }
         return ""
+    }
+
+    // The log as it may leave the installer (Copy log): without the
+    // recovery key, the form install.log has (installer/redact.go, #337).
+    function sharedLog() {
+        if (recoveryKey === "")
+            return installLog
+        return installLog.split(recoveryKey).join("[redacted]")
     }
 
     function appendLog(line) {
@@ -2024,13 +2033,14 @@ ApplicationWindow {
                     font.pixelSize: Theme.fontSizeSmall
                 }
                 // The persistent install log (dialog_output parity): its
-                // path on disk plus a copy of what scrolled past. The
+                // path on disk plus a copy of what scrolled past, without
+                // the recovery key (sharedLog). The
                 // in-memory installLog is gone the moment the window
                 // closes; this file is what support asks for.
                 TextEdit {
                     id: logClip
                     visible: false
-                    text: root.installLog
+                    text: root.sharedLog()
                 }
                 RowLayout {
                     Layout.fillWidth: true

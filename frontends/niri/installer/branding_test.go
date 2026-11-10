@@ -162,7 +162,7 @@ func TestCopyDefaultsMatchShared(t *testing.T) {
 		t.Skipf("shared copy-defaults.json not available: %v", err)
 	}
 	if string(shared) != string(copyDefaultsJSON) {
-		t.Fatal("installer/copy-defaults.json has diverged from shared/branding/copy-defaults.json; cp the shared one over")
+		t.Fatal("installer/copy-defaults.json has diverged from shared/branding/copy-defaults.json; run `go generate ./...` in installer/")
 	}
 	if copyDefaults()["welcome_title"] == "" {
 		t.Fatal("copy defaults did not parse")

@@ -19,6 +19,7 @@
     "append-path": "/usr/lib/sdk/rust-stable/bin",
     "env": {
       "CARGO_HOME": "/run/build/tuna-installer-cosmic/cargo",
+      "TUNA_SHARED_DIR": "/run/build/tuna-installer-cosmic/shared",
       "GOPATH": "/run/build/go-path",
       "GOCACHE": "/run/build/go-cache",
       "GOPROXY": "off"
@@ -75,6 +76,7 @@
       ],
       "sources": [
         { "type": "dir", "path": ".." },
+        { "type": "dir", "path": "../../../shared", "dest": "shared" },
         "cargo-sources.json"
       ]
     }

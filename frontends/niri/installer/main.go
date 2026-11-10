@@ -377,16 +377,21 @@ func runInstall(recipeJSON string) {
 
 	// Tee fisherman's output to a persistent log in addition to the pipe
 	// Quickshell reads (root.installLog in installer.qml) — that property is
-	// in-memory only and gone the moment the window closes.
+	// in-memory only and gone the moment the window closes. The log gets
+	// the redacted form of the recovery key (redact.go, #337); the pipe
+	// keeps it for the done page.
 	logFile, logErr := openInstallLog()
+	var logOut, logErrStream *redactedStream
 	if logErr != nil {
 		fmt.Fprintf(os.Stderr, "install log: %v\n", logErr)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	} else {
 		fmt.Fprintln(logFile, "=== install started, recipe on stdin ===")
-		cmd.Stdout = io.MultiWriter(os.Stdout, logFile)
-		cmd.Stderr = io.MultiWriter(os.Stderr, logFile)
+		redacted := newRedactedLog(logFile)
+		logOut, logErrStream = redacted.Stream(), redacted.Stream()
+		cmd.Stdout = io.MultiWriter(os.Stdout, logOut)
+		cmd.Stderr = io.MultiWriter(os.Stderr, logErrStream)
 	}
 
 	runErr := cmd.Start()
@@ -403,6 +408,8 @@ func runInstall(recipeJSON string) {
 		clearPidfile()
 	}
 	if logFile != nil {
+		_ = logOut.Flush()
+		_ = logErrStream.Flush()
 		fmt.Fprintf(logFile, "=== install exited: %v ===\n", runErr)
 		logFile.Close()
 	}

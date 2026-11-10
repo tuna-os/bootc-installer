@@ -15,6 +15,10 @@ import (
 	"os"
 )
 
+// A copy of shared/account/groups.json: go:embed cannot leave the module.
+// `go generate ./...` refreshes it; user_test.go holds the two together.
+//
+//go:generate cp ../../../shared/account/groups.json groups.json
 //go:embed groups.json
 var groupsJSON []byte
 
