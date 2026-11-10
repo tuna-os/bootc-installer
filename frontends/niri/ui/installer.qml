@@ -152,7 +152,21 @@ ApplicationWindow {
             validate_image_type_unsupported: "This type of system image is not supported.",
             validate_bootloader_unsupported: "This boot loader is not supported.",
             validate_recipe_unreadable: "The installer could not read its settings.",
-            validate_recipe_malformed: "The installer settings are not valid."
+            validate_recipe_malformed: "The installer settings are not valid.",
+            validate_var_disk_encryption_unsupported: "A separate /var disk cannot be encrypted. Remove the /var disk, or choose no encryption.",
+            validate_var_disk_unsupported_composefs: "This system image cannot use a separate /var disk. Remove the /var disk.",
+            validate_custom_mount_target_duplicate: "Two partitions have the same mount point. Give each partition its own mount point.",
+            validate_custom_mount_partition_duplicate: "The same partition is used twice. Give each mount point its own partition.",
+            validate_custom_mount_not_persistable: "The installed system cannot mount this partition there. Use a folder below /var, or /home.",
+            validate_zfs_experimental: "ZFS is experimental. Accept that, or choose a different filesystem.",
+            validate_experimental_unsupported: "The installer asked for an experimental feature that this version does not know.",
+            validate_locale_invalid: "This language is not a valid locale name. Choose another language.",
+            validate_keyboard_layout_required: "Choose a keyboard layout.",
+            validate_keyboard_layout_invalid: "This keyboard layout is not valid. Choose another layout.",
+            validate_keyboard_variant_invalid: "This keyboard variant is not valid. Choose another variant.",
+            validate_keyboard_model_invalid: "This keyboard model is not valid. Choose another model.",
+            validate_timezone_invalid: "This time zone is not valid. Choose another time zone.",
+            validate_kept_filesystem_unusable: "A partition that the installer keeps has no usable filesystem. Format it, or choose another partition."
         })
         // COPY-DEFAULTS-END
         let line = copy[key] !== undefined ? copy[key] : (defaults[key] || "")
