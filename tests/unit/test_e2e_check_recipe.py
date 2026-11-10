@@ -81,7 +81,7 @@ class WithoutACatalog(unittest.TestCase):
     """The interim rule, until every driver exports its catalog."""
 
     def test_legacy_frontends_still_must_create_a_user(self):
-        for frontend in ("cosmic", "kde", "niri"):
+        for frontend in sorted(check.LEGACY_USER_STEP):
             self.assertIs(check.account_required(frontend, {}, None), True)
             self.assertEqual(len(check.account_failures(frontend, {}, None)), 1)
             self.assertEqual(check.account_failures(frontend, {"user": USER}, None), [])

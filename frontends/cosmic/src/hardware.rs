@@ -104,6 +104,44 @@ pub fn terminate_process_group(leader_pid: u32) -> std::io::Result<()> {
         .map(|_| ())
 }
 
+/// Whether a PCI display device of vendor `0x10de` (NVIDIA) is below
+/// `root` (`/sys/bus/pci/devices`). fisherman's probe does not report the
+/// GPU yet, so each frontend looks (`shared/catalog/README.md`). A machine
+/// where nothing can be read has no NVIDIA GPU.
+pub fn has_nvidia_gpu_in(root: &std::path::Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return false;
+    };
+    let read = |path: std::path::PathBuf| {
+        std::fs::read_to_string(path)
+            .map(|s| s.trim().to_lowercase())
+            .unwrap_or_default()
+    };
+    entries.flatten().any(|entry| {
+        let dir = entry.path();
+        // Class 0x03xxxx is a display controller (VGA, 3D, other).
+        read(dir.join("vendor")) == "0x10de" && read(dir.join("class")).starts_with("0x03")
+    })
+}
+
+/// [`has_nvidia_gpu_in`] for this machine. `/sys` is the host's in a
+/// Flatpak too.
+pub fn has_nvidia_gpu() -> bool {
+    has_nvidia_gpu_in(std::path::Path::new("/sys/bus/pci/devices"))
+}
+
+/// Opens the desktop's own network settings on the host, best effort: the
+/// first tool that exists. COSMIC's first, then the others a live image can
+/// carry. A sandbox has none of them, so the script runs on the host.
+pub fn network_settings_command() -> Vec<String> {
+    const SCRIPT: &str = "if command -v cosmic-settings >/dev/null 2>&1; then exec cosmic-settings network; \
+elif command -v nm-connection-editor >/dev/null 2>&1; then exec nm-connection-editor; \
+elif command -v gnome-control-center >/dev/null 2>&1; then exec gnome-control-center wifi; \
+elif command -v systemsettings >/dev/null 2>&1; then exec systemsettings kcm_networkmanagement; \
+else exit 127; fi";
+    crate::offline::host_command(&["sh", "-c", SCRIPT])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,5 +231,37 @@ mod tests {
             self.process_group(0);
             self
         }
+    }
+
+    fn pci_device(root: &std::path::Path, name: &str, vendor: &str, class: &str) {
+        let dir = root.join(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("vendor"), format!("{vendor}\n")).unwrap();
+        std::fs::write(dir.join("class"), format!("{class}\n")).unwrap();
+    }
+
+    #[test]
+    fn an_nvidia_display_device_is_found_and_nothing_else_is() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        assert!(!has_nvidia_gpu_in(root), "an empty bus");
+        assert!(!has_nvidia_gpu_in(&root.join("missing")), "no bus at all");
+        // An Intel GPU, and an NVIDIA device that is not a display (audio).
+        pci_device(root, "0000:00:02.0", "0x8086", "0x030000");
+        pci_device(root, "0000:01:00.1", "0x10de", "0x040300");
+        assert!(!has_nvidia_gpu_in(root));
+        // The 3D controller of a hybrid laptop.
+        pci_device(root, "0000:01:00.0", "0x10DE", "0x030200");
+        assert!(has_nvidia_gpu_in(root));
+    }
+
+    #[test]
+    fn network_settings_open_on_the_host_with_the_cosmic_tool_first() {
+        let argv = network_settings_command();
+        assert_eq!(argv[..2], ["sh", "-c"]);
+        let script = &argv[2];
+        let at = |tool: &str| script.find(tool).unwrap_or_else(|| panic!("{tool} missing"));
+        assert!(at("cosmic-settings network") < at("nm-connection-editor"));
+        assert!(at("nm-connection-editor") < at("gnome-control-center"));
     }
 }
