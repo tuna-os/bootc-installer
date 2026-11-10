@@ -40,6 +40,10 @@ _sys["images"] = [{
     "filesystem": "xfs",
     "composefs": False,
     "needs_user_creation": False,
+    # The desktop steps that each install did before fisherman made them a
+    # choice. check-recipe.py requires them in the recipe.
+    "extras": {"printServices": True, "oemSetup": True,
+               "audioNames": True, "bootSplash": True},
 }]
 _sys["imgref"] = _sys["images"][0]["imgref"]
 # The shipped recipe has an image step that offers the whole catalog. This

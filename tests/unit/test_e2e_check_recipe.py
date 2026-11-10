@@ -77,6 +77,36 @@ class AccountFollowsTheCatalog(unittest.TestCase):
         self.assertIn("wheel", failures[0])
 
 
+class ExtrasFollowTheCatalog(unittest.TestCase):
+    def test_every_fixture_leaf(self):
+        with open(EXPECTED, encoding="utf-8") as stream:
+            expected = json.load(stream)
+        seen = set()
+        for entry in expected["leaves"]:
+            recipe = dict(entry["cases"][0]["recipe"])
+            self.assertEqual(check.extras_failures(recipe, _catalog()), [], entry["imgref"])
+            has = entry["leaf"]["extras"] is not None
+            seen.add(has)
+            if has:
+                dropped = {key: value for key, value in recipe.items() if key != "extras"}
+                self.assertEqual(len(check.extras_failures(dropped, _catalog())), 1)
+                flipped = dict(recipe, extras=dict(recipe["extras"],
+                                                  oemSetup=not recipe["extras"]["oemSetup"]))
+                self.assertEqual(len(check.extras_failures(flipped, _catalog())), 1)
+            else:
+                invented = dict(recipe, extras={})
+                self.assertEqual(len(check.extras_failures(invented, _catalog())), 1)
+        self.assertEqual(seen, {True, False}, "the fixture must hold both answers")
+
+    def test_a_switch_that_is_left_out_is_off(self):
+        recipe = {"image": "registry.example/os/atlas:beta", "extras": {"oemSetup": True}}
+        self.assertEqual(check.extras_failures(recipe, _catalog()), [])
+
+    def test_no_catalog_and_an_unknown_image_are_not_judged(self):
+        self.assertEqual(check.extras_failures({"image": "r/x:1", "extras": {}}, None), [])
+        self.assertEqual(check.extras_failures({"image": "r/x:1", "extras": {}}, _catalog()), [])
+
+
 class WithoutACatalog(unittest.TestCase):
     """The interim rule, until every driver exports its catalog."""
 
