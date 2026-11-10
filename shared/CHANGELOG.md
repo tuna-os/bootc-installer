@@ -12,6 +12,15 @@ sure that it does. Do not edit the hash of an old entry: add an entry.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-10: progress, the recovery key in a log
+
+- Added: `progress/recovery-key-cases.json` and
+  `progress/recovery-key-transcript.ndjson`. They pin the redacted form of
+  the `recovery_key` event in a log file and in a copy of the log
+  (`progress/README.md`, "Recovery key in a log"; #337).
+- GNOME and KDE test against them. XFCE keeps a log file and does not yet.
+  COSMIC and Niri keep no log file.
+
 ## 2026-11-10: this changelog starts
 
 - `README.md` and this file are new. No contract changed.

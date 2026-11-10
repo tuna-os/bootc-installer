@@ -110,6 +110,32 @@ the product (`Installing {product}…`): frontends call `set_product_name()`
 with the resolved branding name. The default is a neutral `"the OS"`, never
 a distro.
 
+## Recovery key in a log
+
+The `recovery_key` event holds the key that unlocks the disk. A frontend
+shows the key on its done page and keeps it in memory until the user
+confirms that it is saved. A frontend must not write the key to a log file,
+and must not put it in a copy of the log that leaves the installer (the
+clipboard, a log dialog). A user attaches a log to a bug report.
+
+A log line keeps the event and loses the value:
+`{"type":"recovery_key","key":"[redacted]",...}`. The rules, in order, for
+each line:
+
+1. In a line that contains `"recovery_key"`, replace the value of each
+   `"key"` string with `[redacted]`. Keep the spaces around the colon.
+2. Replace the text after `Recovery key:` with `[redacted]`.
+3. When the frontend knows the key, replace each occurrence of the key.
+
+[`recovery-key-cases.json`](recovery-key-cases.json) has the key, the
+placeholder, the redacted event and a list of single lines with the
+expected result. [`recovery-key-transcript.ndjson`](recovery-key-transcript.ndjson)
+is a short install with one `recovery_key` event. A frontend that keeps a
+log sends the transcript through its log writer and compares the file:
+the key is not there, the redacted event is, and each other line is
+unchanged. GNOME (`tests/unit/test_recovery_key_log_fixture.py`) and KDE
+(`frontends/kde/tests/test_backend.cpp`) do this.
+
 ## Fixture
 
 [`dry-run-transcript.ndjson`](dry-run-transcript.ndjson) is a representative
