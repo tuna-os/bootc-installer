@@ -16,238 +16,276 @@ namespace imagecatalog
 namespace
 {
 
-// The manifest's own words for the search path the XFCE frontend uses:
-// $FISHERMAN_IMAGES_PATH, then the XDG config override, then the system
-// paths, then fisherman's installed data. The GNOME frontend checks the same
-// user and system overrides for its copy of the file.
-QStringList searchPaths(bool flatpak, const QProcessEnvironment &env)
+// The contract's fallback product name for a leaf with no name anywhere:
+// the last path component of the reference, "atlas-dx" -> "Atlas DX".
+QString prettyFromImgref(const QString &imgref)
 {
-    QStringList paths;
-    const QString envPath = env.value(QStringLiteral("FISHERMAN_IMAGES_PATH"));
-    if (!envPath.isEmpty())
-        paths << envPath;
-
-    const QString xdgConfig = env.value(
-        QStringLiteral("XDG_CONFIG_HOME"),
-        QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
-            + QStringLiteral("/.config"));
-    paths << QDir(xdgConfig).filePath(QStringLiteral("tuna-installer/images.json"));
-
-    // Inside a Flatpak the runtime's /etc is not the host's; the host side
-    // is at /run/host/etc, the same prefix the GNOME RecipeLoader applies.
-    // Both manifest names: tuna-installer (this/XFCE frontend) and
-    // bootc-installer (the GNOME user step's live-ISO fallback).
-    if (flatpak) {
-        paths << QStringLiteral("/run/host/etc/tuna-installer/images.json");
-        paths << QStringLiteral("/run/host/etc/bootc-installer/images.json");
-    }
-    paths << QStringLiteral("/etc/tuna-installer/images.json");
-    paths << QStringLiteral("/etc/bootc-installer/images.json");
-    paths << QStringLiteral("/app/share/fisherman/data/images.json");
-    paths << QStringLiteral("/usr/share/fisherman/data/images.json");
-    return paths;
-}
-
-// GNOME's alias pass: any string value starting with '@' names an entry of
-// the manifest's top-level `aliases` map. Unknown aliases stay as-is so a
-// later stage can report them, exactly as image.py does.
-void resolveAliases(QJsonValue &value, const QJsonObject &aliases);
-void resolveAliases(QJsonObject &obj, const QJsonObject &aliases)
-{
-    for (auto it = obj.begin(); it != obj.end(); ++it) {
-        if (it.value().isString()) {
-            const QString s = it.value().toString();
-            if (s.startsWith(QLatin1Char('@'))) {
-                const QJsonValue resolved = aliases.value(s.mid(1));
-                if (!resolved.isUndefined())
-                    it.value() = resolved;
-            }
-        } else if (it.value().isObject()) {
-            QJsonObject child = it.value().toObject();
-            resolveAliases(child, aliases);
-            it.value() = child;
-        } else if (it.value().isArray()) {
-            // Index assignment, not a range-for: the loop variable would be
-            // a copy, and resolving the copy resolves nothing.
-            QJsonArray child = it.value().toArray();
-            for (int i = 0; i < child.size(); ++i) {
-                QJsonValue v = child.at(i);
-                resolveAliases(v, aliases);
-                child[i] = v;
-            }
-            it.value() = child;
-        }
-    }
-}
-void resolveAliases(QJsonValue &value, const QJsonObject &aliases)
-{
-    if (value.isObject()) {
-        QJsonObject child = value.toObject();
-        resolveAliases(child, aliases);
-        value = child;
-    } else if (value.isArray()) {
-        QJsonArray child = value.toArray();
-        for (int i = 0; i < child.size(); ++i) {
-            QJsonValue v = child.at(i);
-            resolveAliases(v, aliases);
-            child[i] = v;
-        }
-        value = child;
-    }
-}
-
-QString prettyName(const QString &name, const QString &imgref)
-{
-    // The GNOME _catalog_pretty_name rule: keep the catalog's name, derive
-    // one from the ref only as a fallback.
-    if (!name.trimmed().isEmpty())
-        return name;
-    const QString slug = imgref.split(QLatin1Char('/')).value(-1).split(QLatin1Char(':')).value(0);
-    if (slug.isEmpty())
+    QString slug = imgref.section(QLatin1Char('/'), -1);
+    slug = slug.section(QLatin1Char('@'), 0, 0).section(QLatin1Char(':'), 0, 0);
+    const QStringList parts =
+        slug.replace(QLatin1Char('_'), QLatin1Char('-')).split(QLatin1Char('-'), Qt::SkipEmptyParts);
+    if (parts.isEmpty())
         return imgref;
-    QStringList words = QString(slug).replace(QLatin1Char('_'), QLatin1Char('-')).split(QLatin1Char('-'));
-    for (int i = 0; i < words.size(); ++i) {
-        if (i == 0)
-            words[i] = words[i].left(1).toUpper() + words[i].mid(1).toLower();
-        else
-            words[i] = words[i].toUpper();
+    QStringList words;
+    for (int i = 0; i < parts.size(); ++i) {
+        words << (i == 0 ? parts.at(i).left(1).toUpper() + parts.at(i).mid(1).toLower()
+                         : parts.at(i).toUpper());
     }
     return words.join(QLatin1Char(' '));
 }
 
-// The inherited context a group passes to its children: every per-image
-// field the GNOME __build_node threads through, with the same field names
-// the manifest uses.
+// What a group hands to its children: each per-image field of the contract
+// table, under the manifest's own names, plus the page-only icon and slides.
 struct Context {
-    QString flatpaks; // inline JSON list, a URL string, or empty
-    QVariantList carousel; // group slides, handed down like flatpaks
+    QJsonValue flatpaks{QJsonValue::Undefined}; // as written: a list, "@alias", a URL
+    QVariantList carousel;
     QString icon;
-    bool needsUserCreation = true; // see the header for why true, not false
+    bool needsUserCreation = true; // the contract's default (#288)
     bool composefs = false;
     QString imageType = QStringLiteral("bootc");
     QString bootloader;
-    QString imageFilesystem;
-    QString flatpakVarPath;
-    QString registry;
-    QString registryName; // nearest registry-owning node's name (the product)
-    QString defaultHostname;
+    QString filesystem;
     QStringList filesystems;
+    QString flatpakVarPath;
+    QString nvidiaImgref;
+    QString registry;
+    QString defaultHostname;
 };
 
-void collectLeaves(const QJsonObject &node, const QStringList &trail, const Context &ctx,
-                   const QString &searchCtx, QList<Leaf> &out)
+// A value of false, "" or [] is a value and stops the search; null is not.
+bool sets(const QJsonObject &node, const char *key)
+{
+    const auto it = node.constFind(QLatin1String(key));
+    return it != node.constEnd() && !it->isNull();
+}
+
+// `flatpaks` as the recipe may carry it, or false: a list is the list, an
+// `@name` whose alias is a list is that list. A URL, an alias that names a
+// URL or nothing, and no value cannot be read offline. A frontend never
+// downloads a list and never sends `fallback_flatpaks`.
+bool resolveFlatpaks(QJsonValue value, const QJsonObject &aliases, QStringList &out)
+{
+    if (value.isString() && value.toString().startsWith(QLatin1Char('@')))
+        value = aliases.value(value.toString().mid(1));
+    if (!value.isArray())
+        return false;
+    QStringList list;
+    for (const QJsonValue &v : value.toArray()) {
+        if (!v.isString())
+            return false;
+        list << v.toString();
+    }
+    out = list;
+    return true;
+}
+
+void collectLeaves(const QJsonObject &node, const QStringList &path, const Context &ctx,
+                   const QString &product, const QString &searchCtx, const QJsonObject &aliases,
+                   QList<Leaf> &out)
 {
     Context child = ctx;
-    // A group node carries the slides for all its leaves (Aurora's manifest
-    // does); a leaf with its own keeps it. Inherited first, then the node's
-    // own replaces it — the same rule as every other inherited field.
-    if (node.contains(QStringLiteral("carousel"))) {
+    if (sets(node, "carousel")) {
         child.carousel.clear();
-        for (const QJsonValue &v : node.value(QStringLiteral("carousel")).toArray()) {
+        for (const QJsonValue &v : node.value(QLatin1String("carousel")).toArray()) {
             if (v.isObject())
                 child.carousel << QVariant(v.toObject().toVariantMap());
         }
     }
-    if (node.contains(QStringLiteral("flatpaks"))) {
-        const QJsonValue v = node.value(QStringLiteral("flatpaks"));
-        child.flatpaks = v.isString() ? v.toString()
-                                      : QString::fromUtf8(QJsonDocument(v.toArray()).toJson(QJsonDocument::Compact));
-    }
-    if (node.contains(QStringLiteral("icon")))
-        child.icon = node.value(QStringLiteral("icon")).toString();
-    if (node.contains(QStringLiteral("needs_user_creation")))
-        child.needsUserCreation = node.value(QStringLiteral("needs_user_creation")).toBool(true);
-    if (node.contains(QStringLiteral("composefs")))
-        child.composefs = node.value(QStringLiteral("composefs")).toBool(false);
-    if (node.contains(QStringLiteral("image_type")))
-        child.imageType = node.value(QStringLiteral("image_type")).toString();
-    if (node.contains(QStringLiteral("bootloader")))
-        child.bootloader = node.value(QStringLiteral("bootloader")).toString();
-    if (node.contains(QStringLiteral("filesystem")))
-        child.imageFilesystem = node.value(QStringLiteral("filesystem")).toString();
-    if (node.contains(QStringLiteral("flatpak_var_path")))
-        child.flatpakVarPath = node.value(QStringLiteral("flatpak_var_path")).toString();
-    if (node.contains(QStringLiteral("registry"))) {
-        child.registry = node.value(QStringLiteral("registry")).toString();
-        child.registryName = node.value(QStringLiteral("name")).toString();
-    }
-    if (node.contains(QStringLiteral("default_hostname")))
-        child.defaultHostname = node.value(QStringLiteral("default_hostname")).toString();
-    if (node.contains(QStringLiteral("filesystems"))) {
+    if (sets(node, "flatpaks"))
+        child.flatpaks = node.value(QLatin1String("flatpaks"));
+    if (sets(node, "icon"))
+        child.icon = node.value(QLatin1String("icon")).toString();
+    if (sets(node, "needs_user_creation"))
+        child.needsUserCreation = node.value(QLatin1String("needs_user_creation")).toBool(true);
+    if (sets(node, "composefs"))
+        child.composefs = node.value(QLatin1String("composefs")).toBool(false);
+    if (sets(node, "image_type"))
+        child.imageType = node.value(QLatin1String("image_type")).toString();
+    if (sets(node, "bootloader"))
+        child.bootloader = node.value(QLatin1String("bootloader")).toString();
+    if (sets(node, "filesystem"))
+        child.filesystem = node.value(QLatin1String("filesystem")).toString();
+    if (sets(node, "filesystems")) {
         child.filesystems.clear();
-        for (const QJsonValue &v : node.value(QStringLiteral("filesystems")).toArray())
+        for (const QJsonValue &v : node.value(QLatin1String("filesystems")).toArray())
             child.filesystems << v.toString();
     }
+    if (sets(node, "flatpak_var_path"))
+        child.flatpakVarPath = node.value(QLatin1String("flatpak_var_path")).toString();
+    if (sets(node, "nvidia_imgref"))
+        child.nvidiaImgref = node.value(QLatin1String("nvidia_imgref")).toString();
+    if (sets(node, "registry"))
+        child.registry = node.value(QLatin1String("registry")).toString();
+    if (sets(node, "default_hostname"))
+        child.defaultHostname = node.value(QLatin1String("default_hostname")).toString();
 
-    // A tag leaf without an imgref composes one from the in-scope registry,
-    // as image.py does; without either it is not selectable and is skipped.
-    QString imgref = node.value(QStringLiteral("imgref")).toString();
-    if (imgref.isEmpty() && node.contains(QStringLiteral("tag")) && !child.registry.isEmpty())
-        imgref = child.registry + QLatin1Char(':') + node.value(QStringLiteral("tag")).toString();
+    const QString name = node.value(QLatin1String("name")).toString().trimmed();
+    QStringList here = path;
+    if (!name.isEmpty())
+        here << name;
+    // The product is the name of the nearest node that sets `registry`.
+    const bool ownsRegistry = !node.value(QLatin1String("registry")).toString().isEmpty();
+    const QString nodeProduct = ownsRegistry ? name : product;
 
-    // A node with an imgref is a selectable leaf, even with children —
-    // image.py adds the leaf and returns without descending.
-    if (!imgref.isEmpty()) {
+    const QString own = node.value(QLatin1String("imgref")).toString();
+    const bool tagLeaf = node.contains(QLatin1String("tag")) && !child.registry.isEmpty();
+    // A node with a reference is a leaf, even with children.
+    if (!own.isEmpty() || tagLeaf) {
         Leaf leaf;
-        const QString name = node.value(QStringLiteral("name")).toString();
-        // Group-qualified display name, so two groups' "Stable" rows differ.
-        leaf.name = trail.isEmpty() ? name : trail.join(QStringLiteral(" — ")) + QStringLiteral(" — ") + name;
-        leaf.imgref = imgref;
-        leaf.desc = node.value(QStringLiteral("desc")).toString();
-        // The GNOME search string: ancestors, name, description and ref.
-        leaf.searchText = (searchCtx + QLatin1Char(' ') + name
-                           + QLatin1Char(' ') + leaf.desc
-                           + QLatin1Char(' ') + imgref).toLower();
-        leaf.icon = node.value(QStringLiteral("icon")).toString(child.icon);
-        leaf.flatpakSource = node.contains(QStringLiteral("flatpaks"))
-            ? (node.value(QStringLiteral("flatpaks")).isString()
-                   ? node.value(QStringLiteral("flatpaks")).toString()
-                   : QString::fromUtf8(QJsonDocument(node.value(QStringLiteral("flatpaks")).toArray())
-                                           .toJson(QJsonDocument::Compact)))
-            : child.flatpaks;
-        leaf.needsUserCreation = node.value(QStringLiteral("needs_user_creation")).toBool(child.needsUserCreation);
-        leaf.composefs = node.value(QStringLiteral("composefs")).toBool(child.composefs);
-        leaf.imageType = node.value(QStringLiteral("image_type")).toString(child.imageType);
-        leaf.bootloader = node.value(QStringLiteral("bootloader")).toString(child.bootloader);
-        leaf.imageFilesystem = node.value(QStringLiteral("filesystem")).toString(child.imageFilesystem);
-        leaf.flatpakVarPath = node.value(QStringLiteral("flatpak_var_path")).toString(child.flatpakVarPath);
-        leaf.defaultHostname = node.value(QStringLiteral("default_hostname")).toString(child.defaultHostname);
-        leaf.filesystems = child.filesystems;
-        if (node.contains(QStringLiteral("filesystems"))) {
-            leaf.filesystems.clear();
-            for (const QJsonValue &v : node.value(QStringLiteral("filesystems")).toArray())
-                leaf.filesystems << v.toString();
+        leaf.name = name;
+        if (!own.isEmpty()) {
+            leaf.imgref = own;
+            leaf.product = name.isEmpty() ? prettyFromImgref(own) : name;
+        } else {
+            leaf.imgref = child.registry + QLatin1Char(':') + node.value(QLatin1String("tag")).toString();
+            leaf.channel = ownsRegistry ? QString() : name;
+            leaf.product = nodeProduct.isEmpty() ? prettyFromImgref(leaf.imgref) : nodeProduct;
         }
-        // The GNOME pretty-name rule: a tag leaf is a channel, not the
-        // product, so it is named for the registry-owning node.
-        const QString identity = (!node.contains(QStringLiteral("imgref")) && !child.registryName.isEmpty())
-            ? child.registryName
-            : name;
-        leaf.prettyName = prettyName(identity, imgref);
+        leaf.label = (leaf.product + QLatin1Char(' ') + leaf.channel).trimmed();
+        leaf.breadcrumb = here.join(QStringLiteral(" › "));
+        leaf.nvidiaImgref = child.nvidiaImgref;
+        leaf.desc = node.value(QLatin1String("desc")).toString();
+        leaf.searchText = (searchCtx + QLatin1Char(' ') + name + QLatin1Char(' ') + leaf.desc
+                           + QLatin1Char(' ') + leaf.imgref).toLower();
+        leaf.icon = child.icon;
+        leaf.hasFlatpaks = resolveFlatpaks(child.flatpaks, aliases, leaf.flatpaks);
+        leaf.needsUserCreation = child.needsUserCreation;
+        leaf.composefs = child.composefs;
+        leaf.imageType = child.imageType;
+        leaf.bootloader = child.bootloader;
+        // The choices are `filesystems`, else the one `filesystem`. The
+        // selected value is `filesystem`, else the first choice.
+        leaf.filesystems = child.filesystems;
+        if (leaf.filesystems.isEmpty() && !child.filesystem.isEmpty())
+            leaf.filesystems << child.filesystem;
+        leaf.filesystem = child.filesystem.isEmpty() ? child.filesystems.value(0) : child.filesystem;
+        leaf.flatpakVarPath = child.flatpakVarPath;
+        leaf.defaultHostname = child.defaultHostname;
         leaf.carousel = child.carousel;
         out << leaf;
         return;
     }
 
-    QStringList childTrail = trail;
-    const QString nodeName = node.value(QStringLiteral("name")).toString();
-    if (!nodeName.isEmpty())
-        childTrail << nodeName;
-    QString childSearch = searchCtx + QLatin1Char(' ') + nodeName;
-    const QString extra = node.value(QStringLiteral("search_extra")).toString();
+    QString childSearch = searchCtx + QLatin1Char(' ') + name;
+    const QString extra = node.value(QLatin1String("search_extra")).toString();
     if (!extra.isEmpty())
         childSearch += QLatin1Char(' ') + extra;
-    for (const QJsonValue &v : node.value(QStringLiteral("children")).toArray()) {
+    for (const QJsonValue &v : node.value(QLatin1String("children")).toArray()) {
         if (v.isObject())
-            collectLeaves(v.toObject(), childTrail, child, childSearch, out);
+            collectLeaves(v.toObject(), here, child, nodeProduct, childSearch, aliases, out);
     }
+}
+
+QString xdgConfigHome(const QProcessEnvironment &env)
+{
+    const QString xdg = env.value(QStringLiteral("XDG_CONFIG_HOME"));
+    if (!xdg.isEmpty())
+        return xdg;
+    return QStandardPaths::writableLocation(QStandardPaths::HomeLocation) + QStringLiteral("/.config");
 }
 
 } // namespace
 
+const Leaf *Catalog::find(const QString &imgref) const
+{
+    if (imgref.isEmpty())
+        return nullptr;
+    for (const Leaf &leaf : leaves) {
+        if (leaf.imgref == imgref)
+            return &leaf;
+    }
+    return nullptr;
+}
+
+int Catalog::defaultIndex(const QString &brandingDefaultImage) const
+{
+    for (const QString &candidate : {brandingDefaultImage, defaultImage}) {
+        if (candidate.isEmpty())
+            continue;
+        for (int i = 0; i < leaves.size(); ++i) {
+            if (leaves.at(i).imgref == candidate)
+                return i;
+        }
+    }
+    return -1;
+}
+
+bool Catalog::needsUserCreation(const QString &imgref) const
+{
+    const Leaf *leaf = find(imgref);
+    return leaf ? leaf->needsUserCreation : true;
+}
+
+ImageChoice sourceAndTarget(const Leaf &leaf, bool hasNvidia, bool isLive,
+                            const QStringList &offlineImages)
+{
+    const QString &base = leaf.imgref;
+    const QString &nvidia = leaf.nvidiaImgref;
+    if (nvidia.isEmpty())
+        return {base, base};
+    if (hasNvidia)
+        return {nvidia, nvidia};
+    // The ISO that holds only the NVIDIA image: install it offline and let
+    // the first update move the system to the base image. Off live media
+    // this would download the larger image for no gain (#314).
+    if (isLive && offlineImages.contains(nvidia) && !offlineImages.contains(base))
+        return {nvidia, base};
+    return {base, base};
+}
+
+bool hasNvidiaGpu(const QString &sysRoot)
+{
+    const QDir devices(sysRoot + QStringLiteral("/bus/pci/devices"));
+    const auto read = [](const QString &path) {
+        QFile f(path);
+        return f.open(QIODevice::ReadOnly) ? QString::fromLatin1(f.readAll()).trimmed().toLower()
+                                           : QString();
+    };
+    for (const QString &entry : devices.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        const QString dir = devices.filePath(entry);
+        // PCI base class 0x03 is a display controller.
+        if (read(dir + QStringLiteral("/vendor")) == QLatin1String("0x10de")
+            && read(dir + QStringLiteral("/class")).startsWith(QLatin1String("0x03")))
+            return true;
+    }
+    return false;
+}
+
+QString registryHost(const QString &imgref)
+{
+    const int slash = imgref.indexOf(QLatin1Char('/'));
+    if (slash <= 0)
+        return {};
+    const QString first = imgref.left(slash);
+    // The first component is a host only with a dot or a port, or as
+    // "localhost"; "library/ubuntu" names no registry.
+    if (!first.contains(QLatin1Char('.')) && !first.contains(QLatin1Char(':'))
+        && first != QLatin1String("localhost"))
+        return {};
+    return first.section(QLatin1Char(':'), 0, 0);
+}
+
+QStringList searchPaths(bool flatpak, const QString &xdgConfigHome)
+{
+    // The system file is first: an ISO that ships a catalog must get that
+    // catalog, and a file in a home directory must not replace it. In a
+    // Flatpak the runtime's /etc is not the host's.
+    const QString etc = flatpak ? QStringLiteral("/run/host/etc") : QStringLiteral("/etc");
+    QString xdg = xdgConfigHome;
+    while (xdg.size() > 1 && xdg.endsWith(QLatin1Char('/')))
+        xdg.chop(1);
+    return {
+        etc + QStringLiteral("/bootc-installer/images.json"),
+        etc + QStringLiteral("/tuna-installer/images.json"),
+        xdg + QStringLiteral("/bootc-installer/images.json"),
+        flatpak ? QStringLiteral("/app/share/fisherman/data/images.json")
+                : QStringLiteral("/usr/share/fisherman/data/images.json"),
+    };
+}
+
 QStringList defaultSearchPaths(bool flatpak)
 {
-    return searchPaths(flatpak, QProcessEnvironment::systemEnvironment());
+    return searchPaths(flatpak, xdgConfigHome(QProcessEnvironment::systemEnvironment()));
 }
 
 Catalog parse(const QByteArray &json)
@@ -257,41 +295,43 @@ Catalog parse(const QByteArray &json)
     const QJsonDocument doc = QJsonDocument::fromJson(json, &err);
     if (err.error != QJsonParseError::NoError || !doc.isObject())
         return catalog;
-    QJsonObject root = doc.object();
-    const QJsonObject aliases = root.value(QStringLiteral("aliases")).toObject();
-    if (!aliases.isEmpty())
-        resolveAliases(root, aliases);
-    catalog.defaultImage = root.value(QStringLiteral("default_image")).toString();
-    // fallback_flatpaks may be a list or an @alias-resolved string; keep it simple.
-    for (const QJsonValue &v : root.value(QStringLiteral("fallback_flatpaks")).toArray())
-        catalog.fallbackFlatpaks << v.toString();
+    const QJsonObject root = doc.object();
+    if (!root.value(QLatin1String("images")).isArray())
+        return catalog;
+    catalog.valid = true;
+    const QJsonObject aliases = root.value(QLatin1String("aliases")).toObject();
+    catalog.defaultImage = root.value(QLatin1String("default_image")).toString();
     const Context top;
-    for (const QJsonValue &v : root.value(QStringLiteral("images")).toArray()) {
+    for (const QJsonValue &v : root.value(QLatin1String("images")).toArray()) {
         if (v.isObject())
-            collectLeaves(v.toObject(), {}, top, QString(), catalog.leaves);
+            collectLeaves(v.toObject(), {}, top, QString(), QString(), aliases, catalog.leaves);
     }
     return catalog;
+}
+
+Catalog loadFirst(const QStringList &paths)
+{
+    for (const QString &path : paths) {
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly))
+            continue;
+        const Catalog catalog = parse(f.readAll());
+        if (catalog.valid)
+            return catalog;
+    }
+    return Catalog{};
 }
 
 Catalog load()
 {
     const QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     const QString override = env.value(QString::fromLatin1(IMAGES_ENV));
-    if (!override.isEmpty()) {
-        QFile f(override);
-        if (f.open(QIODevice::ReadOnly))
-            return parse(f.readAll());
-        return Catalog{};
-    }
-    // Flatpak detection without offline.h: the sentinel file. imagecatalog
+    if (!override.isEmpty())
+        return loadFirst({override});
+    // Flatpak detection without fisherman.h: the sentinel file. imagecatalog
     // stays dependency-free so the tests link only QtCore-adjacent units.
     const bool flatpak = QFile::exists(QStringLiteral("/.flatpak-info"));
-    for (const QString &path : searchPaths(flatpak, env)) {
-        QFile f(path);
-        if (f.open(QIODevice::ReadOnly))
-            return parse(f.readAll());
-    }
-    return Catalog{};
+    return loadFirst(searchPaths(flatpak, xdgConfigHome(env)));
 }
 
 } // namespace imagecatalog

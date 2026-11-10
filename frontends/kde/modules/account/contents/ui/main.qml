@@ -51,7 +51,7 @@ TunaComponents.SetupModule {
             Kirigami.InlineMessage {
                 type: Kirigami.MessageType.Information
                 visible: !InstallerController.needsUserCreation
-                text: "The selected image creates its own user account, so this step is optional."
+                text: qsTr("The selected image creates its own user account, so this step is optional.")
 
                 Layout.fillWidth: true
                 Layout.maximumWidth: root.cardWidth
@@ -60,7 +60,7 @@ TunaComponents.SetupModule {
             }
 
             Label {
-                text: "Create the account you will sign in with. It can also administer this computer."
+                text: qsTr("Create the account you will sign in with. It can also administer this computer.")
                 wrapMode: Text.Wrap
                 horizontalAlignment: Text.AlignHCenter
 
@@ -79,7 +79,7 @@ TunaComponents.SetupModule {
                     id: fullnameField
                     objectName: "accountFullname"
 
-                    label: "Full name (optional)"
+                    label: qsTr("Full name (optional)")
                     text: InstallerController.fullname
 
                     onTextChanged: InstallerController.fullname = text
@@ -91,7 +91,7 @@ TunaComponents.SetupModule {
                     id: usernameField
                     objectName: "accountUsername"
 
-                    label: "Username"
+                    label: qsTr("Username")
                     text: InstallerController.username
                     inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhPreferLowercase | Qt.ImhNoPredictiveText
 
@@ -115,7 +115,7 @@ TunaComponents.SetupModule {
                     id: passwordField
                     objectName: "accountPassword"
 
-                    label: "Password"
+                    label: qsTr("Password")
                     text: InstallerController.userPassword
 
                     onTextChanged: {
@@ -128,12 +128,12 @@ TunaComponents.SetupModule {
                     id: confirmPasswordField
                     objectName: "accountPasswordConfirm"
 
-                    label: "Confirm password"
+                    label: qsTr("Confirm password")
 
                     status: (text.length > 0 && text !== passwordField.text)
                         ? Kirigami.MessageType.Error : Kirigami.MessageType.Information
                     statusMessage: (text.length > 0 && text !== passwordField.text)
-                        ? "Passwords do not match." : ""
+                        ? qsTr("Passwords do not match.") : ""
                 }
             }
         }

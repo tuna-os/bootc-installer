@@ -87,7 +87,7 @@ class WithoutACatalog(unittest.TestCase):
             self.assertEqual(check.account_failures(frontend, {"user": USER}, None), [])
 
     def test_the_rest_are_not_judged_rather_than_assumed(self):
-        for frontend in ("gnome", "xfce"):
+        for frontend in ("gnome", "kde", "xfce"):
             self.assertIsNone(check.account_required(frontend, {}, None))
             self.assertEqual(check.account_failures(frontend, {}, None), [])
 

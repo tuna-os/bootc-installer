@@ -20,10 +20,7 @@ TunaComponents.SetupModule {
     // check only blocks when the install needs the network (conn_check.py).
     readonly property bool gateBlocked: InstallerController.requirementsBlocking
         && (InstallerController.requirementsFatal || !InstallerController.continueAnyway)
-    readonly property bool networkBlocked: InstallerController.onlineKnown
-        && !InstallerController.online && InstallerController.needsNetwork
-
-    nextEnabled: !gateBlocked && !networkBlocked
+    nextEnabled: !gateBlocked && !networkGate.blocked
 
     // Rechecked every time the step opens: the cable may have been plugged
     // in while the user was choosing a disk.
@@ -90,7 +87,7 @@ TunaComponents.SetupModule {
             }
 
             Label {
-                text: "This wizard will guide you through installing " + InstallerController.productName + " onto this computer."
+                text: qsTr("This wizard will guide you through installing %1 onto this computer.").arg(InstallerController.productName)
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
 
@@ -100,7 +97,7 @@ TunaComponents.SetupModule {
             }
 
             Label {
-                text: "You will choose a disk and how it should be encrypted. Everything after that is handled by the installer."
+                text: qsTr("You will choose a disk and how it should be encrypted. Everything after that is handled by the installer.")
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
                 opacity: 0.75
@@ -129,7 +126,7 @@ TunaComponents.SetupModule {
                 objectName: "continueAnywayCheck"
                 visible: InstallerController.requirementsBlocking
                     && !InstallerController.requirementsFatal
-                text: "This computer does not meet the requirements, but install anyway"
+                text: qsTr("This computer does not meet the requirements, but install anyway")
                 checked: InstallerController.continueAnyway
                 onToggled: InstallerController.continueAnyway = checked
 
@@ -143,7 +140,7 @@ TunaComponents.SetupModule {
             Button {
                 objectName: "powerOffButton"
                 visible: InstallerController.requirementsFatal
-                text: "Power off"
+                text: qsTr("Power off")
                 icon.name: "system-shutdown-symbolic"
                 onClicked: InstallerController.poweroff()
 
@@ -153,39 +150,22 @@ TunaComponents.SetupModule {
             // Network preflight (the conn_check step): a failed check blocks
             // only while the install needs a download. Live media and images
             // already in the host's offline stores never need it.
-            Kirigami.InlineMessage {
-                type: Kirigami.MessageType.Information
-                visible: InstallerController.checkingOnline && InstallerController.needsNetwork
-                text: "Checking the internet connection…"
+            // The message, Retry and the way to the desktop's network
+            // settings are NetworkGate's (#301).
+            NetworkGate {
+                id: networkGate
 
                 Layout.fillWidth: true
                 Layout.maximumWidth: root.cardWidth
                 Layout.alignment: Qt.AlignHCenter
             }
 
-            Kirigami.InlineMessage {
-                type: Kirigami.MessageType.Error
-                visible: root.networkBlocked
-                text: "No internet connection was found, and the selected image needs to be downloaded. Connect and retry."
-                actions: [
-                    Kirigami.Action {
-                        text: "Retry"
-                        onTriggered: InstallerController.checkConnectivity()
-                    }
-                ]
-
-                Layout.fillWidth: true
-                Layout.maximumWidth: root.cardWidth
-                Layout.alignment: Qt.AlignHCenter
-            }
-
-            // Region & language (the GNOME language/keyboard/timezone steps,
-            // folded into this step to keep the seven-module shape). Wizard
-            // state, not recipe state: fisherman's Recipe has no such fields,
-            // so these are shown back on the confirm screen, where GNOME
-            // shows them, and never written anywhere else.
+            // Region & language. Wizard state, not recipe state: the recipe
+            // has no field for them yet (#292), and nothing applies them to
+            // this session either. The line below the heading says so, and
+            // the confirm step does not list them among what is installed.
             Label {
-                text: "Region & language"
+                text: qsTr("Region & language")
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
 
@@ -195,6 +175,18 @@ TunaComponents.SetupModule {
                 Layout.topMargin: Kirigami.Units.largeSpacing
             }
 
+            Label {
+                objectName: "regionNotApplied"
+                text: qsTr("The installer does not apply these choices yet. Set the language, keyboard and time zone in the installed system.")
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                opacity: 0.75
+
+                Layout.fillWidth: true
+                Layout.maximumWidth: root.cardWidth
+                Layout.alignment: Qt.AlignHCenter
+            }
+
             FormCard.FormCard {
                 maximumWidth: root.cardWidth
 
@@ -202,7 +194,7 @@ TunaComponents.SetupModule {
 
                 FormCard.FormComboBoxDelegate {
                     id: languageCombo
-                    text: "Language"
+                    text: qsTr("Language")
                     model: InstallerController.languageNames
                     currentIndex: InstallerController.languageIds.indexOf(InstallerController.language)
                     onActivated: (index) => InstallerController.language = InstallerController.languageIds[index]
@@ -212,7 +204,7 @@ TunaComponents.SetupModule {
 
                 FormCard.FormComboBoxDelegate {
                     id: keyboardCombo
-                    text: "Keyboard"
+                    text: qsTr("Keyboard")
                     model: InstallerController.keyboardLayoutNames
                     currentIndex: InstallerController.keyboardLayoutIds.indexOf(InstallerController.keyboardLayout)
                     onActivated: (index) => InstallerController.keyboardLayout = InstallerController.keyboardLayoutIds[index]
@@ -222,7 +214,7 @@ TunaComponents.SetupModule {
 
                 FormCard.FormComboBoxDelegate {
                     id: timezoneCombo
-                    text: "Time zone"
+                    text: qsTr("Time zone")
                     model: InstallerController.timezones
                     // IANA ids are exact but ugly; the pretty form is what
                     // the row shows, the id is what it stores.

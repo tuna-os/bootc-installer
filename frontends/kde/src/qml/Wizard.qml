@@ -51,13 +51,13 @@ Kirigami.Page {
     ListModel {
         id: stepsModel
 
-        ListElement { stepId: "welcome";    name: "Welcome";               url: "modules/welcome/main.qml" }
-        ListElement { stepId: "disk";       name: "Target Disk";           url: "modules/disk/main.qml" }
-        ListElement { stepId: "encryption"; name: "Disk Encryption";       url: "modules/encryption/main.qml" }
-        ListElement { stepId: "account";    name: "User Account";          url: "modules/account/main.qml" }
-        ListElement { stepId: "confirm";    name: "Confirm Installation";  url: "modules/confirm/main.qml" }
-        ListElement { stepId: "progress";   name: "Installing";            url: "modules/progress/main.qml" }
-        ListElement { stepId: "done";       name: "Finished";              url: "modules/done/main.qml" }
+        ListElement { stepId: "welcome";    name: qsTr("Welcome");               url: "modules/welcome/main.qml" }
+        ListElement { stepId: "disk";       name: qsTr("Target Disk");           url: "modules/disk/main.qml" }
+        ListElement { stepId: "encryption"; name: qsTr("Disk Encryption");       url: "modules/encryption/main.qml" }
+        ListElement { stepId: "account";    name: qsTr("User Account");          url: "modules/account/main.qml" }
+        ListElement { stepId: "confirm";    name: qsTr("Confirm Installation");  url: "modules/confirm/main.qml" }
+        ListElement { stepId: "progress";   name: qsTr("Installing");            url: "modules/progress/main.qml" }
+        ListElement { stepId: "done";       name: qsTr("Finished");              url: "modules/done/main.qml" }
     }
 
     // Step animation. Manually animating is more performant and less glitchy
@@ -246,8 +246,8 @@ Kirigami.Page {
 
             Label {
                 objectName: "stepCounter"
-                text: "Step " + (root.currentIndex + 1) + " of " + root.stepCount
-                    + " · " + stepsModel.get(root.currentIndex).name
+                text: qsTr("Step %1 of %2 · %3").arg(root.currentIndex + 1).arg(root.stepCount)
+                    .arg(stepsModel.get(root.currentIndex).name)
                 color: Kirigami.Theme.disabledTextColor
                 elide: Text.ElideRight
 
@@ -258,7 +258,7 @@ Kirigami.Page {
                 spacing: Kirigami.Units.smallSpacing
 
                 Accessible.role: Accessible.ProgressBar
-                Accessible.name: "Step " + (root.currentIndex + 1) + " of " + root.stepCount
+                Accessible.name: qsTr("Step %1 of %2").arg(root.currentIndex + 1).arg(root.stepCount)
 
                 Repeater {
                     model: root.stepCount
@@ -290,7 +290,7 @@ Kirigami.Page {
 
             opacity: 0
             visible: !root.heroStep
-            text: "Welcome"
+            text: qsTr("Welcome")
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
             font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.6
@@ -353,7 +353,7 @@ Kirigami.Page {
             Layout.margins: Kirigami.Units.gridUnit
 
             Button {
-                text: "Back"
+                text: qsTr("Back")
                 icon.name: "arrow-left-symbolic"
 
                 topPadding: Kirigami.Units.largeSpacing
@@ -398,7 +398,7 @@ Kirigami.Page {
                 // leaving the welcome page and starting the install.
                 text: isInstall ? InstallerController.text("confirm_button")
                     : isWelcome ? InstallerController.text("welcome_button")
-                    : (isClose ? "Close" : "Next")
+                    : (isClose ? qsTr("Close") : qsTr("Next"))
                 icon.name: isInstall ? "install-symbolic"
                     : (isClose ? "window-close-symbolic" : "arrow-right-symbolic")
 

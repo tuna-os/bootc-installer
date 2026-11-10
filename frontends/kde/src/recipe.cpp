@@ -23,8 +23,12 @@ QJsonObject Recipe::toJson() const
         obj["bootloader"] = bootloader;
     if (composeFsBackend)
         obj["composeFsBackend"] = true;
-    if (!flatpaks.isEmpty())
+    if (flatpaksSet || !flatpaks.isEmpty())
         obj["flatpaks"] = QJsonArray::fromStringList(flatpaks);
+    if (!flatpakVarPath.isEmpty())
+        obj["flatpakVarPath"] = flatpakVarPath;
+    if (!imageType.isEmpty() && imageType != QLatin1String("bootc"))
+        obj["imageType"] = imageType;
     if (!additionalImageStores.isEmpty())
         obj["additionalImageStores"] = QJsonArray::fromStringList(additionalImageStores);
     obj["distroID"] = distroID;
@@ -54,6 +58,9 @@ Recipe Recipe::fromJson(const QJsonObject &obj)
     r.targetImgref = obj["targetImgref"].toString();
     r.bootloader = obj["bootloader"].toString();
     r.composeFsBackend = obj["composeFsBackend"].toBool(false);
+    r.flatpaksSet = obj.contains(QLatin1String("flatpaks"));
+    r.flatpakVarPath = obj["flatpakVarPath"].toString();
+    r.imageType = obj["imageType"].toString();
     for (const auto &val : obj["flatpaks"].toArray()) {
         r.flatpaks.append(val.toString());
     }

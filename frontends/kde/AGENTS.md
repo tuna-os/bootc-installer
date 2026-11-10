@@ -53,14 +53,41 @@ KDE KISS's `SetupModule`, so the shape is upstream's — follow it when adding a
 step rather than inventing a new one.
 
 Steps: welcome → disk → encryption → account → confirm → progress → done.
-The disk step offers the image catalog (fisherman's `images.json`, resolved
-like the GNOME/XFCE frontends resolve it) when a manifest is installed and
-the host is not live media. The account step writes the recipe's `user`
-block (groups `["wheel"]`) and is required unless the selected image creates
-its own first user (`needs_user_creation`), in which case the wizard skips
-the step and the recipe omits the block. The welcome step also carries the
-hardware gates, the region & language pickers and the connectivity check;
-see DESIGN.md's GNOME parity notes for the mapping.
+The disk step shows the image catalog when a manifest is there and the host
+is not live media. `../../shared/catalog/README.md` is the contract for the
+catalog: the search path, the fields that go into the recipe, the image
+selected at the start and the row labels. `src/imagecatalog.{h,cpp}` reads
+it, and `test_backend` holds it to `shared/catalog/fixtures`. A leaf also
+gives the filesystem choices: the disk step shows a picker when there is
+more than one. The account step writes the recipe's `user` block. Its groups
+are `account-groups.json`, a byte-identical copy of
+`../../shared/account/groups.json`, or `user.groups` of
+`/etc/bootc-installer/recipe.json`. The account is necessary unless the
+image creates its own first user (`needs_user_creation: false`). The wizard
+then skips the step and the recipe has no block. The welcome step also has
+the hardware gates, the region and language pickers and the connectivity
+check. Nothing applies the pickers yet (#292): the page says so, and the
+confirm step does not list them. See the GNOME parity notes in DESIGN.md.
+
+## How fisherman runs
+
+`src/fisherman.{h,cpp}` is the one resolver. No other file names the binary.
+A native run uses `/usr/local/bin/fisherman`: `pkexec` for the install, and
+`sudo -n` only on live media. In a Flatpak, the resolver copies
+`/app/bin/fisherman` to `$XDG_CACHE_HOME/bootc-installer/fisherman`. The
+host then computes the SHA256 of the copy. Probe, validate and install use
+the copy only when the two hashes are equal. Do not use `HOME/.cache`.
+
+The progress step has a Cancel button. It asks first. A confirmed cancel
+sends SIGTERM to the process group of the wrapper, then SIGKILL after five
+seconds. Exit code 130, or an unsuccessful end after a cancel, shows the
+cancelled page (`done_cancelled_title`), not the failure page.
+
+## Strings
+
+Put each string that a person reads in `qsTr()` (QML) or `tr()` (C++).
+`test_backend` (`qmlStringsGoThroughQsTr`) fails on a bare literal in a
+text, label or title property. No translation catalog ships yet.
 
 ### QML gotchas already paid for
 
@@ -111,8 +138,8 @@ confirmations (and requiring an account) are rules of this frontend. Do not add 
 ## Disks, TPM and minimum requirements
 
 These come from `fisherman probe --json`, not from this frontend. `src/probe.cpp`
-runs `/usr/local/bin/fisherman probe --json` without privileges (prefixed with
-`flatpak-spawn --host` in a Flatpak). `InstallerController` reads TPM and the
+runs `fisherman probe --json` without privileges, through the resolver in
+`src/fisherman.h`. `InstallerController` reads TPM and the
 requirements from it at startup. `DiskModel` runs the probe again each time the
 disk step opens. Show the eligible disks in fisherman's order, with
 `size_label` exactly as given. Do not add a disk filter or a size formatter. If

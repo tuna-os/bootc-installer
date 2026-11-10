@@ -25,10 +25,10 @@ Kirigami.AbstractApplicationWindow {
 
     Kirigami.Dialog {
         id: exitDialog
-        title: "Exit installer?"
+        title: qsTr("Exit installer?")
         showCloseButton: false
         contentItem: Label {
-            text: "The installation will be stopped. Any progress will be lost."
+            text: qsTr("The installation will be stopped. Any progress will be lost.")
             wrapMode: Text.Wrap
         }
         footer: RowLayout {
@@ -36,11 +36,11 @@ Kirigami.AbstractApplicationWindow {
                 Layout.fillWidth: true
             }
             Button {
-                text: "Keep installing"
+                text: qsTr("Keep installing")
                 onClicked: exitDialog.close()
             }
             Button {
-                text: "Exit"
+                text: qsTr("Exit")
                 onClicked: {
                     InstallerController.cancelInstall();
                     exitDialog.close();
@@ -50,7 +50,7 @@ Kirigami.AbstractApplicationWindow {
         }
     }
 
-    title: InstallerController.productName + " Installer"
+    title: qsTr("%1 Installer").arg(InstallerController.productName)
 
     width: Kirigami.Units.gridUnit * 50
     height: Kirigami.Units.gridUnit * 36

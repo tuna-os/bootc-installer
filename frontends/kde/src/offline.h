@@ -1,8 +1,8 @@
 #ifndef OFFLINE_H
 #define OFFLINE_H
 
-// Sandbox plumbing: how the wizard reaches fisherman and the host.
-// Contract: ../../INSTALLER-FRONTENDS.md §3 (privileges).
+// Sandbox plumbing: how the wizard reaches the host. How it reaches
+// fisherman is fisherman.h, the one resolver.
 //
 // Live media and offline image stores are fisherman's facts now (probe's
 // `live` and `offline`, probe.h). This file used to find them itself:
@@ -20,15 +20,6 @@ namespace offline {
 
 // True when running inside a Flatpak sandbox.
 bool inFlatpak();
-
-// Command (program + args) that runs fisherman with privileges, reading the
-// recipe from stdin (`fisherman -`): the caller writes the JSON to the
-// process's stdin and closes it. Inside Flatpak:
-// flatpak-spawn --host bash -c 'pkexec /usr/local/bin/fisherman -; exit $?'
-// Outside: sudo /usr/local/bin/fisherman -.
-QStringList fishermanCommand();
-// The same, for an explicit sandbox state (tests).
-QStringList fishermanCommand(bool flatpak);
 
 #if QT_CONFIG(process)
 // Makes `process` start as the leader of its own process group, so the
