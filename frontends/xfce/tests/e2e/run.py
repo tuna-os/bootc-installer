@@ -108,7 +108,8 @@ def main():
                 radios[0].set_active(True)
             if name == "identity":
                 if not win.needs_user_creation():
-                    outcome["error"] = "the image needs an account and the identity page asks for none"
+                    outcome["error"] = ("the image needs an account and the "
+                                        "identity page asks for none")
                     app.quit()
                     return
                 page.username.set_text(ACCOUNT["username"])

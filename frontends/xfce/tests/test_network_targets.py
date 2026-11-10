@@ -18,7 +18,8 @@ with open(FIXTURE_FILE, encoding="utf-8") as _stream:
 
 def test_every_case_of_the_fixture():
     for case in FIXTURE["cases"]:
-        got = [f"{host}:{port}" for host, port in locale_checks.connectivity_targets(case["imgref"])]
+        targets = locale_checks.connectivity_targets(case["imgref"])
+        got = [f"{host}:{port}" for host, port in targets]
         assert got == case["targets"], case
 
 

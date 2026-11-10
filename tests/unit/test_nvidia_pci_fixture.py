@@ -10,8 +10,9 @@ from unittest.mock import patch
 REPO = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, REPO)
 
-from bootc_installer.core import system  # noqa: E402
-from bootc_shared import hardware  # noqa: E402
+from bootc_shared import hardware
+
+from bootc_installer.core import system
 
 PCI = os.path.join(REPO, "shared", "probe", "fixtures", "pci")
 with open(os.path.join(PCI, "cases.json"), encoding="utf-8") as _stream:

@@ -49,8 +49,7 @@ def registry_target(imgref):
         if ref.startswith(prefix):
             ref = ref[len(prefix):].partition(":")[2]
             break
-    if ref.startswith("docker://"):
-        ref = ref[len("docker://"):]
+    ref = ref.removeprefix("docker://")
     if (not ref or "://" in ref or ref.startswith("/")
             or ref.startswith(_LOCAL_TRANSPORTS)):
         return None

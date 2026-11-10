@@ -8,7 +8,7 @@ import sys
 REPO = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(REPO, "shared", "python"))
 
-from bootc_shared import network  # noqa: E402
+from bootc_shared import network
 
 with open(os.path.join(REPO, "shared", "network", "targets.json"), encoding="utf-8") as _stream:
     FIXTURE = json.load(_stream)
