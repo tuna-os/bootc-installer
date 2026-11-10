@@ -20,8 +20,8 @@ An ISO builder can set the groups. The file is
 
 - If `user.groups` is a list of strings, it replaces the default list. An
   empty list means no supplementary group.
-- If the file is not there, does not parse, or has a different type at that
-  key, use the default list.
+- If the file is not there or does not parse, use the default list. Do the
+  same when the value at that key is not a list of strings.
 - The frontend reads only that key from the file for this rule.
 
 `cases` in `groups.json` gives an operator file (`null` for no file) and the
