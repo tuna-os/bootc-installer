@@ -61,6 +61,7 @@ the leaf first, then its parent, then that parent's parent. A value of
 | `flatpak_var_path` | `""` | `flatpakVarPath` | Write the key only when the value is not empty. |
 | `needs_user_creation` | `true` | `user` | See "The account". |
 | `image_type` | `bootc` | `imageType` | Write the key only when the value is not `bootc`. |
+| `extras` | not set | `extras` | See "Desktop extras". |
 
 `name`, `desc`, `subtitle`, `icon`, `carousel` and `search_extra` are for the
 page only. `fallback_flatpaks` is not part of the contract: do not read it
@@ -142,6 +143,33 @@ GNOME did, and it is the same from each frontend.
 
 A frontend never puts a list of its own into the recipe.
 
+### Desktop extras
+
+`extras` is an object with four switches: `printServices`, `oemSetup`,
+`audioNames` and `bootSplash`. They turn on the desktop steps that fisherman
+does after the install. `fisherman/README.md` ("Desktop extras") says what
+each step does.
+
+| Catalog | Recipe |
+|---|---|
+| the leaf or a parent has `extras` | `extras` is that object |
+| no node has `extras` | no `extras` key |
+
+- The object comes from the nearest node that has it. Do not merge the
+  object of a node with the object of its parent. A switch that the nearest
+  object does not have is off.
+- `{}` is an object. It turns the four switches off, and the recipe has the
+  key.
+- Copy only the four switches. fisherman refuses a recipe key that it does
+  not know. A switch that is off can be `false` or can be left out.
+- With no key, fisherman finds the image in the catalog on the host and uses
+  that entry. An image that the catalog does not have gets no step.
+
+A frontend must write the key. In a Flatpak, the frontend stages fisherman
+alone, with no catalog next to it. Without the key, an install from a
+Flatpak gets none of the steps. `expected.json` gives the object as `extras`
+in each leaf, with the four switches, or `null`.
+
 ### The account
 
 `needs_user_creation` says if the installer creates the first account. The
@@ -200,7 +228,8 @@ leaves[]             imgref, leaf (the resolved fields), cases[]
 after the user selects that leaf and changes nothing. `absent` holds the
 keys that the recipe must not have. For `bootloader: ""`,
 `composeFsBackend: false` and `imageType: "bootc"`, a recipe without the key
-is also correct. A row of `default_selection` with an empty
+is also correct. In `extras`, a switch that the recipe does not have is
+`false`. A row of `default_selection` with an empty
 `catalog_default_image` applies to the fixture catalog with that key
 removed.
 

@@ -87,7 +87,13 @@
         "flatpaks_url": "",
         "flatpak_var_path": "",
         "needs_user_creation": true,
-        "image_type": "bootc"
+        "image_type": "bootc",
+        "extras": {
+          "printServices": true,
+          "oemSetup": false,
+          "audioNames": true,
+          "bootSplash": true
+        }
       },
       "cases": [
         {
@@ -105,7 +111,13 @@
             "flatpaks": [
               "org.example.Browser",
               "org.example.Editor"
-            ]
+            ],
+            "extras": {
+              "printServices": true,
+              "oemSetup": false,
+              "audioNames": true,
+              "bootSplash": true
+            }
           },
           "absent": [
             "flatpakVarPath"
@@ -138,7 +150,13 @@
         "flatpaks_url": "",
         "flatpak_var_path": "",
         "needs_user_creation": false,
-        "image_type": "bootc"
+        "image_type": "bootc",
+        "extras": {
+          "printServices": false,
+          "oemSetup": true,
+          "audioNames": false,
+          "bootSplash": false
+        }
       },
       "cases": [
         {
@@ -153,7 +171,13 @@
             "bootloader": "grub2",
             "composeFsBackend": false,
             "filesystem": "xfs",
-            "flatpaks": []
+            "flatpaks": [],
+            "extras": {
+              "printServices": false,
+              "oemSetup": true,
+              "audioNames": false,
+              "bootSplash": false
+            }
           },
           "absent": [
             "flatpakVarPath"
@@ -187,7 +211,13 @@
         "flatpaks_url": "https://flatpaks.example/system-flatpaks.Brewfile",
         "flatpak_var_path": "",
         "needs_user_creation": true,
-        "image_type": "bootc"
+        "image_type": "bootc",
+        "extras": {
+          "printServices": true,
+          "oemSetup": false,
+          "audioNames": true,
+          "bootSplash": true
+        }
       },
       "cases": [
         {
@@ -201,7 +231,13 @@
             "targetImgref": "registry.example/os/atlas-dx:latest",
             "bootloader": "grub2",
             "composeFsBackend": false,
-            "filesystem": "xfs"
+            "filesystem": "xfs",
+            "extras": {
+              "printServices": true,
+              "oemSetup": false,
+              "audioNames": true,
+              "bootSplash": true
+            }
           },
           "absent": [
             "flatpaks",
@@ -237,7 +273,13 @@
         "flatpaks_url": "",
         "flatpak_var_path": "state/os/default/var",
         "needs_user_creation": false,
-        "image_type": "bootc"
+        "image_type": "bootc",
+        "extras": {
+          "printServices": false,
+          "oemSetup": false,
+          "audioNames": false,
+          "bootSplash": false
+        }
       },
       "cases": [
         {
@@ -255,7 +297,13 @@
             "flatpaks": [
               "org.example.Files"
             ],
-            "flatpakVarPath": "state/os/default/var"
+            "flatpakVarPath": "state/os/default/var",
+            "extras": {
+              "printServices": false,
+              "oemSetup": false,
+              "audioNames": false,
+              "bootSplash": false
+            }
           },
           "absent": []
         },
@@ -274,7 +322,13 @@
             "flatpaks": [
               "org.example.Files"
             ],
-            "flatpakVarPath": "state/os/default/var"
+            "flatpakVarPath": "state/os/default/var",
+            "extras": {
+              "printServices": false,
+              "oemSetup": false,
+              "audioNames": false,
+              "bootSplash": false
+            }
           },
           "absent": []
         },
@@ -295,7 +349,13 @@
             "flatpaks": [
               "org.example.Files"
             ],
-            "flatpakVarPath": "state/os/default/var"
+            "flatpakVarPath": "state/os/default/var",
+            "extras": {
+              "printServices": false,
+              "oemSetup": false,
+              "audioNames": false,
+              "bootSplash": false
+            }
           },
           "absent": []
         },
@@ -316,7 +376,13 @@
             "flatpaks": [
               "org.example.Files"
             ],
-            "flatpakVarPath": "state/os/default/var"
+            "flatpakVarPath": "state/os/default/var",
+            "extras": {
+              "printServices": false,
+              "oemSetup": false,
+              "audioNames": false,
+              "bootSplash": false
+            }
           },
           "absent": []
         },
@@ -338,7 +404,13 @@
             "flatpaks": [
               "org.example.Files"
             ],
-            "flatpakVarPath": "state/os/default/var"
+            "flatpakVarPath": "state/os/default/var",
+            "extras": {
+              "printServices": false,
+              "oemSetup": false,
+              "audioNames": false,
+              "bootSplash": false
+            }
           },
           "absent": []
         },
@@ -359,7 +431,13 @@
             "flatpaks": [
               "org.example.Files"
             ],
-            "flatpakVarPath": "state/os/default/var"
+            "flatpakVarPath": "state/os/default/var",
+            "extras": {
+              "printServices": false,
+              "oemSetup": false,
+              "audioNames": false,
+              "bootSplash": false
+            }
           },
           "absent": []
         }
@@ -391,7 +469,8 @@
         "flatpaks_url": "",
         "flatpak_var_path": "",
         "needs_user_creation": false,
-        "image_type": "bootc"
+        "image_type": "bootc",
+        "extras": null
       },
       "cases": [
         {
@@ -409,7 +488,8 @@
           },
           "absent": [
             "flatpaks",
-            "flatpakVarPath"
+            "flatpakVarPath",
+            "extras"
           ]
         }
       ]
@@ -439,7 +519,8 @@
         "flatpaks_url": "",
         "flatpak_var_path": "",
         "needs_user_creation": true,
-        "image_type": "bootc"
+        "image_type": "bootc",
+        "extras": null
       },
       "cases": [
         {
@@ -457,7 +538,8 @@
           },
           "absent": [
             "flatpaks",
-            "flatpakVarPath"
+            "flatpakVarPath",
+            "extras"
           ]
         }
       ]
@@ -484,7 +566,8 @@
         "flatpaks_url": "",
         "flatpak_var_path": "",
         "needs_user_creation": true,
-        "image_type": "bootc"
+        "image_type": "bootc",
+        "extras": null
       },
       "cases": [
         {
@@ -501,7 +584,8 @@
           },
           "absent": [
             "flatpaks",
-            "flatpakVarPath"
+            "flatpakVarPath",
+            "extras"
           ]
         }
       ]

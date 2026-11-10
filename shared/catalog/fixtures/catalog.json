@@ -13,9 +13,10 @@
       "filesystem": "xfs",
       "default_hostname": "atlas",
       "flatpaks": "@desk_apps",
+      "extras": {"printServices": true, "audioNames": true, "bootSplash": true},
       "children": [
         {"name": "Stable", "tag": "stable", "desc": "The stable channel"},
-        {"name": "Beta", "tag": "beta", "needs_user_creation": false, "flatpaks": []},
+        {"name": "Beta", "tag": "beta", "needs_user_creation": false, "flatpaks": [], "extras": {"oemSetup": true}},
         {
           "name": "Atlas DX",
           "registry": "registry.example/os/atlas-dx",
@@ -36,7 +37,8 @@
       "default_hostname": "boreal",
       "flatpak_var_path": "state/os/default/var",
       "needs_user_creation": false,
-      "flatpaks": ["org.example.Files"]
+      "flatpaks": ["org.example.Files"],
+      "extras": {}
     },
     {
       "name": "Drift",

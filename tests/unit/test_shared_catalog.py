@@ -172,6 +172,38 @@ class FixtureCoversTheContract(unittest.TestCase):
         self.assertEqual(_leaf("registry.example/os/atlas-dx:latest")["flatpaks_url"],
                          "https://flatpaks.example/system-flatpaks.Brewfile")
 
+    def test_extras(self):
+        on = {"printServices": True, "oemSetup": False, "audioNames": True, "bootSplash": True}
+        # Set on the group, and inherited through a nested group.
+        for imgref in ("registry.example/os/atlas:stable", "registry.example/os/atlas-dx:latest"):
+            self.assertEqual(_leaf(imgref)["extras"], on, imgref)
+            self.assertEqual(resolve.recipe_fragment(_leaf(imgref))["recipe"]["extras"], on)
+        # The leaf's own object replaces the group's whole: it is not merged.
+        self.assertEqual(_leaf("registry.example/os/atlas:beta")["extras"],
+                         {"printServices": False, "oemSetup": True,
+                          "audioNames": False, "bootSplash": False})
+        # {} is an object: the recipe has the key, and the four are off.
+        boreal = resolve.recipe_fragment(_leaf("registry.example/os/boreal:latest"))
+        self.assertEqual(boreal["recipe"]["extras"], dict.fromkeys(resolve.EXTRAS, False))
+        self.assertNotIn("extras", boreal["absent"])
+        # No node sets it: no key, and fisherman applies its own lookup.
+        for imgref in ("registry.example/os/drift:edge", "registry.example/os/cirrus:1"):
+            got = resolve.recipe_fragment(_leaf(imgref))
+            self.assertIsNone(_leaf(imgref)["extras"], imgref)
+            self.assertNotIn("extras", got["recipe"], imgref)
+            self.assertIn("extras", got["absent"], imgref)
+
+    def test_extras_keys_are_fishermans(self):
+        recipe_go = os.path.join(REPO, "fisherman", "fisherman", "internal", "recipe", "recipe.go")
+        if not os.path.exists(recipe_go):
+            self.skipTest("fisherman submodule not checked out")
+        import re
+        with open(recipe_go, encoding="utf-8") as stream:
+            src = stream.read()
+        start = src.index("type Extras struct {")
+        tags = re.findall(r'`json:"([A-Za-z0-9]+)', src[start:src.index("\n}", start)])
+        self.assertEqual(list(resolve.EXTRAS), tags)
+
     def test_fallback_flatpaks_never_reach_a_recipe(self):
         fallback = set(_fixture()["fallback_flatpaks"])
         self.assertTrue(fallback)
@@ -226,13 +258,15 @@ class FixtureCoversTheContract(unittest.TestCase):
         self.assertEqual(
             {key: leaf[key] for key in ("nvidia_imgref", "bootloader", "composefs", "filesystem",
                                         "filesystems", "default_hostname", "flatpaks",
-                                        "flatpak_var_path", "needs_user_creation", "image_type")},
+                                        "flatpak_var_path", "needs_user_creation", "image_type",
+                                        "extras")},
             {"nvidia_imgref": "", "bootloader": "", "composefs": False, "filesystem": "",
              "filesystems": [], "default_hostname": "", "flatpaks": None,
-             "flatpak_var_path": "", "needs_user_creation": True, "image_type": "bootc"})
+             "flatpak_var_path": "", "needs_user_creation": True, "image_type": "bootc",
+             "extras": None})
         fragment = resolve.recipe_fragment(leaf)
         self.assertNotIn("filesystem", fragment["recipe"])
-        self.assertEqual(sorted(fragment["absent"]), ["flatpakVarPath", "flatpaks"])
+        self.assertEqual(sorted(fragment["absent"]), ["extras", "flatpakVarPath", "flatpaks"])
 
 
 class RecipeMatches(unittest.TestCase):
@@ -253,6 +287,21 @@ class RecipeMatches(unittest.TestCase):
         problems = resolve.recipe_matches(recipe, fragment)
         self.assertEqual(len(problems), 3, problems)
 
+    def test_extras_compare_with_a_missing_switch_as_off(self):
+        fragment = resolve.recipe_fragment(_leaf("registry.example/os/atlas:stable"))
+        recipe = dict(fragment["recipe"],
+                      extras={"printServices": True, "audioNames": True, "bootSplash": True})
+        self.assertEqual(resolve.recipe_matches(recipe, fragment), [])
+        recipe["extras"] = {"printServices": True, "audioNames": True}
+        self.assertTrue(resolve.recipe_matches(recipe, fragment))
+        recipe["extras"] = dict(fragment["recipe"]["extras"], desktopIcons=True)
+        self.assertTrue(any("unknown" in p for p in resolve.recipe_matches(recipe, fragment)))
+        del recipe["extras"]
+        self.assertTrue(resolve.recipe_matches(recipe, fragment))
+        # A leaf with no object: a recipe that invents one is wrong.
+        bare = resolve.recipe_fragment(_leaf("registry.example/os/cirrus:1"))
+        self.assertTrue(resolve.recipe_matches(dict(bare["recipe"], extras={}), bare))
+
     def test_a_substituted_flatpak_list_is_reported(self):
         fragment = resolve.recipe_fragment(_leaf("registry.example/os/atlas-dx:latest"))
         recipe = dict(fragment["recipe"], flatpaks=["org.example.NeverSent"])
@@ -266,6 +315,8 @@ class MalformedCatalog(unittest.TestCase):
                      {"name": "x", "imgref": "r/x:1", "composefs": "yes"},
                      {"name": "x", "imgref": "r/x:1", "needs_user_creation": 0},
                      {"name": "x", "imgref": "r/x:1", "flatpaks": [1]},
+                     {"name": "x", "imgref": "r/x:1", "extras": ["bootSplash"]},
+                     {"name": "x", "imgref": "r/x:1", "extras": {"bootSplash": "yes"}},
                      "not a node"):
             with self.assertRaises(resolve.CatalogError, msg=node):
                 resolve.leaves({"images": [node]})
@@ -319,10 +370,19 @@ class BundledCatalog(unittest.TestCase):
             for key, value in fragment["recipe"].items():
                 self.assertIn(key, properties, f"{leaf['imgref']}: {key} is not a recipe key")
                 enum = properties[key].get("enum")
+                if key == "extras":
+                    self.assertEqual(sorted(value), sorted(properties[key]["properties"]))
                 if enum:
                     self.assertIn(value, enum, f"{leaf['imgref']}: {key}")
             for key in fragment["absent"]:
                 self.assertIn(key, properties)
+
+    def test_every_leaf_has_the_extras_that_every_install_had(self):
+        """fisherman's catalog turns the four on for each entry, because
+        each install did the four before the field was there. A frontend
+        that drops `extras` gets none of them from a staged fisherman."""
+        for leaf in self.leaves:
+            self.assertEqual(leaf["extras"], dict.fromkeys(resolve.EXTRAS, True), leaf["imgref"])
 
     def test_remote_lists_are_never_fetched_or_replaced(self):
         remote = [leaf for leaf in self.leaves if leaf["flatpaks_url"]]

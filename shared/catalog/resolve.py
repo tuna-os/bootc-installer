@@ -41,7 +41,13 @@ INHERITED = {
     "flatpak_var_path": "",
     "needs_user_creation": True,
     "image_type": "bootc",
+    "extras": None,
 }
+
+# The keys of `extras`, which are the keys of the recipe's `extras` object
+# (fisherman's recipe.Extras). A key that is not here is not copied:
+# fisherman refuses a recipe key that it does not know.
+EXTRAS = ("printServices", "oemSetup", "audioNames", "bootSplash")
 
 BOOTLOADERS = ("", "grub2", "systemd")
 FILESYSTEMS = ("xfs", "ext4", "btrfs", "zfs")
@@ -116,6 +122,25 @@ def resolve_flatpaks(value, aliases):
     return None, ""
 
 
+# ── Extras ───────────────────────────────────────────────────────────────────
+
+def resolve_extras(value, where="extras"):
+    """The four switches of an `extras` object, or None when no node set one.
+
+    The nearest node that has the object gives all of it: the objects of a
+    node and of its parent are not merged, so a switch that the nearest
+    object leaves out is off. `{}` is an object and turns the four off.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise CatalogError(f"{where}: `extras` must be an object")
+    for key in EXTRAS:
+        if not isinstance(value.get(key, False), bool):
+            raise CatalogError(f"{where}: `extras.{key}` must be true or false")
+    return {key: value.get(key, False) for key in EXTRAS}
+
+
 # ── Leaves ───────────────────────────────────────────────────────────────────
 
 def _pretty_from_imgref(imgref):
@@ -174,6 +199,7 @@ def _leaf(node, context, product, owns_registry, aliases, path):
         "flatpak_var_path": context["flatpak_var_path"],
         "needs_user_creation": context["needs_user_creation"],
         "image_type": context["image_type"],
+        "extras": resolve_extras(context["extras"], imgref),
     }
 
 
@@ -288,6 +314,10 @@ def recipe_fragment(leaf, has_nvidia=False, is_live=False, offline_images=()):
         absent.append("flatpakVarPath")
     if leaf["image_type"] != "bootc":
         recipe["imageType"] = leaf["image_type"]
+    if leaf["extras"] is None:
+        absent.append("extras")
+    else:
+        recipe["extras"] = dict(leaf["extras"])
     return {"recipe": recipe, "absent": absent}
 
 
@@ -300,6 +330,13 @@ def recipe_matches(recipe, fragment):
     problems = []
     for key, want in fragment["recipe"].items():
         got = recipe.get(key, EMPTY.get(key)) if key in EMPTY else recipe.get(key)
+        if key == "extras" and isinstance(got, dict):
+            # A switch that the recipe leaves out is off. Any other key is
+            # one that fisherman refuses.
+            unknown = sorted(set(got) - set(EXTRAS))
+            if unknown:
+                problems.append(f"extras: unknown keys {unknown!r}")
+            got = {name: got.get(name, False) for name in EXTRAS}
         if got != want:
             problems.append(f"{key}: expected {want!r}, found {got!r}")
     for key in fragment["absent"]:
