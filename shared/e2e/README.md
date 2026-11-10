@@ -18,7 +18,7 @@ installed and booted.
 `setup.sh` prepares the runner:
 
 - builds the real fisherman from the submodule to `/usr/local/lib/tuna-e2e/fisherman.real`;
-- installs `fisherman-shim.sh` at `/usr/local/bin/fisherman`, the path all frontends run. Every frontend runs `fisherman -` and pipes the recipe on stdin. The shim keeps what it reads, runs the real `fisherman validate` on it, then streams fisherman's real progress protocol — newline-delimited JSON, `total_steps` computed from the recipe (`shared/progress/README.md`). It used to stream nine invented `[n/9] ` lines, which is how two frontends could parse a format fisherman never emits and still pass this gate. It never partitions the runner;
+- installs `fisherman-shim.sh` at `/usr/local/bin/fisherman`, the path all frontends run. Every frontend runs `fisherman -` and pipes the recipe on stdin. The shim refuses an install that is not root, with the code `not_root`, as fisherman does. It keeps what it reads and runs the real `fisherman validate --json` on it. A recipe that fisherman rejects (an unknown key, a disk that is not eligible, a field rule) ends as the real install ends: one `error` event with the `code` and the `field` of the first problem, and exit 1. For a valid recipe the shim then streams fisherman's real progress protocol — newline-delimited JSON, `total_steps` computed from the recipe (`shared/progress/README.md`). It used to stream nine invented `[n/9] ` lines, which is how two frontends could parse a format fisherman never emits and still pass this gate. It never partitions the runner;
 - creates a loop disk and writes `/tmp/tuna-e2e/probe.json`, which offers that disk and nothing else. The shim prints this file for `fisherman probe --json`, which every frontend reads its disk list from (`shared/probe/README.md`). The real probe would exclude the loop disk, because it is a loop device and smaller than 50 GiB. It would also offer the runner's own disk. The disk is always a loop device: fisherman refuses a regular file as `disk` (`disk_not_disk`). With no loop device, `setup.sh` stops with an error. The KDE job runs in a container, so that container is privileged;
 - puts `fake-bin/` first on `PATH`: `bootc` (fails), `pkexec` (`sudo -n`, there is no polkit agent). Live media is the probe's answer (`live.is_live` is false in `probe.json`), so no frontend sends an empty image. The shim hands `fisherman validate --json --partial -`, which the frontends run while the user types, to the real fisherman, stdin included.
 
@@ -29,7 +29,10 @@ and it targets the disk the job set up.
 
 It also judges the account against `shared/catalog/README.md`. The recipe
 must create a user in `wheel` when the image needs an account, and must
-create no user when the catalog says `needs_user_creation` is `false`. For
+create no user when the catalog says `needs_user_creation` is `false`. The
+recipe must also have the `extras` object of the catalog leaf, or no
+`extras` key when the leaf has none. The shim has no catalog, as a fisherman
+that a Flatpak stages has none. For
 that, the driver writes the catalog that it gave the frontend to
 `/tmp/tuna-e2e/catalog.json` (or the job passes `--catalog <file>`). An
 image that is not in that catalog needs an account. No driver writes the

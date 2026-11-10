@@ -103,9 +103,10 @@ media that row must not apply: it downloads the larger image for no gain
 (#314).
 
 "Live media" is `live.is_live` and "the store has" is `offline.images` from
-`fisherman probe --json` (`shared/probe/README.md`). The probe does not
-report the GPU. Until it does, a frontend looks for a PCI display device
-with vendor `0x10de` below `/sys/bus/pci/devices`.
+`fisherman probe --json` (`shared/probe/README.md`). A frontend looks for a
+PCI display device with vendor `0x10de` below `/sys/bus/pci/devices`. The
+probe of fisherman `7f9021b` reports the same devices as `gpus`. No frontend
+reads that list yet.
 
 The confirm page shows `image`. It also shows `targetImgref` when the two
 are different.

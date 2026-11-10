@@ -12,10 +12,11 @@
 #             boot stack (composefs -> dakota, otherwise centos-bootc), so
 #             the VM can be reached over SSH afterwards;
 #   bootloader -> the one that canary ships (systemd for dakota, else grub2).
-# additionalImageStores is dropped (no live medium here) and flatpaks are
-# emptied (post-install downloads, not the install). Filesystem,
-# composefs, encryption, hostname and user come from the frontend, and are
-# what fisherman installs.
+# additionalImageStores is dropped (no live medium here) and flatpaks is
+# [] (copy none of the runner's system Flatpaks). Filesystem, composefs,
+# encryption, hostname, user and the desktop `extras` come from the
+# frontend, and are what fisherman installs. The recipe has no setBootNext:
+# the runner is not live media, so fisherman leaves its firmware alone.
 set -euo pipefail
 RECIPE_IN=$(readlink -f "${1:?recipe path}")   # absolute: the rest of this runs from fisherman/
 FRONTEND=${2:?frontend name}
@@ -38,8 +39,9 @@ src, loopdev, dst = sys.argv[1:4]
 r = json.load(open(src))
 r["disk"] = loopdev
 r.pop("additionalImageStores", None)
-# The install-and-boot verdict is about the layout, bootloader and image; a
-# Flatpak list would only add minutes of downloads after the install.
+# The install-and-boot verdict is about the layout, bootloader and image.
+# [] tells fisherman to copy no Flatpak; with no key it would copy the
+# system Flatpaks of this runner.
 r["flatpaks"] = []
 composefs = bool(r.get("composeFsBackend"))
 r["image"] = ("ghcr.io/tuna-os/fisherman/dakota:ssh-enabled" if composefs
