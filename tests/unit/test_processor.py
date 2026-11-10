@@ -412,16 +412,29 @@ class TestSha512Crypt:
 
 
 class TestUnifiedStorage:
-    def test_unified_storage_true_by_default(self):
+    """fisherman refuses `unifiedStorage: true` (tuna-os/fisherman#366):
+    the installer must not ask for it on its own."""
+
+    def test_unified_storage_is_not_sent_by_default(self):
         path = Processor.gen_install_recipe("log", _auto_finals(), _SYS_RECIPE)
         r = _load(path)
-        assert r.get("unifiedStorage") is True
+        assert "unifiedStorage" not in r
 
-    def test_sys_recipe_can_disable_unified_storage(self):
+    def test_sys_recipe_false_is_not_sent(self):
         sys = {**_SYS_RECIPE, "unifiedStorage": False}
         path = Processor.gen_install_recipe("log", _auto_finals(), sys)
         r = _load(path)
-        assert r.get("unifiedStorage") is False
+        assert "unifiedStorage" not in r
+
+    def test_only_the_system_recipe_can_ask_for_it(self):
+        sys = {**_SYS_RECIPE, "unifiedStorage": True}
+        r = _load(Processor.gen_install_recipe("log", _auto_finals(), sys))
+        assert r["unifiedStorage"] is True
+
+    def test_a_value_that_is_not_true_is_not_sent(self):
+        sys = {**_SYS_RECIPE, "unifiedStorage": "yes"}
+        r = _load(Processor.gen_install_recipe("log", _auto_finals(), sys))
+        assert "unifiedStorage" not in r
 
 
 # ── composefs + image_type tests ──────────────────────────────────────────────

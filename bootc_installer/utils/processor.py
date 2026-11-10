@@ -300,7 +300,11 @@ class Processor:
 
         # --- SELinux / unified storage / composefs / image type ---
         selinux_disabled = sys_recipe.get("selinuxDisabled", False)
-        unified_storage = sys_recipe.get("unifiedStorage", True)
+        # unifiedStorage: fisherman never passed bootc's flag for it, and
+        # refuses `true` now (tuna-os/fisherman#366). The key is written only
+        # when the system recipe asks for it, so that the operator gets
+        # fisherman's answer; the installer itself never asks.
+        unified_storage = sys_recipe.get("unifiedStorage", False) is True
         # Resolve each field independently. A selected image's explicit false
         # is meaningful; missing filesystem metadata must not replace it with
         # the first catalog image's backend. Live media skips the image step,
@@ -416,7 +420,6 @@ class Processor:
             "image": fisherman_image,
             "targetImgref": target_imgref,
             "selinuxDisabled": selinux_disabled,
-            "unifiedStorage": unified_storage,
             "composeFsBackend": composefs_backend,
             "bootloader": bootloader,
             "hostname": hostname,
@@ -434,6 +437,8 @@ class Processor:
         }
         if custom_mounts:
             recipe["customMounts"] = custom_mounts
+        if unified_storage:
+            recipe["unifiedStorage"] = True
         if image_type and image_type != "bootc":
             recipe["imageType"] = image_type
         if flatpak_var_path:

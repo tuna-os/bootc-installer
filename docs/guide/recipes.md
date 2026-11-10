@@ -22,7 +22,6 @@ This is the smallest recipe.
   "image": "ghcr.io/projectbluefin/bootcos:latest",
   "targetImgref": "ghcr.io/projectbluefin/bootcos:latest",
   "selinuxDisabled": false,
-  "unifiedStorage": true,
   "composeFsBackend": false,
   "bootloader": "grub2",
   "hostname": "bootcos",
@@ -47,7 +46,6 @@ This is the smallest recipe.
   "image": "ghcr.io/projectbluefin/dakota:latest",
   "targetImgref": "ghcr.io/projectbluefin/dakota:latest",
   "selinuxDisabled": false,
-  "unifiedStorage": true,
   "composeFsBackend": true,
   "bootloader": "systemd",
   "hostname": "bootcos",
@@ -72,7 +70,6 @@ The user fields are empty because Dakota has its own setup at first boot.
   "image": "ghcr.io/projectbluefin/bootcos:latest",
   "targetImgref": "ghcr.io/projectbluefin/bootcos:latest",
   "selinuxDisabled": false,
-  "unifiedStorage": true,
   "composeFsBackend": false,
   "bootloader": "grub2",
   "hostname": "bootcos",
@@ -100,7 +97,6 @@ The user fields are empty because Dakota has its own setup at first boot.
   "image": "ghcr.io/projectbluefin/bootcos:latest",
   "targetImgref": "ghcr.io/projectbluefin/bootcos:latest",
   "selinuxDisabled": false,
-  "unifiedStorage": true,
   "composeFsBackend": false,
   "bootloader": "grub2",
   "hostname": "bootcos",
@@ -121,7 +117,7 @@ The user fields are empty because Dakota has its own setup at first boot.
 | `image` | string | The OCI image to install. podman pulls it. |
 | `targetImgref` | string | The image reference for updates in the new OS. Usually it is the same as `image`. |
 | `selinuxDisabled` | bool | Give `--disable-selinux` to bootc. Use it for an install from a different distribution. |
-| `unifiedStorage` | bool | Give `--experimental-unified-storage` to bootc. The default is `true`. |
+| `unifiedStorage` | bool | Leave it out. fisherman does not give `--experimental-unified-storage` to bootc, and it refuses a recipe that has `true` here. |
 | `composeFsBackend` | bool | Give `--composefs-backend` to bootc. Images that use composefs, for example Dakota, need it. |
 | `bootloader` | string | `"grub2"` (the default) or `"systemd"` for systemd-boot images. |
 | `hostname` | string | The hostname of the new OS. |

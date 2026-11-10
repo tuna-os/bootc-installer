@@ -90,7 +90,6 @@ These values are the defaults, and the user can change each of them.
 {
   "hostname": "bluefin",
   "selinuxDisabled": false,
-  "unifiedStorage": true,
   "flatpaks": [
     "org.mozilla.firefox",
     "org.gnome.Console"
@@ -105,8 +104,7 @@ This example for Bazzite sets btrfs and TPM2 LUKS as the defaults, and sets the 
   "hostname": "bazzite",
   "filesystem": "btrfs",
   "btrfsSubvolumes": true,
-  "encryption": { "type": "tpm2-luks" },
-  "unifiedStorage": true
+  "encryption": { "type": "tpm2-luks" }
 }
 ```
 
