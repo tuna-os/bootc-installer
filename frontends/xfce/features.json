@@ -8,7 +8,7 @@
     "live_install": "yes",
     "offline_stores": "yes",
     "recipe_on_stdin": "yes",
-    "staged_fisherman": "no (#290)",
+    "staged_fisherman": "yes",
     "validated_fields": "hostname, username, passphrase, filesystem",
     "disk_choice": "yes",
     "disk_list_from_probe": "yes",

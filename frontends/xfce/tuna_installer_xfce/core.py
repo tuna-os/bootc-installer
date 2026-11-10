@@ -2,9 +2,12 @@
 facts, recipe emission, validation and fisherman invocation. See
 ../INSTALLER-FRONTENDS.md."""
 
+import hashlib
 import json
 import os
 import shlex
+import shutil
+import stat
 import subprocess
 
 from tuna_installer_xfce import branding, fisherman_probe, fisherman_validate
@@ -61,15 +64,181 @@ def dry_run():
 #
 # There is no fallback scan when the probe fails: the destination page shows
 # the reason instead and offers no disk.
+#
+# How fisherman is reached is decided in ONE function, fisherman_command(),
+# for the probe, the validate checks and the install (#290):
+#
+#   native    /usr/local/bin/fisherman; the install escalates with pkexec,
+#             and with `sudo -n` only on live media (fisherman's
+#             live.is_live), where the live user has passwordless sudo and
+#             may have no polkit agent.
+#   Flatpak   the fisherman this Flatpak built (/app/bin/fisherman), copied
+#             to $XDG_CACHE_HOME/bootc-installer/fisherman and checked on
+#             the host by SHA256 before anything runs it. The host needs no
+#             fisherman of its own, and the binary is the one this build's
+#             progress and validate contracts were written against.
 FISHERMAN_PATH = "/usr/local/bin/fisherman"
-# fisherman, unprivileged, on the host: for `probe --json` and
-# `validate --json`. Never through pkexec or sudo.
-FISHERMAN_UNPRIVILEGED = (["flatpak-spawn", "--host"] if IN_FLATPAK else []) + [FISHERMAN_PATH]
-PROBE_ARGV = FISHERMAN_UNPRIVILEGED + ["probe", "--json"]
-# `fisherman validate --json --partial -`: a page's fields as a partial
-# recipe on stdin (shared/recipe/README.md). fisherman owns the hostname,
-# username, filesystem and encryption rules.
-VALIDATE_ARGV = fisherman_validate.argv(FISHERMAN_UNPRIVILEGED)
+BUNDLED_FISHERMAN = "/app/bin/fisherman"
+
+# The install escalates inside a bash this frontend owns, never straight
+# from flatpak-spawn or as the spawned process: fisherman runs as root, so
+# this process can never signal it, and fisherman cancels itself when its
+# PARENT dies (tuna-os/fisherman#267). The parent is this bash, and the app
+# signals its process group. The wrapper does no redirection: stdout and
+# stderr come back through the pipes.
+#
+# `-`: fisherman reads the recipe from stdin (tuna-os/fisherman#276). The
+# app writes the JSON to the wrapper's stdin and closes it, so no file ever
+# holds the passphrase or the user password. bash, pkexec, sudo and
+# flatpak-spawn all pass stdin through.
+FISHERMAN_WRAPPER_SCRIPT = 'pkexec /usr/local/bin/fisherman -; exit $?'
+FISHERMAN_LIVE_SCRIPT = 'sudo -n /usr/local/bin/fisherman -; exit $?'
+
+
+class StageError(Exception):
+    """The bundled fisherman could not be put where the host can run it."""
+
+
+def fisherman_stage_dir(environ=None):
+    """$XDG_CACHE_HOME/bootc-installer: Flatpak's persistent app cache.
+
+    Never HOME/.cache. --filesystem=host does not expose /var/home on every
+    host, and a HOME the sandbox made up can live only in its own tmpfs;
+    Flatpak always shares the app's XDG_CACHE_HOME with the host.
+    """
+    environ = os.environ if environ is None else environ
+    cache_home = environ.get("XDG_CACHE_HOME", "")
+    if not cache_home or not os.path.isabs(cache_home):
+        raise StageError("Flatpak XDG_CACHE_HOME must be an absolute path")
+    return os.path.join(cache_home, "bootc-installer")
+
+
+def staged_fisherman_path(environ=None):
+    return os.path.join(fisherman_stage_dir(environ), "fisherman")
+
+
+def _private_path_problem(path, check_mode=True):
+    """Why `path` is not safe to stage a root-executed helper at, or ""."""
+    try:
+        path_stat = os.lstat(path)
+    except FileNotFoundError:
+        return ""
+    except OSError as error:
+        return f"cannot stat {path}: {error}"
+    if stat.S_ISLNK(path_stat.st_mode):
+        return f"{path} is a symlink"
+    if path_stat.st_uid != os.getuid():
+        return f"{path} is owned by uid {path_stat.st_uid}, not {os.getuid()}"
+    if check_mode and path_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        return f"{path} is group- or world-writable"
+    return ""
+
+
+def _sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for block in iter(lambda: stream.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _host_sha256(path):
+    """The SHA256 of `path` as the HOST sees it, or "" when it cannot say."""
+    try:
+        seen = subprocess.run(["flatpak-spawn", "--host", "sha256sum", "--", path],
+                              capture_output=True, text=True, timeout=10, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    if seen.returncode:
+        return ""
+    return (seen.stdout.split(maxsplit=1) or [""])[0]
+
+
+def stage_fisherman(source=None, environ=None, host_sha256=_host_sha256):
+    """Copy the bundled fisherman to the app cache and return its path.
+
+    The copy is then hashed THROUGH THE HOST PORTAL: success inside the
+    sandbox does not prove that pkexec and the probe see the same bytes.
+    StageError when any step fails; nothing may run the staged file then.
+    """
+    source = source or os.environ.get("BOOTC_FISHERMAN_PATH", BUNDLED_FISHERMAN)
+    cache_dir = fisherman_stage_dir(environ)
+    host_path = os.path.join(cache_dir, "fisherman")
+    for path in (os.path.dirname(cache_dir), cache_dir, host_path):
+        problem = _private_path_problem(path)
+        if problem:
+            raise StageError(f"cannot stage fisherman: {problem}")
+    try:
+        os.makedirs(cache_dir, mode=0o700, exist_ok=True)
+        shutil.copy2(source, host_path)
+        os.chmod(host_path, stat.S_IRWXU)
+        expected = _sha256(source)
+    except OSError as error:
+        raise StageError(f"cannot stage fisherman: {error}") from error
+    if host_sha256(host_path) != expected:
+        raise StageError(
+            f"the staged fisherman is not byte-identical on the host: {host_path}")
+    return host_path
+
+
+_stage_cache = {}
+
+
+def staged_fisherman():
+    """The staged, host-verified fisherman; staged on the first call. A
+    failure is not remembered, so a later call tries again."""
+    if "path" not in _stage_cache:
+        _stage_cache["path"] = stage_fisherman()
+    return _stage_cache["path"]
+
+
+FISHERMAN_PURPOSES = ("probe", "validate", "validate-full", "install")
+
+
+def fisherman_command(purpose, *, in_flatpak=None, live=None, host_path=None):
+    """The argv that runs fisherman for `purpose`. The only resolver.
+
+    "probe" (`probe --json`), "validate" (`validate --json --partial -`) and
+    "validate-full" (`validate --json -`) run unprivileged, never through
+    pkexec or sudo. "install" runs with privileges and reads the recipe on
+    stdin. In a Flatpak `host_path` is the staged binary (staged here when
+    not given; StageError when that fails). `live` is fisherman's
+    live.is_live and matters only for a native install.
+    """
+    if purpose not in FISHERMAN_PURPOSES:
+        raise ValueError(f"unknown fisherman purpose {purpose!r}")
+    if in_flatpak is None:
+        in_flatpak = IN_FLATPAK
+    if in_flatpak:
+        binary = host_path or staged_fisherman()
+        if purpose == "install":
+            return ["flatpak-spawn", "--host", "bash", "-c",
+                    f"pkexec {shlex.quote(binary)} -; exit $?"]
+        unprivileged = ["flatpak-spawn", "--host", binary]
+    else:
+        if purpose == "install":
+            if live is None:
+                live = is_live()
+            return ["bash", "-c",
+                    FISHERMAN_LIVE_SCRIPT if live else FISHERMAN_WRAPPER_SCRIPT]
+        unprivileged = [FISHERMAN_PATH]
+    if purpose == "probe":
+        return unprivileged + ["probe", "--json"]
+    return fisherman_validate.argv(unprivileged, partial=purpose == "validate")
+
+
+def validate_argv():
+    """`fisherman validate --json --partial -` for the pages' live checks. A
+    page's fields go to it as a partial recipe on stdin
+    (shared/recipe/README.md); fisherman owns the hostname, username,
+    filesystem and encryption rules. When staging failed the command cannot
+    run, the check reports that, and it blocks nothing: the destination
+    page already shows why no disk is offered."""
+    try:
+        return fisherman_command("validate")
+    except StageError:
+        return fisherman_validate.argv(["flatpak-spawn", "--host", FISHERMAN_PATH])
+
 
 # The encryption types in display order, with needs_passphrase and
 # needs_tpm2: a byte-identical copy of fisherman's
@@ -91,8 +260,9 @@ def probe(refresh=False):
     """(result, error): the probe result, or None and the reason it failed."""
     if refresh or "answer" not in _probe_cache:
         try:
-            _probe_cache["answer"] = (fisherman_probe.run(PROBE_ARGV), None)
-        except fisherman_probe.ProbeError as exc:
+            _probe_cache["answer"] = (
+                fisherman_probe.run(fisherman_command("probe")), None)
+        except (fisherman_probe.ProbeError, StageError) as exc:
             _probe_cache["answer"] = (None, str(exc))
     return _probe_cache["answer"]
 
@@ -180,29 +350,6 @@ def _load_dry_run_transcript():
 
 
 DRY_RUN_TRANSCRIPT = _load_dry_run_transcript()
-
-# Flatpak runtimes ship no pkexec; escalate host-side. The live ISO symlinks
-# the flatpak-bundled fisherman to /usr/local/bin and installs the polkit
-# policy for it (tunaOS customize-live.sh).
-#
-# Under Flatpak, pkexec runs inside a host-side bash rather than straight
-# from `flatpak-spawn --host pkexec ...`. fisherman runs as root, so this
-# process can never signal it; fisherman cancels itself when its PARENT dies
-# (tuna-os/fisherman#267). Launched directly, that parent was the host's
-# flatpak-session-helper, which nothing here can kill. With the wrapper it is
-# this bash. The wrapper does no redirection: stdout and stderr still come
-# back through flatpak-spawn's pipes, as before.
-#
-# `-`: fisherman reads the recipe from stdin (tuna-os/fisherman#276). The
-# app writes the JSON to the wrapper's stdin and closes it, so no file ever
-# holds the passphrase or the user password. bash, pkexec, sudo and
-# flatpak-spawn all pass stdin through.
-FISHERMAN_WRAPPER_SCRIPT = 'pkexec /usr/local/bin/fisherman -; exit $?'
-FISHERMAN_CMD = (
-    ["flatpak-spawn", "--host", "bash", "-c", FISHERMAN_WRAPPER_SCRIPT]
-    if IN_FLATPAK
-    else ["sudo", "/usr/local/bin/fisherman", "-"]
-)
 
 # Where the catalog is (shared/catalog/README.md, "Where the catalog is"):
 # the system file, its legacy name, a developer's file, then the catalog in
@@ -651,17 +798,15 @@ def recipe_stdin(recipe):
     return json.dumps(recipe).encode("utf-8")
 
 
-def fisherman_argv(in_flatpak=None):
+def fisherman_argv(in_flatpak=None, live=None, host_path=None):
     """The argv that runs fisherman with privileges, the recipe on stdin."""
-    if in_flatpak is None:
-        return list(FISHERMAN_CMD)
-    if in_flatpak:
-        return ["flatpak-spawn", "--host", "bash", "-c", FISHERMAN_WRAPPER_SCRIPT]
-    return ["sudo", "/usr/local/bin/fisherman", "-"]
+    return fisherman_command("install", in_flatpak=in_flatpak, live=live,
+                             host_path=host_path)
 
 
-def fisherman_shell():
-    return " ".join(shlex.quote(a) for a in fisherman_argv())
+def shell_line(argv):
+    """`argv` as one shell line, for the install log."""
+    return " ".join(shlex.quote(a) for a in argv)
 
 
 # --- install log --------------------------------------------------------------

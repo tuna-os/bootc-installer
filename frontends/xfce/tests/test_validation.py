@@ -115,7 +115,7 @@ def test_encryption_page_sends_the_passphrase_on_stdin_not_argv(monkeypatch):
     page.pass1.set_text("s3cret")
     assert check.submitted[-1]["encryption"] == {"type": "luks-passphrase",
                                                  "passphrase": "s3cret"}
-    assert "s3cret" not in " ".join(core.VALIDATE_ARGV)
+    assert "s3cret" not in " ".join(core.validate_argv())
 
 
 def test_encryption_problem_blocks_next(monkeypatch):

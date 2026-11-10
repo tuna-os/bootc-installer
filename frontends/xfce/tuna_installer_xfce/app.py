@@ -31,8 +31,9 @@ def spawn_fisherman(argv, stdin_data=b""):
     """Start the fisherman wrapper as the leader of its own process group,
     and hand it the recipe on stdin.
 
-    The wrapper (flatpak-spawn, or sudo) is the only process in the install
-    this user can signal; fisherman runs as root and cancels when its parent
+    The wrapper (the bash that core.fisherman_command() starts, behind
+    flatpak-spawn in a Flatpak) is the only process in the install this
+    user can signal; fisherman runs as root and cancels when its parent
     dies (tuna-os/fisherman#267). The contract every frontend follows is
     "kill your wrapper's process group", which needs the wrapper in a group
     of its own rather than the installer's. Closing the window mid-install
@@ -341,11 +342,18 @@ class InstallerWindow(Gtk.ApplicationWindow):
             self._autoinstall_pending = None
         if recipe is None:
             recipe = self.build_recipe()
-        argv = core.fisherman_argv()
         self._log_tail = []
+        try:
+            # In a Flatpak this stages the bundled fisherman and checks its
+            # SHA256 on the host; nothing runs when that fails.
+            argv = core.fisherman_argv()
+        except core.StageError as exc:
+            self.pages["done"].set_result(False, str(exc) + "\n")
+            self._enter(PAGE_ORDER.index("done"))
+            return
         self._install_log = core.open_install_log()
         self._install_log.write(
-            f"=== install started: {core.fisherman_shell()} (recipe on stdin) ===\n")
+            f"=== install started: {core.shell_line(argv)} (recipe on stdin) ===\n")
         self._install_log.flush()
         pid, out, err = spawn_fisherman(argv, core.recipe_stdin(recipe))
         self._install_pid = pid

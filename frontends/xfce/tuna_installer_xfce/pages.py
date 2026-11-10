@@ -25,7 +25,7 @@ def live_check(on_result):
     """`fisherman validate --json --partial -` for one page: debounced, off
     the UI thread, answered on it (shared/recipe/README.md)."""
     return fisherman_validate.LiveCheck(
-        core.VALIDATE_ARGV, on_result, timeout_add=GLib.timeout_add,
+        core.validate_argv(), on_result, timeout_add=GLib.timeout_add,
         source_remove=GLib.source_remove, idle_add=GLib.idle_add)
 
 

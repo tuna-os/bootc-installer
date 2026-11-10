@@ -342,53 +342,260 @@ class TestFisherman:
         assert not hasattr(core, "recipe_dir")
         assert "tempfile" not in open(core.__file__).read()
 
-    def test_argv_uses_sudo_outside_flatpak_and_reads_stdin(self):
-        assert core.fisherman_argv(in_flatpak=False) == [
-            "sudo", "/usr/local/bin/fisherman", "-"]
+    # One resolver, fisherman_command(), for the probe, the validate checks
+    # and the install; these are its three worlds (#290).
 
-    def test_shell_line(self):
-        assert core.fisherman_shell() == "sudo /usr/local/bin/fisherman -"
+    def test_native_install_uses_pkexec_and_reads_stdin(self):
+        # Not sudo: a GUI has no terminal for its prompt.
+        assert core.fisherman_command("install", in_flatpak=False, live=False) == [
+            "bash", "-c", "pkexec /usr/local/bin/fisherman -; exit $?"]
+        assert core.fisherman_argv(in_flatpak=False, live=False) == [
+            "bash", "-c", "pkexec /usr/local/bin/fisherman -; exit $?"]
 
-    def test_flatpak_argv_runs_pkexec_inside_a_host_bash(self):
+    def test_live_media_install_uses_sudo_without_a_prompt(self):
+        assert core.fisherman_command("install", in_flatpak=False, live=True) == [
+            "bash", "-c", "sudo -n /usr/local/bin/fisherman -; exit $?"]
+
+    def test_native_install_asks_the_probe_whether_this_is_live_media(self, monkeypatch):
+        monkeypatch.setattr(core, "is_live", lambda: True)
+        assert "sudo -n" in core.fisherman_command("install", in_flatpak=False)[-1]
+        monkeypatch.setattr(core, "is_live", lambda: False)
+        assert core.fisherman_command("install", in_flatpak=False)[-1].startswith("pkexec ")
+
+    def test_native_probe_and_validate_are_unprivileged(self):
+        assert core.fisherman_command("probe", in_flatpak=False) == [
+            "/usr/local/bin/fisherman", "probe", "--json"]
+        assert core.fisherman_command("validate", in_flatpak=False) == [
+            "/usr/local/bin/fisherman", "validate", "--json", "--partial", "-"]
+        assert core.fisherman_command("validate-full", in_flatpak=False) == [
+            "/usr/local/bin/fisherman", "validate", "--json", "-"]
+
+    def test_flatpak_runs_the_staged_binary_for_all_three(self):
+        staged = "/home/u/.var/app/org.example/cache/bootc-installer/fisherman"
+        assert core.fisherman_command("probe", in_flatpak=True, host_path=staged) == [
+            "flatpak-spawn", "--host", staged, "probe", "--json"]
+        assert core.fisherman_command("validate", in_flatpak=True, host_path=staged) == [
+            "flatpak-spawn", "--host", staged, "validate", "--json", "--partial", "-"]
         # Not `flatpak-spawn --host pkexec ...`: then fisherman's parent is
         # the host's flatpak-session-helper and it cannot be cancelled.
-        argv = core.fisherman_argv(in_flatpak=True)
-        assert argv == ["flatpak-spawn", "--host", "bash", "-c",
-                        "pkexec /usr/local/bin/fisherman -; exit $?"]
+        assert core.fisherman_command("install", in_flatpak=True, host_path=staged) == [
+            "flatpak-spawn", "--host", "bash", "-c", f"pkexec {staged} -; exit $?"]
 
-    def test_flatpak_wrapper_passes_stdin_stdout_stderr_and_status_through(self, tmp_path):
-        """Run the wrapper's bash for real, with pkexec stubbed: the recipe
+    def test_flatpak_never_uses_the_hosts_fisherman(self):
+        for purpose in core.FISHERMAN_PURPOSES:
+            argv = core.fisherman_command(purpose, in_flatpak=True, host_path="/cache/f")
+            assert "/usr/local/bin/fisherman" not in " ".join(argv), purpose
+
+    def test_flatpak_stages_before_it_answers(self, monkeypatch):
+        monkeypatch.setattr(core, "staged_fisherman", lambda: "/staged/fisherman")
+        for purpose in core.FISHERMAN_PURPOSES:
+            assert "/staged/fisherman" in " ".join(
+                core.fisherman_command(purpose, in_flatpak=True)), purpose
+
+        def refuse():
+            raise core.StageError("no")
+
+        monkeypatch.setattr(core, "staged_fisherman", refuse)
+        import pytest
+        with pytest.raises(core.StageError):
+            core.fisherman_command("install", in_flatpak=True)
+
+    def test_a_staged_path_with_a_space_is_one_word_for_the_host_bash(self):
+        argv = core.fisherman_command("install", in_flatpak=True, host_path="/a b/fisherman")
+        assert argv[-1] == "pkexec '/a b/fisherman' -; exit $?"
+
+    def test_an_unknown_purpose_is_refused(self):
+        import pytest
+        with pytest.raises(ValueError):
+            core.fisherman_command("uninstall", in_flatpak=False)
+
+    def test_shell_line(self):
+        assert core.shell_line(core.fisherman_argv(in_flatpak=False, live=True)) == (
+            "bash -c 'sudo -n /usr/local/bin/fisherman -; exit $?'")
+
+    def test_only_the_resolver_names_how_fisherman_runs(self):
+        """No page or dialog builds its own command: outside core.py no
+        string of the code (docstrings apart) names the binary or pkexec."""
+        import ast
+
+        package = os.path.dirname(core.__file__)
+        scanned = 0
+        for name in sorted(os.listdir(package)):
+            if not name.endswith(".py") or name == "core.py":
+                continue
+            with open(os.path.join(package, name), encoding="utf-8") as stream:
+                tree = ast.parse(stream.read())
+            docstrings = set()
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef)):
+                    body = node.body
+                    if (body and isinstance(body[0], ast.Expr)
+                            and isinstance(body[0].value, ast.Constant)):
+                        docstrings.add(id(body[0].value))
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                        and id(node) not in docstrings):
+                    scanned += 1
+                    for needle in ("/usr/local/bin/fisherman", "/app/bin/fisherman",
+                                   "pkexec", "sudo"):
+                        assert needle not in node.value, f"{name} names {needle}"
+        assert scanned > 100, "the scan read the package's strings"
+
+    def _run_wrapper(self, tmp_path, tool, argv):
+        """Run the wrapper's bash for real, with `tool` stubbed: the recipe
         written to the wrapper's stdin is what fisherman reads."""
         stub = tmp_path / "bin"
         stub.mkdir()
-        (stub / "pkexec").write_text(
+        (stub / tool).write_text(
             '#!/bin/sh\n'
-            'printf \'{"type":"step","argv":"%s|%s"}\\n\' "$1" "$2"\n'
+            'printf \'{"type":"step","argv":"%s"}\\n\' "$*"\n'
             'cat > "$RECIPE_OUT"\n'
             'echo "to stderr" >&2\n'
             'exit 7\n')
-        (stub / "pkexec").chmod(0o755)
-        argv = core.fisherman_argv(in_flatpak=True)
-        assert argv[:2] == ["flatpak-spawn", "--host"]
+        (stub / tool).chmod(0o755)
         out = tmp_path / "recipe-read"
         env = dict(os.environ, PATH=f"{stub}:{os.environ['PATH']}", RECIPE_OUT=str(out))
         recipe = core.build_recipe(**MINIMAL, encryption_type="luks-passphrase",
                                    passphrase="pw")
-        done = subprocess.run(argv[2:], env=env, cwd=tmp_path, input=core.recipe_stdin(recipe),
+        done = subprocess.run(argv, env=env, cwd=tmp_path, input=core.recipe_stdin(recipe),
                               capture_output=True)
         assert done.returncode == 7
-        assert done.stdout == b'{"type":"step","argv":"/usr/local/bin/fisherman|-"}\n'
         assert done.stderr == b"to stderr\n"
         assert json.loads(out.read_text()) == recipe
         assert list(tmp_path.glob("*.json")) == []
+        return json.loads(done.stdout)["argv"]
+
+    def test_flatpak_wrapper_passes_stdin_stdout_stderr_and_status_through(self, tmp_path):
+        argv = core.fisherman_argv(in_flatpak=True, host_path="/cache/fisherman")
+        assert argv[:2] == ["flatpak-spawn", "--host"]
+        assert self._run_wrapper(tmp_path, "pkexec", argv[2:]) == "/cache/fisherman -"
+
+    def test_native_wrapper_passes_stdin_stdout_stderr_and_status_through(self, tmp_path):
+        argv = core.fisherman_argv(in_flatpak=False, live=False)
+        assert self._run_wrapper(tmp_path, "pkexec", argv) == "/usr/local/bin/fisherman -"
+
+    def test_live_wrapper_passes_stdin_stdout_stderr_and_status_through(self, tmp_path):
+        argv = core.fisherman_argv(in_flatpak=False, live=True)
+        assert self._run_wrapper(tmp_path, "sudo", argv) == "-n /usr/local/bin/fisherman -"
+
+
+# ─── staging the bundled fisherman in a Flatpak (#290) ──────────────────────
+
+class TestStaging:
+    def _source(self, tmp_path):
+        source = tmp_path / "app-bin-fisherman"
+        source.write_bytes(b"#!/bin/sh\necho fisherman\n")
+        return source
+
+    def _env(self, tmp_path):
+        cache = tmp_path / "cache"
+        cache.mkdir(mode=0o700)
+        return {"XDG_CACHE_HOME": str(cache), "HOME": str(tmp_path / "home")}
+
+    def test_the_stage_path_is_the_app_cache_never_home(self, tmp_path):
+        env = {"HOME": "/var/home/test",
+               "XDG_CACHE_HOME": "/var/home/test/.var/app/app.id/cache"}
+        assert core.staged_fisherman_path(env) == (
+            "/var/home/test/.var/app/app.id/cache/bootc-installer/fisherman")
+
+    def test_a_missing_or_relative_cache_is_refused(self):
+        import pytest
+        for cache in ("", "relative"):
+            with pytest.raises(core.StageError, match="absolute path"):
+                core.fisherman_stage_dir({"HOME": "/home/test", "XDG_CACHE_HOME": cache})
+        # Never a path made from HOME.
+        with pytest.raises(core.StageError):
+            core.fisherman_stage_dir({"HOME": "/home/test"})
+
+    def test_staging_copies_and_verifies_on_the_host(self, tmp_path):
+        source, env = self._source(tmp_path), self._env(tmp_path)
+        asked = []
+
+        def host_sha256(path):
+            asked.append(path)
+            return core._sha256(path)
+
+        staged = core.stage_fisherman(str(source), env, host_sha256)
+        assert staged == core.staged_fisherman_path(env)
+        assert asked == [staged], "the host is asked about the staged copy"
+        with open(staged, "rb") as stream:
+            assert stream.read() == source.read_bytes()
+        assert stat_mode(staged) == 0o700
+        assert stat_mode(os.path.dirname(staged)) == 0o700
+
+    def test_staging_fails_when_the_host_sees_other_bytes(self, tmp_path):
+        import pytest
+        source, env = self._source(tmp_path), self._env(tmp_path)
+        for answer in ("0" * 64, ""):
+            with pytest.raises(core.StageError, match="byte-identical"):
+                core.stage_fisherman(str(source), env, lambda path, a=answer: a)
+
+    def test_staging_refuses_a_symlinked_target(self, tmp_path):
+        import pytest
+        source, env = self._source(tmp_path), self._env(tmp_path)
+        stage_dir = core.fisherman_stage_dir(env)
+        os.makedirs(stage_dir, mode=0o700)
+        os.symlink("/etc/passwd", os.path.join(stage_dir, "fisherman"))
+        with pytest.raises(core.StageError, match="symlink"):
+            core.stage_fisherman(str(source), env, core._sha256)
+
+    def test_staging_refuses_a_world_writable_cache(self, tmp_path):
+        import pytest
+        source, env = self._source(tmp_path), self._env(tmp_path)
+        stage_dir = core.fisherman_stage_dir(env)
+        os.makedirs(stage_dir)
+        os.chmod(stage_dir, 0o777)
+        with pytest.raises(core.StageError, match="writable"):
+            core.stage_fisherman(str(source), env, core._sha256)
+
+    def test_a_missing_bundled_binary_is_a_stage_error(self, tmp_path):
+        import pytest
+        with pytest.raises(core.StageError, match="cannot stage"):
+            core.stage_fisherman(str(tmp_path / "absent"), self._env(tmp_path), core._sha256)
+
+    def test_the_host_hash_goes_through_the_portal(self, monkeypatch):
+        calls = []
+
+        class Result:
+            returncode = 0
+            stdout = "abc123  /cache/fisherman\n"
+
+        def fake_run(argv, **kwargs):
+            calls.append(argv)
+            return Result()
+
+        monkeypatch.setattr(core.subprocess, "run", fake_run)
+        assert core._host_sha256("/cache/fisherman") == "abc123"
+        assert calls == [["flatpak-spawn", "--host", "sha256sum", "--", "/cache/fisherman"]]
+
+    def test_staging_happens_once(self, monkeypatch):
+        count = []
+        monkeypatch.setattr(core, "stage_fisherman", lambda: count.append(1) or "/s/f")
+        monkeypatch.setattr(core, "_stage_cache", {})
+        assert core.staged_fisherman() == "/s/f"
+        assert core.staged_fisherman() == "/s/f"
+        assert len(count) == 1
+
+
+def stat_mode(path):
+    return os.stat(path).st_mode & 0o777
 
 
 # ─── validation and encryption choices: fisherman's ────────────────────────
 
 class TestValidateAndChoices:
     def test_validate_argv_is_partial_on_stdin_and_unprivileged(self):
-        assert core.VALIDATE_ARGV[-4:] == ["validate", "--json", "--partial", "-"]
-        assert "sudo" not in core.VALIDATE_ARGV and "pkexec" not in core.VALIDATE_ARGV
+        argv = core.validate_argv()
+        assert argv[-4:] == ["validate", "--json", "--partial", "-"]
+        assert "sudo" not in argv and "pkexec" not in argv
+
+    def test_validate_argv_survives_a_fisherman_that_cannot_be_staged(self, monkeypatch):
+        def refuse(*_args, **_kwargs):
+            raise core.StageError("no")
+
+        monkeypatch.setattr(core, "fisherman_command", refuse)
+        # The command cannot run; LiveCheck reports that and blocks nothing.
+        assert core.validate_argv()[-4:] == ["validate", "--json", "--partial", "-"]
 
     def test_choices_come_from_the_file(self):
         assert [c["type"] for c in core.ENCRYPTION_CHOICES] == [

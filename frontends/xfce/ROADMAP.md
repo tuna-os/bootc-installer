@@ -27,7 +27,6 @@ The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 
 | Issue | Gap |
 |---|---|
-| #290 | The Flatpak builds fisherman, but does not stage it or verify its SHA256 |
 | #300 | The frontend has no translatable strings |
 | #301 | An offline user gets no help to connect |
 | #299 | The result page reports a cancel as a failure |

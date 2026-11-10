@@ -132,7 +132,7 @@ not use `default_image` yet (#289).
 | Live-ISO install without download (live media from `fisherman probe --json`) | yes | yes | yes | yes | yes |
 | Offline image stores (found by fisherman on the host) | yes | yes | yes | yes | yes |
 | Recipe on fisherman's stdin, no recipe file | yes | yes | yes | yes | yes |
-| fisherman staged from the Flatpak, with a SHA256 check | yes | no (#290) | no (#290) | no (#290) | no (#290) |
+| fisherman staged from the Flatpak, with a SHA256 check | yes | no (#290) | no (#290) | no (#290) | yes |
 | Fields checked by `fisherman validate --json --partial` | hostname, username | hostname, username, passphrase, filesystem | hostname, passphrase, username | hostname, username, passphrase, filesystem | hostname, username, passphrase, filesystem |
 | Disk choice with erase warning | yes | yes | yes | yes | yes |
 | Disk list from `fisherman probe --json` (`shared/probe/`) | yes | yes | yes | yes | yes |
