@@ -1,0 +1,510 @@
+{
+  "contract_version": 1,
+  "search_paths": [
+    {
+      "in_flatpak": false,
+      "xdg_config_home": "/home/user/.config",
+      "paths": [
+        "/etc/bootc-installer/images.json",
+        "/etc/tuna-installer/images.json",
+        "/home/user/.config/bootc-installer/images.json",
+        "<bundled>"
+      ]
+    },
+    {
+      "in_flatpak": true,
+      "xdg_config_home": "/home/user/.var/app/org.example.Installer/config",
+      "paths": [
+        "/run/host/etc/bootc-installer/images.json",
+        "/run/host/etc/tuna-installer/images.json",
+        "/home/user/.var/app/org.example.Installer/config/bootc-installer/images.json",
+        "<bundled>"
+      ]
+    }
+  ],
+  "default_selection": [
+    {
+      "branding_default_image": "",
+      "catalog_default_image": "registry.example/os/atlas:stable",
+      "selected": "registry.example/os/atlas:stable"
+    },
+    {
+      "branding_default_image": "registry.example/os/not-in-the-catalog:1",
+      "catalog_default_image": "registry.example/os/atlas:stable",
+      "selected": "registry.example/os/atlas:stable"
+    },
+    {
+      "branding_default_image": "registry.example/os/atlas:beta",
+      "catalog_default_image": "registry.example/os/atlas:stable",
+      "selected": "registry.example/os/atlas:beta"
+    },
+    {
+      "branding_default_image": "",
+      "catalog_default_image": "",
+      "selected": null
+    },
+    {
+      "branding_default_image": "registry.example/os/not-in-the-catalog:1",
+      "catalog_default_image": "",
+      "selected": null
+    },
+    {
+      "branding_default_image": "registry.example/os/atlas:beta",
+      "catalog_default_image": "",
+      "selected": "registry.example/os/atlas:beta"
+    }
+  ],
+  "unknown_image": {
+    "imgref": "registry.example/os/not-in-the-catalog:1",
+    "needs_user_creation": true
+  },
+  "leaves": [
+    {
+      "imgref": "registry.example/os/atlas:stable",
+      "leaf": {
+        "imgref": "registry.example/os/atlas:stable",
+        "name": "Stable",
+        "product": "Atlas",
+        "channel": "Stable",
+        "label": "Atlas Stable",
+        "path": [
+          "Atlas",
+          "Stable"
+        ],
+        "breadcrumb": "Atlas › Stable",
+        "nvidia_imgref": "",
+        "bootloader": "grub2",
+        "composefs": false,
+        "filesystem": "xfs",
+        "filesystems": [
+          "xfs"
+        ],
+        "default_hostname": "atlas",
+        "flatpaks": [
+          "org.example.Browser",
+          "org.example.Editor"
+        ],
+        "flatpaks_url": "",
+        "flatpak_var_path": "",
+        "needs_user_creation": true,
+        "image_type": "bootc"
+      },
+      "cases": [
+        {
+          "inputs": {
+            "has_nvidia": false,
+            "is_live": false,
+            "offline_images": []
+          },
+          "recipe": {
+            "image": "registry.example/os/atlas:stable",
+            "targetImgref": "registry.example/os/atlas:stable",
+            "bootloader": "grub2",
+            "composeFsBackend": false,
+            "filesystem": "xfs",
+            "flatpaks": [
+              "org.example.Browser",
+              "org.example.Editor"
+            ]
+          },
+          "absent": [
+            "flatpakVarPath"
+          ]
+        }
+      ]
+    },
+    {
+      "imgref": "registry.example/os/atlas:beta",
+      "leaf": {
+        "imgref": "registry.example/os/atlas:beta",
+        "name": "Beta",
+        "product": "Atlas",
+        "channel": "Beta",
+        "label": "Atlas Beta",
+        "path": [
+          "Atlas",
+          "Beta"
+        ],
+        "breadcrumb": "Atlas › Beta",
+        "nvidia_imgref": "",
+        "bootloader": "grub2",
+        "composefs": false,
+        "filesystem": "xfs",
+        "filesystems": [
+          "xfs"
+        ],
+        "default_hostname": "atlas",
+        "flatpaks": [],
+        "flatpaks_url": "",
+        "flatpak_var_path": "",
+        "needs_user_creation": false,
+        "image_type": "bootc"
+      },
+      "cases": [
+        {
+          "inputs": {
+            "has_nvidia": false,
+            "is_live": false,
+            "offline_images": []
+          },
+          "recipe": {
+            "image": "registry.example/os/atlas:beta",
+            "targetImgref": "registry.example/os/atlas:beta",
+            "bootloader": "grub2",
+            "composeFsBackend": false,
+            "filesystem": "xfs",
+            "flatpaks": []
+          },
+          "absent": [
+            "flatpakVarPath"
+          ]
+        }
+      ]
+    },
+    {
+      "imgref": "registry.example/os/atlas-dx:latest",
+      "leaf": {
+        "imgref": "registry.example/os/atlas-dx:latest",
+        "name": "Latest",
+        "product": "Atlas DX",
+        "channel": "Latest",
+        "label": "Atlas DX Latest",
+        "path": [
+          "Atlas",
+          "Atlas DX",
+          "Latest"
+        ],
+        "breadcrumb": "Atlas › Atlas DX › Latest",
+        "nvidia_imgref": "",
+        "bootloader": "grub2",
+        "composefs": false,
+        "filesystem": "xfs",
+        "filesystems": [
+          "xfs"
+        ],
+        "default_hostname": "atlas",
+        "flatpaks": null,
+        "flatpaks_url": "https://flatpaks.example/system-flatpaks.Brewfile",
+        "flatpak_var_path": "",
+        "needs_user_creation": true,
+        "image_type": "bootc"
+      },
+      "cases": [
+        {
+          "inputs": {
+            "has_nvidia": false,
+            "is_live": false,
+            "offline_images": []
+          },
+          "recipe": {
+            "image": "registry.example/os/atlas-dx:latest",
+            "targetImgref": "registry.example/os/atlas-dx:latest",
+            "bootloader": "grub2",
+            "composeFsBackend": false,
+            "filesystem": "xfs"
+          },
+          "absent": [
+            "flatpaks",
+            "flatpakVarPath"
+          ]
+        }
+      ]
+    },
+    {
+      "imgref": "registry.example/os/boreal:latest",
+      "leaf": {
+        "imgref": "registry.example/os/boreal:latest",
+        "name": "Boreal",
+        "product": "Boreal",
+        "channel": "",
+        "label": "Boreal",
+        "path": [
+          "Boreal"
+        ],
+        "breadcrumb": "Boreal",
+        "nvidia_imgref": "registry.example/os/boreal-nvidia:latest",
+        "bootloader": "systemd",
+        "composefs": true,
+        "filesystem": "btrfs",
+        "filesystems": [
+          "btrfs",
+          "ext4"
+        ],
+        "default_hostname": "boreal",
+        "flatpaks": [
+          "org.example.Files"
+        ],
+        "flatpaks_url": "",
+        "flatpak_var_path": "state/os/default/var",
+        "needs_user_creation": false,
+        "image_type": "bootc"
+      },
+      "cases": [
+        {
+          "inputs": {
+            "has_nvidia": false,
+            "is_live": false,
+            "offline_images": []
+          },
+          "recipe": {
+            "image": "registry.example/os/boreal:latest",
+            "targetImgref": "registry.example/os/boreal:latest",
+            "bootloader": "systemd",
+            "composeFsBackend": true,
+            "filesystem": "btrfs",
+            "flatpaks": [
+              "org.example.Files"
+            ],
+            "flatpakVarPath": "state/os/default/var"
+          },
+          "absent": []
+        },
+        {
+          "inputs": {
+            "has_nvidia": true,
+            "is_live": false,
+            "offline_images": []
+          },
+          "recipe": {
+            "image": "registry.example/os/boreal-nvidia:latest",
+            "targetImgref": "registry.example/os/boreal-nvidia:latest",
+            "bootloader": "systemd",
+            "composeFsBackend": true,
+            "filesystem": "btrfs",
+            "flatpaks": [
+              "org.example.Files"
+            ],
+            "flatpakVarPath": "state/os/default/var"
+          },
+          "absent": []
+        },
+        {
+          "inputs": {
+            "has_nvidia": true,
+            "is_live": true,
+            "offline_images": [
+              "registry.example/os/boreal-nvidia:latest"
+            ]
+          },
+          "recipe": {
+            "image": "registry.example/os/boreal-nvidia:latest",
+            "targetImgref": "registry.example/os/boreal-nvidia:latest",
+            "bootloader": "systemd",
+            "composeFsBackend": true,
+            "filesystem": "btrfs",
+            "flatpaks": [
+              "org.example.Files"
+            ],
+            "flatpakVarPath": "state/os/default/var"
+          },
+          "absent": []
+        },
+        {
+          "inputs": {
+            "has_nvidia": false,
+            "is_live": true,
+            "offline_images": [
+              "registry.example/os/boreal-nvidia:latest"
+            ]
+          },
+          "recipe": {
+            "image": "registry.example/os/boreal-nvidia:latest",
+            "targetImgref": "registry.example/os/boreal:latest",
+            "bootloader": "systemd",
+            "composeFsBackend": true,
+            "filesystem": "btrfs",
+            "flatpaks": [
+              "org.example.Files"
+            ],
+            "flatpakVarPath": "state/os/default/var"
+          },
+          "absent": []
+        },
+        {
+          "inputs": {
+            "has_nvidia": false,
+            "is_live": true,
+            "offline_images": [
+              "registry.example/os/boreal:latest",
+              "registry.example/os/boreal-nvidia:latest"
+            ]
+          },
+          "recipe": {
+            "image": "registry.example/os/boreal:latest",
+            "targetImgref": "registry.example/os/boreal:latest",
+            "bootloader": "systemd",
+            "composeFsBackend": true,
+            "filesystem": "btrfs",
+            "flatpaks": [
+              "org.example.Files"
+            ],
+            "flatpakVarPath": "state/os/default/var"
+          },
+          "absent": []
+        },
+        {
+          "inputs": {
+            "has_nvidia": false,
+            "is_live": true,
+            "offline_images": [
+              "registry.example/os/boreal:latest"
+            ]
+          },
+          "recipe": {
+            "image": "registry.example/os/boreal:latest",
+            "targetImgref": "registry.example/os/boreal:latest",
+            "bootloader": "systemd",
+            "composeFsBackend": true,
+            "filesystem": "btrfs",
+            "flatpaks": [
+              "org.example.Files"
+            ],
+            "flatpakVarPath": "state/os/default/var"
+          },
+          "absent": []
+        }
+      ]
+    },
+    {
+      "imgref": "registry.example/os/drift:edge",
+      "leaf": {
+        "imgref": "registry.example/os/drift:edge",
+        "name": "Edge",
+        "product": "Drift",
+        "channel": "Edge",
+        "label": "Drift Edge",
+        "path": [
+          "Drift",
+          "Edge"
+        ],
+        "breadcrumb": "Drift › Edge",
+        "nvidia_imgref": "",
+        "bootloader": "systemd",
+        "composefs": true,
+        "filesystem": "ext4",
+        "filesystems": [
+          "ext4",
+          "btrfs"
+        ],
+        "default_hostname": "",
+        "flatpaks": null,
+        "flatpaks_url": "",
+        "flatpak_var_path": "",
+        "needs_user_creation": false,
+        "image_type": "bootc"
+      },
+      "cases": [
+        {
+          "inputs": {
+            "has_nvidia": false,
+            "is_live": false,
+            "offline_images": []
+          },
+          "recipe": {
+            "image": "registry.example/os/drift:edge",
+            "targetImgref": "registry.example/os/drift:edge",
+            "bootloader": "systemd",
+            "composeFsBackend": true,
+            "filesystem": "ext4"
+          },
+          "absent": [
+            "flatpaks",
+            "flatpakVarPath"
+          ]
+        }
+      ]
+    },
+    {
+      "imgref": "registry.example/os/drift:kiosk",
+      "leaf": {
+        "imgref": "registry.example/os/drift:kiosk",
+        "name": "Kiosk",
+        "product": "Drift",
+        "channel": "Kiosk",
+        "label": "Drift Kiosk",
+        "path": [
+          "Drift",
+          "Kiosk"
+        ],
+        "breadcrumb": "Drift › Kiosk",
+        "nvidia_imgref": "",
+        "bootloader": "grub2",
+        "composefs": false,
+        "filesystem": "xfs",
+        "filesystems": [
+          "xfs"
+        ],
+        "default_hostname": "",
+        "flatpaks": null,
+        "flatpaks_url": "",
+        "flatpak_var_path": "",
+        "needs_user_creation": true,
+        "image_type": "bootc"
+      },
+      "cases": [
+        {
+          "inputs": {
+            "has_nvidia": false,
+            "is_live": false,
+            "offline_images": []
+          },
+          "recipe": {
+            "image": "registry.example/os/drift:kiosk",
+            "targetImgref": "registry.example/os/drift:kiosk",
+            "bootloader": "grub2",
+            "composeFsBackend": false,
+            "filesystem": "xfs"
+          },
+          "absent": [
+            "flatpaks",
+            "flatpakVarPath"
+          ]
+        }
+      ]
+    },
+    {
+      "imgref": "registry.example/os/cirrus:1",
+      "leaf": {
+        "imgref": "registry.example/os/cirrus:1",
+        "name": "Cirrus",
+        "product": "Cirrus",
+        "channel": "",
+        "label": "Cirrus",
+        "path": [
+          "Cirrus"
+        ],
+        "breadcrumb": "Cirrus",
+        "nvidia_imgref": "",
+        "bootloader": "",
+        "composefs": false,
+        "filesystem": "",
+        "filesystems": [],
+        "default_hostname": "",
+        "flatpaks": null,
+        "flatpaks_url": "",
+        "flatpak_var_path": "",
+        "needs_user_creation": true,
+        "image_type": "bootc"
+      },
+      "cases": [
+        {
+          "inputs": {
+            "has_nvidia": false,
+            "is_live": false,
+            "offline_images": []
+          },
+          "recipe": {
+            "image": "registry.example/os/cirrus:1",
+            "targetImgref": "registry.example/os/cirrus:1",
+            "bootloader": "",
+            "composeFsBackend": false
+          },
+          "absent": [
+            "flatpaks",
+            "flatpakVarPath"
+          ]
+        }
+      ]
+    }
+  ]
+}

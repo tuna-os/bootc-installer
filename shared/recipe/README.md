@@ -10,6 +10,16 @@ to write the recipe and to show fisherman's answer about it.
 | `encryption-choices.json` | fisherman's `data/encryption-choices.json`, byte for byte: the encryption types in display order, with `needs_passphrase`, `needs_tpm2` and the branding `copy_key`. |
 | `fisherman_validate.py` | The Python reader for `fisherman validate --json` and the choices file. GNOME and XFCE carry byte-identical copies. |
 
+## From the image catalog to the recipe
+
+`shared/catalog/README.md` has the table of catalog fields that each
+frontend must copy into the recipe, the catalog search path and the rule
+for the image selected at the start. One default applies everywhere: when
+the catalog does not set `needs_user_creation`, the installer creates an
+account. `shared/catalog/fixtures/` holds a catalog and the recipe keys that
+each frontend must write for each leaf. `shared/account/README.md` has the
+groups of that account.
+
 ## Give the recipe to fisherman on stdin
 
 A frontend writes no recipe file. It runs fisherman with `-` and writes the
