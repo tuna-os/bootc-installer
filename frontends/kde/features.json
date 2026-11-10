@@ -35,6 +35,7 @@
     "progress_bar": "yes",
     "restart_from_done": "yes",
     "log_after_failure": "log path",
+    "recovery_key_not_in_log": "yes (log file and clipboard copy redacted)",
     "walkthrough": "yes",
     "e2e_gate": "yes"
   }

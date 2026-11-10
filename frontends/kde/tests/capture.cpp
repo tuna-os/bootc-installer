@@ -17,6 +17,9 @@
 // start an install from its page-enter hook, so "drive the steps" is not
 // automatically harmless across this family.
 
+#include <cmath>
+#include <utility>
+
 #include <QApplication>
 #include <QDir>
 #include <QEventLoop>
@@ -26,6 +29,9 @@
 #include <QFontInfo>
 #include <QScreen>
 #include <QImage>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QRegularExpression>
 #include <QMap>
 #include <QMetaMethod>
 #include <QIcon>
@@ -40,7 +46,6 @@
 
 #include "installercontroller.h"
 #include "branding.h"
-#include "parity_report.h"
 
 using namespace Qt::StringLiterals;
 
@@ -167,6 +172,29 @@ struct Finding {
     QString text;
 };
 
+// Grayscale stddev of the whole frame, normalised 0..1 — the same "is the
+// screen blank" measure the VM walkthrough takes with ImageMagick. Reported
+// only; no threshold reads it.
+double grayStddev(const QImage &img)
+{
+    double sum = 0, sq = 0;
+    int n = 0;
+    for (int y = 0; y < img.height(); y += 3) {
+        for (int x = 0; x < img.width(); x += 3) {
+            const QRgb c = img.pixel(x, y);
+            const double luma = (30.0 * qRed(c) + 59.0 * qGreen(c) + 11.0 * qBlue(c)) / 100.0;
+            sum += luma;
+            sq += luma * luma;
+            ++n;
+        }
+    }
+    if (!n)
+        return 0.0;
+    const double mean = sum / n;
+    const double var = qMax(sq / n - mean * mean, 0.0);
+    return std::sqrt(var) / 255.0;
+}
+
 // Read the pixels back. A capture that only checks its PNGs exist will publish
 // blank screens: the files are present, non-empty, and empty. That exact check
 // passed in a sibling repo while shipping a blank page.
@@ -243,15 +271,15 @@ Finding audit(const QImage &image, const QRect &rect, const QString &name)
     f.inkRows = rows ? double(inkRows) / rows : 0.0;
     f.inkCols = cols ? double(inkCols) / cols : 0.0;
     f.flat = samples ? double(largest) / samples : 0.0;
-    f.stddev = parity::stddev(image);
+    f.stddev = grayStddev(image);
     return f;
 }
 
 // Every string the CURRENT step put in its QML item tree — what the parity
 // keywords are matched against.
 //
-// parity_report.h's pageText() is QWidget-only and cannot see a QQuickItem, so
-// this is the QML equivalent, deliberately with the same two rules:
+// The QWidget harnesses read a widget tree; this is the QML equivalent,
+// deliberately with the same two rules:
 //
 //   * scoped to the step being shown, not the whole wizard. Wizard.qml keeps
 //     every module instantiated and slides between them, so walking from the
@@ -599,7 +627,8 @@ int main(int argc, char *argv[])
     // isn't" failure the pixel audit exists to catch.
     {
         QDir dir(outDir);
-        const QStringList stale = dir.entryList({u"*.png"_s, u"*.gif"_s}, QDir::Files);
+        const QStringList stale = dir.entryList(
+            {u"*.png"_s, u"*.gif"_s, u"texts.json"_s, u"audit.json"_s}, QDir::Files);
         for (const QString &name : stale) {
             if (!dir.remove(name)) {
                 out << "FAIL: could not clear stale " << name << "\n";
@@ -706,9 +735,6 @@ int main(int argc, char *argv[])
 
     QObject *cancelDialog = nullptr;
     QVector<Finding> findings;
-    // Kept alongside `findings` so consecutive frames can be diffed for the
-    // parity report's transition counts.
-    QVector<QImage> images;
     for (const auto &step : steps) {
         out << "  -> " << step.second << "\n";
         out.flush();
@@ -959,7 +985,6 @@ int main(int argc, char *argv[])
         // and credit every screen on every frame.
         f.text = itemText(window->contentItem());
         findings.append(f);
-        images.append(image);
     }
 
     QStringList failures;
@@ -1000,17 +1025,35 @@ int main(int argc, char *argv[])
     // blank screen is exactly the case tunaOS's parity matrix most needs a row
     // for. Returning first would leave the row unfilled, which is how the last
     // crop of frontend defects survived unseen.
+    //
+    // The report itself is shared/walkthrough/report_from_pngs.py, which the
+    // workflow runs on this directory: it reads texts.json (each step's item
+    // text) and audit.json (this harness's own verdict and numbers, measured
+    // on the step content rect with the floors above), so the screen contract
+    // and the report writer live once, in shared/walkthrough/.
     {
-        QVector<parity::Page> reportPages;
-        for (const auto &f : findings)
-            reportPages.append({f.name, f.png, f.text, f.rendered, f.colours,
-                                f.flat, f.ink, f.stddev});
-        QVector<int> transitions;
-        for (int i = 1; i < images.size(); ++i)
-            transitions.append(parity::changedPixels(images[i - 1], images[i]));
-        parity::write(outDir, QStringLiteral("kde"), reportPages,
-                      QStringLiteral("tests/capture.cpp (Kirigami/QML, offscreen)"),
-                      transitions, out);
+        static const QRegularExpression prefix(u"^\\d\\d-"_s);
+        QJsonObject texts, audits;
+        for (const auto &f : findings) {
+            const QString page = QString(f.name).remove(prefix);
+            texts[page] = f.text;
+            QJsonObject a;
+            a[u"rendered"_s] = f.rendered;
+            a[u"colours"_s] = f.colours;
+            a[u"flat"_s] = f.flat;
+            a[u"ink"_s] = f.ink;
+            a[u"stddev"_s] = f.stddev;
+            audits[page] = a;
+        }
+        for (const auto &[name, obj] : {std::pair{u"texts.json"_s, texts},
+                                        std::pair{u"audit.json"_s, audits}}) {
+            QFile file(outDir + u"/"_s + name);
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                out << "FAIL: could not write " << file.fileName() << "\n";
+                return 1;
+            }
+            file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        }
     }
 
     if (!failures.isEmpty()) {

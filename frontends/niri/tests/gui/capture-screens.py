@@ -16,7 +16,6 @@ partitions a disk.
 
 import json
 import os
-import subprocess
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -35,8 +34,13 @@ from PyQt6.QtQml import QQmlApplicationEngine  # noqa: E402
 from PyQt6.QtQuick import QQuickWindow  # noqa: E402
 from PyQt6 import sip  # noqa: E402
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# The screen contract, the pixel audit and the capture fixtures live once, in
+# shared/walkthrough/, for every frontend.
+sys.path.insert(0, os.path.normpath(os.path.join(
+    REPO, "..", "..", "shared", "walkthrough")))
+import capture_fixtures  # noqa: E402
 import parity_report  # noqa: E402
+import pixel_audit  # noqa: E402
 
 PAGES = [
     ("01-welcome", 0, "What the installer is about to do."),
@@ -74,18 +78,11 @@ ACCOUNT = {"username": "alex", "fullname": "Alex Example",
 PROGRESS_PAGE = 7
 DONE_PAGE = 8
 
-# fisherman emits this once, after TPM enrolment, and for a tpm2-luks install
-# it is the only way back into the disk if the TPM state changes (#129). No CI
-# runner does a TPM install, so it is synthesised -- but it goes in through
-# appendLog(), the function a real install calls, so this frame exercises the
-# parse rather than a property assignment that would keep passing if the parse
-# broke.
-RECOVERY_EVENT = json.dumps({
-    "type": "recovery_key",
-    "key": "mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf",
-    "timestamp": "2026-01-01T00:00:00Z",
-    "elapsed_ms": 1000,
-})
+# The recovery event is synthesised (no CI runner does a TPM install), but it
+# goes in through appendLog(), the function a real install calls, so this
+# frame exercises the parse rather than a property assignment that would keep
+# passing if the parse broke.
+RECOVERY_EVENT = capture_fixtures.RECOVERY_EVENT
 
 # The install screen, caught in flight: fisherman's real newline-delimited
 # JSON transcript (shared/progress/), truncated part-way through the image
@@ -101,19 +98,10 @@ RECOVERY_EVENT = json.dumps({
 #
 # Naming a product in a fixture was the second problem: it put that product's
 # image ref into the rendered docs for everyone who rebrands this installer.
-_TRANSCRIPT = os.path.join(REPO, "..", "..", "shared", "progress",
-                           "dry-run-transcript.ndjson")
+fixture_lines = capture_fixtures.fixture_log
+
 _PROBE_EXPECTED = os.path.join(REPO, "..", "..", "shared", "probe", "fixtures",
                                "laptop.expected.json")
-
-
-def fixture_lines():
-    """Transcript lines up to the middle of the image pull."""
-    with open(os.path.normpath(_TRANSCRIPT), encoding="utf-8") as fh:
-        lines = [ln for ln in fh.read().splitlines() if ln.strip()]
-    cut = next(i for i, ln in enumerate(lines) if "47/71" in ln) + 1
-    return lines[:cut]
-
 
 
 def find_item(root, name):
@@ -203,29 +191,13 @@ def audit(image, name):
     files are present, non-empty, and empty. Qt Quick makes that especially
     easy — grab before the first frame and you get a valid image of nothing.
     """
-    w, h = image.width(), image.height()
-    counts, samples, ink = {}, 0, 0
-    luma_sum = luma_sq = 0
-    for y in range(0, h, 4):
-        for x in range(0, w, 4):
-            c = image.pixel(x, y) & 0xFFFFFF
-            counts[c] = counts.get(c, 0) + 1
-            samples += 1
-            r, g, b = (c >> 16) & 255, (c >> 8) & 255, c & 255
-            luma = (30 * r + 59 * g + 11 * b) // 100
-            luma_sum += luma
-            luma_sq += luma * luma
-            if luma > 60:
-                ink += 1  # the theme is near-black, so "ink" is the LIGHT pixels
-    # Grayscale stddev, normalised 0..1 — the same "is the screen blank"
-    # measure tunaOS's VM walkthrough takes with ImageMagick, computed from
-    # the pixels we already visit. Reported only; the thresholds below are
-    # this repo's and are unchanged.
-    mean = luma_sum / samples
-    var = max(luma_sq / samples - mean * mean, 0.0)
-    return {"name": name, "w": w, "h": h, "colours": len(counts),
-            "flat": max(counts.values()) / samples, "ink": ink / samples,
-            "stddev": (var ** 0.5) / 255.0}
+    # Every fourth pixel, and the theme is near-black, so "ink" is the LIGHT
+    # pixels. `stddev` is the same "is the screen blank" measure tunaOS's VM
+    # walkthrough takes with ImageMagick: reported only; the thresholds in
+    # main() are this repo's and are unchanged.
+    return {"name": name, "w": image.width(), "h": image.height(),
+            **pixel_audit.qimage_stats(image, step=4,
+                                       ink=lambda luma: luma > 60)}
 
 
 def page_text(item, acc=None):
@@ -761,7 +733,7 @@ def main():
         return 1
 
     gif = os.path.join(out, "walkthrough.gif")
-    subprocess.run(["convert", "-delay", "240", "-loop", "0", *frames, gif], check=True)
+    capture_fixtures.write_gif(frames, gif)
     print(f"  wrote {len(frames)} screens + {os.path.basename(gif)}")
     return 0
 

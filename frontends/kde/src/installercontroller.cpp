@@ -5,6 +5,7 @@
 #include "fisherman.h"
 #include "account.h"
 #include "branding.h"
+#include "redact.h"
 #include "region.h"
 
 #include <QClipboard>
@@ -510,7 +511,12 @@ void InstallerController::copyLogToClipboard()
         qCWarning(logInstaller) << "no clipboard: cannot copy the install log";
         return;
     }
-    clipboard->setText(m_log);
+    clipboard->setText(logForSharing());
+}
+
+QString InstallerController::logForSharing() const
+{
+    return redact::recoveryKey(m_log, m_recoveryKey);
 }
 
 void InstallerController::cancelInstall()
@@ -625,9 +631,9 @@ void InstallerController::openLogFile()
         delete file;
         return;
     }
-    // fisherman's output is not expected to contain the passphrase, but this
-    // file records a privileged install verbatim: keep it owner-only rather
-    // than trusting the umask.
+    // fisherman's output is not expected to contain the passphrase, and
+    // appendLine() removes the recovery key, but this file records a
+    // privileged install: keep it owner-only rather than trusting the umask.
     file->setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
 
     m_logFile = file;
@@ -849,10 +855,12 @@ QString InstallerController::consumeProgress(const QString &line)
     if (type == QLatin1String("error"))
         return tr("ERROR: %1").arg(event.value(QStringLiteral("message")).toString());
     if (type == QLatin1String("recovery_key")) {
-        // Kept in the log as well as on the done page: the log is what gets
-        // pasted into a bug report, and a key that only ever existed on a
-        // screen the user already dismissed is no better than one that was
-        // never shown (#129).
+        // Kept in memory for the done page, which holds Restart until the
+        // user says that the key is saved (#129). The log pane shows it to
+        // the same user on the same screen. It goes no further: the log
+        // file and the clipboard copy get the redacted form (appendLine,
+        // logForSharing), because a log is what a user attaches to a bug
+        // report (#337).
         m_recoveryKey = event.value(QStringLiteral("key")).toString();
         Q_EMIT recoveryChanged();
         return tr("Recovery key: %1").arg(m_recoveryKey);
@@ -864,7 +872,9 @@ void InstallerController::appendLine(const QString &line, bool parse)
 {
     // The log PANE shows the event rendered for a person; the log FILE keeps
     // the raw protocol, because that is what gets attached to a bug report.
-    // Only stdout carries the protocol: stderr is shown as it is.
+    // Only stdout carries the protocol: stderr is shown as it is. For that
+    // same reason the file never holds the recovery key (#337): the event
+    // type stays, the key's value does not.
     const QString shown = parse ? consumeProgress(line) : line;
     if (!shown.isEmpty()) {
         m_log += shown;
@@ -873,8 +883,10 @@ void InstallerController::appendLine(const QString &line, bool parse)
     }
 
     if (m_logFile) {
-        m_logFile->write(line.toUtf8());
-        if (!line.endsWith(QLatin1Char('\n')))
+        // After consumeProgress(), so the key of this very event is known.
+        const QString kept = redact::recoveryKey(line, m_recoveryKey);
+        m_logFile->write(kept.toUtf8());
+        if (!kept.endsWith(QLatin1Char('\n')))
             m_logFile->write("\n");
         // Flushed per line: the interesting case is the one where the machine
         // is about to be rebooted or powered off by hand.

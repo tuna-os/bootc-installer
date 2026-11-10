@@ -35,6 +35,7 @@
     "progress_bar": "yes",
     "restart_from_done": "yes",
     "log_after_failure": "yes (recovery key redacted); the page shows fisherman's `error` event",
+    "recovery_key_not_in_log": "yes (log file scrubbed; dialog and clipboard redacted)",
     "walkthrough": "yes",
     "e2e_gate": "yes"
   }

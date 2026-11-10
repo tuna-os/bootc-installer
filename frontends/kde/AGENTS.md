@@ -39,6 +39,12 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_CAPTURE=ON
 cmake --build build && ./build/tuna-installer-capture
 ```
 
+CMake compiles three data files in from `../../shared/`:
+`branding/copy-defaults.json`, `recipe/encryption-choices.json` and
+`account/groups.json`. This tree has no copy of them. A build without the
+monorepo around it sets `-DTUNA_SHARED_DIR=<path to shared/>`. The Flatpak
+manifest does that: it has `shared/` as a second source.
+
 `biome.json` lints and formats **JSON only** (`**/*.json`) — there is no
 JavaScript toolchain here despite appearances.
 
@@ -60,8 +66,8 @@ selected at the start and the row labels. `src/imagecatalog.{h,cpp}` reads
 it, and `test_backend` holds it to `shared/catalog/fixtures`. A leaf also
 gives the filesystem choices: the disk step shows a picker when there is
 more than one. The account step writes the recipe's `user` block. Its groups
-are `account-groups.json`, a byte-identical copy of
-`../../shared/account/groups.json`, or `user.groups` of
+are `../../shared/account/groups.json`, which CMake compiles in, or
+`user.groups` of
 `/etc/bootc-installer/recipe.json`. The account is necessary unless the
 image creates its own first user (`needs_user_creation: false`). The wizard
 then skips the step and the recipe has no block. The welcome step also has
@@ -113,13 +119,17 @@ properties, not preferences:
   navigation is disabled once `fisherman` starts.
 - **The progress module advances to "finished" only after the process exits** —
   not on a parsed progress line.
+- **The recovery key stays out of the log file and the clipboard copy.**
+  `appendLine` writes the redacted form of a `recovery_key` event
+  (`src/redact.{h,cpp}`, `../../shared/progress/recovery-key-cases.json`).
+  The key is in memory for the done page and its acknowledgement.
 
 The recipe schema is shared with the other frontends
-(`fisherman-recipe.schema.json`, and the
+(`../../shared/recipe/fisherman-recipe.schema.json`, and the
 [installer frontend contract](https://github.com/tuna-os/tunaos/blob/main/docs/INSTALLER-FRONTENDS.md)).
 A field added here must exist there too, or the sibling installers diverge.
-Encryption types come from `encryption-choices.json`, a byte-identical
-copy of fisherman's file compiled into `recipe.cpp`; branch on
+Encryption types come from `../../shared/recipe/encryption-choices.json`
+(fisherman's file), which CMake compiles into `recipe.cpp`; branch on
 `Recipe::needsPassphrase()` / `needsTpm2()`, never on the type's name. On
 live media (the probe's `live.is_live`, `InstallerController.isLive`)
 `image` is left out and fisherman installs the running system. Never fill
@@ -153,9 +163,11 @@ the probe fails, the disk step shows the reason. `test_backend`
 
 `screenshots.yml` builds the real QML modules with `tests/capture.cpp`, renders
 every step offscreen, and checks the pixels for meaningful content. It also
-emits `docs/screenshots/walkthrough-kde.json`, the parity report the shared
-installer matrix consumes — so a UI change that breaks capture breaks the
-cross-installer report, not just this repo's screenshots.
+writes `texts.json` (the item text of each step) and `audit.json` (its pixel
+verdict). The workflow then runs `../../shared/walkthrough/report_from_pngs.py`,
+which writes `docs/screenshots/walkthrough-kde.json`, the parity report the
+shared installer matrix consumes. A UI change that breaks capture thus breaks
+the cross-installer report, not only the screenshots of this tree.
 
 ## Branding
 

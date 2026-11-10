@@ -4,13 +4,13 @@
 #include "imagecatalog.h"
 #include "region.h"
 #include "branding.h"
-#include "branding_defaults.h"
 #include "readiness.h"
 #include "recipe.h"
 #include "installercontroller.h"
 #include "probe.h"
 #include "diskmodel.h"
 #include "validate.h"
+#include "redact.h"
 
 #include <QDir>
 #include <QFile>
@@ -94,6 +94,8 @@ private slots:
     void recoveryKeyIsKeptNotJustPrinted();
     void recoveryKeyHoldsRestartUntilAcknowledged();
     void recoveryKeyAbsentMeansNoGate();
+    void recoveryKeyRedactionFollowsTheSharedCases();
+    void recoveryKeyIsNotInTheLogFile();
     void progressRendersEventsForTheLogPane();
 
     // stdout and stderr shared one line buffer, so a stdout event split
@@ -489,8 +491,8 @@ void BackendTest::brandingFixtures()
             QCOMPARE(got.storeUrl, spec.value(QStringLiteral("expect_store_url")).toString());
     }
 
-    // The compiled-in defaults are the shared file, verbatim.
-    QCOMPARE(QString::fromUtf8(kCopyDefaultsJson), readText(dir + QStringLiteral("/../copy-defaults.json")));
+    // The compiled-in defaults are shared/branding/copy-defaults.json: CMake
+    // reads that file, so there is no copy to compare it with.
     QVERIFY(!branding::copyDefaults().value(QStringLiteral("welcome_title")).isEmpty());
 }
 
@@ -551,7 +553,7 @@ void BackendTest::brandingLogoReachesController()
 void BackendTest::encryptionChoicesReadTheCopyLayer()
 {
     // The ids and their order are fisherman's encryption-choices.json,
-    // compiled in from frontends/kde/encryption-choices.json.
+    // compiled in from shared/recipe/encryption-choices.json.
     const QStringList types = {QStringLiteral("none"), QStringLiteral("luks-passphrase"),
                                QStringLiteral("tpm2-luks"), QStringLiteral("tpm2-luks-passphrase")};
     QCOMPARE(Recipe::encryptionTypes(), types);
@@ -1058,8 +1060,111 @@ void BackendTest::recoveryKeyIsKeptNotJustPrinted()
     feed(c, {recoveryEvent(QStringLiteral("abcd-efgh"))});
 
     QCOMPARE(c.recoveryKey(), QStringLiteral("abcd-efgh"));
-    // Still in the log, which is what gets pasted into a bug report.
+    // Still in the log pane, which the same user reads on the same screen.
     QVERIFY(c.log().contains(QStringLiteral("abcd-efgh")));
+    // Not in the copy that leaves the installer (#337).
+    QVERIFY(!c.logForSharing().contains(QStringLiteral("abcd-efgh")));
+    QVERIFY(c.logForSharing().contains(redact::kPlaceholder));
+}
+
+// shared/progress/recovery-key-cases.json: the redacted form is the same in
+// every frontend that keeps a log, byte for byte.
+static QJsonObject recoveryKeyCases()
+{
+    QFile f(QStringLiteral(PROGRESS_FIXTURES_DIR "/recovery-key-cases.json"));
+    if (!f.open(QIODevice::ReadOnly))
+        return {};
+    return QJsonDocument::fromJson(f.readAll()).object();
+}
+
+void BackendTest::recoveryKeyRedactionFollowsTheSharedCases()
+{
+    const QJsonObject spec = recoveryKeyCases();
+    if (spec.isEmpty())
+        QSKIP("shared/progress is not present (tree checked out alone)");
+    const QString key = spec.value(QStringLiteral("key")).toString();
+    QCOMPARE(redact::kPlaceholder, spec.value(QStringLiteral("placeholder")).toString());
+    const QJsonArray lines = spec.value(QStringLiteral("lines")).toArray();
+    QVERIFY(lines.size() >= 5);
+    for (const QJsonValue &v : lines) {
+        const QJsonObject c = v.toObject();
+        const QString known = c.value(QStringLiteral("known_key")).toBool() ? key : QString();
+        const QString got = redact::recoveryKey(c.value(QStringLiteral("line")).toString(), known);
+        QVERIFY2(got == c.value(QStringLiteral("redacted")).toString(),
+                 qPrintable(c.value(QStringLiteral("name")).toString() + QStringLiteral(": got ") + got));
+    }
+    QCOMPARE(redact::recoveryKey(QString()), QString());
+}
+
+void BackendTest::recoveryKeyIsNotInTheLogFile()
+{
+    const QJsonObject spec = recoveryKeyCases();
+    if (spec.isEmpty())
+        QSKIP("shared/progress is not present (tree checked out alone)");
+    const QString key = spec.value(QStringLiteral("key")).toString();
+    QVERIFY(key.size() > 8);
+    QFile transcript(QStringLiteral(PROGRESS_FIXTURES_DIR "/")
+                     + spec.value(QStringLiteral("transcript")).toString());
+    QVERIFY(transcript.open(QIODevice::ReadOnly));
+    const QByteArray events = transcript.readAll();
+    QVERIFY(events.contains(key.toUtf8()));
+
+    // The log file goes to the application data directory.
+    QTemporaryDir data;
+    QVERIFY(data.isValid());
+    const QByteArray oldData = qgetenv("XDG_DATA_HOME");
+    qputenv("XDG_DATA_HOME", data.path().toUtf8());
+
+    InstallerController c;
+    c.openLogFile();
+    const QString path = c.logPath();
+    QVERIFY2(path.startsWith(data.path()), qPrintable(path));
+    // The live path: stdout carries the events, stderr repeats the key.
+    const QString stderrLine = QStringLiteral("enrolled slot 1 with %1.").arg(key);
+    const qsizetype half = events.size() / 2;
+    c.consumeStdout(events.left(half));
+    c.consumeStdout(events.mid(half));
+    c.consumeStderr(stderrLine.toUtf8() + '\n');
+    c.consumeStderr(QByteArrayLiteral("Recovery key: ") + key.toUtf8());
+    c.flushStreams();
+    c.closeLogFile();
+    if (oldData.isNull())
+        qunsetenv("XDG_DATA_HOME");
+    else
+        qputenv("XDG_DATA_HOME", oldData);
+
+    // The key is still there for the done page.
+    QCOMPARE(c.recoveryKey(), key);
+
+    QFile log(path);
+    QVERIFY(log.open(QIODevice::ReadOnly));
+    const QByteArray written = log.readAll();
+    QVERIFY2(!written.contains(key.toUtf8()), "the recovery key is in the log file");
+
+    // The file is the transcript, with the one event in its redacted form.
+    QByteArrayList want;
+    int redacted = 0;
+    for (const QByteArray &line : events.split('\n')) {
+        if (line.isEmpty())
+            continue;
+        if (line.contains("\"recovery_key\"")) {
+            want << spec.value(QStringLiteral("redacted_event")).toString().toUtf8();
+            ++redacted;
+        } else {
+            want << line;
+        }
+    }
+    QCOMPARE(redacted, 1);
+    // The event's type is still in the file: a reader can see that a key
+    // was sent.
+    QVERIFY(want.join('\n').contains("\"type\":\"recovery_key\""));
+    want << QByteArrayLiteral("[stderr] enrolled slot 1 with [redacted].")
+         << QByteArrayLiteral("[stderr] Recovery key: [redacted]");
+    QCOMPARE(written, want.join('\n') + '\n');
+
+    // The clipboard copy has the same rule; the pane is what the user sees.
+    QVERIFY(c.log().contains(key));
+    QVERIFY(!c.logForSharing().contains(key));
 }
 
 void BackendTest::recoveryKeyHoldsRestartUntilAcknowledged()
@@ -2102,8 +2207,7 @@ void BackendTest::accountGroupsAreTheSharedFile()
     const QByteArray shared = readFixture(QStringLiteral(SHARED_GROUPS_FILE));
     if (shared.isEmpty())
         QSKIP("shared/account/groups.json is absent");
-    // Byte for byte: the compiled-in copy cannot drift from the shared file.
-    QCOMPARE(account::groupsJson(), shared);
+    // CMake compiles this file in (TUNA_SHARED_DIR), so there is no copy.
     QCOMPARE(account::defaultGroups(),
              strings(QJsonDocument::fromJson(shared).object().value(QStringLiteral("default_groups"))));
     QVERIFY(account::defaultGroups().size() > 1);
