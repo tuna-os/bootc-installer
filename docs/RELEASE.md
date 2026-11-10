@@ -94,8 +94,10 @@ lose safely.
    verifies both `/releases/latest/download/` URLs resolve before continuing.
 3. Publishes each frontend's Flatpak to the tuna-os remote through the shared
    `tuna-os/.github` reusable workflow, but only the frontends whose tree
-   changed since the previous release. An unchanged frontend is not
-   republished.
+   changed since the last commit that a release run published for that
+   frontend (`shared/ci/release_changes.py`). An unchanged frontend is not
+   republished. A frontend whose publish failed is published again by the
+   next release run, with no change to its files.
 
 The date + sha tag is deliberate: it is monotonic, unique per promotion, and
 never a rolling name an immutable-release ruleset can permanently ban (see

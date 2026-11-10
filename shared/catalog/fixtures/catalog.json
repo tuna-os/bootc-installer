@@ -1,0 +1,60 @@
+{
+  "aliases": {
+    "desk_apps": ["org.example.Browser", "org.example.Editor"],
+    "remote_apps": "https://flatpaks.example/system-flatpaks.Brewfile"
+  },
+  "default_image": "registry.example/os/atlas:stable",
+  "fallback_flatpaks": ["org.example.NeverSent"],
+  "images": [
+    {
+      "name": "Atlas",
+      "registry": "registry.example/os/atlas",
+      "bootloader": "grub2",
+      "filesystem": "xfs",
+      "default_hostname": "atlas",
+      "flatpaks": "@desk_apps",
+      "children": [
+        {"name": "Stable", "tag": "stable", "desc": "The stable channel"},
+        {"name": "Beta", "tag": "beta", "needs_user_creation": false, "flatpaks": []},
+        {
+          "name": "Atlas DX",
+          "registry": "registry.example/os/atlas-dx",
+          "flatpaks": "@remote_apps",
+          "children": [
+            {"name": "Latest", "tag": "latest"}
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Boreal",
+      "imgref": "registry.example/os/boreal:latest",
+      "nvidia_imgref": "registry.example/os/boreal-nvidia:latest",
+      "bootloader": "systemd",
+      "composefs": true,
+      "filesystems": ["btrfs", "ext4"],
+      "default_hostname": "boreal",
+      "flatpak_var_path": "state/os/default/var",
+      "needs_user_creation": false,
+      "flatpaks": ["org.example.Files"]
+    },
+    {
+      "name": "Drift",
+      "registry": "registry.example/os/drift",
+      "needs_user_creation": false,
+      "composefs": true,
+      "bootloader": "systemd",
+      "filesystem": "ext4",
+      "filesystems": ["ext4", "btrfs"],
+      "flatpaks": "@missing_alias",
+      "children": [
+        {"name": "Edge", "tag": "edge"},
+        {"name": "Kiosk", "tag": "kiosk", "needs_user_creation": true, "composefs": false, "bootloader": "grub2", "filesystem": "xfs", "filesystems": ["xfs"]}
+      ]
+    },
+    {
+      "name": "Cirrus",
+      "imgref": "registry.example/os/cirrus:1"
+    }
+  ]
+}

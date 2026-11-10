@@ -9,6 +9,8 @@ bootc-installer is the monorepo for every TunaOS / Bluefin bootc installer front
 | `bootc_installer/`, `data/`, `flatpak/`, `tests/` | GNOME frontend (this file's original subject) |
 | `frontends/kde|cosmic|niri|xfce/` | the other frontends, imported with history from `tuna-os/tuna-installer-*`; read their `AGENTS.md` first |
 | `shared/recipe/` | canonical recipe schema (KDE keeps a byte-identical copy; a unit test enforces it) |
+| `shared/catalog/` | image catalog contract: search path, fields that reach the recipe, default selection; `fixtures/` + reference `resolve.py` |
+| `shared/account/` | default groups of the first account and the operator override |
 | `shared/branding/` | product identity contract: `branding.json` first, `os-release` second, neutral last; one resolver per language, all tested against `fixtures/` |
 | `shared/walkthrough/` | screen contract + parity report + `aggregate.py` that builds `docs/walkthrough/` |
 | `fisherman/` | backend submodule |
@@ -89,9 +91,10 @@ would take, with the failing build output for COSMIC.
 - **Don't write the recipe to a file.** Every frontend pipes it to `fisherman -` on stdin through its wrapper (`bash -c 'pkexec /usr/local/bin/fisherman -; exit $?'`, with `flatpak-spawn --host` in front in a Flatpak) and closes stdin; the recipe holds the LUKS passphrase. Leave `additionalImageStores` out unless the ISO's recipe names stores (fisherman finds the host's), take live media from `fisherman probe --json`, and check fields with `fisherman validate --json --partial -`. See `shared/recipe/README.md`.
 - **Don't push to `prod` or cut releases from `dev`.** `promote.yml` owns `prod`; `release.yml` owns tags and the Flatpak remote. Rolling release tags (`latest-stable`) are banned by ruleset history.
 - **Don't add a `.github/` under `frontends/<name>/`.** Workflows only run from the root.
-- **Don't hardcode a product.** No "TunaOS", "Bluefin", image ref, hostname, URL, vendor, quote, tagline, store or artwork in any frontend: read `shared/branding/README.md` and go through that frontend's branding resolver (`copy` keys for every rebrandable line, `assets` for artwork). The screenshot workflows set `BOOTC_INSTALLER_PRODUCT_NAME` for the docs; the bundled GNOME `recipe.json` carries no product strings and no image ref: its `image` step offers the catalog, and `tests/unit/test_bundled_recipe.py` holds it to that; Bluefin's live in `shared/branding/examples/bluefin/`, which the live ISO ships. `docs/PARITY.md` says what each frontend renders.
+- **Don't hardcode a product.** No "TunaOS", "Bluefin", image ref, hostname, URL, vendor, quote, tagline, store or artwork in any frontend: read `shared/branding/README.md` and go through that frontend's branding resolver (`copy` keys for every rebrandable line, `assets` for artwork). The screenshot workflows set `BOOTC_INSTALLER_PRODUCT_NAME` for the docs; the bundled GNOME `recipe.json` carries no product strings and no image ref: its `image` step offers the catalog, and `tests/unit/test_bundled_recipe.py` holds it to that; Bluefin's live in `shared/branding/examples/bluefin/`, which the live ISO ships. `docs/PARITY.md` says what each frontend renders. Its Features table is generated: edit `frontends/<name>/features.json` (GNOME: `shared/walkthrough/features-gnome.json`), then run `python3 shared/walkthrough/features.py`.
 
 ## References
 - `fisherman/data/images.json` — recursive distro image catalog
 - `flatpak/org.bootcinstaller.Installer.json` — Flatpak manifest
+- `flatpak/org.bootcinstaller.Installer.Devel.json` — generated: edit the production manifest, then run `python3 flatpak/generate-devel.py`
 - Recipe JSON fields: `disk`, `filesystem`, `encryption`, `image`, `targetImgref`, `hostname`, `flatpaks[]`

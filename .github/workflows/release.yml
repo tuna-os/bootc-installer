@@ -10,7 +10,8 @@ name: Release
 #   - org.bootcinstaller.Installer-aarch64.flatpak   GNOME, aarch64 (optional)
 #   - org.bootcinstaller.Installer.Devel.flatpak     GNOME devel app id
 #   - a Flatpak OCI publish + index update for each frontend whose tree
-#     changed since the previous release, all into the one package
+#     changed since the last commit published for it (so a failed publish
+#     is retried by the next run), all into the one package
 #     ghcr.io/tuna-os/bootc-installer:{gnome,kde,cosmic,niri,xfce}
 #     (publish-oci.yml)
 #
@@ -83,39 +84,23 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "release tag: $TAG"
 
-      # Which frontends changed since the previous non-prerelease release.
-      # A frontend whose tree did not change is not republished: the remote
-      # already carries that exact source.
-      - name: Detect changed frontends
+      # Which frontends to publish: those whose tree changed since the last
+      # commit that was really published for THAT frontend, read from the
+      # earlier runs of this workflow (shared/ci/release_changes.py). The
+      # baseline is not the latest GitHub release: the `release` job creates
+      # that before the publish jobs run, so a failed publish used to leave
+      # the frontend stale until its files changed again (#319). A frontend
+      # no earlier run published, or a history that cannot be read, is
+      # published.
+      - name: Detect frontends to publish
         id: changes
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          prev=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-pre-releases --exclude-drafts \
-                   --limit 1 --json tagName --jq '.[0].tagName // empty' || true)
-          prev_sha=""
-          if [ -n "$prev" ]; then
-            prev_sha=$(git rev-list -n1 "$prev" 2>/dev/null || true)
-          fi
-          if [ -z "$prev_sha" ] || ! git merge-base --is-ancestor "$prev_sha" HEAD 2>/dev/null; then
-            echo "no comparable previous release (prev=${prev:-none}); publishing every frontend"
-            for n in gnome kde cosmic niri xfce; do echo "$n=true" >> "$GITHUB_OUTPUT"; done
-            exit 0
-          fi
-          echo "previous release: $prev ($prev_sha)"
-          changed=$(git diff --name-only "$prev_sha" HEAD)
-          gnome=false
-          if echo "$changed" | grep -qvE '^(frontends/|docs/|README\.md|[^/]+\.md$)'; then gnome=true; fi
-          echo "gnome=$gnome" >> "$GITHUB_OUTPUT"
-          for n in kde cosmic niri xfce; do
-            if echo "$changed" | grep -qE "^frontends/$n/"; then
-              echo "$n=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "$n=false" >> "$GITHUB_OUTPUT"
-            fi
-          done
-          cat "$GITHUB_OUTPUT"
+          python3 shared/ci/release_changes.py \
+            --repo "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID" \
+            --github-output "$GITHUB_OUTPUT"
 
   build:
     name: Build GNOME bundles

@@ -26,7 +26,8 @@ builds of the same tree apart; the sha comparison can.
 
 What "should have been published" means mirrors release.yml exactly:
 release.yml republishes a frontend only when its tree changed since the
-previous release, so the served commit need not BE the released commit. It
+last commit published for it (release_changes.py, which uses `touches`
+below), so the served commit need not BE the released commit. It
 must be on prod, and either an ancestor of the released commit with no
 change to that frontend's tree in between, using release.yml's own path rule
 (gnome: anything outside frontends/, docs/ and top-level *.md; the others:
