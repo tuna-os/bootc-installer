@@ -88,10 +88,12 @@ func TestProbeOffersOnlyEligibleDisks(t *testing.T) {
 
 func TestProbeCommandIsUnprivilegedAndOnTheHost(t *testing.T) {
 	host := []string{"/usr/local/bin/fisherman", "probe", "--json"}
-	if got := probeCommandFor(false); !reflect.DeepEqual(got, host) {
+	if got := (Fisherman{Path: nativeFisherman}).Argv("probe", "--json"); !reflect.DeepEqual(got, host) {
 		t.Errorf("host = %v", got)
 	}
-	if got := probeCommandFor(true); !reflect.DeepEqual(got, append([]string{"flatpak-spawn", "--host"}, host...)) {
+	staged := "/cache/bootc-installer/fisherman"
+	want := []string{"flatpak-spawn", "--host", staged, "probe", "--json"}
+	if got := (Fisherman{Flatpak: true, Path: staged}).Argv("probe", "--json"); !reflect.DeepEqual(got, want) {
 		t.Errorf("flatpak = %v", got)
 	}
 }

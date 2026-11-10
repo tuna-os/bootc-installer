@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -241,44 +242,121 @@ func TestDetectIsNotLiveOffLiveMediaOrWithoutAProbe(t *testing.T) {
 // install: the recipe on fisherman's stdin
 // ---------------------------------------------------------------------------
 
+// writeFakeProbe writes a probe answer and returns the environment entry
+// that makes the backend read it and run no fisherman.
+func writeFakeProbe(t *testing.T, live bool) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "probe.json")
+	body := `{"protocol_version":1,"disks":[],"tpm":{"usable":false},"system":{"unmet":[]},` +
+		`"live":{"is_live":` + map[bool]string{true: "true", false: "false"}[live] + `,"live_image":""},"offline":{"images":[]}}`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return fakeProbeEnv + "=" + path
+}
+
+// runInstallWithStub runs `install` with `escalation` (pkexec or sudo)
+// stubbed on PATH: the stub records its argv and what it read on stdin, then
+// exits with `status`.
+func runInstallWithStub(t *testing.T, escalation string, live bool, status int, recipe string) (args, stdin string, code int, out string) {
+	t.Helper()
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	stdinFile := filepath.Join(dir, "stdin")
+	writeStub(t, dir, escalation, "#!/bin/sh\nprintf '%s\\n' \"$*\" > "+argsFile+"\ncat > "+stdinFile+"\nexit "+fmt.Sprint(status)+"\n")
+	runtime := t.TempDir()
+
+	cmd := exec.Command(os.Args[0])
+	cmd.Env = append(os.Environ(), "GO_TEST_CLI_ARGV=install", pathWith(dir), writeFakeProbe(t, live),
+		"XDG_RUNTIME_DIR="+runtime, "TMPDIR="+runtime, "XDG_STATE_HOME="+t.TempDir())
+	cmd.Stdin = strings.NewReader(recipe)
+	combined, err := cmd.CombinedOutput()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			t.Fatalf("install: %v\n%s", err, combined)
+		}
+		code = exitErr.ExitCode()
+	}
+	a, _ := os.ReadFile(argsFile)
+	in, _ := os.ReadFile(stdinFile)
+	if entries, _ := os.ReadDir(runtime); len(entries) != 0 {
+		t.Errorf("install left files behind: %v", entries)
+	}
+	return strings.TrimSpace(string(a)), string(in), code, string(combined)
+}
+
+const installRecipe = `{"disk":"/dev/vda","filesystem":"xfs","encryption":{"type":"luks-passphrase","passphrase":"s3cret"},"hostname":"h","distroID":"x","selinuxDisabled":false}`
+
 func TestInstallPipesTheRecipeToFishermanOnStdin(t *testing.T) {
 	if inFlatpak() {
 		t.Skip("running inside a Flatpak sandbox")
 	}
-	dir := t.TempDir()
-	argsFile := filepath.Join(dir, "args")
-	stdinFile := filepath.Join(dir, "stdin")
-	// sudo stands in for the escalation: it records what fisherman would get.
-	writeStub(t, dir, "sudo", "#!/bin/sh\necho \"$@\" > "+argsFile+"\ncat > "+stdinFile+"\n")
-	runtime := t.TempDir()
-	recipe := `{"disk":"/dev/vda","filesystem":"xfs","encryption":{"type":"luks-passphrase","passphrase":"s3cret"},"hostname":"h","distroID":"x","selinuxDisabled":false}`
-
-	cmd := exec.Command(os.Args[0])
-	cmd.Env = append(os.Environ(), "GO_TEST_CLI_ARGV=install", pathWith(dir),
-		"XDG_RUNTIME_DIR="+runtime, "TMPDIR="+runtime, "XDG_STATE_HOME="+t.TempDir())
-	cmd.Stdin = strings.NewReader(recipe)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("install: %v\n%s", err, out)
+	// Off live media the escalation is pkexec (#290).
+	args, stdin, code, out := runInstallWithStub(t, "pkexec", false, 0, installRecipe)
+	if code != 0 {
+		t.Fatalf("install exited %d\n%s", code, out)
 	}
-	args, _ := os.ReadFile(argsFile)
-	if strings.TrimSpace(string(args)) != "/usr/local/bin/fisherman -" {
+	if args != "/usr/local/bin/fisherman -" {
 		t.Errorf("fisherman argv = %q, want the stdin form", args)
 	}
-	if strings.Contains(string(args), "s3cret") {
+	if strings.Contains(args, "s3cret") {
 		t.Error("the passphrase reached argv")
 	}
 	var got Recipe
-	data, _ := os.ReadFile(stdinFile)
-	if err := json.Unmarshal(data, &got); err != nil {
-		t.Fatalf("fisherman's stdin is not the recipe: %v\n%s", err, data)
+	if err := json.Unmarshal([]byte(stdin), &got); err != nil {
+		t.Fatalf("fisherman's stdin is not the recipe: %v\n%s", err, stdin)
 	}
 	if got.Encryption.Passphrase != "s3cret" || got.AdditionalImageStores != nil {
 		t.Errorf("recipe on stdin = %+v; want it as sent, with no stores added", got)
 	}
-	entries, _ := os.ReadDir(runtime)
-	if len(entries) != 0 {
-		t.Errorf("install left files behind: %v", entries)
+}
+
+// On live media, outside a Flatpak, the escalation is `sudo -n`: the live
+// user has passwordless sudo and may have no polkit agent.
+func TestInstallUsesSudoOnLiveMedia(t *testing.T) {
+	if inFlatpak() {
+		t.Skip("running inside a Flatpak sandbox")
+	}
+	args, stdin, code, out := runInstallWithStub(t, "sudo", true, 0, installRecipe)
+	if code != 0 {
+		t.Fatalf("install exited %d\n%s", code, out)
+	}
+	if args != "-n /usr/local/bin/fisherman -" {
+		t.Errorf("sudo argv = %q, want -n and the stdin form", args)
+	}
+	if !strings.Contains(stdin, "s3cret") {
+		t.Errorf("fisherman read %q on stdin, want the recipe", stdin)
+	}
+}
+
+// fisherman's exit code is this backend's: 130 is "cancelled", and the QML
+// shows the cancelled page for it (#299). It used to be 1 for every failure.
+func TestInstallExitsWithFishermansCode(t *testing.T) {
+	if inFlatpak() {
+		t.Skip("running inside a Flatpak sandbox")
+	}
+	for _, status := range []int{130, 3} {
+		_, _, code, out := runInstallWithStub(t, "pkexec", false, status, installRecipe)
+		if code != status {
+			t.Errorf("fisherman exited %d and install exited %d\n%s", status, code, out)
+		}
+	}
+}
+
+// A key the Recipe struct does not list fails the install before anything
+// runs (#297): the struct used to drop it without a word.
+func TestInstallRejectsAnUnknownRecipeKey(t *testing.T) {
+	if inFlatpak() {
+		t.Skip("running inside a Flatpak sandbox")
+	}
+	args, _, code, out := runInstallWithStub(t, "pkexec", false, 0,
+		`{"disk":"/dev/vda","hostname":"h","notARecipeKey":true}`)
+	if code != 1 || !strings.Contains(out, "notARecipeKey") {
+		t.Errorf("code = %d, output = %q; want 1 and the unknown key named", code, out)
+	}
+	if args != "" {
+		t.Errorf("fisherman ran with %q for a recipe this backend cannot read", args)
 	}
 }
 
@@ -320,11 +398,11 @@ func TestValidateThatCannotRunIsExit2(t *testing.T) {
 }
 
 func TestValidateCommandIsUnprivilegedPartialAndOnStdin(t *testing.T) {
-	for _, flatpak := range []bool{false, true} {
-		argv := validateCommandFor(flatpak)
+	for _, fisherman := range []Fisherman{{Path: nativeFisherman}, {Flatpak: true, Path: "/cache/bootc-installer/fisherman"}} {
+		argv := fisherman.Argv(validateArgs...)
 		tail := strings.Join(argv[len(argv)-5:], " ")
-		if tail != "/usr/local/bin/fisherman validate --json --partial -" {
-			t.Errorf("validateCommandFor(%v) = %v", flatpak, argv)
+		if tail != fisherman.Path+" validate --json --partial -" {
+			t.Errorf("%+v: argv = %v", fisherman, argv)
 		}
 		for _, a := range argv {
 			if a == "sudo" || a == "pkexec" {

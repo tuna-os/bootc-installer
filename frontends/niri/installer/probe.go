@@ -125,16 +125,6 @@ func parseProbe(data []byte) (ProbeFacts, error) {
 	return facts, nil
 }
 
-// probeCommandFor is the unprivileged command: the fisherman the install
-// runs, on the host. Never pkexec or sudo.
-func probeCommandFor(flatpak bool) []string {
-	argv := []string{"/usr/local/bin/fisherman", "probe", "--json"}
-	if flatpak {
-		return append([]string{"flatpak-spawn", "--host"}, argv...)
-	}
-	return argv
-}
-
 // runProbe runs the probe, or reads BOOTC_INSTALLER_FAKE_PROBE. There is no
 // fallback scan: on failure the error says why.
 func runProbe() (ProbeFacts, error) {
@@ -145,7 +135,11 @@ func runProbe() (ProbeFacts, error) {
 		}
 		return parseProbe(data)
 	}
-	argv := probeCommandFor(inFlatpak())
+	fisherman, err := resolveFisherman()
+	if err != nil {
+		return ProbeFacts{}, err
+	}
+	argv := fisherman.Argv("probe", "--json")
 	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
