@@ -139,7 +139,7 @@ not use `default_image` yet (#289).
 | Disk row: model (path when unknown), path, size label, bus | yes | yes | yes | yes | yes |
 | Disk probe failure shown on the disk page | yes | yes | yes | yes | yes |
 | RAM / CPU / UEFI check (fisherman's `system.unmet`) | blocks (gate window) | holds Next; override for RAM and CPU | blocks (requirements page) | blocks (gate dialog) | blocks (gate window) |
-| Connectivity check | blocks (connection-check step); the Wi-Fi page is not in the bundled recipe | blocks on welcome and confirm; image registry first; Network settings action | blocks (network page; registry of the image first; Network settings button) | blocks on source and confirm when the image needs a download; probes the image's registry first; Network settings button | blocks on confirm; probes the image's registry first; Network settings button |
+| Connectivity check | blocks (connection-check step); probes the image's registry first; the Wi-Fi page is not in the bundled recipe | blocks on welcome and confirm; image registry first; Network settings action | blocks (network page; registry of the image first; Network settings button) | blocks on source and confirm when the image needs a download; probes the image's registry first; Network settings button | blocks on confirm; probes the image's registry first; Network settings button |
 | Filesystem choice | yes (list from the image) | yes (the choices of the image) | the image's list, else xfs, ext4 or btrfs | yes (Advanced, list from the image) | yes (Advanced, list from the image) |
 | Encryption: none / passphrase | yes | yes | yes | yes | yes |
 | Passphrase typed twice, Next held on a mismatch | yes | yes | yes | yes | yes |
@@ -159,7 +159,7 @@ not use `default_image` yet (#289).
 | Progress bar from fisherman's protocol | yes | yes | yes | yes | yes |
 | Restart from the done page | yes | yes | yes | yes | yes |
 | Show log after failure | yes (recovery key redacted); the page shows fisherman's `error` event | log path | log in page | log in page | log tail |
-| Recovery key kept out of log files (#337) | yes (log file scrubbed; dialog and clipboard redacted) | yes (log file and clipboard copy redacted) | yes (install.log and Copy log redacted) | yes (install.log and Copy log redacted) | no (#337) |
+| Recovery key kept out of log files (#337) | yes (log file scrubbed; dialog and clipboard redacted) | yes (log file and clipboard copy redacted) | yes (install.log and Copy log redacted) | yes (install.log and Copy log redacted) | yes (install.log, log pane and failure tail redacted) |
 | Screenshot walkthrough + parity report | yes | yes | yes | yes | yes |
 | End-to-end gate (real install and boot) | yes | yes | yes | yes | yes |
 

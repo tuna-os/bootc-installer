@@ -1,28 +1,21 @@
-# catalog.py
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation at version 3 of the License.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-"""The image catalog as the GNOME frontend reads it.
+"""The image catalog (`images.json`) as the Python frontends read it.
 
 The contract is shared/catalog/README.md: where the catalog is, what a leaf
 inherits, which fields reach the recipe and which image is selected at the
-start. tests/unit/test_gnome_catalog_contract.py reads the contract's
-fixture through this module and the Processor and compares the result with
-shared/catalog/fixtures/expected.json.
+start. tests/unit/test_shared_python_catalog.py reads the contract's fixture
+through this module and compares the result with
+shared/catalog/fixtures/expected.json. shared/catalog/resolve.py stays the
+strict reference that writes that fixture; this module is the reader that
+ships.
 
-No GTK and no network here: the image page, the Processor, the user step
-and the headless tests all import it. A frontend never downloads a Flatpak
-list; a list that is not in the catalog itself is left out of the recipe.
+No GTK and no network here. A frontend never downloads a Flatpak list; a
+list that is not in the catalog itself is left out of the recipe.
+
+The reader is lenient: a catalog is a file from the host, so a node that is
+not an object is skipped, and a field of the wrong type gets its default
+with a warning. A caller that must not go on with a wrong catalog (the
+GNOME Processor, when it has no image page to trust) asks for `strict`, and
+gets a CatalogError.
 """
 
 import json
@@ -32,6 +25,12 @@ import os
 logger = logging.getLogger("Installer::Catalog")
 
 FLATPAK_INFO = "/.flatpak-info"
+
+# A catalog file that is tried before each other place: the override for a
+# test harness or an operator (shared/catalog/README.md, "Where the catalog
+# is"). A capture or an E2E driver sets it so that the test does not read
+# the catalog of the machine.
+OVERRIDE_ENV = "FISHERMAN_IMAGES_PATH"
 
 # Catalog key -> the value a leaf has when neither it nor a parent sets it.
 # `needs_user_creation` is True: an install with no account and no
@@ -57,6 +56,10 @@ INHERITED = {
 EXTRAS = ("printServices", "oemSetup", "audioNames", "bootSplash")
 
 
+class CatalogError(ValueError):
+    """A catalog that a strict caller must not use."""
+
+
 # ── Where the catalog is ─────────────────────────────────────────────────────
 
 def in_flatpak() -> bool:
@@ -65,7 +68,7 @@ def in_flatpak() -> bool:
 
 def search_paths(flatpak: bool, xdg_config_home: str) -> list:
     """The catalog files, in the order they are tried. The package's own
-    catalog comes after them (the caller has it, as a GResource).
+    catalog comes after them (the caller has it).
 
     The system file is first: an ISO that ships a catalog must get that
     catalog, and a file in a home directory must not replace it.
@@ -78,12 +81,15 @@ def search_paths(flatpak: bool, xdg_config_home: str) -> list:
     ]
 
 
-def default_search_paths(environ=None, home=None) -> list:
-    """`search_paths` for this process."""
+def default_search_paths(environ=None, home=None, flatpak=None) -> list:
+    """`search_paths` for this process, with the OVERRIDE_ENV file first
+    when the variable names one."""
     environ = os.environ if environ is None else environ
     home = home or os.path.expanduser("~")
     xdg = environ.get("XDG_CONFIG_HOME") or os.path.join(home, ".config")
-    return search_paths(in_flatpak(), xdg)
+    override = environ.get(OVERRIDE_ENV, "")
+    paths = search_paths(in_flatpak() if flatpak is None else flatpak, xdg)
+    return ([override] if override else []) + paths
 
 
 def is_catalog(value) -> bool:
@@ -111,7 +117,7 @@ def load_first(paths):
     """(catalog, path) for the first path that holds a catalog, else
     (None, None)."""
     for path in paths:
-        catalog = load(path)
+        catalog = load(path) if path else None
         if catalog is not None:
             return catalog, path
     return None, None
@@ -136,18 +142,23 @@ def resolve_flatpaks(value, aliases=None):
 
 # ── Desktop extras ───────────────────────────────────────────────────────────
 
-def resolve_extras(value):
+def resolve_extras(value, strict=False):
     """The recipe's `extras` object for a catalog `extras` value, or None.
 
     The value is the object of the nearest node that has one: objects are
     not merged, and a switch that the object leaves out is off. `{}` turns
     the four off. None (no node has the object, or the value is not an
     object of booleans) means: leave `extras` out of the recipe, and
-    fisherman looks the image up in the catalog that it finds.
+    fisherman looks the image up in the catalog that it finds. With
+    `strict`, a value that is set and is not an object of booleans is a
+    CatalogError.
     """
-    if not isinstance(value, dict):
+    if value is None:
         return None
-    if not all(isinstance(value.get(key, False), bool) for key in EXTRAS):
+    if not isinstance(value, dict) or not all(
+            isinstance(value.get(key, False), bool) for key in EXTRAS):
+        if strict:
+            raise CatalogError("images.json: `extras` must be an object of true or false switches")
         logger.warning("images.json: `extras` has a switch that is not true or false; "
                        "it is not used")
         return None
@@ -157,8 +168,9 @@ def resolve_extras(value):
 # ── Leaves ───────────────────────────────────────────────────────────────────
 
 def pretty_from_imgref(imgref: str) -> str:
-    """'registry.example/os/atlas-dx:latest' -> 'Atlas DX'."""
-    if not isinstance(imgref, str) or "/" not in imgref:
+    """'registry.example/os/atlas-dx:latest' -> 'Atlas DX'. A reference
+    with no registry ('atlas-dx:latest') gives the same name."""
+    if not isinstance(imgref, str):
         return imgref
     slug = imgref.rsplit("/", 1)[-1].split("@", 1)[0].split(":", 1)[0]
     parts = [part for part in slug.replace("_", "-").split("-") if part]
@@ -182,10 +194,10 @@ def default_filesystem(filesystem, filesystems) -> str:
     return filesystems[0] if filesystems else ""
 
 
-def _typed(context: dict) -> dict:
+def _typed(context: dict, strict=False) -> dict:
     """`context` with each value of the wrong type replaced by its default.
     A catalog is a file from the host: a wrong type must not reach a
-    widget or the recipe."""
+    widget or the recipe. With `strict` a wrong type is a CatalogError."""
     clean = dict(context)
     for key, default in INHERITED.items():
         value = clean.get(key, default)
@@ -198,14 +210,21 @@ def _typed(context: dict) -> dict:
         else:
             ok = isinstance(value, str)
         if not ok:
+            if strict:
+                raise CatalogError(f"images.json: `{key}` has the wrong type")
             logger.warning("images.json: `%s` has the wrong type; the default is used", key)
             clean[key] = list(default) if isinstance(default, list) else default
     return clean
 
 
-def _leaf(node, context, product, owns_registry, aliases, path):
-    name = node.get("name", "")
-    name = name.strip() if isinstance(name, str) else ""
+def _text(node, key) -> str:
+    value = node.get(key, "")
+    return value if isinstance(value, str) else ""
+
+
+def _leaf(node, context, product, owns_registry, aliases, path, strict=False):
+    name = _text(node, "name").strip()
+    context = _typed(context, strict)
     own = node.get("imgref")
     if own:
         imgref, channel = own, ""
@@ -215,7 +234,6 @@ def _leaf(node, context, product, owns_registry, aliases, path):
         # A tag leaf that sets its own registry is its own product.
         channel = "" if owns_registry else name
         product = product or pretty_from_imgref(imgref)
-    context = _typed(context)
     return {
         "imgref": imgref,
         "name": name,
@@ -234,8 +252,58 @@ def _leaf(node, context, product, owns_registry, aliases, path):
         "flatpak_var_path": context["flatpak_var_path"],
         "needs_user_creation": context["needs_user_creation"],
         "image_type": context["image_type"],
-        "extras": resolve_extras(context["extras"]),
+        "extras": resolve_extras(context["extras"], strict),
     }
+
+
+def _visit(images, aliases, strict):
+    """Yield (node, imgref, nvidia_imgref, build) for each installable
+    leaf, in catalog order. build() makes the leaf; a search that wants one
+    leaf thus pays for one, and a strict search judges only the types of
+    that one."""
+    aliases = aliases if isinstance(aliases, dict) else {}
+
+    def visit(nodes, inherited, product, path):
+        if not isinstance(nodes, list):
+            if strict:
+                raise CatalogError("Image metadata must be a list")
+            return
+        for node in nodes:
+            if not isinstance(node, dict):
+                if strict:
+                    raise CatalogError("Image metadata entry must be an object")
+                continue
+            context = dict(inherited)
+            for key in INHERITED:
+                # false, "" and [] are values and stop the search.
+                if key in node and node[key] is not None:
+                    context[key] = node[key]
+            name = _text(node, "name")
+            here = path + [name] if name else path
+            # The product is the name of the nearest node that sets a
+            # registry: the name of a tag leaf is a channel ("Stable").
+            owns_registry = bool(node.get("registry"))
+            node_product = name.strip() if owns_registry else product
+            registry = context["registry"] if isinstance(context["registry"], str) else ""
+            own = node.get("imgref")
+            if (own and isinstance(own, str)) or ("tag" in node and registry):
+                imgref = own or f"{registry}:{node['tag']}"
+                nvidia = context["nvidia_imgref"]
+
+                def build(node=node, context=context, node_product=node_product,
+                          owns_registry=owns_registry, here=here):
+                    return _leaf(node, context, node_product, owns_registry, aliases,
+                                 here, strict)
+                yield node, imgref, nvidia if isinstance(nvidia, str) else "", build
+                continue
+            if "tag" in node:
+                logger.warning("images.json: node %r has `tag` and no `registry` in scope",
+                               node.get("name"))
+                continue
+            if "children" in node:
+                yield from visit(node["children"], context, node_product, here)
+
+    yield from visit(images, dict(INHERITED), "", [])
 
 
 def walk(images, aliases=None):
@@ -247,36 +315,8 @@ def walk(images, aliases=None):
     then its parent, and so on. `false`, "" and [] are values and stop the
     search. A node with `tag` and no registry in scope is not a leaf.
     """
-    aliases = aliases if isinstance(aliases, dict) else {}
-
-    def visit(nodes, inherited, product, path):
-        if not isinstance(nodes, list):
-            return
-        for node in nodes:
-            if not isinstance(node, dict):
-                continue
-            context = dict(inherited)
-            for key in INHERITED:
-                if key in node and node[key] is not None:
-                    context[key] = node[key]
-            name = node.get("name", "")
-            name = name if isinstance(name, str) else ""
-            here = path + [name] if name else path
-            # The product is the name of the nearest node that sets a
-            # registry: the name of a tag leaf is a channel ("Stable").
-            owns_registry = bool(node.get("registry"))
-            node_product = name.strip() if owns_registry else product
-            registry = context["registry"] if isinstance(context["registry"], str) else ""
-            if node.get("imgref") or ("tag" in node and registry):
-                yield node, _leaf(node, context, node_product, owns_registry, aliases, here)
-                continue
-            if "tag" in node:
-                logger.warning("images.json: node %r has `tag` and no `registry` in scope",
-                               node.get("name"))
-                continue
-            yield from visit(node.get("children", []), context, node_product, here)
-
-    yield from visit(images, dict(INHERITED), "", [])
+    for node, _imgref, _nvidia, build in _visit(images, aliases, False):
+        yield node, build()
 
 
 def leaves(catalog) -> list:
@@ -286,14 +326,26 @@ def leaves(catalog) -> list:
     return [leaf for _node, leaf in walk(catalog.get("images", []), catalog.get("aliases"))]
 
 
-def find(catalog, imgref):
-    """The leaf for `imgref`, or None."""
-    if not imgref:
+def find(catalog, imgref, strict=False):
+    """The leaf for `imgref`, or None.
+
+    The NVIDIA image of a leaf is that leaf: a leaf whose own reference is
+    `imgref` wins, then the first leaf whose `nvidia_imgref` is `imgref`.
+
+    With `strict`, a tree that is not lists of objects, or a wrong type in
+    the leaf that is found, is a CatalogError: the caller must not go on
+    with a default in place of what the catalog tried to say.
+    """
+    if not imgref or not isinstance(catalog, dict):
         return None
-    for leaf in leaves(catalog):
-        if leaf["imgref"] == imgref:
-            return leaf
-    return None
+    variant = None
+    for _node, reference, nvidia, build in _visit(catalog.get("images", []),
+                                                  catalog.get("aliases"), strict):
+        if reference == imgref:
+            return build()
+        if variant is None and nvidia == imgref:
+            variant = build
+    return variant() if variant else None
 
 
 # ── Selection and the account ────────────────────────────────────────────────
@@ -337,54 +389,3 @@ def source_and_target(imgref, nvidia_imgref, has_nvidia=False, is_live=False,
     if is_live and nvidia_imgref in offline_images and imgref not in offline_images:
         return nvidia_imgref, imgref
     return imgref, imgref
-
-
-# ── What the image page hands to the other steps ─────────────────────────────
-
-def leaf_finals(leaf: dict, icon=None, carousel=None) -> dict:
-    """The image step's finals for a selected leaf.
-
-    `flatpaks` is there only when the catalog has the list itself: without
-    the key the Processor writes no `flatpaks`, and fisherman applies its
-    default. `extras` follows the same rule. `image_filesystem` is the image's one filesystem; it is empty
-    when the leaf offers a choice, and the disk page then decides.
-    """
-    choices = leaf["filesystems"]
-    finals = {
-        "selected_image": leaf["imgref"],
-        "pretty_name": leaf["product"] or pretty_from_imgref(leaf["imgref"]),
-        "nvidia_imgref": leaf["nvidia_imgref"],
-        "flatpak_var_path": leaf["flatpak_var_path"],
-        "carousel": carousel,
-        "needs_user_creation": leaf["needs_user_creation"],
-        "composefs_backend": leaf["composefs"],
-        "image_type": leaf["image_type"],
-        "bootloader": leaf["bootloader"],
-        "image_filesystem": leaf["filesystem"] if len(choices) <= 1 else "",
-        "default_filesystem": leaf["filesystem"],
-        "icon": icon,
-        "default_hostname": leaf["default_hostname"],
-        "supported_filesystems": list(choices),
-    }
-    if leaf["flatpaks"] is not None:
-        finals["flatpaks"] = list(leaf["flatpaks"])
-    if leaf["extras"] is not None:
-        finals["extras"] = dict(leaf["extras"])
-    return finals
-
-
-def custom_image_finals(imgref: str) -> dict:
-    """The image step's finals for an image the user typed. It is not in
-    the catalog, so the installer creates an account, and no Flatpak list
-    is written."""
-    return {
-        "custom_image": imgref,
-        "pretty_name": pretty_from_imgref(imgref),
-        "carousel": None,
-        "needs_user_creation": True,
-        "composefs_backend": False,
-        "image_type": "bootc",
-        "bootloader": "",
-        "image_filesystem": "",
-        "icon": None,
-    }

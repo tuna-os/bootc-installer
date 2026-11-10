@@ -95,8 +95,7 @@ class TestFishermanArgvDirect(unittest.TestCase):
         argv = self._argv(in_flatpak=False, live=True)
         self.assertEqual(argv[0], "bash")
         script = self._script(argv)
-        self.assertIn("sudo", script)
-        self.assertIn("/usr/local/bin/fisherman", script)
+        self.assertTrue(script.startswith("sudo -n /usr/local/bin/fisherman - "), script)
 
     def test_an_installed_host_uses_pkexec(self):
         """An installed bootc desktop is not live media, whatever
