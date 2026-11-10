@@ -333,6 +333,47 @@ class TestBuildRecipe:
         assert json.loads(core.recipe_stdin(built)) == built
 
 
+# ─── "install this system": the live image's layout ────────────────────────
+
+class TestLiveSystem:
+    # What tunaOS customize-live.sh wrote to grouper:xfce's live media
+    # (ghcr.io/tuna-os/live-overlay:grouper-xfce, 2026-11-10), less branding.
+    GROUPER = {"imgref": "ghcr.io/tuna-os/grouper:xfce", "bootloader": "systemd",
+               "composeFsBackend": True, "filesystem": "ext4"}
+
+    def test_reads_the_operator_recipe_backend(self, tmp_path):
+        path = tmp_path / "recipe.json"
+        path.write_text(json.dumps(self.GROUPER))
+        live = core.live_system(str(path))
+        assert (live.bootloader, live.composefs, live.filesystem) == ("systemd", True, "ext4")
+        assert live.filesystems == ["ext4"]
+        assert live.imgref == ""
+
+    def test_reaches_the_recipe(self):
+        """grouper's install failed "bootupd is required for ostree-based
+        installs" because this recipe had no composeFsBackend (#343)."""
+        live = core.LiveSystem(self.GROUPER)
+        r = core.build_recipe(disk="/dev/vda", filesystem=live.filesystem,
+                              bootloader=live.bootloader, composefs=live.composefs)
+        assert r["image"] == ""
+        assert r["bootloader"] == "systemd"
+        assert r["composeFsBackend"] is True
+        assert r["filesystem"] == "ext4"
+
+    def test_no_file_leaves_it_to_fisherman(self, tmp_path):
+        live = core.live_system(str(tmp_path / "absent.json"))
+        assert (live.bootloader, live.composefs) == ("", False)
+        assert (live.filesystem, live.filesystems) == ("", [])
+        r = core.build_recipe(disk="/dev/vda", filesystem="xfs",
+                              bootloader=live.bootloader, composefs=live.composefs)
+        assert "bootloader" not in r and "composeFsBackend" not in r
+
+    def test_wrong_types_are_ignored(self):
+        live = core.LiveSystem({"bootloader": 1, "composeFsBackend": "true",
+                                "filesystem": ["ext4"]})
+        assert (live.bootloader, live.composefs, live.filesystem) == ("", False, "")
+
+
 # ─── fisherman invocation: the recipe on stdin ──────────────────────────────
 
 class TestFisherman:
