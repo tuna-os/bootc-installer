@@ -29,6 +29,12 @@ struct Recipe {
     // and for the type only when it is not "bootc".
     QString flatpakVarPath;
     QString imageType;
+    // The catalog leaf's `extras`: the desktop steps fisherman does after
+    // the install. Not set: no key, and fisherman looks the image up in the
+    // catalog that it finds (a staged fisherman has none). Set: the four
+    // switches, as the leaf has them.
+    bool extrasSet = false;
+    QJsonObject extras;
     // Offline OCI stores. Left empty (so absent), fisherman exposes the
     // stores it finds on the host; the wizard never fills it.
     QStringList additionalImageStores;

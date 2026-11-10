@@ -99,9 +99,47 @@ type CatalogLeaf struct {
 	FlatpakVarPath    string          `json:"flatpak_var_path"`
 	NeedsUserCreation bool            `json:"needs_user_creation"`
 	ImageType         string          `json:"image_type"`
+	Extras            *Extras         `json:"extras"` // null: leave the recipe key out
 	Carousel          []CarouselSlide `json:"carousel"`
 	// Recipe is recipeFragment for the machine `catalog` ran on.
 	Recipe map[string]any `json:"recipe"`
+}
+
+// Extras is the catalog's `extras` object and the recipe's: the desktop
+// steps fisherman does after the install (shared/catalog/README.md, "Desktop
+// extras"). Each switch is written, so `{}` in a catalog is four times false
+// and is not the same as no object.
+type Extras struct {
+	PrintServices bool `json:"printServices"`
+	OEMSetup      bool `json:"oemSetup"`
+	AudioNames    bool `json:"audioNames"`
+	BootSplash    bool `json:"bootSplash"`
+}
+
+// parseExtras reads a node's `extras`. Only the four switches are read: a
+// key that fisherman does not know must not reach the recipe. An object
+// with a switch that is not a boolean is not used.
+func parseExtras(v any) (*Extras, bool) {
+	object, ok := v.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	var extras Extras
+	for key, into := range map[string]*bool{
+		"printServices": &extras.PrintServices, "oemSetup": &extras.OEMSetup,
+		"audioNames": &extras.AudioNames, "bootSplash": &extras.BootSplash,
+	} {
+		value, present := object[key]
+		if !present {
+			continue
+		}
+		on, isBool := value.(bool)
+		if !isBool {
+			return nil, false
+		}
+		*into = on
+	}
+	return &extras, true
 }
 
 // CarouselSlide is one tour slide from a leaf's "carousel" list. Keys beyond
@@ -135,6 +173,7 @@ type catalogContext struct {
 	flatpakVarPath  string
 	needsUser       bool
 	imageType       string
+	extras          *Extras // nil: no node set it
 	carousel        []any
 	desc            string
 }
@@ -191,6 +230,10 @@ func (c catalogContext) inherit(node map[string]any) catalogContext {
 	}
 	if list, ok := node["carousel"].([]any); ok {
 		c.carousel = list
+	}
+	// The nearest object replaces the parent's whole: no merge.
+	if v, ok := node["extras"]; ok && v != nil {
+		c.extras, _ = parseExtras(v)
 	}
 	return c
 }
@@ -329,6 +372,7 @@ func makeLeaf(node map[string]any, ctx catalogContext, product string, ownsRegis
 		FlatpakVarPath:    ctx.flatpakVarPath,
 		NeedsUserCreation: ctx.needsUser,
 		ImageType:         ctx.imageType,
+		Extras:            ctx.extras,
 		Carousel:          parseCarousel(ctx.carousel),
 	}
 }
@@ -476,7 +520,8 @@ func sourceAndTarget(leaf CatalogLeaf, m Machine) (image, target string) {
 // recipeFragment is the recipe keys the wizard writes for a leaf before the
 // user changes anything. A key that is not in the map must not be in the
 // recipe: no `flatpaks` when the list cannot be read offline, no
-// `flatpakVarPath` when it is empty, no `imageType` for bootc.
+// `flatpakVarPath` when it is empty, no `imageType` for bootc, no `extras`
+// when no node of the catalog has the object.
 func recipeFragment(leaf CatalogLeaf, m Machine) map[string]any {
 	image, target := sourceAndTarget(leaf, m)
 	recipe := map[string]any{
@@ -496,6 +541,9 @@ func recipeFragment(leaf CatalogLeaf, m Machine) map[string]any {
 	}
 	if leaf.ImageType != "bootc" {
 		recipe["imageType"] = leaf.ImageType
+	}
+	if leaf.Extras != nil {
+		recipe["extras"] = *leaf.Extras
 	}
 	return recipe
 }

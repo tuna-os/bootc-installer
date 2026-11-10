@@ -58,7 +58,8 @@ func TestRecipeStructListsEverySchemaProperty(t *testing.T) {
 	if got := jsonKeys(Recipe{}); !reflect.DeepEqual(got, want) {
 		t.Errorf("Recipe keys\n got %v\nwant %v", got, want)
 	}
-	for field, sample := range map[string]any{"user": User{}, "encryption": Encryption{}} {
+	for field, sample := range map[string]any{"user": User{}, "encryption": Encryption{},
+		"keyboard": Keyboard{}, "extras": Extras{}} {
 		sub, _ := properties[field]["properties"].(map[string]any)
 		want := []string{}
 		for key := range sub {
@@ -90,7 +91,13 @@ func TestRecipeRoundTripKeepsEveryKey(t *testing.T) {
 		"slurpWallpapers": true,
 		"slurp": {"sourcePartition": "/dev/vda3", "users": ["jo"]},
 		"targetMount": "/mnt/t", "luksMapperName": "m", "brewTap": "owner/tap",
-		"override": ["too_small"]
+		"override": ["too_small"],
+		"extras": {"printServices": true, "oemSetup": false, "audioNames": true, "bootSplash": false},
+		"experimental": ["zfs"],
+		"locale": "de_DE.UTF-8",
+		"keyboard": {"layout": "de", "variant": "nodeadkeys", "model": "pc105"},
+		"timezone": "Europe/Berlin",
+		"copyNetworkProfiles": false, "copyBluetoothPairings": true, "setBootNext": false
 	}`
 	var want map[string]any
 	if err := json.Unmarshal([]byte(full), &want); err != nil {
@@ -140,6 +147,21 @@ func TestRecipeKeepsAnEmptyFlatpakListApartFromNone(t *testing.T) {
 	if _, ok := none["flatpaks"]; ok {
 		t.Errorf("a recipe with no flatpaks gained %#v", none["flatpaks"])
 	}
+	// The same for the keys whose absence lets fisherman decide: `extras`
+	// (its catalog lookup), and the three that follow live media.
+	for _, key := range []string{"extras", "copyNetworkProfiles", "copyBluetoothPairings",
+		"setBootNext", "keyboard", "locale", "timezone", "experimental"} {
+		if _, ok := none[key]; ok {
+			t.Errorf("a recipe with no %s gained %#v", key, none[key])
+		}
+	}
+	off := encode(`{"disk":"/dev/vda","hostname":"h","extras":{},"setBootNext":false}`)
+	if extras, ok := off["extras"].(map[string]any); !ok || len(extras) != 4 || extras["bootSplash"] != false {
+		t.Errorf("extras: {} came out as %#v", off["extras"])
+	}
+	if off["setBootNext"] != false {
+		t.Errorf("setBootNext: false came out as %#v", off["setBootNext"])
+	}
 }
 
 // A key the struct does not list is an error, at the top and in the blocks
@@ -149,6 +171,8 @@ func TestDecodeRecipeFailsOnAnUnknownKey(t *testing.T) {
 		`{"disk":"/dev/vda","hostname":"h","notARecipeKey":"x"}`,
 		`{"disk":"/dev/vda","hostname":"h","user":{"username":"jo","shell":"/bin/zsh"}}`,
 		`{"disk":"/dev/vda","hostname":"h","encryption":{"type":"none","cipher":"x"}}`,
+		`{"disk":"/dev/vda","hostname":"h","extras":{"desktopIcons":true}}`,
+		`{"disk":"/dev/vda","hostname":"h","keyboard":{"layout":"de","options":"x"}}`,
 		`{"disk":"/dev/vda","hostname":"h"} {"disk":"/dev/vdb"}`,
 	} {
 		if _, err := decodeRecipe([]byte(in)); err == nil {

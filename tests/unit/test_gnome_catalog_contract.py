@@ -191,7 +191,7 @@ def test_the_processor_finds_metadata_through_the_shared_reader():
                                     "r.example/os/atlas:stable")
     assert found == {"composefs": True, "image_type": "bootc", "bootloader": "systemd",
                      "filesystem": "ext4", "flatpak_var_path": "",
-                     "flatpaks": ["org.example.A"]}
+                     "flatpaks": ["org.example.A"], "extras": None}
     # A choice of filesystems is the user's: the image forces none.
     nested[0]["filesystems"] = ["ext4", "btrfs"]
     assert Processor.find_metadata(nested, {}, "r.example/os/atlas:stable")["filesystem"] == ""
@@ -206,3 +206,34 @@ def test_the_processor_finds_metadata_through_the_shared_reader():
     for broken in ([None], [{"children": None}], None):
         with pytest.raises(ValueError):
             Processor.find_metadata(broken, {}, "r/a:1")
+
+
+def test_extras_come_from_the_system_recipe_or_the_host_catalog_on_live_media():
+    """Live media has no image step. The object is then the system recipe's,
+    or the one of the catalog entry of the installed image."""
+    disk = build_disk_finals(build_auto_partition_recipe(_Disk()), "xfs", "host")
+    on = {"printServices": True, "oemSetup": False, "audioNames": True, "bootSplash": True}
+    with patch("bootc_installer.core.system.Systeminfo.has_nvidia_gpu", return_value=False):
+        from_images = Processor.gen_install_recipe("", [disk], {
+            "imgref": "registry.example/os/atlas:stable", "images": CATALOG["images"]})
+        from_recipe = Processor.gen_install_recipe("", [disk], {
+            "imgref": "r/x:1", "extras": {"bootSplash": True, "notAStep": True}})
+        none = Processor.gen_install_recipe("", [disk], {"imgref": "r/x:1"})
+        wrong = Processor.gen_install_recipe("", [disk], {
+            "imgref": "r/x:1", "extras": {"bootSplash": "yes"}})
+    assert from_images["extras"] == on
+    assert from_recipe["extras"] == {"printServices": False, "oemSetup": False,
+                                     "audioNames": False, "bootSplash": True}
+    assert "extras" not in none
+    assert "extras" not in wrong
+
+
+def test_zfs_carries_the_experimental_opt_in():
+    """fisherman refuses filesystem zfs without "experimental": ["zfs"]
+    (zfs_experimental). Only zfs gets the key."""
+    for fs, want in (("zfs", ["zfs"]), ("xfs", None), ("btrfs", None)):
+        disk = build_disk_finals(build_auto_partition_recipe(_Disk()), fs, "host")
+        with patch("bootc_installer.core.system.Systeminfo.has_nvidia_gpu", return_value=False):
+            recipe = Processor.gen_install_recipe("", [disk], {"imgref": "r/x:1"})
+        assert recipe["filesystem"] == fs
+        assert recipe.get("experimental") == want

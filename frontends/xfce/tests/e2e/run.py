@@ -40,6 +40,10 @@ CATALOG = {
         "name": "E2E", "registry": "quay.io/centos-bootc/centos-bootc",
         "desc": "End-to-end canary.", "bootloader": "grub2", "filesystem": "xfs",
         "composefs": False, "needs_user_creation": False,
+        # The desktop steps that each install did before fisherman made
+        # them a choice. check-recipe.py requires them in the recipe.
+        "extras": {"printServices": True, "oemSetup": True,
+                   "audioNames": True, "bootSplash": True},
         "children": [{"name": "CentOS bootc", "tag": "c10s", "subtitle": "canary",
                       "desc": "The image the VM job installs."}],
     }],

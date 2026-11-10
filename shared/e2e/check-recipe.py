@@ -17,7 +17,11 @@ Independent verdicts, all required:
     the recipe creates a user, in wheel, exactly when the image needs one.
     The catalog is `--catalog`, else <e2e dir>/catalog.json, which the
     frontend's driver writes: the catalog it gave the frontend. A driver
-    that does not export one yet is judged by LEGACY_USER_STEP.
+    that does not export one yet is judged by LEGACY_USER_STEP;
+  * the desktop extras follow the same catalog: the recipe has the `extras`
+    object of the leaf it installs, or no key when the leaf has none. The
+    shim has no catalog, as a fisherman that a Flatpak stages has none, so
+    a frontend that drops the object installs a system without the steps.
 The recipe is then copied to e2e-recipe-<frontend>.json for the VM job.
 """
 import importlib.util
@@ -87,6 +91,39 @@ def account_failures(frontend, recipe, catalog):
         return [("user: the catalog says the image needs no account "
                  f"(needs_user_creation is false) and the recipe creates {username!r}")]
     return []
+
+
+def catalog_leaf(recipe, catalog):
+    """The catalog leaf that the recipe installs, or None."""
+    resolver = _catalog_resolver()
+    for ref in (recipe.get("targetImgref"), recipe.get("image")):
+        if not ref:
+            continue
+        leaf = resolver.find(catalog, ref)
+        if leaf is None:
+            leaf = next((candidate for candidate in resolver.leaves(catalog)
+                         if candidate["nvidia_imgref"] == ref), None)
+        if leaf is not None:
+            return leaf
+    return None
+
+
+def extras_failures(recipe, catalog):
+    """Problems with the recipe's `extras` against the catalog contract
+    (shared/catalog/README.md, "Desktop extras"). [] with no catalog, or
+    for an image that the catalog does not have."""
+    if catalog is None:
+        return []
+    leaf = catalog_leaf(recipe, catalog)
+    if leaf is None:
+        return []
+    resolver = _catalog_resolver()
+    if leaf["extras"] is None:
+        if "extras" in recipe:
+            return [f"extras: the catalog leaf has none and the recipe has {recipe['extras']!r}"]
+        return []
+    fragment = {"recipe": {"extras": leaf["extras"]}, "absent": []}
+    return resolver.recipe_matches(recipe, fragment)
 
 
 def load_catalog(explicit=None):
@@ -180,6 +217,10 @@ def main():
         source = "the catalog" if catalog is not None else "the legacy rule for this frontend"
         print(f"account: {'required' if required else 'not wanted'} by {source}")
     failures.extend(account_failures(frontend, recipe, catalog))
+    extras = extras_failures(recipe, catalog)
+    if catalog is not None and not extras:
+        print(f"extras: {recipe.get('extras', 'no key')!r}, as the catalog says")
+    failures.extend(extras)
 
     out = f"e2e-recipe-{frontend}.json"
     shutil.copyfile(path, out)

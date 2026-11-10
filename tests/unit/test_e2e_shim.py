@@ -105,10 +105,14 @@ class TestShimReadsStdin(unittest.TestCase):
             fh.write("#!/bin/sh\n"
                      f'echo "$@" >> {self.tmp}/real-argv\n'
                      f'if [ "$*" != "${{*%-}}" ]; then cat > {self.tmp}/real-stdin; fi\n'
+                     f'if [ -f {self.tmp}/verdict ]; then cat {self.tmp}/verdict; exit 1; fi\n'
                      'case "$*" in *--json*) echo \'{"protocol_version":1,"valid":true,"errors":[]}\';; esac\n'
                      "exit 0\n")
         os.chmod(self.real, 0o755)
-        self.env = dict(os.environ, TUNA_E2E_REAL=self.real, TUNA_E2E_DIR=self.tmp)
+        # The install path needs root, as fisherman's does. This test runs
+        # as the CI user, so it takes the one exemption the shim has.
+        self.env = dict(os.environ, TUNA_E2E_REAL=self.real, TUNA_E2E_DIR=self.tmp,
+                        TUNA_E2E_ALLOW_NONROOT="1")
 
     def tearDown(self):
         import shutil
@@ -128,7 +132,70 @@ class TestShimReadsStdin(unittest.TestCase):
         self.assertIn("recipe received on stdin", out.stdout)
         self.assertIn('"type":"complete"', out.stdout)
         with open(os.path.join(self.tmp, "real-argv")) as fh:
-            self.assertIn(f"validate {self.tmp}/recipe.json", fh.read())
+            self.assertIn(f"validate --json {self.tmp}/recipe.json", fh.read())
+
+    def _events(self, stdout):
+        events = []
+        for line in stdout.splitlines():
+            if line.startswith("{"):
+                events.append(json.loads(line))
+        return events
+
+    def test_a_rejected_recipe_ends_as_fishermans_install_does(self):
+        """One error event with the first problem's code and field, exit 1,
+        no step: fisherman/docs/JSON-PROGRESS-FORMAT.md, "error"."""
+        with open(os.path.join(self.tmp, "verdict"), "w") as fh:
+            json.dump({"protocol_version": 1, "valid": False, "errors": [
+                {"field": "encrypton", "code": "recipe_unknown_field",
+                 "message": "unknown recipe field \"encrypton\""},
+                {"field": "hostname", "code": "hostname_required", "message": "hostname is required"},
+            ]}, fh)
+        out = self.run_shim(["-"], json.dumps({"disk": "/dev/loop0", "encrypton": {}}))
+        self.assertEqual(out.returncode, 1, out.stderr)
+        events = self._events(out.stdout)
+        self.assertEqual([e["type"] for e in events], ["error"])
+        self.assertEqual(events[0]["code"], "recipe_unknown_field")
+        self.assertEqual(events[0]["field"], "encrypton")
+        self.assertTrue(events[0]["message"].startswith("loading recipe: "))
+        self.assertIn("hostname_required", out.stderr)
+
+    def test_a_problem_that_is_not_about_the_recipe_file_is_invalid_recipe(self):
+        with open(os.path.join(self.tmp, "verdict"), "w") as fh:
+            json.dump({"protocol_version": 1, "valid": False, "errors": [
+                {"field": "", "code": "firmware_not_uefi", "message": "not UEFI"}]}, fh)
+        out = self.run_shim(["-"], json.dumps({"disk": "/dev/loop0"}))
+        event = self._events(out.stdout)[0]
+        self.assertEqual(out.returncode, 1)
+        self.assertEqual(event["message"], "invalid recipe: not UEFI")
+        self.assertNotIn("field", event)
+
+    def test_a_run_that_is_not_root_is_refused_before_the_recipe_is_read(self):
+        if os.geteuid() == 0:
+            self.skipTest("this test runs as root, where the install is allowed")
+        env = dict(self.env)
+        del env["TUNA_E2E_ALLOW_NONROOT"]
+        import subprocess
+        out = subprocess.run(["bash", SHIM, "-"], input='{"disk":"/dev/loop0"}', env=env,
+                             capture_output=True, text=True, timeout=60, check=False)
+        self.assertEqual(out.returncode, 1)
+        events = self._events(out.stdout)
+        self.assertEqual([(e["type"], e["code"]) for e in events], [("error", "not_root")])
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "recipe.json")))
+
+    def test_the_stream_has_fishermans_info_lines(self):
+        """`Desktop extras: …` after the recipe loads and the BootNext line
+        before `complete`: info events of the real stream."""
+        recipe = {"disk": "/dev/loop0", "hostname": "e2e", "image": "x",
+                  "extras": {"printServices": True, "bootSplash": True}}
+        events = self._events(self.run_shim(["-"], json.dumps(recipe)).stdout)
+        infos = [e["message"] for e in events if e["type"] == "info"]
+        self.assertEqual(infos[0], "Desktop extras: printServices, bootSplash (from the recipe)")
+        self.assertTrue(infos[-1].startswith("BootNext not set: this host is not live media"))
+        self.assertEqual(events[-1]["type"], "complete")
+        self.assertEqual(events[-2]["type"], "info")
+        del recipe["extras"]
+        events = self._events(self.run_shim(["-"], json.dumps(recipe)).stdout)
+        self.assertTrue(events[0]["message"].startswith("Desktop extras: none (the recipe has no"))
 
     def test_empty_stdin_is_fishermans_error(self):
         out = self.run_shim(["-"], "")

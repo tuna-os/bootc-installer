@@ -368,6 +368,10 @@ def open_network_settings():
 # selection and the NVIDIA table. What is here is this frontend's view of
 # it: objects with attributes, which the pages read.
 resolve_flatpaks = shared_catalog.resolve_flatpaks
+# The desktop extras (shared/catalog/README.md, "Desktop extras"): the
+# leaf's `extras` attribute is the object or None.
+EXTRAS = shared_catalog.EXTRAS
+resolve_extras = shared_catalog.resolve_extras
 
 
 class ImageLeaf:
@@ -558,7 +562,7 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
                  encryption_type="none", passphrase="", image="",
                  target_imgref="", hostname="", bootloader="", composefs=False,
                  flatpaks=None, flatpak_var_path="", image_type="bootc",
-                 needs_user=True, username="", fullname="",
+                 extras=None, needs_user=True, username="", fullname="",
                  password="", groups=None, branding=None):
     """Assemble the fisherman recipe from already-resolved values.
 
@@ -581,6 +585,8 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
       * `flatpaks` is a list or None. `[]` tells fisherman to copy no
         Flatpak; None (a list this frontend cannot read offline, or no
         value) writes no key, and fisherman applies its own default.
+      * `extras` is the leaf's object or None. None writes no key, and
+        fisherman looks the image up in the catalog that it finds.
       * The user block is omitted entirely when the image creates its own
         first user, or when no username was typed. `groups` is
         account_groups(): the shared default or the operator's list.
@@ -599,6 +605,7 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
     }
     if needs_passphrase(encryption_type):
         recipe["encryption"]["passphrase"] = passphrase
+    recipe.update(experimental_for(filesystem))
     if target_imgref:
         recipe["targetImgref"] = target_imgref
     if bootloader:
@@ -611,6 +618,8 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
         recipe["flatpakVarPath"] = flatpak_var_path
     if image_type and image_type != "bootc":
         recipe["imageType"] = image_type
+    if extras is not None:
+        recipe["extras"] = {key: bool(extras.get(key, False)) for key in EXTRAS}
     if needs_user and username:
         recipe["user"] = {
             "username": username,
@@ -619,6 +628,13 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
             "groups": list(DEFAULT_GROUPS if groups is None else groups),
         }
     return recipe
+
+
+def experimental_for(filesystem):
+    """The `experimental` key for a filesystem. fisherman refuses zfs
+    unless the recipe accepts it (no VM test boots ZFS): `zfs_experimental`.
+    The page that picks the filesystem sends it in the same fragment."""
+    return {"experimental": ["zfs"]} if filesystem == "zfs" else {}
 
 
 def recipe_for_leaf(leaf, *, has_nvidia=False, live=False, offline=(), **fields):
@@ -633,7 +649,7 @@ def recipe_for_leaf(leaf, *, has_nvidia=False, live=False, offline=(), **fields)
         image=image, target_imgref=target, bootloader=leaf.bootloader,
         composefs=leaf.composefs, flatpaks=leaf.flatpaks,
         flatpak_var_path=leaf.flatpak_var_path, image_type=leaf.image_type,
-        needs_user=leaf.needs_user_creation, **fields)
+        extras=leaf.extras, needs_user=leaf.needs_user_creation, **fields)
 
 
 def recipe_problems(recipe):

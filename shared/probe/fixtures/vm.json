@@ -65,5 +65,47 @@
   "offline": {
     "stores": [],
     "images": []
+  },
+  "bootc": {
+    "context": "live-host",
+    "found": true,
+    "version": "1.17.1",
+    "capabilities": {
+      "bootc_image_storage": {
+        "status": "unknown",
+        "reason": "not_established"
+      },
+      "container_inspect": {
+        "status": "supported",
+        "reason": "command_present"
+      },
+      "deployment_mount": {
+        "status": "unknown",
+        "reason": "not_established"
+      },
+      "install_finalize": {
+        "status": "supported",
+        "reason": "command_present"
+      },
+      "install_print_configuration": {
+        "status": "supported",
+        "reason": "command_present"
+      },
+      "unified_storage": {
+        "status": "unknown",
+        "reason": "not_established"
+      }
+    }
+  },
+  "gpus": [
+    {
+      "vendor_id": "0x1234",
+      "device_id": "0x1111",
+      "class": "0x030000"
+    }
+  ],
+  "dmi": {
+    "vendor": "QEMU",
+    "product": "Standard PC (Q35 + ICH9, 2009)"
   }
 }

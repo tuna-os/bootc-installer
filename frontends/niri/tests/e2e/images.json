@@ -4,6 +4,7 @@
       "name": "E2E Product",
       "registry": "quay.io/centos-bootc/centos-bootc",
       "filesystem": "xfs",
+      "extras": {"printServices": true, "oemSetup": true, "audioNames": true, "bootSplash": true},
       "children": [
         {"name": "Stream 10", "tag": "c10s"},
         {"name": "Appliance", "tag": "appliance", "needs_user_creation": false}

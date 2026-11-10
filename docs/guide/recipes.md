@@ -7,6 +7,12 @@ Use a hand-written recipe for automation, or to configure a live ISO.
 The JSON schema is in [`shared/recipe/fisherman-recipe.schema.json`](../../shared/recipe/fisherman-recipe.schema.json).
 All five frontends use this schema.
 
+fisherman refuses a recipe that has a key it does not know.
+Thus a typing error in a key stops the install before fisherman changes the disk.
+The error has the code `recipe_unknown_field` and the name of the key.
+`fisherman validate --json recipe.json` gives each problem of a recipe, and it needs no root.
+The install itself must run as root.
+
 ## Examples
 
 ### Bluefin or Bluefin-LTS, XFS, GRUB2, no encryption
@@ -73,7 +79,9 @@ The user fields are empty because Dakota has its own setup at first boot.
   "composeFsBackend": false,
   "bootloader": "grub2",
   "hostname": "bootcos",
-  "flatpaks": ["org.mozilla.firefox", "org.gnome.Console"],
+  "locale": "de_DE.UTF-8",
+  "keyboard": { "layout": "de", "variant": "nodeadkeys" },
+  "timezone": "Europe/Berlin",
   "user": {
     "username": "tuna",
     "fullname": "Tuna User",
@@ -110,7 +118,8 @@ The user fields are empty because Dakota has its own setup at first boot.
 | Field | Type | Description |
 |---|---|---|
 | `disk` | string | The block device for the install, for example `"/dev/sda"`. fisherman erases this disk. |
-| `filesystem` | string | The root file system: `"xfs"` or `"btrfs"`. |
+| `filesystem` | string | The root file system: `"xfs"`, `"ext4"`, `"btrfs"` or `"zfs"`. `"zfs"` is experimental and needs `experimental`. |
+| `experimental` | array | The experimental features that you accept. The only value is `"zfs"`. No VM test installs ZFS and starts the result. |
 | `btrfsSubvolumes` | bool | Make the `@`, `@home` and `@snapshots` subvolumes. Only for btrfs. |
 | `encryption.type` | string | `"none"`, `"luks-passphrase"`, `"tpm2-luks"` or `"tpm2-luks-passphrase"`. |
 | `encryption.passphrase` | string | Necessary for `luks-passphrase` and `tpm2-luks-passphrase`. |
@@ -121,7 +130,15 @@ The user fields are empty because Dakota has its own setup at first boot.
 | `composeFsBackend` | bool | Give `--composefs-backend` to bootc. Images that use composefs, for example Dakota, need it. |
 | `bootloader` | string | `"grub2"` (the default) or `"systemd"` for systemd-boot images. |
 | `hostname` | string | The hostname of the new OS. |
-| `flatpaks` | array | The Flatpak app IDs to copy from the live system to the new OS. |
+| `flatpaks` | array | Controls the copy of the system Flatpaks of the host to the new OS. No key: fisherman copies them. `[]`: fisherman copies none. A list with entries: fisherman copies all of them, not only the entries, and downloads nothing. |
+| `extras` | object | The desktop steps after the install: `printServices`, `oemSetup`, `audioNames` and `bootSplash`. Each is `true` or `false`. No key: fisherman uses the entry of the image in the catalog on the host. An image that is not in a catalog gets no step. |
+| `locale` | string | The system locale, for example `"de_DE.UTF-8"`. No key: the locale of the image stays. |
+| `keyboard` | object | The keyboard: `layout` (necessary, for example `"de"`), `variant` and `model`. They are XKB names. On an encrypted disk, the passphrase prompt uses this layout. No key: the keyboard of the image stays. |
+| `timezone` | string | The time zone, for example `"Europe/Berlin"`. No key: the time zone of the image stays. |
+| `setBootNext` | bool | Set the firmware to start the new OS at the next boot. No key: fisherman does it only on live media. |
+| `copyNetworkProfiles` | bool | Copy the network profiles of the host, with their passwords, to the new OS. No key: fisherman does it only on live media. |
+| `copyBluetoothPairings` | bool | Copy the Bluetooth pairings of the host to the new OS. No key: fisherman does it only on live media. |
+| `override` | array | The disk checks that you accept as failed: `"too_small"` (the disk is smaller than 50 GiB) and `"uefi"` (the computer did not start through UEFI). |
 | `user.username` | string | The user to make. If it is empty, fisherman makes no user. |
 | `user.fullname` | string | The full name of the user. |
 | `user.password` | string | The password as plain text. fisherman makes a hash of it during the install. |

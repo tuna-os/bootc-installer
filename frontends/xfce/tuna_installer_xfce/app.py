@@ -264,11 +264,17 @@ class InstallerWindow(Gtk.ApplicationWindow):
         )
         if leaf is None:
             # "Install this system": an empty image, which fisherman accepts
-            # on live media only, laid out as the live image needs.
+            # on live media only, laid out as the live image needs. The
+            # desktop extras are those of the catalog leaf that the live
+            # image names: a staged fisherman has no catalog to look it up in.
+            source = self.pages["source"]
+            catalog = getattr(source, "catalog", None)
+            live_leaf = catalog.find(getattr(source, "live_image", "")) if catalog else None
             return core.build_recipe(
                 needs_user=self.needs_user_creation(),
                 bootloader=layout.bootloader if layout else "",
-                composefs=layout.composefs if layout else False, **fields)
+                composefs=layout.composefs if layout else False,
+                extras=live_leaf.extras if live_leaf else None, **fields)
         source = self.pages["source"]
         return core.recipe_for_leaf(
             leaf, has_nvidia=core.has_nvidia_gpu(), live=bool(source.live),
@@ -430,11 +436,13 @@ class InstallerWindow(Gtk.ApplicationWindow):
         self._install_log.flush()
         pid, out, err = spawn_fisherman(argv, core.recipe_stdin(recipe))
         self._install_pid = pid
+        self._install_channels = []
         for fd in (out, err):
             channel = GLib.IOChannel.unix_new(fd)
             channel.set_flags(GLib.IOFlags.NONBLOCK)
             GLib.io_add_watch(channel, GLib.IO_IN | GLib.IO_HUP,
                               self._on_output, progress_page)
+            self._install_channels.append((channel, progress_page))
         GLib.child_watch_add(pid, self._on_exit)
 
     def _start_dry_run(self, progress_page):
@@ -455,28 +463,51 @@ class InstallerWindow(Gtk.ApplicationWindow):
 
         self._dry_run_source = GLib.timeout_add(400, pump)
 
+    def _read_lines(self, channel, page):
+        """Take each complete line that the channel has now (the exit
+        handler: fisherman can exit before the watch reads its last lines)."""
+        while True:
+            try:
+                status, text, _length, _term = channel.read_line()
+            except GLib.Error:
+                return
+            if status != GLib.IOStatus.NORMAL or not text:
+                return
+            InstallerWindow._log_line(self, text, page)
+
+    def _log_line(self, text, page):
+        """One line of fisherman's output. The file and the tail that a
+        failed install shows get the line without the recovery key (#337).
+        The page gets the line as fisherman wrote it: it reads the key from
+        the event, for the recovery-key page. Called through the class, so
+        a test window with only the log attributes can drive it."""
+        clean = text
+        if self._install_log:
+            clean = self._install_log.write(text)
+            self._install_log.flush()
+        self._log_tail = (self._log_tail + [clean])[-15:]
+        page.append_log(text)
+
     def _on_output(self, channel, cond, page):
         if cond & GLib.IO_IN:
             _status, text, _length, _term = channel.read_line()
             if text:
-                # The file and the tail that a failed install shows get the
-                # line without the recovery key (#337). The page gets the
-                # line as fisherman wrote it: it reads the key from the
-                # event, for the recovery-key page.
-                clean = text
-                if self._install_log:
-                    clean = self._install_log.write(text)
-                    self._install_log.flush()
-                self._log_tail = (self._log_tail + [clean])[-15:]
-                page.append_log(text)
+                InstallerWindow._log_line(self, text, page)
         return not (cond & GLib.IO_HUP)
 
     def _on_exit(self, pid, status, *_args):
         GLib.spawn_close_pid(pid)
         self._install_pid = None
+        channels, self._install_channels = getattr(self, "_install_channels", []), []
         if self._closing:
             # The user confirmed quitting mid-install; the window is gone.
             return
+        # fisherman writes its last lines (the BootNext line, `complete`)
+        # and exits at once. The exit can get here before the watch has read
+        # them: read what is left, so that the log and the bar have the end
+        # of the stream.
+        for channel, page in channels:
+            self._read_lines(channel, page)
         code = os.WEXITSTATUS(status) if os.WIFEXITED(status) else None
         ok = code == 0
         # fisherman exits 130 when it is cancelled. After a cancel the

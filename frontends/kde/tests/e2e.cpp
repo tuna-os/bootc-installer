@@ -60,6 +60,7 @@ int main(int argc, char *argv[])
      "needs_user_creation": false},
     {"name": "CentOS bootc", "registry": "quay.io/centos-bootc/centos-bootc",
      "bootloader": "grub2", "filesystem": "xfs", "needs_user_creation": true,
+     "extras": {"printServices": true, "oemSetup": true, "audioNames": true, "bootSplash": true},
      "flatpaks": [],
      "children": [{"name": "Stream 10", "tag": "c10s"}]}
   ]

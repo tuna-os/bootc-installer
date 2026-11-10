@@ -49,6 +49,20 @@ case "${1:-}" in
     ;;
 esac
 
+now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+
+# An install needs root from its first line. The real fisherman refuses a
+# run that is not root before it reads the recipe, with the code `not_root`
+# (fisherman/docs/JSON-PROGRESS-FORMAT.md, "error"). A frontend that starts
+# fisherman without pkexec or sudo gets the same answer here, and the recipe
+# is not kept. TUNA_E2E_ALLOW_NONROOT is for tests/unit/test_e2e_shim.py
+# only: sudo and pkexec reset the environment, so no frontend can set it.
+if [ "$(id -u)" != 0 ] && [ -z "${TUNA_E2E_ALLOW_NONROOT:-}" ]; then
+  printf '{"code":"not_root","elapsed_ms":0,"message":"cannot install: fisherman must run as root to install (run it through pkexec or sudo); `fisherman validate` and `fisherman probe` need no root","timestamp":"%s","type":"error"}\n' "$(now)"
+  echo "[e2e] refused: the install did not run as root" >&2
+  exit 1
+fi
+
 mkdir -p "$DIR"
 # Keep the recipe exactly as the frontend wrote it. Every frontend now pipes
 # it on stdin (`fisherman -`, tuna-os/fisherman#276) and writes no file; a
@@ -70,15 +84,65 @@ if [ ! -s "$RECIPE" ]; then
   exit 1
 fi
 
-if ! "$REAL" validate "$RECIPE"; then
+# The rules that the install runs before it touches a disk, from the real
+# fisherman: unknown keys, target eligibility and each field rule
+# (fisherman/docs/VALIDATE.md). An invalid recipe ends as the real install
+# ends: one `error` event with the first problem's `code` and `field`, and
+# exit 1. Each problem also goes to stderr for the job log.
+VERDICT=$("$REAL" validate --json "$RECIPE")
+VALIDATE_RC=$?
+if ! python3 - "$VALIDATE_RC" "$VERDICT" <<'PY'
+import datetime
+import json
+import sys
+
+rc, raw = int(sys.argv[1]), sys.argv[2]
+try:
+    verdict = json.loads(raw)
+except ValueError:
+    verdict = None
+if rc == 0 and isinstance(verdict, dict) and verdict.get("valid") is True:
+    sys.exit(0)
+problems = (verdict or {}).get("errors") or [
+    {"field": "", "code": "", "message": f"fisherman validate --json exited {rc}: {raw.strip()}"}]
+for problem in problems:
+    print(f"[e2e] fisherman: {problem.get('field') or '<recipe>'}: "
+          f"{problem.get('code')}: {problem.get('message')}", file=sys.stderr)
+first = problems[0]
+prefix = "loading recipe" if first.get("code", "").startswith("recipe_") else "invalid recipe"
+event = {"type": "error", "message": f"{prefix}: {first.get('message', '')}", "elapsed_ms": 0,
+         "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+if first.get("code"):
+    event["code"] = first["code"]
+if first.get("field"):
+    event["field"] = first["field"]
+print(json.dumps(event, sort_keys=True))
+sys.exit(1)
+PY
+then
   echo "[e2e] the real fisherman rejected this recipe" >&2
-  exit 3
+  exit 1
 fi
 echo "[e2e] fisherman validate: ok"
 
 DISK=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["disk"])' "$RECIPE")
 IMAGE=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("image") or "(running system)")' "$RECIPE")
 FS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("filesystem") or "xfs")' "$RECIPE")
+# fisherman's line about the desktop extras (cmd/fisherman/extras.go). The
+# shim has no catalog, as a fisherman that a Flatpak stages has none: a
+# recipe with no `extras` gets none of the steps.
+EXTRAS=$(python3 - "$RECIPE" <<'PY'
+import json
+import sys
+
+extras = json.load(open(sys.argv[1])).get("extras")
+if extras is None:
+    print("Desktop extras: none (the recipe has no `extras` and the image is not in the catalog)")
+else:
+    on = [name for name in ("printServices", "oemSetup", "audioNames", "bootSplash") if extras.get(name)]
+    print(f"Desktop extras: {', '.join(on) or 'none'} (from the recipe)")
+PY
+)
 
 # The events a real run emits: fisherman's stdout protocol, verbatim in shape
 # (internal/progress/progress.go). Step names, weights and cumulative
@@ -109,7 +173,11 @@ substep() { # message overall_pct
     "$1" "$2" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   sleep 0.2
 }
+info() { # message
+  printf '{"type":"info","message":"%s","elapsed_ms":0,"timestamp":"%s"}\n' "$1" "$(now)"
+}
 N=1
+info "$EXTRAS"
 step "Partitioning disk"            partition    0  0 0
 substep "target disk: $DISK" 0
 step "Formatting EFI partition"     format_efi   0  1 0
@@ -124,6 +192,9 @@ substep "Pulling image: layer 71/71" 53.2
 step "Copying system Flatpaks"      flatpaks    88 11 88
 step "Configuring installed system" configure   99  0 99
 step "Finalizing installation"      finalize    99  1 99
+# fisherman sets BootNext itself on live media (cmd/fisherman/bootnext.go).
+# This host is not live media (probe.json), so it says why it did not.
+info "BootNext not set: this host is not live media, and its firmware is not the installed machine's (set setBootNext to true to boot Boot0001 next)"
 printf '{"type":"complete","message":"Installation complete!","boot_id":"0001","overall_pct":100,"elapsed_ms":0,"timestamp":"%s"}\n' \
   "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "[e2e] install simulated; recipe kept at $DIR/recipe.json"

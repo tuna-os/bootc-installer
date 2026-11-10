@@ -354,6 +354,9 @@ ApplicationWindow {
         // The image keys of the selection (bootloader, composeFsBackend,
         // imageType too): fisherman checks them against the filesystem.
         Object.assign(recipe, root.imageRecipe || {})
+        // fisherman refuses zfs without the opt-in, in the same fragment.
+        if (root.filesystem === "zfs")
+            recipe.experimental = ["zfs"]
         if (root.needsUserCreation)
             recipe.user = { username: root.username }
         return recipe
@@ -944,6 +947,10 @@ ApplicationWindow {
         // image installs the running system, which fisherman accepts only
         // on live media (probe's live.is_live).
         Object.assign(recipe, root.imageRecipe || {})
+        // ZFS is experimental in fisherman (no VM test boots it): the
+        // user picked it, and the recipe says that it accepts that.
+        if (root.filesystem === "zfs")
+            recipe.experimental = ["zfs"]
         // The account: left out when the image makes its own first user,
         // and with no username (the schema's "empty skips"). No groups
         // here: the backend writes the shared list or the operator's.

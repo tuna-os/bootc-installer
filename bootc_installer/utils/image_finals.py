@@ -27,7 +27,8 @@ def leaf_finals(leaf: dict, icon=None, carousel=None) -> dict:
 
     `flatpaks` is there only when the catalog has the list itself: without
     the key the Processor writes no `flatpaks`, and fisherman applies its
-    default. `image_filesystem` is the image's one filesystem; it is empty
+    default. `extras` follows the same rule: there only when a catalog node
+    has the object. `image_filesystem` is the image's one filesystem; it is empty
     when the leaf offers a choice, and the disk page then decides.
     """
     choices = leaf["filesystems"]
@@ -49,6 +50,8 @@ def leaf_finals(leaf: dict, icon=None, carousel=None) -> dict:
     }
     if leaf["flatpaks"] is not None:
         finals["flatpaks"] = list(leaf["flatpaks"])
+    if leaf["extras"] is not None:
+        finals["extras"] = dict(leaf["extras"])
     return finals
 
 

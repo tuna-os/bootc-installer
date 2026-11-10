@@ -108,6 +108,11 @@ class TestFixturesMatchFisherman(unittest.TestCase):
             self.assertIsInstance(value, list, f"{where}: arrays are never null")
             for i, item in enumerate(value):
                 self._check(item, gotype[2:], f"{where}[{i}]")
+        elif gotype.startswith("map[string]"):
+            self.assertIsInstance(value, dict, f"{where}: maps are never null")
+            for key, item in value.items():
+                self.assertIsInstance(key, str, where)
+                self._check(item, gotype[len("map[string]"):], f"{where}[{key!r}]")
         elif gotype in self.structs:
             self.assertIsInstance(value, dict, where)
             fields = self.structs[gotype]

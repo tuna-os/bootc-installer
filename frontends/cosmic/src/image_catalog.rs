@@ -56,6 +56,9 @@ pub struct ImageLeaf {
     pub needs_user_creation: bool,
     /// The recipe's `imageType`, written only when it is not `bootc`.
     pub image_type: String,
+    /// The `extras` object of the nearest node that has one, or `None`:
+    /// then the recipe has no `extras` key.
+    pub extras: Option<crate::model::Extras>,
     /// Per-image tour slides (`carousel`). Page only.
     pub carousel: Vec<Value>,
     /// Extra words the search box matches (`search_extra`). Page only.
@@ -178,6 +181,8 @@ struct Context {
     flatpak_var_path: String,
     needs_user_creation: bool,
     image_type: String,
+    /// The raw `extras` object of the nearest node that has one.
+    extras: Option<Value>,
     carousel: Vec<Value>,
 }
 
@@ -196,6 +201,7 @@ impl Default for Context {
             // The contract's default: the installer creates an account.
             needs_user_creation: true,
             image_type: "bootc".into(),
+            extras: None,
             carousel: Vec::new(),
         }
     }
@@ -241,7 +247,29 @@ impl Context {
             None | Some(Value::Null) => {}
             Some(v) => ctx.flatpaks = Some(v.clone()),
         }
+        // The nearest object replaces the parent's whole: no merge.
+        match node.get("extras") {
+            None | Some(Value::Null) => {}
+            Some(v) => ctx.extras = Some(v.clone()),
+        }
         ctx
+    }
+
+    /// The four switches of the `extras` object. Only those keys are read
+    /// (fisherman refuses a recipe key that it does not know); an object
+    /// with a switch that is not a boolean is not used.
+    fn extras(&self) -> Option<crate::model::Extras> {
+        let object = self.extras.as_ref()?.as_object()?;
+        let switch = |key: &str| match object.get(key) {
+            None => Some(false),
+            Some(v) => v.as_bool(),
+        };
+        Some(crate::model::Extras {
+            print_services: switch("printServices")?,
+            oem_setup: switch("oemSetup")?,
+            audio_names: switch("audioNames")?,
+            boot_splash: switch("bootSplash")?,
+        })
     }
 
     /// The Flatpak list, when it can be read without the network: a list
@@ -367,6 +395,7 @@ fn walk(nodes: &[Value], inherited: &Context, product: &str, path: &[String], ou
             flatpak_var_path: ctx.flatpak_var_path.clone(),
             needs_user_creation: ctx.needs_user_creation,
             image_type: ctx.image_type.clone(),
+            extras: ctx.extras(),
             carousel: ctx.carousel.clone(),
             search_extra: text("search_extra"),
         });
@@ -545,6 +574,9 @@ mod tests {
             assert_eq!(leaf.image_type, w["image_type"], "{name}: image_type");
             let want_flatpaks = (!w["flatpaks"].is_null()).then(|| strings(&w["flatpaks"]));
             assert_eq!(leaf.flatpaks, want_flatpaks, "{name}: flatpaks");
+            let want_extras = (!w["extras"].is_null())
+                .then(|| serde_json::from_value::<crate::model::Extras>(w["extras"].clone()).unwrap());
+            assert_eq!(leaf.extras, want_extras, "{name}: extras");
 
             for case in want["cases"].as_array().unwrap() {
                 cases += 1;

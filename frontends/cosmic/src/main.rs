@@ -203,13 +203,19 @@ fn partial_recipe(r: &Recipe) -> serde_json::Value {
         encryption["passphrase"] = serde_json::json!(r.encryption.passphrase);
     }
     let username = r.user.as_ref().map_or("", |u| u.username.as_str());
-    serde_json::json!({
+    let mut partial = serde_json::json!({
         "hostname": r.hostname,
         "filesystem": r.filesystem,
         "btrfsSubvolumes": r.btrfs_subvolumes,
         "encryption": encryption,
         "user": { "username": username },
-    })
+    });
+    // fisherman refuses zfs without the opt-in, in the same fragment.
+    let experimental = model::experimental_for(&r.filesystem);
+    if !experimental.is_empty() {
+        partial["experimental"] = serde_json::json!(experimental);
+    }
+    partial
 }
 
 /// Whether a fisherman problem belongs to the account page (`user.*`). The
@@ -1556,6 +1562,8 @@ impl TunaInstaller {
         live: bool,
     ) -> impl Stream<Item = Message> {
         cosmic::iced::stream::channel(64, async move |mut output| {
+            let mut recipe = recipe;
+            recipe.accept_experimental();
             let json = match serde_json::to_string_pretty(&recipe) {
                 Ok(json) => json,
                 Err(e) => {
@@ -1874,6 +1882,8 @@ mod tests {
                 "user": {"username": ""},
             })
         );
+        let zfs = Recipe { filesystem: "zfs".into(), ..r.clone() };
+        assert_eq!(super::partial_recipe(&zfs)["experimental"], serde_json::json!(["zfs"]));
         let mut with_passphrase = r.clone();
         with_passphrase.encryption.enc_type = "tpm2-luks-passphrase".into();
         assert_eq!(super::partial_recipe(&with_passphrase)["encryption"]["passphrase"], "stale");
@@ -1929,7 +1939,8 @@ mod tests {
     const E2E_CATALOG: &str = r#"{
   "images": [
     {"name": "CentOS bootc", "imgref": "quay.io/centos-bootc/centos-bootc:c10s",
-     "filesystem": "xfs"},
+     "filesystem": "xfs",
+     "extras": {"printServices": true, "oemSetup": true, "audioNames": true, "bootSplash": true}},
     {"name": "Own first user", "imgref": "registry.example/os/first-boot-setup:1",
      "needs_user_creation": false}
   ]

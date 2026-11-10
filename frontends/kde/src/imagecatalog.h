@@ -13,6 +13,7 @@
 // when no node sets it.
 
 #include <QByteArray>
+#include <QJsonObject>
 #include <QList>
 #include <QString>
 #include <QStringList>
@@ -54,6 +55,13 @@ struct Leaf {
     QStringList filesystems;   // what the user may pick; empty = our own list
     QString flatpakVarPath;    // override for the writable var path, or ""
     QString defaultHostname;   // suggested hostname, or ""
+    // `extras` of the nearest node that has the object: the desktop steps
+    // fisherman does after the install ("Desktop extras" of the contract).
+    // hasExtras is false when no node has one: the recipe then has no
+    // `extras` key and fisherman looks the image up itself. With it, extras
+    // holds the four switches, each true or false.
+    bool hasExtras = false;
+    QJsonObject extras;
     QVariantList carousel; // the leaf's `carousel` slides, as QVariantMaps
 };
 

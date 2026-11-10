@@ -31,7 +31,7 @@ EMPTY = {"bootloader": "", "composeFsBackend": False, "imageType": "bootc"}
 LEAF_FIELDS = ("imgref", "name", "product", "channel", "label", "path", "breadcrumb",
                "nvidia_imgref", "bootloader", "composefs", "filesystem", "filesystems",
                "default_hostname", "flatpaks", "flatpak_var_path",
-               "needs_user_creation", "image_type")
+               "needs_user_creation", "image_type", "extras")
 
 
 def _catalog(raw=RAW):
@@ -153,3 +153,28 @@ def test_the_view_has_the_words_of_the_node():
     # A leaf with no name above it still has a row label.
     assert plain.breadcrumb == plain.label == "Plain"
     assert (atlas.desc, atlas.subtitle, atlas.breadcrumb) == ("A desktop", "", "Atlas")
+
+
+def test_extras_follow_the_nearest_object_and_only_the_four_switches():
+    """shared/catalog/README.md, "Desktop extras"."""
+    rows = {row["imgref"].rsplit("/", 1)[-1]: row["leaf"]["extras"] for row in EXPECTED["leaves"]}
+    assert rows["atlas:stable"]["bootSplash"] and not rows["atlas:stable"]["oemSetup"]
+    assert rows["atlas:beta"] == {"printServices": False, "oemSetup": True,
+                                  "audioNames": False, "bootSplash": False}
+    assert rows["boreal:latest"] == dict.fromkeys(core.EXTRAS, False)
+    assert rows["cirrus:1"] is None
+    assert core.resolve_extras({"bootSplash": True, "notAStep": True}) == {
+        "printServices": False, "oemSetup": False, "audioNames": False, "bootSplash": True}
+    assert core.resolve_extras({"bootSplash": "yes"}) is None
+    assert core.resolve_extras(["bootSplash"]) is None
+    recipe = core.build_recipe(disk="/dev/vda", filesystem="xfs")
+    assert "extras" not in recipe
+    recipe = core.build_recipe(disk="/dev/vda", filesystem="xfs", extras={})
+    assert recipe["extras"] == dict.fromkeys(core.EXTRAS, False)
+
+
+def test_zfs_carries_the_experimental_opt_in():
+    """fisherman refuses zfs without "experimental": ["zfs"]."""
+    assert core.build_recipe(disk="/dev/vda", filesystem="zfs")["experimental"] == ["zfs"]
+    assert "experimental" not in core.build_recipe(disk="/dev/vda", filesystem="xfs")
+    assert core.experimental_for("btrfs") == {}

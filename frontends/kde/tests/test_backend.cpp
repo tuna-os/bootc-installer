@@ -1913,6 +1913,10 @@ void BackendTest::catalogContractLeaves()
         const QJsonValue flatpaks = want.value(QStringLiteral("flatpaks"));
         QVERIFY2(leaf.hasFlatpaks == flatpaks.isArray(), where);
         QVERIFY2(leaf.flatpaks == strings(flatpaks), where);
+        // null: no node has the object. An object has the four switches.
+        const QJsonValue extras = want.value(QStringLiteral("extras"));
+        QVERIFY2(leaf.hasExtras == extras.isObject(), where);
+        QVERIFY2(leaf.extras == extras.toObject(), where);
     }
 }
 
@@ -1931,6 +1935,19 @@ static QString recipeProblems(const QJsonObject &recipe, const QJsonObject &frag
         QJsonValue got = recipe.value(it.key());
         if (got.isUndefined() && empty.contains(it.key()))
             got = empty.value(it.key());
+        if (it.key() == QLatin1String("extras") && got.isObject()) {
+            // A switch that the recipe leaves out is off; fisherman refuses
+            // any other key.
+            QJsonObject full;
+            const QJsonObject have = got.toObject();
+            for (const QString &name : it.value().toObject().keys())
+                full.insert(name, have.value(name).toBool(false));
+            for (const QString &name : have.keys()) {
+                if (!full.contains(name))
+                    problems << QStringLiteral("extras: unknown key %1").arg(name);
+            }
+            got = full;
+        }
         if (got != it.value())
             problems << QStringLiteral("%1: expected %2, found %3").arg(
                 it.key(), QString::fromUtf8(QJsonDocument(QJsonArray{it.value()}).toJson(QJsonDocument::Compact)),
