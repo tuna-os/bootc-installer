@@ -1,81 +1,147 @@
-//! Image catalog: which bootc images can be installed, and whether the
-//! installed system needs this frontend to create its first user.
+//! Image catalog: which bootc images can be installed, and what each one
+//! tells the recipe.
 //!
-//! This mirrors `bootc_installer/defaults/image.py` (`needs_user_creation`
-//! inheritance, manifest search order) and the XFCE `SourcePage` catalog
-//! pattern (`frontends/xfce/.../core.py::load_catalog`, `ImageNode::leaves`),
-//! adapted to Rust/libcosmic: the tree is plain data, and the wizard renders
-//! it with cosmic widgets instead of GTK expander rows.
+//! The contract is `shared/catalog/README.md`; the fixture this reader is
+//! held to is `shared/catalog/fixtures/{catalog,expected}.json`
+//! (`the_shared_fixture_resolves_as_expected` below). The reference resolver
+//! is `shared/catalog/resolve.py`; this module does not import it.
 //!
-//! Semantics (measured from `image.py::__build_node`):
-//! - `needs_user_creation` is inherited from the nearest ancestor that sets
-//!   it; the root default is `false` (the `needs_user_ctx=False` parameter
-//!   default). A leaf without the key and without an ancestor that sets it
-//!   does NOT require a user.
-//! - A custom URL image never requires a user (`get_finals`, custom branch).
-//! - The page is skipped when fewer than two leaves are selectable
-//!   (`skip_screen`: `leaf_count <= 1`).
-//!
-//! The one deliberate seam: with no catalog at all (or no selection yet) this
-//! frontend requires the account, as it always has — there is no image on
-//! record to say otherwise. `account_required()` on the app encodes that;
-//! only a *selected leaf* (or custom URL) can lift the requirement.
+//! - A node is a leaf when it has `imgref`, or `tag` with a `registry` in
+//!   scope. Every other node is a group.
+//! - A leaf takes each contract field from the nearest node that sets it.
+//!   `false`, `""` and `[]` are values and stop the search.
+//! - `needs_user_creation` is `true` when no node sets it: an install with
+//!   no account and no first-boot setup leaves nobody to sign in as.
+//! - A Flatpak list is written only when it resolves offline. This frontend
+//!   never downloads a list and never reads `fallback_flatpaks`.
 
-use serde_json::Value;
+use serde_json::{Map, Value};
 
-/// One installable image: a leaf of the manifest tree.
+/// One installable image: a leaf of the catalog tree, with inherited fields.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ImageLeaf {
-    /// Display name (`name`, falling back to the imgref).
+    /// The node's own `name` ("Stable" for a tag leaf).
     pub name: String,
-    /// Short description, when the manifest carries one.
+    /// Short description (`desc`, or the older `description`).
     pub description: String,
-    /// The bootc ref written to the recipe's `image`.
+    /// The image updates follow: `imgref`, or `<registry>:<tag>`.
     pub imgref: String,
-    /// Whether the installed system needs a user created for it.
+    /// The `name` of the nearest node that sets `registry`.
+    pub product: String,
+    /// The `name` of a tag leaf; empty for a leaf with its own `imgref`.
+    pub channel: String,
+    /// Product and channel: what Confirm and a short list show.
+    pub label: String,
+    /// Every `name` from the root to the leaf: what a flat list shows,
+    /// because `label` is not unique there.
+    pub breadcrumb: String,
+    /// The image for a machine with an NVIDIA GPU, or "".
+    pub nvidia_imgref: String,
+    /// `grub2`, `systemd`, or "" for fisherman's default.
+    pub bootloader: String,
+    /// The recipe's `composeFsBackend`. fisherman does not infer it.
+    pub composefs: bool,
+    /// The filesystem selected before the user picks one ("" = ours).
+    pub filesystem: String,
+    /// The filesystems the user may pick (empty = our own list).
+    pub filesystems: Vec<String>,
+    /// The first value of the hostname field, or "".
+    pub default_hostname: String,
+    /// `Some` only for a list that resolves offline (`[]` included).
+    /// `None` leaves `flatpaks` out of the recipe.
+    pub flatpaks: Option<Vec<String>>,
+    /// The recipe's `flatpakVarPath`, written only when not empty.
+    pub flatpak_var_path: String,
+    /// Whether the installer creates the first account.
     pub needs_user_creation: bool,
-    /// Per-image tour slides (`carousel`), if the manifest carries any.
-    /// Parsed by `crate::tour` only when this leaf is selected.
+    /// The recipe's `imageType`, written only when it is not `bootc`.
+    pub image_type: String,
+    /// Per-image tour slides (`carousel`). Page only.
     pub carousel: Vec<Value>,
-    /// Flatpaks installed with this image (inherited, as in `__build_node`).
-    pub flatpaks: Vec<String>,
+    /// Extra words the search box matches (`search_extra`). Page only.
+    pub search_extra: String,
 }
 
-/// Where the manifest is looked for, in order. Mirrors the XFCE
-/// `IMAGES_JSON_PATHS` plus `image.py`'s `/etc/bootc-installer/images.json`
-/// override (with the Flatpak `/run/host/etc` prefix `image.py` applies, so
-/// a live ISO's catalog is found from inside the sandbox).
-pub fn manifest_paths() -> Vec<String> {
-    let mut paths = Vec::new();
-    if let Ok(p) = std::env::var("FISHERMAN_IMAGES_PATH") {
-        if !p.is_empty() {
-            paths.push(p);
+/// The filesystems this frontend offers when the leaf names none.
+pub const OWN_FILESYSTEMS: [&str; 3] = ["xfs", "ext4", "btrfs"];
+
+impl ImageLeaf {
+    /// What the user may pick: the leaf's list, else its one filesystem,
+    /// else this frontend's own list.
+    pub fn filesystem_choices(&self) -> Vec<String> {
+        if self.filesystems.is_empty() {
+            OWN_FILESYSTEMS.iter().map(|f| (*f).to_string()).collect()
+        } else {
+            self.filesystems.clone()
         }
     }
-    let config_home = std::env::var("XDG_CONFIG_HOME")
-        .unwrap_or_else(|_| format!("{}/.config", std::env::var("HOME").unwrap_or_default()));
-    for leaf in ["tuna-installer/images.json", "bootc-installer/images.json"] {
-        paths.push(format!("{config_home}/{leaf}"));
+
+    /// Whether the search box's query matches this row.
+    pub fn matches(&self, query: &str) -> bool {
+        let q = query.trim().to_lowercase();
+        q.is_empty()
+            || [
+                &self.breadcrumb,
+                &self.imgref,
+                &self.description,
+                &self.search_extra,
+            ]
+            .iter()
+            .any(|field| field.to_lowercase().contains(&q))
     }
-    // Inside a Flatpak sandbox /etc is the runtime's; the host's is visible
-    // at /run/host/etc (image.py applies the same prefix).
-    let etc = if std::path::Path::new("/.flatpak-info").exists() {
-        "/run/host/etc"
-    } else {
-        "/etc"
-    };
-    for leaf in ["tuna-installer/images.json", "bootc-installer/images.json"] {
-        paths.push(format!("{etc}/{leaf}"));
-    }
-    paths.push("/app/share/fisherman/data/images.json".into());
-    paths.push("/usr/share/fisherman/data/images.json".into());
+}
+
+/// The ordered list of catalog files (`shared/catalog/README.md`, "Where
+/// the catalog is"). `<etc>` is `/run/host/etc` in a Flatpak: the sandbox
+/// has its own `/etc`. The system file is first, so a file in a home
+/// directory cannot replace the catalog an ISO ships.
+pub fn search_paths(in_flatpak: bool, xdg_config_home: &str, bundled: &[&str]) -> Vec<String> {
+    let etc = if in_flatpak { "/run/host/etc" } else { "/etc" };
+    let mut paths = vec![
+        format!("{etc}/bootc-installer/images.json"),
+        format!("{etc}/tuna-installer/images.json"),
+        format!(
+            "{}/bootc-installer/images.json",
+            xdg_config_home.trim_end_matches('/')
+        ),
+    ];
+    paths.extend(bundled.iter().map(|p| (*p).to_string()));
     paths
 }
 
-/// Recursively replace `@alias` strings with values from the manifest's
-/// `aliases` table. Runs once at load time, as in `image.py::_resolve_aliases`:
-/// unknown aliases are left alone so a later stage can report them.
-fn resolve_aliases(value: &mut Value, aliases: &serde_json::Map<String, Value>) {
+/// The catalog in the package: the Flatpak's copy, then a native install's.
+pub const BUNDLED: [&str; 2] = [
+    "/app/share/fisherman/data/images.json",
+    "/usr/share/fisherman/data/images.json",
+];
+
+/// `<etc>` for this process.
+pub fn etc_dir() -> &'static str {
+    if std::path::Path::new("/.flatpak-info").exists() {
+        "/run/host/etc"
+    } else {
+        "/etc"
+    }
+}
+
+/// [`search_paths`] for this process. An empty `XDG_CONFIG_HOME` means
+/// `$HOME/.config`.
+pub fn manifest_paths() -> Vec<String> {
+    let config_home = std::env::var("XDG_CONFIG_HOME")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| format!("{}/.config", std::env::var("HOME").unwrap_or_default()));
+    search_paths(
+        std::path::Path::new("/.flatpak-info").exists(),
+        &config_home,
+        &BUNDLED,
+    )
+}
+
+/// Replace `@alias` strings with values from the catalog's `aliases` table.
+/// Runs once at load time. An unknown alias stays a string, and a string is
+/// not a Flatpak list.
+fn resolve_aliases(value: &mut Value, aliases: &Map<String, Value>) {
     match value {
         Value::String(s) if s.starts_with('@') => {
             if let Some(replacement) = aliases.get(&s[1..]) {
@@ -96,101 +162,228 @@ fn resolve_aliases(value: &mut Value, aliases: &serde_json::Map<String, Value>) 
     }
 }
 
-fn node_imgref(node: &serde_json::Map<String, Value>) -> String {
-    if let Some(r) = node.get("imgref").and_then(|v| v.as_str()) {
-        if !r.is_empty() {
-            return r.to_string();
-        }
-    }
-    // Older manifests split the ref into registry+tag (XFCE ImageNode).
-    let registry = node.get("registry").and_then(|v| v.as_str()).unwrap_or("");
-    let tag = node.get("tag").and_then(|v| v.as_str()).unwrap_or("");
-    if !registry.is_empty() && !tag.is_empty() {
-        return format!("{registry}:{tag}");
-    }
-    String::new()
+/// The inherited fields at one point of the tree.
+#[derive(Debug, Clone)]
+struct Context {
+    registry: String,
+    nvidia_imgref: String,
+    bootloader: String,
+    composefs: bool,
+    filesystem: String,
+    filesystems: Vec<String>,
+    default_hostname: String,
+    /// The raw value after alias resolution: a list, a URL, an unknown
+    /// alias, or nothing.
+    flatpaks: Option<Value>,
+    flatpak_var_path: String,
+    needs_user_creation: bool,
+    image_type: String,
+    carousel: Vec<Value>,
 }
 
-/// Flatten one manifest node into leaves, inheriting `needs_user_creation`,
-/// the carousel and the flatpak list from the nearest ancestor that defines
-/// each (`__build_node` inherits every per-image field the same way).
-fn collect_leaves(
-    node: &Value,
-    needs_user_ctx: bool,
-    carousel_ctx: &[Value],
-    flatpaks_ctx: &[String],
-    out: &mut Vec<ImageLeaf>,
-) {
-    let Some(obj) = node.as_object() else { return };
-    let needs_user = obj
-        .get("needs_user_creation")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(needs_user_ctx);
-    let carousel = obj
-        .get("carousel")
-        .and_then(|v| v.as_array())
-        .map(|a| a.to_vec())
-        .unwrap_or_else(|| carousel_ctx.to_vec());
-    let flatpaks = obj
-        .get("flatpaks")
-        .and_then(|v| v.as_array())
-        .map(|a| {
-            a.iter()
-                .filter_map(|v| v.as_str().map(str::to_string))
-                .collect()
+impl Default for Context {
+    fn default() -> Self {
+        Self {
+            registry: String::new(),
+            nvidia_imgref: String::new(),
+            bootloader: String::new(),
+            composefs: false,
+            filesystem: String::new(),
+            filesystems: Vec::new(),
+            default_hostname: String::new(),
+            flatpaks: None,
+            flatpak_var_path: String::new(),
+            // The contract's default: the installer creates an account.
+            needs_user_creation: true,
+            image_type: "bootc".into(),
+            carousel: Vec::new(),
+        }
+    }
+}
+
+fn string_list(value: &Value) -> Option<Vec<String>> {
+    value
+        .as_array()?
+        .iter()
+        .map(|v| v.as_str().map(str::to_string))
+        .collect()
+}
+
+impl Context {
+    /// This context with the fields `node` sets. A `null` sets nothing.
+    fn with(&self, node: &Map<String, Value>) -> Self {
+        let mut ctx = self.clone();
+        let text = |key: &str, slot: &mut String| {
+            if let Some(v) = node.get(key).and_then(Value::as_str) {
+                *slot = v.to_string();
+            }
+        };
+        text("registry", &mut ctx.registry);
+        text("nvidia_imgref", &mut ctx.nvidia_imgref);
+        text("bootloader", &mut ctx.bootloader);
+        text("filesystem", &mut ctx.filesystem);
+        text("default_hostname", &mut ctx.default_hostname);
+        text("flatpak_var_path", &mut ctx.flatpak_var_path);
+        text("image_type", &mut ctx.image_type);
+        if let Some(v) = node.get("composefs").and_then(Value::as_bool) {
+            ctx.composefs = v;
+        }
+        if let Some(v) = node.get("needs_user_creation").and_then(Value::as_bool) {
+            ctx.needs_user_creation = v;
+        }
+        if let Some(v) = node.get("filesystems").and_then(string_list) {
+            ctx.filesystems = v;
+        }
+        if let Some(v) = node.get("carousel").and_then(Value::as_array) {
+            ctx.carousel = v.clone();
+        }
+        match node.get("flatpaks") {
+            None | Some(Value::Null) => {}
+            Some(v) => ctx.flatpaks = Some(v.clone()),
+        }
+        ctx
+    }
+
+    /// The Flatpak list, when it can be read without the network: a list
+    /// of application ids. A URL, an unknown alias and no value are `None`.
+    fn offline_flatpaks(&self) -> Option<Vec<String>> {
+        self.flatpaks.as_ref().and_then(string_list)
+    }
+}
+
+/// "atlas-dx" of `registry.example/os/atlas-dx:latest`, as a name.
+fn pretty_from_imgref(imgref: &str) -> String {
+    let slug = imgref.rsplit('/').next().unwrap_or(imgref);
+    let slug = slug.split('@').next().unwrap_or(slug);
+    let slug = slug.split(':').next().unwrap_or(slug);
+    let parts: Vec<String> = slug
+        .replace('_', "-")
+        .split('-')
+        .filter(|p| !p.is_empty())
+        .enumerate()
+        .map(|(i, p)| {
+            if i == 0 {
+                let mut chars = p.chars();
+                chars
+                    .next()
+                    .map(|c| c.to_uppercase().collect::<String>() + chars.as_str())
+                    .unwrap_or_default()
+            } else {
+                p.to_uppercase()
+            }
         })
-        .unwrap_or_else(|| flatpaks_ctx.to_vec());
-    if let Some(children) = obj.get("children").and_then(|v| v.as_array()) {
-        for child in children {
-            collect_leaves(child, needs_user, &carousel, &flatpaks, out);
-        }
+        .collect();
+    if parts.is_empty() {
+        imgref.to_string()
+    } else {
+        parts.join(" ")
     }
-    let imgref = node_imgref(obj);
-    if imgref.is_empty() {
-        return;
-    }
-    let has_children = obj
-        .get("children")
-        .and_then(|v| v.as_array())
-        .map(|a| !a.is_empty())
-        .unwrap_or(false);
-    // A leaf offers an image and has no children of its own (XFCE is_leaf).
-    if has_children {
-        return;
-    }
-    let name = obj
-        .get("name")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())
-        .unwrap_or(&imgref)
-        .to_string();
-    let description = obj
-        .get("description")
-        .or_else(|| obj.get("desc"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    out.push(ImageLeaf {
-        name,
-        description,
-        imgref,
-        needs_user_creation: needs_user,
-        carousel,
-        flatpaks,
-    });
 }
 
-/// The parsed catalog: the default ref, the fallback flatpaks, and the
-/// selectable leaves in manifest order.
+fn node_name(node: &Map<String, Value>) -> String {
+    node.get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string()
+}
+
+fn walk(nodes: &[Value], inherited: &Context, product: &str, path: &[String], out: &mut Vec<ImageLeaf>) {
+    for node in nodes {
+        let Some(obj) = node.as_object() else { continue };
+        let ctx = inherited.with(obj);
+        let name = node_name(obj);
+        let mut here = path.to_vec();
+        if !name.is_empty() {
+            here.push(name.clone());
+        }
+        // The product is the name of the nearest node that sets a registry:
+        // a tag leaf's own name is a channel ("Stable").
+        let owns_registry = obj
+            .get("registry")
+            .and_then(Value::as_str)
+            .is_some_and(|r| !r.is_empty());
+        let node_product = if owns_registry { name.clone() } else { product.to_string() };
+
+        let own = obj.get("imgref").and_then(Value::as_str).unwrap_or("");
+        let tag = obj.get("tag").and_then(Value::as_str).unwrap_or("");
+        let (imgref, product, channel) = if !own.is_empty() {
+            let product = if name.is_empty() { pretty_from_imgref(own) } else { name.clone() };
+            (own.to_string(), product, String::new())
+        } else if !tag.is_empty() && !ctx.registry.is_empty() {
+            let imgref = format!("{}:{tag}", ctx.registry);
+            // A tag leaf that sets its own registry is its own product.
+            let channel = if owns_registry { String::new() } else { name.clone() };
+            let product = if node_product.is_empty() {
+                pretty_from_imgref(&imgref)
+            } else {
+                node_product.clone()
+            };
+            (imgref, product, channel)
+        } else {
+            if let Some(children) = obj.get("children").and_then(Value::as_array) {
+                walk(children, &ctx, &node_product, &here, out);
+            }
+            continue;
+        };
+
+        let filesystems = if !ctx.filesystems.is_empty() {
+            ctx.filesystems.clone()
+        } else if !ctx.filesystem.is_empty() {
+            vec![ctx.filesystem.clone()]
+        } else {
+            Vec::new()
+        };
+        let filesystem = if !ctx.filesystem.is_empty() {
+            ctx.filesystem.clone()
+        } else {
+            ctx.filesystems.first().cloned().unwrap_or_default()
+        };
+        let text = |key: &str| {
+            obj.get(key)
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string()
+        };
+        let description = match text("desc") {
+            d if d.is_empty() => text("description"),
+            d => d,
+        };
+        out.push(ImageLeaf {
+            label: format!("{product} {channel}").trim().to_string(),
+            breadcrumb: here.join(" \u{203a} "),
+            name,
+            description,
+            imgref,
+            product,
+            channel,
+            nvidia_imgref: ctx.nvidia_imgref.clone(),
+            bootloader: ctx.bootloader.clone(),
+            composefs: ctx.composefs,
+            filesystem,
+            filesystems,
+            default_hostname: ctx.default_hostname.clone(),
+            flatpaks: ctx.offline_flatpaks(),
+            flatpak_var_path: ctx.flatpak_var_path.clone(),
+            needs_user_creation: ctx.needs_user_creation,
+            image_type: ctx.image_type.clone(),
+            carousel: ctx.carousel.clone(),
+            search_extra: text("search_extra"),
+        });
+    }
+}
+
+/// The parsed catalog: the default ref and the selectable leaves in
+/// catalog order.
 #[derive(Debug, Clone, Default)]
 pub struct Catalog {
     pub default_image: String,
-    pub fallback_flatpaks: Vec<String>,
     pub leaves: Vec<ImageLeaf>,
 }
 
-/// Parse a manifest document. Pure: the search order lives in
-/// [`manifest_paths`], IO in [`load_catalog`].
+/// Parse a catalog document. A catalog is a JSON object with an `images`
+/// list; anything else is an error, and [`load_catalog`] then tries the
+/// next file. Pure: the search order is [`search_paths`].
 pub fn parse_manifest(text: &str) -> Result<Catalog, String> {
     let mut root: Value =
         serde_json::from_str(text).map_err(|e| format!("invalid images.json: {e}"))?;
@@ -200,84 +393,350 @@ pub fn parse_manifest(text: &str) -> Result<Catalog, String> {
         .cloned()
         .unwrap_or_default();
     resolve_aliases(&mut root, &aliases);
+    let Some(images) = root.get("images").and_then(Value::as_array) else {
+        return Err("a catalog is an object with an `images` list".into());
+    };
     let default_image = root
         .get("default_image")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    let fallback_flatpaks: Vec<String> = root
-        .get("fallback_flatpaks")
-        .and_then(|v| v.as_array())
-        .map(|a| {
-            a.iter()
-                .filter_map(|v| v.as_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default();
     let mut leaves = Vec::new();
-    if let Some(images) = root.get("images").and_then(|v| v.as_array()) {
-        for node in images {
-            collect_leaves(node, false, &[], &fallback_flatpaks, &mut leaves);
-        }
-    }
+    walk(images, &Context::default(), "", &[], &mut leaves);
     Ok(Catalog {
         default_image,
-        fallback_flatpaks,
         leaves,
     })
 }
 
-/// Load the first manifest found on [`manifest_paths`]. `None` when no file
-/// exists or none parses — the wizard then falls back to the branding
-/// default image with the account required.
-pub fn load_catalog() -> Option<Catalog> {
-    for path in manifest_paths() {
-        let text = std::fs::read_to_string(&path).ok()?;
+/// Load the first file of `paths` that is a catalog. A file that is missing
+/// or that does not parse does not stop the search.
+pub fn load_first(paths: &[String]) -> Option<Catalog> {
+    for path in paths {
+        let Ok(text) = std::fs::read_to_string(path) else {
+            continue;
+        };
         match parse_manifest(&text) {
             Ok(catalog) => return Some(catalog),
-            Err(e) => {
-                tracing::warn!("ignoring unparsable catalog {path}: {e}");
-            }
+            Err(e) => tracing::warn!("ignoring unparsable catalog {path}: {e}"),
         }
     }
     None
 }
 
+/// The catalog for this process, or `None` when no file on the search path
+/// is one. The wizard then offers only the custom image row.
+pub fn load_catalog() -> Option<Catalog> {
+    load_first(&manifest_paths())
+}
+
+/// The image and the update target for a leaf on this machine
+/// (`shared/catalog/README.md`, "Image and NVIDIA image").
+pub fn source_and_target(
+    leaf: &ImageLeaf,
+    has_nvidia: bool,
+    is_live: bool,
+    offline_images: &[String],
+) -> (String, String) {
+    let (base, nvidia) = (&leaf.imgref, &leaf.nvidia_imgref);
+    if nvidia.is_empty() {
+        return (base.clone(), base.clone());
+    }
+    if has_nvidia {
+        return (nvidia.clone(), nvidia.clone());
+    }
+    if is_live && offline_images.contains(nvidia) && !offline_images.contains(base) {
+        // Only the NVIDIA image is on the media. Install it without a
+        // download; the first update moves the system to the base image.
+        return (nvidia.clone(), base.clone());
+    }
+    (base.clone(), base.clone())
+}
+
 impl Catalog {
-    /// Index of the leaf matching the default ref, if any (mirrors
-    /// `__select_default`).
-    pub fn default_index(&self) -> Option<usize> {
-        if self.default_image.is_empty() {
+    /// The leaf for an image reference. The NVIDIA variant of a leaf is
+    /// that leaf.
+    pub fn find(&self, imgref: &str) -> Option<usize> {
+        if imgref.is_empty() {
             return None;
         }
         self.leaves
             .iter()
-            .position(|l| l.imgref == self.default_image)
+            .position(|l| l.imgref == imgref)
+            .or_else(|| self.leaves.iter().position(|l| l.nvidia_imgref == imgref))
     }
 
-    /// Whether the image page earns its place: two or more selectable
-    /// leaves (`skip_screen` in image.py).
-    pub fn has_choice(&self) -> bool {
-        self.leaves.len() > 1
+    /// The leaf selected at the start: the branding's `default_image`,
+    /// then the catalog's, else nothing. Never the first row: with nothing
+    /// selected the user must choose before the next page opens.
+    pub fn default_index(&self, branding_default_image: &str) -> Option<usize> {
+        [branding_default_image, self.default_image.as_str()]
+            .iter()
+            .filter(|candidate| !candidate.is_empty())
+            .find_map(|candidate| self.leaves.iter().position(|l| l.imgref == *candidate))
+    }
+
+    /// Whether the install of `imgref` creates an account. An image the
+    /// catalog does not have needs one.
+    pub fn needs_user_creation(&self, imgref: &str) -> bool {
+        self.find(imgref)
+            .map_or(true, |i| self.leaves[i].needs_user_creation)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::{Machine, Recipe};
+
+    const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/catalog/fixtures");
+
+    fn fixture(name: &str) -> String {
+        std::fs::read_to_string(format!("{FIXTURES}/{name}")).unwrap_or_else(|e| panic!("{name}: {e}"))
+    }
+
+    fn strings(value: &Value) -> Vec<String> {
+        string_list(value).unwrap_or_else(|| panic!("not a list of strings: {value}"))
+    }
+
+    /// A missing key and these values mean the same thing to fisherman.
+    fn empty_value(key: &str) -> Option<Value> {
+        match key {
+            "bootloader" => Some(Value::String(String::new())),
+            "composeFsBackend" => Some(Value::Bool(false)),
+            "imageType" => Some(Value::String("bootc".into())),
+            _ => None,
+        }
+    }
+
+    /// The contract test: `shared/catalog/fixtures/catalog.json` through
+    /// this frontend's parser and recipe builder gives
+    /// `shared/catalog/fixtures/expected.json`. Every leaf, every resolved
+    /// field, and for each machine case every recipe key that must be
+    /// there and every key that must not.
+    #[test]
+    fn the_shared_fixture_resolves_as_expected() {
+        let catalog = parse_manifest(&fixture("catalog.json")).unwrap();
+        let expected: Value = serde_json::from_str(&fixture("expected.json")).unwrap();
+        assert_eq!(expected["contract_version"], 1);
+        let leaves = expected["leaves"].as_array().unwrap();
+        assert_eq!(
+            catalog.leaves.iter().map(|l| l.imgref.clone()).collect::<Vec<_>>(),
+            leaves.iter().map(|l| l["imgref"].as_str().unwrap().to_string()).collect::<Vec<_>>(),
+            "the leaves, in catalog order"
+        );
+        let mut cases = 0;
+        for (leaf, want) in catalog.leaves.iter().zip(leaves) {
+            let w = &want["leaf"];
+            let name = &leaf.imgref;
+            assert_eq!(leaf.name, w["name"], "{name}: name");
+            assert_eq!(leaf.product, w["product"], "{name}: product");
+            assert_eq!(leaf.channel, w["channel"], "{name}: channel");
+            assert_eq!(leaf.label, w["label"], "{name}: label");
+            assert_eq!(leaf.breadcrumb, w["breadcrumb"], "{name}: breadcrumb");
+            assert_eq!(leaf.nvidia_imgref, w["nvidia_imgref"], "{name}: nvidia_imgref");
+            assert_eq!(leaf.bootloader, w["bootloader"], "{name}: bootloader");
+            assert_eq!(leaf.composefs, w["composefs"], "{name}: composefs");
+            assert_eq!(leaf.filesystem, w["filesystem"], "{name}: filesystem");
+            assert_eq!(leaf.filesystems, strings(&w["filesystems"]), "{name}: filesystems");
+            assert_eq!(leaf.default_hostname, w["default_hostname"], "{name}: default_hostname");
+            assert_eq!(leaf.flatpak_var_path, w["flatpak_var_path"], "{name}: flatpak_var_path");
+            assert_eq!(leaf.needs_user_creation, w["needs_user_creation"], "{name}: needs_user_creation");
+            assert_eq!(leaf.image_type, w["image_type"], "{name}: image_type");
+            let want_flatpaks = (!w["flatpaks"].is_null()).then(|| strings(&w["flatpaks"]));
+            assert_eq!(leaf.flatpaks, want_flatpaks, "{name}: flatpaks");
+
+            for case in want["cases"].as_array().unwrap() {
+                cases += 1;
+                let inputs = &case["inputs"];
+                let machine = Machine {
+                    has_nvidia: inputs["has_nvidia"].as_bool().unwrap(),
+                    is_live: inputs["is_live"].as_bool().unwrap(),
+                    offline_images: strings(&inputs["offline_images"]),
+                };
+                // The user selects the leaf and changes nothing.
+                let mut recipe = Recipe::default();
+                recipe.apply_leaf(leaf, &machine);
+                let json = serde_json::to_value(&recipe).unwrap();
+                for (key, value) in case["recipe"].as_object().unwrap() {
+                    let got = json.get(key).cloned().or_else(|| empty_value(key));
+                    assert_eq!(got.as_ref(), Some(value), "{name} {inputs}: {key}");
+                }
+                for key in strings(&case["absent"]) {
+                    assert!(json.get(&key).is_none(), "{name} {inputs}: {key} must be left out");
+                }
+            }
+        }
+        assert!(cases > leaves.len(), "the NVIDIA cases were not read");
+    }
+
+    #[test]
+    fn the_search_path_is_the_shared_one() {
+        let expected: Value = serde_json::from_str(&fixture("expected.json")).unwrap();
+        let rows = expected["search_paths"].as_array().unwrap();
+        assert_eq!(rows.len(), 2);
+        for row in rows {
+            assert_eq!(
+                search_paths(
+                    row["in_flatpak"].as_bool().unwrap(),
+                    row["xdg_config_home"].as_str().unwrap(),
+                    &["<bundled>"],
+                ),
+                strings(&row["paths"]),
+                "{row}"
+            );
+        }
+        // This process: the system file first, the package last.
+        let paths = manifest_paths();
+        assert_eq!(paths[0], "/etc/bootc-installer/images.json");
+        assert_eq!(paths[1], "/etc/tuna-installer/images.json");
+        assert!(paths[2].ends_with("/bootc-installer/images.json"));
+        assert_eq!(paths[3..], BUNDLED.map(String::from));
+    }
+
+    #[test]
+    fn the_default_selection_is_the_shared_one() {
+        let text = fixture("catalog.json");
+        let with_default = parse_manifest(&text).unwrap();
+        let mut root: Value = serde_json::from_str(&text).unwrap();
+        root.as_object_mut().unwrap().remove("default_image");
+        let without_default = parse_manifest(&root.to_string()).unwrap();
+        let expected: Value = serde_json::from_str(&fixture("expected.json")).unwrap();
+        let rows = expected["default_selection"].as_array().unwrap();
+        assert!(rows.len() >= 6);
+        for row in rows {
+            // An empty catalog_default_image is the fixture without the key.
+            let catalog = if row["catalog_default_image"] == "" {
+                &without_default
+            } else {
+                &with_default
+            };
+            let selected = catalog
+                .default_index(row["branding_default_image"].as_str().unwrap())
+                .map(|i| catalog.leaves[i].imgref.clone());
+            assert_eq!(
+                selected.map(Value::String).unwrap_or(Value::Null),
+                row["selected"],
+                "{row}"
+            );
+        }
+        // Never the first row: no default anywhere selects nothing.
+        assert_eq!(without_default.default_index(""), None);
+    }
+
+    #[test]
+    fn an_image_the_catalog_does_not_have_needs_an_account() {
+        let catalog = parse_manifest(&fixture("catalog.json")).unwrap();
+        let expected: Value = serde_json::from_str(&fixture("expected.json")).unwrap();
+        let unknown = &expected["unknown_image"];
+        assert_eq!(
+            catalog.needs_user_creation(unknown["imgref"].as_str().unwrap()),
+            unknown["needs_user_creation"]
+        );
+        assert!(Catalog::default().needs_user_creation("registry.example/os/any:1"));
+        // The NVIDIA variant of a leaf is that leaf (the image live media
+        // booted can be it).
+        assert!(!catalog.needs_user_creation("registry.example/os/boreal-nvidia:latest"));
+    }
+
+    /// #286: a composefs leaf reaches the recipe with its boot stack and a
+    /// filesystem fisherman accepts, and ext4 is offered where the leaf
+    /// allows it.
+    #[test]
+    fn a_composefs_leaf_reaches_the_recipe() {
+        let catalog = parse_manifest(&fixture("catalog.json")).unwrap();
+        let boreal = &catalog.leaves[catalog.find("registry.example/os/boreal:latest").unwrap()];
+        let mut recipe = Recipe::default();
+        assert_eq!(recipe.filesystem, "xfs");
+        recipe.apply_leaf(boreal, &Machine::default());
+        let json = serde_json::to_value(&recipe).unwrap();
+        assert_eq!(json["composeFsBackend"], true);
+        assert_eq!(json["bootloader"], "systemd");
+        // composefs on xfs is what fisherman rejects; the leaf's own
+        // default went in instead of this frontend's.
+        assert_eq!(json["filesystem"], "btrfs");
+        assert_eq!(json["btrfsSubvolumes"], true);
+        assert_eq!(json["targetImgref"], "registry.example/os/boreal:latest");
+        assert_eq!(json["flatpakVarPath"], "state/os/default/var");
+        assert_eq!(boreal.filesystem_choices(), ["btrfs", "ext4"]);
+
+        // The next leaf's fields replace them: nothing of Boreal is left.
+        let stable = &catalog.leaves[catalog.find("registry.example/os/atlas:stable").unwrap()];
+        recipe.apply_leaf(stable, &Machine::default());
+        let json = serde_json::to_value(&recipe).unwrap();
+        assert_eq!(json["bootloader"], "grub2");
+        assert!(json.get("composeFsBackend").is_none());
+        assert_eq!(json["filesystem"], "xfs");
+        assert_eq!(json["btrfsSubvolumes"], false);
+        assert!(json.get("flatpakVarPath").is_none());
+        assert_eq!(stable.filesystem_choices(), ["xfs"]);
+
+        // A leaf that names no filesystem: this frontend's list, with ext4.
+        let cirrus = &catalog.leaves[catalog.find("registry.example/os/cirrus:1").unwrap()];
+        assert_eq!(cirrus.filesystem_choices(), ["xfs", "ext4", "btrfs"]);
+        recipe.apply_leaf(cirrus, &Machine::default());
+        assert_eq!(recipe.filesystem, "xfs");
+        assert!(recipe.bootloader.is_empty());
+    }
+
+    /// #296: a list that cannot be read offline leaves the key out.
+    /// `fallback_flatpaks` is never read, and never sent.
+    #[test]
+    fn a_flatpak_list_is_written_only_when_it_resolves_offline() {
+        let catalog = parse_manifest(&fixture("catalog.json")).unwrap();
+        let flatpaks = |imgref: &str| catalog.leaves[catalog.find(imgref).unwrap()].flatpaks.clone();
+        // An alias that names a list.
+        assert_eq!(
+            flatpaks("registry.example/os/atlas:stable"),
+            Some(vec!["org.example.Browser".to_string(), "org.example.Editor".to_string()])
+        );
+        // `[]` is a value: copy nothing.
+        assert_eq!(flatpaks("registry.example/os/atlas:beta"), Some(Vec::new()));
+        // An alias that names a URL, an alias that does not exist, no value.
+        assert_eq!(flatpaks("registry.example/os/atlas-dx:latest"), None);
+        assert_eq!(flatpaks("registry.example/os/drift:edge"), None);
+        assert_eq!(flatpaks("registry.example/os/cirrus:1"), None);
+        for leaf in &catalog.leaves {
+            let mut recipe = Recipe::default();
+            recipe.apply_leaf(leaf, &Machine::default());
+            let text = serde_json::to_string(&recipe).unwrap();
+            assert!(!text.contains("org.example.NeverSent"), "{}: {text}", leaf.imgref);
+        }
+        // A list with an entry that is not an id is not a list.
+        let odd = parse_manifest(r#"{"images": [{"name": "A", "imgref": "x:1", "flatpaks": ["a", 7]}]}"#)
+            .unwrap();
+        assert_eq!(odd.leaves[0].flatpaks, None);
+    }
+
+    #[test]
+    fn rows_are_found_by_product_reference_or_description() {
+        let catalog = parse_manifest(&fixture("catalog.json")).unwrap();
+        let found = |q: &str| {
+            catalog
+                .leaves
+                .iter()
+                .filter(|l| l.matches(q))
+                .map(|l| l.breadcrumb.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(found("").len(), catalog.leaves.len());
+        assert_eq!(found("  ATLAS dx "), ["Atlas \u{203a} Atlas DX \u{203a} Latest"]);
+        assert_eq!(found("os/cirrus"), ["Cirrus"]);
+        assert_eq!(found("stable channel"), ["Atlas \u{203a} Stable"]);
+        assert!(found("no such system").is_empty());
+    }
 
     const MANIFEST: &str = r#"{
-        "default_image": "ghcr.io/example/desktop:stable",
-        "fallback_flatpaks": ["org.mozilla.firefox"],
+        "default_image": "registry.example/os/desktop:stable",
         "aliases": {"stable_tag": "stable"},
         "images": [
-            {"name": "Group", "needs_user_creation": true, "children": [
-                {"name": "Desktop", "imgref": "ghcr.io/example/desktop:stable"},
-                {"name": "Minimal", "registry": "ghcr.io/example/minimal", "tag": "@stable_tag",
-                 "description": "No frills", "needs_user_creation": false,
+            {"name": "Group", "needs_user_creation": false, "children": [
+                {"name": "Desktop", "imgref": "registry.example/os/desktop:stable"},
+                {"name": "Minimal", "registry": "registry.example/os/minimal", "tag": "@stable_tag",
+                 "description": "No frills", "needs_user_creation": true,
                  "carousel": [{"title": "Hi", "description": "Welcome", "image": "a.png"}]}
             ]},
-            {"name": "Server", "imgref": "ghcr.io/example/server:stable"}
+            {"name": "Server", "imgref": "registry.example/os/server:stable"}
         ]
     }"#;
 
@@ -286,51 +745,26 @@ mod tests {
         let catalog = parse_manifest(MANIFEST).unwrap();
         assert_eq!(catalog.leaves.len(), 3);
         // Inherited from Group.
-        assert!(catalog.leaves[0].needs_user_creation);
+        assert!(!catalog.leaves[0].needs_user_creation);
         // Overridden on the leaf itself.
-        assert!(!catalog.leaves[1].needs_user_creation);
-        // No ancestor sets it: the image.py root default, false.
-        assert!(!catalog.leaves[2].needs_user_creation);
+        assert!(catalog.leaves[1].needs_user_creation);
+        // No node sets it: the contract's default, true (#288). This was
+        // false, and such an image got no account from this frontend.
+        assert!(catalog.leaves[2].needs_user_creation);
     }
 
     #[test]
     fn aliases_resolve_before_leaves_are_read() {
         let catalog = parse_manifest(MANIFEST).unwrap();
-        assert_eq!(catalog.leaves[1].imgref, "ghcr.io/example/minimal:stable");
-    }
-
-    #[test]
-    fn flatpaks_inherit_with_fallback_at_the_root() {
-        // get_finals: the leaf's list, else the manifest fallback.
-        let catalog = parse_manifest(
-            r#"{"fallback_flatpaks": ["org.example.Fallback"],
-                "images": [
-                    {"name": "Plain", "imgref": "x:1"},
-                    {"name": "Group", "flatpaks": ["org.example.Group"], "children": [
-                        {"name": "Child", "imgref": "x:2"},
-                        {"name": "Own", "imgref": "x:3", "flatpaks": ["org.example.Own"]}
-                    ]}
-                ]}"#,
-        )
-        .unwrap();
-        let by_name = |n: &str| {
-            catalog
-                .leaves
-                .iter()
-                .find(|l| l.name == n)
-                .unwrap()
-                .flatpaks
-                .clone()
-        };
-        assert_eq!(by_name("Plain"), vec!["org.example.Fallback"]);
-        assert_eq!(by_name("Child"), vec!["org.example.Group"]);
-        assert_eq!(by_name("Own"), vec!["org.example.Own"]);
+        assert_eq!(catalog.leaves[1].imgref, "registry.example/os/minimal:stable");
+        // A tag leaf that sets its own registry is its own product.
+        assert_eq!(catalog.leaves[1].label, "Minimal");
     }
 
     #[test]
     fn only_a_whole_string_is_an_alias() {
-        // image.py replaces a string that STARTS WITH @; an @ in the
-        // middle of a longer value is literal and survives loading.
+        // A string that STARTS WITH @ is an alias; an @ in the middle of a
+        // longer value is literal and survives loading.
         let catalog = parse_manifest(
             r#"{"aliases": {"t": "stable"},
                 "images": [{"name": "A", "imgref": "x:@t"},
@@ -350,57 +784,48 @@ mod tests {
     }
 
     #[test]
-    fn default_and_fallbacks_are_reported() {
-        let catalog = parse_manifest(MANIFEST).unwrap();
-        assert_eq!(catalog.default_image, "ghcr.io/example/desktop:stable");
-        assert_eq!(catalog.fallback_flatpaks, vec!["org.mozilla.firefox"]);
-        assert_eq!(catalog.default_index(), Some(0));
-    }
-
-    #[test]
-    fn registry_plus_tag_leaves_are_understood() {
+    fn a_tag_leaf_takes_the_registry_in_scope() {
         let catalog = parse_manifest(
-            r#"{"images": [{"name": "Old", "registry": "ghcr.io/example/old", "tag": "lts"}]}"#,
+            r#"{"images": [{"name": "Old", "registry": "registry.example/os/old",
+                            "children": [{"name": "LTS", "tag": "lts"}]},
+                           {"name": "No registry", "tag": "lts"}]}"#,
         )
         .unwrap();
+        // A tag with no registry in scope is not an image.
         assert_eq!(catalog.leaves.len(), 1);
-        assert_eq!(catalog.leaves[0].imgref, "ghcr.io/example/old:lts");
-    }
-
-    #[test]
-    fn one_leaf_is_no_choice() {
-        let one = parse_manifest(r#"{"images": [{"name": "Only", "imgref": "x:y"}]}"#).unwrap();
-        assert!(!one.has_choice());
-        let two = parse_manifest(
-            r#"{"images": [{"name": "A", "imgref": "x:y"}, {"name": "B", "imgref": "x:z"}]}"#,
-        )
-        .unwrap();
-        assert!(two.has_choice());
+        assert_eq!(catalog.leaves[0].imgref, "registry.example/os/old:lts");
+        assert_eq!(catalog.leaves[0].label, "Old LTS");
     }
 
     #[test]
     fn garbage_is_an_error_not_a_panic() {
         assert!(parse_manifest("not json").is_err());
-        // A wrongly-shaped tree is an empty catalog, not an error: the
-        // wizard falls back to the branding default with the account
-        // required, instead of failing to start.
-        assert!(parse_manifest(r#"{"images": {}}"#)
-            .unwrap()
-            .leaves
-            .is_empty());
+        // Not a catalog: the search goes on to the next file.
+        assert!(parse_manifest(r#"{"images": {}}"#).is_err());
+        assert!(parse_manifest("[]").is_err());
+        // Nodes that are not objects are skipped.
+        assert!(parse_manifest(r#"{"images": [7, "x", null]}"#).unwrap().leaves.is_empty());
     }
 
+    /// A file that is missing or that is not a catalog does not stop the
+    /// search. It used to: the first missing path ended it, so only a
+    /// catalog at the first path was ever read.
     #[test]
-    fn load_reads_the_first_existing_manifest() {
-        let dir = std::env::temp_dir().join(format!("tuna-catalog-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("images.json");
-        std::fs::write(&path, MANIFEST).unwrap();
-        // SAFETY: single-threaded test; read back immediately.
-        unsafe { std::env::set_var("FISHERMAN_IMAGES_PATH", &path) };
-        let catalog = load_catalog().expect("manifest");
+    fn the_first_file_that_is_a_catalog_is_used() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = |name: &str| dir.path().join(name).to_string_lossy().into_owned();
+        std::fs::write(path("broken.json"), "not json").unwrap();
+        std::fs::write(path("list.json"), "[]").unwrap();
+        std::fs::write(path("good.json"), MANIFEST).unwrap();
+        std::fs::write(
+            path("later.json"),
+            r#"{"images": [{"name": "Later", "imgref": "x:1"}]}"#,
+        )
+        .unwrap();
+        let paths = ["missing.json", "broken.json", "list.json", "good.json", "later.json"].map(path);
+        let catalog = load_first(&paths).expect("a catalog");
         assert_eq!(catalog.leaves.len(), 3);
-        unsafe { std::env::remove_var("FISHERMAN_IMAGES_PATH") };
-        std::fs::remove_dir_all(&dir).ok();
+        assert_eq!(catalog.default_image, "registry.example/os/desktop:stable");
+        assert!(load_first(&paths[..3]).is_none());
     }
 }
