@@ -1,0 +1,280 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/tuna-os/bootc-installer/shared/walkthrough/features.schema.json",
+  "title": "Frontend feature manifest",
+  "description": "What one frontend does, one cell per row of shared/walkthrough/feature-rows.json. shared/walkthrough/features.py renders the Features table of docs/PARITY.md from the five manifests.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "frontend",
+    "features"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "frontend": {
+      "enum": [
+        "gnome",
+        "kde",
+        "cosmic",
+        "niri",
+        "xfce"
+      ]
+    },
+    "features": {
+      "type": "object",
+      "description": "Row id -> the text of this frontend's cell. Start the text with \"yes\" only when the frontend has the feature: a row with evidence is then checked. Name the issue for a gap, for example \"no (#290)\".",
+      "additionalProperties": false,
+      "required": [
+        "catalog_choice",
+        "default_selection",
+        "catalog_fields",
+        "live_install",
+        "offline_stores",
+        "recipe_on_stdin",
+        "staged_fisherman",
+        "validated_fields",
+        "disk_choice",
+        "disk_list_from_probe",
+        "disk_row",
+        "disk_probe_failure",
+        "requirements_check",
+        "connectivity_check",
+        "filesystem_choice",
+        "encryption_passphrase",
+        "passphrase_confirmation",
+        "encryption_tpm",
+        "recovery_key",
+        "hostname",
+        "user_account",
+        "needs_user_creation_default",
+        "account_password",
+        "account_groups",
+        "phone_companion",
+        "locale_pages",
+        "locale_installed",
+        "cancel_install",
+        "autoinstall",
+        "translatable",
+        "progress_bar",
+        "restart_from_done",
+        "log_after_failure",
+        "walkthrough",
+        "e2e_gate"
+      ],
+      "properties": {
+        "catalog_choice": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Image catalog choice (fisherman `images.json`)"
+        },
+        "default_selection": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Image selected at start, off live media"
+        },
+        "catalog_fields": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Catalog fields that reach the recipe"
+        },
+        "live_install": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Live-ISO install without download (live media from `fisherman probe --json`)"
+        },
+        "offline_stores": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Offline image stores (found by fisherman on the host)"
+        },
+        "recipe_on_stdin": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Recipe on fisherman's stdin, no recipe file"
+        },
+        "staged_fisherman": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "fisherman staged from the Flatpak, with a SHA256 check"
+        },
+        "validated_fields": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Fields checked by `fisherman validate --json --partial`"
+        },
+        "disk_choice": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Disk choice with erase warning"
+        },
+        "disk_list_from_probe": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Disk list from `fisherman probe --json` (`shared/probe/`)"
+        },
+        "disk_row": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Disk row: model (path when unknown), path, size label, bus"
+        },
+        "disk_probe_failure": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Disk probe failure shown on the disk page"
+        },
+        "requirements_check": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "RAM / CPU / UEFI check (fisherman's `system.unmet`)"
+        },
+        "connectivity_check": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Connectivity check"
+        },
+        "filesystem_choice": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Filesystem choice"
+        },
+        "encryption_passphrase": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Encryption: none / passphrase"
+        },
+        "passphrase_confirmation": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Passphrase typed twice, Next held on a mismatch"
+        },
+        "encryption_tpm": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Encryption: TPM / TPM + passphrase"
+        },
+        "recovery_key": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Recovery key shown after a `tpm2-luks` install"
+        },
+        "hostname": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Hostname"
+        },
+        "user_account": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "User account, when the image needs one"
+        },
+        "needs_user_creation_default": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Default when the catalog does not set `needs_user_creation` (#288)"
+        },
+        "account_password": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Account password"
+        },
+        "account_groups": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Account groups"
+        },
+        "phone_companion": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Phone companion (QR)"
+        },
+        "locale_pages": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Keyboard / language / timezone (#292)"
+        },
+        "locale_installed": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Keyboard / language / timezone in the installed system"
+        },
+        "cancel_install": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Cancel a running install (#299)"
+        },
+        "autoinstall": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "`--autoinstall`"
+        },
+        "translatable": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Translatable UI"
+        },
+        "progress_bar": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Progress bar from fisherman's protocol"
+        },
+        "restart_from_done": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Restart from the done page"
+        },
+        "log_after_failure": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Show log after failure"
+        },
+        "walkthrough": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Screenshot walkthrough + parity report"
+        },
+        "e2e_gate": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "End-to-end gate (real install and boot)"
+        }
+      }
+    }
+  }
+}
