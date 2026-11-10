@@ -17,7 +17,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gio, GLib  # noqa: E402
+from gi.repository import Adw, Gio, GLib
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 SHIPPED_RECIPE = os.path.join(REPO, "recipe.json")

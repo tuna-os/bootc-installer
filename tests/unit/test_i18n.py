@@ -161,7 +161,7 @@ def test_the_named_strings_are_wrapped_at_their_source():
 def test_translations_survived_the_new_template():
     """The .po files were merged, not thrown away."""
     de = (PO / "de.po").read_text(encoding="utf-8")
-    assert len(re.findall(r'^msgstr "[^"]', de, flags=re.M)) > 50
+    assert len(re.findall(r'^msgstr "[^"]', de, flags=re.MULTILINE)) > 50
     assert 'msgid "Next"' in de
 
 

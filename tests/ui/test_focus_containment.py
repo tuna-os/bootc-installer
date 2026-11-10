@@ -11,7 +11,7 @@ import gi
 import pytest
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk  # noqa: E402
+from gi.repository import Gtk
 
 from ._real_window import current_page, go, pages, pump, real_window, shipped_recipe
 

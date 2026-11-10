@@ -8,7 +8,6 @@ stop(), and stubs cannot show that.
 
 import http.client
 import json
-import os
 import shutil
 import socket
 import ssl

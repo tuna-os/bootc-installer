@@ -14,8 +14,18 @@ import pytest
 from bootc_installer.utils import phone_companion
 from bootc_installer.utils.user_step import user_step_shows
 
-from ._real_window import (RecordingServer, SHIPPED_RECIPE, current_page, go, page_by_key,
-                           pages, pump, real_window, shipped_recipe, wait_for)
+from ._real_window import (
+    SHIPPED_RECIPE,
+    RecordingServer,
+    current_page,
+    go,
+    page_by_key,
+    pages,
+    pump,
+    real_window,
+    shipped_recipe,
+    wait_for,
+)
 
 PHONE = {"fullname": "Ada Lovelace", "username": "countess", "password": "an4lytical-Engine!",
          "hostname": "engine-room"}
