@@ -108,10 +108,8 @@ InstallerController::InstallerController(QObject *parent)
     m_timezones = region::availableTimezones();
     if (!m_timezones.contains(m_timezone))
         m_timezone = QStringLiteral("UTC");
-    // What the pickers show is what the recipe installs (#292).
-    m_recipe.locale = region::localeName(m_language);
-    m_recipe.keyboardLayout = m_keyboardLayout;
-    m_recipe.timezone = m_timezone;
+    // The recipe gets a region value only when the user picks one (#292):
+    // a value nobody looked at must not replace the image's own.
 
     checkFields();
 }
@@ -413,10 +411,9 @@ void InstallerController::setContinueAnyway(bool v)
 
 void InstallerController::setLanguage(const QString &v)
 {
-    if (m_language == v)
-        return;
-    m_language = v;
+    // A pick, the current value included, goes into the recipe.
     m_recipe.locale = region::localeName(v);
+    m_language = v;
     Q_EMIT regionChanged();
     Q_EMIT recipeChanged();
     checkFields();
@@ -424,10 +421,9 @@ void InstallerController::setLanguage(const QString &v)
 
 void InstallerController::setKeyboardLayout(const QString &v)
 {
-    if (m_keyboardLayout == v)
-        return;
-    m_keyboardLayout = v;
+    // A pick, the current value included, goes into the recipe.
     m_recipe.keyboardLayout = v;
+    m_keyboardLayout = v;
     Q_EMIT regionChanged();
     Q_EMIT recipeChanged();
     checkFields();
@@ -435,10 +431,9 @@ void InstallerController::setKeyboardLayout(const QString &v)
 
 void InstallerController::setTimezone(const QString &v)
 {
-    if (m_timezone == v)
-        return;
-    m_timezone = v;
+    // A pick, the current value included, goes into the recipe.
     m_recipe.timezone = v;
+    m_timezone = v;
     Q_EMIT regionChanged();
     Q_EMIT recipeChanged();
     checkFields();

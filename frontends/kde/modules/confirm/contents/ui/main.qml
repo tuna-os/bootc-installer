@@ -195,7 +195,7 @@ TunaComponents.SetupModule {
                 FormCard.FormTextDelegate {
                     id: keyboardRow
                     objectName: "confirmKeyboard"
-                    visible: InstallerController.keyboardLayout.length > 0
+                    visible: InstallerController.keyboardChosen
                     text: qsTr("Keyboard")
                     description: {
                         const i = InstallerController.keyboardLayoutIds.indexOf(InstallerController.keyboardLayout)
@@ -210,7 +210,7 @@ TunaComponents.SetupModule {
                 FormCard.FormTextDelegate {
                     id: timezoneRow
                     objectName: "confirmTimezone"
-                    visible: InstallerController.timezone.length > 0
+                    visible: InstallerController.timezoneChosen
                     text: qsTr("Time zone")
                     description: InstallerController.timezoneDisplay(InstallerController.timezone)
                 }

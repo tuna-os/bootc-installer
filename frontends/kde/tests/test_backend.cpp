@@ -2555,6 +2555,13 @@ void BackendTest::confirmPageListsNoLocaleRows()
     QVERIFY(!welcome.contains(QStringLiteral("regionNotApplied")));
     QVERIFY(welcome.contains(QStringLiteral("regionProblem")));
 
+    // Nothing picked: the recipe keeps the image's values.
+    {
+        InstallerController untouched;
+        const QJsonObject recipe = untouched.recipe().toJson();
+        for (const char *key : {"locale", "keyboard", "timezone"})
+            QVERIFY2(!recipe.contains(QLatin1String(key)), key);
+    }
     // The pickers' values reach the recipe, in fisherman's shape.
     InstallerController c;
     c.setLanguage(QStringLiteral("de"));

@@ -704,6 +704,10 @@ int main(int argc, char *argv[])
     controller->setUsername(captureUsername);
     controller->setFullname(u"Alex Example"_s);
     controller->setUserPassword(capturePassword);
+    // The region pickers, as a user leaves them: the confirm step lists them.
+    controller->setLanguage(u"en"_s);
+    controller->setKeyboardLayout(u"us"_s);
+    controller->setTimezone(u"Europe/Berlin"_s);
     // Fills the log and the result. Runs no process and touches no disk.
     // exitCode 0, not a "still running" sentinel: loadDemoState() always sets
     // the finished flag, so there is no way to express a live install through
