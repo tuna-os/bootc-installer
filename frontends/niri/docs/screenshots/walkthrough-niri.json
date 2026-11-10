@@ -1,9 +1,9 @@
 {
   "flavor": "niri",
-  "frames": 8,
-  "rendered_frames": 8,
-  "advanced_transitions": 7,
-  "visual_states": 8,
+  "frames": 14,
+  "rendered_frames": 14,
+  "advanced_transitions": 13,
+  "visual_states": 14,
   "activation_key": null,
   "ocr": false,
   "screens": {
@@ -24,7 +24,8 @@
       "required": true,
       "reached": true,
       "on_pages": [
-        "01-welcome"
+        "01-welcome",
+        "11-tour"
       ],
       "matched_keywords": [
         "get started",
@@ -36,7 +37,7 @@
       "required": true,
       "reached": true,
       "on_pages": [
-        "02-disk"
+        "04-disk"
       ],
       "matched_keywords": [
         "destination"
@@ -46,7 +47,7 @@
       "required": false,
       "reached": true,
       "on_pages": [
-        "03-encryption"
+        "05-encryption"
       ],
       "matched_keywords": [
         "disk encryption"
@@ -56,7 +57,7 @@
       "required": true,
       "reached": true,
       "on_pages": [
-        "05-confirm"
+        "07-confirm"
       ],
       "matched_keywords": [
         "confirm installation",
@@ -67,7 +68,8 @@
       "required": false,
       "reached": true,
       "on_pages": [
-        "06-progress"
+        "08-progress",
+        "12-cancel-confirm"
       ],
       "matched_keywords": [
         "do not power off",
@@ -78,8 +80,9 @@
       "required": false,
       "reached": true,
       "on_pages": [
-        "07-done",
-        "08-recovery"
+        "09-done",
+        "10-recovery",
+        "11-tour"
       ],
       "matched_keywords": [
         "is installed",
@@ -92,91 +95,157 @@
       "name": "01-welcome",
       "png": "docs/screenshots/01-welcome.png",
       "rendered": true,
-      "colours": 252,
-      "flat": 0.9538666666666666,
-      "ink": 0.038766666666666665,
-      "stddev": 0.10764450748304957,
-      "text_excerpt": "Step 1 of 7 \u00b7 Welcome \u2b22 Welcome to TunaOS This wizard will guide you through installing TunaOS onto your computer. Get started Get started Enter Continue Tab Next field"
+      "colours": 334,
+      "flat": 0.8249666666666666,
+      "ink": 0.03493333333333333,
+      "stddev": 0.09167923846255085,
+      "text_excerpt": "Step 1 of 9 \u00b7 Welcome \u2b22 Welcome to TunaOS This wizard will guide you through installing TunaOS onto your computer. Get started Get started Enter Continue Tab Next field This computer does not meet the minimum requirements It has less than 4"
     },
     {
-      "name": "02-disk",
-      "png": "docs/screenshots/02-disk.png",
+      "name": "02-session",
+      "png": "docs/screenshots/02-session.png",
       "rendered": true,
-      "colours": 482,
-      "flat": 0.6202666666666666,
-      "ink": 0.10973333333333334,
-      "stddev": 0.10510647374992922,
-      "text_excerpt": "Step 2 of 7 \u00b7 Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  \u00b7  465.8 GiB  \u00b7  SATA Extreme SSD /dev/sdc  \u00b7  931.5 GiB  \u00b7  USB Cruzer Blade /dev/sdd  \u00b7  59.6 GiB  \u00b7  USB WD_"
+      "colours": 417,
+      "flat": 0.6223,
+      "ink": 0.03213333333333333,
+      "stddev": 0.10668633291208246,
+      "text_excerpt": "Step 2 of 9 \u00b7 Session Session These settings change only on live media. This computer keeps its own keyboard, language and time zone. Keyboard and language Keyboard us Language en_US.UTF-8 Timezone Europe/Berlin Network Connected \u2014 download"
     },
     {
-      "name": "03-encryption",
-      "png": "docs/screenshots/03-encryption.png",
+      "name": "03-source",
+      "png": "docs/screenshots/03-source.png",
       "rendered": true,
-      "colours": 452,
-      "flat": 0.6160666666666667,
-      "ink": 0.11353333333333333,
-      "stddev": 0.11047765211803984,
-      "text_excerpt": "Step 3 of 7 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
+      "colours": 432,
+      "flat": 0.6407666666666667,
+      "ink": 0.11946666666666667,
+      "stddev": 0.11678059740872024,
+      "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Example OS \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Example OS \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Example OS \u203a Edge ghcr.io/example/os:edge  \u00b7"
     },
     {
-      "name": "04-account",
-      "png": "docs/screenshots/04-account.png",
+      "name": "04-disk",
+      "png": "docs/screenshots/04-disk.png",
       "rendered": true,
-      "colours": 324,
-      "flat": 0.6013333333333334,
-      "ink": 0.029233333333333333,
-      "stddev": 0.09884948104720706,
-      "text_excerpt": "Step 4 of 7 \u00b7 Account Your account The account you sign in with. It can administer this computer. Account Username alex Full name Alex Example Password capture Password again capture Back Back Continue Continue Enter Continue Shift+Enter Ba"
+      "colours": 490,
+      "flat": 0.6199333333333333,
+      "ink": 0.11503333333333333,
+      "stddev": 0.11754587493043558,
+      "text_excerpt": "Step 4 of 9 \u00b7 Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  \u00b7  465.8 GiB  \u00b7  SATA Extreme SSD /dev/sdc  \u00b7  931.5 GiB  \u00b7  USB Cruzer Blade /dev/sdd  \u00b7  59.6 GiB  \u00b7  USB WD_"
     },
     {
-      "name": "05-confirm",
-      "png": "docs/screenshots/05-confirm.png",
+      "name": "05-encryption",
+      "png": "docs/screenshots/05-encryption.png",
       "rendered": true,
-      "colours": 400,
-      "flat": 0.5812333333333334,
-      "ink": 0.0272,
-      "stddev": 0.0962046416306421,
-      "text_excerpt": "Step 5 of 7 \u00b7 Confirm Confirm installation \u26a0  Everything on /dev/sda will be erased. This cannot be undone. Summary Target disk /dev/sda Filesystem xfs Encryption No encryption Username alex Hostname tunaos Image ghcr.io/tuna-os/albacore:gn"
+      "colours": 524,
+      "flat": 0.4203,
+      "ink": 0.20823333333333333,
+      "stddev": 0.13174961226031973,
+      "text_excerpt": "Step 5 of 9 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
-      "name": "06-progress",
-      "png": "docs/screenshots/06-progress.png",
+      "name": "06-account",
+      "png": "docs/screenshots/06-account.png",
       "rendered": true,
-      "colours": 260,
-      "flat": 0.6350333333333333,
-      "ink": 0.0188,
-      "stddev": 0.08456309075516164,
-      "text_excerpt": "Step 6 of 7 \u00b7 Installing Installing TunaOS\u2026 Step 5 of 8 \u2014 Installing OS [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pul"
+      "colours": 327,
+      "flat": 0.5248333333333334,
+      "ink": 0.0335,
+      "stddev": 0.10772380853214387,
+      "text_excerpt": "Step 6 of 9 \u00b7 Account Your account The account you sign in with. It can administer this computer. Account Username alex Full name Alex Example Password capture Password again capture Show passwords Show passwords Back Back Continue Continue"
     },
     {
-      "name": "07-done",
-      "png": "docs/screenshots/07-done.png",
+      "name": "07-confirm",
+      "png": "docs/screenshots/07-confirm.png",
       "rendered": true,
-      "colours": 196,
-      "flat": 0.9602666666666667,
-      "ink": 0.017766666666666667,
-      "stddev": 0.08858900908435582,
-      "text_excerpt": "Step 7 of 7 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. Close Close Restart now Restart now"
+      "colours": 425,
+      "flat": 0.5743,
+      "ink": 0.0331,
+      "stddev": 0.10813873983467204,
+      "text_excerpt": "Step 7 of 9 \u00b7 Confirm Confirm installation \u26a0  Everything on /dev/sda will be erased. This cannot be undone. Summary Target disk /dev/sda Image Example OS Stable  (ghcr.io/example/os:stable) Filesystem btrfs Encryption No encryption Username"
     },
     {
-      "name": "08-recovery",
-      "png": "docs/screenshots/08-recovery.png",
+      "name": "08-progress",
+      "png": "docs/screenshots/08-progress.png",
       "rendered": true,
-      "colours": 392,
-      "flat": 0.9108,
-      "ink": 0.026266666666666667,
-      "stddev": 0.09533321008847333,
-      "text_excerpt": "Step 7 of 7 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe,"
+      "colours": 361,
+      "flat": 0.5498333333333333,
+      "ink": 0.0294,
+      "stddev": 0.10514331626339123,
+      "text_excerpt": "Step 8 of 9 \u00b7 Installing Installing TunaOS\u2026 Step 5 of 8 \u2014 Installing OS [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pul"
+    },
+    {
+      "name": "09-done",
+      "png": "docs/screenshots/09-done.png",
+      "rendered": true,
+      "colours": 256,
+      "flat": 0.9515333333333333,
+      "ink": 0.020466666666666668,
+      "stddev": 0.09267214356593471,
+      "text_excerpt": "Step 9 of 9 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. Close Close Power off Power off Restart now Restart now"
+    },
+    {
+      "name": "10-recovery",
+      "png": "docs/screenshots/10-recovery.png",
+      "rendered": true,
+      "colours": 402,
+      "flat": 0.9046333333333333,
+      "ink": 0.0308,
+      "stddev": 0.10609336794353737,
+      "text_excerpt": "Step 9 of 9 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe,"
+    },
+    {
+      "name": "11-tour",
+      "png": "docs/screenshots/11-tour.png",
+      "rendered": true,
+      "colours": 176,
+      "flat": 0.7243666666666667,
+      "ink": 0.010533333333333334,
+      "stddev": 0.04662865814093219,
+      "text_excerpt": "Step 8 of 8 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe,"
+    },
+    {
+      "name": "12-cancel-confirm",
+      "png": "docs/screenshots/12-cancel-confirm.png",
+      "rendered": true,
+      "colours": 398,
+      "flat": 0.4132,
+      "ink": 0.04343333333333333,
+      "stddev": 0.10800134851723514,
+      "text_excerpt": "Step 7 of 8 \u00b7 Installing Installing TunaOS\u2026 Step 5 of 8 \u2014 Installing OS [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pul"
+    },
+    {
+      "name": "13-cancelled",
+      "png": "docs/screenshots/13-cancelled.png",
+      "rendered": true,
+      "colours": 212,
+      "flat": 0.9627333333333333,
+      "ink": 0.015633333333333332,
+      "stddev": 0.07565014138235343,
+      "text_excerpt": "Step 8 of 8 \u00b7 Done \u2013 Installation cancelled You stopped the installer. The disk can be in an incomplete state: start the installer again before you use it. Close Close"
+    },
+    {
+      "name": "14-offline",
+      "png": "docs/screenshots/14-offline.png",
+      "rendered": true,
+      "colours": 592,
+      "flat": 0.5407333333333333,
+      "ink": 0.12366666666666666,
+      "stddev": 0.11291155198613109,
+      "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Example OS \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Example OS \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Example OS \u203a Edge ghcr.io/example/os:edge  \u00b7"
     }
   ],
   "transition_pixels": [
-    75816,
-    14583,
-    183220,
-    60239,
-    194199,
-    308485,
-    53687
+    144866,
+    172854,
+    73524,
+    102306,
+    243727,
+    98605,
+    166672,
+    269820,
+    59978,
+    131948,
+    61535,
+    88611,
+    151795
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."

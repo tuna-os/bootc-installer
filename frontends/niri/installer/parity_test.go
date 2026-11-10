@@ -19,7 +19,7 @@ func TestCLIAdvertisesParityCommands(t *testing.T) {
 	}
 	for _, want := range []string{
 		"catalog", "session-get", "session-set", "cancel", "log-path",
-		"poweroff", "firmware",
+		"poweroff", "firmware", "netcheck", "network-settings",
 	} {
 		if !strings.Contains(got.stderr, want) {
 			t.Errorf("usage text is missing %q; stderr = %q", want, got.stderr)
@@ -35,19 +35,27 @@ func TestQMLHoldsParitySteps(t *testing.T) {
 	qml := readQML(t)
 	for _, want := range []string{
 		// (a) filesystem choice defaulting from the leaf.
-		`root.filesystem`, `fsChosen`, `btrfsSubvolumes`,
-		`from the selected image`,
+		`root.filesystem`, `applySelection`, `btrfsSubvolumes`,
+		`the choices of the selected image`,
 		// (b) catalog step and conditional account.
 		`catalogProc`, `sortedLeaves`, `needs_user_creation`,
 		`needsUserCreation`, `chooseAndNext`, `"Source"`,
-		`composeFsBackend`,
+		`composeFsBackend`, `imageRecipe`, `selectLeaf`, `sourceSearch`,
+		`sourceChooseHint`, `confirmTargetImage`,
 		// (c) blocking gates, poweroff dialog, log copy, cancel.
 		`gateOpen`, `Continue anyway`, `Firmware setup`,
 		`powerOpen`, `poweroffProc`, `firmwareProc`,
 		`Copy log`, `cancelProc`, `cancelInstallButton`,
+		// The cancel that asks first, and its own done page (#299).
+		`cancelOpen`, `cancelConfirmButton`, `confirmCancel`,
+		`installCancelled`, `"done_cancelled_title"`,
 		// (d) locale/keyboard/timezone/network preflight.
 		`sessionProc`, `sessionSetProc`, `applySession`,
-		`Recheck`, `sessionError`,
+		`Recheck`, `sessionError`, `sessionChanges`, `withCurrent`,
+		`sessionFailed`,
+		// The offline gate and the network tool (#301).
+		`downloadBlocked`, `netProc`, `netToolProc`, `OfflineNotice`,
+		`Network settings`,
 		// (e) tour carousel.
 		`tourSlides`, `tourOpen`, `Take a tour`,
 	} {

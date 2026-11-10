@@ -75,9 +75,7 @@ KNOWN_GAPS = {
         "welcome_install_subtitle": "the welcome page has no install row to label",
         "done_cancelled_title": "exit code 130 shows the failure page; the cancelled page is the open part of #299",
     },
-    "niri": {
-        "done_cancelled_title": "exit code 130 shows the failure page; the cancelled page is the open part of #299",
-    },
+    "niri": {},
     "xfce": {
     },
 }
