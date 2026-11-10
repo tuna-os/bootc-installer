@@ -92,7 +92,6 @@ def main():
 
     patchers = [
         patch("bootc_installer.defaults.qr_companion.CompanionServer"),
-        patch("bootc_installer.defaults.qr_companion.get_local_ip", return_value="127.0.0.1"),
         patch.object(BootcWindow, "set_installation_result", record),
     ]
     for p in patchers:

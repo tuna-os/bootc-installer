@@ -19,9 +19,10 @@ from gi.repository import Adw, Gdk, GLib, Gtk, Pango
 
 from bootc_installer.utils.phone_companion import (
     CONFIG_RECEIVED_EVENT,
+    NO_NETWORK,
     CompanionServer,
-    get_local_ip,
 )
+from bootc_installer.utils.user_step import user_step_shows
 
 try:
     import segno
@@ -116,7 +117,6 @@ class BootcDefaultQrCompanion(Adw.Bin):
         self.__window = window
         self.__key = key
         self.__step = step
-        self.__step_num = step["num"]
         self.delta = False
         self.__server = None
         self.__timeout_id = None
@@ -326,22 +326,23 @@ class BootcDefaultQrCompanion(Adw.Bin):
         return self.__key
 
     def should_show(self, context: dict) -> bool:
-        # Show this setup page if it is configured in the recipe
-        return True
+        # The form asks for an account. When the image makes its own (the
+        # user step hides), there is nothing for the phone to fill in (#305).
+        return bool(user_step_shows(self.__window, context))
 
     def get_finals(self):
-        # Feed Hostname and SSH Key to the recipe processor if provided
+        # The account goes through the user page, which applies it when it
+        # is shown. The hostname has no page of its own, so it goes from here.
         companion_config = getattr(self.__window, "companion_config", None)
-        if companion_config:
-            finals = {}
-            if "hostname" in companion_config:
-                finals["hostname"] = companion_config["hostname"]
-            return finals
+        if isinstance(companion_config, dict) and companion_config.get("hostname"):
+            return {"hostname": companion_config["hostname"]}
         return {}
 
     def __on_page_changed(self, carousel, idx):
-        # Check if we transitioned into this step page
-        if int(idx) == self.__step_num - 1:
+        # Compare the page, not a step number: steps are numbered from the
+        # recipe, and the carousel leaves out every step that does not show,
+        # so the two do not line up (#304).
+        if carousel.get_nth_page(int(idx)) is self:
             self.__start_companion()
         else:
             self.__stop_companion()
@@ -353,9 +354,18 @@ class BootcDefaultQrCompanion(Adw.Bin):
 
     # ── companion server ──────────────────────────────────────────────────
 
-    def __show_unavailable(self):
+    def __show_unavailable(self, reason=None):
         self.__url = None
         self.copy_button.set_sensitive(False)
+        if reason == NO_NETWORK:
+            description = _(
+                "This computer is not connected to a network your phone can reach. "
+                "Continue to enter your details here instead.")
+        else:
+            description = _(
+                "This computer can't open a secure connection for your phone. "
+                "Continue to enter your details here instead.")
+        self.unavailable_page.set_description(description)
         self.state_stack.set_visible_child_name("unavailable")
 
     def __show_code(self, url, host):
@@ -389,12 +399,16 @@ class BootcDefaultQrCompanion(Adw.Bin):
         logger.info("Initializing Phone Companion server...")
         self.__server = CompanionServer(port=COMPANION_PORT)
         if not self.__server.start():
-            # No HTTPS, so no phone: the form carries the password (#185).
+            # No HTTPS, or no address a phone can reach: no phone. The form
+            # carries the password (#185), and a code for 127.0.0.1 opens
+            # nothing (#306).
+            reason = getattr(self.__server, "unavailable_reason", None)
             self.__server = None
-            self.__show_unavailable()
+            self.__show_unavailable(reason)
             return
 
-        ip = get_local_ip()
+        # The address the server bound is the one the code advertises.
+        ip = self.__server.host
         self.__show_code(companion_url(ip, COMPANION_PORT, self.__server.auth_token),
                          f"{ip}:{COMPANION_PORT}")
 
@@ -407,6 +421,8 @@ class BootcDefaultQrCompanion(Adw.Bin):
             self.__timeout_id = None
 
         if self.__server:
+            # Returns at once: the socket closes on its own thread, so a
+            # page change never waits for a client (#306).
             self.__server.stop()
             self.__server = None
             logger.info("Shut down Phone Companion server.")

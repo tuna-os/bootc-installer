@@ -20,8 +20,6 @@ import os
 import sys
 import time
 import signal
-import locale
-import gettext
 import subprocess
 
 VERSION = '@VERSION@'
@@ -30,9 +28,10 @@ localedir = '@localedir@'
 
 sys.path.insert(1, pkgdatadir)
 signal.signal(signal.SIGINT, signal.SIG_DFL)
-locale.bindtextdomain('bootc_installer', localedir)
-locale.textdomain('bootc_installer')
-gettext.install('bootc_installer', localedir)
+
+# One gettext domain, bound in one place: bootc_installer/utils/i18n.py.
+from bootc_installer.utils import i18n
+i18n.bind(localedir)
 
 if __name__ == '__main__':
     import gi

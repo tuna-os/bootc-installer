@@ -20,13 +20,14 @@ from bootc_installer.defaults import qr_companion as mod
 TOKEN = "ui-test-token-must-stay-hidden"
 
 
-def _page(start_ok=True, segno=mod.segno):
+def _page(start_ok=True, segno=mod.segno, reason="no-tls"):
     page = mod.BootcDefaultQrCompanion(MagicMock(), {}, "qr_companion", {"num": 2})
     server = MagicMock()
     server.start.return_value = start_ok
     server.auth_token = TOKEN if start_ok else None
+    server.host = "192.0.2.10" if start_ok else None
+    server.unavailable_reason = None if start_ok else reason
     with patch.object(mod, "CompanionServer", return_value=server), \
-         patch.object(mod, "get_local_ip", return_value="192.0.2.10"), \
          patch.object(mod, "segno", segno), \
          patch.object(mod.GLib, "timeout_add", return_value=0):
         page._BootcDefaultQrCompanion__start_companion()

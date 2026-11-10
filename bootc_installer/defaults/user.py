@@ -1,17 +1,13 @@
 import re
-import json
 import logging
-import os
+from gettext import gettext as _
 
 from gi.repository import Adw, Gtk
 
 from bootc_installer.utils.field_check import FieldCheck
+from bootc_installer.utils.user_step import user_step_shows
 
 logger = logging.getLogger("Installer::User")
-
-_IN_FLATPAK = os.path.exists("/.flatpak-info")
-_ETC = "/run/host/etc" if _IN_FLATPAK else "/etc"
-_IMAGES_JSON = f"{_ETC}/bootc-installer/images.json"
 
 # Groups added to every created user.
 _DEFAULT_GROUPS = ["wheel", "docker", "incus-admin", "libvirt", "dialout"]
@@ -57,46 +53,44 @@ class BootcDefaultUsers(Adw.Bin):
         self.password_confirmation.connect("changed", self.__on_field_changed)
         self.btn_next.connect("clicked", self.__window.next)
 
-        # Pre-populate from QR Phone Companion if available
-        companion_config = getattr(self.__window, "companion_config", None)
-        if companion_config:
-            logger.info("Pre-populating user credentials from Phone Companion.")
-            if "fullname" in companion_config:
-                self.fullname_entry.set_text(companion_config["fullname"])
-            if "username" in companion_config:
-                self.username_entry.set_text(companion_config["username"])
-            if "password" in companion_config:
-                self.password_entry.set_text(companion_config["password"])
-                self.password_confirmation.set_text(companion_config["password"])
+        # The account a phone sent, if one did. Every step is built at start,
+        # before any phone can have sent anything, so the real work is in
+        # on_shown(); this covers a window built after the fact.
+        self.__applied_companion = None
+        self.__apply_companion_config()
 
+        self.__update_btn_next()
+
+    def on_shown(self, context=None):
+        """The window calls this each time the page becomes current."""
+        self.__apply_companion_config()
+
+    def __apply_companion_config(self):
+        """Put the account from the phone companion into the entries.
+
+        Once per submission: a later visit must not undo what the user then
+        typed here. A new submission (the user went back and scanned again)
+        is a new object and applies again.
+        """
+        config = getattr(self.__window, "companion_config", None)
+        if not isinstance(config, dict) or config is self.__applied_companion:
+            return
+        self.__applied_companion = config
+        logger.info("Filling in the account from the Phone Companion.")
+        # Full name first: its handler suggests a username, and the one the
+        # phone sent must win.
+        if isinstance(config.get("fullname"), str):
+            self.fullname_entry.set_text(config["fullname"])
+        if isinstance(config.get("username"), str):
+            self.username_entry.set_text(config["username"])
+        if isinstance(config.get("password"), str):
+            self.password_entry.set_text(config["password"])
+            self.password_confirmation.set_text(config["password"])
         self.__update_btn_next()
 
     def should_show(self, context: dict) -> bool:
         """Show this step only when the selected image requires user creation."""
-        image_step = getattr(self.__window, "image_step", None)
-        if image_step is None or context.get("leaf_count", 2) <= 1:
-            # No usable image step: check sys_recipe["images"] first (handles removed
-            # image-step cases), then fall back to images.json.
-            sys_recipe = context.get("sys_recipe") or getattr(self.__window, "recipe", {})
-            recipe_images = sys_recipe.get("images", [])
-            if recipe_images:
-                nuc = recipe_images[0].get("needs_user_creation", True)
-                logger.info("should_show (recipe images): needs_user_creation=%s → show=%s", nuc, nuc)
-                return nuc
-            # Live ISO mode: read needs_user_creation from /etc/bootc-installer/images.json
-            try:
-                with open(_IMAGES_JSON) as f:
-                    data = json.load(f)
-                images = data.get("images", [data]) if "images" in data else [data]
-                nuc = images[0].get("needs_user_creation", True)
-                logger.info("should_show (live ISO): needs_user_creation=%s from images.json → show=%s", nuc, nuc)
-                return nuc
-            except Exception as e:
-                logger.warning("should_show: image metadata unavailable (%s) — showing user step", e)
-                return True
-        nuc = image_step.selected_needs_user_creation
-        logger.info("should_show: selected_needs_user_creation=%s → show=%s", nuc, nuc)
-        return nuc
+        return user_step_shows(self.__window, context)
 
     def test_auto_advance(self):
         self.btn_next.emit("clicked")
@@ -168,13 +162,13 @@ class BootcDefaultUsers(Adw.Bin):
             score += 1
 
         if score <= 1:
-            label, color = "Weak", "error"
+            label, color = _("Weak"), "error"
         elif score <= 2:
-            label, color = "Fair", "warning"
+            label, color = _("Fair"), "warning"
         elif score <= 3:
-            label, color = "Good", "success"
+            label, color = _("Good"), "success"
         else:
-            label, color = "Strong", "success"
+            label, color = _("Strong"), "success"
 
         self.password_strength_label.set_label(label)
         for cls in ("error", "warning", "success"):
