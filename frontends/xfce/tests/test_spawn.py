@@ -50,3 +50,48 @@ def test_wrapper_output_still_reaches_the_pipes():
     finally:
         for fd in (out, err):
             os.close(fd)
+
+
+def test_the_last_lines_are_read_when_the_exit_comes_first(tmp_path, monkeypatch):
+    """fisherman writes its BootNext line and `complete` and exits at once.
+    The child watch can run before the output watch has read them. The exit
+    handler then reads what is left: the log file and the page get the end
+    of the stream."""
+    from gi.repository import GLib
+
+    from tuna_installer_xfce import app
+
+    read, write = os.pipe()
+    os.write(write, b'{"type":"info","message":"BootNext set to Boot0001"}\n'
+                    b'{"type":"complete","message":"Installation complete!","overall_pct":100}\n')
+    os.close(write)
+    channel = GLib.IOChannel.unix_new(read)
+    channel.set_flags(GLib.IOFlags.NONBLOCK)
+
+    class Page:
+        def __init__(self):
+            self.lines = []
+
+        def append_log(self, text):
+            self.lines.append(text)
+
+    class Window:
+        _read_lines = app.InstallerWindow._read_lines
+        _on_exit = app.InstallerWindow._on_exit
+        _closing = False
+        _cancel_requested = False
+        _log_tail = []
+
+        def _show_result(self, ok, cancelled=False):
+            self.result = (ok, cancelled)
+
+    page, window = Page(), Window()
+    window._install_log = open(tmp_path / "install.log", "w")  # noqa: SIM115
+    window._install_channels = [(channel, page)]
+    monkeypatch.setattr(GLib, "spawn_close_pid", lambda _pid: None)
+    window._on_exit(1234, 0)
+    assert [line.split('"')[3] for line in page.lines] == ["info", "complete"]
+    assert window.result == (True, False)
+    log = (tmp_path / "install.log").read_text()
+    assert '"type":"complete"' in log
+    assert log.rstrip().endswith("=== fisherman exited: ok ===")

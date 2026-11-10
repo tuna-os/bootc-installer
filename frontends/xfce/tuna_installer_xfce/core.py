@@ -473,7 +473,28 @@ _INHERITED = {
     "flatpak_var_path": "",
     "needs_user_creation": True,
     "image_type": "bootc",
+    "extras": None,
 }
+
+# The switches of a catalog `extras` object, which are the keys of the
+# recipe's `extras` (shared/catalog/README.md, "Desktop extras"). fisherman
+# refuses a recipe key that it does not know, so no other key is copied.
+EXTRAS = ("printServices", "oemSetup", "audioNames", "bootSplash")
+
+
+def resolve_extras(value):
+    """The recipe's `extras` for a catalog `extras` value, or None.
+
+    The value is the object of the nearest node that has one. Objects are
+    not merged: a switch that the object leaves out is off, and `{}` turns
+    the four off. None (no node has an object, or a switch is not a
+    boolean) writes no key, and fisherman looks the image up itself.
+    """
+    if not isinstance(value, dict):
+        return None
+    if not all(isinstance(value.get(key, False), bool) for key in EXTRAS):
+        return None
+    return {key: value.get(key, False) for key in EXTRAS}
 
 
 def resolve_flatpaks(value, aliases):
@@ -537,6 +558,7 @@ class ImageLeaf:
         self.flatpak_var_path = context["flatpak_var_path"] or ""
         self.needs_user_creation = bool(context["needs_user_creation"])
         self.image_type = context["image_type"] or "bootc"
+        self.extras = resolve_extras(context["extras"])
 
 
 def catalog_leaves(raw):
@@ -752,7 +774,7 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
                  encryption_type="none", passphrase="", image="",
                  target_imgref="", hostname="", bootloader="", composefs=False,
                  flatpaks=None, flatpak_var_path="", image_type="bootc",
-                 needs_user=True, username="", fullname="",
+                 extras=None, needs_user=True, username="", fullname="",
                  password="", groups=None, branding=None):
     """Assemble the fisherman recipe from already-resolved values.
 
@@ -775,6 +797,8 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
       * `flatpaks` is a list or None. `[]` tells fisherman to copy no
         Flatpak; None (a list this frontend cannot read offline, or no
         value) writes no key, and fisherman applies its own default.
+      * `extras` is the leaf's object or None. None writes no key, and
+        fisherman looks the image up in the catalog that it finds.
       * The user block is omitted entirely when the image creates its own
         first user, or when no username was typed. `groups` is
         account_groups(): the shared default or the operator's list.
@@ -805,6 +829,8 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
         recipe["flatpakVarPath"] = flatpak_var_path
     if image_type and image_type != "bootc":
         recipe["imageType"] = image_type
+    if extras is not None:
+        recipe["extras"] = {key: bool(extras.get(key, False)) for key in EXTRAS}
     if needs_user and username:
         recipe["user"] = {
             "username": username,
@@ -827,7 +853,7 @@ def recipe_for_leaf(leaf, *, has_nvidia=False, live=False, offline=(), **fields)
         image=image, target_imgref=target, bootloader=leaf.bootloader,
         composefs=leaf.composefs, flatpaks=leaf.flatpaks,
         flatpak_var_path=leaf.flatpak_var_path, image_type=leaf.image_type,
-        needs_user=leaf.needs_user_creation, **fields)
+        extras=leaf.extras, needs_user=leaf.needs_user_creation, **fields)
 
 
 def recipe_problems(recipe):
