@@ -127,7 +127,7 @@ not use `default_image` yet (#289).
 | Feature | GNOME | KDE | COSMIC | Niri | XFCE |
 |---|---|---|---|---|---|
 | Image catalog choice (fisherman `images.json`) | yes (tree, search) | yes (disk step, search) | yes (and a custom URL row) | yes (flat list) | yes (flat list) |
-| Image selected at start, off live media | catalog `default_image`, then branding `default_image` if the catalog has it; else you must pick | none: you must pick | first row of the catalog (#289) | first name in the alphabet (#289) | first name in the alphabet (#289) |
+| Image selected at start, off live media | branding `default_image`, then catalog `default_image`, each only if the catalog has it; else you must pick | none: you must pick | first row of the catalog (#289) | first name in the alphabet (#289) | first name in the alphabet (#289) |
 | Catalog fields that reach the recipe | all | image, bootloader, composefs, hostname; not filesystem (#287) | image and Flatpaks only (#286) | image, filesystem, bootloader, composefs, hostname | image, filesystem, bootloader, composefs |
 | Live-ISO install without download (live media from `fisherman probe --json`) | yes | yes | yes | yes | yes |
 | Offline image stores (found by fisherman on the host) | yes | yes | yes | yes | yes |
@@ -147,9 +147,9 @@ not use `default_image` yet (#289).
 | Recovery key shown after a `tpm2-luks` install | yes | yes | yes | yes | yes |
 | Hostname | generated, editable on confirm | no (branding default, shown on confirm) | field | field on confirm | field |
 | User account, when the image needs one | yes | yes | yes | yes | yes |
-| Default when the catalog does not set `needs_user_creation` (#288) | no account | account | no account | account | account |
+| Default when the catalog does not set `needs_user_creation` (#288) | account | account | no account | account | account |
 | Account password | twice, reveal, strength | twice, reveal, strength | twice, reveal | twice, no reveal (#295) | once, no reveal (#295) |
-| Account groups | wheel and developer groups, operator override | wheel (#302) | wheel (#302) | wheel (#302) | wheel (#302) |
+| Account groups | wheel, sudo and developer groups (`shared/account/`), operator override | wheel (#302) | wheel (#302) | wheel (#302) | wheel (#302) |
 | Phone companion (QR) | yes (TLS on the LAN address only); shows when the image needs an account, and fills the account page | no | yes (plain HTTP, #293) | no | yes (plain HTTP, #293, #294) |
 | Keyboard / language / timezone (#292) | pages exist; not in the bundled recipe | shown on confirm, applied nowhere | applied to the live session | applied to the live session (#291) | keyboard only |
 | Keyboard / language / timezone in the installed system | no | no | no | no | no |
@@ -158,7 +158,7 @@ not use `default_image` yet (#289).
 | Translatable UI | gettext, one domain (`bootc-installer`); branding copy stays in one language (#311) | no (#300) | no (#300) | no (#300) | no (#300) |
 | Progress bar from fisherman's protocol | yes | yes | yes | yes | yes |
 | Restart from the done page | yes | yes | yes | yes | yes |
-| Show log after failure | yes (recovery key redacted) | log path | log in page | log in page | log tail |
+| Show log after failure | yes (recovery key redacted); the page shows fisherman's `error` event | log path | log in page | log in page | log tail |
 | Screenshot walkthrough + parity report | yes | yes | yes | yes | yes |
 | End-to-end gate (real install and boot) | yes | yes | yes | yes | yes |
 

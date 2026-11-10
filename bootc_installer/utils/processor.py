@@ -16,10 +16,10 @@
 
 import json
 import logging
-import os
 import re
 
-from bootc_installer.utils import branding
+from bootc_installer.utils import branding, catalog
+from bootc_installer.utils.account import resolve_groups
 from bootc_installer.utils.sha512crypt import sha512_crypt
 
 logger = logging.getLogger("Installer::Processor")
@@ -68,33 +68,11 @@ def _find_nvidia_imgref_for(imgref: str) -> str:
     """
     try:
         from bootc_installer.defaults.image import _MANIFEST
-        tree = _MANIFEST.get("images", [])
     except Exception:
         return ""
-
-    def _search(nodes, nvidia_ctx=""):
-        for node in nodes:
-            node_nvidia = node.get("nvidia_imgref", nvidia_ctx)
-            if node.get("imgref") == imgref:
-                return node_nvidia
-            children = node.get("children", [])
-            if children:
-                result = _search(children, node_nvidia)
-                if result:
-                    return result
-        return ""
-
-    return _search(tree)
-
-
-def _nvidia_image_is_on_media(nvidia_imgref: str) -> bool:
-    """Whether the NVIDIA image can be installed without a download: the
-    host booted from live media and fisherman's probe lists that image in
-    an offline store (offline.images)."""
-    from bootc_installer.core.system import Systeminfo
-    if not Systeminfo.is_live():
-        return False
-    return nvidia_imgref in Systeminfo.offline_images()
+    # The catalog reader finds tag leaves (`registry` + `tag`) too.
+    leaf = catalog.find(_MANIFEST, imgref)
+    return leaf["nvidia_imgref"] if leaf else ""
 
 
 class Processor:
@@ -137,26 +115,22 @@ class Processor:
         if not nvidia_imgref and image:
             nvidia_imgref = _find_nvidia_imgref_for(image)
         if nvidia_imgref:
+            # shared/catalog/README.md, "Image and NVIDIA image". With an
+            # NVIDIA GPU the two are the NVIDIA image. Without one, the
+            # NVIDIA image is the source only on live media whose store has
+            # it and not the base image: the install needs no download, and
+            # the first update moves the system to the base image. In each
+            # other case a network install pulls the image the user chose.
             from bootc_installer.core.system import Systeminfo
-            if Systeminfo.has_nvidia_gpu():
-                # NVIDIA present: install nvidia, track nvidia for updates
-                plan["install"] = nvidia_imgref
-                plan["track"] = nvidia_imgref
-                logger.info(f"NVIDIA GPU detected: using {nvidia_imgref} for install and updates")
-            elif _nvidia_image_is_on_media(nvidia_imgref):
-                # No NVIDIA, but the live media carries only the nvidia
-                # image: install it without a download and track the base
-                # image, so bootc moves to the lighter image on first update.
-                plan["install"] = nvidia_imgref
-                logger.info(
-                    f"No NVIDIA GPU: installing {nvidia_imgref} (from live media), "
-                    f"tracking {image} for updates"
-                )
-            else:
-                # No NVIDIA and nothing on media: a network install pulls
-                # the image the user chose. It used to pull the larger
-                # nvidia image here and name the base one on the confirm page.
-                logger.info(f"No NVIDIA GPU: installing {image}")
+            has_nvidia = bool(Systeminfo.has_nvidia_gpu())
+            is_live = offline = None
+            if not has_nvidia:
+                is_live = bool(Systeminfo.is_live())
+                offline = list(Systeminfo.offline_images()) if is_live else []
+            plan["install"], plan["track"] = catalog.source_and_target(
+                image, nvidia_imgref, has_nvidia, bool(is_live), offline or [])
+            logger.info("NVIDIA image %s: gpu=%s live=%s, installing %s, tracking %s",
+                        nvidia_imgref, has_nvidia, is_live, plan["install"], plan["track"])
         return plan
 
     @staticmethod
@@ -285,8 +259,6 @@ class Processor:
             from bootc_installer.core.system import Systeminfo
             hostname = Systeminfo.generate_hostname()
 
-        # --- Flatpaks ---
-        flatpaks = merged.get("flatpaks", [])
 
         # --- SELinux / unified storage / composefs / image type ---
         selinux_disabled = sys_recipe.get("selinuxDisabled", False)
@@ -303,21 +275,31 @@ class Processor:
         recipe_images = sys_recipe.get("images", [])
         if not isinstance(recipe_images, list):
             raise ValueError("System recipe images must be a list")  # noqa: TRY004 - invalid serialized recipe, surfaced in UI
+        metadata_aliases = {}
         if recipe_images:
             candidates = recipe_images
         else:
-            etc = "/run/host/etc" if os.path.exists("/.flatpak-info") else "/etc"
-            path = f"{etc}/bootc-installer/images.json"
-            try:
-                with open(path) as stream:
-                    catalog = json.load(stream)
-                if not isinstance(catalog, dict):
-                    raise ValueError("Image catalog must be an object")  # noqa: TRY004 - invalid serialized recipe, surfaced in UI
-                candidates = catalog.get("images", [catalog])
-            except FileNotFoundError:
-                candidates = []
-            except (OSError, ValueError) as error:
-                raise ValueError(f"Cannot read image metadata at {path}: {error}") from error
+            # The system catalog, then the legacy name of the same file
+            # (shared/catalog/README.md). A file that is there and cannot
+            # be read is an error here: the install must not go on with
+            # the wrong backend.
+            candidates = []
+            etc = "/run/host/etc" if catalog.in_flatpak() else "/etc"
+            for path in (f"{etc}/bootc-installer/images.json",
+                         f"{etc}/tuna-installer/images.json"):
+                try:
+                    with open(path) as stream:
+                        host_catalog = json.load(stream)
+                    if not isinstance(host_catalog, dict):
+                        raise ValueError("Image catalog must be an object")  # noqa: TRY004 - invalid serialized recipe, surfaced in UI
+                    candidates = host_catalog.get("images", [host_catalog])
+                    if isinstance(host_catalog.get("aliases"), dict):
+                        metadata_aliases = host_catalog["aliases"]
+                    break
+                except FileNotFoundError:
+                    continue
+                except (OSError, ValueError) as error:
+                    raise ValueError(f"Cannot read image metadata at {path}: {error}") from error
         # Match the chosen tracking reference, never a local OCI source or an
         # unrelated first row. A single metadata-only entry remains supported.
         def find_metadata(nodes, inherited=None):
@@ -369,7 +351,29 @@ class Processor:
         if image_filesystem:
             if image_filesystem not in ("xfs", "ext4", "btrfs", "zfs"):
                 raise ValueError(f"Unsupported image filesystem: {image_filesystem!r}")
-            filesystem = image_filesystem
+            # An image with one filesystem decides. An image that offers a
+            # choice (`filesystems`) does not: the disk page showed that
+            # list, and what the user picked from it stands.
+            choices = merged.get("supported_filesystems") or []
+            picked = disk_info.get("filesystem") if isinstance(disk_info, dict) else None
+            if not (len(choices) > 1 and picked in choices):
+                filesystem = image_filesystem
+
+        # --- Flatpaks ---
+        # shared/catalog/README.md, "Flatpak lists". `flatpaks` is written
+        # only when a list is known: [] tells fisherman to copy no Flatpak,
+        # and no key tells it to apply its own default. The installer never
+        # downloads a list and never puts a list of its own here. The
+        # sources, in order: the selected leaf (the image step), the
+        # system recipe, the catalog entry of the image.
+        flatpaks = None
+        for source in (merged, sys_recipe):
+            value = source.get("flatpaks")
+            if isinstance(value, list) and all(isinstance(item, str) for item in value):
+                flatpaks = list(value)
+                break
+        if flatpaks is None:
+            flatpaks = catalog.resolve_flatpaks(metadata.get("flatpaks"), metadata_aliases)
         # Overriding a btrfs disk selection with ext4 must clear its stale flag.
         btrfs_subvolumes = (filesystem == "btrfs" and isinstance(disk_info, dict)
                            and bool(disk_info.get("btrfsSubvolumes", False)))
@@ -379,15 +383,11 @@ class Processor:
         user_username = user_info.get("username", "")
         user_fullname = user_info.get("fullname", "")
         user_password = _hash_user_password(user_info.get("password", ""))
-        user_groups   = user_info.get("groups", [])
-        # A live-ISO builder may pin the supplementary groups in
-        # /etc/bootc-installer/recipe.json (e.g. an image without
-        # libvirt/docker): an explicit operator list wins over the UI
-        # defaults, which target a generic image.
-        sys_user = sys_recipe.get("user", {})
-        if isinstance(sys_user, dict) and isinstance(sys_user.get("groups"), list):
-            user_groups = sys_user["groups"]
-            logger.info("User groups overridden from system recipe: %s", user_groups)
+        # Groups (shared/account/README.md): the user page sends the shared
+        # default list. The operator's `user.groups` of the system recipe
+        # replaces it when that is a list of strings ([] included): an ISO
+        # builder knows the groups of the image.
+        user_groups = resolve_groups(sys_recipe, default=user_info.get("groups", []))
 
         # For non-composefs (ostree/bootcDirect) live ISO installs, fisherman
         # expects an empty "image" and populated "targetImgref" so that it invokes
@@ -417,7 +417,6 @@ class Processor:
             # (/etc/<distroID>/oem/). It is the branding id, like every
             # other frontend; with nothing branded it is os-release's ID.
             "distroID": branding.resolve().id,
-            "flatpaks": flatpaks,
             "user": {
                 "username": user_username,
                 "fullname": user_fullname,
@@ -427,6 +426,8 @@ class Processor:
         }
         if unified_storage:
             recipe["unifiedStorage"] = True
+        if flatpaks is not None:
+            recipe["flatpaks"] = flatpaks
         if image_type and image_type != "bootc":
             recipe["imageType"] = image_type
         if flatpak_var_path:

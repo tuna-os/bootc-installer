@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: vanilla-installer\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 18:13+0000\n"
+"POT-Creation-Date: 2026-11-10 18:19+0000\n"
 "PO-Revision-Date: 2024-01-09 21:09+0000\n"
 "Last-Translator: Alvan Rahimli <alvan@rahim.li>\n"
 "Language-Team: Azerbaijani <https://hosted.weblate.org/projects/vanilla-os/"
@@ -595,59 +595,59 @@ msgstr ""
 msgid "Installer requires an active internet connection"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:109
+#: bootc_installer/defaults/disk.py:110
 msgid "Entire disk will be used."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:113
+#: bootc_installer/defaults/disk.py:114
 #, python-format
 msgid "LVM volume group: %s"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:114
+#: bootc_installer/defaults/disk.py:115
 msgid "Volume group will be removed."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:118
+#: bootc_installer/defaults/disk.py:119
 #, python-format
 msgid "LVM physical volume: %s"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:119
+#: bootc_installer/defaults/disk.py:120
 msgid "Physical volume will be removed."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:185
+#: bootc_installer/defaults/disk.py:186
 msgid "Could not detect disks"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:188
+#: bootc_installer/defaults/disk.py:189
 msgid "No disks detected"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:190
+#: bootc_installer/defaults/disk.py:191
 msgid ""
 "Connect a disk of at least 50 GiB to install to. Nothing can be installed "
 "until one is available."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:328
+#: bootc_installer/defaults/disk.py:332
 msgid "Btrfs (with subvolumes)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:366
+#: bootc_installer/defaults/disk.py:373
 msgid "Install the \"{}\" package on the host to use this filesystem"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:369
+#: bootc_installer/defaults/disk.py:376
 msgid "Missing host tool: \"{}\" — install the \"{}\" package"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:447
+#: bootc_installer/defaults/disk.py:454
 msgid "Virtual disk (for VMs / testing)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:449
+#: bootc_installer/defaults/disk.py:456
 #, python-format
 msgid "Creates a %s disk image and attaches it as a loop device"
 msgstr ""
@@ -804,19 +804,19 @@ msgstr ""
 msgid "(at %s, %s)"
 msgstr ""
 
-#: bootc_installer/defaults/user.py:165
+#: bootc_installer/defaults/user.py:167
 msgid "Weak"
 msgstr ""
 
-#: bootc_installer/defaults/user.py:167
+#: bootc_installer/defaults/user.py:169
 msgid "Fair"
 msgstr ""
 
-#: bootc_installer/defaults/user.py:169
+#: bootc_installer/defaults/user.py:171
 msgid "Good"
 msgstr ""
 
-#: bootc_installer/defaults/user.py:171
+#: bootc_installer/defaults/user.py:173
 msgid "Strong"
 msgstr ""
 

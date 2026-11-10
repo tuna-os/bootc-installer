@@ -46,7 +46,6 @@ the user is not asked questions the ISO already knows the answers to.
 ```json
 {
   "default_image": "ghcr.io/your-org/your-image:latest",
-  "fallback_flatpaks": [],
   "images": [
     {
       "name": "My OS",

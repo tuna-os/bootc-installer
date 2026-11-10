@@ -35,6 +35,7 @@ from bootc_installer.utils.field_check import FieldCheck
 from bootc_installer.defaults.disk_plan import (
     build_auto_partition_recipe,
     build_disk_finals,
+    filesystem_options,
 )
 
 logger = logging.getLogger("Installer::Disk")
@@ -294,6 +295,9 @@ class BootcDefaultDisk(Adw.Bin):
         if not isinstance(finals, dict):
             finals = {}
         supported = finals.get("supported_filesystems") or []
+        # The filesystem that is selected before the user picks one: the
+        # leaf's `filesystem`, not the first of the list.
+        self.__filesystem_default_index = filesystem_options(finals)[1]
         default_hostname = finals.get("default_hostname") or ""
         if not isinstance(default_hostname, str):
             default_hostname = ""
@@ -328,10 +332,13 @@ class BootcDefaultDisk(Adw.Bin):
         _LABELS = {"xfs": "XFS", "btrfs": _("Btrfs (with subvolumes)"), "zfs": "ZFS"}
         model = Gtk.StringList.new([_LABELS.get(fs, fs.upper()) for fs in self.__filesystem_options])
         self.filesystem_row.set_model(model)
-        self.filesystem_row.set_selected(0)
+        selected = getattr(self, "_BootcDefaultDisk__filesystem_default_index", 0)
+        if not 0 <= selected < len(self.__filesystem_options):
+            selected = 0
+        self.filesystem_row.set_selected(selected)
         self.filesystem_row.set_visible(True)
         self.filesystem_row.connect("notify::selected", self.__on_filesystem_changed)
-        self.__check_fs_tool(self.__filesystem_options[0])
+        self.__check_fs_tool(self.__filesystem_options[selected])
 
     def __on_filesystem_changed(self, row, _pspec):
         self.__check_fs_tool(self.__get_selected_filesystem())

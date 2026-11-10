@@ -87,8 +87,10 @@ bootc_installer/layouts/yes_no.py
 bootc_installer/main.py
 bootc_installer/readiness.py
 bootc_installer/utils/__init__.py
+bootc_installer/utils/account.py
 bootc_installer/utils/branding.py
 bootc_installer/utils/builder.py
+bootc_installer/utils/catalog.py
 bootc_installer/utils/codec_check.py
 bootc_installer/utils/copy.py
 bootc_installer/utils/field_check.py

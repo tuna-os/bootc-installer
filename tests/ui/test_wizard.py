@@ -158,11 +158,13 @@ class TestImageStep:
         finals = step.get_finals()
         assert "needs_user_creation" in finals
 
-    def test_flatpaks_in_finals(self, window):
+    def test_flatpaks_in_finals_only_as_a_list(self, window):
+        """The key is there only when the catalog has the list itself
+        (shared/catalog/README.md); never a list of the installer's own."""
         step = window.image_step
         finals = step.get_finals()
-        assert "flatpaks" in finals
-        assert isinstance(finals["flatpaks"], list)
+        if "flatpaks" in finals:
+            assert isinstance(finals["flatpaks"], list)
 
 
 # ── Wizard navigation ──────────────────────────────────────────────────────────
@@ -495,7 +497,9 @@ class TestEndToEnd:
         assert recipe["hostname"] == "ci-test-host"
         assert recipe["image"], "Image should be populated from image step finals"
         assert recipe["encryption"]["type"] == "none"
-        assert isinstance(recipe["flatpaks"], list)
+        # An image the user typed has no Flatpak list in the catalog: the
+        # key is left out, and fisherman applies its default.
+        assert "flatpaks" not in recipe
 
     def test_manual_disk_layout_is_refused(self, window):
         """No page makes a manual layout (#312): the Processor refuses one."""
