@@ -8,10 +8,9 @@
 //! Resolved once, on first use, and cached: the value cannot change while the
 //! installer is running, and `view()` runs every frame.
 //!
-//! `copy-defaults.json` next to this file is a byte-identical copy of
-//! `shared/branding/copy-defaults.json` (the monorepo's
-//! `tests/unit/test_shared_branding.py` enforces it); it is compiled in so the
-//! app needs no data file at runtime.
+//! `shared/branding/copy-defaults.json` is compiled in (build.rs copies it to
+//! OUT_DIR), so the app needs no data file at runtime and this tree has no
+//! copy of it.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -25,7 +24,7 @@ const ENV_NAME: &str = "BOOTC_INSTALLER_PRODUCT_NAME";
 pub const NEUTRAL_NAME: &str = "Linux";
 pub const NEUTRAL_ID: &str = "linux";
 
-const COPY_DEFAULTS_JSON: &str = include_str!("copy-defaults.json");
+const COPY_DEFAULTS_JSON: &str = include_str!(concat!(env!("OUT_DIR"), "/copy-defaults.json"));
 /// Common to every frontend; desktop-specific keys live under `extensions.<frontend>`.
 const ASSET_KEYS: [&str; 3] = ["welcome_image", "complete_image", "store_qr"];
 
@@ -392,10 +391,9 @@ mod tests {
     }
 
     #[test]
-    fn copy_defaults_match_shared() {
-        let Some(dir) = fixtures() else { return };
-        let shared = std::fs::read_to_string(dir.join("..").join("copy-defaults.json")).unwrap();
-        assert_eq!(shared, COPY_DEFAULTS_JSON, "src/copy-defaults.json drifted from shared/branding/copy-defaults.json");
+    fn copy_defaults_are_compiled_in() {
+        // build.rs copies shared/branding/copy-defaults.json; there is no
+        // second copy to compare with.
         assert!(!copy_defaults()["welcome_title"].is_empty());
     }
 

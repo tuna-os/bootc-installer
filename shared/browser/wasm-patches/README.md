@@ -115,6 +115,8 @@ cp -r <cargo checkout of atomicwrites> /tmp/atomicwrites
 #   cosmic-theme = { path = "/tmp/libcosmic/cosmic-theme" }
 #   [patch."https://github.com/jackpot51/rust-atomicwrites"]
 #   atomicwrites = { path = "/tmp/atomicwrites" }
+# The copy is outside the monorepo: build.rs needs shared/ named.
+export TUNA_SHARED_DIR="$PWD/shared"
 cd /tmp/cosmic-wasm && rustup target add wasm32-unknown-unknown
 cargo check --target wasm32-unknown-unknown
 ```

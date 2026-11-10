@@ -41,7 +41,8 @@ LOADS_THE_FILE = {
             ("frontends/kde/src/recipe.cpp", '#include "encryption_choices.h"')],
     "xfce": [("frontends/xfce/tuna_installer_xfce/core.py",
               "fisherman_validate.load_choices()")],
-    "cosmic": [("frontends/cosmic/src/validate.rs", 'include_str!("encryption-choices.json")'),
+    "cosmic": [("frontends/cosmic/build.rs", '("recipe/encryption-choices.json", "encryption-choices.json")'),
+               ("frontends/cosmic/src/validate.rs", 'include_str!(concat!(env!("OUT_DIR"), "/encryption-choices.json"))'),
                ("frontends/cosmic/src/main.rs", "validate::choices()")],
     "niri": [("frontends/niri/installer/validate.go", "//go:embed encryption-choices.json"),
              ("frontends/niri/installer/main.go", '"encryptionChoices": encryptionChoices()'),
@@ -102,13 +103,12 @@ def frontend_code(frontend):
 
 # fisherman's table of encryption types (data/encryption-choices.json,
 # generated from recipe.EncryptionChoices), copied byte for byte. GNOME and
-# XFCE read this file through bootc_shared.validate, and the KDE build reads
-# it from shared/ (TUNA_SHARED_DIR). The compiled frontends that still carry
-# a copy are held equal to it here.
+# XFCE read this file through bootc_shared.validate, and the KDE and COSMIC
+# builds read it from shared/ (TUNA_SHARED_DIR). Niri carries a copy
+# (go:embed cannot leave its module), held equal to it here.
 CHOICES = REPO / "shared" / "recipe" / "encryption-choices.json"
 CHOICES_UPSTREAM = REPO / "fisherman" / "data" / "encryption-choices.json"
 CHOICES_COPIES = {
-    "cosmic": REPO / "frontends" / "cosmic" / "src" / "encryption-choices.json",
     "niri": REPO / "frontends" / "niri" / "installer" / "encryption-choices.json",
 }
 

@@ -181,10 +181,12 @@ alone can show is in the contract.
 What a single frontend renders on top goes under `extensions.<frontend>`
 in the branding file, read only by that frontend: today `extensions.gnome`
 carries the tour page text, the install video and the credits file. No
-frontend needs `copy-defaults.json` as a data file at runtime. KDE compiles
-the shared file in (`TUNA_SHARED_DIR` in its `CMakeLists.txt`), so it has no
-copy. The other frontends embed a byte-identical copy, and the identity
-test compares each copy with the shared file. Niri's QML
+frontend needs `copy-defaults.json` as a data file at runtime. KDE and COSMIC
+compile the shared file in (`TUNA_SHARED_DIR` in KDE's `CMakeLists.txt` and
+in COSMIC's `build.rs`), so they have no copy. Python reads the file. Niri
+embeds a copy, because `go:embed` cannot leave its module: `go generate
+./...` in `frontends/niri/installer` refreshes it, and the identity test
+compares it with the shared file. Niri's QML
 cannot read a file at all, so its fallback table is generated into
 `frontends/niri/ui/installer.qml` by `generate-qml-defaults.py`; run it
 after any edit here, alongside the other copies.
