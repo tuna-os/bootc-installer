@@ -1,5 +1,6 @@
 import io
 import json
+import re
 import subprocess
 from unittest.mock import MagicMock, call, patch
 
@@ -60,10 +61,21 @@ def test_get_local_ip_falls_back_to_hostname_lookup_on_udp_failure():
         assert get_local_ip() == "10.0.0.9"
 
 
-def test_get_local_ip_returns_loopback_when_all_lookups_fail():
+def test_get_local_ip_is_none_when_all_lookups_fail():
+    """#306: no route means no address, not 127.0.0.1. A QR code for
+    loopback opens nothing on a phone."""
     with patch("bootc_installer.utils.phone_companion.socket.socket", side_effect=OSError("offline")), \
          patch("bootc_installer.utils.phone_companion.socket.gethostbyname", side_effect=OSError("no dns")):
-        assert get_local_ip() == "127.0.0.1"
+        assert get_local_ip() is None
+
+
+@pytest.mark.parametrize("address", ["127.0.0.1", "127.0.1.1", "0.0.0.0", "169.254.7.7", "not-an-ip"])
+def test_get_local_ip_refuses_an_address_no_phone_can_reach(address):
+    """Debian resolves the host's own name to 127.0.1.1; that is not a LAN
+    address either."""
+    with patch("bootc_installer.utils.phone_companion.socket.socket", side_effect=OSError("offline")), \
+         patch("bootc_installer.utils.phone_companion.socket.gethostbyname", return_value=address):
+        assert get_local_ip() is None
 
 
 def test_generate_self_signed_cert_runs_openssl_into_a_private_dir():
@@ -131,49 +143,107 @@ def test_companion_server_never_serves_plain_http():
     assert not CONFIG_RECEIVED_EVENT.is_set()
 
 
-def test_companion_server_start_configures_tls_when_certificate_exists():
+def test_companion_server_start_binds_the_advertised_address_and_keeps_tls_per_connection():
+    """#306: the server binds the one address the QR code names (not
+    0.0.0.0), is threaded, and leaves the listening socket plain: the TLS
+    handshake belongs to each connection's own thread."""
     server = CompanionServer(port=8443)
     fake_server = MagicMock()
-    wrapped_socket = MagicMock()
-    original_socket = MagicMock()
-    fake_server.socket = original_socket
+    listening_socket = fake_server.socket
     ssl_context = MagicMock()
-    ssl_context.wrap_socket.return_value = wrapped_socket
 
     fake_thread = MagicMock()
-    with patch("bootc_installer.utils.phone_companion.generate_self_signed_cert",
+    with patch("bootc_installer.utils.phone_companion.get_local_ip", return_value="192.0.2.44"), \
+         patch("bootc_installer.utils.phone_companion.generate_self_signed_cert",
                return_value=("/priv/cert.pem", "/priv/key.pem")), \
-         patch("bootc_installer.utils.phone_companion.http.server.HTTPServer", return_value=fake_server) as http_server_mock, \
+         patch("bootc_installer.utils.phone_companion._CompanionHTTPServer", return_value=fake_server) as http_server_mock, \
          patch("bootc_installer.utils.phone_companion.ssl.SSLContext", return_value=ssl_context) as ssl_context_cls, \
          patch("bootc_installer.utils.phone_companion.threading.Thread", return_value=fake_thread) as thread_mock:
         assert server.start() is True
 
     assert server.is_https is True
+    assert server.host == "192.0.2.44"
     assert server.auth_token is not None
     assert fake_server.auth_token == server.auth_token
-    http_server_mock.assert_called_once_with(("0.0.0.0", 8443), CompanionRequestHandler)
-    thread_mock.assert_called_once_with(target=fake_server.serve_forever, daemon=True)
+    http_server_mock.assert_called_once_with(("192.0.2.44", 8443), CompanionRequestHandler)
+    thread_mock.assert_called_once_with(
+        target=fake_server.serve_forever,
+        kwargs={"poll_interval": phone_companion._POLL_INTERVAL}, daemon=True)
     fake_thread.start.assert_called_once_with()
     ssl_context_cls.assert_called_once_with(phone_companion.ssl.PROTOCOL_TLS_SERVER)
     ssl_context.load_cert_chain.assert_called_once_with(
         certfile="/priv/cert.pem",
         keyfile="/priv/key.pem",
     )
-    ssl_context.wrap_socket.assert_called_once_with(original_socket, server_side=True)
-    assert fake_server.socket is wrapped_socket
+    ssl_context.wrap_socket.assert_not_called()
+    assert fake_server.socket is listening_socket
+    assert fake_server.ssl_context is ssl_context
+
+
+def test_the_real_server_class_is_threaded_with_daemon_threads():
+    import socketserver
+
+    assert issubclass(phone_companion._CompanionHTTPServer, socketserver.ThreadingMixIn)
+    assert phone_companion._CompanionHTTPServer.daemon_threads is True
+    assert CompanionRequestHandler.timeout == phone_companion.SOCKET_TIMEOUT
+
+
+def test_companion_server_is_unavailable_without_a_route():
+    """#306: no LAN address: no server, no certificate, and a reason the
+    page can show."""
+    server = CompanionServer()
+    with patch("bootc_installer.utils.phone_companion.get_local_ip", return_value=None), \
+         patch("bootc_installer.utils.phone_companion.generate_self_signed_cert") as cert_mock, \
+         patch("bootc_installer.utils.phone_companion._CompanionHTTPServer") as http_server_mock:
+        assert server.start() is False
+
+    cert_mock.assert_not_called()
+    http_server_mock.assert_not_called()
+    assert server.unavailable_reason == CompanionServer.NO_NETWORK
+    assert server.auth_token is None
 
 
 def test_companion_server_stop_shuts_down_active_server():
     server = CompanionServer()
     fake_server = MagicMock()
     server.server = fake_server
+    server.auth_token = "live"
 
-    server.stop()
+    server.stop(wait=True)
 
     fake_server.shutdown.assert_called_once_with()
     fake_server.server_close.assert_called_once_with()
+    assert fake_server.auth_token is None
     assert server.server is None
     assert server.auth_token is None
+
+
+def test_companion_server_stop_does_not_wait_for_shutdown():
+    """#306: stop() is called on the GTK main thread. shutdown() can take as
+    long as it likes; stop() has returned, and the token is already dead."""
+    import threading
+    import time
+
+    release = threading.Event()
+    fake_server = MagicMock()
+    fake_server.shutdown.side_effect = lambda: release.wait(10)
+    server = CompanionServer()
+    server.server = fake_server
+    server.auth_token = "live"
+
+    started = time.monotonic()
+    stopper = server.stop()
+    elapsed = time.monotonic() - started
+    try:
+        assert elapsed < 1.0
+        assert stopper is not threading.current_thread() and stopper.is_alive()
+        assert stopper.daemon
+        assert fake_server.auth_token is None and server.auth_token is None
+        fake_server.server_close.assert_not_called()
+    finally:
+        release.set()
+        stopper.join(5)
+    fake_server.server_close.assert_called_once_with()
 
 
 def test_companion_server_get_config_returns_current_global_config():
@@ -192,25 +262,74 @@ def test_handler_get_root_serves_html():
     handler.do_GET()
 
     handler.send_response.assert_called_once_with(200)
+    raw = handler.wfile.getvalue()
     assert handler.send_header.call_args_list == [
-        call("Content-Type", "text/html"),
+        call("Content-Type", "text/html; charset=utf-8"),
         call("Cache-Control", "no-store"),
         call("Referrer-Policy", "no-referrer"),
+        call("Content-Length", str(len(raw))),
     ]
     handler.end_headers.assert_called_once_with()
-    body = handler.wfile.getvalue().decode("utf-8")
+    body = raw.decode("utf-8")
     assert body == render_companion_html()
     # The served page names the branded product, never a placeholder or a
     # hardcoded distro.
-    assert "__PRODUCT__" not in body and "__HOSTNAME__" not in body
+    assert not re.search(r"__[A-Z_]+__", body), "a placeholder reached the phone"
     assert "Bluefin" not in body
-    assert "__PRODUCT__" in COMPANION_HTML
+    assert "__T_TITLE__" in COMPANION_HTML and "__T_HEADING__" in COMPANION_HTML
 
 
 def test_render_companion_html_fills_branding():
     body = render_companion_html(name="Marlin", hostname="reef")
     assert "<title>Marlin Installer Companion</title>" in body
+    assert "<h1>Marlin Setup</h1>" in body
     assert 'value="reef-desktop"' in body
+
+
+def test_render_companion_html_escapes_the_branding():
+    """The name comes from a file on the host; it must not become markup."""
+    body = render_companion_html(name='<script>x</script>"', hostname='a"b')
+    assert "<script>x</script>" not in body
+    assert "&lt;script&gt;x&lt;/script&gt;&quot;" in body
+    assert 'value="a&quot;b-desktop"' in body
+
+
+def test_the_form_has_no_ssh_key_field():
+    """#305: the recipe has no SSH field, so the form must not ask for a key
+    it would then drop."""
+    body = render_companion_html(name="Marlin", hostname="reef")
+    assert "ssh" not in body.lower()
+
+
+def test_the_form_confirms_the_password_and_can_reveal_it():
+    """#306: a password typed blind on a phone is typed twice, and one
+    switch shows both fields."""
+    body = render_companion_html(name="Marlin", hostname="reef")
+    assert body.count('type="password"') == 2
+    assert 'id="password-confirm"' in body and 'for="password-confirm"' in body
+    assert '<input type="checkbox" id="reveal">' in body
+    assert "password.value === confirmation.value" in body
+    assert "T.err_mismatch" in body and '"err_mismatch": "The passwords do not match."' in body
+    # The mismatch check runs before anything is sent.
+    assert body.index("T.err_mismatch") < body.index("fetch('/api/config'")
+    # The confirmation is the phone's business: it is not posted.
+    payload = body[body.index("const payload = {"):body.index("};", body.index("const payload = {"))]
+    assert "confirm" not in payload
+
+
+def test_the_form_is_translated_through_gettext():
+    """#311: the phone form was English only."""
+    def fake(text):
+        return {"Full Name": "Vollständiger <Name>",
+                "The passwords do not match.": 'Passwörter "ungleich" </script>'}.get(text, text)
+
+    with patch("bootc_installer.utils.phone_companion._", side_effect=fake):
+        body = render_companion_html(name="Marlin", hostname="reef")
+    assert '<label for="fullname">Vollständiger &lt;Name&gt;</label>' in body
+    assert "Full Name" not in body
+    script = body[body.index("const T = "):]
+    assert '\\"ungleich\\"' in script.split("\n")[0]
+    assert "</script>" not in script.split("\n")[0]
 
 
 def test_handler_does_not_expose_current_config():
@@ -236,7 +355,6 @@ def test_handler_post_valid_config_updates_global_state_and_event():
         "username": "johndoe",
         "password": "secret",
         "hostname": "bluefin",
-        "sshkey": "ssh-ed25519 AAA",
     }
     handler = _make_handler("/api/config", json.dumps(payload).encode("utf-8"), auth="Bearer test-token")
 
@@ -245,7 +363,10 @@ def test_handler_post_valid_config_updates_global_state_and_event():
     assert phone_companion.GLOBAL_CONFIG == payload
     assert CONFIG_RECEIVED_EVENT.is_set()
     handler.send_response.assert_called_once_with(200)
-    handler.send_header.assert_called_once_with("Content-Type", "application/json")
+    assert handler.send_header.call_args_list == [
+        call("Content-Type", "application/json"),
+        call("Content-Length", str(len(handler.wfile.getvalue()))),
+    ]
     assert json.loads(handler.wfile.getvalue().decode("utf-8")) == {"status": "success"}
 
 
@@ -297,7 +418,6 @@ _GOOD = {
     "username": "johndoe",
     "password": "secret",
     "hostname": "Bluefin",
-    "sshkey": "ssh-ed25519 AAA",
 }
 
 
@@ -335,11 +455,14 @@ def test_invalid_submission_is_rejected_and_not_stored(bad):
     assert not CONFIG_RECEIVED_EVENT.is_set()
 
 
-def test_ssh_key_is_optional():
-    handler = _post({k: v for k, v in _GOOD.items() if k != "sshkey"})
+def test_a_posted_ssh_key_is_dropped():
+    """#305: no recipe field takes an SSH key, so one from an old page or a
+    hand-made request goes nowhere."""
+    handler = _post({**_GOOD, "sshkey": "ssh-ed25519 AAA"})
 
     handler.send_response.assert_called_once_with(200)
-    assert phone_companion.GLOBAL_CONFIG["sshkey"] == ""
+    assert "sshkey" not in phone_companion.GLOBAL_CONFIG
+    assert set(phone_companion.GLOBAL_CONFIG) == {"fullname", "username", "password", "hostname"}
 
 
 def test_only_the_first_submission_is_accepted():
