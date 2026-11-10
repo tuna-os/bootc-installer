@@ -44,6 +44,29 @@ let failures = replay("fraction-cases.json", 5);
 // fisherman's overall_pct is the bar; an event without it falls back.
 failures += replay("overall-pct-cases.json", 3);
 
+// The `error` event: the last one is kept as {message, code, field}.
+{
+  const fixture = JSON.parse(
+    readFileSync(join(here, "..", "..", "..", "shared", "progress", "error-cases.json"), "utf8"),
+  );
+  if (fixture.cases.length < 6) throw new Error("error-cases.json has too few cases");
+  for (const c of fixture.cases) {
+    const state = lib.newState();
+    c.events.forEach((event, i) => {
+      const bar = lib.advance(state, event);
+      if (Math.abs(bar - c.bar[i]) > 1e-6) {
+        console.error(`FAIL error-cases ${c.name} event ${i}: bar ${bar} want ${c.bar[i]}`);
+        failures++;
+      }
+    });
+    if (JSON.stringify(state.error) !== JSON.stringify(c.error)) {
+      console.error(`FAIL error-cases ${c.name}: ${JSON.stringify(state.error)} want ${JSON.stringify(c.error)}`);
+      failures++;
+    }
+  }
+  console.log(`ok: ${fixture.cases.length} cases against shared/progress/error-cases.json`);
+}
+
 // Step labels: the copy key step_<step_id>, else fisherman's step_name.
 const copy = { step_flatpaks: "Installing your apps…" };
 const lookup = (id) => copy["step_" + id] || "";

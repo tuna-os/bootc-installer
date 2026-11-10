@@ -12,6 +12,26 @@ sure that it does. Do not edit the hash of an old entry: add an entry.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-10: fixtures for rules that drifted; one E2E and one capture catalog
+
+- Added: `progress/error-cases.json`. It pins the `error` event: a parser
+  keeps the last one as `message`, `code` and `field`, and the bar does not
+  move. The Python parser already did this. KDE, COSMIC and Niri now keep
+  the event too, and their tests read the file.
+- Added: `network/targets.json` and `network/README.md`. They pin the
+  network check. They give the targets for an image reference, in order.
+  They also give the timeout (5 s) and the two variables that stop the
+  check. The five frontends
+  had four different rules; the commit message lists each change.
+- Added: `probe/fixtures/pci/`. PCI sysfs trees and the NVIDIA answer for
+  each. No rule changed.
+- Added: `override` in `catalog/fixtures/expected.json`, for
+  `FISHERMAN_IMAGES_PATH`. COSMIC reads the variable again. KDE now goes on
+  with the search path when the file is missing or broken.
+- Added: `e2e/catalog.json`, the one catalog of the five E2E drivers, and
+  `walkthrough/capture-catalog.json`, the one catalog of the capture
+  harnesses. The capture catalog names no real product.
+
 ## 2026-11-10: recipe schema, the fields of fisherman `7f9021b`, and closed objects
 
 The fisherman pin moved to `7f9021b` (tuna-os/fisherman#429, #432, #433,

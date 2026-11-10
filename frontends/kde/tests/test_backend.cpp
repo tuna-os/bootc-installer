@@ -82,6 +82,7 @@ private slots:
     void progressReproducesTheSharedFractionCases();
     // fisherman's overall_pct and step_id (tuna-os/fisherman#270).
     void progressReproducesTheSharedOverallPctCases();
+    void progressReproducesTheSharedErrorCases();
     void progressOverallPctDrivesTheBar();
     void progressStepIdReadsTheCopyLayer();
     void progressCompleteFillsTheBar();
@@ -927,6 +928,28 @@ static void replayProgressCases(const QString &file, int minCases)
 void BackendTest::progressReproducesTheSharedFractionCases()
 {
     replayProgressCases(QStringLiteral("fraction-cases.json"), 5);
+}
+
+// shared/progress/error-cases.json: the last `error` event is kept as
+// {message, code, field}, as the canonical parser keeps it, and it does not
+// move the bar.
+void BackendTest::progressReproducesTheSharedErrorCases()
+{
+    replayProgressCases(QStringLiteral("error-cases.json"), 6);
+    QFile f(QStringLiteral(PROGRESS_FIXTURES_DIR "/error-cases.json"));
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const QJsonArray cases = QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("cases")).toArray();
+    for (const QJsonValue &cv : cases) {
+        const QJsonObject kase = cv.toObject();
+        QStringList lines;
+        for (const QJsonValue &event : kase.value(QStringLiteral("events")).toArray())
+            lines << QString::fromUtf8(QJsonDocument(event.toObject()).toJson(QJsonDocument::Compact));
+        InstallerController c;
+        feed(c, lines);
+        const QJsonValue want = kase.value(QStringLiteral("error"));
+        const QVariantMap expected = want.isNull() ? QVariantMap() : want.toObject().toVariantMap();
+        QVERIFY2(c.installError() == expected, qPrintable(kase.value(QStringLiteral("name")).toString()));
+    }
 }
 
 // shared/progress/overall-pct-cases.json: fisherman's overall_pct is the

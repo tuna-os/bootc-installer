@@ -671,6 +671,7 @@ void InstallerController::resetProgress()
     m_fraction = 0.0;
     m_stepName.clear();
     m_recoveryKey.clear();
+    m_installError.clear();
     m_recoveryAck = false;
     Q_EMIT recoveryChanged();
     m_cumulativePct = 0;
@@ -824,8 +825,16 @@ QString InstallerController::consumeProgress(const QString &line)
         const QString message = event.value(QStringLiteral("message")).toString();
         return message.isEmpty() ? tr("Installation complete") : message;
     }
-    if (type == QLatin1String("error"))
+    if (type == QLatin1String("error")) {
+        // The last one is kept; it does not move the bar. toString() is ""
+        // for a part that is missing or is not a string.
+        m_installError = {
+            {QStringLiteral("message"), event.value(QStringLiteral("message")).toString()},
+            {QStringLiteral("code"), event.value(QStringLiteral("code")).toString()},
+            {QStringLiteral("field"), event.value(QStringLiteral("field")).toString()},
+        };
         return tr("ERROR: %1").arg(event.value(QStringLiteral("message")).toString());
+    }
     if (type == QLatin1String("recovery_key")) {
         // Kept in memory for the done page, which holds Restart until the
         // user says that the key is saved (#129). The log pane shows it to
