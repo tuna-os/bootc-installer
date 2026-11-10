@@ -23,6 +23,8 @@
 #include <QString>
 #include <QStringList>
 
+#include <optional>
+
 namespace region
 {
 
@@ -47,7 +49,7 @@ QString systemTimezone();         // the live session's id, "UTC" when unknown
 // underscore; GNOME shows city names from its own table, Qt has none).
 QString timezoneDisplay(const QString &ianaId);
 
-// Plain-POSIX TCP reachability: no QtNetwork link for one three-second
+// Plain-POSIX TCP reachability: no QtNetwork link for one five-second
 // probe. Not the portal's answer: the sandbox has the network share, and a
 // portal says what the sandbox sees, not what fisherman on the host will.
 bool hostReachable(const char *host, int port, int timeoutMs);
@@ -58,12 +60,24 @@ struct Target {
     int port;
     bool operator==(const Target &other) const { return host == other.host && port == other.port; }
 };
-// The targets, in order: the registry of the selected image on 443 when
-// there is one, then the targets the GNOME, COSMIC and XFCE frontends try
-// (ghcr.io:443, then 8.8.8.8:53). The registry is first because it is the
-// host the download needs (#301).
-QList<Target> connectivityTargets(const QString &registryHost);
-// True when one of the targets answers.
+// shared/network/targets.json: the five frontends probe the same targets,
+// wait the same time and honour the same variables.
+inline constexpr int CONNECT_TIMEOUT_MS = 5000;
+inline constexpr const char *SKIP_ENV_VARS[] = {"VANILLA_SKIP_CONN_CHECK",
+                                                "TUNA_INSTALLER_SKIP_CONN_CHECK"};
+// The registry that serves an image reference (shared/network/README.md):
+// ostree prefixes and docker:// go, a local transport, a path or another
+// URL has none, a name with no registry is Docker Hub's, and the port of
+// the reference is kept (443 without one).
+std::optional<Target> registryTarget(const QString &imgref);
+// The targets, in order: the registry of the image when it has one, then
+// the shared targets (ghcr.io:443, then 8.8.8.8:53). The registry is first
+// because it is the host the download needs (#301). No target twice.
+QList<Target> connectivityTargets(const QString &imgref);
+// Whether a harness turned the check off: one of SKIP_ENV_VARS is set to a
+// value that is not empty and not "0".
+bool connectivityCheckSkipped();
+// True when one of the targets answers within CONNECT_TIMEOUT_MS.
 bool networkReachable(const QList<Target> &targets);
 
 // The Plasma network settings, then two fallbacks, as one host command. The

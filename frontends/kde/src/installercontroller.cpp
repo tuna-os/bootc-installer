@@ -433,10 +433,13 @@ void InstallerController::checkConnectivity()
     Q_EMIT onlineChanged();
     // The registry the selected image comes from is the host that matters;
     // the shared targets follow it (#301).
+    // shared/network/targets.json has the order, the timeout and the
+    // variables that turn the check off.
     const QString image = m_recipe.image.isEmpty() ? m_branding.defaultImage : m_recipe.image;
-    const QList<region::Target> targets = region::connectivityTargets(imagecatalog::registryHost(image));
-    std::thread([this, targets]() {
-        const bool ok = region::networkReachable(targets);
+    const QList<region::Target> targets = region::connectivityTargets(image);
+    const bool skipped = region::connectivityCheckSkipped();
+    std::thread([this, targets, skipped]() {
+        const bool ok = skipped || region::networkReachable(targets);
         QMetaObject::invokeMethod(
             this,
             [this, ok]() {

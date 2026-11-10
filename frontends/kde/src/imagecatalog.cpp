@@ -280,20 +280,6 @@ bool hasNvidiaGpu(const QString &sysRoot)
     return false;
 }
 
-QString registryHost(const QString &imgref)
-{
-    const int slash = imgref.indexOf(QLatin1Char('/'));
-    if (slash <= 0)
-        return {};
-    const QString first = imgref.left(slash);
-    // The first component is a host only with a dot or a port, or as
-    // "localhost"; "library/ubuntu" names no registry.
-    if (!first.contains(QLatin1Char('.')) && !first.contains(QLatin1Char(':'))
-        && first != QLatin1String("localhost"))
-        return {};
-    return first.section(QLatin1Char(':'), 0, 0);
-}
-
 QStringList searchPaths(bool flatpak, const QString &xdgConfigHome, const QString &override)
 {
     // The system file is first: an ISO that ships a catalog must get that

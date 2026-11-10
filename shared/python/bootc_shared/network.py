@@ -21,20 +21,41 @@ SKIP_ENV_VARS = ("VANILLA_SKIP_CONN_CHECK", "TUNA_INSTALLER_SKIP_CONN_CHECK")
 TIMEOUT_SECONDS = 5
 
 
+# ostree wrappers of a container reference (bootc and ostree-container).
+_OSTREE_PREFIXES = ("ostree-unverified-registry:", "ostree-unverified-image:",
+                    "ostree-image-signed:")
+# These carry a remote name and a colon before the reference.
+_OSTREE_REMOTE_PREFIXES = ("ostree-remote-registry:", "ostree-remote-image:")
+# Transports of an image that is on this machine: no registry to reach.
+_LOCAL_TRANSPORTS = ("containers-storage:", "oci:", "oci-archive:", "dir:")
+
+
 def registry_target(imgref):
     """(host, port) of the registry that serves `imgref`, or None.
 
-    The first component of a reference is a registry when it has a dot or a
-    port, or is "localhost"; otherwise the reference is a Docker Hub name.
-    A registry with its own port is probed on that port, any other on 443.
+    shared/network/README.md has the rule and targets.json the cases:
+    ostree prefixes and `docker://` go; a local transport, a path or
+    another URL has no registry. The first component of a reference is a
+    registry when it has a dot or a port, or is "localhost"; otherwise the
+    reference is a Docker Hub name. A registry with its own port is
+    probed on that port, any other on 443.
     """
-    ref = (imgref or "").strip() if isinstance(imgref, str) else ""
-    if "://" in ref:
-        ref = ref.split("://", 1)[1]
-    if not ref:
+    ref = imgref.strip() if isinstance(imgref, str) else ""
+    for prefix in _OSTREE_PREFIXES:
+        if ref.startswith(prefix):
+            ref = ref[len(prefix):]
+            break
+    for prefix in _OSTREE_REMOTE_PREFIXES:
+        if ref.startswith(prefix):
+            ref = ref[len(prefix):].partition(":")[2]
+            break
+    if ref.startswith("docker://"):
+        ref = ref[len("docker://"):]
+    if (not ref or "://" in ref or ref.startswith("/")
+            or ref.startswith(_LOCAL_TRANSPORTS)):
         return None
-    first = ref.split("/", 1)[0] if "/" in ref else ""
-    if not first or not ("." in first or ":" in first or first == "localhost"):
+    first, slash, _rest = ref.partition("/")
+    if not slash or not ("." in first or ":" in first or first == "localhost"):
         return (DEFAULT_REGISTRY, 443)
     host, _, port = first.partition(":")
     if not host:

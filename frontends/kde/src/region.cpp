@@ -246,11 +246,61 @@ bool hostReachable(const char *host, int port, int timeoutMs)
     return ok;
 }
 
-QList<Target> connectivityTargets(const QString &registryHost)
+std::optional<Target> registryTarget(const QString &imgref)
+{
+    QString ref = imgref.trimmed();
+    for (const char *prefix : {"ostree-unverified-registry:", "ostree-unverified-image:", "ostree-image-signed:"}) {
+        if (ref.startsWith(QLatin1String(prefix))) {
+            ref = ref.mid(int(qstrlen(prefix)));
+            break;
+        }
+    }
+    for (const char *prefix : {"ostree-remote-registry:", "ostree-remote-image:"}) {
+        if (ref.startsWith(QLatin1String(prefix))) {
+            // A remote name and a colon come before the reference.
+            const QString rest = ref.mid(int(qstrlen(prefix)));
+            const int colon = rest.indexOf(QLatin1Char(':'));
+            ref = colon < 0 ? QString() : rest.mid(colon + 1);
+            break;
+        }
+    }
+    if (ref.startsWith(QLatin1String("docker://")))
+        ref = ref.mid(9);
+    if (ref.isEmpty() || ref.contains(QLatin1String("://")) || ref.startsWith(QLatin1Char('/')))
+        return std::nullopt;
+    for (const char *local : {"containers-storage:", "oci:", "oci-archive:", "dir:"}) {
+        if (ref.startsWith(QLatin1String(local)))
+            return std::nullopt;
+    }
+    const int slash = ref.indexOf(QLatin1Char('/'));
+    const QString first = slash < 0 ? QString() : ref.left(slash);
+    if (slash < 0
+        || (!first.contains(QLatin1Char('.')) && !first.contains(QLatin1Char(':'))
+            && first != QLatin1String("localhost")))
+        return Target{QStringLiteral("registry-1.docker.io"), 443};
+    const QString host = first.section(QLatin1Char(':'), 0, 0);
+    if (host.isEmpty())
+        return std::nullopt;
+    bool numeric = false;
+    const int port = first.section(QLatin1Char(':'), 1).toInt(&numeric);
+    return Target{host, numeric ? port : 443};
+}
+
+bool connectivityCheckSkipped()
+{
+    for (const char *name : SKIP_ENV_VARS) {
+        const QByteArray value = qgetenv(name);
+        if (!value.isEmpty() && value != "0")
+            return true;
+    }
+    return false;
+}
+
+QList<Target> connectivityTargets(const QString &imgref)
 {
     QList<Target> targets;
-    if (!registryHost.isEmpty())
-        targets << Target{registryHost, 443};
+    if (const std::optional<Target> own = registryTarget(imgref))
+        targets << *own;
     for (const Target &shared : {Target{QStringLiteral("ghcr.io"), 443}, Target{QStringLiteral("8.8.8.8"), 53}}) {
         if (!targets.contains(shared))
             targets << shared;
@@ -261,7 +311,7 @@ QList<Target> connectivityTargets(const QString &registryHost)
 bool networkReachable(const QList<Target> &targets)
 {
     for (const Target &t : targets) {
-        if (hostReachable(t.host.toUtf8().constData(), t.port, 3000))
+        if (hostReachable(t.host.toUtf8().constData(), t.port, CONNECT_TIMEOUT_MS))
             return true;
     }
     return false;

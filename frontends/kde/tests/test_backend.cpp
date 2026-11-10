@@ -140,6 +140,7 @@ private slots:
     void anEndWithoutCancelIsStillAFailure();
     void cancelAsksFirstInTheQml();
     // #301
+    void networkTargetsFollowTheFixture();
     void connectivityTriesTheImageRegistryFirst();
     // #300
     void qmlStringsGoThroughQsTr();
@@ -2206,12 +2207,7 @@ void BackendTest::catalogNvidiaDetection()
     QVERIFY(writeFile(devices + QStringLiteral("/0000:01:00.0/class"), "0x030200\n"));
     QVERIFY(imagecatalog::hasNvidiaGpu(dir.path()));
 
-    QCOMPARE(imagecatalog::registryHost(QStringLiteral("ghcr.io/owner/image:tag")), QStringLiteral("ghcr.io"));
-    QCOMPARE(imagecatalog::registryHost(QStringLiteral("registry.example:5000/os/atlas:1")), QStringLiteral("registry.example"));
-    QCOMPARE(imagecatalog::registryHost(QStringLiteral("localhost/os:1")), QStringLiteral("localhost"));
-    QVERIFY(imagecatalog::registryHost(QStringLiteral("library/ubuntu:26.04")).isEmpty());
-    QVERIFY(imagecatalog::registryHost(QStringLiteral("ubuntu")).isEmpty());
-    QVERIFY(imagecatalog::registryHost(QString()).isEmpty());
+    // The registry of a reference: networkTargetsFollowTheFixture.
 }
 
 void BackendTest::catalogFilesystemProblemReachesTheDiskStep()
@@ -2589,17 +2585,52 @@ void BackendTest::confirmPageListsNoLocaleRows()
     QVERIFY(welcome.contains(QStringLiteral("regionNotApplied")));
 }
 
+void BackendTest::networkTargetsFollowTheFixture()
+{
+    // shared/network/targets.json: the targets of each reference, the
+    // timeout and the variables that turn the check off.
+    QFile file(QStringLiteral(NETWORK_TARGETS_FILE));
+    QVERIFY2(file.open(QIODevice::ReadOnly), qPrintable(file.fileName()));
+    const QJsonObject fixture = QJsonDocument::fromJson(file.readAll()).object();
+    const QJsonArray cases = fixture.value(QStringLiteral("cases")).toArray();
+    QVERIFY(cases.size() >= 20);
+    for (const QJsonValue &v : cases) {
+        const QJsonObject row = v.toObject();
+        QStringList got;
+        for (const region::Target &t : region::connectivityTargets(row.value(QStringLiteral("imgref")).toString()))
+            got << t.host + QLatin1Char(':') + QString::number(t.port);
+        QCOMPARE(got, strings(row.value(QStringLiteral("targets"))));
+    }
+    QCOMPARE(region::CONNECT_TIMEOUT_MS, fixture.value(QStringLiteral("timeout_seconds")).toInt() * 1000);
+    QStringList names;
+    for (const char *name : region::SKIP_ENV_VARS)
+        names << QString::fromLatin1(name);
+    QCOMPARE(names, strings(fixture.value(QStringLiteral("skip_env"))));
+    for (const QJsonValue &v : fixture.value(QStringLiteral("skip_cases")).toArray()) {
+        const QJsonObject row = v.toObject();
+        for (const QString &name : names)
+            qunsetenv(name.toLatin1().constData());
+        const QJsonObject env = row.value(QStringLiteral("env")).toObject();
+        for (auto it = env.begin(); it != env.end(); ++it)
+            qputenv(it.key().toLatin1().constData(), it.value().toString().toUtf8());
+        QCOMPARE(region::connectivityCheckSkipped(), row.value(QStringLiteral("skip")).toBool());
+    }
+    for (const QString &name : names)
+        qunsetenv(name.toLatin1().constData());
+}
+
 void BackendTest::connectivityTriesTheImageRegistryFirst()
 {
     // The registry of the selected image, then the shared targets (#301).
-    const QList<region::Target> targets = region::connectivityTargets(QStringLiteral("quay.io"));
+    const QList<region::Target> targets =
+        region::connectivityTargets(QStringLiteral("quay.io/centos-bootc/centos-bootc:c10s"));
     QCOMPARE(targets.size(), 3);
     QCOMPARE(targets.at(0), (region::Target{QStringLiteral("quay.io"), 443}));
     QCOMPARE(targets.at(1), (region::Target{QStringLiteral("ghcr.io"), 443}));
     QCOMPARE(targets.at(2), (region::Target{QStringLiteral("8.8.8.8"), 53}));
-    // No registry in the reference, or the shared one: no row twice.
+    // No image, or one on the shared registry: no row twice.
     QCOMPARE(region::connectivityTargets(QString()).size(), 2);
-    QCOMPARE(region::connectivityTargets(QStringLiteral("ghcr.io")).size(), 2);
+    QCOMPARE(region::connectivityTargets(QStringLiteral("ghcr.io/example/os:1")).size(), 2);
     QVERIFY(!region::networkReachable({region::Target{QStringLiteral("nonexistent.invalid"), 443}}));
     QVERIFY(!region::networkReachable({}));
     // The settings tool is the desktop's, and the page offers the action

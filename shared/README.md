@@ -83,6 +83,15 @@ the two job names in `REQUIRED_CHECKS`. See [e2e/README.md](e2e/README.md).
 Each driver gives its frontend `e2e/catalog.json`, the one E2E catalog. A
 new driver reads that file and picks a leaf from it.
 
+## `network/`
+
+The network check before an install that downloads its image:
+`targets.json` holds the targets for each image reference, in order, the
+timeout and the variables that turn the check off. The Python reader is
+`bootc_shared.network`. A test in each frontend reads the file. A new
+frontend reads the same file in its test. See
+[network/README.md](network/README.md).
+
 ## `probe/`
 
 How a frontend reads hardware facts: the disk list, the TPM, live media and

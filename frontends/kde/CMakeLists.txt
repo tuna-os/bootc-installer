@@ -198,6 +198,7 @@ if(BUILD_TESTING)
         PROBE_FIXTURES_DIR="${TUNA_SHARED_DIR}/probe/fixtures"
         PROGRESS_FIXTURES_DIR="${TUNA_SHARED_DIR}/progress"
         CATALOG_FIXTURES_DIR="${TUNA_SHARED_DIR}/catalog/fixtures"
+        NETWORK_TARGETS_FILE="${TUNA_SHARED_DIR}/network/targets.json"
         SHARED_GROUPS_FILE="${TUNA_SHARED_DIR}/account/groups.json"
         # The QML the strings lint reads (tests/test_backend.cpp, #300).
         KDE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
