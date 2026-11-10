@@ -9,6 +9,7 @@ replaced is FishermanSession: no test starts a root process.
     xvfb-run -a python3 -m pytest tests/ui/test_install_flow.py -q
 """
 
+import itertools
 import json
 import os
 import time
@@ -186,18 +187,28 @@ class _Flow:
 
     def close(self):
         self.window.destroy()
+        self.app.remove_window(self.window)
         _pump()
         for patcher in reversed(self._patchers):
             patcher.stop()
 
 
+# One application id for each test. Gtk.Application.register() exports the
+# application on the session bus at a path made from its id, and GIO has
+# no call that removes that export while the process lives. With one id
+# for the module, the second register() failed on a machine that has a
+# session bus ("An object is already exported ... org.gtk.Application").
+_app_ids = itertools.count(1)
+
+
 @pytest.fixture()
 def flow(tmp_path):
     _FakeSession.created = []
+    app_id = f"org.bootcinstaller.InstallerFlowTest.t{os.getpid()}n{next(_app_ids)}"
     env = {
         "BOOTC_CUSTOM_RECIPE": str(_RECIPE_PATH),
         "BOOTC_INSTALLER_PRODUCT_NAME": "Marlin",
-        "BOOTC_APP_ID": "org.bootcinstaller.InstallerFlowTest",
+        "BOOTC_APP_ID": app_id,
     }
     patchers = [
         patch.dict(os.environ, env, clear=False),
@@ -224,7 +235,9 @@ def flow(tmp_path):
         # The real application class: it owns the app.quit action and its
         # Ctrl+Q accelerator.
         app = BootcInstaller()
-        app.set_flags(Gio.ApplicationFlags.NON_UNIQUE)
+        assert app.get_application_id() == app_id
+        # NON_UNIQUE: do not become, or look for, the primary instance.
+        app.set_flags(app.get_flags() | Gio.ApplicationFlags.NON_UNIQUE)
         app.register()
         window = BootcWindow(application=app)
         window.present()
