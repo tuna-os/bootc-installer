@@ -1,13 +1,13 @@
-"""progress_parser.py — Pure fisherman progress-event parser.
+"""Pure fisherman progress-event parser.
 
-Canonical copy: shared/progress/progress_parser.py. The per-frontend copies
-(bootc_installer/utils/progress_parser.py, and the XFCE frontend's
-tuna_installer_xfce/progress_parser.py) must stay byte-identical with it;
-tests/unit/test_shared_progress.py enforces that. The wire protocol it parses
-is documented in shared/progress/README.md.
+The one copy: GNOME and XFCE import it as `bootc_shared.progress`.
+tests/unit/test_shared_progress.py runs it against the case files in
+shared/progress/. The wire protocol it parses is documented in
+shared/progress/README.md.
 
-No GTK, no file IO, no product names: importable on its own by any frontend
-and by unit tests. Provides apply_progress_event() and new_progress_state().
+No GTK, no product names: importable on its own by any frontend and by unit
+tests. Provides apply_progress_event() and new_progress_state(). The parser
+reads no file; transcript_path() only says where the dry-run transcript is.
 
 fisherman computes the bar and names each step itself: every step, substep
 and complete event carries `overall_pct`, and every step event a stable
@@ -18,6 +18,8 @@ that support does (ROADMAP.md, consolidation step F1).
 
 import json
 import re
+
+from . import _data
 
 # Human-friendly labels for each fisherman step name: the fallback for a
 # step event without a step_id (a fisherman older than overall_pct/step_id).
@@ -364,3 +366,9 @@ def render_event(line: str) -> str | None:
         # key they cannot recover later; suppressing it here would lose it.
         return f"Recovery key: {event.get('key', '')}"
     return None
+
+
+def transcript_path():
+    """Where dry-run-transcript.ndjson is: the events of one install, which
+    a demo mode or a capture harness replays (shared/progress/README.md)."""
+    return _data.path("progress/dry-run-transcript.ndjson")

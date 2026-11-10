@@ -79,10 +79,9 @@ the two job names in `REQUIRED_CHECKS`. See [e2e/README.md](e2e/README.md).
 
 How a frontend reads hardware facts: the disk list, the TPM, live media and
 the minimum requirements all come from `fisherman probe --json`.
-`fisherman_probe.py` is the Python reader; GNOME and XFCE keep
-byte-identical copies. `tests/unit/test_shared_probe.py` runs the reader
-against `fixtures/`, compares the copies, and refuses a frontend that reads
-`lsblk` itself. `tests/unit/test_probe_frontend.py` covers the GNOME side.
+The Python reader is `bootc_shared.probe` (see `python/`).
+`tests/unit/test_shared_probe.py` runs the reader against `fixtures/`, and
+refuses a frontend that reads `lsblk` itself. `tests/unit/test_probe_frontend.py` covers the GNOME side.
 A new frontend runs the command, reads the JSON, and points its capture at
 a fixture with `BOOTC_INSTALLER_FAKE_PROBE`. See
 [probe/README.md](probe/README.md).
@@ -90,22 +89,34 @@ a fixture with `BOOTC_INSTALLER_FAKE_PROBE`. See
 ## `progress/`
 
 The progress protocol: fisherman writes one JSON event on each line of
-stdout. `progress_parser.py` is the Python parser, and the JSON case files
-give the expected bar position for each event.
-`tests/unit/test_shared_progress.py` runs the cases and compares the
-copies of the parser. A new frontend implements the parser in its own
+stdout. The Python parser is `bootc_shared.progress` (see `python/`), and
+the JSON case files give the expected bar position for each event.
+`tests/unit/test_shared_progress.py` runs the cases. A new frontend implements the parser in its own
 language and runs it against `fraction-cases.json`,
 `overall-pct-cases.json` and `dry-run-transcript.ndjson`. See
 [progress/README.md](progress/README.md).
 
-## `readiness/`
+## `python/`
 
-The readiness stamp: a file that a frontend writes when its window is on
+The package `bootc_shared`: the contract code that the two Python frontends
+(GNOME and XFCE) import. It has the readers for `probe/` and `recipe/`, the
+parser for `progress/`, the resolver for `branding/`, the groups of
+`account/`, and the readiness stamp. There is one copy. The data files stay
+in their contract directories, because the other three frontends read them
+there; `_data.py` lists the files that the package reads and finds them in
+a checkout and in an installed tree. The GNOME build installs the package
+and those files with `python/meson.build`. The XFCE Flatpak manifest copies
+them. `tests/unit/test_shared_python_package.py` fails when a build does not
+install a file, when a copy comes back in a frontend, and when a release
+does not count a change to the package as a change to XFCE. A new Python
+frontend installs the package beside its own, and adds its build to that
+test. Do not copy a module.
+
+The readiness stamp is a file that a frontend writes when its window is on
 the screen, so that a test can tell a live process from a visible window.
-`readiness.py` is the canonical copy; GNOME and XFCE keep byte-identical
-copies. `tests/unit/test_shared_readiness.py` compares them. A new frontend
-writes the same file with the same fields; the docstring of `readiness.py`
-is the specification.
+`tests/unit/test_shared_readiness.py` covers the Python module. A frontend
+in a different language writes the same file with the same fields; the
+docstring of `python/bootc_shared/readiness.py` is the specification.
 
 ## `recipe/`
 
@@ -144,15 +155,15 @@ page.
 1. Put the tree in `frontends/<name>/` with its own `AGENTS.md`. Do not add
    a `.github/` there.
 2. Adopt the contracts in this order: `branding/`, `probe/`, `recipe/`,
-   `progress/`, `tpm/`, `readiness/`.
+   `progress/`, `tpm/`, then the readiness stamp (`python/`).
 3. Add the capture harness (`walkthrough/`), then the end-to-end job
    (`e2e/`).
 4. Add a column to [docs/PARITY.md](../docs/PARITY.md).
 
-Where a contract has a Python file, a Python frontend keeps a
-byte-identical copy and adds its path to the test that compares the copies.
-A frontend in a different language implements the same behaviour and runs
-it against the same fixtures.
+Where a contract has Python code, the code is in the `bootc_shared`
+package (`python/`), and a Python frontend imports it. A Python frontend
+does not keep a copy. A frontend in a different language implements the same
+behaviour and runs it against the same fixtures.
 
 ## How a contract changes
 

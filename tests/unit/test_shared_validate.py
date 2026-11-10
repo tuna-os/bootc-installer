@@ -1,7 +1,7 @@
-"""shared/recipe/fisherman_validate.py: the reader every Python frontend uses
-for `fisherman validate --json` and the encryption choices file.
+"""bootc_shared.validate (shared/python/): the reader every Python frontend
+uses for `fisherman validate --json` and the encryption choices file.
 
-1. The GNOME and XFCE copies are byte-identical to the canonical one.
+1. It reads the choices from shared/recipe/, not from a copy.
 2. The reader parses every golden answer fisherman's own tests pin
    (fisherman/cmd/fisherman/testdata/validate/*.golden).
 3. The partial recipe goes to fisherman on stdin, and argv ends in `-`:
@@ -20,26 +20,20 @@ import tempfile
 import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "shared" / "recipe"))
+sys.path.insert(0, str(REPO / "shared" / "python"))
 
-import fisherman_validate as fv
+from bootc_shared import validate as fv  # noqa: E402
 
-CANONICAL = REPO / "shared" / "recipe" / "fisherman_validate.py"
-COPIES = [
-    REPO / "bootc_installer" / "core" / "fisherman_validate.py",
-    REPO / "frontends" / "xfce" / "tuna_installer_xfce" / "fisherman_validate.py",
-]
 GOLDEN = REPO / "fisherman" / "fisherman" / "cmd" / "fisherman" / "testdata" / "validate"
 COPY_DEFAULTS = REPO / "shared" / "branding" / "copy-defaults.json"
 
 
-class TestCopies(unittest.TestCase):
-    def test_copies_are_byte_identical(self):
-        canonical = CANONICAL.read_bytes()
-        for copy in COPIES:
-            with self.subTest(copy=str(copy.relative_to(REPO))):
-                self.assertEqual(copy.read_bytes(), canonical,
-                                 f"{copy} drifted from shared/recipe/fisherman_validate.py")
+class TestChoicesFile(unittest.TestCase):
+    def test_the_default_file_is_the_shared_one(self):
+        self.assertEqual(pathlib.Path(fv.CHOICES_FILE),
+                         REPO / "shared" / "recipe" / "encryption-choices.json")
+        self.assertEqual(fv.load_choices(), fv.load_choices(fv.CHOICES_FILE))
+        self.assertTrue(fv.load_choices())
 
 
 @unittest.skipUnless(GOLDEN.is_dir(), "fisherman submodule not checked out")

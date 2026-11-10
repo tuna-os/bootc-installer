@@ -509,7 +509,7 @@ class BootcWindow(Adw.ApplicationWindow):
         recipe starts: the install runs the same rules first."""
         if not Processor.recipe_names_disk(recipe):
             return _("The recipe names no installation disk.")
-        from bootc_installer.core import fisherman_validate
+        from bootc_shared import validate as fisherman_validate
         from bootc_installer.utils import fisherman_runner
         try:
             if fisherman_runner.IN_FLATPAK and not fisherman_runner.stage_on_host():

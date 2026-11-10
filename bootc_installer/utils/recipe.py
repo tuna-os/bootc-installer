@@ -20,7 +20,7 @@ import os
 import sys
 from gettext import gettext as _
 
-from bootc_installer.utils import branding
+from bootc_shared import branding
 
 logger = logging.getLogger("Installer::RecipeLoader")
 

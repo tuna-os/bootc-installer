@@ -66,12 +66,24 @@
       "build-commands": [
         "mkdir -p /app/lib/tuna-installer-xfce",
         "cp -r tuna_installer_xfce /app/lib/tuna-installer-xfce/",
+        "cp -r shared/python/bootc_shared /app/lib/tuna-installer-xfce/",
+        "install -Dm644 shared/account/groups.json /app/lib/tuna-installer-xfce/bootc_shared/data/account/groups.json",
+        "install -Dm644 shared/branding/copy-defaults.json /app/lib/tuna-installer-xfce/bootc_shared/data/branding/copy-defaults.json",
+        "install -Dm644 shared/progress/dry-run-transcript.ndjson /app/lib/tuna-installer-xfce/bootc_shared/data/progress/dry-run-transcript.ndjson",
+        "install -Dm644 shared/recipe/encryption-choices.json /app/lib/tuna-installer-xfce/bootc_shared/data/recipe/encryption-choices.json",
         "install -Dm755 tuna-installer-xfce /app/bin/tuna-installer-xfce",
         "install -Dm644 data/org.tunaos.InstallerXfce.desktop /app/share/applications/org.tunaos.InstallerXfce.desktop",
         "install -Dm644 data/org.tunaos.InstallerXfce.metainfo.xml /app/share/metainfo/org.tunaos.InstallerXfce.metainfo.xml",
         "install -Dm644 data/icons/hicolor/scalable/apps/org.tunaos.InstallerXfce.svg /app/share/icons/hicolor/scalable/apps/org.tunaos.InstallerXfce.svg"
       ],
-      "sources": [{ "type": "dir", "path": ".." }]
+      "sources": [
+        { "type": "dir", "path": ".." },
+        { "type": "dir", "path": "../../../shared/python/bootc_shared", "dest": "shared/python/bootc_shared" },
+        { "type": "file", "path": "../../../shared/account/groups.json", "dest": "shared/account" },
+        { "type": "file", "path": "../../../shared/branding/copy-defaults.json", "dest": "shared/branding" },
+        { "type": "file", "path": "../../../shared/progress/dry-run-transcript.ndjson", "dest": "shared/progress" },
+        { "type": "file", "path": "../../../shared/recipe/encryption-choices.json", "dest": "shared/recipe" }
+      ]
     }
   ]
 }

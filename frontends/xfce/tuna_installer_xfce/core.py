@@ -10,7 +10,11 @@ import shutil
 import stat
 import subprocess
 
-from tuna_installer_xfce import branding, fisherman_probe, fisherman_validate
+from bootc_shared import account as shared_account
+from bootc_shared import branding, progress
+from bootc_shared import probe as fisherman_probe
+from bootc_shared import validate as fisherman_validate
+
 from tuna_installer_xfce.i18n import _
 
 IN_FLATPAK = os.path.exists("/.flatpak-info")
@@ -341,7 +345,7 @@ def requirements_warning():
 # profile, not written by hand, so the percentages are the ones a real
 # uncached auto-layout install emits. `timestamp` and `elapsed_ms` are frozen
 # to keep the fixture stable; nothing in the parser reads either.
-_TRANSCRIPT_PATH = os.path.join(os.path.dirname(__file__), "dry-run-transcript.ndjson")
+_TRANSCRIPT_PATH = progress.transcript_path()
 
 
 def _load_dry_run_transcript():
@@ -714,41 +718,32 @@ def source_and_target(leaf, has_nvidia=False, live=False, offline=()):
 # --- the first account -------------------------------------------------------
 #
 # shared/account/README.md. DEFAULT_GROUPS is `default_groups` of
-# shared/account/groups.json; tests/test_account.py fails when the two
-# differ. fisherman removes each group the image does not have, so one list
-# is correct for every image. This frontend used to send only "wheel", which
-# Ubuntu images do not have (#302).
-DEFAULT_GROUPS = ("wheel", "sudo", "docker", "incus-admin", "libvirt", "dialout")
+# shared/account/groups.json, which bootc_shared.account reads. fisherman
+# removes each group the image does not have, so one list is correct for
+# every image. This frontend used to send only "wheel", which Ubuntu images
+# do not have (#302).
+DEFAULT_GROUPS = tuple(shared_account.DEFAULT_GROUPS)
 
 
 def operator_recipe_path(in_flatpak=None):
     """The ISO builder's recipe.json: the host's /etc, also in a Flatpak."""
     if in_flatpak is None:
         in_flatpak = IN_FLATPAK
-    etc = "/run/host/etc" if in_flatpak else "/etc"
-    return f"{etc}/bootc-installer/recipe.json"
+    return shared_account.operator_recipe_path(in_flatpak)
 
 
 def groups_from_operator_recipe(operator_recipe):
     """The account's groups given the operator's recipe (None for no file).
     `user.groups` replaces the default when it is a list of strings, `[]`
     included; anything else keeps the default."""
-    user = operator_recipe.get("user") if isinstance(operator_recipe, dict) else None
-    groups = user.get("groups") if isinstance(user, dict) else None
-    if isinstance(groups, list) and all(isinstance(group, str) for group in groups):
-        return list(groups)
-    return list(DEFAULT_GROUPS)
+    return shared_account.resolve_groups(operator_recipe, DEFAULT_GROUPS)
 
 
 def account_groups(path=None):
     """The supplementary groups of the first account. Only `user.groups` is
     read from the operator's file."""
-    try:
-        with open(path or operator_recipe_path(), encoding="utf-8") as stream:
-            operator_recipe = json.load(stream)
-    except (OSError, ValueError):
-        operator_recipe = None
-    return groups_from_operator_recipe(operator_recipe)
+    return groups_from_operator_recipe(
+        shared_account.read_operator_recipe(path or operator_recipe_path()))
 
 
 # --- disks --------------------------------------------------------------------

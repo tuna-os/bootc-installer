@@ -110,7 +110,7 @@ bootc_installer/
 │                 window_cpu.py, window_ram.py, window_unsupported.py
 ├── layouts/      yes_no.py, preferences.py
 ├── utils/        processor.py, recipe.py, finals.py, builder.py,
-│                 codec_check.py, progress_parser.py, phone_companion.py,
+│                 codec_check.py, phone_companion.py,
 │                 run_async.py
 ├── gtk/          *.blp   (Blueprint UI files)
 └── main.py       GTK4 entry point
@@ -118,7 +118,7 @@ bootc_installer/
 
 **Key data flows:**
 - `defaults/*.py` → `get_finals()` → `main_window.update_finals()` → `processor.py` → `recipe.json` → fisherman
-- `progress.py` tails the log file and feeds events to `utils/progress_parser.py` → `apply_progress_event()`
+- `progress.py` tails the log file and feeds events to `bootc_shared.progress` (`shared/python/`) → `apply_progress_event()`
 - `utils/recipe.py` (`RecipeLoader`) loads `recipe.json` with override priority: `/etc/bootc-installer/` > `$XDG_CONFIG_HOME/bootc-installer/` > bundled GResource
 
 ---

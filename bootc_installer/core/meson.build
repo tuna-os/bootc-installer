@@ -11,12 +11,8 @@ sources = [
   'timezones.py',
   'disks.py',
   'system.py',
-  'fisherman_probe.py',
-  'fisherman_validate.py',
 ]
 
-# The encryption-choices copy fisherman_validate.load_choices() reads beside
-# its module: installed alongside, the same arrangement the XFCE frontend
-# ships (frontends/xfce meson data), so the Flatpak and the source tree agree.
+# The fisherman probe and validate readers, and the encryption choices they
+# read, are in the bootc_shared package (shared/python/meson.build).
 install_data(sources, install_dir: coredir)
-install_data('encryption-choices.json', install_dir: coredir)

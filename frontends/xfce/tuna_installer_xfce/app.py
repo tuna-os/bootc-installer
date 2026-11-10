@@ -11,7 +11,9 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from . import core, gates, readiness
+from bootc_shared import readiness  # noqa: E402
+
+from . import core, gates
 from .i18n import _
 from . import locale as locale_checks
 from .pages import (

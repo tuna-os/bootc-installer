@@ -4,7 +4,7 @@ from gettext import gettext as _
 
 from gi.repository import Adw, Gtk
 
-from bootc_installer.utils.account import DEFAULT_GROUPS as _DEFAULT_GROUPS
+from bootc_shared.account import DEFAULT_GROUPS as _DEFAULT_GROUPS
 from bootc_installer.utils.field_check import FieldCheck
 from bootc_installer.utils.user_step import user_step_shows
 

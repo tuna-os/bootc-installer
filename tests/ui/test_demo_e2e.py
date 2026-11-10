@@ -11,7 +11,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib  # noqa: E402
 
-from bootc_installer.utils.branding import COPY_DEFAULTS  # noqa: E402
+from bootc_shared.branding import COPY_DEFAULTS  # noqa: E402
 from bootc_installer.windows.main_window import BootcWindow  # noqa: E402
 
 _RECIPE_PATH = Path(__file__).resolve().parents[2] / "recipe.json"

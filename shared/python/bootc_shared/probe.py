@@ -1,9 +1,7 @@
 """Reader for `fisherman probe --json`, per shared/probe/README.md.
 
-Canonical copy. The Python frontends (GNOME, XFCE) carry byte-identical
-copies and tests/unit/test_shared_probe.py enforces that they match, the
-same arrangement shared/progress/ uses. Edit this file and re-copy; never
-edit a copy.
+The one copy: GNOME and XFCE import it as `bootc_shared.probe`.
+tests/unit/test_shared_probe.py runs it against shared/probe/fixtures/.
 
 fisherman decides which disks may be installed to, how big they are, whether
 a TPM 2.0 is usable and whether the machine meets the minimum requirements.

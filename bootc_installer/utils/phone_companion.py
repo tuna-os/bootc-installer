@@ -162,7 +162,7 @@ def render_companion_html(name=None, hostname=None):
     hold any character.
     """
     if name is None or hostname is None:
-        from bootc_installer.utils import branding
+        from bootc_shared import branding
         b = branding.resolve()
         name = name or b.name
         hostname = hostname or b.default_hostname

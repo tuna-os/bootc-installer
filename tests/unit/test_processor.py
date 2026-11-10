@@ -1047,7 +1047,7 @@ class TestDistroID:
         assert r["distroID"] == "exampleos"
 
     def test_distro_id_follows_the_resolver(self, monkeypatch):
-        from bootc_installer.utils import branding
+        from bootc_shared import branding
         monkeypatch.setattr(branding, "resolve",
                             lambda *a, **k: branding.Branding(id="somedistro"))
         r = _load(Processor.gen_install_recipe("log", _auto_finals(), _SYS_RECIPE))

@@ -36,6 +36,22 @@ The fisherman pin moved to `7f9021b` (tuna-os/fisherman#429, #432, #433,
 
 Recipe schema sha256: `55a4169f5661764ccdc4e385b561b45328f4f39d3b5ed62b557cbea0dc455245`
 
+## 2026-11-10: one Python package, `python/bootc_shared`
+
+- Changed: the Python code of five contracts moved to one package.
+  `probe/fisherman_probe.py` is now `python/bootc_shared/probe.py`,
+  `recipe/fisherman_validate.py` is `validate.py`,
+  `progress/progress_parser.py` is `progress.py`, `readiness/readiness.py`
+  is `readiness.py`, and `branding/branding.py` is `branding.py`. The
+  module `account.py` is new and reads `account/groups.json`.
+- Removed: the copies of those files in the GNOME and XFCE trees, and the
+  tests that compared the copies. The two frontends import the package.
+  `branding.py` reads `branding/copy-defaults.json`, and has no embedded
+  copy of it.
+- Not changed: the data files, the fixtures and the behaviour. KDE, COSMIC
+  and Niri read the same paths as before. Their source comments that name
+  `shared/progress/progress_parser.py` now name a file that moved.
+
 ## 2026-11-10: recipe schema, `override` and `unifiedStorage`
 
 - Added: `override`, a list that accepts `too_small` and `uefi`. It names
