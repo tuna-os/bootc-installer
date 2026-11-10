@@ -45,6 +45,10 @@ set(BACKEND_SOURCES
     src/region.h
     src/offline.cpp
     src/offline.h
+    src/fisherman.cpp
+    src/fisherman.h
+    src/account.cpp
+    src/account.h
     src/branding.cpp
     src/branding.h
     src/diskmodel.cpp
@@ -67,6 +71,10 @@ configure_file(src/branding_defaults.h.in "${CMAKE_CURRENT_BINARY_DIR}/branding_
 # byte-identical copy of fisherman's data/encryption-choices.json.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/encryption-choices.json" TUNA_ENCRYPTION_CHOICES_JSON)
 configure_file(src/encryption_choices.h.in "${CMAKE_CURRENT_BINARY_DIR}/encryption_choices.h" @ONLY)
+# account-groups.json compiled into account.cpp the same way: a byte-identical
+# copy of shared/account/groups.json (test_backend holds the two together).
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/account-groups.json" TUNA_ACCOUNT_GROUPS_JSON)
+configure_file(src/account_groups.h.in "${CMAKE_CURRENT_BINARY_DIR}/account_groups.h" @ONLY)
 
 # The whole UI lives in a static library so that both the installer and the
 # screenshot harness link the *same* QML module — registering one URI from two
@@ -87,6 +95,7 @@ endforeach()
 
 set_source_files_properties(src/qml/Main.qml PROPERTIES QT_RESOURCE_ALIAS Main.qml)
 set_source_files_properties(src/qml/Wizard.qml PROPERTIES QT_RESOURCE_ALIAS Wizard.qml)
+set_source_files_properties(src/qml/NetworkGate.qml PROPERTIES QT_RESOURCE_ALIAS NetworkGate.qml)
 
 qt_add_qml_module(tunainstallerapp
     URI org.tunaos.installer
@@ -95,6 +104,7 @@ qt_add_qml_module(tunainstallerapp
     QML_FILES
         src/qml/Main.qml
         src/qml/Wizard.qml
+        src/qml/NetworkGate.qml
         ${STEP_QML_FILES}
     SOURCES
         ${BACKEND_SOURCES}
@@ -149,6 +159,8 @@ if(BUILD_TESTING)
         src/region.cpp
         src/branding.cpp
         src/offline.cpp
+        src/fisherman.cpp
+        src/account.cpp
         src/readiness.cpp
         src/probe.cpp
         src/validate.cpp
@@ -166,6 +178,10 @@ if(BUILD_TESTING)
         BRANDING_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/branding/fixtures"
         PROBE_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/probe/fixtures"
         PROGRESS_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/progress"
+        CATALOG_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/catalog/fixtures"
+        SHARED_GROUPS_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../../shared/account/groups.json"
+        # The QML the strings lint reads (tests/test_backend.cpp, #300).
+        KDE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
         VALIDATE_GOLDENS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../fisherman/fisherman/cmd/fisherman/testdata/validate")
     # Qt6::Quick is needed to compile readiness.cpp: armStamp() takes a
     # QQuickWindow, so the type must be complete even though the tests below

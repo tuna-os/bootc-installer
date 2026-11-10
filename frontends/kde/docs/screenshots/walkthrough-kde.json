@@ -1,30 +1,30 @@
 {
     "activation_key": null,
-    "advanced_transitions": 7,
+    "advanced_transitions": 9,
     "failures": 0,
     "flavor": "kde",
-    "frames": 8,
+    "frames": 10,
     "harness": "tests/capture.cpp (Kirigami/QML, offscreen)",
     "notes": "GPU-less capture: pages are driven programmatically and text is read from the item tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop — those stay the VM walkthrough's job.",
     "ocr": false,
     "pages": [
         {
-            "colours": 412,
-            "flat": 0.9770018785957497,
-            "ink": 0.021868028648585183,
+            "colours": 541,
+            "flat": 0.7799694728190677,
+            "ink": 0.17158330398027474,
             "name": "01-welcome",
             "png": "docs/screenshots/01-welcome.png",
             "rendered": true,
-            "stddev": 0.07072686175203091
+            "stddev": 0.08966084399926993
         },
         {
-            "colours": 437,
-            "flat": 0.7004740518962076,
-            "ink": 0.29714009481037923,
+            "colours": 432,
+            "flat": 0.6303330838323353,
+            "ink": 0.351437749500998,
             "name": "02-disk",
             "png": "docs/screenshots/02-disk.png",
             "rendered": true,
-            "stddev": 0.06134422222183268
+            "stddev": 0.06195886355066795
         },
         {
             "colours": 394,
@@ -79,9 +79,27 @@
             "png": "docs/screenshots/08-recovery.png",
             "rendered": true,
             "stddev": 0.07006032057049805
+        },
+        {
+            "colours": 515,
+            "flat": 0.6543480203771561,
+            "ink": 0.14520213304733817,
+            "name": "09-cancel-confirm",
+            "png": "docs/screenshots/09-cancel-confirm.png",
+            "rendered": true,
+            "stddev": 0.10539422926217538
+        },
+        {
+            "colours": 170,
+            "flat": 0.9900639896677234,
+            "ink": 0.009231536926147704,
+            "name": "10-cancelled",
+            "png": "docs/screenshots/10-cancelled.png",
+            "rendered": true,
+            "stddev": 0.05618261774991484
         }
     ],
-    "rendered_frames": 8,
+    "rendered_frames": 10,
     "screens": {
         "disk": true,
         "done": true,
@@ -129,7 +147,8 @@
                 "partitioning"
             ],
             "on_pages": [
-                "06-progress"
+                "06-progress",
+                "09-cancel-confirm"
             ],
             "reached": true,
             "required": false
@@ -160,13 +179,15 @@
     "strict": true,
     "text_source": "qml-item-tree",
     "transition_pixels": [
-        176009,
-        126678,
+        180772,
+        92351,
         121281,
         89483,
         339632,
         478306,
-        96844
+        96844,
+        663273,
+        696303
     ],
-    "visual_states": 8
+    "visual_states": 10
 }

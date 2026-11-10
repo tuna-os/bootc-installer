@@ -42,16 +42,49 @@ TunaComponents.SetupModule {
                 Layout.fillWidth: true
             }
 
-            // Stops the install: terminate the wrapper, kill it if it does
-            // not go (fisherman exits when its parent dies). The wizard
-            // advances to the done step on its own when the process exits,
-            // which then reports the cancelled run.
+            // Asks first (#299): a stray click must not stop a disk write
+            // half-way. Only the dialog's own action stops the install. The
+            // wizard goes to the done step when the process exits, and that
+            // step shows the cancelled page.
             Button {
                 objectName: "cancelInstallButton"
-                text: "Cancel"
+                text: qsTr("Cancel")
                 icon.name: "dialog-cancel-symbolic"
                 visible: InstallerController.installing && !InstallerController.installFinished
-                onClicked: InstallerController.cancelInstall()
+                onClicked: cancelDialog.open()
+            }
+
+            Kirigami.PromptDialog {
+                id: cancelDialog
+                objectName: "cancelConfirmDialog"
+
+                title: qsTr("Stop the installation?")
+                subtitle: qsTr("The disk %1 is erased already. If you stop now, no system can start from it until you install again.").arg(InstallerController.disk)
+                standardButtons: Kirigami.Dialog.NoButton
+                customFooterActions: [
+                    Kirigami.Action {
+                        objectName: "cancelConfirmStop"
+                        text: qsTr("Stop the installation")
+                        icon.name: "dialog-cancel-symbolic"
+                        onTriggered: {
+                            cancelDialog.close();
+                            InstallerController.cancelInstall();
+                        }
+                    },
+                    Kirigami.Action {
+                        objectName: "cancelConfirmKeep"
+                        text: qsTr("Keep installing")
+                        onTriggered: cancelDialog.close()
+                    }
+                ]
+
+                // An install that ends by itself leaves nothing to ask about.
+                Connections {
+                    target: InstallerController
+                    function onInstallCompleted(exitCode: int): void {
+                        cancelDialog.close();
+                    }
+                }
             }
         }
 
@@ -122,14 +155,16 @@ TunaComponents.SetupModule {
                 // "Step 5 of 8 — Installing <product>…". The count comes
                 // from the event, never a constant: fisherman computes
                 // total_steps from the recipe.
-                // Plain concatenation, not i18nc(): nothing in this app sets
-                // a KLocalizedContext on the QML engine, so i18n functions
-                // are undefined here and every other string is built this way.
+                // qsTr(), not i18nc(): nothing in this app sets a
+                // KLocalizedContext on the QML engine, so the KDE i18n
+                // functions are undefined here. Qt's own are not.
                 text: InstallerController.installStep > 0
-                    ? "Step " + InstallerController.installStep
-                      + " of " + InstallerController.installTotalSteps
-                      + (InstallerController.installStepName
-                         ? " — " + InstallerController.installStepName : "")
+                    ? (InstallerController.installStepName
+                       ? qsTr("Step %1 of %2 — %3").arg(InstallerController.installStep)
+                             .arg(InstallerController.installTotalSteps)
+                             .arg(InstallerController.installStepName)
+                       : qsTr("Step %1 of %2").arg(InstallerController.installStep)
+                             .arg(InstallerController.installTotalSteps))
                     : ""
                 visible: text !== ""
                 color: Kirigami.Theme.disabledTextColor

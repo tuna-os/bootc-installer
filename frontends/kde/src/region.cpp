@@ -246,4 +246,32 @@ bool hostReachable(const char *host, int port, int timeoutMs)
     return ok;
 }
 
+QList<Target> connectivityTargets(const QString &registryHost)
+{
+    QList<Target> targets;
+    if (!registryHost.isEmpty())
+        targets << Target{registryHost, 443};
+    for (const Target &shared : {Target{QStringLiteral("ghcr.io"), 443}, Target{QStringLiteral("8.8.8.8"), 53}}) {
+        if (!targets.contains(shared))
+            targets << shared;
+    }
+    return targets;
+}
+
+bool networkReachable(const QList<Target> &targets)
+{
+    for (const Target &t : targets) {
+        if (hostReachable(t.host.toUtf8().constData(), t.port, 3000))
+            return true;
+    }
+    return false;
+}
+
+QStringList networkSettingsCommand()
+{
+    return {QStringLiteral("sh"), QStringLiteral("-c"),
+            QStringLiteral("kcmshell6 kcm_networkmanagement || systemsettings kcm_networkmanagement"
+                           " || nm-connection-editor")};
+}
+
 } // namespace region

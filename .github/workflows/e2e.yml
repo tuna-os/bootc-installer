@@ -214,8 +214,9 @@ jobs:
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_E2E=ON
           cmake --build build -j"$(nproc)"
       - name: prepare the backend, shim and loop disk
-        # The container is root: sudo here just runs the command, which
-        # is what fishermanCommand()'s `sudo /usr/local/bin/fisherman` needs.
+        # The frontend runs `pkexec /usr/local/bin/fisherman -`. setup.sh
+        # puts shared/e2e/fake-bin first on PATH: its pkexec is `sudo -n`,
+        # and the container is root, so sudo just runs the command.
         run: bash ../../shared/e2e/setup.sh
       - name: the Install button's code path, into fisherman
         env:

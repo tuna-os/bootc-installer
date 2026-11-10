@@ -35,9 +35,9 @@ struct Result {
 // Parses `validate --json` output.
 Result parse(const QByteArray &json);
 
-// The unprivileged command: the fisherman the install runs, on the host
-// (flatpak-spawn --host when sandboxed). Never pkexec or sudo.
-QStringList command(bool flatpak);
+// fisherman's arguments for the check; the binary is fisherman.h's
+// unprivileged command. The partial recipe goes on stdin.
+QStringList arguments();
 
 // The copy key for a problem.
 QString copyKey(const Problem &problem);

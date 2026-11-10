@@ -1,6 +1,8 @@
 #ifndef RECIPE_H
 #define RECIPE_H
 
+#include "account.h"
+
 #include <QJsonObject>
 #include <QString>
 #include <QStringList>
@@ -18,7 +20,15 @@ struct Recipe {
     QString targetImgref;
     QString bootloader;        // "", "grub2", "systemd"
     bool composeFsBackend = false;
+    // `flatpaks` has three states (shared/catalog/README.md): no key, and
+    // fisherman applies its own default; an empty list, and it copies no
+    // Flatpak; a list. flatpaksSet is what tells the first two apart.
+    bool flatpaksSet = false;
     QStringList flatpaks;
+    // The catalog's flatpak_var_path and image_type. Written only when set,
+    // and for the type only when it is not "bootc".
+    QString flatpakVarPath;
+    QString imageType;
     // Offline OCI stores. Left empty (so absent), fisherman exposes the
     // stores it finds on the host; the wizard never fills it.
     QStringList additionalImageStores;
@@ -34,8 +44,10 @@ struct Recipe {
         QString username;
         QString fullname;
         QString password;
-        // The first user administers the machine, as on every frontend.
-        QStringList groups{QStringLiteral("wheel")};
+        // The shared default list (shared/account/groups.json): the admin
+        // groups of both distro families and the developer groups.
+        // fisherman drops each group the image does not have.
+        QStringList groups = account::defaultGroups();
     } user;
     // False when the selected image creates its own first user
     // (needs_user_creation in the catalog, mirrored from the GNOME image step

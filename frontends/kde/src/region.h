@@ -21,6 +21,7 @@
 
 #include <QList>
 #include <QString>
+#include <QStringList>
 
 namespace region
 {
@@ -47,13 +48,27 @@ QString systemTimezone();         // the live session's id, "UTC" when unknown
 QString timezoneDisplay(const QString &ianaId);
 
 // Plain-POSIX TCP reachability: no QtNetwork link for one three-second
-// probe. Mirrors conn_check.py's fallback (DNS on 8.8.8.8:53) rather than its
-// portal check: the sandbox has the network share, and a portal answer says
-// what the sandbox sees, not what fisherman on the host will.
+// probe. Not the portal's answer: the sandbox has the network share, and a
+// portal says what the sandbox sees, not what fisherman on the host will.
 bool hostReachable(const char *host, int port, int timeoutMs);
-inline bool networkReachable()
-{
-    return hostReachable("8.8.8.8", 53, 3000);
-}
+
+// One host and port the connectivity check tries.
+struct Target {
+    QString host;
+    int port;
+    bool operator==(const Target &other) const { return host == other.host && port == other.port; }
+};
+// The targets, in order: the registry of the selected image on 443 when
+// there is one, then the targets the GNOME, COSMIC and XFCE frontends try
+// (ghcr.io:443, then 8.8.8.8:53). The registry is first because it is the
+// host the download needs (#301).
+QList<Target> connectivityTargets(const QString &registryHost);
+// True when one of the targets answers.
+bool networkReachable(const QList<Target> &targets);
+
+// The Plasma network settings, then two fallbacks, as one host command. The
+// caller wraps it with flatpak-spawn --host in a Flatpak. Best effort: a
+// desktop with none of the three opens nothing.
+QStringList networkSettingsCommand();
 
 } // namespace region

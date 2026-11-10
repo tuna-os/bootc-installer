@@ -41,19 +41,27 @@ class InstallerController : public QObject
     Q_PROPERTY(QString passphrase READ passphrase WRITE setPassphrase NOTIFY recipeChanged)
     Q_PROPERTY(QString hostname READ hostname WRITE setHostname NOTIFY recipeChanged)
     Q_PROPERTY(QString image READ image WRITE setImage NOTIFY recipeChanged)
-    // The account the installed system gets (the recipe's `user` block,
-    // groups ["wheel"]). Required unless the selected catalog image creates
-    // its own first user (needs_user_creation, the GNOME image step and the
-    // XFCE IdentityPage rule): the wizard then skips the account step and
-    // the recipe omits the block. True when there is no catalog to say so.
+    // The image updates follow. The confirm step shows it when it is not
+    // `image` (the offline NVIDIA case of shared/catalog/README.md).
+    Q_PROPERTY(QString targetImgref READ targetImgref NOTIFY recipeChanged)
+    // "product channel" of the selected catalog leaf, "" without one.
+    Q_PROPERTY(QString imageLabel READ imageLabel NOTIFY catalogChanged)
+    // The filesystems the user can pick: the selected leaf's `filesystems`,
+    // else its one `filesystem`, else this frontend's own list. The disk
+    // step shows a picker when there is more than one.
+    Q_PROPERTY(QStringList filesystemChoices READ filesystemChoices NOTIFY catalogChanged)
+    // The account the installed system gets (the recipe's `user` block, with
+    // the groups of shared/account/groups.json). Required unless the image
+    // creates its own first user (needs_user_creation: false in the
+    // catalog): the wizard then skips the account step and the recipe omits
+    // the block. True when no catalog has the image.
     Q_PROPERTY(QString username READ username WRITE setUsername NOTIFY recipeChanged)
     Q_PROPERTY(QString fullname READ fullname WRITE setFullname NOTIFY recipeChanged)
     Q_PROPERTY(QString userPassword READ userPassword WRITE setUserPassword NOTIFY recipeChanged)
     Q_PROPERTY(bool needsUserCreation READ needsUserCreation NOTIFY catalogChanged)
 
-    // The image catalog (fisherman's images.json, resolved like the GNOME and
-    // XFCE frontends resolve it). Empty on live media and when no manifest is
-    // installed — the install then proceeds as it does today.
+    // The image catalog (shared/catalog/README.md). Hidden on live media,
+    // and empty when no manifest is installed.
     Q_PROPERTY(bool hasCatalog READ hasCatalog CONSTANT)
     Q_PROPERTY(QStringList catalogNames READ catalogNames NOTIFY catalogChanged)
     Q_PROPERTY(QStringList catalogImgrefs READ catalogImgrefs NOTIFY catalogChanged)
@@ -129,6 +137,9 @@ class InstallerController : public QObject
     Q_PROPERTY(QString hostnameProblem READ hostnameProblem NOTIFY problemsChanged)
     Q_PROPERTY(QString encryptionProblem READ encryptionProblem NOTIFY problemsChanged)
     Q_PROPERTY(QString usernameProblem READ usernameProblem NOTIFY problemsChanged)
+    // The filesystem's, which includes a composefs image on a filesystem
+    // without fs-verity (#287). The disk step shows it and holds Next.
+    Q_PROPERTY(QString filesystemProblem READ filesystemProblem NOTIFY problemsChanged)
 
     // The product name, resolved ONCE at startup from the branding contract
     // (src/branding.h: branding.json, then os-release, then neutral). Every
@@ -176,6 +187,10 @@ class InstallerController : public QObject
     Q_PROPERTY(bool installFinished READ installFinishedFlag NOTIFY installCompleted)
     Q_PROPERTY(int exitCode READ exitCode NOTIFY installCompleted)
     Q_PROPERTY(bool succeeded READ succeeded NOTIFY installCompleted)
+    // The install ended because it was cancelled: fisherman's exit code 130,
+    // or any unsuccessful end after cancelInstall(). The done step then
+    // shows the cancelled page, not the failure page (#299).
+    Q_PROPERTY(bool cancelled READ cancelled NOTIFY installCompleted)
 
     // The key fisherman emits once, after TPM enrolment (#129). The
     // "recovery_key" branch in consumeProgress() used to format a log line
@@ -211,6 +226,11 @@ public:
     void setHostname(const QString &v);
     QString image() const { return m_recipe.image; }
     void setImage(const QString &v);
+    QString targetImgref() const { return m_recipe.targetImgref; }
+    QString imageLabel() const;
+    QStringList filesystemChoices() const { return m_filesystemChoices; }
+    // This frontend's own list, for an image whose catalog leaf names none.
+    static QStringList ownFilesystems();
     QString username() const { return m_recipe.user.username; }
     void setUsername(const QString &v);
     QString fullname() const { return m_recipe.user.fullname; }
@@ -252,6 +272,8 @@ public:
     bool checkingOnline() const { return m_checkingOnline; }
     bool needsNetwork() const;
     Q_INVOKABLE void checkConnectivity();
+    // Opens the desktop's own network settings on the host, best effort.
+    Q_INVOKABLE void openNetworkSettings();
     QVariantList tourSlides() const { return m_tourSlides; }
     QStringList encryptionTypes() const { return Recipe::encryptionTypes(); }
     Q_INVOKABLE bool needsPassphrase(const QString &type) const { return Recipe::needsPassphrase(type); }
@@ -261,6 +283,7 @@ public:
     QString hostnameProblem() const { return problemText(QStringLiteral("hostname")); }
     QString encryptionProblem() const { return problemText(QStringLiteral("encryption")); }
     QString usernameProblem() const { return problemText(QStringLiteral("user.username")); }
+    QString filesystemProblem() const;
     // The fields as a partial recipe for `validate --json --partial -`.
     QByteArray partialRecipe() const;
     // Takes in fisherman's answer (validate --json stdout). Public for tests.
@@ -274,7 +297,7 @@ public:
     // A copy line with {name} and {disk} filled in.
     Q_INVOKABLE QString text(const QString &key, const QString &disk = QString()) const
     {
-        return m_branding.text(key, {{QStringLiteral("disk"), disk.isEmpty() ? QStringLiteral("the selected disk") : disk}});
+        return m_branding.text(key, {{QStringLiteral("disk"), disk.isEmpty() ? tr("the selected disk") : disk}});
     }
     // The done page's Restart: systemctl reboot on the host.
     Q_INVOKABLE void reboot();
@@ -285,10 +308,11 @@ public:
     // the window, but a failed install pasted into a bug report usually
     // starts from this button (the GNOME BootcDialogOutput copy action).
     Q_INVOKABLE void copyLogToClipboard();
-    // Stops a running install: terminate the wrapper, kill it if it does not
-    // go. fisherman exits when its parent dies (fisherman#267), so killing
-    // the wrapper IS the cancel contract — the same kill the exit dialog
-    // performs (BootcWindow.__on_exit_response calls view_progress.terminate).
+    // Stops a running install. The progress step calls this only after the
+    // user confirmed. SIGTERM to the wrapper's whole process group, SIGKILL
+    // five seconds later if it is still there: fisherman runs as root and
+    // cannot be signalled from here, it cancels when its parent dies
+    // (fisherman#267).
     Q_INVOKABLE void cancelInstall();
     QString log() const { return m_log; }
     QString logPath() const { return m_logPath; }
@@ -299,7 +323,8 @@ public:
     bool installing() const { return m_process != nullptr; }
     bool installFinishedFlag() const { return m_finished; }
     int exitCode() const { return m_exitCode; }
-    bool succeeded() const { return m_finished && m_exitCode == 0; }
+    bool succeeded() const { return m_finished && m_exitCode == 0 && !m_cancelled; }
+    bool cancelled() const { return m_finished && m_cancelled; }
     QString recoveryKey() const { return m_recoveryKey; }
     bool recoveryAck() const { return m_recoveryAck; }
     void setRecoveryAck(bool v);
@@ -335,6 +360,13 @@ public:
     void consumeStderr(const QByteArray &data);
     // Emits whatever partial line is left in either stream.
     void flushStreams();
+    // Starts `command` as the install, writes `recipeJson` to its stdin and
+    // closes it. startInstall() calls this with fisherman.h's command; it is
+    // public so the tests can run the cancel path against a stand-in.
+    void launch(QStringList command, const QByteArray &recipeJson);
+    // Blocks until the install process ends, at most `ms`. For tests, which
+    // run without an event loop; true when no process is left.
+    bool waitForInstall(int ms);
 
 Q_SIGNALS:
     void recipeChanged();
@@ -368,6 +400,9 @@ private:
     // Asks fisherman about the fields after a pause in the changes.
     void checkFields();
     void runValidate();
+    // Everything a catalog leaf decides except the image itself.
+    void applyLeaf(const imagecatalog::Leaf &leaf);
+    void signalInstallGroup(int signal);
 
     Recipe m_recipe;
     bool m_diskRemovable = false;
@@ -377,6 +412,13 @@ private:
     imagecatalog::Catalog m_catalog;
     int m_catalogIndex = -1;
     bool m_needsUser = true;
+    bool m_hasNvidia = false;
+    QStringList m_filesystemChoices;
+    // The hostname this frontend last put in the recipe, so a new leaf's
+    // default_hostname replaces it and a name the user typed stays.
+    QString m_seededHostname;
+    bool m_cancelRequested = false;
+    bool m_cancelled = false;
     bool m_continueAnyway = false;
     QString m_liveImage;
     QStringList m_offlineImages;

@@ -35,13 +35,10 @@ Result parse(const QByteArray &json)
     return r;
 }
 
-QStringList command(bool flatpak)
+QStringList arguments()
 {
-    QStringList argv{QStringLiteral("/usr/local/bin/fisherman"), QStringLiteral("validate"),
-                     QStringLiteral("--json"), QStringLiteral("--partial"), QStringLiteral("-")};
-    if (flatpak)
-        return QStringList{QStringLiteral("flatpak-spawn"), QStringLiteral("--host")} + argv;
-    return argv;
+    return {QStringLiteral("validate"), QStringLiteral("--json"), QStringLiteral("--partial"),
+            QStringLiteral("-")};
 }
 
 QString copyKey(const Problem &problem)
