@@ -132,7 +132,7 @@ constexpr int MIN_STEP_TEXT = 10;
 // card step reclassify itself as a hero page and pass.
 bool isHeroStep(const QString &name)
 {
-    return name == u"01-welcome"_s || name == u"07-done"_s;
+    return name == u"01-welcome"_s || name == u"07-done"_s || name == u"10-cancelled"_s;
 }
 
 void settle(int ms)
@@ -698,8 +698,13 @@ int main(int argc, char *argv[])
         // The done page again, as a TPM install leaves it. Same step, other
         // state -- not a step of its own.
         {6, u"08-recovery"_s},
+        // The progress page again, with the question Cancel asks (#299),
+        // then the done page as a cancelled install leaves it.
+        {5, u"09-cancel-confirm"_s},
+        {6, u"10-cancelled"_s},
     };
 
+    QObject *cancelDialog = nullptr;
     QVector<Finding> findings;
     // Kept alongside `findings` so consecutive frames can be diffed for the
     // parity report's transition counts.
@@ -728,11 +733,55 @@ int main(int argc, char *argv[])
             }
         }
 
+        if (step.second == u"09-cancel-confirm"_s) {
+            controller->loadDemoState(QString::fromUtf8(kFixtureLogRunning), 0);
+        }
+        if (step.second == u"10-cancelled"_s) {
+            // 130 is fisherman's exit code for a cancelled install.
+            controller->loadDemoState(QString::fromUtf8(kFixtureLogRunning), 130);
+            if (!controller->cancelled()) {
+                out << "FAIL: exit code 130 is not a cancelled install\n";
+                return 1;
+            }
+        }
+
         if (!callGoToStep(step.first)) {
             out << "FAIL: could not invoke goToStep(" << step.first << ")\n";
             return 1;
         }
         settle(400);
+
+        // Cancel asks first. The button is clicked the way a user's click
+        // reaches it (its clicked() signal); the question must open, and
+        // the frame shows it. No install runs here, so nothing is stopped
+        // either way: the point is that a click alone opens a question.
+        if (step.second == u"09-cancel-confirm"_s) {
+            QQuickItem *cancel = findItemByName(window->contentItem(), u"cancelInstallButton"_s);
+            // A popup is no item of the visual tree; it is declared next to
+            // the button, so it is a QObject child of the button's row.
+            QObject *dialog = cancel && cancel->parentItem()
+                ? cancel->parentItem()->findChild<QObject *>(u"cancelConfirmDialog"_s) : nullptr;
+            cancelDialog = dialog;
+            if (!cancel || !dialog) {
+                out << "FAIL: the progress step has no cancelInstallButton or cancelConfirmDialog\n";
+                return 1;
+            }
+            if (dialog->property("visible").toBool()) {
+                out << "FAIL: the cancel question is open before Cancel was clicked\n";
+                return 1;
+            }
+            QMetaObject::invokeMethod(cancel, "clicked");
+            settle(500);
+            if (!dialog->property("visible").toBool()) {
+                out << "FAIL: clicking Cancel did not open the question (#299)\n";
+                return 1;
+            }
+            const QString asked = itemText(window->contentItem());
+            if (!asked.contains(u"Stop the installation"_s) || !asked.contains(u"Keep installing"_s)) {
+                out << "FAIL: the cancel question does not offer both answers\n";
+                return 1;
+            }
+        }
 
         // The account step holds Next until the password is typed twice,
         // and lets go once it is: a page that never released Next would
@@ -853,6 +902,51 @@ int main(int argc, char *argv[])
             QQuickItem *keyField = findItemByName(window->contentItem(), u"recoveryKeyLabel"_s);
             if (!keyField || !keyField->property("selectByMouse").toBool()) {
                 out << "FAIL: the recovery key is not in a selectable field\n";
+                return 1;
+            }
+        }
+        if (step.second == u"09-cancel-confirm"_s) {
+            // Closed again, so the next frame is the done page alone.
+            if (cancelDialog)
+                QMetaObject::invokeMethod(cancelDialog, "close");
+            settle(300);
+        }
+        // The cancelled page: its heading is the branding copy key, it is
+        // not the failure page, and it offers no restart into a system that
+        // is not there.
+        if (step.second == u"10-cancelled"_s) {
+            QQuickItem *heading = findItemByName(window->contentItem(), u"doneHeading"_s);
+            QQuickItem *restart = findItemByName(window->contentItem(), u"doneRestartButton"_s);
+            const QString title = controller->text(u"done_cancelled_title"_s);
+            if (!heading || title.isEmpty() || heading->property("text").toString() != title) {
+                out << "FAIL: the cancelled page's heading is not done_cancelled_title\n";
+                return 1;
+            }
+            if (heading->property("text").toString() == controller->text(u"done_failed_title"_s)) {
+                out << "FAIL: a cancelled install shows the failure heading\n";
+                return 1;
+            }
+            if (restart && restart->property("visible").toBool()) {
+                out << "FAIL: the cancelled page offers Restart\n";
+                return 1;
+            }
+        }
+        // The confirm page lists what the install does. Nothing writes the
+        // language, keyboard or time zone to the installed system (#292).
+        if (step.second == u"05-confirm"_s) {
+            const QString shown = itemText(window->contentItem());
+            for (const auto &row : {u"Language"_s, u"Keyboard"_s, u"Time zone"_s}) {
+                if (shown.contains(row)) {
+                    out << "FAIL: the confirm step lists \"" << row << "\", which the install does not apply\n";
+                    return 1;
+                }
+            }
+        }
+        // More than one filesystem to choose from: the disk step asks.
+        if (step.second == u"02-disk"_s) {
+            QQuickItem *fs = findItemByName(window->contentItem(), u"filesystemCombo"_s);
+            if (controller->filesystemChoices().size() > 1 && (!fs || !fs->isVisible())) {
+                out << "FAIL: the disk step does not offer the filesystem choices (#287)\n";
                 return 1;
             }
         }
