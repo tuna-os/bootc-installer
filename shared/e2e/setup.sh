@@ -81,6 +81,20 @@ print(json.dumps({
                "uefi": True, "meets_requirements": True, "unmet": []},
     "live": {"is_live": False, "live_image": ""},
     "offline": {"stores": [], "images": []},
+    # The runner has no bootc (fake-bin/bootc fails), no GPU and no DMI name.
+    "bootc": {"context": "live-host", "found": False, "version": "",
+              "version_reason": "bootc_missing",
+              "capabilities": {
+                  name: {"status": status, "reason": reason}
+                  for name, status, reason in (
+                      ("bootc_image_storage", "unknown", "not_established"),
+                      ("container_inspect", "unsupported", "bootc_missing"),
+                      ("deployment_mount", "unknown", "not_established"),
+                      ("install_finalize", "unsupported", "bootc_missing"),
+                      ("install_print_configuration", "unsupported", "bootc_missing"),
+                      ("unified_storage", "unknown", "not_established"))}},
+    "gpus": [],
+    "dmi": {"vendor": "", "product": ""},
 }, indent=2))
 PY
 
