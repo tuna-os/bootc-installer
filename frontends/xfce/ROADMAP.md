@@ -27,13 +27,11 @@ The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 
 | Issue | Gap |
 |---|---|
-| #295 | The frontend asks for the account password one time only, with no reveal toggle |
 | #290 | The Flatpak builds fisherman, but does not stage it or verify its SHA256 |
 | #300 | The frontend has no translatable strings |
 | #301 | An offline user gets no help to connect |
 | #299 | The result page reports a cancel as a failure |
 | #292 | Language, keyboard and time zone do not reach the installed system |
-| #302 | The first account is only in `wheel` |
 
 When you close one of these issues, remove its row.
 `tests/unit/test_frontend_roadmaps.py` examines this file.

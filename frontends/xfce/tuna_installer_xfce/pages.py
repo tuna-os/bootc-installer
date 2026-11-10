@@ -49,6 +49,29 @@ def show_problem(label, problem):
     label.show()
 
 
+def toggle_reveal(entry, *_args):
+    """Show or hide what a password entry holds; its icon follows."""
+    shown = not entry.get_visibility()
+    entry.set_visibility(shown)
+    entry.set_icon_from_icon_name(
+        Gtk.EntryIconPosition.SECONDARY,
+        "view-conceal-symbolic" if shown else "view-reveal-symbolic")
+    entry.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY,
+                                "Hide" if shown else "Show")
+
+
+def password_entry():
+    """A hidden entry with a reveal icon: the passphrase, the account
+    password and their confirmations all use this one."""
+    entry = Gtk.Entry(visibility=False, input_purpose=Gtk.InputPurpose.PASSWORD)
+    entry.set_icon_from_icon_name(Gtk.EntryIconPosition.SECONDARY,
+                                  "view-reveal-symbolic")
+    entry.set_icon_activatable(Gtk.EntryIconPosition.SECONDARY, True)
+    entry.set_icon_tooltip_text(Gtk.EntryIconPosition.SECONDARY, "Show")
+    entry.connect("icon-press", toggle_reveal)
+    return entry
+
+
 def encryption_text(enc_type, suffix):
     """The copy line for an encryption type; suffix is _label or _description
     (shared/branding/README.md, "Encryption choices")."""
@@ -325,8 +348,8 @@ class SetupPage(Page):
             self.enc_radios.append(radio)
 
         grid = Gtk.Grid(column_spacing=12, row_spacing=6, margin_top=6)
-        self.pass1 = Gtk.Entry(visibility=False, input_purpose=Gtk.InputPurpose.PASSWORD)
-        self.pass2 = Gtk.Entry(visibility=False, input_purpose=Gtk.InputPurpose.PASSWORD)
+        self.pass1 = password_entry()
+        self.pass2 = password_entry()
         for e in (self.pass1, self.pass2):
             e.connect("changed", self._sync)
         grid.attach(Gtk.Label(label="Passphrase", xalign=0), 0, 0, 1, 1)
@@ -476,15 +499,22 @@ class IdentityPage(Page):
         ug = Gtk.Grid(column_spacing=12, row_spacing=6, margin=10)
         self.username = Gtk.Entry()
         self.fullname = Gtk.Entry()
-        self.password = Gtk.Entry(visibility=False, input_purpose=Gtk.InputPurpose.PASSWORD)
+        # Asked twice, each with a reveal icon: one typo in a single hidden
+        # entry made an account nobody could sign in to (#295).
+        self.password = password_entry()
+        self.password2 = password_entry()
         for i, (lbl, entry) in enumerate((("Username", self.username),
                                           ("Full name", self.fullname),
-                                          ("Password", self.password))):
+                                          ("Password", self.password),
+                                          ("Confirm password", self.password2))):
             ug.attach(Gtk.Label(label=lbl, xalign=0), 0, i * 2, 1, 1)
             ug.attach(entry, 1, i * 2, 1, 1)
-            entry.connect("changed", lambda *_: win.refresh_nav())
+            entry.connect("changed", self._on_account_changed)
         self.username_problem = problem_label()
         ug.attach(self.username_problem, 1, 1, 1, 1)
+        self.password_problem = problem_label()
+        self.password_problem.set_text("The passwords do not match.")
+        ug.attach(self.password_problem, 1, 7, 1, 1)
         self.user_frame.add(ug)
         self.pack_start(self.user_frame, False, False, 0)
 
@@ -562,6 +592,15 @@ class IdentityPage(Page):
                 self.kb_combo.get_active_id() or "",
                 self.tz_combo.get_active_id() or "")
 
+    def passwords_match(self):
+        return self.password.get_text() == self.password2.get_text()
+
+    def _on_account_changed(self, *_args):
+        # The mismatch line shows once the confirmation has something in it.
+        self.password_problem.set_visible(
+            bool(self.password2.get_text()) and not self.passwords_match())
+        self.win.refresh_nav()
+
     def _on_hostname_changed(self, *_args):
         if not self._hostname_syncing:
             self._hostname_edited = True
@@ -590,8 +629,10 @@ class IdentityPage(Page):
             return False
         if self.win.needs_user_creation():
             # A user is required for this image (needs_user_creation), and
-            # the password rule is this page's; fisherman accepts any.
+            # the password rules are this page's (not empty, typed the same
+            # twice); fisherman accepts any.
             return (bool(self.username.get_text()) and bool(self.password.get_text())
+                    and self.passwords_match()
                     and self.problems.get("user.username") is None)
         return True
 

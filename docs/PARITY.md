@@ -148,8 +148,8 @@ not use `default_image` yet (#289).
 | Hostname | generated, editable on confirm | no (branding default, shown on confirm) | field | field on confirm | field, first value from the image |
 | User account, when the image needs one | yes | yes | yes | yes | yes |
 | Default when the catalog does not set `needs_user_creation` (#288) | no account | account | no account | account | account |
-| Account password | twice, reveal, strength | twice, reveal, strength | twice, reveal | twice, no reveal (#295) | once, no reveal (#295) |
-| Account groups | wheel and developer groups, operator override | wheel (#302) | wheel (#302) | wheel (#302) | wheel (#302) |
+| Account password | twice, reveal, strength | twice, reveal, strength | twice, reveal | twice, no reveal (#295) | twice, reveal |
+| Account groups | wheel and developer groups, operator override | wheel (#302) | wheel (#302) | wheel (#302) | wheel, sudo and developer groups, operator override |
 | Phone companion (QR) | yes (TLS on the LAN address only); shows when the image needs an account, and fills the account page | no | yes (plain HTTP, #293) | no | no |
 | Keyboard / language / timezone (#292) | pages exist; not in the bundled recipe | shown on confirm, applied nowhere | applied to the live session | applied to the live session (#291) | keyboard only |
 | Keyboard / language / timezone in the installed system | no | no | no | no | no |

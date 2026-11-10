@@ -74,6 +74,7 @@ def test_a_hostname_problem_shows_its_copy_and_blocks_next(monkeypatch):
     page, check = _page(pages.IdentityPage, monkeypatch)
     page.username.set_text("jo")
     page.password.set_text("pw")
+    page.password2.set_text("pw")
     assert page.can_continue()
     check.on_result([{"field": "hostname", "code": "hostname_invalid_char",
                       "message": "hostname contains '_'"}], None)
@@ -89,6 +90,7 @@ def test_a_reserved_username_blocks_next(monkeypatch):
     page, check = _page(pages.IdentityPage, monkeypatch)
     page.username.set_text("root")
     page.password.set_text("pw")
+    page.password2.set_text("pw")
     check.on_result([{"field": "user.username", "code": "username_reserved",
                       "message": "m"}], None)
     assert not page.can_continue()
@@ -99,6 +101,7 @@ def test_a_check_that_cannot_run_blocks_nothing(monkeypatch):
     page, check = _page(pages.IdentityPage, monkeypatch)
     page.username.set_text("jo")
     page.password.set_text("pw")
+    page.password2.set_text("pw")
     check.on_result(None, "cannot run /usr/local/bin/fisherman: not found")
     assert page.can_continue()
 
