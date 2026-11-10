@@ -68,6 +68,7 @@ claimed a render that nobody had wired up.
 | `done_subtitle` | header subtitle (+ elapsed time) | label | body | label | label |
 | `done_restart` | Reboot Now button | Restart button | suggested button | button | suggested button beside Close |
 | `done_failed_title` | page header | heading | title2 | heading | headline |
+| `done_cancelled_title` | page header, after a confirmed Cancel or fisherman exit code 130 | no (failure page, #299) | no (failure page, #299) | no (failure page, #299) | no (failure page, #299) |
 | `validate_*` | error line under the hostname (disk and confirm pages) and the username | inline message on the encryption step (passphrase) and the confirm step (hostname) | hostname row description; encryption row description | line under the hostname (confirm) and under the passphrase | line under the hostname, the username and the encryption choice |
 | `store_label` | done page link to `store_url` (+ QR from `assets.store_qr`, US locale) | done page link | done page link | done page link | done page link |
 | `logo` | product icon (GNOME file adapter tracked separately) | theme/file on welcome and successful done, after the asset; else `system-software-install` / `checkmark` | theme/file on welcome and successful done, after the asset; else `computer-symbolic` in an accent disc / the check | theme/file on welcome and successful done | theme/file/resource on welcome and successful done |
@@ -123,7 +124,7 @@ not use `default_image` yet (#289).
 
 | Feature | GNOME | KDE | COSMIC | Niri | XFCE |
 |---|---|---|---|---|---|
-| Image catalog choice (fisherman `images.json`) | yes (tree, search); the bundled recipe has no image step (#315) | yes (disk step, search) | yes (and a custom URL row) | yes (flat list) | yes (flat list) |
+| Image catalog choice (fisherman `images.json`) | yes (tree, search) | yes (disk step, search) | yes (and a custom URL row) | yes (flat list) | yes (flat list) |
 | Image selected at start, off live media | catalog `default_image` | none: you must pick | first row of the catalog (#289) | first name in the alphabet (#289) | first name in the alphabet (#289) |
 | Catalog fields that reach the recipe | all | image, bootloader, composefs, hostname; not filesystem (#287) | image and Flatpaks only (#286) | image, filesystem, bootloader, composefs, hostname | image, filesystem, bootloader, composefs |
 | Live-ISO install without download (live media from `fisherman probe --json`) | yes | yes | yes | yes | yes |
@@ -136,7 +137,7 @@ not use `default_image` yet (#289).
 | Disk row: model (path when unknown), path, size label, bus | yes | yes | yes | yes | yes |
 | Disk probe failure shown on the disk page | yes | yes | yes | yes | yes |
 | RAM / CPU / UEFI check (fisherman's `system.unmet`) | blocks (gate window) | holds Next; override for RAM and CPU | blocks (requirements page) | blocks (gate dialog) | blocks (gate window) |
-| Connectivity check | step and Wi-Fi page exist; not in the bundled recipe | blocks on welcome | blocks (network page) | status line, does not block (#301) | blocks on confirm |
+| Connectivity check | blocks (connection-check step); the Wi-Fi page is not in the bundled recipe | blocks on welcome | blocks (network page) | status line, does not block (#301) | blocks on confirm |
 | Filesystem choice | yes (list from the image) | no (always xfs, #287) | xfs or btrfs | yes (Advanced) | yes (Advanced) |
 | Encryption: none / passphrase | yes | yes | yes | yes | yes |
 | Passphrase typed twice, Next held on a mismatch | yes | yes | yes | yes | yes |
@@ -150,12 +151,12 @@ not use `default_image` yet (#289).
 | Phone companion (QR) | yes (TLS); does not work with the bundled recipe (#304, #305) | no | yes (plain HTTP, #293) | no | yes (plain HTTP, #293, #294) |
 | Keyboard / language / timezone (#292) | pages exist; not in the bundled recipe | shown on confirm, applied nowhere | applied to the live session | applied to the live session (#291) | keyboard only |
 | Keyboard / language / timezone in the installed system | no | no | no | no | no |
-| Cancel a running install (#299) | window close, asks first | Cancel button, does not ask | quit dialog | Cancel button, does not ask | window close, asks first |
-| `--autoinstall` | yes | no | no | no | yes |
+| Cancel a running install (#299) | Cancel button, window close and Ctrl+Q: each asks first; a cancelled page follows | Cancel button, does not ask | quit dialog | Cancel button, does not ask | window close, asks first |
+| `--autoinstall` | yes (the recipe is validated first) | no | no | no | yes |
 | Translatable UI | gettext; no translation loads (#311) | no (#300) | no (#300) | no (#300) | no (#300) |
 | Progress bar from fisherman's protocol | yes | yes | yes | yes | yes |
 | Restart from the done page | yes | yes | yes | yes | yes |
-| Show log after failure | yes | log path | log in page | log in page | log tail |
+| Show log after failure | yes (recovery key redacted) | log path | log in page | log in page | log tail |
 | Screenshot walkthrough + parity report | yes | yes | yes | yes | yes |
 | End-to-end gate (real install and boot) | yes | yes | yes | yes | yes |
 

@@ -116,6 +116,7 @@ ApplicationWindow {
             done_subtitle: "Remove the installation media and restart the computer.",
             done_restart: "Restart now",
             done_failed_title: "Installation failed",
+            done_cancelled_title: "Installation cancelled",
             store_label: "Visit the store",
             validate_hostname_required: "Enter a name for this computer.",
             validate_hostname_too_long: "Use 64 characters or fewer for the computer name.",
