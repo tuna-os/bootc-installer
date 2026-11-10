@@ -98,7 +98,6 @@ class Processor:
                 "filesystem": leaf["filesystem"] if len(leaf["filesystems"]) <= 1 else "",
                 "flatpak_var_path": leaf["flatpak_var_path"],
                 "flatpaks": leaf["flatpaks"],
-                # Already checked: an object of the four switches, or None.
                 "extras": leaf["extras"],
             }
         if (len(candidates) == 1

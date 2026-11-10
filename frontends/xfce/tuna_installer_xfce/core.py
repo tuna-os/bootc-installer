@@ -368,8 +368,8 @@ def open_network_settings():
 # selection and the NVIDIA table. What is here is this frontend's view of
 # it: objects with attributes, which the pages read.
 resolve_flatpaks = shared_catalog.resolve_flatpaks
-# The four switches of a catalog `extras` object (shared/catalog/README.md,
-# "Desktop extras"), and the rule that turns the object into the recipe's.
+# The desktop extras (shared/catalog/README.md, "Desktop extras"): the
+# leaf's `extras` attribute is the object or None.
 EXTRAS = shared_catalog.EXTRAS
 resolve_extras = shared_catalog.resolve_extras
 
