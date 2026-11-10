@@ -518,34 +518,23 @@ class IdentityPage(Page):
         self.user_frame.add(ug)
         self.pack_start(self.user_frame, False, False, 0)
 
-        # Language and region (locale.py): GNOME's language/keyboard/timezone
-        # steps, folded into this page so the wizard keeps its eight pages.
-        # The keyboard layout applies to the live session as it changes, so
-        # the passphrase typed here is the one the installed system reads;
-        # language and timezone are recorded for the session. None of the
-        # three emits a recipe key fisherman's schema was never shown to
-        # accept (GNOME's processor drops those finals the same way).
-        loc = Gtk.Expander(label="Language and region")
+        # Keyboard layout (locale.py). It applies to this live session as it
+        # changes (setxkbmap), so the passphrase typed here is the one the
+        # person means; the label says "this session only" because nothing
+        # here reaches the installed system. This expander also held a
+        # Language and a Timezone combo whose values nothing read (#292).
+        # The recipe has no field for the three yet (tuna-os/fisherman#405).
+        loc = Gtk.Expander(label="Keyboard layout (this session only)")
         locbox = Gtk.Grid(column_spacing=12, row_spacing=6, margin=6)
-        self.lang_combo = Gtk.ComboBoxText()
-        for name in locale_checks.available_languages():
-            self.lang_combo.append(name, name)
-        self._select_combo(self.lang_combo, locale_checks.current_language())
         self.kb_combo = Gtk.ComboBoxText()
         for name in locale_checks.available_keyboard_layouts():
             self.kb_combo.append(name, name)
         self._select_combo(self.kb_combo, locale_checks.current_keyboard_layout())
         self.kb_combo.connect("changed", self._on_keyboard_changed)
-        self.tz_combo = Gtk.ComboBoxText()
-        for name in locale_checks.available_timezones():
-            self.tz_combo.append(name, name)
-        self._select_combo(self.tz_combo, locale_checks.current_timezone())
-        for i, (label, combo) in enumerate((("Language", self.lang_combo),
-                                            ("Keyboard", self.kb_combo),
-                                            ("Timezone", self.tz_combo))):
-            locbox.attach(Gtk.Label(label=label, xalign=0), 0, i, 1, 1)
-            locbox.attach(combo, 1, i, 1, 1)
+        locbox.attach(Gtk.Label(label="Keyboard", xalign=0), 0, 0, 1, 1)
+        locbox.attach(self.kb_combo, 1, 0, 1, 1)
         loc.add(locbox)
+        self.locale_expander = loc
         self.pack_start(loc, False, False, 0)
 
         # The hostname and username rules are fisherman's
@@ -585,12 +574,6 @@ class IdentityPage(Page):
         layout = combo.get_active_id()
         if layout:
             locale_checks.apply_keyboard_layout(layout)
-
-    def locale_selection(self):
-        """(language, keyboard, timezone): the session's locale choices."""
-        return (self.lang_combo.get_active_id() or "",
-                self.kb_combo.get_active_id() or "",
-                self.tz_combo.get_active_id() or "")
 
     def passwords_match(self):
         return self.password.get_text() == self.password2.get_text()

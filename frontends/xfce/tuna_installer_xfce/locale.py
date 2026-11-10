@@ -1,21 +1,17 @@
-"""Locale, keyboard, timezone and connectivity checks.
+"""Keyboard, locale, timezone and connectivity checks.
 
-GTK-free helpers behind the Identity page's "Language and region" controls,
-mirroring what GNOME spreads across defaults/language.py, keyboard.py,
-timezone.py, network.py and conn_check.py:
+GTK-free helpers:
 
-- GNOME's language/keyboard/timezone steps collect finals that its processor
-  drops before fisherman ever sees them (processor.py reads only disk,
-  encryption, image, hostname and flatpaks out of the merged finals). What
-  those steps DO is apply the choice to the live session -- keyboard layout
-  first of all, so the passphrase the person types is the one they meant.
-  This module does the same: enumerate what the live system offers, report
-  what it currently uses, and apply a keyboard layout best-effort. Nothing
-  here writes a recipe key fisherman's schema was never shown to accept.
-- GNOME's conn_check page auto-advances past itself when the install is
-  offline (live media with a baked image) and otherwise blocks until
-  ghcr.io:443 or 8.8.8.8:53 answers. has_connectivity() is that probe as a
-  plain function; needs_network() is the "otherwise" condition.
+- The identity page offers the keyboard layout and applies it to the live
+  session (setxkbmap), so the passphrase a person types is the one they
+  mean. It is labelled "this session only": the recipe has no locale,
+  keyboard or timezone field yet (tuna-os/fisherman#405), so nothing here
+  reaches the installed system.
+- The language and timezone readers have no caller in the wizard now. The
+  page had a combo for each and nothing read the values (#292), so the
+  combos went. The readers stay for the recipe fields.
+- has_connectivity() is the probe behind the confirm page's network gate;
+  needs_network() says when that gate applies.
 
 Every external command has a fallback that needs no daemon: localectl and
 timedatectl are absent from minimal live media, and this module must still

@@ -27,7 +27,7 @@
     "account_password": "twice, reveal",
     "account_groups": "wheel, sudo and developer groups, operator override",
     "phone_companion": "no",
-    "locale_pages": "keyboard only",
+    "locale_pages": "keyboard only, for this session; says so",
     "locale_installed": "no",
     "cancel_install": "window close, asks first",
     "autoinstall": "yes",

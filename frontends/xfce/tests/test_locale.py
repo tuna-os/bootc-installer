@@ -97,3 +97,27 @@ def test_connectivity_failure_is_false(monkeypatch):
 def test_needs_network_mirrors_conn_check_should_show():
     assert locale_checks.needs_network(False) is True
     assert locale_checks.needs_network(True) is False
+
+
+def test_the_identity_page_offers_only_what_it_applies(monkeypatch):
+    """A Language and a Timezone combo sat here and nothing read them
+    (#292). The keyboard layout is applied to the session, and says so."""
+    import types
+
+    from tuna_installer_xfce import pages
+
+    applied = []
+    monkeypatch.setattr(locale_checks, "available_keyboard_layouts", lambda: ["us", "de"])
+    monkeypatch.setattr(locale_checks, "current_keyboard_layout", lambda: "us")
+    monkeypatch.setattr(locale_checks, "apply_keyboard_layout", applied.append)
+    monkeypatch.setattr(pages, "live_check", lambda on_result: types.SimpleNamespace(
+        submit=lambda recipe: None))
+    win = types.SimpleNamespace(needs_user_creation=lambda: True,
+                                refresh_nav=lambda: None, selected_leaf=lambda: None)
+    page = pages.IdentityPage(win)
+    assert not hasattr(page, "lang_combo")
+    assert not hasattr(page, "tz_combo")
+    assert not hasattr(page, "locale_selection")
+    assert "this session only" in page.locale_expander.get_label()
+    page.kb_combo.set_active_id("de")
+    assert applied == ["de"]

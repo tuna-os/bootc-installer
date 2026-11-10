@@ -151,7 +151,7 @@ not use `default_image` yet (#289).
 | Account password | twice, reveal, strength | twice, reveal, strength | twice, reveal | twice, no reveal (#295) | twice, reveal |
 | Account groups | wheel and developer groups, operator override | wheel (#302) | wheel (#302) | wheel (#302) | wheel, sudo and developer groups, operator override |
 | Phone companion (QR) | yes (TLS on the LAN address only); shows when the image needs an account, and fills the account page | no | yes (plain HTTP, #293) | no | no |
-| Keyboard / language / timezone (#292) | pages exist; not in the bundled recipe | shown on confirm, applied nowhere | applied to the live session | applied to the live session (#291) | keyboard only |
+| Keyboard / language / timezone (#292) | pages exist; not in the bundled recipe | shown on confirm, applied nowhere | applied to the live session | applied to the live session (#291) | keyboard only, for this session; says so |
 | Keyboard / language / timezone in the installed system | no | no | no | no | no |
 | Cancel a running install (#299) | Cancel button, window close and Ctrl+Q: each asks first; a cancelled page follows | Cancel button, does not ask | quit dialog | Cancel button, does not ask | window close, asks first |
 | `--autoinstall` | yes (the recipe is validated first) | no | no | no | yes |
