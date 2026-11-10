@@ -27,7 +27,7 @@ Human docs: [`README.md`](README.md) (flow, offline behaviour, Flatpak),
 | `tuna_installer_xfce/gates.py` | ~300 | requirement gates and dialogs |
 | `tuna_installer_xfce/i18n.py` | ~50 | gettext: the `_()` that each string goes through |
 | `tuna_installer_xfce/trawlline.py` | ~70 | the one piece of brand |
-| `tests/gui/` | | `capture-screens.py`, `parity_report.py` |
+| `tests/gui/` | | `capture-screens.py` (imports `../../shared/walkthrough/`) |
 
 ```bash
 sudo dnf install -y python3-gobject gtk3   # Fedora

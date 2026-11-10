@@ -162,9 +162,11 @@ the probe fails, the disk step shows the reason. `test_backend`
 
 `screenshots.yml` builds the real QML modules with `tests/capture.cpp`, renders
 every step offscreen, and checks the pixels for meaningful content. It also
-emits `docs/screenshots/walkthrough-kde.json`, the parity report the shared
-installer matrix consumes — so a UI change that breaks capture breaks the
-cross-installer report, not just this repo's screenshots.
+writes `texts.json` (the item text of each step) and `audit.json` (its pixel
+verdict). The workflow then runs `../../shared/walkthrough/report_from_pngs.py`,
+which writes `docs/screenshots/walkthrough-kde.json`, the parity report the
+shared installer matrix consumes. A UI change that breaks capture thus breaks
+the cross-installer report, not only the screenshots of this tree.
 
 ## Branding
 
