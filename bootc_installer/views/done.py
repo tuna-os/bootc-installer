@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 import subprocess
 import threading
 import time
@@ -144,27 +143,6 @@ def error_event_hint(error, text=None) -> str:
     return _("Error: {}").format(message)
 
 
-def valid_boot_id(boot_id) -> bool:
-    """An EFI boot entry number as fisherman reports it: four hex digits."""
-    return isinstance(boot_id, str) and re.fullmatch(r"[0-9A-Fa-f]{4}", boot_id) is not None
-
-
-def bootnext_argv(boot_id: str, in_flatpak: bool, use_sudo: bool):
-    """The command that sets BootNext, or None when this process has no
-    way to run it as root.
-
-    A write to an EFI variable needs root. The only privileged path that
-    needs no second password is the one the install itself used on live
-    media outside a Flatpak: passwordless sudo. `-n` makes sudo fail at
-    once when it would ask. Everywhere else (pkexec) the call would open a
-    password prompt at restart, so it is not made: fisherman must set
-    BootNext while it is root (#318).
-    """
-    if in_flatpak or not use_sudo or not valid_boot_id(boot_id):
-        return None
-    return ["sudo", "-n", "efibootmgr", "--bootnext", boot_id]
-
-
 def _set_picture(picture, spec: str) -> None:
     """A GResource path (/org/...) or a host file path onto a Gtk.Picture."""
     if spec.startswith("/org/"):
@@ -190,7 +168,6 @@ class BootcDone(Adw.Bin):
         super().__init__(**kwargs)
         self.__window = window
         self.__log = None
-        self.__boot_id = ""
         self.delta = False
 
         self.btn_reboot.connect("clicked", self.__on_reboot_clicked)
@@ -219,11 +196,11 @@ class BootcDone(Adw.Bin):
         own. `cancelled` (the user stopped it, or fisherman exited 130)
         shows the cancelled page, not the failure page. `message` is a
         reason the caller already has (an unreadable --autoinstall recipe).
+        `boot_id` is not used: fisherman sets BootNext itself (#318).
         `error` is fisherman's last `error` event: its message is the
         reason for a failure, and the log is read only when there is none.
         """
         self.__terminal = terminal
-        self.__boot_id = boot_id
         from bootc_installer.utils import copy as copy_text
 
         cancelled = bool(cancelled) or exit_code == EXIT_CANCELLED
@@ -348,27 +325,9 @@ class BootcDone(Adw.Bin):
     def __on_reboot_clicked(self, button):
         in_flatpak = os.path.exists("/.flatpak-info")
 
-        if self.__boot_id:
-            # BootNext makes the firmware start the installed disk once,
-            # even with the install media still plugged in. It was set with
-            # an unprivileged efibootmgr, which cannot write an EFI variable
-            # and so always failed (#318). See bootnext_argv for the one
-            # case that can work from here.
-            from bootc_installer.views.progress import _use_sudo
-            argv = bootnext_argv(self.__boot_id, in_flatpak, _use_sudo())
-            if argv is None:
-                log.info("BootNext not set for Boot%s: no root path without a "
-                         "password prompt; the firmware boot order decides",
-                         self.__boot_id)
-            else:
-                try:
-                    subprocess.run(argv, check=True, capture_output=True, timeout=15)
-                    log.info("BootNext set to Boot%s", self.__boot_id)
-                except (OSError, subprocess.SubprocessError) as e:
-                    # Non-fatal: the user can pick the entry in the
-                    # firmware's boot menu.
-                    log.warning("Could not set BootNext to %s: %s", self.__boot_id, e)
-
+        # No BootNext here. fisherman sets it while it is root, when the
+        # host booted from live media (tuna-os/fisherman#435); its log line
+        # says what it did. This process cannot write an EFI variable (#318).
         if not do_reboot(in_flatpak):
             self.__show_reboot_error()
 

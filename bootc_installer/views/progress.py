@@ -844,8 +844,7 @@ class BootcProgress(Gtk.Box):
             if run != self.__demo_run or not self.__running:
                 return False  # cancelled, or another replay has started
             self.__set_running(False)
-            # No boot_id: the transcript's is a placeholder, and the done
-            # page would set it as the firmware's BootNext on restart.
+            # No boot_id: the transcript's is a placeholder.
             self.__window.set_installation_result(True, None, "")
             return False
 

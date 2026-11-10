@@ -401,35 +401,27 @@ class TestExitCodeHint(unittest.TestCase):
 
 
 class TestBootNext(unittest.TestCase):
-    """#318: efibootmgr ran as the desktop user and always failed."""
+    """#318: efibootmgr ran as the desktop user and always failed. fisherman
+    sets BootNext while it is root (tuna-os/fisherman#435), so no frontend
+    code does."""
 
-    def test_no_unprivileged_call_and_no_password_prompt(self):
-        from bootc_installer.views.done import bootnext_argv
-        # pkexec would ask for a password at restart: not attempted.
-        self.assertIsNone(bootnext_argv("0001", in_flatpak=False, use_sudo=False))
-        # In a Flatpak there is no passwordless root path.
-        self.assertIsNone(bootnext_argv("0001", in_flatpak=True, use_sudo=False))
-        self.assertIsNone(bootnext_argv("0001", in_flatpak=True, use_sudo=True))
-
-    def test_live_media_uses_the_installs_own_sudo_without_a_prompt(self):
-        from bootc_installer.views.done import bootnext_argv
-        self.assertEqual(bootnext_argv("0001", in_flatpak=False, use_sudo=True),
-                         ["sudo", "-n", "efibootmgr", "--bootnext", "0001"])
-
-    def test_only_a_boot_entry_number_reaches_a_root_command(self):
-        from bootc_installer.views.done import bootnext_argv, valid_boot_id
-        for good in ("0001", "001A", "beef"):
-            self.assertTrue(valid_boot_id(good))
-        for bad in ("", "1", "00001", "0001; reboot", "--help", "Boot0001", None, 1):
-            self.assertFalse(valid_boot_id(bad), bad)
-            self.assertIsNone(bootnext_argv(bad, in_flatpak=False, use_sudo=True))
-
-    def test_the_source_has_no_bare_efibootmgr_call(self):
+    def test_no_frontend_source_runs_efibootmgr(self):
         import pathlib
-        source = (pathlib.Path(__file__).resolve().parents[2]
-                  / "bootc_installer" / "views" / "done.py").read_text()
-        self.assertNotIn('["efibootmgr"', source)
-        self.assertNotIn('"--host", "efibootmgr"', source)
+        root = pathlib.Path(__file__).resolve().parents[2] / "bootc_installer"
+        for path in sorted(root.rglob("*.py")):
+            with self.subTest(path=path.name):
+                self.assertNotIn("efibootmgr", path.read_text(encoding="utf-8"))
+
+    def test_restart_runs_the_reboot_and_nothing_before_it(self):
+        from unittest import mock
+
+        from bootc_installer.views import done
+        page = mock.MagicMock()
+        with mock.patch.object(done, "do_reboot", return_value=True) as reboot, \
+                mock.patch.object(done.subprocess, "run") as run:
+            done.BootcDone._BootcDone__on_reboot_clicked(page, None)
+        reboot.assert_called_once()
+        run.assert_not_called()
 
 
 class TestErrorEventHint(unittest.TestCase):
