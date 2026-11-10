@@ -218,7 +218,17 @@ class BootcInstaller(Adw.Application):
             self.set_accels_for_action(f"app.{name}", shortcuts)
 
     def close(self, *args):
-        """Close the application."""
+        """The app.quit action (Ctrl+Q).
+
+        The wizard window decides: it asks first, and it stops fisherman
+        before the application goes (#309). The other windows (RAM, CPU,
+        UEFI) have nothing to lose and quit at once.
+        """
+        win = self.props.active_window
+        request_quit = getattr(win, "request_quit", None)
+        if callable(request_quit):
+            request_quit()
+            return
         self.quit()
 
 

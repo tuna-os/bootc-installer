@@ -59,3 +59,37 @@ def test_recipe_extra_images_keep_names_and_unnamed_slug_fallback():
     for leaf, expected in zip(page._BootcDefaultImage__leaf_rows, ['Recipe Remix', 'Unnamed'], strict=True):
         leaf[1].set_active(True)
         assert page.get_finals()['pretty_name'] == expected
+
+
+def _tree():
+    return [
+        {'name': 'First', 'imgref': 'localhost/first:latest'},
+        {'name': 'Product', 'imgref': 'localhost/product:latest'},
+    ]
+
+
+def test_branding_default_image_is_selected_when_the_catalog_names_none():
+    """#315: the bundled recipe names no image, so a product names its
+    image through branding `default_image`."""
+    controller = SimpleNamespace(recipe={'branding': {'default_image': 'localhost/product:latest'}})
+    with patch.object(image, '_IMAGE_TREE', _tree()), patch.object(image, '_DEFAULT_IMAGE', ''):
+        page = image.BootcDefaultImage(controller, {}, 'image', {})
+    assert page.get_finals()['selected_image'] == 'localhost/product:latest'
+    assert page.btn_next.get_sensitive()
+
+
+def test_the_catalog_default_wins_over_the_branding_default():
+    controller = SimpleNamespace(recipe={'branding': {'default_image': 'localhost/product:latest'}})
+    with patch.object(image, '_IMAGE_TREE', _tree()), \
+         patch.object(image, '_DEFAULT_IMAGE', 'localhost/first:latest'):
+        page = image.BootcDefaultImage(controller, {}, 'image', {})
+    assert page.get_finals()['selected_image'] == 'localhost/first:latest'
+
+
+def test_a_branding_default_that_the_catalog_lacks_selects_nothing():
+    """The user must pick: Next stays off."""
+    controller = SimpleNamespace(recipe={'branding': {'default_image': 'localhost/absent:latest'}})
+    with patch.object(image, '_IMAGE_TREE', _tree()), patch.object(image, '_DEFAULT_IMAGE', ''):
+        page = image.BootcDefaultImage(controller, {}, 'image', {})
+    assert page.get_finals()['selected_image'] is None
+    assert not page.btn_next.get_sensitive()

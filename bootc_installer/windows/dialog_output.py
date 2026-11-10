@@ -4,6 +4,7 @@ from gettext import gettext as _
 from gi.repository import Adw, Gtk
 
 from bootc_installer.utils.fisherman_runner import LOG_PATH as _LOG_PATH
+from bootc_installer.utils.fisherman_session import read_log_redacted
 
 
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/dialog-output.ui")
@@ -17,10 +18,10 @@ class BootcDialogOutput(Adw.Window):
         super().__init__(**kwargs)
         self.set_transient_for(window)
 
-        if os.path.exists(_LOG_PATH):
-            with open(_LOG_PATH) as f:
-                content = f.read()
-        else:
+        # Without the TPM recovery key: this text is what a user copies
+        # into a bug report (#316).
+        content = read_log_redacted(_LOG_PATH) if os.path.exists(_LOG_PATH) else None
+        if content is None:
             content = _("Log not available.")
 
         buf = self.log_view.get_buffer()

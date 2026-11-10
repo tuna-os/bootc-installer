@@ -109,12 +109,20 @@ def go(window, step):
 
 
 def shipped_recipe(**image_overrides):
-    """recipe.json as shipped, with fields of its first image replaced."""
+    """recipe.json as shipped; with `image_overrides`, as a host that pins
+    one image ships it.
+
+    The shipped recipe names no image: its image step offers the catalog
+    (#315). A host recipe that pins an image has that image in `images` and
+    no image step (the recipe loader removes the step on live media), and
+    no connection check, because nothing is chosen or downloaded first.
+    """
     with open(SHIPPED_RECIPE, encoding="utf-8") as f:
         recipe = json.load(f)
     if image_overrides:
-        recipe.setdefault("images", [{}])
-        recipe["images"][0].update(image_overrides)
+        recipe["images"] = [dict(image_overrides)]
+        recipe["steps"].pop("image", None)
+        recipe["steps"].pop("conn-check", None)
     return recipe
 
 
@@ -138,6 +146,10 @@ def real_window(tmp_path, recipe=None):
         patch.dict(os.environ, env, clear=False),
         patch("bootc_installer.defaults.disk.DisksManager", return_value=FakeDisksManager()),
         patch("bootc_installer.defaults.qr_companion.CompanionServer", RecordingServer),
+        # The connection-check page asks the network and then moves the
+        # carousel by itself. The tests place the carousel themselves.
+        patch("bootc_installer.defaults.conn_check.BootcDefaultConnCheck._run_check",
+              lambda self: None),
     ]
     for p in patchers:
         p.start()

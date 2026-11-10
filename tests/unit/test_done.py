@@ -380,3 +380,53 @@ class TestConfiguredLogo(unittest.TestCase):
             pretty_name=None, selected_icon=None)
         BootcDone.set_result(obj, True, None)
         self.assertEqual(obj.page_header.icon_name, 'object-select-symbolic')
+
+
+class TestExitCodeHint(unittest.TestCase):
+    """#307: the wrapper's exit code was discarded, so a closed password
+    prompt read "The installer exited unexpectedly"."""
+
+    def test_126_127_and_130_have_their_own_lines(self):
+        from bootc_installer.views.done import exit_code_hint
+        lines = {code: exit_code_hint(code) for code in (126, 127, 130)}
+        self.assertEqual(len(set(lines.values())), 3)
+        self.assertIn("password prompt was closed", lines[126])
+        self.assertIn("administrator rights", lines[127])
+        self.assertIn("stopped before it finished", lines[130])
+
+    def test_other_codes_have_no_line(self):
+        from bootc_installer.views.done import exit_code_hint
+        for code in (0, 1, 2, -15, None):
+            self.assertEqual(exit_code_hint(code), "")
+
+
+class TestBootNext(unittest.TestCase):
+    """#318: efibootmgr ran as the desktop user and always failed."""
+
+    def test_no_unprivileged_call_and_no_password_prompt(self):
+        from bootc_installer.views.done import bootnext_argv
+        # pkexec would ask for a password at restart: not attempted.
+        self.assertIsNone(bootnext_argv("0001", in_flatpak=False, use_sudo=False))
+        # In a Flatpak there is no passwordless root path.
+        self.assertIsNone(bootnext_argv("0001", in_flatpak=True, use_sudo=False))
+        self.assertIsNone(bootnext_argv("0001", in_flatpak=True, use_sudo=True))
+
+    def test_live_media_uses_the_installs_own_sudo_without_a_prompt(self):
+        from bootc_installer.views.done import bootnext_argv
+        self.assertEqual(bootnext_argv("0001", in_flatpak=False, use_sudo=True),
+                         ["sudo", "-n", "efibootmgr", "--bootnext", "0001"])
+
+    def test_only_a_boot_entry_number_reaches_a_root_command(self):
+        from bootc_installer.views.done import bootnext_argv, valid_boot_id
+        for good in ("0001", "001A", "beef"):
+            self.assertTrue(valid_boot_id(good))
+        for bad in ("", "1", "00001", "0001; reboot", "--help", "Boot0001", None, 1):
+            self.assertFalse(valid_boot_id(bad), bad)
+            self.assertIsNone(bootnext_argv(bad, in_flatpak=False, use_sudo=True))
+
+    def test_the_source_has_no_bare_efibootmgr_call(self):
+        import pathlib
+        source = (pathlib.Path(__file__).resolve().parents[2]
+                  / "bootc_installer" / "views" / "done.py").read_text()
+        self.assertNotIn('["efibootmgr"', source)
+        self.assertNotIn('"--host", "efibootmgr"', source)

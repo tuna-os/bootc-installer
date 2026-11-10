@@ -166,11 +166,18 @@ PATCHERS = [
         "return_value.host": "192.0.2.10",
     }),
     patch.object(progress_mod.BootcProgress, "start", _refuse_to_install),
+    # The connection-check page moves to the next page when its check
+    # passes. The capture shows each page in turn itself, so the check does
+    # not run: the page is rendered as the user first sees it.
+    patch("bootc_installer.defaults.conn_check.BootcDefaultConnCheck._run_check",
+          lambda self: None),
 ]
 
 CAPTIONS = {
     "welcome": "What the installer is about to do.",
     "qr_companion": "Optional: scan a QR code and type your account details on your phone.",
+    "conn-check": "A check that the image registry can be reached.",
+    "image": "Choose the image to install from the catalog.",
     "disk": "Choose the disk. Nothing is written yet.",
     "encryption": "Full-disk encryption, with or without TPM2.",
     "user": "Your account and password.",
@@ -338,6 +345,9 @@ def _seed_progress(page):
     cut = next(i for i, ln in enumerate(lines) if "47/71" in ln) + 1
     for line in lines[:cut]:
         page._BootcProgress__parse_progress_line(line.strip())
+    # An install in flight has a Cancel button (it asks first). No install
+    # runs here, so show the button as a running install does.
+    page.btn_cancel.set_visible(True)
 
     # Did the transcript actually reach the bar?
     #
@@ -378,9 +388,40 @@ def _choose_disk(win):
     SEED_FAILURES.append("confirm: no disk page in the carousel")
 
 
+def _choose_image(win):
+    """Choose an image on the image page and rebuild the later steps, as
+    the page's Next button does.
+
+    The bundled recipe names no image, and the capture branding's default
+    is not in fisherman's catalog, so nothing is selected at the start.
+    Without a choice the confirm page has no Image row. The choice also
+    decides which pages exist: the phone companion and the account page
+    show only for an image that needs an account, so the capture prefers
+    one, to render every page the wizard has.
+    """
+    carousel = win.carousel
+    for index in range(carousel.get_n_pages()):
+        page = carousel.get_nth_page(index)
+        if getattr(page, "_bootc_step_key", None) != "image":
+            continue
+        finals = page.get_finals()
+        if finals.get("selected_image") or finals.get("custom_image"):
+            return
+        rows = page._BootcDefaultImage__leaf_rows
+        if not rows:
+            SEED_FAILURES.append("image: the image page has no images to choose")
+            return
+        # Index 6 of a leaf row is the image's needs_user_creation.
+        wanted = next((row for row in rows if row[6]), rows[0])
+        wanted[1].set_active(True)
+        win.rebuild_ui_after_image()
+        return
+
+
 def _seed(win, page, name):
     """Put each page into the state a user would see it in."""
     if name == "confirm":
+        _choose_image(win)
         _choose_disk(win)
         win.update_finals()
     elif name == "progress":
@@ -418,6 +459,8 @@ def main():
         win.set_default_size(1000, 700)
         win.present()
         _pump(1.0)
+        _choose_image(win)
+        _pump(0.3)
         carousel = win.carousel
         for index in range(carousel.get_n_pages()):
             page = carousel.get_nth_page(index)

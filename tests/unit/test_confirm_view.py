@@ -217,8 +217,15 @@ class TestConfirmUpdate(unittest.TestCase):
 
     def test_update_with_users_adds_widget(self):
         obj = self._make_obj()
-        obj.update([{"users": {"username": "jorge", "fullname": "Jorge Castro"}}])
+        # The user step emits `user` (defaults/user.py get_finals). This
+        # test fed `users`, the key the view wrongly read (#313).
+        obj.update([{"user": {"username": "jorge", "fullname": "Jorge Castro"}}])
         self.assertGreater(len(obj.active_widgets), 0)
+
+    def test_update_without_an_account_adds_no_user_widget(self):
+        obj = self._make_obj()
+        obj.update([{"user": {"username": "", "fullname": "", "password": "", "groups": []}}])
+        self.assertEqual(len(obj.active_widgets), 0)
 
     def test_update_with_disk_auto_adds_widget(self):
         obj = self._make_obj()

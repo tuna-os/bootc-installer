@@ -304,6 +304,19 @@ template $BootcProgress: Box {
           ]
         }
       }
+
+      // Shown only while an install runs. A click asks first
+      // (windows/main_window.py request_cancel_install).
+      Button btn_cancel {
+        visible: false;
+        label: _("Cancel");
+        halign: center;
+        margin-top: 12;
+
+        styles [
+          "pill",
+        ]
+      }
     }
   }
 }
