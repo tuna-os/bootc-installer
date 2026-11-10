@@ -16,6 +16,16 @@ section here.
 [CHANGELOG.md](CHANGELOG.md) records each change to a contract. Read it
 when you update a frontend.
 
+## `account/`
+
+The first account: the supplementary groups that each frontend writes into
+`user.groups` of the recipe, and the file where an ISO builder sets a
+different list. `tests/unit/test_shared_account.py` holds `groups.json` to
+the list that the GNOME frontend sends. A new frontend sends the list from
+`groups.json`, reads the operator's list from
+`<etc>/bootc-installer/recipe.json`, and adds a test that fails when its copy
+of the list changes. See [account/README.md](account/README.md).
+
 ## `branding/`
 
 The product identity: name, id, hostname stem, URLs, artwork, and each line
@@ -36,6 +46,16 @@ contract that a frontend reads at run time. `browser-walkthrough.yml` runs
 it; no unit test covers it. A new frontend adds an entry to `run.sh` when
 its toolkit has a browser backend. See
 [browser/README.md](browser/README.md).
+
+## `catalog/`
+
+The image catalog (`images.json`): where a frontend looks for it, which
+fields of a leaf go into the recipe, which image is selected at the start,
+and when the installer makes an account. `resolve.py` is the reference
+resolver, and `tests/unit/test_shared_catalog.py` runs it against
+`fixtures/`. A new frontend reads `fixtures/catalog.json` with its own
+parser in a test and compares the result with `fixtures/expected.json`. See
+[catalog/README.md](catalog/README.md).
 
 ## `ci/`
 
