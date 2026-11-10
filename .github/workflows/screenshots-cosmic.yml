@@ -46,7 +46,7 @@ jobs:
     name: Screenshots (cosmic)
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: read
     defaults:
       run:
         working-directory: frontends/cosmic
@@ -205,3 +205,4 @@ jobs:
           working-directory: frontends/cosmic
           paths: docs/screenshots
           message: "docs(cosmic): refresh GUI screenshots [skip ci]"
+          ssh-key: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}

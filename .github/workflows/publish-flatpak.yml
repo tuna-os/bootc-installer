@@ -29,7 +29,7 @@ on:
         type: string
         default: '["x86_64", "aarch64"]'
     secrets:
-      FLATPAK_INDEX_TOKEN:
+      FLATPAK_INDEX_DEPLOY_KEY:
         required: false
   workflow_dispatch:
     inputs:

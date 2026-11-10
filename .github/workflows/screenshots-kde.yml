@@ -49,7 +49,7 @@ jobs:
     runs-on: ubuntu-24.04
     container: quay.io/fedora/fedora:45
     permissions:
-      contents: write
+      contents: read
     defaults:
       run:
         working-directory: frontends/kde
@@ -60,7 +60,7 @@ jobs:
         working-directory: /
         run: |
           dnf -y install --setopt=install_weak_deps=False \
-            git tar findutils which \
+            git openssh-clients tar findutils which \
             cmake ninja-build gcc-c++ \
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg \
             kf6-kirigami kf6-kirigami-addons kf6-qqc2-desktop-style \
@@ -157,3 +157,4 @@ jobs:
           working-directory: frontends/kde
           paths: docs/screenshots
           message: "docs(kde): refresh GUI screenshots [skip ci]"
+          ssh-key: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}
