@@ -7,45 +7,74 @@ recipe, and presents the backend's progress and result.
 
 ## Flow
 
-The installer walks fifteen screens, in GNOME parity order. Conditional
-screens are skipped rather than shown blank (see `page_visible`):
+The installer has fourteen screens. A screen with nothing to show is
+skipped, not shown blank (see `page_visible`):
 
 1. **Requirements** blocks on fisherman's unmet requirements (RAM, CPU,
-   firmware) with per-gate cards. RAM and CPU offer "continue anyway";
-   unsupported firmware offers only power off (plus a firmware-setup
-   reboot). Shown only while a gate stands.
-2. **Welcome** introduces the detected TunaOS product.
-3. **Choose a system** offers the image catalog leaves plus a custom-URL
-   row. Skipped on live media and with fewer than two leaves.
-4. **Language**, 5. **Keyboard**, 6. **Time zone** apply the live
-   session's locale settings choices via `localectl`/`timedatectl` on the
-   host (best-effort; never blocking).
-7. **Network** runs the connectivity check (`ghcr.io:443`, then
-   `8.8.8.8:53`) with a Recheck button and holds Continue until it
-   passes. Skipped on live media.
-8. **Select a disk** lists the disks that `fisherman probe --json` offers and requires a
-   selection before continuing.
-9. **Options** collects the hostname, filesystem, and encryption settings.
-10. **Account** creates the first user. Skipped when the selected image
-    (or a custom URL) provides its own.
-11. **Tour** shows the selected image's carousel slides, if it carries any.
-12. **Use your phone** serves the LAN companion form: the phone's
-    submission fills the account entries. Plain HTTP with a session
-    token (see `flatpak/DEPENDENCIES.md` for why not TLS); the server
-    stops when the page is left.
-13. **Confirm** summarizes the choices and marks installation as a destructive
-    action.
-14. **Installing** writes a mode-0600 recipe under `XDG_RUNTIME_DIR`, starts
-    fisherman, and streams its output.
-15. **Finished** reports success or failure and prompts the user to restart.
+   firmware) with one card for each gate. RAM and CPU offer "continue
+   anyway". Unsupported firmware offers only power off and a reboot to the
+   firmware setup. Shown only while a gate stands.
+2. **Welcome** introduces the product that the branding resolver found.
+3. **Choose a system** shows the image catalog as a flat list with a search
+   box, and a row for a custom image reference. A row shows the breadcrumb
+   of the leaf ("Atlas › Stable"), because the name of a tag leaf is a
+   channel. The selection at the start is the branding `default_image`,
+   then the catalog's `default_image`. If the catalog has neither, nothing
+   is selected and Continue is not there. The page is skipped on live media.
+   `../../shared/catalog/README.md` is the contract.
+4. **Language**, 5. **Keyboard**, 6. **Time zone** change the live session
+   through `localectl` and `timedatectl` on the host (best effort, never a
+   gate). Each page says that it changes this session only. The installed
+   system keeps the image's values until the recipe has fields for them
+   (#292).
+7. **Network** checks the connection: the registry of the selected image on
+   port 443, then `ghcr.io:443`, then `8.8.8.8:53`. Continue is not there
+   until the check passes. With no connection the page offers **Network
+   settings**, which opens the desktop's own tool on the host, and
+   **Recheck**. The page is skipped on live media.
+8. **Select a disk** lists the disks that `fisherman probe --json` offers.
+9. **Options** has the hostname, the filesystem and the encryption. The
+   filesystem list is the list of the selected image, so an image that
+   allows ext4 offers it.
+10. **Account** creates the first user: the password two times, with a
+    reveal button. It is skipped only when the catalog says that the image
+    makes its own user (`needs_user_creation: false`). An image that the
+    catalog does not have needs an account.
+11. **Tour** shows the carousel slides of the selected image, if it has any.
+12. **Confirm** shows the choices. Its button is the destructive one.
+13. **Installing** pipes the recipe to `fisherman -` on stdin and shows the
+    progress. **Cancel** opens a question first. "Stop the installation"
+    signals the process group of the wrapper.
+14. **Finished** has three states: installed, cancelled and failed.
+    fisherman's exit code 130, or a signal after a confirmed cancel, is
+    "cancelled" (the copy key `done_cancelled_title`), not a failure.
 
-Exiting mid-install (the header's Exit button, confirmed) signals the
-install wrapper's process group before quitting, so no orphaned root
-install survives the wizard.
+The **Exit** button in the header also asks first. During an install it
+signals the process group of the wrapper and then quits, so no root install
+stays behind.
+
+There is no phone companion. The COSMIC port sent the account password
+over plain HTTP on the LAN, and #293 removed it.
 
 The header bar shows the current step and overall progress. Navigation is
 reversible through Confirm; starting installation is the boundary after which
 the UI no longer offers Back or Continue.
+
+## How fisherman runs
+
+`offline::fisherman_argv` is the one resolver. Probe, validation and install
+all use it.
+
+| Where | Probe and validation | Install |
+|---|---|---|
+| Native | `/usr/local/bin/fisherman ...` | `bash -c 'pkexec /usr/local/bin/fisherman -; exit $?'` |
+| Native, live media | the same | `bash -c 'sudo -n /usr/local/bin/fisherman -; exit $?'` |
+| Flatpak | `flatpak-spawn --host <staged> ...` | `flatpak-spawn --host bash -c "pkexec '<staged>' -; exit $?"` |
+
+In a Flatpak, `<staged>` is `$XDG_CACHE_HOME/bootc-installer/fisherman`: a
+copy of the packaged `/app/bin/fisherman`. The installer compares its
+SHA256 with the answer of `sha256sum` on the host before it runs the file.
+The path never comes from `HOME/.cache`.
 
 ## COSMIC integration
 
@@ -61,11 +90,13 @@ uses monospaced text. Copy is short, factual, and sentence case.
 
 ## Product and installation data
 
-The displayed product name comes from the host's `PRETTY_NAME` in
-`/etc/os-release` (or `/run/host/etc/os-release` in the Flatpak). The live ISO
-path can leave the recipe's image field empty so fisherman installs the booted
-bootc image without downloading it. Embedded OCI stores are passed through as
-additional image stores.
+The product name, the hostname seed and the default image come from the
+branding resolver (`src/branding.rs`, `../../shared/branding/README.md`).
+Live media is fisherman's answer (`live.is_live` of the probe). The recipe
+then has no `image`, and fisherman installs the booted image without a
+download. The catalog leaf of that image still gives the bootloader, the
+composefs flag, the filesystem and the account rule. The recipe leaves
+`additionalImageStores` out: fisherman finds the stores of the host.
 
 ## Capture mode
 

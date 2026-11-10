@@ -27,19 +27,9 @@ The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 
 | Issue | Gap |
 |---|---|
-| #286 | The catalog bootloader, composefs and filesystem do not reach the recipe |
-| #289 | Off live media, the frontend ignores the branding `default_image` |
-| #293 | The phone companion sends the account password over plain HTTP |
-| #290 | The Flatpak builds fisherman, but does not stage it or verify its SHA256 |
-| #300 | The frontend has no translatable strings |
+| #300 | The strings go through one `tr()` shim and a lint holds that, but no translation ships |
 | #105 | Five libcosmic patches for the browser build must go upstream |
-| #299 | The result page reports a cancel as a failure |
-| #301 | An offline user gets no help to connect |
-| #288 | The default for `needs_user_creation` is not the same in every frontend |
-| #292 | Language, keyboard and time zone do not reach the installed system |
-| #296 | The catalog's Flatpak list for an image does not reach the recipe; COSMIC installs three GNOME apps |
-| #297 | `nvidia_imgref`, `flatpak_var_path` and `targetImgref` from the catalog do not all reach the recipe |
-| #302 | The first account is only in `wheel` |
+| #292 | Language, keyboard and time zone change the live session only (each page says so); the recipe fields wait for fisherman |
 
 When you close one of these issues, remove its row.
 `tests/unit/test_frontend_roadmaps.py` examines this file.
