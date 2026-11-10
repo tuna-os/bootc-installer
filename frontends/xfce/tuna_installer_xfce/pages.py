@@ -11,7 +11,7 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, GLib, Gtk, Pango
 
 from . import core, fisherman_validate, gates, locale as locale_checks
-from . import phone_companion, progress_parser, tour
+from . import progress_parser, tour
 from .logo import product_logo
 
 # The recipe's encryption types, in display order: fisherman's
@@ -450,19 +450,6 @@ class IdentityPage(Page):
         loc.add(locbox)
         self.pack_start(loc, False, False, 0)
 
-        # Phone companion (phone_companion.py): the account form on a phone.
-        # The server runs only while this expander is open and stops after
-        # the first accepted submission; the values land in the entries
-        # above, so fisherman's LiveCheck vets them exactly like typing.
-        self.phone_box = phone_companion.PhoneCompanionBox(
-            core.PRODUCT_NAME, core.BRANDING.default_hostname,
-            self._apply_phone_config)
-        phone_exp = Gtk.Expander(label="Set up from your phone")
-        phone_exp.add(self.phone_box)
-        phone_exp.connect("notify::expanded", self._on_phone_expanded)
-        self.phone_expander = phone_exp
-        self.pack_start(phone_exp, False, False, 0)
-
         # The hostname and username rules are fisherman's
         # (`fisherman validate --json --partial -`). The hostname used to be
         # a single-label pattern here with no length limit, and the username
@@ -500,21 +487,6 @@ class IdentityPage(Page):
         layout = combo.get_active_id()
         if layout:
             locale_checks.apply_keyboard_layout(layout)
-
-    def _on_phone_expanded(self, expander, _param):
-        if expander.get_expanded():
-            self.phone_box.start()
-        else:
-            self.phone_box.stop()
-
-    def _apply_phone_config(self, config):
-        """A phone submission, applied as if typed: entries first, so the
-        LiveCheck submit below vets them before Next enables."""
-        self.username.set_text(config.get("username", ""))
-        self.fullname.set_text(config.get("fullname", ""))
-        self.password.set_text(config.get("password", ""))
-        self.hostname.set_text(config.get("hostname", ""))
-        self.check.submit(self.partial_recipe())
 
     def locale_selection(self):
         """(language, keyboard, timezone): the session's locale choices."""

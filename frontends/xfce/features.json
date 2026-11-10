@@ -26,7 +26,7 @@
     "needs_user_creation_default": "account",
     "account_password": "once, no reveal (#295)",
     "account_groups": "wheel (#302)",
-    "phone_companion": "yes (plain HTTP, #293, #294)",
+    "phone_companion": "no",
     "locale_pages": "keyboard only",
     "locale_installed": "no",
     "cancel_install": "window close, asks first",

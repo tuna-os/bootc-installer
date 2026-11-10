@@ -26,7 +26,7 @@ backend. The plainest of the TunaOS installer frontends by design — see
 
 Welcome (with a tour of the image families) → Source (image catalog,
 offline badges, live-ISO self-install) → Destination → Filesystem &
-encryption → Identity (account, language and region, phone companion) →
+encryption → Identity (account, language and region) →
 Confirm (connectivity gate when the image must be downloaded) → Progress →
 Done (install-log viewer on failure, power off / restart).
 

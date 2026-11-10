@@ -27,8 +27,6 @@ The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 
 | Issue | Gap |
 |---|---|
-| #294 | The phone companion server deadlocks on the first submission that it accepts |
-| #293 | The phone companion sends the account password over plain HTTP |
 | #295 | The frontend asks for the account password one time only, with no reveal toggle |
 | #298 | The Flatpak cannot see a host catalog in `/etc/bootc-installer` |
 | #289 | Off live media, the frontend ignores the branding `default_image` |
