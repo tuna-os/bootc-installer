@@ -48,15 +48,14 @@ QString operatorRecipePath(bool flatpak)
         + QStringLiteral("/bootc-installer/recipe.json");
 }
 
-QStringList groupsFromFile(const QString &path)
+QByteArray readOperatorRecipe(const QString &path)
 {
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly))
-        return defaultGroups();
+        return {};
     const QByteArray data = f.readAll();
-    // An empty file is a file that does not parse, not "no file"; both give
-    // the default list.
-    return groups(data.isNull() ? QByteArray("") : data);
+    // An empty file is a file that does not parse, not "no file".
+    return data.isNull() ? QByteArray("") : data;
 }
 
 } // namespace account
