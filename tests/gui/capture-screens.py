@@ -162,8 +162,9 @@ PATCHERS = [
     patch("bootc_installer.defaults.qr_companion.CompanionServer", **{
         "return_value.start.return_value": True,
         "return_value.auth_token": "capture-session-token",
+        # The address the server would have bound; the page shows it.
+        "return_value.host": "192.0.2.10",
     }),
-    patch("bootc_installer.defaults.qr_companion.get_local_ip", return_value="192.0.2.10"),
     patch.object(progress_mod.BootcProgress, "start", _refuse_to_install),
     # The connection-check page moves to the next page when its check
     # passes. The capture shows each page in turn itself, so the check does
@@ -388,10 +389,16 @@ def _choose_disk(win):
 
 
 def _choose_image(win):
-    """Choose an image on the image page when none is selected, as a user
-    must before Next. The bundled recipe names no image, and the capture
-    branding's default is not in fisherman's catalog, so without this the
-    confirm page would have no Image row."""
+    """Choose an image on the image page and rebuild the later steps, as
+    the page's Next button does.
+
+    The bundled recipe names no image, and the capture branding's default
+    is not in fisherman's catalog, so nothing is selected at the start.
+    Without a choice the confirm page has no Image row. The choice also
+    decides which pages exist: the phone companion and the account page
+    show only for an image that needs an account, so the capture prefers
+    one, to render every page the wizard has.
+    """
     carousel = win.carousel
     for index in range(carousel.get_n_pages()):
         page = carousel.get_nth_page(index)
@@ -402,9 +409,12 @@ def _choose_image(win):
             return
         rows = page._BootcDefaultImage__leaf_rows
         if not rows:
-            SEED_FAILURES.append("confirm: the image page has no images to choose")
+            SEED_FAILURES.append("image: the image page has no images to choose")
             return
-        rows[0][1].set_active(True)
+        # Index 6 of a leaf row is the image's needs_user_creation.
+        wanted = next((row for row in rows if row[6]), rows[0])
+        wanted[1].set_active(True)
+        win.rebuild_ui_after_image()
         return
 
 
@@ -449,6 +459,8 @@ def main():
         win.set_default_size(1000, 700)
         win.present()
         _pump(1.0)
+        _choose_image(win)
+        _pump(0.3)
         carousel = win.carousel
         for index in range(carousel.get_n_pages()):
             page = carousel.get_nth_page(index)

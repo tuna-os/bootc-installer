@@ -1,9 +1,9 @@
 {
   "flavor": "gnome",
-  "frames": 10,
-  "rendered_frames": 10,
-  "advanced_transitions": 9,
-  "visual_states": 10,
+  "frames": 11,
+  "rendered_frames": 11,
+  "advanced_transitions": 10,
+  "visual_states": 11,
   "activation_key": null,
   "ocr": false,
   "screens": {
@@ -98,43 +98,43 @@
       "text_excerpt": "Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Power Off Power Off Press Super+Alt+S to enable the screen reader Credits Credits"
     },
     {
-      "name": "qr_companion",
-      "png": "docs/screenshots/02-qr_companion.png",
-      "rendered": true,
-      "colours": 300,
-      "flat": 0.8552173913043478,
-      "ink": 0.03320158102766799,
-      "stddev": 0.15090812096295514,
-      "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
-    },
-    {
       "name": "conn-check",
-      "png": "docs/screenshots/03-conn-check.png",
+      "png": "docs/screenshots/02-conn-check.png",
       "rendered": true,
       "colours": 188,
-      "flat": 0.9633596837944663,
-      "ink": 0.008418972332015811,
-      "stddev": 0.06687831720627671,
+      "flat": 0.9633465085638999,
+      "ink": 0.008432147562582345,
+      "stddev": 0.06686221473194079,
       "text_excerpt": "Checking Connection Please wait until the connection check is done"
     },
     {
       "name": "image",
-      "png": "docs/screenshots/04-image.png",
+      "png": "docs/screenshots/03-image.png",
       "rendered": true,
-      "colours": 403,
-      "flat": 0.6610013175230567,
-      "ink": 0.018168642951251646,
-      "stddev": 0.09796493948909364,
+      "colours": 404,
+      "flat": 0.6609749670619236,
+      "ink": 0.02096179183135705,
+      "stddev": 0.10066068916424295,
       "text_excerpt": "Choose an Image Select a BootcOS image to install, or enter a custom bootc-compatible image URL. Search images\u2026 Aurora Aurora Aurora Aurora DX Aurora DX ghcr.io/ublue-os/aurora-dx Aurora DX ghcr.io/ublue-os/aurora-dx Beta ghcr.io/ublue-os/a"
+    },
+    {
+      "name": "qr_companion",
+      "png": "docs/screenshots/04-qr_companion.png",
+      "rendered": true,
+      "colours": 300,
+      "flat": 0.8552042160737813,
+      "ink": 0.03318840579710145,
+      "stddev": 0.15089614527075706,
+      "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
     },
     {
       "name": "disk",
       "png": "docs/screenshots/05-disk.png",
       "rendered": true,
       "colours": 293,
-      "flat": 0.7458629776021081,
-      "ink": 0.0202635046113307,
-      "stddev": 0.1070662728127553,
+      "flat": 0.745836627140975,
+      "ink": 0.020250329380764164,
+      "stddev": 0.10705860960414235,
       "text_excerpt": "Computer is not plugged in \u2014 connect power before installing Install Location Select the disk where you want to install. All data on the selected disk will be permanently erased. Samsung SSD 870 EVO 500GB /dev/sda \u00b7 465.8 GiB \u00b7 SATA Samsung"
     },
     {
@@ -142,24 +142,34 @@
       "png": "docs/screenshots/06-encryption.png",
       "rendered": true,
       "colours": 278,
-      "flat": 0.7004874835309618,
-      "ink": 0.020461133069828722,
-      "stddev": 0.1043287214075275,
+      "flat": 0.7004743083003953,
+      "ink": 0.02043478260869565,
+      "stddev": 0.10432087593695598,
       "text_excerpt": "Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You'll type it at every boot. Encrypt this disk You'll type it at every boot. Password Password Password Confirm Password Confirm Password Confirm Password Use h"
     },
     {
-      "name": "confirm",
-      "png": "docs/screenshots/07-confirm.png",
+      "name": "user",
+      "png": "docs/screenshots/07-user.png",
       "rendered": true,
-      "colours": 398,
-      "flat": 0.6691172595520422,
+      "colours": 332,
+      "flat": 0.709433465085639,
+      "ink": 0.00761528326745718,
+      "stddev": 0.06059911236107,
+      "text_excerpt": "Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Confirm Password Confirm Password"
+    },
+    {
+      "name": "confirm",
+      "png": "docs/screenshots/08-confirm.png",
+      "rendered": true,
+      "colours": 397,
+      "flat": 0.6691304347826087,
       "ink": 0.013847167325428195,
-      "stddev": 0.07779471847491506,
+      "stddev": 0.07782299595656808,
       "text_excerpt": "Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be undone. Summary Summary Target disk Samsung SSD 870 EVO 500GB (/dev/sda, 465.8 GiB) Target disk Samsung"
     },
     {
       "name": "progress",
-      "png": "docs/screenshots/08-progress.png",
+      "png": "docs/screenshots/09-progress.png",
       "rendered": true,
       "colours": 187,
       "flat": 0.9525559947299078,
@@ -169,7 +179,7 @@
     },
     {
       "name": "recovery-key",
-      "png": "docs/screenshots/09-recovery-key.png",
+      "png": "docs/screenshots/10-recovery-key.png",
       "rendered": true,
       "colours": 265,
       "flat": 0.8882608695652174,
@@ -179,25 +189,26 @@
     },
     {
       "name": "done",
-      "png": "docs/screenshots/10-done.png",
+      "png": "docs/screenshots/11-done.png",
       "rendered": true,
-      "colours": 442,
-      "flat": 0.935862977602108,
-      "ink": 0.01469038208168643,
-      "stddev": 0.071540394643888,
-      "text_excerpt": "Aurora DX is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now"
+      "colours": 682,
+      "flat": 0.9375098814229249,
+      "ink": 0.022213438735177865,
+      "stddev": 0.09272126965476671,
+      "text_excerpt": "NVIDIA is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now"
     }
   ],
   "transition_pixels": [
-    54474,
-    46901,
-    45336,
-    63988,
-    51254,
-    49754,
-    38017,
+    20557,
+    45346,
+    70484,
+    67784,
+    51251,
+    43427,
+    42435,
+    37999,
     37822,
-    38053
+    43762
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."

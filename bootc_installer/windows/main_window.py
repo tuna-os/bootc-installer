@@ -249,10 +249,31 @@ class BootcWindow(Adw.ApplicationWindow):
         self.carousel.append(self.__view_progress)
         self.carousel.append(self.__view_recovery_key)
         self.carousel.append(self.__view_done)
+        self.__contain_focus()
+
+    def __contain_focus(self):
+        """Keep keyboard focus on the page the user can see (#310).
+
+        Every page lives in the one carousel, so Tab used to walk off the
+        visible page into the disk list, the passphrase entries and the Done
+        page's Reboot button. `can-focus` on a page covers its descendants,
+        and unlike `sensitive` it does not dim the page that slides in.
+        """
+        current = self.carousel.get_nth_page(int(self.carousel.get_position()))
+        focus = self.get_focus()
+        for index in range(self.carousel.get_n_pages()):
+            page = self.carousel.get_nth_page(index)
+            page.set_can_focus(page is current)
+            if page is not current and focus is not None and (
+                    focus is page or focus.is_ancestor(page)):
+                # Focus stayed on the page that just left the screen.
+                self.set_focus(None)
+                focus = None
 
     def __on_page_changed(self, *args):
         cur_index = self.carousel.get_position()
         page = self.carousel.get_nth_page(cur_index)
+        self.__contain_focus()
 
         logger.info("(%s) Page is changing...", getattr(page, "__gtype_name__", type(page).__name__))
 

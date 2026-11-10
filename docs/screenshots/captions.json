@@ -1,12 +1,13 @@
 {
   "01-welcome.png": "What the installer is about to do.",
-  "02-qr_companion.png": "Optional: scan a QR code and type your account details on your phone.",
-  "03-conn-check.png": "A check that the image registry can be reached.",
-  "04-image.png": "Choose the image to install from the catalog.",
+  "02-conn-check.png": "A check that the image registry can be reached.",
+  "03-image.png": "Choose the image to install from the catalog.",
+  "04-qr_companion.png": "Optional: scan a QR code and type your account details on your phone.",
   "05-disk.png": "Choose the disk. Nothing is written yet.",
   "06-encryption.png": "Full-disk encryption, with or without TPM2.",
-  "07-confirm.png": "The last screen before anything is written.",
-  "08-progress.png": "The install, step by step.",
-  "09-recovery-key.png": "The LUKS recovery key, shown once after an encrypted install.",
-  "10-done.png": "Finished. Restart into the new system."
+  "07-user.png": "Your account and password.",
+  "08-confirm.png": "The last screen before anything is written.",
+  "09-progress.png": "The install, step by step.",
+  "10-recovery-key.png": "The LUKS recovery key, shown once after an encrypted install.",
+  "11-done.png": "Finished. Restart into the new system."
 }

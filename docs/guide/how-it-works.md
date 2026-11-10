@@ -94,7 +94,10 @@ It shows a QR code.
 When you scan the code, your phone opens a form.
 Type your account data and settings there.
 The phone sends the data as JSON.
-At this time the installer uses only the hostname from that data, and the page has open defects (#304, #305).
+
+The installer puts the name, the username and the password on the account page, and uses the hostname.
+The page shows only when the image needs an account.
+The server listens on the LAN address of the computer only, and it accepts one form.
 
 ## Video during the install
 

@@ -214,7 +214,6 @@ def flow(tmp_path):
         patch.dict(os.environ, env, clear=False),
         patch("bootc_installer.defaults.disk.DisksManager", return_value=_FakeDisksManager()),
         patch("bootc_installer.defaults.qr_companion.CompanionServer"),
-        patch("bootc_installer.defaults.qr_companion.get_local_ip", return_value="127.0.0.1"),
         # The connection-check page moves on by itself; these tests place
         # the carousel themselves.
         patch("bootc_installer.defaults.conn_check.BootcDefaultConnCheck._run_check",

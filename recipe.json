@@ -6,10 +6,6 @@
             "template": "welcome",
             "protected": true
         },
-        "qr_companion": {
-            "template": "qr_companion",
-            "protected": true
-        },
         "conn-check": {
             "template": "conn-check",
             "protected": true
@@ -17,6 +13,9 @@
         "image": {
             "template": "image",
             "protected": true
+        },
+        "qr_companion": {
+            "template": "qr_companion"
         },
         "disk": {
             "template": "disk"
