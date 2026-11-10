@@ -33,6 +33,9 @@ class _Win:
     def selected_leaf(self):
         return None
 
+    def layout_source(self):
+        return None
+
 
 class _Check:
     """Stands in for LiveCheck: records what the page submits."""
