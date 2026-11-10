@@ -261,6 +261,8 @@ class InstallerWindow(Gtk.ApplicationWindow):
             fullname=identity.fullname.get_text(),
             password=identity.password.get_text(),
             groups=core.account_groups(),
+            # Language, keyboard and time zone: "" unless picked (#292).
+            **identity.region_choices(),
         )
         if leaf is None:
             # "Install this system": an empty image, which fisherman accepts

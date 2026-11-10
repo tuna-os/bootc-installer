@@ -99,6 +99,15 @@ def _warn_row(text):
     return box
 
 
+def filesystem_label(fs):
+    """What a filesystem is called: its id, and for zfs the branding copy
+    `filesystem_zfs_label`. fisherman accepts zfs only as experimental
+    (the recipe's `experimental`), and the name says so."""
+    if fs == "zfs":
+        return core.BRANDING.text("filesystem_zfs_label") or fs
+    return fs
+
+
 class Page(Gtk.Box):
     """One wizard page: vertical box, 12px spacing, knows if it can advance."""
 
@@ -455,7 +464,7 @@ class SetupPage(Page):
         try:
             self.fs_combo.remove_all()
             for fs in choices:
-                self.fs_combo.append(fs, fs)
+                self.fs_combo.append(fs, filesystem_label(fs))
             self.fs_combo.set_active_id(default)
         finally:
             self._fs_syncing = False
@@ -527,21 +536,27 @@ class IdentityPage(Page):
         self.user_frame.add(ug)
         self.pack_start(self.user_frame, False, False, 0)
 
-        # Keyboard layout (locale.py). It applies to this live session as it
-        # changes (setxkbmap), so the passphrase typed here is the one the
-        # person means; the label says "this session only" because nothing
-        # here reaches the installed system. This expander also held a
-        # Language and a Timezone combo whose values nothing read (#292).
-        # The recipe has no field for the three yet (tuna-os/fisherman#405).
-        loc = Gtk.Expander(label=_("Keyboard layout (this session only)"))
+        # Language, keyboard layout and time zone of the installed system:
+        # the recipe's `locale`, `keyboard.layout` and `timezone` (#292).
+        # Each combo starts at "keep", which writes no key: the image keeps
+        # its own value. A pick goes into the recipe, and fisherman checks
+        # it (`validate --partial`). The keyboard pick also switches this
+        # live session (setxkbmap), so the passphrase and the password typed
+        # next are the ones the person means.
+        loc = Gtk.Expander(label=_("Language, keyboard and time zone"))
         locbox = Gtk.Grid(column_spacing=12, row_spacing=6, margin=6)
-        self.kb_combo = Gtk.ComboBoxText()
-        for name in locale_checks.available_keyboard_layouts():
-            self.kb_combo.append(name, name)
-        self._select_combo(self.kb_combo, locale_checks.current_keyboard_layout())
+        self.lang_combo = self._region_combo(locale_checks.available_languages())
+        self.kb_combo = self._region_combo(locale_checks.available_keyboard_layouts())
+        self.tz_combo = self._region_combo(locale_checks.available_timezones())
+        for row, (label, combo) in enumerate(((_("Language"), self.lang_combo),
+                                              (_("Keyboard"), self.kb_combo),
+                                              (_("Time zone"), self.tz_combo))):
+            locbox.attach(Gtk.Label(label=label, xalign=0), 0, row, 1, 1)
+            locbox.attach(combo, 1, row, 1, 1)
+            combo.connect("changed", self._on_region_changed)
         self.kb_combo.connect("changed", self._on_keyboard_changed)
-        locbox.attach(Gtk.Label(label=_("Keyboard"), xalign=0), 0, 0, 1, 1)
-        locbox.attach(self.kb_combo, 1, 0, 1, 1)
+        self.region_problem = problem_label()
+        locbox.attach(self.region_problem, 1, 3, 1, 1)
         loc.add(locbox)
         self.locale_expander = loc
         self.pack_start(loc, False, False, 0)
@@ -559,25 +574,48 @@ class IdentityPage(Page):
         partial = {"hostname": self.hostname.get_text()}
         if self.win.needs_user_creation():
             partial["user"] = {"username": self.username.get_text()}
+        partial.update(self.region_fields())
         return partial
+
+    def region_choices(self):
+        """The picks as build_recipe() takes them: "" for "keep"."""
+        return {"locale": self.lang_combo.get_active_id() or "",
+                "keyboard_layout": self.kb_combo.get_active_id() or "",
+                "timezone": self.tz_combo.get_active_id() or ""}
+
+    def region_fields(self):
+        """The recipe's `locale`, `keyboard` and `timezone`: only the ones
+        the person picked."""
+        return core.region_fields(**self.region_choices())
 
     def _on_checked(self, problems, error):
         problems = problems or []
         self.problems = {f: next((p for p in problems if p.get("field") == f), None)
                          for f in ("hostname", "user.username")}
+        # The first problem with a picked value: locale, keyboard.*, timezone.
+        self.problems["region"] = next(
+            (p for p in problems if core.is_region_field(p.get("field", ""))), None)
         show_problem(self.hostname_problem, self.problems["hostname"])
         show_problem(self.username_problem, self.problems["user.username"])
+        show_problem(self.region_problem, self.problems["region"])
         self.win.refresh_nav()
 
-    @staticmethod
-    def _select_combo(combo, value):
-        """Select `value`, adding it first when the system reports one the
-        list does not contain (a live session can outrun localectl)."""
-        if value and combo.get_model() is not None:
-            ids = [row[1] for row in combo.get_model()]
-            if value not in ids:
-                combo.append(value, value)
-        combo.set_active_id(value)
+    KEEP = _("Keep the image's setting")
+
+    @classmethod
+    def _region_combo(cls, values):
+        """A combo of `values` whose first row, the active one, is "keep":
+        id "", which writes no key."""
+        combo = Gtk.ComboBoxText()
+        combo.append("", cls.KEEP)
+        for value in values:
+            combo.append(value, value)
+        combo.set_active_id("")
+        return combo
+
+    def _on_region_changed(self, *_args):
+        self.check.submit(self.partial_recipe())
+        self.win.refresh_nav()
 
     def _on_keyboard_changed(self, combo):
         layout = combo.get_active_id()
@@ -618,6 +656,8 @@ class IdentityPage(Page):
 
     def can_continue(self):
         if self.problems.get("hostname") is not None:
+            return False
+        if self.problems.get("region") is not None:
             return False
         if self.win.needs_user_creation():
             # A user is required for this image (needs_user_creation), and
@@ -689,7 +729,7 @@ class ConfirmPage(Page):
         # The same rows, in the same order, as KDE's confirm step.
         rows = [
             (_("Target disk"), disk),
-            (_("Filesystem"), r["filesystem"]),
+            (_("Filesystem"), filesystem_label(r["filesystem"])),
             (_("Encryption"), encryption_text(r["encryption"]["type"] or "none", "_label")),
             (_("Hostname"), r["hostname"]),
             (_("Image"), r.get("image") or self.win.pages["source"].live_image
@@ -700,6 +740,13 @@ class ConfirmPage(Page):
             rows.append((_("Updates from"), r["targetImgref"]))
         if r.get("user", {}).get("username"):
             rows.append((_("User"), r["user"]["username"]))
+        # What the installed system gets of the identity page's picks (#292).
+        if r.get("locale"):
+            rows.append((_("Language"), r["locale"]))
+        if r.get("keyboard"):
+            rows.append((_("Keyboard"), r["keyboard"]["layout"]))
+        if r.get("timezone"):
+            rows.append((_("Time zone"), r["timezone"]))
         width = max(len(k) for k, _value in rows) + 2
         lines = [f"{k + ':':<{width}}{v}" for k, v in rows]
         self.summary.set_markup("<tt>" + GLib.markup_escape_text("\n".join(lines)) + "</tt>")

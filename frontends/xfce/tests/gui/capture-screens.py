@@ -467,6 +467,13 @@ def main():
                 identity.fullname.set_text("Jo Fisher")
                 identity.password.set_text("correct horse")
                 identity.password2.set_text("correct horse")
+                # A language, a keyboard layout and a time zone, so the
+                # confirm page shows that the picks reach the recipe (#292).
+                # The last of each list: what the lists hold depends on the
+                # runner (localectl, or the built-in fallback).
+                identity.locale_expander.set_expanded(True)
+                for combo in (identity.lang_combo, identity.kb_combo, identity.tz_combo):
+                    combo.set_active(len(combo.get_model()) - 1)
             elif name == "progress":
                 _seed_progress(win.pages["progress"])
             elif name == "done":
@@ -504,7 +511,8 @@ def main():
                 text = finding["text"]
                 disk = win.pages["destination"].selected_disk()["path"]
                 for row in ("Target disk:", "Filesystem:", "Encryption:",
-                            "Hostname:", "Image:"):
+                            "Hostname:", "Image:", "Language:", "Keyboard:",
+                            "Time zone:"):
                     if row not in text:
                         problems.append(f"summary has no {row!r} row")
                 if core.BRANDING.text("confirm_warning", disk=disk) not in text:

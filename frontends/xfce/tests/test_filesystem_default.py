@@ -155,7 +155,8 @@ def test_the_window_sends_the_live_layout_to_fisherman(monkeypatch, tmp_path):
         setup=setup,
         destination=types.SimpleNamespace(selected_disk=lambda: {"path": "/dev/vda"}),
         identity=types.SimpleNamespace(hostname=identity, username=identity,
-                                       fullname=identity, password=identity))
+                                       fullname=identity, password=identity,
+                                       region_choices=lambda: {}))
     recipe = app.InstallerWindow.build_recipe(win)
     assert recipe["image"] == ""
     assert (recipe["bootloader"], recipe["composeFsBackend"], recipe["filesystem"]) == (
