@@ -51,9 +51,10 @@ nothing is lost in the shuffle. Tracking epic:
   36 = 543). The per-frontend `.ste-budget` files are left in place as a
   record; only the root one is read.
 - Each frontend keeps its own `README.md`, `AGENTS.md`, `DESIGN.md`,
-  `docs/`, `LICENSE`, `codecov.yml`. Codecov reads only the root file, so the
-  per-frontend `codecov.yml` is inert. Each one is a byte-identical copy of
-  the root file, so nothing remains to fold in.
+  `docs/`, `LICENSE`.
+- The per-frontend `codecov.yml` files are gone. Codecov reads only the root
+  file. Each copy had the same values as the root file, so nothing remained
+  to fold in.
 - The per-frontend `renovate.json` files are gone. Renovate reads only the
   repository root. Keeping them as a record was therefore not safe, the way
   it is safe for `.ste-budget`: `frontends/kde/renovate.json` held the rule
