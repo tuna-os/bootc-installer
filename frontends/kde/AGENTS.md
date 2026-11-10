@@ -118,6 +118,10 @@ properties, not preferences:
   navigation is disabled once `fisherman` starts.
 - **The progress module advances to "finished" only after the process exits** —
   not on a parsed progress line.
+- **The recovery key stays out of the log file and the clipboard copy.**
+  `appendLine` writes the redacted form of a `recovery_key` event
+  (`src/redact.{h,cpp}`, `../../shared/progress/recovery-key-cases.json`).
+  The key is in memory for the done page and its acknowledgement.
 
 The recipe schema is shared with the other frontends
 (`fisherman-recipe.schema.json`, and the

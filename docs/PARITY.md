@@ -159,6 +159,7 @@ not use `default_image` yet (#289).
 | Progress bar from fisherman's protocol | yes | yes | yes | yes | yes |
 | Restart from the done page | yes | yes | yes | yes | yes |
 | Show log after failure | yes (recovery key redacted) | log path | log in page | log in page | log tail |
+| Recovery key kept out of log files (#337) | yes (log file scrubbed; dialog and clipboard redacted) | yes (log file and clipboard copy redacted) | no log file | no (#337) | no (#337) |
 | Screenshot walkthrough + parity report | yes | yes | yes | yes | yes |
 | End-to-end gate (real install and boot) | yes | yes | yes | yes | yes |
 

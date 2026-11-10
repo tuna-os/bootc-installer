@@ -59,6 +59,8 @@ set(BACKEND_SOURCES
     src/probe.h
     src/readiness.cpp
     src/readiness.h
+    src/redact.cpp
+    src/redact.h
     src/validate.cpp
     src/validate.h
 )
@@ -175,6 +177,7 @@ if(BUILD_TESTING)
         src/fisherman.cpp
         src/account.cpp
         src/readiness.cpp
+        src/redact.cpp
         src/probe.cpp
         src/validate.cpp
         src/diskmodel.cpp
