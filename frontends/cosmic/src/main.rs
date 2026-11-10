@@ -1286,7 +1286,11 @@ impl cosmic::Application for TunaInstaller {
                     let locale = self.locales[idx].clone();
                     // A pick goes into the recipe too (#292).
                     self.recipe.locale.clone_from(&locale);
-                    preflight::apply_best_effort(&preflight::apply_locale_command(&locale));
+                    // The capture harness picks too; it must not change the
+                    // runner's own settings.
+                    if !self.capturing() {
+                        preflight::apply_best_effort(&preflight::apply_locale_command(&locale));
+                    }
                 }
                 // fisherman checks the pick now, not at Install.
                 self.check_fields()
@@ -1302,7 +1306,9 @@ impl cosmic::Application for TunaInstaller {
                         layout: keymap.clone(),
                         ..model::Keyboard::default()
                     });
-                    preflight::apply_best_effort(&preflight::apply_keymap_command(&keymap));
+                    if !self.capturing() {
+                        preflight::apply_best_effort(&preflight::apply_keymap_command(&keymap));
+                    }
                 }
                 // fisherman checks the pick now, not at Install.
                 self.check_fields()
@@ -1319,7 +1325,9 @@ impl cosmic::Application for TunaInstaller {
                     self.selected_timezone = Some(idx);
                     let zone = self.timezones[idx].clone();
                     self.recipe.timezone.clone_from(&zone);
-                    preflight::apply_best_effort(&preflight::apply_timezone_command(&zone));
+                    if !self.capturing() {
+                        preflight::apply_best_effort(&preflight::apply_timezone_command(&zone));
+                    }
                 }
                 // fisherman checks the pick now, not at Install.
                 self.check_fields()
