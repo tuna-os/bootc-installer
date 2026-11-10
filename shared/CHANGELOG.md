@@ -18,8 +18,20 @@ schema only.
   `progress/recovery-key-transcript.ndjson`. They pin the redacted form of
   the `recovery_key` event in a log file and in a copy of the log
   (`progress/README.md`, "Recovery key in a log"; #337).
-- GNOME and KDE test against them. XFCE keeps a log file and does not yet.
-  COSMIC and Niri keep no log file.
+- GNOME and KDE test against them. XFCE and Niri keep a log file and do
+  not yet. COSMIC keeps no log file.
+
+## 2026-11-10: recipe schema, `override` and `unifiedStorage`
+
+- Added: `override`, a list that accepts `too_small` and `uefi`. It names
+  the target checks that the caller accepts as failed. The fisherman with
+  the target checks reads it (tuna-os/fisherman#429). An older fisherman
+  ignores it, so no frontend writes it before the pin moves.
+- Changed: the description of `unifiedStorage`. fisherman does not pass a
+  bootc flag for it, and it refuses `true` (tuna-os/fisherman#366). A
+  frontend leaves the field out. The type did not change.
+
+Recipe schema sha256: `4b30f4bb1d4a81ed2ab5ba38725d3f69e2d97e55c4f233075be530c70fe534f5`
 
 ## 2026-11-10: this changelog starts
 

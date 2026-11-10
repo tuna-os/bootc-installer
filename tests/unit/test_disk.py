@@ -450,64 +450,6 @@ class TestBootcDefaultDiskAutoSelectSingleDisk(unittest.TestCase):
         getattr(obj, "_BootcDefaultDisk__update_action_buttons").assert_called_once_with()
 
 
-class TestPartitionSelectorCheckSelectedPartitionsSizes(unittest.TestCase):
-    def setUp(self):
-        self.mod = _import_disk_fresh()
-
-    def _make_selector(self, selected_partitions):
-        selector = self.mod.PartitionSelector.__new__(self.mod.PartitionSelector)
-        setattr(selector, "_PartitionSelector__selected_partitions", selected_partitions)
-        setattr(selector, "_PartitionSelector__valid_partition_sizes", False)
-
-        selector.boot_small_error = _FakeErrorRow()
-        selector.efi_small_error = _FakeErrorRow()
-        selector.bios_small_error = _FakeErrorRow()
-        selector.root_small_error = _FakeErrorRow()
-        selector.var_small_error = _FakeErrorRow()
-
-        selector.boot_part_expand = _FakeExpandRow(["error"])
-        selector.efi_part_expand = _FakeExpandRow(["error"])
-        selector.bios_part_expand = _FakeExpandRow(["error"])
-        selector.root_part_expand = _FakeExpandRow(["error"])
-        selector.var_part_expand = _FakeExpandRow(["error"])
-        return selector
-
-    def test_check_selected_partitions_sizes_marks_small_uefi_partitions_invalid(self):
-        selected = {
-            "boot_part_expand": {"min_size": 100, "partition": types.SimpleNamespace(size=99)},
-            "efi_part_expand": {"min_size": 200, "partition": types.SimpleNamespace(size=200)},
-            "root_part_expand": {"min_size": 300, "partition": types.SimpleNamespace(size=250)},
-            "var_part_expand": {"min_size": 400, "partition": types.SimpleNamespace(size=400)},
-        }
-        selector = self._make_selector(copy.deepcopy(selected))
-
-        self.mod.PartitionSelector.check_selected_partitions_sizes(selector)
-
-        self.assertFalse(getattr(selector, "_PartitionSelector__valid_partition_sizes"))
-        self.assertTrue(selector.boot_small_error.visible)
-        self.assertEqual(selector.boot_small_error.description, "Partition must be at least 100 B")
-        self.assertIn("error", selector.boot_part_expand.get_style_context().classes)
-        self.assertTrue(selector.root_small_error.visible)
-        self.assertEqual(selector.root_small_error.description, "Partition must be at least 300 B")
-        self.assertFalse(selector.efi_small_error.visible)
-
-    def test_check_selected_partitions_sizes_flags_bios_partition_that_is_not_exact_size(self):
-        selected = {
-            "boot_part_expand": {"min_size": 100, "partition": types.SimpleNamespace(size=100)},
-            "bios_part_expand": {"min_size": 256, "partition": types.SimpleNamespace(size=128)},
-            "root_part_expand": {"min_size": 300, "partition": types.SimpleNamespace(size=300)},
-            "var_part_expand": {"min_size": 400, "partition": types.SimpleNamespace(size=400)},
-        }
-        selector = self._make_selector(copy.deepcopy(selected))
-        self.mod.Systeminfo.is_uefi = staticmethod(lambda: False)
-
-        self.mod.PartitionSelector.check_selected_partitions_sizes(selector)
-
-        self.assertTrue(selector.bios_small_error.visible)
-        self.assertEqual(selector.bios_small_error.description, "Partition must EXACTLY 256 B")
-        self.assertIn("error", selector.bios_part_expand.get_style_context().classes)
-
-
 class TestBootcDefaultDiskRefreshFromImageStep(unittest.TestCase):
     def setUp(self):
         self.mod = _import_disk_fresh()

@@ -27,18 +27,34 @@ as_root install -m 0755 "$HERE/fisherman-shim.sh" /usr/local/bin/fisherman
 echo "   $(/usr/local/bin/fisherman validate /dev/null 2>&1 | head -1 || true)"
 
 echo "== loop disk"
+# fisherman accepts a whole disk or a whole loop device as `disk`, and
+# refuses a regular file (`disk_not_disk`, fisherman/docs/VALIDATE.md). So
+# there is no fallback to the image file: without a loop device the setup
+# stops here, and not later with a recipe that fisherman rejects.
 DISK_FILE="$DIR/disk.img"
-if [ -e /dev/loop-control ] && as_root losetup --find >/dev/null 2>&1; then
-  truncate -s 20G "$DISK_FILE"
-  LOOPDEV=$(as_root losetup --find --show "$DISK_FILE")
-  as_root chmod 0666 "$LOOPDEV" || true
-else
-  # No loop devices (unprivileged container). fisherman's Validate() only
-  # requires the path to exist, so a file stands in; the VM job uses a real
-  # loop device regardless.
-  truncate -s 20G "$DISK_FILE"
-  LOOPDEV="$DISK_FILE"
+no_loop() {
+  echo "::error::shared/e2e/setup.sh: $1" >&2
+  echo "The end-to-end disk must be a loop device: fisherman refuses a regular" >&2
+  echo "file as the target disk (disk_not_disk). Run on a host with losetup, or" >&2
+  echo "in a container that has the loop devices (docker run --privileged)." >&2
+  exit 1
+}
+command -v losetup >/dev/null 2>&1 || no_loop "losetup is not installed (util-linux)"
+[ -e /dev/loop-control ] || no_loop "/dev/loop-control is not there"
+truncate -s 20G "$DISK_FILE"
+if ! LOOPDEV=$(as_root losetup --find --show "$DISK_FILE" 2>/dev/null); then
+  # A container has its own /dev. The kernel can make a loop device there
+  # that has no node. Make the nodes that are missing, then try again.
+  for sys in /sys/block/loop*; do
+    [ -r "$sys/dev" ] || continue
+    node="/dev/$(basename "$sys")"
+    [ -b "$node" ] || as_root mknod "$node" b $(tr ':' ' ' < "$sys/dev") || true
+  done
+  LOOPDEV=$(as_root losetup --find --show "$DISK_FILE") \
+    || no_loop "losetup cannot attach $DISK_FILE"
 fi
+[ -b "$LOOPDEV" ] || no_loop "losetup gave '$LOOPDEV', which is not a block device"
+as_root chmod 0666 "$LOOPDEV" || true
 echo "$LOOPDEV" > "$DIR/loopdev"
 echo "   $LOOPDEV"
 

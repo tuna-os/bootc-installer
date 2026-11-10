@@ -22,7 +22,6 @@ import subprocess
 from gi.repository import Adw, GLib, Gtk
 
 from bootc_installer.views.done import apply_icon
-from bootc_installer.windows.dialog_recovery import BootcRecoveryDialog
 from bootc_installer.windows.dialog_poweroff import BootcPoweroffDialog
 
 _IN_FLATPAK = os.path.exists("/.flatpak-info")
@@ -77,7 +76,6 @@ class BootcDefaultWelcome(Adw.Bin):
     page_header = Gtk.Template.Child()
     row_install = Gtk.Template.Child()
     row_bluetooth = Gtk.Template.Child()
-    row_recovery = Gtk.Template.Child()
     row_poweroff = Gtk.Template.Child()
     btn_credits = Gtk.Template.Child()
 
@@ -129,7 +127,6 @@ class BootcDefaultWelcome(Adw.Bin):
         # signals
         self.row_install.connect("activated", self.__install)
         self.row_bluetooth.connect("activated", self.__on_bluetooth_clicked)
-        self.row_recovery.connect("activated", self.__on_recovery_clicked)
         self.row_poweroff.connect("activated", self.__on_poweroff_clicked)
         self.btn_credits.connect("clicked", self.__on_credits_clicked)
 
@@ -185,9 +182,6 @@ class BootcDefaultWelcome(Adw.Bin):
                 continue
             except Exception:
                 return
-
-    def __on_recovery_clicked(self, row):
-        BootcRecoveryDialog(self.__window).show()
 
     def __on_poweroff_clicked(self, row):
         BootcPoweroffDialog(self.__window).show()

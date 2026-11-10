@@ -20,6 +20,27 @@ def build_auto_partition_recipe(disk) -> dict:
     }
 
 
+PAGE_FILESYSTEMS = ["xfs"]
+
+
+def filesystem_options(image_finals) -> tuple[list, int]:
+    """(the filesystems the user can pick, the index selected at the start).
+
+    shared/catalog/README.md, "Filesystem": the choices are the leaf's
+    `filesystems`, else its one `filesystem`, else the page's own list. The
+    selected one is the leaf's `filesystem`, else the first choice. The
+    image step gives the two as `supported_filesystems` and
+    `default_filesystem`.
+    """
+    finals = image_finals if isinstance(image_finals, dict) else {}
+    options = [fs for fs in (finals.get("supported_filesystems") or [])
+               if isinstance(fs, str) and fs]
+    if not options:
+        options = list(PAGE_FILESYSTEMS)
+    default = finals.get("default_filesystem") or ""
+    return options, options.index(default) if default in options else 0
+
+
 def build_disk_finals(
     partition_recipe: dict | None,
     filesystem: str,
