@@ -86,50 +86,81 @@ class TestConnCheckShouldShow(unittest.TestCase):
         self.assertTrue(mod.BootcDefaultConnCheck.should_show(object(), {}))
 
 
+class _Carousel:
+    """The pages of a wizard and which one is shown."""
+
+    def __init__(self, pages, position=0):
+        self.pages = pages
+        self.position = position
+
+    def get_position(self):
+        return float(self.position)
+
+    def get_nth_page(self, index):
+        return self.pages[int(index)]
+
+
 class TestConnCheckAsyncLogic(unittest.TestCase):
-    def _step(self):
-        return SimpleNamespace(
-            _BootcDefaultConnCheck__window=SimpleNamespace(next=MagicMock()),
-            _BootcDefaultConnCheck__step_num=2,
-            _BootcDefaultConnCheck__ignore_callback=False,
-            page_header=SimpleNamespace(icon_name=None, title=None, subtitle=None),
-            btn_recheck=MagicMock(),
-        )
+    """The page is at carousel index 2. The recipe's step number is 5: the
+    two differ whenever an earlier step is not shown, which is the case
+    the old `idx != step_num` test got wrong."""
+
+    def _step(self, mod):
+        cls = mod.BootcDefaultConnCheck
+        step = cls.__new__(cls)
+        pages = ["welcome", "companion", step, "image"]
+        self.carousel = _Carousel(pages)
+        step._BootcDefaultConnCheck__window = SimpleNamespace(
+            next=MagicMock(), back=MagicMock(), carousel=self.carousel)
+        step._BootcDefaultConnCheck__step_num = 5
+        step._BootcDefaultConnCheck__last_index = 0
+        step._BootcDefaultConnCheck__going_back = False
+        step._BootcDefaultConnCheck__check_run = 0
+        step.page_header = SimpleNamespace(icon_name=None, title=None, subtitle=None)
+        step.btn_recheck = MagicMock()
+        return step
+
+    def _show(self, step, index):
+        self.carousel.position = index
+        step._BootcDefaultConnCheck__on_page_changed(self.carousel, float(index))
 
     def test_conn_check_ignores_other_carousel_pages(self):
         mod = _import_conn_check_fresh()
-        step = self._step()
+        step = self._step(mod)
 
         with patch.object(mod, "RunAsync") as run_async:
-            mod.BootcDefaultConnCheck._BootcDefaultConnCheck__conn_check(step, None, 99)
+            self._show(step, 1)
+            self._show(step, 3)
 
         run_async.assert_not_called()
         step._BootcDefaultConnCheck__window.next.assert_not_called()
 
-    def test_conn_check_success_advances_to_next_page(self):
+    def test_conn_check_runs_on_its_own_page_whatever_the_step_number(self):
         mod = _import_conn_check_fresh()
-        step = self._step()
+        step = self._step(mod)
         mock_sock = MagicMock()
 
         with patch.object(mod, "RunAsync", _SyncRunAsync), patch.object(
             mod.socket, "create_connection", return_value=mock_sock
         ) as create_conn:
-            mod.BootcDefaultConnCheck._BootcDefaultConnCheck__conn_check(step, None, 2)
+            self._show(step, 1)
+            self._show(step, 2)
 
         step._BootcDefaultConnCheck__window.next.assert_called_once_with()
+        step._BootcDefaultConnCheck__window.back.assert_not_called()
         create_conn.assert_called()
         mock_sock.close.assert_called_once()
         step.btn_recheck.set_visible.assert_not_called()
 
     def test_conn_check_failure_updates_header_and_reveals_retry(self):
         mod = _import_conn_check_fresh()
-        step = self._step()
+        step = self._step(mod)
 
         # Both fallback targets fail → connection check returns False.
         with patch.object(mod, "RunAsync", _SyncRunAsync), patch.object(
             mod.socket, "create_connection", side_effect=OSError("offline")
         ):
-            mod.BootcDefaultConnCheck._BootcDefaultConnCheck__conn_check(step, None, 2)
+            self._show(step, 2)
 
         step._BootcDefaultConnCheck__window.next.assert_not_called()
         self.assertEqual(
@@ -144,31 +175,68 @@ class TestConnCheckAsyncLogic(unittest.TestCase):
 
     def test_conn_check_skip_env_bypasses_network_request(self):
         mod = _import_conn_check_fresh()
-        step = self._step()
+        step = self._step(mod)
 
         with patch.object(mod, "RunAsync", _SyncRunAsync), patch.dict(
             mod.os.environ, {"VANILLA_SKIP_CONN_CHECK": "1"}, clear=False
         ), patch.object(mod.socket, "create_connection") as create_conn:
-            mod.BootcDefaultConnCheck._BootcDefaultConnCheck__conn_check(step, None, 2)
+            self._show(step, 2)
 
         step._BootcDefaultConnCheck__window.next.assert_called_once_with()
         create_conn.assert_not_called()
 
-    def test_ignore_callback_suppresses_navigation_after_back_click(self):
+    def test_back_from_a_later_page_keeps_going_back(self):
+        """Back from the image page reaches this page, the check passes,
+        and the wizard goes back once more. It used to go forward again."""
         mod = _import_conn_check_fresh()
-        step = self._step()
-        mock_sock = MagicMock()
-
-        mod.BootcDefaultConnCheck._BootcDefaultConnCheck__on_btn_back_clicked(step, None, 1)
+        step = self._step(mod)
 
         with patch.object(mod, "RunAsync", _SyncRunAsync), patch.object(
-            mod.socket, "create_connection", return_value=mock_sock
+            mod.socket, "create_connection", return_value=MagicMock()
         ):
-            mod.BootcDefaultConnCheck._BootcDefaultConnCheck__conn_check(step, None, 2)
+            self._show(step, 3)
+            self._show(step, 2)
 
-        self.assertFalse(step._BootcDefaultConnCheck__ignore_callback)
+        step._BootcDefaultConnCheck__window.back.assert_called_once_with()
         step._BootcDefaultConnCheck__window.next.assert_not_called()
         step.btn_recheck.set_visible.assert_not_called()
+
+    def test_answer_that_arrives_after_the_user_left_is_dropped(self):
+        mod = _import_conn_check_fresh()
+        step = self._step(mod)
+        pending = []
+
+        class _Deferred:
+            def __init__(self, task_func, callback=None, *a, **kw):
+                pending.append((task_func, callback))
+
+        with patch.object(mod, "RunAsync", _Deferred), patch.object(
+            mod.socket, "create_connection", return_value=MagicMock()
+        ):
+            self._show(step, 2)
+            self._show(step, 1)          # the user pressed Back meanwhile
+            task, callback = pending[0]
+            callback(task(), None)
+
+        step._BootcDefaultConnCheck__window.next.assert_not_called()
+        step._BootcDefaultConnCheck__window.back.assert_not_called()
+
+    def test_check_again_goes_forward(self):
+        mod = _import_conn_check_fresh()
+        step = self._step(mod)
+
+        with patch.object(mod, "RunAsync", _SyncRunAsync), patch.object(
+            mod.socket, "create_connection", side_effect=OSError("offline")
+        ):
+            self._show(step, 3)
+            self._show(step, 2)          # back, and offline: the page stays
+        with patch.object(mod, "RunAsync", _SyncRunAsync), patch.object(
+            mod.socket, "create_connection", return_value=MagicMock()
+        ):
+            step._BootcDefaultConnCheck__on_btn_recheck_clicked(MagicMock())
+
+        step._BootcDefaultConnCheck__window.next.assert_called_once_with()
+        step._BootcDefaultConnCheck__window.back.assert_not_called()
 
 
 if __name__ == "__main__":

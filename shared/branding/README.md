@@ -103,7 +103,7 @@ about to be erased.
 | `progress_title`, `progress_note` | while fisherman runs |
 | `step_<step_id>` | the label of the install step that is running |
 | `recovery_key_title`, `recovery_key_body`, `recovery_key_copy`, `recovery_key_ack` | the recovery-key panel after a TPM enrolment |
-| `done_title`, `done_subtitle`, `done_restart`, `done_failed_title` | the done page |
+| `done_title`, `done_subtitle`, `done_restart`, `done_failed_title`, `done_cancelled_title` | the done page: installed, failed, or stopped by the user (fisherman exit code 130) |
 | `store_label` | the store link on the done page, shown only when `store_url` is set |
 
 ### Encryption choices

@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import subprocess
 import threading
 import time
@@ -95,6 +96,51 @@ def do_reboot(in_flatpak):
     return False
 
 
+# fisherman's exit code after a cancel (shared/recipe/README.md).
+EXIT_CANCELLED = 130
+
+
+def exit_code_hint(exit_code) -> str:
+    """The line for an exit code that says why by itself, or "".
+
+    The wrapper is `pkexec fisherman -` (or sudo). pkexec exits 126 when
+    the user closes the password prompt and 127 when the authorization
+    fails; bash also uses 126 and 127 for a helper it cannot run or cannot
+    find. In each case fisherman did not start, so the log has no reason.
+    """
+    if exit_code == 126:
+        return _("The administrator password prompt was closed, or the installer "
+                 "helper cannot run. Nothing was changed on the disk. Try again.")
+    if exit_code == 127:
+        return _("The installer did not get administrator rights, or its helper "
+                 "program is missing. Nothing was changed on the disk.")
+    if exit_code == EXIT_CANCELLED:
+        return _("The installation was stopped before it finished. "
+                 "The disk can hold a partial system that does not start.")
+    return ""
+
+
+def valid_boot_id(boot_id) -> bool:
+    """An EFI boot entry number as fisherman reports it: four hex digits."""
+    return isinstance(boot_id, str) and re.fullmatch(r"[0-9A-Fa-f]{4}", boot_id) is not None
+
+
+def bootnext_argv(boot_id: str, in_flatpak: bool, use_sudo: bool):
+    """The command that sets BootNext, or None when this process has no
+    way to run it as root.
+
+    A write to an EFI variable needs root. The only privileged path that
+    needs no second password is the one the install itself used on live
+    media outside a Flatpak: passwordless sudo. `-n` makes sudo fail at
+    once when it would ask. Everywhere else (pkexec) the call would open a
+    password prompt at restart, so it is not made: fisherman must set
+    BootNext while it is root (#318).
+    """
+    if in_flatpak or not use_sudo or not valid_boot_id(boot_id):
+        return None
+    return ["sudo", "-n", "efibootmgr", "--bootnext", boot_id]
+
+
 def _set_picture(picture, spec: str) -> None:
     """A GResource path (/org/...) or a host file path onto a Gtk.Picture."""
     if spec.startswith("/org/"):
@@ -141,10 +187,20 @@ class BootcDone(Adw.Bin):
 
         parent.prepend(self.store_qr)
 
-    def set_result(self, result, terminal, boot_id="", elapsed_secs=0, image_ref=None):
+    def set_result(self, result, terminal, boot_id="", elapsed_secs=0, image_ref=None,
+                   exit_code=None, cancelled=False, message=None):
+        """Show the result of an install.
+
+        `exit_code` is the wrapper's; 126, 127 and 130 have lines of their
+        own. `cancelled` (the user stopped it, or fisherman exited 130)
+        shows the cancelled page, not the failure page. `message` is a
+        reason the caller already has (an unreadable --autoinstall recipe).
+        """
         self.__terminal = terminal
         self.__boot_id = boot_id
         from bootc_installer.utils import copy as copy_text
+
+        cancelled = bool(cancelled) or exit_code == EXIT_CANCELLED
 
         if result:
             self.page_header.icon_name = "object-select-symbolic"
@@ -177,12 +233,24 @@ class BootcDone(Adw.Bin):
             # the first `bootc upgrade` after reboot finds a hot connection.
             if image_ref:
                 GLib.timeout_add_seconds(30, self.__schedule_registry_warmup, image_ref)
+        elif cancelled:
+            # Not a failure: the user asked for it (#299).
+            self.page_header.icon_name = "process-stop-symbolic"
+            self.page_header.title = (copy_text.text(self.__window, "done_cancelled_title")
+                                      or _("Installation cancelled"))
+            self.page_header.subtitle = exit_code_hint(EXIT_CANCELLED)
+            self.store_group.set_visible(False)
+            self.btn_reboot.set_visible(False)
+            self.btn_close.set_visible(True)
+            self.btn_retry.set_visible(True)
+            self.btn_log.remove_css_class("suggested-action")
         else:
             self.page_header.icon_name = "dialog-error-symbolic"
             self.page_header.title = (copy_text.text(self.__window, "done_failed_title")
                                       or _("Installation failed"))
-            # Try to extract the last failed step from the log for a helpful message
-            hint = self.__extract_failure_hint()
+            # A reason the caller has, then an exit code that says why by
+            # itself, then the last fatal line of the log.
+            hint = message or exit_code_hint(exit_code) or self.__extract_failure_hint()
             self.page_header.subtitle = hint
             self.store_group.set_visible(False)
             self.btn_reboot.set_visible(False)
@@ -251,20 +319,25 @@ class BootcDone(Adw.Bin):
         in_flatpak = os.path.exists("/.flatpak-info")
 
         if self.__boot_id:
-            # Set BootNext so the firmware boots the newly installed drive on
-            # the next boot, even if the install media is still plugged in.
-            try:
-                if in_flatpak:
-                    subprocess.run(
-                        ["flatpak-spawn", "--host", "efibootmgr", "--bootnext", self.__boot_id],
-                        check=True,
-                    )
-                else:
-                    subprocess.run(["efibootmgr", "--bootnext", self.__boot_id], check=True)
-            except Exception as e:
-                # Non-fatal — the user can always pick the right entry in the
-                # BIOS/UEFI boot menu if this fails.
-                log.warning("Could not set BootNext to %s: %s", self.__boot_id, e)
+            # BootNext makes the firmware start the installed disk once,
+            # even with the install media still plugged in. It was set with
+            # an unprivileged efibootmgr, which cannot write an EFI variable
+            # and so always failed (#318). See bootnext_argv for the one
+            # case that can work from here.
+            from bootc_installer.views.progress import _use_sudo
+            argv = bootnext_argv(self.__boot_id, in_flatpak, _use_sudo())
+            if argv is None:
+                log.info("BootNext not set for Boot%s: no root path without a "
+                         "password prompt; the firmware boot order decides",
+                         self.__boot_id)
+            else:
+                try:
+                    subprocess.run(argv, check=True, capture_output=True, timeout=15)
+                    log.info("BootNext set to Boot%s", self.__boot_id)
+                except (OSError, subprocess.SubprocessError) as e:
+                    # Non-fatal: the user can pick the entry in the
+                    # firmware's boot menu.
+                    log.warning("Could not set BootNext to %s: %s", self.__boot_id, e)
 
         if not do_reboot(in_flatpak):
             self.__show_reboot_error()
@@ -281,8 +354,9 @@ class BootcDone(Adw.Bin):
         self.__window.close()
 
     def __on_retry_clicked(self, button):
-        """Navigate back to confirm screen and re-trigger install."""
-        self.__window.on_installation_confirmed()
+        """Run the install again. The window goes to the progress page
+        first and refuses while an install is running (#307)."""
+        self.__window.retry_installation()
 
     def __on_log_clicked(self, button):
         dialog = BootcDialogOutput(self.__window)

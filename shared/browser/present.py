@@ -73,6 +73,9 @@ def _run_gnome(cap, cmd_file, state_file):
         win = cap.BootcWindow(application=app)
         win.set_default_size(1000, 700)
         win.present()
+        # The image choice decides which pages exist; make it before the
+        # page list is read, as the capture harness does.
+        cap._choose_image(win)
         carousel = win.carousel
         names = [cap._page_name(carousel.get_nth_page(i))
                  for i in range(carousel.get_n_pages())]

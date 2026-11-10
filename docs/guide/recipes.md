@@ -143,17 +143,41 @@ flatpak run org.bootcinstaller.Installer --autoinstall /path/to/recipe.json
 > **Warning:** An autoinstall erases the disk in the recipe and asks for no confirmation.
 > Make sure that `disk` is the correct device.
 
-To start an autoinstall at boot, add a systemd unit to the live image:
+The installer checks the recipe before it starts.
+It reads the file and asks `fisherman validate` about each field.
+If the file has a problem, the result page gives the reason. The installer does not change the disk.
 
-**`/usr/lib/systemd/system/bootc-installer-auto.service`**
+In the Flatpak, a path below `/etc/` is the `/etc` of the host.
+The installer reads `/run/host/etc/...` for you.
+
+To start an autoinstall at boot, add a systemd user unit to the live image.
+A user unit starts in the desktop session of the live user, so the installer has a display.
+A system unit has no display and cannot show the window.
+
+**`/usr/lib/systemd/user/bootc-installer-auto.service`**
 ```ini
 [Unit]
 Description=Unattended bootc install
-After=graphical.target
+After=graphical-session.target
+PartOf=graphical-session.target
 
 [Service]
 ExecStart=flatpak run org.bootcinstaller.Installer --autoinstall /etc/bootc-installer/autoinstall.json
+
+[Install]
+WantedBy=graphical-session.target
 ```
+
+Enable the unit for each user when you build the image:
+
+```bash
+systemctl --global enable bootc-installer-auto.service
+```
+
+The installer starts fisherman with `pkexec`.
+Without a polkit rule, `pkexec` asks for a password and the install waits.
+Add the rule for the live user that [Live ISO integration](../live-iso.md#polkit-setup) gives.
+The rule must allow the action `org.freedesktop.policykit.exec`.
 
 To set only some default values and keep the wizard, use a partial recipe.
 Refer to [Customise the installer for your image](customising.md).

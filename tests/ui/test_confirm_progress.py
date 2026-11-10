@@ -40,8 +40,9 @@ class _DummyWindow:
         # progress.py __setup_fallback_panel reads window.recipe
         self.recipe = {}
 
-    def set_installation_result(self, *args):
+    def set_installation_result(self, *args, **kwargs):
         self.results.append(args)
+        self.result_kwargs = kwargs
 
 
 class _ImmediateThread:
@@ -62,7 +63,7 @@ class TestConfirmScreen:
             {"language": "pt_BR.UTF-8"},
             {"keyboard": [{"layout": "us", "variant": ""}, {"layout": "br", "variant": "abnt2"}]},
             {"timezone": {"region": "America", "zone": "Sao_Paulo"}},
-            {"users": {"username": "jorge", "fullname": "Jorge Castro"}},
+            {"user": {"username": "jorge", "fullname": "Jorge Castro"}},
             {"disk": {"auto": {"disk": "/dev/nvme0n1", "pretty_size": "1 TB",
                                "model": "WD_BLACK SN850X"},
                       "filesystem": "btrfs"}},

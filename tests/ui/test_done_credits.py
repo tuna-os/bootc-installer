@@ -59,6 +59,7 @@ def _make_done(window):
         },
         close=MagicMock(),
         on_installation_confirmed=MagicMock(),
+        retry_installation=MagicMock(),
     )
     widget = BootcDone(controller)
     window.set_child(widget)
@@ -161,7 +162,11 @@ class TestDoneScreen:
             done.btn_log.emit("clicked")
             _pump()
 
-        controller.on_installation_confirmed.assert_called_once_with()
+        # Try Again goes through the window's retry path, which shows the
+        # progress page and refuses a second start; tests/ui/
+        # test_install_flow.py drives that on the real window (#307).
+        controller.retry_installation.assert_called_once_with()
+        controller.on_installation_confirmed.assert_not_called()
         controller.close.assert_called_once_with()
         dialog_cls.assert_called_once_with(controller)
         dialog.present.assert_called_once_with()

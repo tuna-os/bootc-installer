@@ -43,14 +43,15 @@ class BootcDefaultConnCheck(Adw.Bin):
         self.__step_num = step["num"]
         self.delta = False
 
-        self.__ignore_callback = False
+        # Which carousel page was shown before this one, and a counter that
+        # drops the answer of a check the user has already left.
+        self.__last_index = 0
+        self.__going_back = False
+        self.__check_run = 0
 
         # signals
         self.btn_recheck.connect("clicked", self.__on_btn_recheck_clicked)
-        self.__window.carousel.connect("page-changed", self.__conn_check)
-        self.__window.btn_back.connect(
-            "clicked", self.__on_btn_back_clicked, self.__window.carousel.get_position()
-        )
+        self.__window.carousel.connect("page-changed", self.__on_page_changed)
 
     @property
     def step_id(self):
@@ -63,14 +64,33 @@ class BootcDefaultConnCheck(Adw.Bin):
     def get_finals(self):
         return {}
 
-    def __on_btn_back_clicked(self, data, idx):
-        if idx + 1 != self.__step_num:
-            return
-        self.__ignore_callback = True
+    def test_auto_advance(self):
+        """Nothing to press: the page moves on by itself when the check
+        passes (BOOTC_TEST and the demo tests call this on every step)."""
 
-    def __conn_check(self, carousel=None, idx=None):
-        if idx is not None and idx != self.__step_num:
+    def __is_current(self) -> bool:
+        carousel = self.__window.carousel
+        return carousel.get_nth_page(int(carousel.get_position())) is self
+
+    def __on_page_changed(self, carousel, idx):
+        # The page itself is compared, not the recipe's step number: steps
+        # that are not shown (should_show) move every later index, so the
+        # number named another page and the check ran on the wrong one, or
+        # never.
+        idx = int(idx)
+        previous, self.__last_index = self.__last_index, idx
+        if carousel.get_nth_page(idx) is not self:
+            self.__check_run += 1  # the user left; drop a pending answer
             return
+        # Reached with Back from a later page: keep going back when the
+        # check passes. It used to go forward again, so Back could not
+        # pass this page.
+        self.__going_back = previous > idx
+        self._run_check()
+
+    def _run_check(self):
+        self.__check_run += 1
+        run = self.__check_run
 
         def async_fn():
             if "VANILLA_SKIP_CONN_CHECK" in os.environ:
@@ -91,12 +111,14 @@ class BootcDefaultConnCheck(Adw.Bin):
             return False
 
         def callback(res, *args):
-            if self.__ignore_callback:
-                self.__ignore_callback = False
+            if run != self.__check_run or not self.__is_current():
                 return
 
             if res:
-                self.__window.next()
+                if self.__going_back:
+                    self.__window.back()
+                else:
+                    self.__window.next()
                 return
 
             self.page_header.icon_name = "network-wired-disconnected-symbolic"
@@ -115,4 +137,5 @@ class BootcDefaultConnCheck(Adw.Bin):
         self.page_header.subtitle = (
             _("Please wait until the connection check is done")
         )
-        self.__conn_check()
+        self.__going_back = False
+        self._run_check()

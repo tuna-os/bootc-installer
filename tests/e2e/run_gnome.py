@@ -42,6 +42,11 @@ _sys["images"] = [{
     "needs_user_creation": False,
 }]
 _sys["imgref"] = _sys["images"][0]["imgref"]
+# The shipped recipe has an image step that offers the whole catalog. This
+# run installs the one image above, so it takes the step out, as the recipe
+# loader does on live media; `imgref` then names the image. The other
+# steps (the connection check included) run as shipped.
+_sys["steps"].pop("image", None)
 _sys["log_file"] = os.path.join(E2E_DIR, "gnome-install.log")
 _sys_path = os.path.join(E2E_DIR, "gnome-sys-recipe.json")
 with open(_sys_path, "w") as fh:

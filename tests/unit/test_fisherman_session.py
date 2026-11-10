@@ -396,3 +396,170 @@ class FishermanSessionStdinTests(unittest.TestCase):
             argvs[use_sudo] = popen.call_args.args[0][-1]
         self.assertTrue(argvs[True].startswith("sudo /usr/local/bin/fisherman -"))
         self.assertTrue(argvs[False].startswith("pkexec /usr/local/bin/fisherman -"))
+
+
+class RecipeIsDroppedTests(unittest.TestCase):
+    """#316: the recipe holds the passphrase; the session kept it for the
+    life of the process."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, self.tmp, True)
+        self.cache_dir = os.path.join(self.tmp, "cache")
+
+    def _session(self, popen):
+        return FishermanSession(
+            _RECIPE, in_flatpak=False, stage_base=self.tmp, cache_dir=self.cache_dir,
+            host_path=os.path.join(self.cache_dir, "fisherman"),
+            log_path=os.path.join(self.cache_dir, "fisherman-output.log"),
+            popen=popen)
+
+    def test_the_recipe_is_dropped_after_the_write_to_stdin(self):
+        session = self._session(lambda argv, **kw: _fake_popen())
+        session.launch()
+        self.assertIsNone(session._recipe)
+        self.assertNotIn("s3cret", repr(vars(session)))
+
+    def test_the_recipe_is_dropped_when_the_write_fails(self):
+        def popen(argv, **kw):
+            proc = _fake_popen()
+            proc.stdin.write.side_effect = BrokenPipeError()
+            return proc
+        session = self._session(popen)
+        session.launch()
+        self.assertIsNone(session._recipe)
+
+
+class RecoveryKeyRedactionTests(unittest.TestCase):
+    """#316: the key is on the recovery-key page and nowhere else."""
+
+    KEY = "mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf"
+
+    def _log(self):
+        return "\n".join([
+            '{"type":"step","step":8,"total_steps":9,"step_name":"Enrolling TPM2"}',
+            '{"type":"recovery_key","key":"' + self.KEY + '"}',
+            '{"type": "recovery_key", "key": "' + self.KEY + '", "message": "keep"}',
+            "Recovery key: " + self.KEY,
+            "systemd-cryptenroll: recovery key is " + self.KEY + " (stderr)",
+            '{"type":"complete","message":"Installation complete!"}',
+            "",
+        ])
+
+    def test_every_form_of_the_key_is_removed(self):
+        from bootc_installer.utils.fisherman_session import REDACTED, redact_recovery_key
+        out = redact_recovery_key(self._log(), self.KEY)
+        self.assertNotIn(self.KEY, out)
+        self.assertEqual(out.count(REDACTED), 4)
+        # The rest of the log is what fisherman wrote.
+        self.assertIn('"step_name":"Enrolling TPM2"', out)
+        self.assertIn('"message": "keep"', out)
+        self.assertIn('"type":"complete"', out)
+        self.assertEqual(len(out.split("\n")), len(self._log().split("\n")))
+
+    def test_events_are_redacted_without_knowing_the_key(self):
+        """The log dialog reads the file with no session in hand."""
+        from bootc_installer.utils.fisherman_session import redact_recovery_key
+        out = redact_recovery_key(self._log())
+        for line in out.split("\n")[1:4]:
+            self.assertNotIn(self.KEY, line)
+
+    def test_a_key_field_of_another_event_is_left_alone(self):
+        from bootc_installer.utils.fisherman_session import redact_recovery_key
+        line = '{"type":"info","key":"value","message":"x"}'
+        self.assertEqual(redact_recovery_key(line), line)
+
+    def test_empty_text_and_empty_key(self):
+        from bootc_installer.utils.fisherman_session import redact_recovery_key
+        self.assertEqual(redact_recovery_key(""), "")
+        self.assertEqual(redact_recovery_key("plain line", ""), "plain line")
+
+    def test_read_log_redacted(self):
+        from bootc_installer.utils.fisherman_session import read_log_redacted
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "log")
+            with open(path, "w") as fh:
+                fh.write(self._log())
+            self.assertNotIn(self.KEY, read_log_redacted(path, self.KEY))
+            self.assertIsNone(read_log_redacted(os.path.join(tmp, "absent")))
+
+    def test_scrub_rewrites_the_file_and_keeps_its_mode(self):
+        from bootc_installer.utils.fisherman_session import scrub_log_file
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "log")
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT, 0o600)
+            os.write(fd, self._log().encode())
+            os.close(fd)
+            self.assertTrue(scrub_log_file(path, self.KEY))
+            with open(path) as fh:
+                text = fh.read()
+            self.assertNotIn(self.KEY, text)
+            self.assertIn('"type":"complete"', text)
+            self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+
+    def test_scrub_of_a_missing_log_is_not_an_error(self):
+        from bootc_installer.utils.fisherman_session import scrub_log_file
+        self.assertTrue(scrub_log_file("/nonexistent/dir/fisherman-output.log", self.KEY))
+
+    def test_scrub_removes_a_log_it_cannot_rewrite(self):
+        """A missing log is better than a key on disk."""
+        from bootc_installer.utils import fisherman_session
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "log")
+            with open(path, "w") as fh:
+                fh.write(self._log())
+            real_open = os.open
+
+            def refuse(p, flags, *a, **kw):
+                if p == path and flags & os.O_TRUNC:
+                    raise PermissionError("read-only")
+                return real_open(p, flags, *a, **kw)
+
+            with patch.object(fisherman_session.os, "open", side_effect=refuse):
+                self.assertTrue(fisherman_session.scrub_log_file(path, self.KEY))
+            self.assertFalse(os.path.exists(path))
+
+    def test_scrub_does_not_follow_a_symlink(self):
+        from bootc_installer.utils.fisherman_session import scrub_log_file
+        with tempfile.TemporaryDirectory() as tmp:
+            target = os.path.join(tmp, "target")
+            with open(target, "w") as fh:
+                fh.write(self._log())
+            link = os.path.join(tmp, "log")
+            os.symlink(target, link)
+            scrub_log_file(link, self.KEY)
+            with open(target) as fh:
+                self.assertIn(self.KEY, fh.read(), "the link's target was rewritten")
+            self.assertFalse(os.path.lexists(link))
+
+
+class RequestCancelTests(unittest.TestCase):
+    """The Cancel button's signal: sent to the wrapper's group, no wait."""
+
+    def _session(self, proc):
+        session = FishermanSession(_RECIPE, in_flatpak=False)
+        session.proc = proc
+        return session
+
+    def test_signals_the_group_and_does_not_wait(self):
+        proc = _fake_popen(pid=4242, poll_sequence=(None,))
+        session = self._session(proc)
+        with patch("bootc_installer.utils.fisherman_session.os.killpg") as killpg:
+            self.assertTrue(session.request_cancel())
+        killpg.assert_called_once_with(4242, signal.SIGTERM)
+        proc.wait.assert_not_called()
+
+    def test_nothing_to_cancel_after_exit_or_before_launch(self):
+        session = self._session(_fake_popen(poll_sequence=(0,)))
+        with patch("bootc_installer.utils.fisherman_session.os.killpg") as killpg:
+            self.assertFalse(session.request_cancel())
+            self.assertFalse(self._session(None).request_cancel())
+        killpg.assert_not_called()
+
+    def test_falls_back_to_the_wrapper_when_the_group_is_gone(self):
+        proc = _fake_popen(poll_sequence=(None,))
+        session = self._session(proc)
+        with patch("bootc_installer.utils.fisherman_session.os.killpg",
+                   side_effect=ProcessLookupError()):
+            self.assertTrue(session.request_cancel())
+        proc.terminate.assert_called_once()

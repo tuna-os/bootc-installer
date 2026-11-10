@@ -1,25 +1,17 @@
 {
     "log_file": "/var/log/bootc-installer.log",
     "distro_logo": "",
-    "imgref": "ghcr.io/projectbluefin/dakota:latest",
-    "images": [
-        {
-            "name": "Bluefin",
-            "imgref": "ghcr.io/projectbluefin/dakota:latest",
-            "bootloader": "systemd",
-            "filesystem": "xfs",
-            "composefs": true,
-            "needs_user_creation": false,
-            "flatpak_var_path": "state/os/default/var",
-            "filesystems": [
-                "xfs",
-                "btrfs"
-            ]
-        }
-    ],
     "steps": {
         "welcome": {
             "template": "welcome",
+            "protected": true
+        },
+        "conn-check": {
+            "template": "conn-check",
+            "protected": true
+        },
+        "image": {
+            "template": "image",
             "protected": true
         },
         "qr_companion": {

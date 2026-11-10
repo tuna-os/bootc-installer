@@ -87,7 +87,78 @@ def _find_nvidia_imgref_for(imgref: str) -> str:
     return _search(tree)
 
 
+def _nvidia_image_is_on_media(nvidia_imgref: str) -> bool:
+    """Whether the NVIDIA image can be installed without a download: the
+    host booted from live media and fisherman's probe lists that image in
+    an offline store (offline.images)."""
+    from bootc_installer.core.system import Systeminfo
+    if not Systeminfo.is_live():
+        return False
+    return nvidia_imgref in Systeminfo.offline_images()
+
+
 class Processor:
+    @staticmethod
+    def image_plan(finals: list, sys_recipe: dict) -> dict:
+        """Which image is installed and which one updates follow.
+
+        Returns {"selected", "install", "track"}: the image the user (or the
+        recipe) chose, the image that is written to the disk, and the image
+        `bootc upgrade` follows. They differ only for a catalog entry with
+        an `nvidia_imgref`. gen_install_recipe and the confirm page both
+        read this, so the page names the image that is installed (#314).
+        `install` is the registry reference; a `local_imgref` source
+        override is applied by gen_install_recipe afterwards.
+        """
+        merged = {}
+        for step_finals in finals:
+            if isinstance(step_finals, dict):
+                merged.update(step_finals)
+
+        # In Flatpak mode: finals contain "selected_image" or "custom_image" from the UI.
+        # In live ISO mode: the image step is skipped; recipe["imgref"] holds the remote
+        # tracking ref and optional "local_imgref" holds the install source override.
+        image = merged.get("custom_image", "") or merged.get("selected_image", "")
+        if not image:
+            image = sys_recipe.get("imgref", "")
+        if not image:
+            # Fall back to first default-marked image in the recipe images list
+            for img in sys_recipe.get("images", []):
+                if img.get("default", False):
+                    image = img.get("imgref", "")
+                    break
+        if not image and sys_recipe.get("images"):
+            image = sys_recipe["images"][0].get("imgref", "")
+
+        plan = {"selected": image, "install": image, "track": image}
+
+        # NVIDIA: a catalog entry can name an nvidia_imgref.
+        nvidia_imgref = merged.get("nvidia_imgref", "")
+        if not nvidia_imgref and image:
+            nvidia_imgref = _find_nvidia_imgref_for(image)
+        if nvidia_imgref:
+            from bootc_installer.core.system import Systeminfo
+            if Systeminfo.has_nvidia_gpu():
+                # NVIDIA present: install nvidia, track nvidia for updates
+                plan["install"] = nvidia_imgref
+                plan["track"] = nvidia_imgref
+                logger.info(f"NVIDIA GPU detected: using {nvidia_imgref} for install and updates")
+            elif _nvidia_image_is_on_media(nvidia_imgref):
+                # No NVIDIA, but the live media carries only the nvidia
+                # image: install it without a download and track the base
+                # image, so bootc moves to the lighter image on first update.
+                plan["install"] = nvidia_imgref
+                logger.info(
+                    f"No NVIDIA GPU: installing {nvidia_imgref} (from live media), "
+                    f"tracking {image} for updates"
+                )
+            else:
+                # No NVIDIA and nothing on media: a network install pulls
+                # the image the user chose. It used to pull the larger
+                # nvidia image here and name the base one on the confirm page.
+                logger.info(f"No NVIDIA GPU: installing {image}")
+        return plan
+
     @staticmethod
     def recipe_names_disk(recipe: dict) -> bool:
         """Whether the fisherman recipe names a target disk.
@@ -189,50 +260,17 @@ class Processor:
                     encryption_type = "tpm2-luks"
 
         # --- Image / OCI ref ---
-        # In Flatpak mode: finals contain "selected_image" or "custom_image" from the UI.
-        # In live ISO mode: the image step is skipped; recipe["imgref"] holds the remote
-        # tracking ref and optional "local_imgref" holds the install source override.
-        image = merged.get("custom_image", "") or merged.get("selected_image", "")
-        if not image:
-            image = sys_recipe.get("imgref", "")
-        if not image:
-            # Fall back to first default-marked image in the recipe images list
-            for img in sys_recipe.get("images", []):
-                if img.get("default", False):
-                    image = img.get("imgref", "")
-                    break
-        if not image and sys_recipe.get("images"):
-            image = sys_recipe["images"][0].get("imgref", "")
+        # image_plan resolves the chosen image and the NVIDIA variant; the
+        # confirm page reads the same plan.
+        plan = Processor.image_plan(finals, sys_recipe)
+        image = plan["install"]
         if not image:
             logger.warning("No image/imgref found in finals or sys_recipe!")
 
         # target_imgref is always the remote registry reference written into the
         # installed system so that bootc upgrade tracks the correct upstream image.
-        target_imgref = image
-        metadata_imgref = image  # catalog identity before NVIDIA/source overrides
-
-        # NVIDIA auto-detection: if the selected image has a nvidia_imgref in the
-        # manifest, use the nvidia image as the install source (it's on the ISO)
-        # and set targetImgref based on whether NVIDIA hardware is present.
-        nvidia_imgref = merged.get("nvidia_imgref", "")
-        if not nvidia_imgref:
-            nvidia_imgref = _find_nvidia_imgref_for(image)
-        if nvidia_imgref:
-            from bootc_installer.core.system import Systeminfo
-            if Systeminfo.has_nvidia_gpu():
-                # NVIDIA present: install nvidia, track nvidia for updates
-                image = nvidia_imgref
-                target_imgref = nvidia_imgref
-                logger.info(f"NVIDIA GPU detected: using {nvidia_imgref} for install and updates")
-            else:
-                # No NVIDIA: install nvidia (it's on the ISO), but track the base image
-                # so bootc rebases to the lighter image on first update
-                target_imgref = image  # base (non-nvidia) imgref
-                image = nvidia_imgref  # install from the nvidia image on the ISO
-                logger.info(
-                    f"No NVIDIA GPU: installing {nvidia_imgref} (from ISO), "
-                    f"tracking {target_imgref} for updates"
-                )
+        target_imgref = plan["track"]
+        metadata_imgref = plan["selected"]  # catalog identity before NVIDIA/source overrides
 
         # local_imgref (live ISO only) is an optional install *source* override — e.g.
         # "containers-storage:ghcr.io/org/image:tag" for offline installs from a

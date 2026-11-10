@@ -196,3 +196,40 @@ def test_no_route_shows_unavailable_and_no_address(tmp_path):
         assert companion.address_label.get_text() == ""
         assert not companion.copy_button.get_sensitive()
         assert not RecordingServer.any_running()
+
+
+def _choose_catalog_image(window, needs_account):
+    """Select a catalog image on the image page and press its Next, as the
+    user does. Returns False when the catalog has no such image."""
+    image = page_by_key(window, "image")
+    rows = [row for row in image._BootcDefaultImage__leaf_rows if bool(row[6]) == needs_account]
+    if not rows:
+        return False
+    rows[0][1].set_active(True)
+    pump()
+    assert image.get_finals()["needs_user_creation"] == needs_account
+    image.btn_next.emit("clicked")
+    pump(0.3)
+    return True
+
+
+def test_the_shipped_recipe_decides_the_companion_from_the_image_chosen(tmp_path):
+    """#315 with #305: the shipped recipe has an image step, so whether an
+    account is made is known only after the image is chosen. The companion
+    and the account page follow that choice, and both come after the image
+    page."""
+    with real_window(tmp_path) as window:
+        assert page_by_key(window, "image") is not None
+        if not _choose_catalog_image(window, needs_account=True):
+            pytest.skip("the catalog has no image that needs an account")
+        keys = [getattr(p, "_bootc_step_key", "") for p in pages(window)]
+        assert "qr_companion" in keys and "user" in keys
+        assert keys.index("image") < keys.index("qr_companion") < keys.index("user")
+        assert not RecordingServer.any_running(), "the server ran before its page"
+
+    with real_window(tmp_path) as window:
+        if not _choose_catalog_image(window, needs_account=False):
+            pytest.skip("each catalog image needs an account")
+        assert page_by_key(window, "qr_companion") is None
+        assert page_by_key(window, "user") is None
+        assert not any(s.started for s in RecordingServer.instances)
