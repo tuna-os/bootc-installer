@@ -469,6 +469,34 @@ func TestCatalogWithoutAFileIsEmpty(t *testing.T) {
 
 // The GPU: a PCI display device whose vendor is 0x10de. A network card of
 // that vendor, or a display device of another, is not one.
+// shared/probe/fixtures/pci/cases.json: a PCI display device with NVIDIA's
+// vendor id, and nothing else, is an NVIDIA GPU.
+func TestHasNvidiaGPUFollowsThePciFixture(t *testing.T) {
+	pci := filepath.Join("..", "..", "..", "shared", "probe", "fixtures", "pci")
+	data, err := os.ReadFile(filepath.Join(pci, "cases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Cases []struct {
+			Name      string `json:"name"`
+			Devices   string `json:"devices"`
+			HasNvidia bool   `json:"has_nvidia"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixture.Cases) < 4 {
+		t.Fatalf("%d cases", len(fixture.Cases))
+	}
+	for _, c := range fixture.Cases {
+		if got := hasNvidiaGPU(filepath.Join(pci, c.Devices)); got != c.HasNvidia {
+			t.Errorf("%s: hasNvidiaGPU = %v, want %v", c.Name, got, c.HasNvidia)
+		}
+	}
+}
+
 func TestHasNvidiaGPU(t *testing.T) {
 	device := func(root, name, vendor, class string) {
 		dir := filepath.Join(root, name)

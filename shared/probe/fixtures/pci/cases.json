@@ -1,0 +1,11 @@
+{
+  "comment": "PCI sysfs trees (/sys/bus/pci/devices) and whether the machine has an NVIDIA GPU: a display device (class 0x03xxxx) with vendor 0x10de. README.md, \"NVIDIA GPU\".",
+  "cases": [
+    {"name": "nvidia-display", "devices": "nvidia-display", "has_nvidia": true},
+    {"name": "nvidia-3d-hybrid", "devices": "nvidia-3d-hybrid", "has_nvidia": true},
+    {"name": "nvidia-non-display", "devices": "nvidia-non-display", "has_nvidia": false},
+    {"name": "other-vendor-display", "devices": "other-vendor-display", "has_nvidia": false},
+    {"name": "none", "devices": "none", "has_nvidia": false},
+    {"name": "no-pci-tree", "devices": "missing", "has_nvidia": false}
+  ]
+}

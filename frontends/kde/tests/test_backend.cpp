@@ -130,6 +130,7 @@ private slots:
     void catalogLiveMediaReadsTheLeafOfTheLiveImage();
     void catalogSelectionReplacesThePreviousLeaf();
     void catalogNvidiaDetection();
+    void nvidiaDetectionFollowsThePciFixture();
     void catalogFilesystemProblemReachesTheDiskStep();
     // #302: the shared group list and the operator's.
     void accountGroupsAreTheSharedFile();
@@ -2188,6 +2189,23 @@ void BackendTest::catalogSelectionReplacesThePreviousLeaf()
     c.setHostname(QStringLiteral("my-box"));
     select("registry.example/os/boreal:latest");
     QCOMPARE(c.hostname(), QStringLiteral("my-box"));
+}
+
+void BackendTest::nvidiaDetectionFollowsThePciFixture()
+{
+    // shared/probe/fixtures/pci/cases.json: a PCI display device with
+    // NVIDIA's vendor id, and nothing else, is an NVIDIA GPU.
+    const QString pci = QStringLiteral(PROBE_FIXTURES_DIR "/pci");
+    QFile file(pci + QStringLiteral("/cases.json"));
+    QVERIFY2(file.open(QIODevice::ReadOnly), qPrintable(file.fileName()));
+    const QJsonArray cases = QJsonDocument::fromJson(file.readAll()).object().value(QStringLiteral("cases")).toArray();
+    QVERIFY(cases.size() >= 4);
+    for (const QJsonValue &v : cases) {
+        const QJsonObject row = v.toObject();
+        QVERIFY2(imagecatalog::hasNvidiaGpuInDevices(pci + QLatin1Char('/') + row.value(QStringLiteral("devices")).toString())
+                     == row.value(QStringLiteral("has_nvidia")).toBool(),
+                 qPrintable(row.value(QStringLiteral("name")).toString()));
+    }
 }
 
 void BackendTest::catalogNvidiaDetection()

@@ -92,6 +92,9 @@ ImageChoice sourceAndTarget(const Leaf &leaf, bool hasNvidia, bool isLive,
 // True when a PCI display device of vendor 0x10de is below
 // `<sysRoot>/bus/pci/devices`. The probe does not report the GPU yet.
 bool hasNvidiaGpu(const QString &sysRoot = QStringLiteral("/sys"));
+// The same scan over one PCI device directory (`<sys>/bus/pci/devices`);
+// shared/probe/fixtures/pci holds the cases.
+bool hasNvidiaGpuInDevices(const QString &pciDevices);
 
 // Where load() looks, in order (shared/catalog/README.md): the system
 // file, its legacy name, the user's file, then the packaged catalog. `etc`

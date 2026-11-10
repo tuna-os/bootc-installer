@@ -264,7 +264,12 @@ ImageChoice sourceAndTarget(const Leaf &leaf, bool hasNvidia, bool isLive,
 
 bool hasNvidiaGpu(const QString &sysRoot)
 {
-    const QDir devices(sysRoot + QStringLiteral("/bus/pci/devices"));
+    return hasNvidiaGpuInDevices(sysRoot + QStringLiteral("/bus/pci/devices"));
+}
+
+bool hasNvidiaGpuInDevices(const QString &pciDevices)
+{
+    const QDir devices(pciDevices);
     const auto read = [](const QString &path) {
         QFile f(path);
         return f.open(QIODevice::ReadOnly) ? QString::fromLatin1(f.readAll()).trimmed().toLower()

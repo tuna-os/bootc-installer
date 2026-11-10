@@ -256,6 +256,26 @@ mod tests {
     }
 
     #[test]
+    fn nvidia_detection_follows_the_shared_pci_fixture() {
+        // shared/probe/fixtures/pci/cases.json: a PCI display device with
+        // NVIDIA's vendor id, and nothing else, is an NVIDIA GPU.
+        let pci = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../shared/probe/fixtures/pci");
+        let text = std::fs::read_to_string(pci.join("cases.json")).unwrap();
+        let fixture: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let cases = fixture["cases"].as_array().unwrap();
+        assert!(cases.len() >= 4);
+        for case in cases {
+            let devices = pci.join(case["devices"].as_str().unwrap());
+            assert_eq!(
+                has_nvidia_gpu_in(&devices),
+                case["has_nvidia"].as_bool().unwrap(),
+                "{case}"
+            );
+        }
+    }
+
+    #[test]
     fn network_settings_open_on_the_host_with_the_cosmic_tool_first() {
         let argv = network_settings_command();
         assert_eq!(argv[..2], ["sh", "-c"]);
