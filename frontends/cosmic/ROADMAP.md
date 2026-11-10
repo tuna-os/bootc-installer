@@ -1,63 +1,45 @@
-# TunaOS COSMIC Installer — Roadmap
+# COSMIC frontend roadmap
 
-**Last updated**: 2026-08-30 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-11-10
 
----
+This frontend (libcosmic / iced, Rust) is one of five in the `tuna-os/bootc-installer`
+monorepo. It has no plan of its own. The plan for all five is the root
+[ROADMAP.md](../../ROADMAP.md).
 
-## Mission
+The repository `tuna-os/tuna-installer-cosmic` does not exist any more. An issue
+number in this file is an issue in `tuna-os/bootc-installer`.
 
-Ship the COSMIC desktop's install experience: a real `cosmic::Application`
-frontend that gathers the user's choices, writes the fisherman recipe, and
-presents the backend's progress and result — so a first-time COSMIC user gets
-a native, polished install from first boot to desktop.
+## Where to look
 
----
+| Topic | Document |
+|---|---|
+| The plan for the monorepo | [ROADMAP.md](../../ROADMAP.md) |
+| The move from the old repository, and the issues that were open then | [docs/MIGRATION.md](../../docs/MIGRATION.md) |
+| The path from `dev` to `prod`, and how the Flatpak ships | [docs/RELEASE.md](../../docs/RELEASE.md) |
+| The contracts that all five frontends share | [shared/](../../shared/) |
+| The screens of all five frontends, with the parity matrix | [docs/walkthrough/](../../docs/walkthrough/README.md) |
+| What each frontend renders and does | [docs/PARITY.md](../../docs/PARITY.md) |
+| The rules for this tree | [AGENTS.md](AGENTS.md) |
 
-## Current Status
+## Open items for this frontend
 
-- **App**: libcosmic (Iced/Rust) frontend for the fisherman bootc backend —
-  six screens (welcome, disk selection, options, confirmation, install
-  progress, completion), CI-rendered walkthrough in docs/screenshots.
-- **Distribution**: image-baked flatpak (`org.tunaos.InstallerCosmic`) — no
-  standalone GitHub Releases (by design, not yet documented as policy).
-- **Parity**: covered by `installer-smoke.yml` + `docs/INSTALLER-FRONTENDS.md`
-  checks (readiness stamp, non-blank, advances, per-screen OCR).
-- **Health**: active (pushed 08-24); open issues concentrate on install-recipe
-  hardening (#39/#40/#41) and backend privilege boundary (#38).
+The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 
-### Priorities
+| Issue | Gap |
+|---|---|
+| #286 | The catalog bootloader, composefs and filesystem do not reach the recipe |
+| #289 | Off live media, the frontend ignores the branding `default_image` |
+| #293 | The phone companion sends the account password over plain HTTP |
+| #290 | The Flatpak builds fisherman, but does not stage it or verify its SHA256 |
+| #300 | The frontend has no translatable strings |
+| #105 | Five libcosmic patches for the browser build must go upstream |
+| #299 | The result page reports a cancel as a failure |
+| #301 | An offline user gets no help to connect |
+| #288 | The default for `needs_user_creation` is not the same in every frontend |
+| #292 | Language, keyboard and time zone do not reach the installed system |
+| #296 | The catalog's Flatpak list for an image does not reach the recipe; COSMIC installs three GNOME apps |
+| #297 | `nvidia_imgref`, `flatpak_var_path` and `targetImgref` from the catalog do not all reach the recipe |
+| #302 | The first account is only in `wheel` |
 
-| Priority | Item | Tracking | Status |
-|----------|------|----------|--------|
-| P0 | Install-recipe hardening — unpredictable recipe path, 0600 mode honored | #39/#41 | ✅ Complete |
-| P0 | Unpin `cargo-sources` generation (flatpak-cargo-generator.py) | #40 | 🟡 Open |
-| P1 | Privileged install backend — only unpinned binary in the image | #38 | 🟡 Open |
-| P1 | Parity reporting — only frontend that emits no parity signal | #36 | 🟡 Open |
-| P2 | ROADMAP-coverage entry in org ROADMAP tally | #1295 | ⬜ Not started |
-
----
-
-## Quarterly Goals
-
-### Current Quarter (2026 Q3)
-
-**Theme**: harden the install path
-
-| Goal | Owner | Tracking | Status |
-|------|-------|----------|--------|
-| Install-recipe path and permission hardening | hanthor | #39/#41 | ✅ Complete |
-| Pin cargo-sources generator and Python dependencies | hanthor | #40 | 🟡 In progress |
-| Decide backend privilege boundary | hanthor | #38 | ⬜ Not started |
-
-### Next Quarter (2026 Q4)
-
-**Theme**: parity and cadence
-
-| Goal | Owner | Tracking | Status |
-|------|-------|----------|--------|
-| Emit parity signal like the other frontends | hanthor | #36 | ⬜ Not started |
-| Document release/versioning model (image-baked vs tagged) | tuna-os | (org #2020) | ⬜ Not started |
-
----
-
-*ROADMAP added by strategist agent (ACMM L6 — full mode). Signed-off-by: hanthor-hive-agent[bot] <290068839+hanthor-hive-agent[bot]@users.noreply.github.com>*
+When you close one of these issues, remove its row.
+`tests/unit/test_frontend_roadmaps.py` examines this file.

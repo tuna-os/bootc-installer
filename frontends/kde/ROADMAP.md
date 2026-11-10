@@ -1,62 +1,42 @@
-# TunaOS KDE Installer — Roadmap
+# KDE Plasma frontend roadmap
 
-**Last updated**: 2026-08-29 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-11-10
 
----
+This frontend (Qt 6 / Kirigami, C++ and QML) is one of five in the `tuna-os/bootc-installer`
+monorepo. It has no plan of its own. The plan for all five is the root
+[ROADMAP.md](../../ROADMAP.md).
 
-## Mission
+The repository `tuna-os/tuna-installer-kde` does not exist any more. An issue
+number in this file is an issue in `tuna-os/bootc-installer`.
 
-Ship the KDE desktop's install experience: a thin Qt 6 / Kirigami wizard
-(built the way KDE's own KISS initial-setup is built — self-contained
-`SetupModule` steps) that drives the fisherman bootc backend, so a first-time
-Plasma user gets a native install from first boot to desktop.
+## Where to look
 
----
+| Topic | Document |
+|---|---|
+| The plan for the monorepo | [ROADMAP.md](../../ROADMAP.md) |
+| The move from the old repository, and the issues that were open then | [docs/MIGRATION.md](../../docs/MIGRATION.md) |
+| The path from `dev` to `prod`, and how the Flatpak ships | [docs/RELEASE.md](../../docs/RELEASE.md) |
+| The contracts that all five frontends share | [shared/](../../shared/) |
+| The screens of all five frontends, with the parity matrix | [docs/walkthrough/](../../docs/walkthrough/README.md) |
+| What each frontend renders and does | [docs/PARITY.md](../../docs/PARITY.md) |
+| The rules for this tree | [AGENTS.md](AGENTS.md) |
 
-## Current Status
+## Open items for this frontend
 
-- **App**: Qt 6 / Kirigami (Plasma 6) frontend for fisherman — modular
-  steps under `modules/<name>/contents/ui/main.qml`; CI-rendered walkthrough
-  in docs/gui-walkthrough.md.
-- **Distribution**: image-baked flatpak (`org.tunaos.InstallerKde`) — no
-  standalone GitHub Releases (by design, not yet documented as policy).
-- **Parity**: covered by `installer-smoke.yml` + `docs/INSTALLER-FRONTENDS.md`
-  checks (readiness stamp, non-blank, advances, per-screen OCR).
-- **Health**: active (pushed 08-29); install-recipe secrets handling shipped in
-  #35, backend coverage from #29 was extended in #42, and the unpinned
-  privileged backend (#33) remains open.
+The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 
-### Priorities
+| Issue | Gap |
+|---|---|
+| #287 | The catalog filesystem does not reach the recipe, so a composefs image gives a recipe that fisherman rejects |
+| #290 | The Flatpak builds fisherman, but does not stage it or verify its SHA256 |
+| #299 | Cancel does not ask first, and the result page reports a cancel as a failure |
+| #300 | The frontend has no translatable strings |
+| #301 | An offline user gets no help to connect |
+| #288 | The default for `needs_user_creation` is not the same in every frontend |
+| #292 | Language, keyboard and time zone do not reach the installed system |
+| #296 | The catalog's Flatpak list for an image does not reach the recipe |
+| #297 | `nvidia_imgref`, `flatpak_var_path` and `targetImgref` from the catalog do not all reach the recipe |
+| #302 | The first account is only in `wheel` |
 
-| Priority | Item | Tracking | Status |
-|----------|------|----------|--------|
-| P0 | Install-recipe secrets — LUKS passphrase in QTemporaryDir | #34/#35 | ✅ Complete |
-| P1 | Unpin privileged install backend embedded in flatpak | #33 | 🟡 Open |
-| P1 | Backend test coverage preserved | #29/#42 | ✅ Complete |
-| P2 | ROADMAP-coverage entry in org ROADMAP tally | #1295 | ⬜ Not started |
-
----
-
-## Quarterly Goals
-
-### Current Quarter (2026 Q3)
-
-**Theme**: harden the install path
-
-| Goal | Owner | Tracking | Status |
-|------|-------|----------|--------|
-| Green recipe-secrets handling (QTemporaryDir + perms) | hanthor | #34/#35 | ✅ Complete |
-| Unpin the privileged backend | hanthor | #33 | ⬜ Not started |
-
-### Next Quarter (2026 Q4)
-
-**Theme**: parity and cadence
-
-| Goal | Owner | Tracking | Status |
-|------|-------|----------|--------|
-| Backend test coverage | hanthor | #29/#42 | ✅ Complete early |
-| Document release/versioning model (image-baked vs tagged) | tuna-os | (org #2020) | ⬜ Not started |
-
----
-
-*ROADMAP added by strategist agent (ACMM L6 — full mode). Signed-off-by: hanthor-hive-agent[bot] <290068839+hanthor-hive-agent[bot]@users.noreply.github.com>*
+When you close one of these issues, remove its row.
+`tests/unit/test_frontend_roadmaps.py` examines this file.

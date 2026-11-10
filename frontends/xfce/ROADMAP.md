@@ -1,56 +1,46 @@
-# TunaOS XFCE Installer — Roadmap
+# XFCE frontend roadmap
 
-**Last updated**: 2026-08-24 | **Maintainer**: tuna-os (hanthor)
+**Last updated**: 2026-11-10
 
----
+This frontend (GTK3 / PyGObject) is one of five in the `tuna-os/bootc-installer`
+monorepo. It has no plan of its own. The plan for all five is the root
+[ROADMAP.md](../../ROADMAP.md).
 
-## Mission
+The repository `tuna-os/tuna-installer-xfce` does not exist any more. An issue
+number in this file is an issue in `tuna-os/bootc-installer`.
 
-Ship the XFCE desktop's install experience: a GTK3 frontend that drives the
-fisherman bootc backend — welcome, image selection, disk selection, filesystem
-and encryption, account, confirmation, install progress, completion — so a
-first-time XFCE user gets a native install from first boot to desktop.
+## Where to look
 
----
+| Topic | Document |
+|---|---|
+| The plan for the monorepo | [ROADMAP.md](../../ROADMAP.md) |
+| The move from the old repository, and the issues that were open then | [docs/MIGRATION.md](../../docs/MIGRATION.md) |
+| The path from `dev` to `prod`, and how the Flatpak ships | [docs/RELEASE.md](../../docs/RELEASE.md) |
+| The contracts that all five frontends share | [shared/](../../shared/) |
+| The screens of all five frontends, with the parity matrix | [docs/walkthrough/](../../docs/walkthrough/README.md) |
+| What each frontend renders and does | [docs/PARITY.md](../../docs/PARITY.md) |
+| The rules for this tree | [AGENTS.md](AGENTS.md) |
 
-## Current Status
+## Open items for this frontend
 
-- **App**: GTK3 frontend for fisherman; CI-rendered walkthrough in
-  docs/gui-walkthrough.md.
-- **Distribution**: image-baked flatpak — no standalone GitHub Releases (by
-  design, not yet documented as policy).
-- **Parity**: covered by `installer-smoke.yml` + `docs/INSTALLER-FRONTENDS.md`
-  checks (readiness stamp, non-blank, advances, per-screen OCR).
-- **Health**: active (pushed 08-24); 40 unit tests exist but nothing runs them
-  in CI (#23).
+The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 
-### Priorities
+| Issue | Gap |
+|---|---|
+| #294 | The phone companion server deadlocks on the first submission that it accepts |
+| #293 | The phone companion sends the account password over plain HTTP |
+| #295 | The frontend asks for the account password one time only, with no reveal toggle |
+| #298 | The Flatpak cannot see a host catalog in `/etc/bootc-installer` |
+| #289 | Off live media, the frontend ignores the branding `default_image` |
+| #290 | The Flatpak builds fisherman, but does not stage it or verify its SHA256 |
+| #300 | The frontend has no translatable strings |
+| #301 | An offline user gets no help to connect |
+| #299 | The result page reports a cancel as a failure |
+| #288 | The default for `needs_user_creation` is not the same in every frontend |
+| #292 | Language, keyboard and time zone do not reach the installed system |
+| #296 | The catalog's Flatpak list for an image does not reach the recipe |
+| #297 | `nvidia_imgref`, `flatpak_var_path` and `targetImgref` from the catalog do not all reach the recipe |
+| #302 | The first account is only in `wheel` |
 
-| Priority | Item | Tracking | Status |
-|----------|------|----------|--------|
-| P0 | Wire 40 existing unit tests into CI | #23 | 🟡 Open |
-| P2 | ROADMAP-coverage entry in org ROADMAP tally | #1295 | ⬜ Not started |
-
----
-
-## Quarterly Goals
-
-### Current Quarter (2026 Q3)
-
-**Theme**: make the test suite run
-
-| Goal | Owner | Tracking | Status |
-|------|-------|----------|--------|
-| Unit tests running in CI | hanthor | #23 | ⬜ Not started |
-
-### Next Quarter (2026 Q4)
-
-**Theme**: parity and cadence
-
-| Goal | Owner | Tracking | Status |
-|------|-------|----------|--------|
-| Document release/versioning model (image-baked vs tagged) | tuna-os | (org #2020) | ⬜ Not started |
-
----
-
-*ROADMAP added by strategist agent (ACMM L6 — full mode). Signed-off-by: hanthor-hive-agent[bot] <290068839+hanthor-hive-agent[bot]@users.noreply.github.com>*
+When you close one of these issues, remove its row.
+`tests/unit/test_frontend_roadmaps.py` examines this file.
