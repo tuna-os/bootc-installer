@@ -128,8 +128,8 @@ The recipe that each frontend writes for fisherman:
 `fisherman-recipe.schema.json`, the encryption choices, and the reader for
 `fisherman validate --json`. fisherman owns the rules; the schema must have
 each field of fisherman's `Recipe` struct.
-`tests/unit/test_shared_recipe_schema.py` examines that, and that the KDE copy
-is byte-identical. `tests/unit/test_shared_validate.py` and
+`tests/unit/test_shared_recipe_schema.py` examines that, and that no
+frontend keeps a second copy. `tests/unit/test_shared_validate.py` and
 `tests/unit/test_encryption_choices.py` cover the reader and the choices.
 `tests/unit/test_shared_contract_docs.py` fails when the schema changes
 with no new entry in [CHANGELOG.md](CHANGELOG.md). A new frontend builds
@@ -180,7 +180,7 @@ frontend reads the new fixture in the same pull request.
   fixture or a test case, and add an entry to `CHANGELOG.md`. The entry
   says which frontends use the addition and which do not yet.
 - **Change the recipe schema.** fisherman owns the recipe. Change
-  fisherman first, then the schema, then the KDE copy. Put the new sha256
+  fisherman first, then the schema. Put the new sha256
   of the schema in the `CHANGELOG.md` entry.
 - **Deprecate.** Do not remove a field, a key or a file in the commit that
   replaces it. First add a `CHANGELOG.md` entry with the word "Deprecated",

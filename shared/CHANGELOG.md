@@ -12,6 +12,23 @@ sure that it does. Do not edit the hash of an old entry: add an entry.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-10: data files, KDE reads `shared/`
+
+- Removed: KDE's copies of `recipe/fisherman-recipe.schema.json` (no code
+  read it), `branding/copy-defaults.json`, `recipe/encryption-choices.json`
+  and `account/groups.json`. The KDE build compiles the three data files
+  in from `shared/`. No contract changed. A schema change no longer has a
+  KDE copy to follow.
+
+## 2026-11-10: progress, the recovery key in a log
+
+- Added: `progress/recovery-key-cases.json` and
+  `progress/recovery-key-transcript.ndjson`. They pin the redacted form of
+  the `recovery_key` event in a log file and in a copy of the log
+  (`progress/README.md`, "Recovery key in a log"; #337).
+- GNOME and KDE test against them. XFCE and Niri keep a log file and do
+  not yet. COSMIC keeps no log file.
+
 ## 2026-11-10: one Python package, `python/bootc_shared`
 
 - Changed: the Python code of five contracts moved to one package.
