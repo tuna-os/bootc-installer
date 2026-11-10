@@ -119,7 +119,7 @@ pub fn order_locales(mut locales: Vec<String>, current: &str) -> Vec<String> {
     locales
 }
 
-/// Split `localectl list-keymaps` (console) output into keymap names.
+/// Split `localectl list-x11-keymap-layouts` output into layout names.
 pub fn parse_keymaps(output: &str) -> Vec<String> {
     output
         .lines()
@@ -159,9 +159,10 @@ pub fn apply_locale_command(locale: &str) -> Vec<String> {
     crate::offline::host_command(&["localectl", "set-locale", &format!("LANG={locale}")])
 }
 
-/// `localectl set-keymap ...` on the host. Best-effort.
+/// `localectl set-x11-keymap ...` on the host: the XKB layout, which
+/// localectl also converts to the console keymap. Best-effort.
 pub fn apply_keymap_command(keymap: &str) -> Vec<String> {
-    crate::offline::host_command(&["localectl", "set-keymap", keymap])
+    crate::offline::host_command(&["localectl", "set-x11-keymap", keymap])
 }
 
 /// `timedatectl set-timezone ...` on the host. Best-effort.
@@ -199,11 +200,13 @@ pub fn load_locales() -> Vec<String> {
     .unwrap_or_default()
 }
 
-/// `localectl list-keymaps` on the host.
+/// `localectl list-x11-keymap-layouts` on the host: the XKB layouts, the
+/// names the recipe's `keyboard.layout` takes. Console keymap names
+/// (`de-latin1`) are not XKB layouts.
 pub fn load_keymaps() -> Vec<String> {
     host_stdout(&crate::offline::host_command(&[
         "localectl",
-        "list-keymaps",
+        "list-x11-keymap-layouts",
     ]))
     .map(|o| parse_keymaps(&o))
     .unwrap_or_default()
@@ -280,7 +283,7 @@ mod tests {
         );
         assert_eq!(
             apply_keymap_command("fr"),
-            vec!["localectl", "set-keymap", "fr"]
+            vec!["localectl", "set-x11-keymap", "fr"]
         );
         assert_eq!(
             apply_timezone_command("Europe/Paris"),

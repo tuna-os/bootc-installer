@@ -46,6 +46,16 @@ pub struct Recipe {
     /// [`Recipe::accept_experimental`] before the recipe goes out.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub experimental: Vec<String>,
+    /// The language page's pick, `LANG` of the installed system (#292).
+    /// Left out until the user picks one: the image keeps its own.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub locale: String,
+    /// The keyboard page's pick: an XKB layout (#292).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keyboard: Option<Keyboard>,
+    /// The time zone page's pick, an IANA name (#292).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub timezone: String,
     /// Embedded OCI stores for offline installs (spec §4B).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub additional_image_stores: Vec<String>,
@@ -74,6 +84,17 @@ pub struct Extras {
     pub audio_names: bool,
     #[serde(default)]
     pub boot_splash: bool,
+}
+
+/// The recipe's `keyboard` block: XKB names. fisherman needs `layout`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Keyboard {
+    pub layout: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub variant: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub model: String,
 }
 
 /// The `experimental` list for a filesystem: fisherman refuses `zfs`
@@ -271,6 +292,9 @@ impl Default for Recipe {
             image_type: String::new(),
             extras: None,
             experimental: Vec::new(),
+            locale: String::new(),
+            keyboard: None,
+            timezone: String::new(),
             additional_image_stores: Vec::new(),
             distro_id: crate::branding::NEUTRAL_ID.into(),
             selinux_disabled: false,
@@ -340,6 +364,25 @@ mod tests {
         assert_eq!(groups_from_etc(etc), ["wheel", "video"]);
         std::fs::write(&file, "not json").unwrap();
         assert_eq!(groups_from_etc(etc), default_groups(), "a file that does not parse");
+    }
+
+    #[test]
+    fn the_region_keys_are_left_out_until_a_pick() {
+        let recipe = Recipe::default();
+        let json = serde_json::to_value(&recipe).unwrap();
+        for key in ["locale", "keyboard", "timezone"] {
+            assert!(json.get(key).is_none(), "{key}: {json}");
+        }
+        let recipe = Recipe {
+            locale: "de_DE.UTF-8".into(),
+            keyboard: Some(Keyboard { layout: "de".into(), ..Keyboard::default() }),
+            timezone: "Europe/Berlin".into(),
+            ..Recipe::default()
+        };
+        let json = serde_json::to_value(&recipe).unwrap();
+        assert_eq!(json["locale"], "de_DE.UTF-8");
+        assert_eq!(json["keyboard"], serde_json::json!({"layout": "de"}));
+        assert_eq!(json["timezone"], "Europe/Berlin");
     }
 
     #[test]
