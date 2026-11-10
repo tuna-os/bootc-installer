@@ -51,7 +51,7 @@ func TestEmbeddedGroupsAreTheSharedFile(t *testing.T) {
 		t.Fatalf("read the shared groups file: %v", err)
 	}
 	if string(shared) != string(groupsJSON) {
-		t.Fatal("installer/groups.json has drifted from shared/account/groups.json: copy the shared file over it")
+		t.Fatal("installer/groups.json has drifted from shared/account/groups.json: run `go generate ./...` in installer/")
 	}
 	defaults, file := sharedGroups()
 	if len(defaults) == 0 || !contains(defaults, "wheel") || !contains(defaults, "sudo") {

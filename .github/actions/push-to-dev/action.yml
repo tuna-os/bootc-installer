@@ -1,0 +1,64 @@
+name: Commit and push to dev
+description: >-
+  Commits the given paths as github-actions[bot] and pushes the commit to
+  dev, with a rebase and a retry when another bot commit won the race. Does
+  nothing when the paths have no change. The caller decides when it runs
+  (`if:`) and must have the repository checked out with push credentials.
+
+# One copy of the step that screenshots-<frontend>.yml (five) and
+# walkthrough.yml each carried. Use it after actions/checkout:
+#
+#   - uses: ./.github/actions/push-to-dev
+#     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+#     with:
+#       working-directory: frontends/kde
+#       paths: docs/screenshots
+#       message: "docs(kde): refresh GUI screenshots [skip ci]"
+
+inputs:
+  paths:
+    description: What to `git add`, relative to working-directory. Separate several paths with spaces.
+    required: true
+  message:
+    description: The commit message. Keep `[skip ci]` in it; promote.yml skips such commits as candidates.
+    required: true
+  working-directory:
+    description: Where to run, from the repository root. A step of a composite action does not take the caller's `defaults.run`.
+    required: false
+    default: .
+
+runs:
+  using: composite
+  steps:
+    - name: Commit and push
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        PATHS: ${{ inputs.paths }}
+        MESSAGE: ${{ inputs.message }}
+      run: |
+        # A job in a container runs as a user that does not own the
+        # checkout, and git then refuses the repository. On a hosted runner
+        # the line changes nothing.
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        read -ra paths <<<"$PATHS"
+        git add -- "${paths[@]}"
+        if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+        git commit -m "$MESSAGE"
+        # Five capture jobs and the walkthrough all push small commits to dev
+        # within seconds of each other, and a plain push loses the race with
+        # a non-fast-forward rejection (runs 35281231391/462/400 on the
+        # first dev push after the monorepo merge). Rebase onto whatever
+        # landed meanwhile and retry; these commits never touch the same
+        # files, so the rebase is always clean.
+        for attempt in 1 2 3 4 5 6; do
+          git fetch -q origin dev
+          git rebase -q origin/dev || { git rebase --abort; echo "::error::rebase onto dev failed"; exit 1; }
+          if git push origin HEAD:dev; then exit 0; fi
+          echo "push rejected (attempt $attempt); retrying"
+          sleep $((attempt * 5))
+        done
+        echo "::error::could not push after 6 attempts"
+        exit 1

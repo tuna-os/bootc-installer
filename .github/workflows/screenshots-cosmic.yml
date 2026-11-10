@@ -16,23 +16,21 @@ on:
   push:
     branches: [dev]
     paths:
-      - "shared/branding/**"
-      - "shared/catalog/**"
-      - "shared/account/**"
       - "frontends/cosmic/src/**"
       - "frontends/cosmic/tests/**"
       - "frontends/cosmic/Cargo.toml"
       - "frontends/cosmic/Cargo.lock"
+      - "shared/**"
+      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-cosmic.yml"
   pull_request:
     paths:
-      - "shared/branding/**"
-      - "shared/catalog/**"
-      - "shared/account/**"
       - "frontends/cosmic/src/**"
       - "frontends/cosmic/tests/**"
       - "frontends/cosmic/Cargo.toml"
       - "frontends/cosmic/Cargo.lock"
+      - "shared/**"
+      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-cosmic.yml"
   workflow_dispatch:
 
@@ -202,24 +200,8 @@ jobs:
 
       - name: commit refreshed screenshots
         if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/screenshots
-          if git diff --cached --quiet; then echo "no screenshot changes"; exit 0; fi
-          git commit -m "docs(cosmic): refresh GUI screenshots [skip ci]"
-          # Five capture jobs and the walkthrough all push small commits to dev
-          # within seconds of each other, and a plain push loses the race with
-          # a non-fast-forward rejection (runs 35281231391/462/400 on the
-          # first dev push after the monorepo merge). Rebase onto whatever
-          # landed meanwhile and retry; these commits never touch the same
-          # files, so the rebase is always clean.
-          for attempt in 1 2 3 4 5 6; do
-            git fetch -q origin dev
-            git rebase -q origin/dev || { git rebase --abort; echo "::error::rebase onto dev failed"; exit 1; }
-            if git push origin HEAD:dev; then exit 0; fi
-            echo "push rejected (attempt $attempt); retrying"
-            sleep $((attempt * 5))
-          done
-          echo "::error::could not push after 6 attempts"
-          exit 1
+        uses: ./.github/actions/push-to-dev
+        with:
+          working-directory: frontends/cosmic
+          paths: docs/screenshots
+          message: "docs(cosmic): refresh GUI screenshots [skip ci]"

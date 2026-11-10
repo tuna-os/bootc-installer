@@ -3,7 +3,7 @@
 > **Monorepo note.** This directory is one of five frontends in
 > `tuna-os/bootc-installer`. Every path below is relative to THIS directory.
 > Workflows referenced as `screenshots.yml` / `publish-flatpak.yml` / `ci.yml`
-> are now `.github/workflows/screenshots-cosmic.yml`, `publish-flatpak-cosmic.yml`
+> are now `.github/workflows/screenshots-cosmic.yml`, `publish-flatpak.yml` (`frontend: cosmic`)
 > (plus `ci-niri.yml` for the niri Go backend) at the repository root, running with
 > `working-directory: frontends/cosmic`. The shared recipe schema and screen
 > contract live in `../../shared/`. Do not add a `.github/` here.
@@ -83,6 +83,13 @@ groups), `validate.rs` (`fisherman validate` and the encryption choices),
 `i18n.rs` (`tr`), `readiness.rs`, `branding.rs`, `capture.rs` (the
 screenshot harness entry point).
 
+`build.rs` copies three data files from `../../shared/` into `OUT_DIR`:
+`branding/copy-defaults.json`, `recipe/encryption-choices.json` and
+`account/groups.json`. The code compiles them in from there. This tree has
+no copy of them. A build without the monorepo around it sets
+`TUNA_SHARED_DIR` to the path of `shared/`. The Flatpak manifest does that:
+it has `shared/` as a second source.
+
 ## How fisherman is reached
 
 `offline::fisherman_argv` is the one resolver for probe, validation and
@@ -133,9 +140,8 @@ through `tr`. `i18n.rs` says why this is a shim and not `fl!`.
   `validate_<code>` and holds Continue on it.
 - The account page writes the recipe's `user` block
   (`model::user_block`: username, fullname, password and the groups; left
-  out with no username). The groups are `src/account-groups.json`, a
-  byte-identical copy of `../../shared/account/groups.json` (a test holds
-  the two together), or the operator's `user.groups` in
+  out with no username). The groups are `../../shared/account/groups.json`, which
+  `build.rs` compiles in, or the operator's `user.groups` in
   `<etc>/bootc-installer/recipe.json`. The page is required unless the
   catalog says that the image on record makes its own first user; then the
   page is skipped and Confirm says so. A custom image that the catalog does
@@ -146,8 +152,8 @@ through `tr`. `i18n.rs` says why this is a shim and not `fl!`.
   (`install_outcome`, copy key `done_cancelled_title`). Its username goes into the same
   partial check; the password does not (the non-empty and typed-twice rules
   are this frontend's). A `user.*` problem holds only the account page.
-- Encryption choices are `src/encryption-choices.json`, fisherman's file
-  byte for byte, compiled in (`validate::choices`). Branch on
+- Encryption choices are `../../shared/recipe/encryption-choices.json`,
+  fisherman's file byte for byte, compiled in (`validate::choices`). Branch on
   `needs_passphrase` / `needs_tpm2`, never on the type's name.
 
 `../../shared/recipe/README.md` is the contract.

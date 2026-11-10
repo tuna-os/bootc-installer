@@ -3,7 +3,7 @@ name: CI (niri backend)
 # Go compile + vet + test for frontends/niri/installer. The tests also read
 # the shared catalog, account and recipe contracts and lint ui/*.qml for
 # text that is not translatable, hence the paths below. Nothing else gates
-# that module: publish-flatpak-niri only runs on promotion, and
+# that module: publish-flatpak (niri) only runs on promotion, and
 # screenshots-niri drives the QML UI.
 #
 # Moved here from tuna-os/tuna-installer-niri's ci.yml.
@@ -12,21 +12,15 @@ on:
   push:
     branches: [dev]
     paths:
-      - "shared/branding/**"
-      - "shared/catalog/**"
-      - "shared/account/**"
-      - "shared/recipe/**"
       - "frontends/niri/installer/**"
       - "frontends/niri/ui/**"
+      - "shared/**"
       - ".github/workflows/ci-niri.yml"
   pull_request:
     paths:
-      - "shared/branding/**"
-      - "shared/catalog/**"
-      - "shared/account/**"
-      - "shared/recipe/**"
       - "frontends/niri/installer/**"
       - "frontends/niri/ui/**"
+      - "shared/**"
       - ".github/workflows/ci-niri.yml"
   workflow_dispatch:
 

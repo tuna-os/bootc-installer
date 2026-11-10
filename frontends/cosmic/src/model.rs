@@ -100,10 +100,9 @@ pub struct User {
     pub groups: Vec<String>,
 }
 
-/// `shared/account/groups.json`, compiled in. A byte-identical copy: the
-/// Flatpak build sees only this directory, and a test holds the two files
-/// together.
-const ACCOUNT_GROUPS_JSON: &str = include_str!("account-groups.json");
+/// `shared/account/groups.json`, compiled in (build.rs copies it to
+/// OUT_DIR; the Flatpak sets TUNA_SHARED_DIR).
+const ACCOUNT_GROUPS_JSON: &str = include_str!(concat!(env!("OUT_DIR"), "/account-groups.json"));
 
 /// The supplementary groups of the first account when no operator file
 /// says otherwise (`shared/account/README.md`). `wheel` and `sudo` are the
@@ -304,12 +303,11 @@ mod tests {
     const SHARED_GROUPS: &str =
         concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/account/groups.json");
 
-    /// The compiled-in list is the shared file, byte for byte. A change to
-    /// either one alone fails here.
+    /// The compiled-in list is the shared file (build.rs copies it), and
+    /// default_groups() reads it.
     #[test]
     fn the_group_list_is_the_shared_file() {
         let shared = std::fs::read_to_string(SHARED_GROUPS).expect("shared/account/groups.json");
-        assert_eq!(ACCOUNT_GROUPS_JSON, shared, "src/account-groups.json drifted");
         let root: serde_json::Value = serde_json::from_str(&shared).unwrap();
         assert_eq!(serde_json::json!(default_groups()), root["default_groups"]);
         assert!(default_groups().contains(&"sudo".to_string()));

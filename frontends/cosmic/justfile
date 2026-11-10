@@ -25,7 +25,7 @@ test:
     cargo test --locked
 
 # Executes the tests and emits lcov.info in one build. This is the command a
-# CI job should run and upload, so the 45%/70% targets in codecov.yml stop
+# CI job should run and upload, so the 45%/70% targets in the root codecov.yml stop
 # being inert config -- nothing uploads a report today.
 #
 # Needs cargo-llvm-cov (`cargo install cargo-llvm-cov`) and the
