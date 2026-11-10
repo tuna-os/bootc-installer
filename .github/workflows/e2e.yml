@@ -192,7 +192,12 @@ jobs:
   kde:
     name: E2E (kde)
     runs-on: ubuntu-24.04
-    container: quay.io/fedora/fedora:45
+    container:
+      image: quay.io/fedora/fedora:45
+      # shared/e2e/setup.sh attaches a loop device as the target disk:
+      # fisherman refuses a regular file (disk_not_disk). A container gets
+      # the loop devices only when it is privileged.
+      options: --privileged
     timeout-minutes: 30
     defaults:
       run:

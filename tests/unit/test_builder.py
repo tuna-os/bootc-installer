@@ -139,14 +139,25 @@ class TestBuilder(unittest.TestCase):
         except Exception:
             pass
 
-    def test_init_exits_when_recipe_has_no_log_file(self):
+    def test_init_needs_no_log_file_and_creates_none(self):
+        """`log_file` is not required, and a recipe that has it gets no file:
+        the builder used to create /var/log/bootc-installer.log on each
+        start, and nothing wrote to it (#312)."""
         builder_mod, _ = _import_builder_fresh()
         builder_mod.RecipeLoader = lambda: _FakeRecipeLoader(
             {"distro_name": "Bluefin", "distro_logo": "logo.svg", "steps": {}}
         )
+        builder = builder_mod.Builder(types.SimpleNamespace())
+        self.assertEqual(builder.widgets, [])
 
-        with self.assertRaises(SystemExit):
+        builder_mod.RecipeLoader = lambda: _FakeRecipeLoader(
+            {"log_file": "builder.log", "distro_name": "Bluefin",
+             "distro_logo": "logo.svg", "steps": {}}
+        )
+        opener = mock_open()
+        with patch("builtins.open", opener):
             builder_mod.Builder(types.SimpleNamespace())
+        opener.assert_not_called()
 
     def test_load_registers_widgets_and_step_metadata(self):
         builder_mod, find_icon = _import_builder_fresh()
@@ -195,46 +206,6 @@ class TestBuilder(unittest.TestCase):
         )
         find_icon.assert_called_with("ghcr.io/projectbluefin/bluefin:latest")
         self.assertGreaterEqual(find_icon.call_count, 1)
-
-    def test_missing_log_file_is_created_when_absent(self):
-        builder_mod, _ = _import_builder_fresh()
-        builder_mod.templates = {}
-        recipe = {
-            "log_file": "builder.log",
-            "distro_name": "Bluefin",
-            "distro_logo": "logo.svg",
-            "steps": {},
-        }
-        builder_mod.RecipeLoader = lambda: _FakeRecipeLoader(recipe)
-
-        opener = mock_open()
-        with patch.object(builder_mod.os.path, "exists", return_value=False), patch(
-            "builtins.open", opener
-        ):
-            builder_mod.Builder(types.SimpleNamespace())
-
-        opener.assert_called_once_with("builder.log", "a")
-
-    def test_log_creation_failure_is_nonfatal(self):
-        builder_mod, _ = _import_builder_fresh()
-        builder_mod.templates = {}
-        recipe = {
-            "log_file": "builder.log",
-            "distro_name": "Bluefin",
-            "distro_logo": "logo.svg",
-            "steps": {},
-        }
-        builder_mod.RecipeLoader = lambda: _FakeRecipeLoader(recipe)
-
-        with patch.object(builder_mod.os.path, "exists", return_value=False), patch(
-            "builtins.open", side_effect=OSError("permission denied")
-        ), patch.object(builder_mod.logger, "warning") as warn_logger, patch.object(
-            builder_mod.logging, "warning"
-        ) as root_warn:
-            builder_mod.Builder(types.SimpleNamespace())
-
-        warn_logger.assert_called_once()
-        root_warn.assert_called_once()
 
     def test_display_condition_with_empty_output_skips_step(self):
         builder_mod, _ = _import_builder_fresh()

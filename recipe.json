@@ -1,5 +1,4 @@
 {
-    "log_file": "/var/log/bootc-installer.log",
     "distro_logo": "",
     "steps": {
         "welcome": {

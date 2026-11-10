@@ -158,11 +158,13 @@ class TestImageStep:
         finals = step.get_finals()
         assert "needs_user_creation" in finals
 
-    def test_flatpaks_in_finals(self, window):
+    def test_flatpaks_in_finals_only_as_a_list(self, window):
+        """The key is there only when the catalog has the list itself
+        (shared/catalog/README.md); never a list of the installer's own."""
         step = window.image_step
         finals = step.get_finals()
-        assert "flatpaks" in finals
-        assert isinstance(finals["flatpaks"], list)
+        if "flatpaks" in finals:
+            assert isinstance(finals["flatpaks"], list)
 
 
 # ── Wizard navigation ──────────────────────────────────────────────────────────
@@ -495,13 +497,14 @@ class TestEndToEnd:
         assert recipe["hostname"] == "ci-test-host"
         assert recipe["image"], "Image should be populated from image step finals"
         assert recipe["encryption"]["type"] == "none"
-        assert isinstance(recipe["flatpaks"], list)
+        # An image the user typed has no Flatpak list in the catalog: the
+        # key is left out, and fisherman applies its default.
+        assert "flatpaks" not in recipe
 
-    def test_recipe_generated_from_manual_disk(self, window):
-        """Manual partition layout produces customMounts in the recipe."""
+    def test_manual_disk_layout_is_refused(self, window):
+        """No page makes a manual layout (#312): the Processor refuses one."""
         from bootc_installer.utils.processor import Processor
 
-        # Select an image so the recipe is valid (no default in catalog).
         _set_custom_image(window.image_step, "ghcr.io/tuna-os/yellowfin:gnome50")
         image_finals = window.image_step.get_finals()
         disk_finals = {
@@ -511,18 +514,10 @@ class TestEndToEnd:
                 "/dev/sda3": {"fs": "xfs",   "mp": "/"},
             }
         }
-        enc_finals = {"encryption": {"use_encryption": False}}
-        hostname_finals = {"hostname": "manual-host"}
-
-        all_finals = [image_finals, disk_finals, enc_finals, hostname_finals]
-        recipe = Processor.gen_install_recipe("/dev/null", all_finals, _SYS_RECIPE)
-
-
-
-        assert "customMounts" in recipe
-        mounts_by_target = {m["target"]: m for m in recipe["customMounts"]}
-        assert "/" in mounts_by_target
-        assert "/boot/efi" in mounts_by_target
+        all_finals = [image_finals, disk_finals,
+                      {"encryption": {"use_encryption": False}}, {"hostname": "manual-host"}]
+        with pytest.raises(ValueError, match="Manual partition layouts"):
+            Processor.gen_install_recipe("/dev/null", all_finals, _SYS_RECIPE)
 
     def test_composefs_propagates_end_to_end(self, window):
         """composefs_backend=True in image finals → composeFsBackend in recipe."""

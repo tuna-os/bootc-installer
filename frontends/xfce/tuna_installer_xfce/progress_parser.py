@@ -201,7 +201,17 @@ def new_progress_state() -> dict:
         "fraction": 0.0,
         "boot_id": "",
         "recovery_key": "",
+        "error": None,
     }
+
+
+def _error_of(event: dict) -> dict:
+    """The parts of an `error` event a frontend shows or logs: `message`,
+    and `code` and `field` ("" from a fisherman that does not send them)."""
+    def text(key):
+        value = event.get(key, "")
+        return value if isinstance(value, str) else ""
+    return {"message": text("message"), "code": text("code"), "field": text("field")}
 
 
 def apply_progress_event(line: str, state: dict) -> dict | None:
@@ -213,6 +223,8 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
       "label"     — str for progressbar_text.set_label() (None = no change)
       "pulse"     — bool; True means switch bar to pulse mode
       "complete"  — bool; True means install finished
+    An `error` event returns the same dict with no change in it, plus
+      "error"     — {"message", "code", "field"}: why fisherman failed
     ``state`` is mutated in-place to track multi-line context.
     Returns None for non-JSON lines or events that require no UI change.
     """
@@ -300,6 +312,14 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
         state["recovery_key"] = event.get("recovery_key", state["recovery_key"])
         return {"fraction": 1.0, "label": "Installation complete!",
                 "pulse": False, "complete": True}
+
+    if event_type == "error":
+        # fisherman's reason for the failure. The last one is kept in the
+        # state: the frontend shows it when the process exits non-zero,
+        # instead of a search of the log for "fatal:".
+        state["error"] = _error_of(event)
+        return {"fraction": None, "label": None, "pulse": False, "complete": False,
+                "error": dict(state["error"])}
 
     return None
 

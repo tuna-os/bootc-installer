@@ -120,6 +120,30 @@ def exit_code_hint(exit_code) -> str:
     return ""
 
 
+def error_event_hint(error, text=None) -> str:
+    """The line the failure page shows for fisherman's `error` event.
+
+    `error` is {"message", "code", "field"} (the progress parser's form).
+    A `code` is one of `fisherman validate`'s, so the copy line for it
+    (`validate_<code>`, read through `text(key)`) is shown when this build
+    has one. Otherwise the line is fisherman's own message. "" when the
+    event has neither, and the caller then reads the log.
+    """
+    if not isinstance(error, dict):
+        return ""
+    code = error.get("code") or ""
+    if code and text is not None:
+        line = text("validate_" + code)
+        if line:
+            return line
+    message = " ".join(str(error.get("message") or "").split())
+    if not message:
+        return ""
+    if len(message) > 300:
+        message = message[:299] + "…"
+    return _("Error: {}").format(message)
+
+
 def valid_boot_id(boot_id) -> bool:
     """An EFI boot entry number as fisherman reports it: four hex digits."""
     return isinstance(boot_id, str) and re.fullmatch(r"[0-9A-Fa-f]{4}", boot_id) is not None
@@ -188,13 +212,15 @@ class BootcDone(Adw.Bin):
         parent.prepend(self.store_qr)
 
     def set_result(self, result, terminal, boot_id="", elapsed_secs=0, image_ref=None,
-                   exit_code=None, cancelled=False, message=None):
+                   exit_code=None, cancelled=False, message=None, error=None):
         """Show the result of an install.
 
         `exit_code` is the wrapper's; 126, 127 and 130 have lines of their
         own. `cancelled` (the user stopped it, or fisherman exited 130)
         shows the cancelled page, not the failure page. `message` is a
         reason the caller already has (an unreadable --autoinstall recipe).
+        `error` is fisherman's last `error` event: its message is the
+        reason for a failure, and the log is read only when there is none.
         """
         self.__terminal = terminal
         self.__boot_id = boot_id
@@ -249,8 +275,12 @@ class BootcDone(Adw.Bin):
             self.page_header.title = (copy_text.text(self.__window, "done_failed_title")
                                       or _("Installation failed"))
             # A reason the caller has, then an exit code that says why by
-            # itself, then the last fatal line of the log.
-            hint = message or exit_code_hint(exit_code) or self.__extract_failure_hint()
+            # itself, then fisherman's own `error` event (#64), then the
+            # last fatal line of the log.
+            hint = (message or exit_code_hint(exit_code)
+                    or error_event_hint(
+                        error, lambda key: copy_text.text(self.__window, key))
+                    or self.__extract_failure_hint())
             self.page_header.subtitle = hint
             self.store_group.set_visible(False)
             self.btn_reboot.set_visible(False)

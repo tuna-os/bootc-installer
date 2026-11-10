@@ -43,7 +43,7 @@ them.
 | `info` | `message` | Informational line |
 | `recovery_key` | `key` | LUKS recovery passphrase, for `tpm2-luks` |
 | `complete` | `message`, `boot_id` (optional), `overall_pct` | Install finished |
-| `error` | `message` | Terminal failure |
+| `error` | `message`, `code` (optional), `field` (optional) | Terminal failure. `code` and `field` are those of `fisherman validate` (`fisherman/docs/VALIDATE.md`), when the failure has one |
 
 ## Driving a progress bar
 

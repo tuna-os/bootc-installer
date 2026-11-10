@@ -7,7 +7,6 @@ sources = [
   'done.py',
   'progress.py',
   'recovery_key.py',
-  'tour.py',
 ]
 
 install_data(sources, install_dir: viewsdir)

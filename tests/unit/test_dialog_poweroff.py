@@ -2,16 +2,46 @@
 
 The dialog's rows used to call a bare `systemctl`, which does not exist in
 the flatpak sandbox; every row raised FileNotFoundError out of its signal
-handler. gi.repository is stubbed at import time, as in
-test_dialog_recovery.py.
+handler. gi.repository is stubbed at import time.
 """
 
 import importlib
 import sys
+import types
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-from tests.unit.test_dialog_recovery import _build_gi_stubs
+
+def _build_gi_stubs():
+    gi_mod = types.ModuleType("gi")
+    repo_mod = types.ModuleType("gi.repository")
+
+    class _Template:
+        def __call__(self, *args, **kwargs):
+            return lambda cls: cls
+
+        def Child(self, *args, **kwargs):
+            return None
+
+    class _Stub:
+        pass
+
+    gtk_mod = types.ModuleType("gi.repository.Gtk")
+    gtk_mod.Template = _Template()
+
+    adw_mod = types.ModuleType("gi.repository.Adw")
+    adw_mod.Window = _Stub
+
+    glib_mod = MagicMock()
+
+    for name, mod in [("Gtk", gtk_mod), ("Adw", adw_mod), ("GLib", glib_mod)]:
+        setattr(repo_mod, name, mod)
+        sys.modules[f"gi.repository.{name}"] = mod
+
+    gi_mod.repository = repo_mod
+    gi_mod.require_version = lambda *a, **kw: None
+    sys.modules["gi"] = gi_mod
+    sys.modules["gi.repository"] = repo_mod
 
 
 def _import_fresh():
