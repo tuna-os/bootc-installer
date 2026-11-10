@@ -49,36 +49,96 @@ quickshell ui/installer.qml
 
 ## Workflow
 
-1. **Welcome** — intro screen. Unmet RAM/CPU/UEFI requirements block here
-   (Continue anyway for RAM/CPU; power off or firmware setup for UEFI),
-   mirroring GNOME's `window_cpu`/`window_ram`/`window_unsupported`.
-2. **Session** — live-session keyboard, locale, timezone and connectivity
-   (`session-get`/`session-set`); nothing here enters the recipe.
-3. **Source** — live system or one `catalog` leaf per row, offline images
-   first; the leaf carries the image ref, filesystem default, bootloader,
-   composefs, flatpaks, `needs_user_creation` and tour slides.
-4. **Disk Selection** — calls `tuna-installer-niri discover-disks`, which renders `fisherman probe --json` (`../../shared/probe/README.md`)
-5. **Encryption** — offers supported LUKS and TPM-backed choices, plus the
-   filesystem (`xfs`/`ext4`/`btrfs`/`zfs`, default from the leaf) and btrfs
-   subvolumes under Advanced. The account step drops out when the leaf
-   sets `needs_user_creation: false`.
-6. **Account** — the user fisherman creates, in `wheel` (skipped per above).
-7. **Confirm** — summary with hostname input.
-8. **Install Progress** — streams the Go backend's output, with Cancel
-   (`cancel` kills the wrapper's process group), a Copy-log button and the
-   persistent log path (`detect`'s `logPath`, `log-path`).
-9. **Done** — success/failure, recovery key, restart, power dialog, and the
-   leaf's tour slides when it ships any.
+1. **Welcome**: the first screen. An unmet RAM, CPU or UEFI requirement
+   stops the wizard here. For RAM and CPU you can continue. For UEFI you
+   can only power off or open the firmware setup.
+2. **Session**: the keyboard, language and time zone of the live session,
+   and the network (`session-get`, `session-set`). The wizard sends only
+   the fields that you changed. A failure is a warning, and the wizard
+   continues. Off live media these fields are read-only. Nothing here goes
+   into the recipe.
+3. **Source**: the live system, or one row for each leaf of the catalog.
+   Offline images are first. Each row shows the product and the channel,
+   and a search box filters the list. The wizard selects the image that
+   `default_image` names in `branding.json`, then in the catalog. If no file
+   names one, you must select a row. When the image needs a download and
+   the network check fails, Continue stays off. The page then shows
+   **Network settings** and **Recheck**.
+4. **Disk**: the disks from `tuna-installer-niri discover-disks`, which
+   prints the disks of `fisherman probe --json`
+   (`../../shared/probe/README.md`).
+5. **Encryption**: the LUKS and TPM choices, and the filesystem under
+   Advanced. The filesystem list and its first value come from the image.
+   A reveal button shows the passphrase.
+6. **Account**: the first user. You type the password two times, and a
+   reveal button shows the two fields. The wizard has no account step when
+   the image sets `needs_user_creation` to `false`.
+7. **Confirm**: the summary and the hostname field.
+8. **Install**: the output of the backend, a **Copy log** button and the
+   path of the log file. **Cancel** and the window close button ask first.
+9. **Done**: one of three results: installed, cancelled or failed. An
+   installed system shows the recovery key, the restart button, the power
+   dialog and the tour slides of the image.
+
+## The catalog
+
+`tuna-installer-niri catalog` reads the image catalog and follows
+`../../shared/catalog/README.md`. It tries these files in order:
+
+1. `<etc>/bootc-installer/images.json`
+2. `<etc>/tuna-installer/images.json`
+3. `$XDG_CONFIG_HOME/bootc-installer/images.json`
+4. the catalog in the package
+
+`<etc>` is `/etc`. In a Flatpak it is `/run/host/etc`. A file that does not
+parse does not stop the search. `FISHERMAN_IMAGES_PATH` puts one file in
+front of the list for a test.
+
+For each leaf the command prints the recipe keys for this computer:
+`image`, `targetImgref`, `bootloader`, `composeFsBackend`, `flatpaks`,
+`flatpakVarPath` and `imageType`. The QML copies them into the recipe. On a
+computer with an NVIDIA GPU, a leaf with `nvidia_imgref` installs that
+image. The backend never downloads a Flatpak list. For a list that it
+cannot read offline it writes no `flatpaks` key.
+
+## How the backend runs fisherman
+
+`installer/offline.go` has the one function that finds fisherman:
+
+| Where | Binary | Install command |
+|---|---|---|
+| Native | `/usr/local/bin/fisherman` | `pkexec` |
+| Live media | `/usr/local/bin/fisherman` | `sudo -n` |
+| Flatpak | `$XDG_CACHE_HOME/bootc-installer/fisherman` | `pkexec` on the host |
+
+In a Flatpak the backend copies `/app/bin/fisherman` to that path. It then
+asks the host for the SHA256 of the copy. If the host does not give the
+same value, nothing runs. `probe`, `validate` and `install` all use this
+binary.
+
+The backend ends `install` with the exit code of fisherman. Code 130 is a
+cancelled install.
+
+## The account groups
+
+The QML sends no groups. The backend writes the default list of
+`../../shared/account/groups.json`, which `installer/groups.json` copies. An
+ISO builder replaces the list with `user.groups` in
+`<etc>/bootc-installer/recipe.json`.
+
+## Translation
+
+Each line of text is in `qsTr()`, or comes from a copy key of
+`branding.json` through `root.text()`. `installer/i18n_test.go` fails on a string in `ui/*.qml` that
+is in neither. No translation file ships yet.
 
 ## Parity notes
 
-- The phone companion (`bootc_installer/utils/phone_companion.py`) stays
-  GNOME-only: it needs an HTTP server, a QR encoder and credential
-  injection into the recipe, and `docs/PARITY.md` keeps locale/companion
-  steps GNOME-only by design with no fisherman rule behind them.
-- Keyboard/locale/timezone apply to the live session only (localectl,
-  timedatectl on the host). The fisherman recipe schema has no keys for
-  them, so an installed system inherits the image's own defaults.
+- The phone companion is only in the GNOME frontend.
+- Keyboard, language and time zone apply to the live session only
+  (`localectl` and `timedatectl` on the host). The pinned fisherman has no
+  recipe keys for them, so the installed system keeps the defaults of the
+  image.
 
 ## DBus Integration
 
@@ -94,10 +154,11 @@ GPL-3.0-only
 
 ## Offline installs
 
-`tuna-installer-niri detect` reports the live-ISO image and the probe's
-offline images as JSON; the QML layer offers "install this system, no
-download" on live media and marks offline catalog rows. The recipe leaves
-`additionalImageStores` out: fisherman exposes the host's stores itself.
+`tuna-installer-niri detect` prints the live image and the offline images
+from the probe as JSON. On live media the Source step offers the system
+that runs, with no download. It also marks each catalog row whose image is
+offline. The recipe has no `additionalImageStores`: fisherman finds the
+stores of the host.
 
 ## Testing
 
@@ -110,7 +171,7 @@ go test ./...
 
 ### Headless UI Screenshot Capture & Verification
 
-The installer UI can be rendered and tested headlessly without running a full Wayland/Quickshell compositor:
+The capture shows each page of the UI and tests it. It needs no Wayland compositor and no Quickshell:
 
 ```bash
 pip install PyQt6
