@@ -25,13 +25,19 @@ QtObject {
     property string written: ""
     function write(data) { written = data }
 
+    // The exit code the next run reports: 0, or what a harness sets to play
+    // a failed or cancelled (130) backend.
+    property int exitCode: 0
+
     // Canned backend output. Shapes match installer/main.go: `detect` returns
     // live facts, TPM and requirements (the harnesses set encryptionChoices
     // from installer/encryption-choices.json); `validate` answers "valid";
     // `discover-disks` returns the disks
     // fisherman's probe offers (installer/probe.go, ProbeDisk). The capture
     // harness replaces the disks with shared/probe/fixtures/laptop.expected.json.
-    readonly property var fixtures: ({
+    // Not readonly: a harness replaces one Process's answers to play a
+    // different machine (an offline one, for the Source step's gate).
+    property var fixtures: ({
         "detect": JSON.stringify({
             isLive: false,
             liveImage: "",
@@ -47,6 +53,20 @@ QtObject {
             }
         }),
         "validate": JSON.stringify({ protocol_version: 1, valid: true, errors: [] }),
+        // `netcheck <image>`: the registry answers, so the Source step's
+        // Continue is not held by the offline gate.
+        "netcheck": JSON.stringify({ connected: true, target: "registry.example:443", tried: [] }),
+        // `session-get`: one current value per setting, each in its list.
+        "session-get": JSON.stringify({
+            keyboard: { current: "us", available: ["us", "de"] },
+            locale: { current: "en_US.UTF-8", available: ["en_US.UTF-8", "de_DE.UTF-8"] },
+            timezone: { current: "UTC", available: ["UTC", "Europe/Berlin"] },
+            connected: true
+        }),
+        // `catalog`: no catalog file, as on a machine that ships none.
+        "catalog": JSON.stringify({ path: "", skipped: [], default_image: "", selected: "", leaves: [],
+            machine: { has_nvidia: false, is_live: false, offline_images: [] },
+            live_leaf: null, live_needs_user_creation: true }),
         "discover-disks": JSON.stringify([
             { path: "/dev/nvme0n1", title: "WD_BLACK SN850X 1000GB", model: "WD_BLACK SN850X 1000GB",
               size_label: "953.9 GiB", transport_label: "NVMe", removable: false }
@@ -61,7 +81,7 @@ QtObject {
         if (stdout && stdout.feed) stdout.feed(payload)
         Qt.callLater(function () {
             proc.running = false
-            proc.exited(0, 0)
+            proc.exited(proc.exitCode, 0)
         })
     }
 }

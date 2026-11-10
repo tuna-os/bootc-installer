@@ -7,7 +7,6 @@ sources = [
   'dialog.py',
   'dialog_credits.py',
   'dialog_output.py',
-  'dialog_recovery.py',
   'dialog_poweroff.py',
   'window_unsupported.py',
   'window_ram.py',

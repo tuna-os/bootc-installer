@@ -31,8 +31,9 @@ below), so the served commit need not BE the released commit. It
 must be on prod, and either an ancestor of the released commit with no
 change to that frontend's tree in between, using release.yml's own path rule
 (gnome: anything outside frontends/, docs/ and top-level *.md; the others:
-frontends/<name>/), or newer than it (a release still publishing, or the
-hand-dispatched republish on prod that docs/RELEASE.md lists).
+frontends/<name>/, and the files in shared/ that the manifest copies), or
+newer than it (a release still publishing, or the hand-dispatched republish
+on prod that docs/RELEASE.md lists).
 
 The released commit is the head of the last successful release.yml run on
 prod. If prod HEAD has changes to a frontend that its served build does not
@@ -76,6 +77,20 @@ ARCHS = ("amd64", "arm64")
 
 _SUBJECT_SHA = re.compile(r"\bBuilt from ([0-9a-f]{40})\b")
 _GNOME_EXCLUDED = re.compile(r"^(frontends/|docs/|README\.md|[^/]+\.md$)")
+# What a frontend's Flatpak is built from outside its own tree. The XFCE
+# manifest copies the bootc_shared package and the data files that the
+# package reads (shared/python/bootc_shared/_data.py, FILES), so a change
+# to one of them is a change to the XFCE Flatpak.
+# tests/unit/test_shared_python_package.py compares this with the manifest.
+_SHARED_INPUTS = {
+    "xfce": (
+        "shared/python/bootc_shared/",
+        "shared/account/groups.json",
+        "shared/branding/copy-defaults.json",
+        "shared/progress/dry-run-transcript.ndjson",
+        "shared/recipe/encryption-choices.json",
+    ),
+}
 
 
 # ---------------------------------------------------------------- pure logic
@@ -133,8 +148,8 @@ def touches(frontend: str, paths) -> list:
     """The paths release.yml would count as a change to this frontend."""
     if frontend == "gnome":
         return [p for p in paths if p and not _GNOME_EXCLUDED.match(p)]
-    prefix = f"frontends/{frontend}/"
-    return [p for p in paths if p.startswith(prefix)]
+    prefixes = (f"frontends/{frontend}/", *_SHARED_INPUTS.get(frontend, ()))
+    return [p for p in paths if p.startswith(prefixes)]
 
 
 def served_images(frontend: str, images) -> tuple:

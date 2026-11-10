@@ -11,16 +11,17 @@
 //!   host (`flatpak-spawn --host` when sandboxed). Applying needs
 //!   privileges and is best-effort: a failed apply warns and the wizard
 //!   keeps going, because the install itself does not depend on it.
-//! - The connectivity check is GNOME's: TCP to `ghcr.io:443`, falling back
-//!   to `8.8.8.8:53`, five seconds each (`conn_check.py::__conn_check`).
+//! - The connectivity check tries the registry of the selected image on
+//!   443 first, then the shared targets (`ghcr.io:443`, `8.8.8.8:53`),
+//!   five seconds each.
 //!   Live media skips the page entirely (an offline install needs no
 //!   network), also as in GNOME (`should_show` on `offline_install`).
 
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
-/// Connectivity targets, in order: the registry first (a general probe
-/// would miss a firewall that blocks only it), then bare DNS.
+/// The shared connectivity targets, tried after the registry of the
+/// selected image: a registry, then bare DNS.
 pub const CONNECT_TARGETS: [(&str, u16); 2] = [("ghcr.io", 443), ("8.8.8.8", 53)];
 
 /// Seconds per target, as in GNOME.
@@ -31,12 +32,50 @@ pub fn conn_check_skipped() -> bool {
     std::env::var_os("VANILLA_SKIP_CONN_CHECK").is_some()
 }
 
-/// True when any target accepts a TCP connection within the timeout.
-pub fn check_connectivity() -> bool {
+/// The registry host of an image reference: the part before the first
+/// `/` when it looks like a host (a dot, a port or `localhost`), else
+/// Docker Hub. `None` for an empty reference.
+pub fn registry_host(imgref: &str) -> Option<String> {
+    let reference = imgref.trim();
+    let reference = reference
+        .split_once("://")
+        .map_or(reference, |(_, rest)| rest);
+    if reference.is_empty() {
+        return None;
+    }
+    let first = reference.split('/').next().unwrap_or("");
+    let is_host = reference.contains('/')
+        && (first.contains('.') || first.contains(':') || first == "localhost");
+    if !is_host {
+        return Some("registry-1.docker.io".to_string());
+    }
+    // A port in the reference is the registry's own; the check is for 443.
+    Some(first.split(':').next().unwrap_or(first).to_string())
+}
+
+/// The targets for an install of `imgref`, in order: the registry of the
+/// selected image on 443 first, because that is the host the install
+/// downloads from, then the shared list. No target is tried twice.
+pub fn connect_targets(imgref: &str) -> Vec<(String, u16)> {
+    let mut targets: Vec<(String, u16)> = Vec::new();
+    if let Some(host) = registry_host(imgref) {
+        targets.push((host, 443));
+    }
+    for (host, port) in CONNECT_TARGETS {
+        if !targets.iter().any(|(h, p)| h == host && *p == port) {
+            targets.push((host.to_string(), port));
+        }
+    }
+    targets
+}
+
+/// True when any target for `imgref` accepts a TCP connection within the
+/// timeout.
+pub fn check_connectivity(imgref: &str) -> bool {
     if conn_check_skipped() {
         return true;
     }
-    CONNECT_TARGETS
+    connect_targets(imgref)
         .iter()
         .any(|(host, port)| reaches(&format!("{host}:{port}"), CONNECT_TIMEOUT).unwrap_or(false))
 }
@@ -267,5 +306,24 @@ mod tests {
         let refused = reaches("127.0.0.1:1", Duration::from_secs(5));
         assert!(refused.is_err() || !refused.unwrap());
         assert!(start.elapsed() < Duration::from_secs(5));
+    }
+
+    #[test]
+    fn the_registry_of_the_selected_image_is_probed_first() {
+        assert_eq!(registry_host("quay.io/example/os:stable").as_deref(), Some("quay.io"));
+        assert_eq!(registry_host("docker://quay.io/example/os").as_deref(), Some("quay.io"));
+        assert_eq!(registry_host("registry.example:5000/os:1").as_deref(), Some("registry.example"));
+        assert_eq!(registry_host("localhost/os:1").as_deref(), Some("localhost"));
+        // No registry in the reference is Docker Hub.
+        assert_eq!(registry_host("library/os:1").as_deref(), Some("registry-1.docker.io"));
+        assert_eq!(registry_host("os").as_deref(), Some("registry-1.docker.io"));
+        assert_eq!(registry_host("  "), None);
+
+        let targets = connect_targets("quay.io/example/os:stable");
+        assert_eq!(targets[0], ("quay.io".to_string(), 443));
+        assert_eq!(targets[1..], [("ghcr.io".to_string(), 443), ("8.8.8.8".to_string(), 53)]);
+        // The shared list alone with no image, and no host twice.
+        assert_eq!(connect_targets("").len(), 2);
+        assert_eq!(connect_targets("ghcr.io/example/os:1").len(), 2);
     }
 }

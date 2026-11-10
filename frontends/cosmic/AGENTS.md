@@ -18,7 +18,10 @@ Human docs: [`README.md`](README.md), [`DESIGN.md`](DESIGN.md),
 ## The build gate is the screenshot job
 
 This is the thing to internalise before changing anything: **`screenshots.yml`
-is the only CI job that compiles this crate.** There is no `ci.yml`.
+is the only CI job that compiles this crate** (the E2E job compiles it too,
+for one ignored test). There is no `ci.yml`. The screenshot job also runs
+the whole unit suite (`cargo test --release --locked`): the shared catalog
+fixture, the account groups, the fisherman resolver and the strings lint.
 
 That is not an accident of history, it is the reason the job exists. Before it,
 nothing in CI ran `cargo build` — and the crate *did not build*: the source was
@@ -28,8 +31,8 @@ Only `publish-flatpak` ran, and it never reached a cargo build.
 
 Two consequences:
 
-- **The gate is path-filtered** to `src/**`, `Cargo.toml`, `Cargo.lock` and the
-  workflow file. A PR that touches only docs or the justfile gets **no build
+- **The gate is path-filtered** to `src/**`, `Cargo.toml`, `Cargo.lock`, the
+  shared contracts that the tests read and the workflow file. A PR that touches only docs or the justfile gets **no build
   signal at all** — a green PR page means "nothing ran", not "it compiles".
 - Run the build yourself before pushing anything that touches `src/`:
 
@@ -74,9 +77,48 @@ regenerate the sources file in the same commit.
 ## Layout
 
 `src/main.rs` (app + update loop), `ui.rs` (screens), `offline.rs` (the
-fisherman wrapper and host commands), `validate.rs` (`fisherman validate`
-and the encryption choices), `readiness.rs`, `branding.rs`, `capture.rs`
-(the screenshot harness entry point).
+fisherman resolver, the staging and host commands), `image_catalog.rs` (the
+catalog reader), `model.rs` (the recipe, `Recipe::apply_leaf`, the account
+groups), `validate.rs` (`fisherman validate` and the encryption choices),
+`i18n.rs` (`tr`), `readiness.rs`, `branding.rs`, `capture.rs` (the
+screenshot harness entry point).
+
+## How fisherman is reached
+
+`offline::fisherman_argv` is the one resolver for probe, validation and
+install. Do not write a fisherman path, `pkexec` or `sudo` in another
+module: `offline::tests::only_the_resolver_names_a_fisherman_path` fails.
+
+- Native: `/usr/local/bin/fisherman`; the install is
+  `bash -c 'pkexec /usr/local/bin/fisherman -; exit $?'`, and `sudo -n` in
+  place of `pkexec` only on live media (`live.is_live` of the probe).
+- Flatpak: the packaged `/app/bin/fisherman` is copied to
+  `$XDG_CACHE_HOME/bootc-installer/fisherman` and its SHA256 is checked on
+  the host (`stage_on_host`) before the first use. Never `HOME/.cache`.
+
+## The image catalog
+
+`../../shared/catalog/README.md` is the contract.
+`image_catalog::tests::the_shared_fixture_resolves_as_expected` reads
+`shared/catalog/fixtures/catalog.json` with this parser and compares each
+leaf and each recipe with `expected.json`.
+
+- A leaf reaches the recipe only through `Recipe::apply_leaf`: image,
+  `targetImgref`, bootloader, `composeFsBackend`, filesystem, Flatpaks,
+  `flatpakVarPath`, `imageType`, and the NVIDIA rule.
+- `needs_user_creation` is `true` when no node sets it.
+- Nothing is selected at the start unless the branding or the catalog names
+  a `default_image`. Do not select the first row.
+- `flatpaks` is in the recipe only for a list that resolves offline. Do not
+  download a list and do not read `fallback_flatpaks`.
+
+## Strings
+
+Every user-facing line is a branding copy key (`branding::text`) or a
+message id in `ui::copy` that goes through `i18n::tr`.
+`ui::tests::no_widget_takes_a_bare_string` fails on a string literal in a
+text, label or title call, and on a `copy` constant that does not go
+through `tr`. `i18n.rs` says why this is a shim and not `fl!`.
 
 ## The recipe, live media and validation
 
@@ -90,11 +132,18 @@ and the encryption choices), `readiness.rs`, `branding.rs`, `capture.rs`
   a pause (`check_fields`), shows a problem through the copy key
   `validate_<code>` and holds Continue on it.
 - The account page writes the recipe's `user` block
-  (`model::user_block`: username, fullname, password, groups `["wheel"]`;
-  left out with no username). It is required unless the image catalog
-  (`src/image_catalog.rs`, `image.py` semantics) or a custom image URL says
-  the image creates its own first user — then the page is skipped and
-  Confirm names the provider instead. Its username goes into the same
+  (`model::user_block`: username, fullname, password and the groups; left
+  out with no username). The groups are `src/account-groups.json`, a
+  byte-identical copy of `../../shared/account/groups.json` (a test holds
+  the two together), or the operator's `user.groups` in
+  `<etc>/bootc-installer/recipe.json`. The page is required unless the
+  catalog says that the image on record makes its own first user; then the
+  page is skipped and Confirm says so. A custom image that the catalog does
+  not have needs an account.
+- Cancel on the progress page asks first. A confirmed cancel signals the
+  process group of the wrapper. Exit code 130, or a signal after a
+  confirmed cancel, shows the cancelled state of the done page
+  (`install_outcome`, copy key `done_cancelled_title`). Its username goes into the same
   partial check; the password does not (the non-empty and typed-twice rules
   are this frontend's). A `user.*` problem holds only the account page.
 - Encryption choices are `src/encryption-choices.json`, fisherman's file

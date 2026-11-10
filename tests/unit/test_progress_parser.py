@@ -12,8 +12,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from bootc_installer.utils import progress_parser
-from bootc_installer.utils.progress_parser import (
+from bootc_shared import progress as progress_parser
+from bootc_shared.progress import (
     apply_progress_event, new_progress_state, set_product_name)
 
 
@@ -513,3 +513,65 @@ class TestStepId:
             type="step", step=6, total_steps=8, step_name="Copying system Flatpaks",
             cumulative_pct=88, weight_pct=11, step_id="flatpaks"), state)
         assert update["label"] == "Installing your apps…"
+
+
+# ── error events (#64) ────────────────────────────────────────────────────────
+
+class TestErrorEvent:
+    """fisherman ends a failed install with {"type":"error"}. The parser
+    used to drop it, and the done page searched the log for "fatal:"."""
+
+    def test_error_event_returns_its_message(self):
+        state = new_progress_state()
+        update = apply_progress_event(json.dumps(
+            {"type": "error", "message": "partitioning disk: exit status 1"}), state)
+        assert update["error"] == {
+            "message": "partitioning disk: exit status 1", "code": "", "field": ""}
+        assert state["error"] == update["error"]
+
+    def test_error_event_carries_code_and_field(self):
+        state = new_progress_state()
+        update = apply_progress_event(json.dumps({
+            "type": "error", "code": "recipe_unknown_field", "field": "encrypton",
+            "message": "loading recipe: unknown recipe field \"encrypton\"",
+            "elapsed_ms": 2}), state)
+        assert update["error"]["code"] == "recipe_unknown_field"
+        assert update["error"]["field"] == "encrypton"
+        assert update["error"]["message"].startswith("loading recipe")
+
+    def test_error_event_changes_nothing_on_the_bar(self):
+        state = new_progress_state()
+        apply_progress_event(_step(step=3, cumulative_pct=40), state)
+        before = state["fraction"]
+        update = apply_progress_event(json.dumps({"type": "error", "message": "x"}), state)
+        assert update["fraction"] is None
+        assert update["label"] is None
+        assert update["pulse"] is False
+        assert update["complete"] is False
+        assert state["fraction"] == before
+
+    def test_the_last_error_is_kept(self):
+        state = new_progress_state()
+        apply_progress_event(json.dumps({"type": "error", "message": "first", "code": "a"}), state)
+        apply_progress_event(json.dumps({"type": "error", "message": "second"}), state)
+        assert state["error"] == {"message": "second", "code": "", "field": ""}
+
+    def test_a_fresh_state_has_no_error(self):
+        assert new_progress_state()["error"] is None
+
+    def test_other_events_do_not_carry_an_error_key(self):
+        state = new_progress_state()
+        assert "error" not in apply_progress_event(_step(), state)
+        assert state["error"] is None
+
+    def test_values_that_are_not_strings_are_dropped(self):
+        state = new_progress_state()
+        update = apply_progress_event(json.dumps(
+            {"type": "error", "message": 7, "code": ["x"], "field": None}), state)
+        assert update["error"] == {"message": "", "code": "", "field": ""}
+
+    def test_the_returned_error_is_a_copy(self):
+        state = new_progress_state()
+        update = apply_progress_event(json.dumps({"type": "error", "message": "m"}), state)
+        update["error"]["message"] = "changed"
+        assert state["error"]["message"] == "m"

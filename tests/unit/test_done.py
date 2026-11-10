@@ -430,3 +430,42 @@ class TestBootNext(unittest.TestCase):
                   / "bootc_installer" / "views" / "done.py").read_text()
         self.assertNotIn('["efibootmgr"', source)
         self.assertNotIn('"--host", "efibootmgr"', source)
+
+
+class TestErrorEventHint(unittest.TestCase):
+    """The failure page shows fisherman's `error` event (#64), not a guess
+    from the log."""
+
+    def test_message_is_shown(self):
+        from bootc_installer.views.done import error_event_hint
+        hint = error_event_hint({"message": "partitioning disk: exit status 1",
+                                 "code": "", "field": ""})
+        self.assertEqual(hint, "Error: partitioning disk: exit status 1")
+
+    def test_copy_line_for_a_code_wins(self):
+        from bootc_installer.views.done import error_event_hint
+        copy = {"validate_disk_too_small": "Choose a larger disk."}
+        hint = error_event_hint(
+            {"message": "disk /dev/sda is 20 GiB", "code": "disk_too_small", "field": "disk"},
+            lambda key: copy.get(key, ""))
+        self.assertEqual(hint, "Choose a larger disk.")
+
+    def test_a_code_without_copy_falls_back_to_the_message(self):
+        from bootc_installer.views.done import error_event_hint
+        hint = error_event_hint(
+            {"message": "unknown recipe field", "code": "recipe_unknown_field",
+             "field": "encrypton"}, lambda key: "")
+        self.assertEqual(hint, "Error: unknown recipe field")
+
+    def test_no_event_and_an_empty_event_give_nothing(self):
+        from bootc_installer.views.done import error_event_hint
+        self.assertEqual(error_event_hint(None), "")
+        self.assertEqual(error_event_hint({}), "")
+        self.assertEqual(error_event_hint({"message": "  ", "code": "", "field": ""}), "")
+
+    def test_a_long_message_is_one_bounded_line(self):
+        from bootc_installer.views.done import error_event_hint
+        hint = error_event_hint({"message": "a\nb " + "x" * 500})
+        self.assertNotIn("\n", hint)
+        self.assertLessEqual(len(hint), len("Error: ") + 300)
+        self.assertTrue(hint.endswith("…"))

@@ -25,6 +25,7 @@ if get_option('build-fisherman')
   subdir('fisherman')
 endif
 subdir('bootc_installer')
+subdir('shared/python')
 subdir('po')
 
 gnome.post_install(

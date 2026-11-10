@@ -17,7 +17,8 @@ ancestor of the commit being released, is published.
 
 The path rule is published_freshness.touches, the one definition both
 scripts share: gnome is everything outside frontends/, docs/ and top-level
-*.md; the others are frontends/<name>/.
+*.md; the others are frontends/<name>/ and the files in shared/ that their
+manifest copies.
 
     python3 shared/ci/release_changes.py --repo OWNER/REPO --run-id "$GITHUB_RUN_ID" \
         --github-output "$GITHUB_OUTPUT"

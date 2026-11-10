@@ -101,7 +101,7 @@
     "unifiedStorage": {
       "type": "boolean",
       "default": false,
-      "description": "Pass --experimental-unified-storage to bootc install."
+      "description": "Leave it out, or write false. fisherman does not pass --experimental-unified-storage to bootc: it accepted true and ignored it, and it now refuses true with the code unified_storage_unsupported (tuna-os/fisherman#366). It is not composeFsBackend and not additionalImageStores."
     },
     "genericImage": {
       "type": "boolean",
@@ -237,6 +237,14 @@
       "type": "string",
       "pattern": "^([A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*)?$",
       "description": "Homebrew tap to add before OEM packages, e.g. ublue-os/tap."
+    },
+    "override": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["too_small", "uefi"]
+      },
+      "description": "The target checks that the caller accepts as failed: too_small (the disk is smaller than 50 GiB) and uefi (the machine did not boot through UEFI). Any other entry is override_unsupported. The checks that protect data (the boot disk, a read-only disk, a path that is not a whole disk) have no override. Needs a fisherman that has the target checks (tuna-os/fisherman#429); an older fisherman ignores the field. fisherman/docs/VALIDATE.md, 'Target eligibility'."
     }
   }
 }

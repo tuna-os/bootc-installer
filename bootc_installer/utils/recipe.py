@@ -20,7 +20,7 @@ import os
 import sys
 from gettext import gettext as _
 
-from bootc_installer.utils import branding
+from bootc_shared import branding
 
 logger = logging.getLogger("Installer::RecipeLoader")
 
@@ -81,7 +81,6 @@ class RecipeLoader:
         if os.environ.get("BOOTC_DEMO") or os.environ.get("BOOTC_PREVIEW_SCREEN"):
             logger.warning("Demo/preview mode: continuing without a recipe")
             self.__recipe = {
-                "log_file": "/tmp/bootc-installer-demo.log",
                 "distro_name": os.environ.get("BOOTC_DEMO_DISTRO_NAME", ""),
                 "distro_logo": "",
                 "steps": {},
@@ -195,7 +194,9 @@ class RecipeLoader:
     def __validate(self):
         # distro_name/distro_logo are no longer essential: __apply_branding fills
         # them from branding.json or os-release when the recipe leaves them out.
-        essential_keys = ["log_file", "steps"]
+        # `log_file` was a required key that nothing wrote to (#312). A recipe
+        # that still has it is valid; the key is not read.
+        essential_keys = ["steps"]
         if not isinstance(self.__recipe, dict):
             logger.error(_("Recipe is not a dictionary"))
             return False

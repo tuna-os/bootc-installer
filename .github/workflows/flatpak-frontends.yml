@@ -55,8 +55,13 @@ jobs:
           else
             changed=$(git diff --name-only "$BASE" "$HEAD")
           fi
+          # XFCE also ships the shared Python package and the data files it
+          # reads (shared/python/meson.build lists the same set for GNOME).
+          xfce_shared='shared/python/|shared/account/groups\.json|shared/branding/copy-defaults\.json|shared/progress/dry-run-transcript\.ndjson|shared/recipe/encryption-choices\.json|'
           for n in kde cosmic niri xfce; do
-            if echo "$changed" | grep -qE "^(frontends/$n/|shared/ci/frontends\.json|shared/ci/frontend_table\.py|\.github/workflows/(flatpak-frontends|publish-flatpak|publish-oci)\.yml)"; then
+            extra=""
+            [ "$n" = xfce ] && extra="$xfce_shared"
+            if echo "$changed" | grep -qE "^(${extra}frontends/$n/|shared/ci/frontends\.json|shared/ci/frontend_table\.py|\.github/workflows/(flatpak-frontends|publish-flatpak|publish-oci)\.yml)"; then
               echo "$n=true" >> "$GITHUB_OUTPUT"
             else
               echo "$n=false" >> "$GITHUB_OUTPUT"

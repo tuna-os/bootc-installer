@@ -79,8 +79,12 @@ jobs:
       - name: build
         run: cargo build --release
 
-      - name: test shared branding contract
-        run: cargo test --release branding::tests
+      # The whole unit suite, not only the branding tests: the shared
+      # catalog fixture (shared/catalog), the account groups
+      # (shared/account), the fisherman resolver and the strings lint are
+      # contracts too, and no other job runs them.
+      - name: unit tests (shared contracts, resolver, strings lint)
+        run: cargo test --release --locked
 
       - name: capture every screen
         env:

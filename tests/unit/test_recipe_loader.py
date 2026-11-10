@@ -58,13 +58,17 @@ class TestRecipeLoaderValidate(unittest.TestCase):
         })
         self.assertTrue(self.loader._RecipeLoader__validate())
 
-    def test_missing_log_file(self):
-        """A recipe missing 'log_file' should fail validation."""
+    def test_missing_log_file_is_allowed(self):
+        """`log_file` is not a required key: nothing wrote to that file (#312)."""
         self.set_recipe({
             "distro_name": "Test OS",
             "distro_logo": "logo.png",
             "steps": {}
         })
+        self.assertTrue(self.loader._RecipeLoader__validate())
+
+    def test_missing_steps_fails(self):
+        self.set_recipe({"distro_name": "Test OS", "log_file": "/tmp/test.log"})
         self.assertFalse(self.loader._RecipeLoader__validate())
 
     def test_missing_distro_name_is_allowed(self):

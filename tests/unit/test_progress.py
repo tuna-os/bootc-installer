@@ -16,7 +16,7 @@ def _mock_gtk_imports():
         "gi", "gi.repository", "gi.repository.Gdk", "gi.repository.Gio",
         "gi.repository.GLib", "gi.repository.Gtk", "gi.repository.Adw",
         "gi.repository.Pango", "gi.repository.GdkPixbuf",
-        "bootc_installer.views.tour", "bootc_installer.utils.run_async",
+        "bootc_installer.utils.run_async",
     ]:
         mocks[name] = MagicMock()
     # gi.require_version must be a callable no-op
@@ -318,26 +318,26 @@ class TestDemoTranscript(unittest.TestCase):
         with patch.dict("sys.modules", _mock_gtk_imports()):
             self.mod = importlib.import_module("bootc_installer.views.progress")
 
-    def test_demo_reads_the_transcript_installed_next_to_the_parser(self):
+    def test_demo_reads_the_shared_transcript(self):
         repo = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
         self.assertEqual(
             str(self.mod._DEMO_TRANSCRIPT),
-            os.path.join(repo, "bootc_installer", "utils", "dry-run-transcript.ndjson"))
+            os.path.join(repo, "shared", "progress", "dry-run-transcript.ndjson"))
         lines = self.mod._load_demo_transcript()
         self.assertTrue(lines)
         self.assertTrue(all(ln.startswith("{") for ln in lines))
 
     def test_meson_installs_the_transcript(self):
         meson = os.path.join(os.path.dirname(__file__), "..", "..",
-                             "bootc_installer", "utils", "meson.build")
+                             "shared", "python", "meson.build")
         with open(meson) as fh:
-            self.assertIn("'dry-run-transcript.ndjson'", fh.read())
+            self.assertIn("'../progress/dry-run-transcript.ndjson'", fh.read())
 
     def test_missing_transcript_is_empty_not_a_crash(self):
         self.assertEqual(self.mod._load_demo_transcript("/nonexistent/x.ndjson"), [])
 
     def test_demo_drives_the_parser_to_completion(self):
-        from bootc_installer.utils import progress_parser
+        from bootc_shared import progress as progress_parser
         state = progress_parser.new_progress_state()
         last = None
         for line in self.mod._load_demo_transcript():
@@ -387,3 +387,51 @@ class TestTerminateBeforeInstall(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFailureReport(unittest.TestCase):
+    """What the installer's own log gets when fisherman exits non-zero (#64)."""
+
+    @classmethod
+    def setUpClass(cls):
+        with patch.dict("sys.modules", _mock_gtk_imports()):
+            import importlib
+            import bootc_installer.views.progress as mod
+            if not hasattr(mod, "failure_report"):
+                importlib.reload(mod)
+            cls.mod = mod
+
+    def test_names_the_exit_code_and_the_error(self):
+        lines = self.mod.failure_report(
+            1, {"message": "partitioning disk: exit status 1",
+                "code": "disk_not_disk", "field": "disk"}, ["a", "b"])
+        self.assertEqual(lines[0], "fisherman exited with code 1")
+        self.assertIn("partitioning disk: exit status 1", lines[1])
+        self.assertIn("code=disk_not_disk", lines[1])
+        self.assertIn("field=disk", lines[1])
+        self.assertEqual(lines[-2:], ["  a", "  b"])
+
+    def test_says_when_there_was_no_error_event(self):
+        lines = self.mod.failure_report(137, None, [])
+        self.assertEqual(lines[0], "fisherman exited with code 137")
+        self.assertIn("no error event", lines[1])
+
+    def test_keeps_the_last_twenty_lines(self):
+        tail = [f"line {n}" for n in range(50)]
+        lines = self.mod.failure_report(1, None, tail)
+        body = [line for line in lines if line.startswith("  line ")]
+        self.assertEqual(len(body), 20)
+        self.assertEqual(body[0], "  line 30")
+        self.assertEqual(body[-1], "  line 49")
+
+    def test_the_recovery_key_is_redacted(self):
+        key = "abcd-efgh-ijkl-mnop"
+        tail = [
+            '{"type":"recovery_key","key":"%s"}' % key,
+            "Recovery key: " + key,
+            "cryptsetup: enrolled " + key + " in slot 1",
+        ]
+        error = {"message": "enrol failed for " + key, "code": "", "field": ""}
+        text = "\n".join(self.mod.failure_report(1, error, tail, recovery_key=key))
+        self.assertNotIn(key, text)
+        self.assertIn("[redacted]", text)

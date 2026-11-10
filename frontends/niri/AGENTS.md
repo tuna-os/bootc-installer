@@ -53,9 +53,28 @@ go build ./...
 go test ./...
 ```
 
-`.golangci.yml` config lives at the repo root. The Go tests are real and cover
-the interesting parts — `offline_test.go`, `readiness_test.go`,
-`branding_test.go` — so run them before pushing rather than relying on CI.
+`.golangci.yml` config lives at the repo root. The Go tests cover the
+contracts, so run them before you push:
+
+- `catalog_test.go` reads `../../shared/catalog/fixtures/` and compares each
+  leaf, each recipe and the first selection with `expected.json`.
+- `recipe_test.go` compares the `Recipe` struct with
+  `../../shared/recipe/fisherman-recipe.schema.json`. An unknown recipe key
+  fails `install`. Add a new key to the struct when the schema gets one.
+- `offline_test.go` holds the one fisherman resolver (native, live media,
+  Flatpak).
+- `user_test.go` holds `installer/groups.json` to
+  `../../shared/account/groups.json`.
+- `i18n_test.go` fails on a text literal in `ui/*.qml` that is not in
+  `qsTr()` and not a `root.text()` key.
+
+The table between `COPY-DEFAULTS-BEGIN` and `COPY-DEFAULTS-END` in
+`ui/installer.qml` is generated. Run
+`python3 ../../shared/branding/generate-qml-defaults.py`. Do not edit the
+table.
+
+`tests/gui/capture-screens.py` and `tests/wasm/main.cpp` have the same page
+list. Change the two files together.
 
 ## The QML stub is load-bearing
 
@@ -76,8 +95,10 @@ as design changes, not layout tweaks.
 ## Disks, TPM and minimum requirements
 
 These come from `fisherman probe --json`, not from this frontend.
-`installer/probe.go` runs `/usr/local/bin/fisherman probe --json` without
-privileges (prefixed with `flatpak-spawn --host` in a Flatpak).
+`installer/probe.go` runs `fisherman probe --json` without privileges. The
+binary comes from `resolveFisherman` in `installer/offline.go`: in a Flatpak
+it is the staged copy of `/app/bin/fisherman`, and the host confirms its
+SHA256 first. Do not write the path of fisherman in a different file.
 `discover-disks` prints the eligible disks in the shape of
 `shared/probe/fixtures/*.expected.json`. `detect` reports `hasTpm` and
 `unmet`. Show the disks in fisherman's order, with `size_label` exactly as
@@ -89,7 +110,11 @@ it. `go test -run TestProbe` renders the shared fixtures, and
 ## The recipe, live media and validation
 
 - `install` reads the recipe on stdin and pipes it on to `fisherman -`;
-  nothing writes it to a file. It holds the LUKS passphrase.
+  nothing writes it to a file. It holds the LUKS passphrase. The command is
+  `pkexec`, or `sudo -n` on live media. `install` ends with the exit code of
+  fisherman, and 130 shows the cancelled page.
+- `catalog` gives each leaf the recipe keys for this computer. The QML
+  copies them (`imageRecipe`) and adds no image key of its own.
 - `detect` reports the probe's live media (`isLive`, `liveImage`) and
   offline images, and the embedded `encryption-choices.json`
   (`encryptionChoices`). The QML sends an empty `image` only when `isLive`,

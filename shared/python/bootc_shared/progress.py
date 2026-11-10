@@ -1,0 +1,374 @@
+"""Pure fisherman progress-event parser.
+
+The one copy: GNOME and XFCE import it as `bootc_shared.progress`.
+tests/unit/test_shared_progress.py runs it against the case files in
+shared/progress/. The wire protocol it parses is documented in
+shared/progress/README.md.
+
+No GTK, no product names: importable on its own by any frontend and by unit
+tests. Provides apply_progress_event() and new_progress_state(). The parser
+reads no file; transcript_path() only says where the dry-run transcript is.
+
+fisherman computes the bar and names each step itself: every step, substep
+and complete event carries `overall_pct`, and every step event a stable
+`step_id`. Those are authoritative. The bar maths and the step-name table
+below are only the fallback for a fisherman that predates them, and go when
+that support does (ROADMAP.md, consolidation step F1).
+"""
+
+import json
+import re
+
+from . import _data
+
+# Human-friendly labels for each fisherman step name: the fallback for a
+# step event without a step_id (a fisherman older than overall_pct/step_id).
+# A step_id is labelled by the frontend's branding copy instead, through
+# set_step_label_resolver(); these labels match the step_<id> defaults in
+# shared/branding/copy-defaults.json. Keys must match the step_name strings
+# fisherman emits exactly. Unknown step names fall back to the raw step_name.
+_FRIENDLY_STEP_LABELS: dict[str, str] = {
+    "Preparing disk":               "Checking your drive…",
+    "Partitioning disk":            "Setting up your drive…",
+    "Formatting EFI partition":     "Preparing the boot system…",
+    "Setting up disk encryption":   "Securing your drive…",
+    "Formatting root filesystem":   "Formatting your drive…",
+    "Mounting filesystem":          "Almost ready…",
+    "Formatting data disk (/var)":  "Preparing data storage…",
+    # {product} is substituted at lookup with the recipe's distro_name. This
+    # label used to read "Installing Bluefin…" literally, so every downstream
+    # that rebrands this installer still told its users it was installing
+    # Bluefin — on the progress screen, which is the one they watch for the
+    # whole install.
+    "Installing OS":                "Installing {product}…",
+    "Enrolling TPM2 auto-unlock":   "Setting up auto-unlock…",
+    "Copying system Flatpaks":      "Installing your apps…",
+    "Configuring installed system": "Configuring your system…",
+    "Finalizing installation":      "Finishing up…",
+}
+
+# The product being installed, for labels that name it.
+#
+# A module-level value with a setter rather than a recipe import, to keep this
+# module what its docstring says it is: a pure parser with no GTK and no file
+# IO, importable by unit tests on its own. The default is deliberately neutral
+# rather than any distro's name — an unset product must read as generic, not
+# as somebody else's brand.
+_PRODUCT_NAME = "the OS"
+
+
+def set_product_name(name: str) -> None:
+    """Set the product name used in step labels. Empty values are ignored."""
+    global _PRODUCT_NAME
+    if name:
+        _PRODUCT_NAME = name
+
+
+def get_product_name() -> str:
+    """The product name step labels use; "the OS" until set_product_name()."""
+    return _PRODUCT_NAME
+
+
+def set_install_label(label: str) -> None:
+    """Replace the label for the step that writes the OS image.
+
+    That step is the one a user watches for most of the install, and its
+    label is the branding contract's `progress_title` ("Installing {name}…"),
+    so a frontend passes that line here to make it rebrandable. `{product}`
+    and `{name}` are both filled with the product name. Empty values are
+    ignored, keeping the neutral default.
+    """
+    if label:
+        _FRIENDLY_STEP_LABELS["Installing OS"] = label.replace("{name}", "{product}")
+
+
+def _friendly_label(step_name: str) -> str:
+    """Human label for a fisherman step, with {product} filled in.
+
+    Falls back to the raw step name, which is what unknown steps already did.
+    A plain replace, not str.format: set_install_label() takes a line from a
+    product's branding file, and a stray brace in it must not raise here.
+    """
+    label = _FRIENDLY_STEP_LABELS.get(step_name, step_name)
+    return label.replace("{product}", _PRODUCT_NAME)
+
+
+# Labels a step_id: a function from a step_id ("install_os") to the line to
+# show, normally the branding copy key "step_" + step_id. None until a
+# frontend sets one, so a bare parser falls back to the step-name table.
+_STEP_LABEL_RESOLVER = None
+
+
+def set_step_label_resolver(resolve) -> None:
+    """Label steps by fisherman's step_id through `resolve(step_id) -> str`.
+
+    A frontend passes a function that reads its branding copy key
+    "step_" + step_id, so every step label is a rebrandable copy line
+    (shared/branding/README.md). An empty result -- an id the copy does not
+    know, or a line a product blanked -- falls back to the step name.
+    """
+    global _STEP_LABEL_RESOLVER
+    _STEP_LABEL_RESOLVER = resolve
+
+
+def _step_label(step_id: str, step_name: str) -> str:
+    """The label for a step: the copy line for its step_id when there is one,
+    else the step-name fallback (and, for an unknown name, the raw name)."""
+    if step_id and _STEP_LABEL_RESOLVER is not None:
+        label = _STEP_LABEL_RESOLVER(step_id)
+        if label:
+            return label
+    return _friendly_label(step_name)
+
+
+def _overall_fraction(event: dict) -> float | None:
+    """fisherman's own bar position as a fraction, or None if the event has no
+    overall_pct (an older fisherman)."""
+    pct = event.get("overall_pct")
+    if isinstance(pct, bool) or not isinstance(pct, (int, float)):
+        return None
+    return min(max(pct / 100.0, 0.0), 1.0)
+
+
+def _settle(state: dict, event: dict, derived: float | None) -> float | None:
+    """The bar after `event`: its overall_pct when it carries one, else the
+    fraction derived here (None means no change).
+
+    overall_pct is authoritative. It never decreases on the wire; the max()
+    keeps the bar from moving back even if it did.
+    """
+    overall = _overall_fraction(event)
+    fraction = max(state["fraction"], overall) if overall is not None else derived
+    if fraction is not None:
+        state["fraction"] = fraction
+    return fraction
+
+
+# Matches "Pulling image: layer 23/71" substep messages from fisherman.
+_RE_LAYER_PROGRESS = re.compile(r"Pulling image: layer (\d+)/(\d+)")
+
+# Share of a step's weight that the layer pull covers. The rest is left for
+# the export, deploy and bootloader phases that follow it, which have no
+# counter of their own.
+_PULL_SHARE = 0.6
+
+# Bar positions for the silent phases after the pull, as a share of what is
+# left of the step once the pull is over (all of it on an offline install,
+# where nothing is pulled). Matched as message prefixes, in fisherman's order.
+#
+# Without these, an offline install sat at 1% from the start of "Installing
+# OS" until the Flatpak copy: about ten minutes of export and deploy with no
+# movement at all (#115). The deploy phase itself is still one long silence
+# in bootc; these only make sure each phase fisherman does report moves the
+# bar.
+_PHASE_MILESTONES: tuple[tuple[str, float], ...] = (
+    ("Exporting image to OCI layout", 0.05),
+    ("OCI export complete", 0.30),
+    ("Using ", 0.32),                     # "Using overlay storage driver ..."
+    ("Initializing ostree layout", 0.35),
+    ("Writing ", 0.35),                   # "Writing 64 (3.7 GB) to disk ..."
+    ("Deploying image", 0.35),
+    ("OS deployed, installing bootloader", 0.90),
+    ("Detected bootloader", 0.92),
+    ("Installing bootloader", 0.92),
+    ("Configuring EFI boot entry", 0.95),
+    ("Configuring GRUB", 0.95),
+    ("Configuring SELinux", 0.95),
+    ("Generating initramfs", 0.95),
+    ("bootc installation complete", 1.0),
+)
+
+
+def _milestone(msg: str) -> float | None:
+    """Position of a post-pull phase message within its share, or None."""
+    for prefix, share in _PHASE_MILESTONES:
+        if msg.startswith(prefix):
+            return share
+    return None
+
+
+def new_progress_state() -> dict:
+    """Return a fresh progress state dict (no GTK types)."""
+    return {
+        "pulse_active": True,
+        "current_step": 0,
+        "current_total": 0,
+        "current_step_name": "",
+        "current_step_id": "",
+        "current_weight_pct": 0,
+        "current_cumulative_pct": 0,
+        "step_frac": 0.0,
+        "post_pull_base": None,
+        "seen_substeps": set(),
+        "fraction": 0.0,
+        "boot_id": "",
+        "recovery_key": "",
+        "error": None,
+    }
+
+
+def _error_of(event: dict) -> dict:
+    """The parts of an `error` event a frontend shows or logs: `message`,
+    and `code` and `field` ("" from a fisherman that does not send them)."""
+    def text(key):
+        value = event.get(key, "")
+        return value if isinstance(value, str) else ""
+    return {"message": text("message"), "code": text("code"), "field": text("field")}
+
+
+def apply_progress_event(line: str, state: dict) -> dict | None:
+    """Parse one fisherman log line and return a UI-update dict, or None.
+
+    Pure function — no GTK, no I/O.  The returned dict has:
+      "fraction"  — float 0-1 for progressbar.set_fraction(): the event's
+                    overall_pct when it has one, else derived (None = no change)
+      "label"     — str for progressbar_text.set_label() (None = no change)
+      "pulse"     — bool; True means switch bar to pulse mode
+      "complete"  — bool; True means install finished
+    An `error` event returns the same dict with no change in it, plus
+      "error"     — {"message", "code", "field"}: why fisherman failed
+    ``state`` is mutated in-place to track multi-line context.
+    Returns None for non-JSON lines or events that require no UI change.
+    """
+    if not line.startswith("{"):
+        return None
+    try:
+        event = json.loads(line)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+    event_type = event.get("type", "")
+
+    if event_type == "step":
+        step = event.get("step", 0)
+        total = event.get("total_steps", 1)
+        name = event.get("step_name", "Installing")
+        if step <= state["current_step"] and state["current_step"] > 0:
+            return None
+        cumulative_pct = event.get("cumulative_pct", 0)
+        state["current_weight_pct"] = event.get("weight_pct", 0)
+        state["current_cumulative_pct"] = cumulative_pct
+        state["current_step"] = step
+        state["current_total"] = total
+        state["current_step_name"] = name
+        state["current_step_id"] = event.get("step_id") or ""
+        state["step_frac"] = 0.0
+        state["post_pull_base"] = None
+        state["seen_substeps"].clear()
+        state["pulse_active"] = False
+        return {
+            "fraction": _settle(state, event, cumulative_pct / 100.0),
+            "label": _step_label(state["current_step_id"], name),
+            "pulse": False,
+            "complete": False,
+        }
+
+    if event_type == "substep":
+        msg = event.get("message", "")
+        if not msg:
+            return None
+        derived = None
+        if state["current_weight_pct"] > 0:
+            step_frac = None
+            m = _RE_LAYER_PROGRESS.match(msg)
+            if m:
+                done = int(m.group(1))
+                total_layers = int(m.group(2))
+                if total_layers > 0:
+                    step_frac = min(done / total_layers, 1.0) * _PULL_SHARE
+            else:
+                share = _milestone(msg)
+                if share is not None:
+                    if state["post_pull_base"] is None:
+                        state["post_pull_base"] = state["step_frac"]
+                    base = state["post_pull_base"]
+                    step_frac = base + share * (1.0 - base)
+            if step_frac is not None:
+                # Never move backwards: a retried pull restarts its layer count.
+                state["step_frac"] = max(state["step_frac"], step_frac)
+                derived = min(
+                    (state["current_cumulative_pct"]
+                     + state["step_frac"] * state["current_weight_pct"]) / 100.0,
+                    1.0,
+                )
+        fraction = _settle(state, event, derived)
+        if msg in state["seen_substeps"]:
+            # Still update fraction even for duplicate substep messages.
+            if fraction is not None:
+                return {"fraction": fraction, "label": None, "pulse": False, "complete": False}
+            return None
+        state["seen_substeps"].add(msg)
+        label = None
+        if state["current_step"]:
+            label = _step_label(state["current_step_id"], state["current_step_name"])
+        return {"fraction": fraction, "label": label, "pulse": False, "complete": False}
+
+    if event_type == "recovery_key":
+        state["recovery_key"] = event.get("key", "")
+        return None
+
+    if event_type == "complete":
+        state["pulse_active"] = False
+        state["fraction"] = 1.0
+        state["boot_id"] = event.get("boot_id", "")
+        state["recovery_key"] = event.get("recovery_key", state["recovery_key"])
+        return {"fraction": 1.0, "label": "Installation complete!",
+                "pulse": False, "complete": True}
+
+    if event_type == "error":
+        # fisherman's reason for the failure. The last one is kept in the
+        # state: the frontend shows it when the process exits non-zero,
+        # instead of a search of the log for "fatal:".
+        state["error"] = _error_of(event)
+        return {"fraction": None, "label": None, "pulse": False, "complete": False,
+                "error": dict(state["error"])}
+
+    return None
+
+
+def render_event(line: str) -> str | None:
+    """A fisherman event as a line a person would want to read.
+
+    Returns None for a line that is not a fisherman event, which the caller
+    should show verbatim — fisherman's stderr is interleaved into the same
+    view and is already human-readable.
+
+    This exists because the protocol is machine-readable and the frontends
+    show it to people. A log pane fed raw stdout renders as a wall of JSON;
+    the screenshot harness caught exactly that on the XFCE install screen.
+    The step NAME is used here, not the friendly label: the log is the thing
+    people paste into bug reports, so it should say what fisherman said.
+    """
+    if not line.startswith("{"):
+        return None
+    try:
+        event = json.loads(line)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(event, dict):
+        return None
+
+    kind = event.get("type", "")
+    if kind == "step":
+        step = event.get("step", 0)
+        total = event.get("total_steps", 0)
+        return f"[{step}/{total}] {event.get('step_name', '')}"
+    if kind in ("substep", "info"):
+        message = event.get("message", "")
+        return f"  {message}" if message else None
+    if kind == "complete":
+        return event.get("message", "Installation complete")
+    if kind == "error":
+        return f"ERROR: {event.get('message', '')}"
+    if kind == "recovery_key":
+        # Shown, not hidden. A frontend with no recovery-key screen (see
+        # docs/PARITY.md) leaves this as the only place the user can read a
+        # key they cannot recover later; suppressing it here would lose it.
+        return f"Recovery key: {event.get('key', '')}"
+    return None
+
+
+def transcript_path():
+    """Where dry-run-transcript.ndjson is: the events of one install, which
+    a demo mode or a capture harness replays (shared/progress/README.md)."""
+    return _data.path("progress/dry-run-transcript.ndjson")

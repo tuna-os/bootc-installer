@@ -12,7 +12,7 @@ import logging
 import os
 import subprocess
 
-from . import fisherman_probe
+from bootc_shared import probe as fisherman_probe
 
 logger = logging.getLogger("Installer::Disks")
 

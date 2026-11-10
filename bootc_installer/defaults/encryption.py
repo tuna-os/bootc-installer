@@ -22,15 +22,15 @@ from gi.repository import Adw, Gtk
 
 logger = logging.getLogger(__name__)
 
-from bootc_installer.core import fisherman_validate
+from bootc_shared import validate as fisherman_validate
 from bootc_installer.utils import copy as copy_text
 
 # The encryption types in display order, with needs_passphrase and
 # needs_tpm2: fisherman's data/encryption-choices.json, read through the
-# shared reader beside which this frontend's byte-identical copy sits
-# (bootc_installer/core/encryption-choices.json). [] when the copy is
-# missing, so a source-tree run without installed data degrades to the
-# legacy two-switch page instead of crashing the import.
+# shared reader (shared/recipe/encryption-choices.json, which the build
+# installs with the bootc_shared package). [] when the file is missing, so
+# the page degrades to the legacy two-switch page instead of crashing the
+# import.
 try:
     ENCRYPTION_CHOICES = fisherman_validate.load_choices()
 except OSError:

@@ -509,7 +509,7 @@ class BootcWindow(Adw.ApplicationWindow):
         recipe starts: the install runs the same rules first."""
         if not Processor.recipe_names_disk(recipe):
             return _("The recipe names no installation disk.")
-        from bootc_installer.core import fisherman_validate
+        from bootc_shared import validate as fisherman_validate
         from bootc_installer.utils import fisherman_runner
         try:
             if fisherman_runner.IN_FLATPAK and not fisherman_runner.stage_on_host():
@@ -652,7 +652,7 @@ class BootcWindow(Adw.ApplicationWindow):
 
         try:
             recipe = Processor.gen_install_recipe(
-                self.recipe.get("log_file", "/tmp/vanilla_installer.log"),
+                "",
                 self.finals,
                 self.recipe,
             )
@@ -756,7 +756,9 @@ class BootcWindow(Adw.ApplicationWindow):
         self.toasts.add_toast(toast)
 
     def set_installation_result(self, result, terminal, boot_id="", recovery_key="", elapsed_secs=0,
-                                exit_code=None, cancelled=False, message=None):
+                                exit_code=None, cancelled=False, message=None, error=None):
+        """`error` is fisherman's last `error` event ({"message", "code",
+        "field"}) when the install failed with one; the done page shows it."""
         if result:
             logger.info("Installation complete!")
         elif cancelled or exit_code == 130:
@@ -776,7 +778,7 @@ class BootcWindow(Adw.ApplicationWindow):
 
         self.__view_done.set_result(result, terminal, boot_id, elapsed_secs,
                                     image_ref=image_ref, exit_code=exit_code,
-                                    cancelled=cancelled, message=message)
+                                    cancelled=cancelled, message=message, error=error)
 
         if result and self.__install_is_encrypted and self.__install_recovery_key:
             # Only show the recovery key screen when fisherman actually emitted a

@@ -80,9 +80,21 @@ NVIDIA rule, the offline Flatpak-list rule, and the selection at the start.
 this parser. Do not read `fallback_flatpaks`, do not download a list, and do
 not select the first row.
 
-`core.DEFAULT_GROUPS` is a copy of `shared/account/groups.json`, because the
-Flatpak build copies only this package. `tests/test_account.py` fails when
-the two differ.
+`core.DEFAULT_GROUPS` is the list in `shared/account/groups.json`, read
+through `bootc_shared.account`. `tests/test_account.py` fails when the two
+differ.
+
+## The shared Python package
+
+`bootc_shared` (`../../shared/python/`) has the code that this frontend
+shares with GNOME: `probe`, `validate`, `progress`, `readiness`, `branding`
+and `account`. Import it; do not copy a module into this tree. In a
+checkout, `tuna_installer_xfce/__init__.py` puts `shared/python` on the
+path. The Flatpak manifest copies the package, and the data files that it
+reads, to `/app/lib/tuna-installer-xfce/bootc_shared/`. When a module reads
+a new data file, add the file to `bootc_shared/_data.py` and to the
+manifest; `tests/unit/test_shared_python_package.py` at the repository root
+fails when the two differ.
 
 ## Cancel, autoinstall and strings
 
@@ -102,8 +114,7 @@ the two differ.
 These come from `fisherman probe --json`, not from this frontend. `core.probe()`
 runs it one time, without privileges, as `/usr/local/bin/fisherman probe --json`
 (prefixed with `flatpak-spawn --host` in a Flatpak). It reads the answer through
-`tuna_installer_xfce/fisherman_probe.py`, a byte-identical copy of
-`shared/probe/fisherman_probe.py`. Show the eligible disks in fisherman's order,
+`bootc_shared.probe`. Show the eligible disks in fisherman's order,
 with `size_label` exactly as given. Do not add a disk filter or a size
 formatter. If the probe fails, the destination page shows the reason and
 offers no disk. `tests/test_probe.py` renders the shared fixtures, and
@@ -125,8 +136,7 @@ sees the runtime's `/etc` and `/usr`, not the host's
 
 The identity page sends the hostname and username, and the encryption page
 the encryption choice, passphrase and filesystem, to
-`fisherman validate --json --partial -` (`fisherman_validate.LiveCheck`, a
-byte-identical copy of `shared/recipe/fisherman_validate.py`). A problem
+`fisherman validate --json --partial -` (`LiveCheck` of `bootc_shared.validate`). A problem
 shows under the field, worded by the copy key `validate_<code>`, and holds
 Next. The password (not empty, typed the same two times) and the
 passphrase confirmation are this frontend's rules. Encryption choices come from `encryption-choices.json`; branch on
@@ -163,7 +173,7 @@ fisherman — keep it there.
 
 ## Branding
 
-Nothing in this tree names a product. `tuna_installer_xfce/branding.py`, a byte-identical copy of the shared resolver that `core.BRANDING` exposes, resolves the product name,
+Nothing in this tree names a product. `bootc_shared.branding`, the shared resolver that `core.BRANDING` exposes, resolves the product name,
 the recipe's `distroID`, the hostname seed from a `branding.json`
 under `/etc/bootc-installer/` (host first), then `os-release`, then a
 neutral "Linux"; the contract and the fixtures it is tested against are in

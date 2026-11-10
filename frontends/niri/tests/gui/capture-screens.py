@@ -29,7 +29,7 @@ os.environ["QML2_IMPORT_PATH"] = os.path.join(REPO, "tests", "qml-stubs")
 os.environ["QML_IMPORT_PATH"] = os.environ["QML2_IMPORT_PATH"]
 
 from PyQt6.QtCore import (QUrl, QTimer, QEventLoop, QMetaObject, Q_ARG,  # noqa: E402
-                          QVariant, QPointF, QRect, QRectF, QSizeF)
+                          QObject, QVariant, QPointF, QRect, QRectF, QSizeF)
 from PyQt6.QtGui import QGuiApplication  # noqa: E402
 from PyQt6.QtQml import QQmlApplicationEngine  # noqa: E402
 from PyQt6.QtQuick import QQuickWindow  # noqa: E402
@@ -51,7 +51,18 @@ PAGES = [
     ("10-recovery", 8, "A TPM install: the recovery key, and restart held "
                        "until it is acknowledged."),
     ("11-tour", 8, "The selected image's tour slides."),
+    ("12-cancel-confirm", 7, "Cancel asks first: the install continues "
+                             "until the user confirms."),
+    ("13-cancelled", 8, "The end of an install that the user cancelled."),
+    ("14-offline", 2, "An image that needs a download, and no network: "
+                      "Continue is held."),
 ]
+
+# The button that leaves each step, by frame.
+NEXT_BUTTONS = {"02-session": "sessionNextButton", "03-source": "sourceNextButton",
+                "04-disk": "diskNextButton", "05-encryption": "encryptionNextButton",
+                "06-account": "accountNextButton", "07-confirm": "confirmInstallButton",
+                "14-offline": "sourceNextButton"}
 
 # The account page's fields, filled the way a user would leave them: the
 # account frame shows them, and the confirm frame names the user. Neutral
@@ -281,27 +292,173 @@ def main():
     # The catalog the backend's `catalog` reports, joined here against the
     # probe's offline images the way the Source step does. Imgrefs match
     # the fixture's offline_images, so both rows read "available offline".
-    STABLE = {"name": "Example OS Stable", "desc": "The stable release.",
-              "imgref": "ghcr.io/example/os:stable",
-              "filesystem": "btrfs", "filesystems": ["btrfs", "ext4"],
-              "needs_user_creation": True, "bootloader": "systemd",
-              "composefs": False, "flatpaks": ["org.example.App"],
-              "default_hostname": "example", "carousel": []}
-    BETA = {"name": "Example OS Beta", "desc": "The beta release.",
-            "imgref": "ghcr.io/example/os:beta",
-            "filesystem": "ext4", "filesystems": ["ext4"],
-            "needs_user_creation": False, "bootloader": "systemd",
-            "composefs": False, "flatpaks": [],
-            "default_hostname": "",
-            "carousel": [{"title": "Welcome",
-                          "description": "This is the tour.",
-                          "image": ""}]}
-    root.setProperty("catalogLeaves", [STABLE, BETA])
-    root.setProperty("catalogDefaultImage", "ghcr.io/example/os:stable")
+    def leaf(channel, tag, **fields):
+        """One leaf in the shape `catalog` prints (installer/catalog.go):
+        the resolved fields, the labels, and the recipe keys."""
+        imgref = f"ghcr.io/example/os:{tag}"
+        out = {"name": channel, "desc": "", "imgref": imgref,
+               "product": "Example OS", "channel": channel,
+               "label": f"Example OS {channel}",
+               "path": ["Example OS", channel],
+               "breadcrumb": f"Example OS \u203a {channel}",
+               "nvidia_imgref": "", "bootloader": "systemd",
+               "composefs": False, "filesystem": "", "filesystems": [],
+               "default_hostname": "", "flatpaks": None, "flatpaks_url": "",
+               "flatpak_var_path": "", "needs_user_creation": True,
+               "image_type": "bootc", "carousel": []}
+        out.update(fields)
+        out["recipe"] = {"image": imgref, "targetImgref": imgref,
+                         "bootloader": out["bootloader"],
+                         "composeFsBackend": out["composefs"]}
+        if out["filesystem"]:
+            out["recipe"]["filesystem"] = out["filesystem"]
+        if out["flatpaks"] is not None:
+            out["recipe"]["flatpaks"] = out["flatpaks"]
+        return out
+
+    STABLE = leaf("Stable", "stable", filesystem="btrfs",
+                  filesystems=["btrfs", "ext4"], flatpaks=["org.example.App"],
+                  default_hostname="example")
+    BETA = leaf("Beta", "beta", filesystem="ext4", filesystems=["ext4"],
+                needs_user_creation=False, flatpaks=[],
+                carousel=[{"title": "Welcome",
+                           "description": "This is the tour.", "image": ""}])
+    # Not in the fixture's offline images: this one needs a download.
+    EDGE = leaf("Edge", "edge")
+    CATALOG = {"path": "/etc/bootc-installer/images.json", "skipped": [],
+               "default_image": "", "selected": "", "leaves": [STABLE, BETA, EDGE],
+               "machine": {"has_nvidia": False, "is_live": False,
+                           "offline_images": probed["offline_images"]},
+               "live_leaf": None, "live_needs_user_creation": True}
     root.setProperty("offlineImages", probed["offline_images"])
+    root.setProperty("netConnected", True)
+    root.setProperty("netChecked", True)
+
+    def call(method, *args):
+        QMetaObject.invokeMethod(root, method, *[Q_ARG(QVariant, a) for a in args])
+
+    def answer_netcheck(connected):
+        """Replace the answer of the wizard's `netcheck` Process (the stub
+        in tests/qml-stubs): what the backend would print on this machine."""
+        for obj in root.findChildren(QObject):
+            command = obj.property("command")
+            command = command.toVariant() if hasattr(command, "toVariant") else command
+            if command and "netcheck" in list(command):
+                obj.setProperty("fixtures", {"netcheck": json.dumps(
+                    {"connected": connected, "target": "", "tried": []})})
+                return
+        print("FAIL: the wizard has no netcheck Process", file=sys.stderr)
+        sys.exit(1)
+
+    def item(name):
+        found = find_item(window.contentItem(), name)
+        if found is None:
+            print(f"FAIL: no item named {name} in the visual tree", file=sys.stderr)
+            sys.exit(1)
+        return found
+
+    def process(subcommand):
+        """The wizard's Process (the stub) that runs this backend subcommand."""
+        for obj in root.findChildren(QObject):
+            command = obj.property("command")
+            command = command.toVariant() if hasattr(command, "toVariant") else command
+            if command and subcommand in list(command):
+                return obj
+        print(f"FAIL: the wizard has no {subcommand} Process", file=sys.stderr)
+        sys.exit(1)
+
+    # #291, the Session step. On live media, with a current keyboard layout
+    # that the host's list does not have ("us,de": localectl reports the X11
+    # layout, list-keymaps does not), the field must show THAT value, and
+    # Continue must send nothing and move on.
+    root.setProperty("isLive", True)
+    root.setProperty("keyboardLayouts", ["de", "us"])
+    root.setProperty("keyboardLayout", "us,de")
+    root.setProperty("localeList", ["de_DE.UTF-8", "en_US.UTF-8"])
+    root.setProperty("localeName", "en_US.UTF-8")
+    root.setProperty("timezoneList", ["UTC", "Europe/Berlin"])
+    root.setProperty("timezoneName", "")
+    root.setProperty("currentPage", 1)
+    settle(200)
+    shown = item("sessionKeyboard").property("editText")
+    if shown != "us,de":
+        print(f"FAIL: the keyboard field shows {shown!r}, not the session's "
+              "own 'us,de' (#291: entry 0 was shown, then applied)", file=sys.stderr)
+        return 1
+    if item("sessionTimezone").property("editText") != "":
+        print("FAIL: an unknown time zone shows an entry of the list", file=sys.stderr)
+        return 1
+    setter = process("session-set")
+    call("advance")
+    settle(200)
+    if root.property("currentPage") != 2 or setter.property("written"):
+        print(f"FAIL: Continue with nothing changed went to page "
+              f"{root.property('currentPage')} and sent {setter.property('written')!r}",
+              file=sys.stderr)
+        return 1
+    # One field changed: only that field is sent. The backend fails (no
+    # systemd-localed, a polkit denial): a warning, and the wizard moves on.
+    root.setProperty("currentPage", 1)
+    item("sessionTimezone").setProperty("editText", "Europe/Berlin")
+    setter.setProperty("exitCode", 1)
+    call("advance")
+    settle(200)
+    sent = json.loads(setter.property("written") or "{}")
+    if sent != {"timezone": "Europe/Berlin"}:
+        print(f"FAIL: session-set was sent {sent!r}, not the one changed field",
+              file=sys.stderr)
+        return 1
+    if root.property("currentPage") != 2 or not root.property("sessionWarning"):
+        print("FAIL: a failed session-set did not move on with a warning "
+              "(#291: the wizard stopped on step 2)", file=sys.stderr)
+        return 1
+    # Off live media nothing is sent, whatever the fields say.
+    setter.setProperty("exitCode", 0)
+    setter.setProperty("written", "")
+    root.setProperty("isLive", False)
+    root.setProperty("sessionFailed", False)
+    root.setProperty("currentPage", 1)
+    call("advance")
+    settle(200)
+    if root.property("currentPage") != 2 or setter.property("written"):
+        print("FAIL: off live media the Session step sent settings to the host",
+              file=sys.stderr)
+        return 1
+    root.setProperty("currentPage", 0)
+
+    # #289: a catalog whose default the branding and the catalog do not name
+    # selects NOTHING, and Continue on the Source step is held until the
+    # user picks a row. The first row is never chosen for them.
+    call("loadCatalog", CATALOG)
     root.setProperty("catalogLoaded", True)
-    # Preselected the way `catalog`'s answer preselects: the first leaf.
-    root.setProperty("selectedLeaf", STABLE)
+    root.setProperty("currentPage", 2)
+    settle(200)
+    if root.property("sourceReady") or item("sourceNextButton").property("enabled"):
+        print("FAIL: an image is selected, or Continue is live, with no "
+              "default_image in the branding or the catalog (#289)", file=sys.stderr)
+        return 1
+    # The catalog names one: that leaf is the selection at the start, with
+    # its filesystem and its choices.
+    call("loadCatalog", dict(CATALOG, default_image=STABLE["imgref"],
+                             selected=STABLE["imgref"]))
+    settle(200)
+    chosen = root.property("selectedLeaf")
+    chosen = chosen.toVariant() if hasattr(chosen, "toVariant") else chosen
+    if not chosen or chosen.get("imgref") != STABLE["imgref"]:
+        print("FAIL: the catalog's default_image is not the selection", file=sys.stderr)
+        return 1
+    if root.property("filesystem") != "btrfs" or not item("sourceNextButton").property("enabled"):
+        print("FAIL: the selected leaf's filesystem was not applied, or "
+              "Continue is held with a selection", file=sys.stderr)
+        return 1
+    # A different leaf brings its own filesystem; the one before is not kept.
+    call("selectLeaf", BETA)
+    if root.property("filesystem") != "ext4" or root.property("needsUserCreation"):
+        print("FAIL: selecting another leaf kept the old filesystem or the "
+              "old account flag", file=sys.stderr)
+        return 1
+    call("selectLeaf", STABLE)
+    root.setProperty("currentPage", 0)
     # The preflight's answer: lists from the host tools, connectivity up.
     root.setProperty("keyboardLayouts", ["us", "de"])
     root.setProperty("keyboardLayout", "us")
@@ -318,6 +475,24 @@ def main():
     if not root.property("accountReady"):
         print("FAIL: the filled account page still holds Continue", file=sys.stderr)
         return 1
+    # #295: the passwords are hidden until the reveal toggle is used, and a
+    # mismatch holds Continue.
+    # displayText is what the field draws: dots, or the text itself.
+    secret = ACCOUNT["userPassword"]
+    hidden = item("accountPassword").property("displayText")
+    root.setProperty("showPassword", True)
+    shown = (item("accountPassword").property("displayText"),
+             item("accountPasswordConfirm").property("displayText"))
+    root.setProperty("showPassword", False)
+    if hidden == secret or shown != (secret, secret):
+        print("FAIL: the reveal toggle does not show the two password "
+              "fields, or they are readable without it (#295)", file=sys.stderr)
+        return 1
+    root.setProperty("userPasswordConfirm", "different")
+    if root.property("accountReady"):
+        print("FAIL: Continue is live with two different passwords", file=sys.stderr)
+        return 1
+    root.setProperty("userPasswordConfirm", ACCOUNT["userPasswordConfirm"])
 
     frames, findings = [], []
     for name, page, _caption in PAGES:
@@ -330,7 +505,7 @@ def main():
             root.setProperty("tourOpen", True)
         else:
             root.setProperty("tourOpen", False)
-        if page == PROGRESS_PAGE:
+        if name == "08-progress":
             # Through appendLog(), the function a real install calls — so the
             # bar, the step caption and the log rendering are all the live
             # code path. Assigning installLog directly, as this used to, is
@@ -344,7 +519,24 @@ def main():
             # photograph a bar narrower than the install really is.
             settle(700)
         if page == DONE_PAGE:
-            root.setProperty("installSuccess", True)
+            root.setProperty("installSuccess", name != "13-cancelled")
+        # #299: Cancel asks first. The overlay is over the install page, and
+        # the install is not stopped by opening it.
+        root.setProperty("cancelOpen", name == "12-cancel-confirm")
+        if name == "13-cancelled":
+            # fisherman's exit code for a cancelled install, through the
+            # function the install Process's exit calls.
+            root.setProperty("recoveryKey", "")
+            QMetaObject.invokeMethod(root, "installExited", Q_ARG(QVariant, 130))
+        if name == "14-offline":
+            # #301: the selected image is not on the media and the check
+            # says there is no network.
+            # The answer comes from the wizard's own `netcheck` Process
+            # (the stub's, replaced here by an offline one), so the frame
+            # exercises the check and not a property assignment.
+            answer_netcheck(False)
+            call("selectLeaf", EDGE)
+            settle(600)  # the check's pause, then the stub's answer
         if name == "10-recovery":
             QMetaObject.invokeMethod(root, "appendLog",
                                      Q_ARG(QVariant, RECOVERY_EVENT))
@@ -373,6 +565,77 @@ def main():
         if name in ("06-account", "07-confirm") and ACCOUNT["username"] not in finding["text"]:
             print(f"  !! the username is not on {name}", file=sys.stderr)
             sys.exit(1)
+
+        # The button that moves the wizard on must be ON the screen. The
+        # encryption page used to be taller than the window, and because all
+        # pages share one stack, that pushed Back, Continue and the hint bar
+        # below the bottom edge on EVERY step: each frame looked fine and
+        # none of them could be left with the mouse.
+        if name in NEXT_BUTTONS:
+            button = item(NEXT_BUTTONS[name])
+            bottom = button.mapToScene(QPointF(0, button.height())).y()
+            if not button.isVisible() or bottom > window.height():
+                print(f"  !! {NEXT_BUTTONS[name]} is not on the screen on {name} "
+                      f"(bottom edge at {bottom:.0f} of {window.height()})",
+                      file=sys.stderr)
+                sys.exit(1)
+
+        if name == "03-source":
+            # A flat list of a full catalog: each row is the breadcrumb
+            # (product and channel), never a bare channel name, and the
+            # filter box is there.
+            if STABLE["breadcrumb"] not in finding["text"] or not item("sourceSearch").isVisible():
+                print("  !! the Source step shows no product in its rows, "
+                      "or has no filter box (#289)", file=sys.stderr)
+                sys.exit(1)
+        if name == "12-cancel-confirm":
+            if (not item("cancelConfirmButton").isVisible()
+                    or root.property("cancelRequested")):
+                print("  !! Cancel did not ask first (#299)", file=sys.stderr)
+                sys.exit(1)
+        if name == "13-cancelled":
+            with open(os.path.join(REPO, "installer", "copy-defaults.json"),
+                      encoding="utf-8") as fh:
+                copy = json.load(fh)
+            title = item("doneTitle").property("text")
+            if title != copy["done_cancelled_title"] or copy["done_failed_title"] in finding["text"]:
+                print(f"  !! exit code 130 shows {title!r}, not the copy line "
+                      "done_cancelled_title (#299)", file=sys.stderr)
+                sys.exit(1)
+            # After a confirmed cancel a killed wrapper (128 + SIGTERM) is a
+            # cancelled install too; with no cancel, a failure stays a failure.
+            root.setProperty("cancelRequested", True)
+            QMetaObject.invokeMethod(root, "installExited", Q_ARG(QVariant, 143))
+            cancelled = item("doneTitle").property("text")
+            root.setProperty("cancelRequested", False)
+            QMetaObject.invokeMethod(root, "installExited", Q_ARG(QVariant, 1))
+            failed = item("doneTitle").property("text")
+            if cancelled != copy["done_cancelled_title"] or failed != copy["done_failed_title"]:
+                print(f"  !! after a confirmed cancel the page reads {cancelled!r}; "
+                      f"a plain failure reads {failed!r} (#299)", file=sys.stderr)
+                sys.exit(1)
+        if name == "14-offline":
+            if item("sourceNextButton").property("enabled") or not item("offlineRecheck").isVisible():
+                print("  !! offline with an image that needs a download, and "
+                      "Continue is live or there is no Recheck (#301)",
+                      file=sys.stderr)
+                sys.exit(1)
+            # An image that is on the media needs no network.
+            call("selectLeaf", STABLE)
+            settle(600)
+            if root.property("netConnected") or not item("sourceNextButton").property("enabled"):
+                print("  !! an offline image is held by the network gate",
+                      file=sys.stderr)
+                sys.exit(1)
+            # The network comes back: Recheck lets the download through.
+            call("selectLeaf", EDGE)
+            answer_netcheck(True)
+            call("recheckNetwork")
+            settle(600)
+            if not item("sourceNextButton").property("enabled"):
+                print("  !! Continue stays held after the network came back",
+                      file=sys.stderr)
+                sys.exit(1)
 
         # The recovery frame is the one screen where a correct-looking render
         # can still be wrong: the panel can draw without the key in it, and

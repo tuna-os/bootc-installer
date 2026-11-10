@@ -1,5 +1,5 @@
 """
-Unit tests for bootc_installer/readiness.py — pure Python, no GTK required.
+Unit tests for bootc_shared/readiness.py (shared/python), as GNOME uses it — pure Python, no GTK required.
 
 This module is the smoke-test safety net for the COSMIC-leg incident
 described in its own docstring: a frontend process can be alive with no
@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from bootc_installer import readiness  # noqa: E402
+from bootc_shared import readiness  # noqa: E402
 
 
 class TestStampPath(unittest.TestCase):

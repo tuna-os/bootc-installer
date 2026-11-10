@@ -53,22 +53,20 @@ func encryptionChoices() []EncryptionChoice {
 // machine, so this only bounds a hung flatpak-spawn.
 const validateTimeout = 10 * time.Second
 
-// validateCommandFor is the unprivileged command: the fisherman the install
-// runs, on the host. Never pkexec or sudo.
-func validateCommandFor(flatpak bool) []string {
-	argv := []string{"/usr/local/bin/fisherman", "validate", "--json", "--partial", "-"}
-	if flatpak {
-		return append([]string{"flatpak-spawn", "--host"}, argv...)
-	}
-	return argv
-}
+// validateArgs is what fisherman is asked: a partial recipe on stdin.
+var validateArgs = []string{"validate", "--json", "--partial", "-"}
 
 // runValidate sends the partial recipe on stdin to fisherman and copies its
 // answer to stdout. It exits as fisherman did for 0 (valid) and 1
 // (invalid); anything else means the check could not run, and is exit 2
 // with the reason on stderr, which the QML treats as "no answer".
 func runValidate(stdin io.Reader, stdout, stderr io.Writer) int {
-	return runValidateWith(validateCommandFor(inFlatpak()), stdin, stdout, stderr)
+	fisherman, err := resolveFisherman()
+	if err != nil {
+		fmt.Fprintf(stderr, "%v\n", err)
+		return 2
+	}
+	return runValidateWith(fisherman.Argv(validateArgs...), stdin, stdout, stderr)
 }
 
 // runValidateWith is runValidate with the command given (tests).

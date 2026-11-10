@@ -9,8 +9,9 @@ import json
 import os
 
 import pytest
+from bootc_shared import probe as fisherman_probe
 
-from tuna_installer_xfce import core, fisherman_probe
+from tuna_installer_xfce import core
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "..", "..", "..",
                         "shared", "probe", "fixtures")

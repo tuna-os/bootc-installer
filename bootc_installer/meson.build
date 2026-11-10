@@ -24,26 +24,21 @@ if blueprint_compiler.found()
       'gtk/default-vm.blp',
       'gtk/default-welcome.blp',
       'gtk/dialog.blp',
-      'gtk/dialog-disk.blp',
       'gtk/dialog-disk-confirm.blp',
       'gtk/dialog-credits.blp',
       'gtk/dialog-output.blp',
       'gtk/dialog-poweroff.blp',
-      'gtk/dialog-recovery.blp',
       'gtk/done.blp',
       'gtk/layout-preferences.blp',
       'gtk/layout-yes-no.blp',
       'gtk/progress.blp',
       'gtk/recovery-key.blp',
-      'gtk/tour.blp',
       'gtk/widget-choice.blp',
       'gtk/widget-page-header.blp',
       'gtk/widget-choice-expander.blp',
       'gtk/widget-disk.blp',
       'gtk/widget-keyboard.blp',
       'gtk/widget-language.blp',
-      'gtk/widget-partition.blp',
-      'gtk/widget-partition-row.blp',
       'gtk/widget-timezone.blp',
       'gtk/window.blp',
       'gtk/window-cpu.blp',
@@ -118,13 +113,14 @@ configure_file(
   install_dir: moduledir,
 )
 
-# readiness.py is imported unconditionally by main.py, so it must be
-# installed with it: a packaged build missing it raises ModuleNotFoundError
-# before any window can appear. It shipped in #7/#8 without being added
-# here, so no packaged build has ever contained it — tunaOS installer-smoke
-# run 32427184070 caught it as the installer being installed, autostarted,
-# and never running at all.
+# main.py imports bootc_shared.readiness unconditionally, so the bootc_shared
+# package (shared/python/meson.build) must be installed with it: a packaged
+# build missing it raises ModuleNotFoundError before any window can appear.
+# readiness.py once shipped without an install rule, and tunaOS
+# installer-smoke run 32427184070 caught it as the installer being
+# installed, autostarted, and never running at all.
+# tests/unit/test_shared_python_package.py holds the install rule.
 install_data(
-  ['__init__.py', 'main.py', 'readiness.py'],
+  ['__init__.py', 'main.py'],
   install_dir: moduledir,
 )

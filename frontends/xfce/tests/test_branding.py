@@ -10,8 +10,9 @@ import json
 import os
 
 import pytest
+from bootc_shared import branding
 
-from tuna_installer_xfce import branding, core
+from tuna_installer_xfce import core
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXTURES = os.path.normpath(os.path.join(HERE, "..", "..", "..", "shared", "branding", "fixtures"))
