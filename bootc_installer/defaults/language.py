@@ -14,9 +14,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""The language step. The selected locale goes into the recipe as
+`locale` (#292): the Processor writes it, fisherman sets LANG in the
+installed system. With no row selected the recipe has no `locale`, and the
+image keeps its own. fisherman checks the name (`validate --partial`)."""
+
 import re
 from gi.repository import Adw, Gtk
 from bootc_installer.core.languages import all_languages, current_language
+from bootc_installer.utils.field_check import ChoiceCheck
 
 
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/widget-language.ui")
@@ -38,9 +44,14 @@ class LanguageRow(Adw.ActionRow):
         self.select_button.connect("toggled", self.__on_check_button_toggled)
 
     def __on_check_button_toggled(self, widget):
+        # A radio group: the row that is switched off emits too.
+        if hasattr(widget, "get_active") and not widget.get_active():
+            return
         self.__selected_language["language_title"] = self.__title
         self.__selected_language["language_subtitle"] = self.__subtitle
-        self.get_parent().emit("selected-rows-changed")
+        parent = self.get_parent()
+        if parent is not None:
+            parent.emit("selected-rows-changed")
 
 
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/default-language.ui")
@@ -49,25 +60,30 @@ class BootcDefaultLanguage(Adw.Bin):
 
     btn_next = Gtk.Template.Child()
     entry_search_language = Gtk.Template.Child()
-    search_controller = Gtk.EventControllerKey.new()
     all_languages_group = Gtk.Template.Child()
-
-    selected_language = {"language_title": None, "language_subtitle": None}
+    problem_label = Gtk.Template.Child()
 
     def __init__(self, window, distro_info, key, step, **kwargs):
         super().__init__(**kwargs)
+        # Per page, made when the page is: not at import, before GTK is up.
+        self.search_controller = Gtk.EventControllerKey.new()
         self.__window = window
         self.__distro_info = distro_info
         self.__key = key
         self.__step = step
         self.__language_rows = []
         self.delta = True
+        # One dict per page: the rows write into it.
+        self.selected_language = {"language_title": None, "language_subtitle": None}
+        self.check = ChoiceCheck(window, "locale", self.problem_label,
+                                 on_change=self.__language_verify)
         self.__generate_language_list_widgets()
+        self.__submit()
 
         # signals
         self.btn_next.connect("clicked", self.__window.next)
         self.all_languages_group.connect(
-            "selected-rows-changed", self.__language_verify
+            "selected-rows-changed", self.__on_selection_changed
         )
         self.all_languages_group.connect("row-selected", self.__language_verify)
         self.all_languages_group.connect("row-activated", self.__language_verify)
@@ -85,11 +101,21 @@ class BootcDefaultLanguage(Adw.Bin):
     def del_deltas(self):
         self.all_languages_group.remove_all()
 
+    def __submit(self, *args):
+        """Ask fisherman about the selected locale."""
+        code = self.selected_language["language_subtitle"]
+        if code:
+            self.check.submit({"locale": code})
+
+    def __on_selection_changed(self, *args):
+        self.__submit()
+        self.__language_verify()
+
     def __language_verify(self, *args):
-        if self.selected_language["language_subtitle"] is not None:
-            self.btn_next.set_sensitive(True)
-        else:
-            self.btn_next.set_sensitive(False)
+        check = getattr(self, "check", None)
+        ok = check is None or check.ok
+        self.btn_next.set_sensitive(
+            self.selected_language["language_subtitle"] is not None and ok)
 
     def __generate_language_list_widgets(self):
         for language_code, language_title in all_languages.items():
@@ -107,8 +133,16 @@ class BootcDefaultLanguage(Adw.Bin):
                 self.selected_language["language_title"] = language_title
                 self.selected_language["language_subtitle"] = language_code
 
+    def test_auto_advance(self):
+        """BOOTC_TEST and the demo tests: move on with what is selected
+        now, which may be nothing (the image keeps its own value)."""
+        self.__window.next()
+
     def get_finals(self):
-        return {"language": self.selected_language["language_subtitle"]}
+        """`language` is the selected locale ("de_DE.UTF-8"): the recipe's
+        `locale`. No key when no row is selected."""
+        code = self.selected_language["language_subtitle"]
+        return {"language": code} if code else {}
 
     def __on_search_key_pressed(self, *args):
         keywords = re.sub(

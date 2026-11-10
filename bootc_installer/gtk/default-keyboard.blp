@@ -53,6 +53,18 @@ template $BootcDefaultKeyboard: Adw.Bin {
               placeholder-text: _("Search keyboard layouts");
             }
 
+            // fisherman's answer for the selected layout (`keyboard`).
+            Label problem_label {
+              visible: false;
+              wrap: true;
+              xalign: 0;
+              margin-bottom: 6;
+
+              styles [
+                "error",
+              ]
+            }
+
             ListBox all_keyboards_group {
               styles [
                 "boxed-list",

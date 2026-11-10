@@ -48,6 +48,18 @@ template $BootcDefaultTimezone: Adw.Bin {
               placeholder-text: _("Search timezones");
             }
 
+            // fisherman's answer for the selected zone (`timezone`).
+            Label problem_label {
+              visible: false;
+              wrap: true;
+              xalign: 0;
+              margin-bottom: 6;
+
+              styles [
+                "error",
+              ]
+            }
+
             Adw.PreferencesGroup all_timezones_group {}
           }
         }

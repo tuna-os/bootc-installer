@@ -45,6 +45,18 @@ template $BootcDefaultLanguage: Adw.Bin {
             placeholder-text: _("Search languages");
           }
 
+          // fisherman's answer for the selected locale (`locale`).
+          Label problem_label {
+            visible: false;
+            wrap: true;
+            xalign: 0;
+            margin-bottom: 6;
+
+            styles [
+              "error",
+            ]
+          }
+
           ListBox all_languages_group {
             styles [
               "boxed-list",

@@ -75,6 +75,33 @@ def _find_nvidia_imgref_for(imgref: str) -> str:
     return leaf["nvidia_imgref"] if leaf else ""
 
 
+def region_fields(merged: dict) -> dict:
+    """The recipe's `locale`, `keyboard` and `timezone` from the finals of
+    the language, keyboard and time zone steps (#292).
+
+    A key is there only when its step has a selected value: without it
+    fisherman keeps the image's own. `keyboard` is an XKB layout and, when
+    the row has one, its variant. A value of the wrong type is left out;
+    fisherman checks the names (`validate`), and the pages asked it first.
+    """
+    fields = {}
+    language = merged.get("language")
+    if isinstance(language, str) and language.strip():
+        fields["locale"] = language.strip()
+    keyboard = merged.get("keyboard")
+    if isinstance(keyboard, dict):
+        layout = keyboard.get("layout")
+        variant = keyboard.get("variant")
+        if isinstance(layout, str) and layout:
+            fields["keyboard"] = {"layout": layout}
+            if isinstance(variant, str) and variant:
+                fields["keyboard"]["variant"] = variant
+    timezone = merged.get("timezone")
+    if isinstance(timezone, str) and timezone.strip():
+        fields["timezone"] = timezone.strip()
+    return fields
+
+
 class Processor:
     @staticmethod
     def find_metadata(candidates, aliases, imgref) -> dict:
@@ -461,6 +488,8 @@ class Processor:
         # picked it, from a list that only an image's catalog entry offers.
         if filesystem == "zfs":
             recipe["experimental"] = ["zfs"]
+        # Language, keyboard and time zone: only what the user selected.
+        recipe.update(region_fields(merged))
         if image_type and image_type != "bootc":
             recipe["imageType"] = image_type
         if flatpak_var_path:

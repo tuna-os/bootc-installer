@@ -29,7 +29,12 @@ from gi.repository import Adw, GObject, Gtk
 _FILESYSTEM_LABELS = {"xfs": "XFS", "ext4": "ext4", "btrfs": "Btrfs", "zfs": "ZFS"}
 
 
-def filesystem_label(fs: str) -> str:
+def filesystem_label(fs: str, text=None) -> str:
+    """The name of a root filesystem. ZFS is the branding copy
+    `filesystem_zfs_label` through `text(key)`, when given: fisherman
+    accepts it only as experimental, and the name says so."""
+    if fs == "zfs" and text is not None:
+        return text("filesystem_zfs_label") or _FILESYSTEM_LABELS["zfs"]
     return _FILESYSTEM_LABELS.get(fs, fs)
 
 
@@ -83,6 +88,16 @@ def var_disk_summary(var_disk) -> tuple[str, bool]:
     erased = not bool(var_disk.get("keep_existing", False))
     state = _("will be erased") if erased else _("kept, its data is not erased")
     return f"{var_disk['disk']}: {state}", erased
+
+
+def keyboard_summary(keyboard) -> str:
+    """The Keyboard row's value: the XKB layout, and its variant after a
+    "+" ("de+nodeadkeys"), as the live session names it. "" when the
+    keyboard step selected none."""
+    if not isinstance(keyboard, dict) or not keyboard.get("layout"):
+        return ""
+    variant = keyboard.get("variant") or ""
+    return f"{keyboard['layout']}+{variant}" if variant else keyboard["layout"]
 
 
 def erased_disks_text(disks: list) -> str:
@@ -172,7 +187,10 @@ class BootcConfirm(Adw.Bin):
 
         for final in finals:
             for key, value in final.items():
-                if key == "language":
+                # The language, keyboard and time zone rows are the
+                # recipe's `locale`, `keyboard` and `timezone` (#292): a row
+                # for each value the install writes, none for the others.
+                if key == "language" and value:
                     selected_language = value
                     self.active_widgets.append(
                         BootcChoiceEntry(
@@ -180,12 +198,18 @@ class BootcConfirm(Adw.Bin):
                         )
                     )
                 elif key == "keyboard":
-                    self.process_keyboards(value)
-                elif key == "timezone":
+                    summary = keyboard_summary(value)
+                    if summary:
+                        self.active_widgets.append(
+                            BootcChoiceEntry(
+                                _("Keyboard"), summary, "input-keyboard-symbolic"
+                            )
+                        )
+                elif key == "timezone" and isinstance(value, str) and value:
                     self.active_widgets.append(
                         BootcChoiceEntry(
-                            _("Timezone"),
-                            f"{value['region']} {value['zone']}",
+                            _("Time zone"),
+                            value,
                             "preferences-system-time-symbolic",
                         )
                     )
@@ -230,7 +254,8 @@ class BootcConfirm(Adw.Bin):
                             primary["filesystem"].append(
                                 BootcChoiceEntry(
                                     _("Filesystem"),
-                                    filesystem_label(fs),
+                                    filesystem_label(
+                                        fs, lambda key: copy_text.text(self.__window, key)),
                                     "drive-multidisk-symbolic",
                                 )
                             )
@@ -444,19 +469,3 @@ class BootcConfirm(Adw.Bin):
         start (an invalid recipe, no disk), so the user can correct the
         problem on this page and confirm again."""
         self._armed = True
-
-    def process_keyboards(self, selected_keyboards):
-        keyboard_index = ""
-        if len(selected_keyboards) > 1:
-           keyboard_index = 0 
-        for i in selected_keyboards:
-            value = i["layout"]
-            if i["variant"] != "":
-                value = f"{i['layout']}+{i['variant']}"
-            if len(selected_keyboards) > 1:
-                keyboard_index += 1
-            self.active_widgets.append(
-                BootcChoiceEntry(
-                    _(f"Keyboard {keyboard_index}"), value,"input-keyboard-symbolic"
-                )
-            )
