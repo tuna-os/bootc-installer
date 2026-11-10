@@ -112,8 +112,9 @@ def decide(found, changed_since, head):
         paths = pf.touches(frontend, changed_since(base))
         if paths:
             sample = ", ".join(paths[:3]) + (" ..." if len(paths) > 3 else "")
-            verdicts[frontend] = (True, f"{len(paths)} change(s) since {base[:7]}, "
-                                        f"the last commit published: {sample}")
+            reason = (f"{len(paths)} change(s) since {base[:7]}, "
+                      f"the last commit published: {sample}")
+            verdicts[frontend] = (True, reason)
         else:
             verdicts[frontend] = (False, f"no change since {base[:7]}, the last commit published")
     return verdicts

@@ -86,8 +86,8 @@ def account_failures(frontend, recipe, catalog):
             return [f"user: {username!r} is not in wheel: {user.get('groups')!r}"]
         return []
     if username:
-        return [f"user: the catalog says the image needs no account "
-                f"(needs_user_creation is false) and the recipe creates {username!r}"]
+        return [("user: the catalog says the image needs no account "
+                 f"(needs_user_creation is false) and the recipe creates {username!r}")]
     return []
 
 

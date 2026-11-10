@@ -35,8 +35,8 @@ DEVEL_ASSETS = {
     "buildsystem": "simple",
     "build-commands": [
         f"install -Dm644 data/{DEVEL_ID}.desktop /app/share/applications/{DEVEL_ID}.desktop",
-        f"install -Dm644 data/icons/hicolor/scalable/apps/{DEVEL_ID}.svg "
-        f"/app/share/icons/hicolor/scalable/apps/{DEVEL_ID}.svg",
+        (f"install -Dm644 data/icons/hicolor/scalable/apps/{DEVEL_ID}.svg "
+         f"/app/share/icons/hicolor/scalable/apps/{DEVEL_ID}.svg"),
     ],
     "sources": [{"type": "dir", "path": ".."}],
 }

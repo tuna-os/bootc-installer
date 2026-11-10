@@ -145,8 +145,8 @@ def evidence_problems(rows, manifests, summary, workflow_text):
                 if seen != "yes":
                     problems.append(f"{frontend}: `{row['id']}` says yes, but the walkthrough "
                                     f"screen `{screen}` reads {seen!r}")
-            if evidence.get("walkthrough_report"):
-                if not (summary.get("frontends", {}).get(frontend) or {}).get("report"):
+            if evidence.get("walkthrough_report") and not (
+                    summary.get("frontends", {}).get(frontend) or {}).get("report"):
                     problems.append(f"{frontend}: `{row['id']}` says yes, but the walkthrough "
                                     f"has no report for it")
             if "workflow_job" in evidence:

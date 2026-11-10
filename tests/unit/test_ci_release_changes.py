@@ -194,7 +194,7 @@ class WorkflowUsesTheScript(unittest.TestCase):
         # published() keys on "Publish (<name>) / "; a renamed job would make
         # every run look unpublished (safe, but every release would publish
         # everything, and nobody would know why).
-        names = re.findall(r"^    name: (Publish \(\w+\))$", self.text, re.M)
+        names = re.findall(r"^    name: (Publish \(\w+\))$", self.text, re.MULTILINE)
         self.assertEqual(names, [f"Publish ({n})" for n in ALL])
 
 
