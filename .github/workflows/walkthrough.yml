@@ -27,7 +27,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   actions: read
 
 concurrency:
@@ -84,3 +84,4 @@ jobs:
         with:
           paths: docs/walkthrough
           message: "docs: refresh cross-frontend walkthrough [skip ci]"
+          ssh-key: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}
