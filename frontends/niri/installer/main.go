@@ -49,6 +49,7 @@ type Recipe struct {
 	SelinuxDisabled       bool     `json:"selinuxDisabled"`
 	Hostname              string   `json:"hostname"`
 	UnifiedStorage        bool     `json:"unifiedStorage,omitempty"`
+	Override              []string `json:"override,omitempty"`
 	GenericImage          bool     `json:"genericImage,omitempty"`
 	ZfsPoolName           string   `json:"zfsPoolName,omitempty"`
 	ImageType             string   `json:"imageType,omitempty"`

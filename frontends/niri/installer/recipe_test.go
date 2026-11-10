@@ -89,7 +89,8 @@ func TestRecipeRoundTripKeepsEveryKey(t *testing.T) {
 		"varDisk": {"disk": "/dev/vdb", "keepExisting": true},
 		"slurpWallpapers": true,
 		"slurp": {"sourcePartition": "/dev/vda3", "users": ["jo"]},
-		"targetMount": "/mnt/t", "luksMapperName": "m", "brewTap": "owner/tap"
+		"targetMount": "/mnt/t", "luksMapperName": "m", "brewTap": "owner/tap",
+		"override": ["too_small"]
 	}`
 	var want map[string]any
 	if err := json.Unmarshal([]byte(full), &want); err != nil {
