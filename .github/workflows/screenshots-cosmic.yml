@@ -16,19 +16,21 @@ on:
   push:
     branches: [dev]
     paths:
-      - "shared/branding/**"
       - "frontends/cosmic/src/**"
       - "frontends/cosmic/tests/**"
       - "frontends/cosmic/Cargo.toml"
       - "frontends/cosmic/Cargo.lock"
+      - "shared/**"
+      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-cosmic.yml"
   pull_request:
     paths:
-      - "shared/branding/**"
       - "frontends/cosmic/src/**"
       - "frontends/cosmic/tests/**"
       - "frontends/cosmic/Cargo.toml"
       - "frontends/cosmic/Cargo.lock"
+      - "shared/**"
+      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-cosmic.yml"
   workflow_dispatch:
 

@@ -161,7 +161,9 @@ it against the same fixtures.
 ## How a contract changes
 
 A change to a contract changes all five frontends at once. These rules
-keep that visible.
+keep that visible. A change to a file in `shared/` starts the test workflow
+of each frontend (`tests/unit/test_ci_shared_path_filters.py`), so each
+frontend reads the new fixture in the same pull request.
 
 - **Add.** A new optional field, key or event is safe. Add it, add a
   fixture or a test case, and add an entry to `CHANGELOG.md`. The entry

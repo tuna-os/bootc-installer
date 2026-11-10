@@ -19,8 +19,9 @@ on:
       - "data/**"
       - "recipe.json"
       - "tests/gui/**"
-      - "shared/walkthrough/**"
       - "meson.build"
+      - "shared/**"
+      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-gnome.yml"
   pull_request:
     paths:
@@ -28,8 +29,9 @@ on:
       - "data/**"
       - "recipe.json"
       - "tests/gui/**"
-      - "shared/walkthrough/**"
       - "meson.build"
+      - "shared/**"
+      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-gnome.yml"
   workflow_dispatch:
 

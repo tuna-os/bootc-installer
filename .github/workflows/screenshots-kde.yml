@@ -16,27 +16,23 @@ on:
   push:
     branches: [dev]
     paths:
-      - "shared/branding/**"
       - "frontends/kde/src/**"
       - "frontends/kde/modules/**"
       - "frontends/kde/tests/**"
       - "frontends/kde/CMakeLists.txt"
       - "frontends/kde/*.json"
-      - "shared/catalog/**"
-      - "shared/account/**"
-      - "shared/progress/**"
+      - "shared/**"
+      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-kde.yml"
   pull_request:
     paths:
-      - "shared/branding/**"
       - "frontends/kde/src/**"
       - "frontends/kde/modules/**"
       - "frontends/kde/tests/**"
       - "frontends/kde/CMakeLists.txt"
       - "frontends/kde/*.json"
-      - "shared/catalog/**"
-      - "shared/account/**"
-      - "shared/progress/**"
+      - "shared/**"
+      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-kde.yml"
   workflow_dispatch:
 
