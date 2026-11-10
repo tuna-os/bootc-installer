@@ -99,5 +99,22 @@ def test_a_failed_probe_offers_nothing_and_says_why(monkeypatch):
 
 
 def test_probe_is_unprivileged_and_on_the_host():
-    prefix = ["flatpak-spawn", "--host"] if core.IN_FLATPAK else []
-    assert core.PROBE_ARGV == prefix + ["/usr/local/bin/fisherman", "probe", "--json"]
+    assert core.fisherman_command("probe", in_flatpak=False) == [
+        "/usr/local/bin/fisherman", "probe", "--json"]
+    # In a Flatpak: the staged copy of the bundled binary, on the host.
+    assert core.fisherman_command("probe", in_flatpak=True, host_path="/cache/f") == [
+        "flatpak-spawn", "--host", "/cache/f", "probe", "--json"]
+
+
+def test_a_fisherman_that_cannot_be_staged_is_a_failed_probe(monkeypatch):
+    """The destination page then shows the reason and offers no disk."""
+    def refuse(*_args, **_kwargs):
+        raise core.StageError("cannot stage fisherman: no cache")
+
+    monkeypatch.setattr(core, "fisherman_command", refuse)
+    core._probe_cache.clear()
+    try:
+        assert core.probe() == (None, "cannot stage fisherman: no cache")
+        assert core.candidate_disks() == ([], "cannot stage fisherman: no cache")
+    finally:
+        core._probe_cache.clear()

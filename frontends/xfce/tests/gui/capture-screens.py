@@ -184,6 +184,7 @@ CAPTIONS = {
     "confirm": "The last screen before anything is written.",
     "progress": "The install, step by step.",
     "done": "Finished — restart into the new system.",
+    "cancelled": "A cancelled install: its own page, not the failure page.",
     "recovery": "A TPM install: the recovery key, and reboot held until it "
                 "is acknowledged.",
 }
@@ -487,7 +488,17 @@ def main():
             win.index = index
             win.stack.set_visible_child_name(name)
             win.trawl.set_step(index)
-            if name == "progress":
+            if name == "identity":
+                # The image needs an account (the catalog does not say
+                # otherwise): type one, twice for the password, so the
+                # page can continue and the confirm page shows the user.
+                identity = win.pages["identity"]
+                identity.on_enter()
+                identity.username.set_text("jo")
+                identity.fullname.set_text("Jo Fisher")
+                identity.password.set_text("correct horse")
+                identity.password2.set_text("correct horse")
+            elif name == "progress":
                 _seed_progress(win.pages["progress"])
             elif name == "done":
                 # A finished install's bar is full; the seeded one stopped
@@ -502,6 +513,24 @@ def main():
             if finding is None:
                 continue
             problems = []
+            if name == "source":
+                source = win.pages["source"]
+                leaf = (source.selection() or {}).get("leaf")
+                if leaf is None or leaf.imgref != CATALOG["default_image"]:
+                    problems.append("the catalog default_image is not the selection")
+                if not source.search.get_visible():
+                    problems.append("the image list has no search box")
+                if "TunaOS \u203a GNOME" not in finding["text"]:
+                    problems.append("a row does not name the product and the channel")
+            elif name == "identity":
+                identity = win.pages["identity"]
+                if not identity.password2.get_visible():
+                    problems.append("the password is not asked twice")
+                if not identity.can_continue():
+                    problems.append("a complete account does not release Next")
+            elif name == "progress":
+                if not win.pages["progress"].cancel_btn.get_visible():
+                    problems.append("the progress page has no Cancel button")
             if name == "confirm":
                 text = finding["text"]
                 disk = win.pages["destination"].selected_disk()["path"]
@@ -547,6 +576,24 @@ def main():
                 elif win.pages["done"].reboot_btn.get_sensitive():
                     add_fatal(finding, ["reboot is live before the key was "
                                         "acknowledged"])
+
+        # The done page a third time: after a confirmed Cancel (or fisherman
+        # exit code 130). Its heading is the copy key done_cancelled_title.
+        win.pages["done"].set_result(False, "", cancelled=True)
+        win.refresh_nav()
+        finding = capture(win, painter, "cancelled",
+                          f"{len(PAGE_ORDER) + 2:02d}-cancelled.png",
+                          expect_back=False)
+        if finding is not None:
+            done = win.pages["done"]
+            problems = []
+            if core.BRANDING.text("done_cancelled_title") not in finding["text"]:
+                problems.append("done_cancelled_title is not on the cancelled page")
+            if core.BRANDING.text("done_failed_title") in finding["text"]:
+                problems.append("the cancelled page reads as a failure")
+            if done.reboot_btn.get_visible():
+                problems.append("the cancelled page offers Restart now")
+            add_fatal(finding, problems)
 
         win.destroy()
         app.quit()
@@ -597,9 +644,9 @@ def main():
         f["rendered"] = not page_failures
         failures.extend(page_failures)
 
-    # PAGE_ORDER plus the recovery frame, which is the done page in its other
-    # state rather than a page of its own.
-    expected_frames = len(PAGE_ORDER) + 1
+    # PAGE_ORDER plus the recovery and cancelled frames, which are the done
+    # page in its other states rather than pages of their own.
+    expected_frames = len(PAGE_ORDER) + 2
     if len(findings) != expected_frames:
         failures.append(f"captured {len(findings)} of {expected_frames} frames")
 

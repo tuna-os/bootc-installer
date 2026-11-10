@@ -21,8 +21,11 @@ Human docs: [`README.md`](README.md) (flow, offline behaviour, Flatpak),
 
 | Path | Lines | What |
 |---|---|---|
-| `tuna_installer_xfce/app.py` | ~557 | the wizard: screens, navigation, GTK wiring |
-| `tuna_installer_xfce/core.py` | ~400 | recipe construction, fisherman invocation, the probe's live and offline facts |
+| `tuna_installer_xfce/app.py` | ~560 | the window, navigation, the install process and its cancel |
+| `tuna_installer_xfce/pages.py` | ~1050 | the eight pages |
+| `tuna_installer_xfce/core.py` | ~900 | catalog, recipe construction, fisherman invocation, the probe's live and offline facts |
+| `tuna_installer_xfce/gates.py` | ~300 | requirement gates and dialogs |
+| `tuna_installer_xfce/i18n.py` | ~50 | gettext: the `_()` that each string goes through |
 | `tuna_installer_xfce/trawlline.py` | ~70 | the one piece of brand |
 | `tests/gui/` | | `capture-screens.py`, `parity_report.py` |
 
@@ -34,24 +37,31 @@ sudo dnf install -y python3-gobject gtk3   # Fedora
 `core.py` is the part worth reading first — it is where the recipe is decided,
 and it is GTK-free enough to reason about without a display.
 
-## How it invokes fisherman — two different paths
+## How it invokes fisherman: one resolver
 
-This trips people up because it works one way in development and another when
-packaged:
+`core.fisherman_command(purpose)` is the only place that builds a fisherman
+command, for `probe`, `validate` and `install`. `tests/test_core.py` holds
+the argv for each case, and fails when another module names the binary.
 
-- **Outside Flatpak:** `sudo /usr/local/bin/fisherman -`
-- **Inside Flatpak:** `flatpak-spawn --host bash -c 'pkexec
-  /usr/local/bin/fisherman -; exit $?'`, which requires the
-  polkit action for it to be installed **on the host** by the ISO build — not
-  by this repo. The host bash is there so fisherman's parent is a process
-  this frontend owns (fisherman cancels when its parent dies); the wrapper
-  is started in its own process group (`app.spawn_fisherman`).
+- **Outside Flatpak:** `/usr/local/bin/fisherman` for the probe and the
+  checks. The install is `bash -c 'pkexec /usr/local/bin/fisherman -; exit
+  $?'`. On live media (`live.is_live` of the probe) it is `sudo -n` in place
+  of `pkexec`.
+- **Inside Flatpak:** `core.stage_fisherman()` copies the bundled
+  `/app/bin/fisherman` to `$XDG_CACHE_HOME/bootc-installer/fisherman` and
+  compares its SHA256 with `flatpak-spawn --host sha256sum`. All three
+  purposes then run that copy through `flatpak-spawn --host`. Do not make the
+  path from `HOME/.cache`. If the stage step fails, nothing runs: the
+  destination page and the result page give the reason.
 
-Either way the recipe goes to fisherman on stdin: `spawn_fisherman` writes
-the JSON and closes the pipe. Nothing writes it to a file.
+The install runs in a bash that this frontend owns, in its own process group
+(`app.spawn_fisherman`). fisherman cancels when its parent dies, so a cancel
+signals that group.
 
-A change to how the backend is launched has to work in both, and the Flatpak
-path can only really be exercised from a built Flatpak:
+The recipe goes to fisherman on stdin: `spawn_fisherman` writes the JSON and
+closes the pipe. Nothing writes it to a file.
+
+You can test the Flatpak path only from a built Flatpak:
 
 ```bash
 flatpak-builder --user --install --force-clean build \
@@ -60,6 +70,32 @@ flatpak run org.tunaos.InstallerXfce
 ```
 
 Runtime is `org.gnome.Platform` (it ships GTK3 + PyGObject).
+
+## Image catalog and account
+
+`core.load_catalog()` follows `shared/catalog/README.md`: the search path
+(with `/run/host/etc` in a Flatpak), the fields that reach the recipe, the
+NVIDIA rule, the offline Flatpak-list rule, and the selection at the start.
+`tests/test_catalog_contract.py` reads `shared/catalog/fixtures/` through
+this parser. Do not read `fallback_flatpaks`, do not download a list, and do
+not select the first row.
+
+`core.DEFAULT_GROUPS` is a copy of `shared/account/groups.json`, because the
+Flatpak build copies only this package. `tests/test_account.py` fails when
+the two differ.
+
+## Cancel, autoinstall and strings
+
+- The progress page has a Cancel button. It asks first
+  (`gates.ConfirmCancelDialog`). Exit code 130, or the death of the wrapper
+  after a confirmed cancel, shows the cancelled page (`done_cancelled_title`).
+- `--autoinstall` runs `fisherman validate --json -` on the whole recipe
+  before it starts (`core.recipe_problems`).
+- Each user-facing literal goes through `_()` from
+  `tuna_installer_xfce/i18n.py`. `tests/test_i18n.py` fails on a bare
+  literal. Do not use `_` as a parameter or variable name in those modules.
+- The keyboard combo applies to the live session only. The recipe has no
+  locale field yet, so do not add a control that only stores a value.
 
 ## Disks, TPM and minimum requirements
 
@@ -92,8 +128,8 @@ the encryption choice, passphrase and filesystem, to
 `fisherman validate --json --partial -` (`fisherman_validate.LiveCheck`, a
 byte-identical copy of `shared/recipe/fisherman_validate.py`). A problem
 shows under the field, worded by the copy key `validate_<code>`, and holds
-Next. The password and the passphrase confirmation are this frontend's
-rules. Encryption choices come from `encryption-choices.json`; branch on
+Next. The password (not empty, typed the same two times) and the
+passphrase confirmation are this frontend's rules. Encryption choices come from `encryption-choices.json`; branch on
 `core.needs_passphrase()` / `core.needs_tpm2()`, never on the type's name.
 
 ## Visual verification
@@ -112,7 +148,8 @@ three pairs of identical frames that the widget-tree text still credited.
 A frame that is pixel-identical to the one before it fails the job.
 
 Navigation: Back is hidden on welcome, progress and done; the Back/Next bar
-is hidden on progress and done, and the done page carries its own Close and
+is hidden on progress and done. The progress page carries its own Cancel,
+and the done page carries its own Close and
 Restart now (`done_restart`), Restart held until a recovery key is
 acknowledged (`tests/test_navigation.py`).
 

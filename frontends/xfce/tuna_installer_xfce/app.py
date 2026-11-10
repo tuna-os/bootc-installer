@@ -12,6 +12,7 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
 from . import core, gates, readiness
+from .i18n import _
 from . import locale as locale_checks
 from .pages import (
     PAGE_ORDER,
@@ -31,8 +32,9 @@ def spawn_fisherman(argv, stdin_data=b""):
     """Start the fisherman wrapper as the leader of its own process group,
     and hand it the recipe on stdin.
 
-    The wrapper (flatpak-spawn, or sudo) is the only process in the install
-    this user can signal; fisherman runs as root and cancels when its parent
+    The wrapper (the bash that core.fisherman_command() starts, behind
+    flatpak-spawn in a Flatpak) is the only process in the install this
+    user can signal; fisherman runs as root and cancels when its parent
     dies (tuna-os/fisherman#267). The contract every frontend follows is
     "kill your wrapper's process group", which needs the wrapper in a group
     of its own rather than the installer's. Closing the window mid-install
@@ -101,7 +103,8 @@ def terminate_process_group(pid):
 
 class InstallerWindow(Gtk.ApplicationWindow):
     def __init__(self, app, autoinstall_recipe=None):
-        super().__init__(application=app, title=f"{core.PRODUCT_NAME} Installer",
+        super().__init__(application=app,
+                         title=_("{product} Installer").format(product=core.PRODUCT_NAME),
                          default_width=640, default_height=520)
         # The running install, if any: spawn_fisherman's wrapper pid (the
         # group leader terminate_process_group() signals). None otherwise.
@@ -110,6 +113,11 @@ class InstallerWindow(Gtk.ApplicationWindow):
         self._install_pid = None
         self._closing = False
         self._autoinstall_pending = None
+        # True once the person confirmed the progress page's Cancel: the
+        # wrapper's death by signal is then a cancel, not a failure.
+        self._cancel_requested = False
+        # The dry run's timer, so that Cancel works there too.
+        self._dry_run_source = None
         # Closing the window mid-install asks first (GNOME's
         # __on_exit_clicked AlertDialog) and kills the install on confirm;
         # anywhere else the close goes through untouched.
@@ -124,10 +132,10 @@ class InstallerWindow(Gtk.ApplicationWindow):
         outer.pack_start(self.stack, True, True, 0)
 
         nav = Gtk.Box(spacing=8, margin=12)
-        self.back_btn = Gtk.Button(label="Back")
-        self.next_btn = Gtk.Button(label="Next")
-        self.back_btn.connect("clicked", lambda *_: self.go(-1))
-        self.next_btn.connect("clicked", lambda *_: self.go(+1))
+        self.back_btn = Gtk.Button(label=_("Back"))
+        self.next_btn = Gtk.Button(label=_("Next"))
+        self.back_btn.connect("clicked", lambda *_args: self.go(-1))
+        self.next_btn.connect("clicked", lambda *_args: self.go(+1))
         nav.pack_end(self.next_btn, False, False, 0)
         nav.pack_end(self.back_btn, False, False, 0)
         outer.pack_end(nav, False, False, 0)
@@ -186,7 +194,7 @@ class InstallerWindow(Gtk.ApplicationWindow):
         # Branding copy on the two buttons that carry a product's voice:
         # leaving the welcome page and starting the install.
         branded = {"welcome": "welcome_button", "confirm": "confirm_button"}.get(name)
-        self.next_btn.set_label(core.BRANDING.text(branded) if branded else "Next")
+        self.next_btn.set_label(core.BRANDING.text(branded) if branded else _("Next"))
         ctx = self.next_btn.get_style_context()
         if name == "confirm":
             ctx.add_class("destructive-action")
@@ -198,8 +206,29 @@ class InstallerWindow(Gtk.ApplicationWindow):
         return sel.get("leaf")
 
     def needs_user_creation(self):
+        """Whether the installer creates the first account
+        (shared/catalog/README.md, "The account"): the selected leaf's flag;
+        for "install this system" on live media, the flag of the catalog
+        leaf the probe's live image names. An image the catalog does not
+        have needs an account."""
+        source = self.pages["source"]
+        sel = source.selection() or {}
+        leaf = sel.get("leaf")
+        if leaf is not None:
+            return leaf.needs_user_creation
+        if sel.get("live"):
+            return source.catalog.needs_user_creation(source.live_image)
+        return True
+
+    def source_and_target(self):
+        """(image, targetImgref) of the selected leaf on this machine, or
+        ("", "") for "install this system"."""
         leaf = self.selected_leaf()
-        return leaf.needs_user_creation if leaf else True
+        if leaf is None:
+            return "", ""
+        source = self.pages["source"]
+        return core.source_and_target(leaf, core.has_nvidia_gpu(),
+                                      bool(source.live), core.offline_images())
 
     def build_recipe(self):
         """Read page widgets and adapt their values to the core recipe API."""
@@ -207,22 +236,26 @@ class InstallerWindow(Gtk.ApplicationWindow):
         leaf = self.selected_leaf()
         disk = self.pages["destination"].selected_disk()
         identity = self.pages["identity"]
-        return core.build_recipe(
+        fields = dict(
             disk=disk["path"],
             filesystem=setup.default_filesystem(leaf.filesystem if leaf else ""),
             btrfs_subvolumes=setup.subvol_check.get_active(),
             encryption_type=setup.enc_type(),
             passphrase=setup.pass1.get_text(),
-            image=leaf.imgref if leaf else "",
             hostname=identity.hostname.get_text(),
-            bootloader=leaf.bootloader if leaf else "",
-            composefs=leaf.composefs if leaf else False,
-            flatpaks=leaf.flatpaks if leaf else "",
-            needs_user=self.needs_user_creation(),
             username=identity.username.get_text(),
             fullname=identity.fullname.get_text(),
             password=identity.password.get_text(),
+            groups=core.account_groups(),
         )
+        if leaf is None:
+            # "Install this system": an empty image, which fisherman accepts
+            # on live media only.
+            return core.build_recipe(needs_user=self.needs_user_creation(), **fields)
+        source = self.pages["source"]
+        return core.recipe_for_leaf(
+            leaf, has_nvidia=core.has_nvidia_gpu(), live=bool(source.live),
+            offline=core.offline_images(), **fields)
 
     def _install_running(self):
         """Whether fisherman is currently running under this window."""
@@ -241,6 +274,46 @@ class InstallerWindow(Gtk.ApplicationWindow):
         A finished or absent install is a no-op."""
         terminate_process_group(self._install_pid)
         self._install_pid = None
+
+    def request_cancel(self, confirm=None):
+        """The progress page's Cancel: ask first, then stop the install.
+
+        Returns whether the install was cancelled. `confirm` answers the
+        question (a test passes one); the default is ConfirmCancelDialog.
+        Nothing is asked, and nothing happens, when no install runs."""
+        if not (self._install_running() or self._dry_run_source):
+            return False
+        if not (confirm or self._confirm_cancel)():
+            return False
+        self.cancel_install()
+        return True
+
+    def _confirm_cancel(self):
+        dialog = gates.ConfirmCancelDialog(self)
+        response = dialog.run()
+        dialog.destroy()
+        return response == Gtk.ResponseType.OK
+
+    def cancel_install(self):
+        """Stop the install after a confirmed cancel: SIGTERM the wrapper's
+        whole process group. fisherman runs as root and cannot be signalled;
+        it sees its parent die, cleans up and exits 130. The wrapper's exit
+        then reaches _on_exit, which shows the cancelled page."""
+        self._cancel_requested = True
+        self.pages["progress"].cancel_btn.set_sensitive(False)
+        if self._dry_run_source:
+            GLib.source_remove(self._dry_run_source)
+            self._dry_run_source = None
+            self._show_result(False, cancelled=True)
+            return
+        terminate_process_group(self._install_pid)
+
+    def _show_result(self, ok, cancelled=False, message=None):
+        """Fill the done page and show it."""
+        log_tail = "".join(self._log_tail) if message is None else message
+        self.pages["done"].set_result(
+            ok, log_tail, self.pages["progress"].recovery_key(), cancelled=cancelled)
+        self._enter(PAGE_ORDER.index("done"))
 
     def _on_delete(self, *_args):
         """Guard the window close: confirm and kill the install when one is
@@ -269,12 +342,11 @@ class InstallerWindow(Gtk.ApplicationWindow):
         already in the host's offline stores needs no download -- both are
         fisherman's facts (probe's live/offline), the same condition
         GNOME's conn_check.should_show inverts."""
-        source = self.pages["source"]
-        live = source.live
-        sel = source.selection() or {}
-        leaf = sel.get("leaf")
-        offline = bool(live) or (leaf is not None
-                                 and leaf.imgref in core.offline_images())
+        sel = self.pages["source"].selection() or {}
+        # The image the install reads: the NVIDIA one on an NVIDIA machine.
+        image = self.source_and_target()[0]
+        offline = bool(sel.get("live")) or (bool(image)
+                                            and image in core.offline_images())
         return (locale_checks.needs_network(offline), offline)
 
     @staticmethod
@@ -299,15 +371,25 @@ class InstallerWindow(Gtk.ApplicationWindow):
         """Go straight to the progress page and start fisherman with the
         pre-built recipe, bypassing the wizard (GNOME's _start_autoinstall).
         An unreadable recipe falls back to the wizard instead of installing
-        nothing."""
+        nothing. A recipe that fisherman does not accept starts nothing
+        either: the result page says why (core.recipe_problems)."""
         recipe = self._load_autoinstall_recipe(path)
         if recipe is None:
+            return False
+        problems = core.recipe_problems(recipe)
+        if problems:
+            print("Install recipe refused: " + " ".join(problems), file=sys.stderr)
+            self._show_result(False, message="\n".join(problems) + "\n")
             return False
         self._autoinstall_pending = recipe
         self._enter(PAGE_ORDER.index("progress"))
         return False
 
     def start_install(self, progress_page, recipe=None):
+        if self._install_running() or self._dry_run_source:
+            # One install at a time: entering the page twice starts one.
+            return
+        self._cancel_requested = False
         if core.dry_run():
             self._start_dry_run(progress_page)
             return
@@ -317,11 +399,17 @@ class InstallerWindow(Gtk.ApplicationWindow):
             self._autoinstall_pending = None
         if recipe is None:
             recipe = self.build_recipe()
-        argv = core.fisherman_argv()
         self._log_tail = []
+        try:
+            # In a Flatpak this stages the bundled fisherman and checks its
+            # SHA256 on the host; nothing runs when that fails.
+            argv = core.fisherman_argv()
+        except core.StageError as exc:
+            self._show_result(False, message=str(exc) + "\n")
+            return
         self._install_log = core.open_install_log()
         self._install_log.write(
-            f"=== install started: {core.fisherman_shell()} (recipe on stdin) ===\n")
+            f"=== install started: {core.shell_line(argv)} (recipe on stdin) ===\n")
         self._install_log.flush()
         pid, out, err = spawn_fisherman(argv, core.recipe_stdin(recipe))
         self._install_pid = pid
@@ -340,17 +428,15 @@ class InstallerWindow(Gtk.ApplicationWindow):
 
         def pump():
             if not lines:
-                self.pages["done"].set_result(
-                    True, "".join(self._log_tail),
-                    progress_page.recovery_key())
-                self._enter(PAGE_ORDER.index("done"))
+                self._dry_run_source = None
+                self._show_result(True)
                 return False
             text = lines.pop(0)
             self._log_tail = (self._log_tail + [text])[-15:]
             progress_page.append_log(text)
             return True
 
-        GLib.timeout_add(400, pump)
+        self._dry_run_source = GLib.timeout_add(400, pump)
 
     def _on_output(self, channel, cond, page):
         if cond & GLib.IO_IN:
@@ -363,23 +449,29 @@ class InstallerWindow(Gtk.ApplicationWindow):
                 page.append_log(text)
         return not (cond & GLib.IO_HUP)
 
-    def _on_exit(self, pid, status, *_):
+    def _on_exit(self, pid, status, *_args):
         GLib.spawn_close_pid(pid)
         self._install_pid = None
         if self._closing:
             # The user confirmed quitting mid-install; the window is gone.
             return
-        ok = os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+        code = os.WEXITSTATUS(status) if os.WIFEXITED(status) else None
+        ok = code == 0
+        # fisherman exits 130 when it is cancelled. After a cancel the
+        # person confirmed, the wrapper dies by the signal this app sent;
+        # that is a cancel too, not a failure (#299).
+        cancelled = not ok and (code == EXIT_CANCELLED or self._cancel_requested)
         if self._install_log:
-            outcome = "ok" if ok else f"failed (status {status})"
+            outcome = "ok" if ok else (
+                "cancelled" if cancelled else f"failed (status {status})")
             self._install_log.write(f"=== fisherman exited: {outcome} ===\n")
             self._install_log.close()
             self._install_log = None
-        self.pages["done"].set_result(
-            ok, "".join(self._log_tail),
-            self.pages["progress"].recovery_key())
-        self._enter(PAGE_ORDER.index("done"))
+        self._show_result(ok, cancelled=cancelled)
 
+
+# fisherman's exit code for a cancelled install (shared/recipe/README.md).
+EXIT_CANCELLED = 130
 
 APP_ID = "org.tunaos.InstallerXfce"
 
