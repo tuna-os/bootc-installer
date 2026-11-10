@@ -192,6 +192,8 @@ TUNA_BACKEND=$PWD/tuna-installer-backend quickshell -p ../ui/installer.qml
 ## Flatpak
 
 ```bash
+# The manifest builds fisherman from the submodule.
+git -C ../.. submodule update --init fisherman
 flatpak-builder --user --install --force-clean build flatpak/org.tunaos.InstallerNiri.json
 flatpak run org.tunaos.InstallerNiri
 ```

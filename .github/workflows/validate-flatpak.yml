@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - 'flatpak/*.json'
+      - 'frontends/*/flatpak/*.json'
+      - 'shared/flatpak/**'
+      - 'shared/ci/flatpak_manifest.py'
       - 'meson.build'
       - 'meson_options.txt'
       - 'bootc_installer/meson.build'
@@ -27,6 +30,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Every manifest builds fisherman from the submodule.
+          submodules: true
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -44,6 +50,19 @@ jobs:
             test -n "$command" && test "$command" != null
             echo "✓ $app_id"
           done
+      # A module named by path (shared/flatpak/go.json) and every local
+      # source resolve against the file that names them. flatpak-builder
+      # reads each manifest with its includes, and flatpak_manifest.py checks
+      # that each module include, `dir` and `file` source exists there.
+      - name: Resolve module includes and local sources
+        run: |
+          set -euo pipefail
+          manifests=(flatpak/org.bootcinstaller.*.json frontends/*/flatpak/org.tunaos.Installer*.json)
+          for manifest in "${manifests[@]}"; do
+            flatpak-builder --show-manifest "$manifest" > /dev/null
+            echo "✓ $manifest"
+          done
+          python3 shared/ci/flatpak_manifest.py "${manifests[@]}"
       - name: Write validation summary
         if: always()
         run: |

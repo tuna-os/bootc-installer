@@ -64,6 +64,8 @@ closes the pipe. Nothing writes it to a file.
 You can test the Flatpak path only from a built Flatpak:
 
 ```bash
+# The manifest builds fisherman from the submodule.
+git -C ../.. submodule update --init fisherman
 flatpak-builder --user --install --force-clean build \
   flatpak/org.tunaos.InstallerXfce.json
 flatpak run org.tunaos.InstallerXfce

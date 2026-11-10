@@ -22,44 +22,8 @@
     }
   },
   "modules": [
-    {
-      "name": "go",
-      "buildsystem": "simple",
-      "build-commands": ["cp -r go /app/go"],
-      "sources": [
-        {
-          "type": "archive",
-          "url": "https://go.dev/dl/go1.26.1.linux-amd64.tar.gz",
-          "sha256": "031f088e5d955bab8657ede27ad4e3bc5b7c1ba281f05f245bcc304f327c987a",
-          "strip-components": 0,
-          "only-arches": ["x86_64"]
-        },
-        {
-          "type": "archive",
-          "url": "https://go.dev/dl/go1.26.1.linux-arm64.tar.gz",
-          "sha256": "a290581cfe4fe28ddd737dde3095f3dbeb7f2e4065cab4eae44dfc53b760c2f7",
-          "strip-components": 0,
-          "only-arches": ["aarch64"]
-        }
-      ]
-    },
-    {
-      "name": "fisherman",
-      "buildsystem": "simple",
-      "build-commands": [
-        "PATH=/app/go/bin:$PATH go build -C fisherman -o /app/bin/fisherman ./cmd/fisherman",
-        "install -Dm644 data/images.json /app/share/fisherman/data/images.json",
-        "cp -r data/images /app/share/fisherman/data/images",
-        "install -Dm644 data/polkit/org.tunaos.Installer.policy /app/share/polkit-1/actions/org.tunaos.Installer.policy"
-      ],
-      "sources": [
-        {
-          "type": "git",
-          "url": "https://github.com/tuna-os/fisherman.git",
-          "commit": "7f9021b48052e73950312458ab2f0b24f190d7a1"
-        }
-      ]
-    },
+    "../../../shared/flatpak/go.json",
+    "../../../shared/flatpak/fisherman.json",
     {
       "name": "tuna-installer-xfce",
       "buildsystem": "simple",

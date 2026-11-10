@@ -331,49 +331,61 @@ class TestNoFrontendScansDisks(unittest.TestCase):
 class TestFishermanPin(unittest.TestCase):
     """Every graphical installer runs the same fisherman revision.
 
-    The `fisherman` submodule pin is the revision, and each imported
-    frontend's Flatpak manifest (kde, cosmic, niri, xfce) pins its bundled
-    fisherman source to that same commit. GNOME builds fisherman from
-    ../fisherman, so it follows the submodule with no pin of its own. A
-    frontend on another revision would probe, validate and install with
-    different rules.
+    The `fisherman` submodule pin is the revision, and every Flatpak builds
+    fisherman from that submodule: the four frontend manifests (kde, cosmic,
+    niri, xfce) through shared/flatpak/fisherman.json, GNOME through its own
+    module with the source ../fisherman. A manifest that pinned a fisherman
+    git commit again would let one frontend probe, validate and install with
+    other rules after the next bump.
     """
 
-    def _submodule_pin(self):
-        try:
-            out = subprocess.run(
-                ["git", "ls-files", "-s", "fisherman"], cwd=REPO,
-                capture_output=True, text=True, check=True).stdout
-        except (OSError, subprocess.CalledProcessError) as e:
-            self.skipTest(f"cannot read the fisherman gitlink: {e}")
-        pin = out.split()[1] if out.split() else ""
-        if not re.fullmatch(r"[0-9a-f]{40}", pin or ""):
-            self.skipTest(f"fisherman gitlink unreadable: {out!r}")
-        return pin
+    def _modules(self, manifest):
+        sys.path.insert(0, os.path.join(REPO, "shared", "ci"))
+        import flatpak_manifest
+        return list(flatpak_manifest.walk(manifest))
 
-    def _manifest_pins(self):
+    def _fisherman_sources(self, manifest):
+        found = []
+        for module, base in self._modules(manifest):
+            if module.get("name") != "fisherman":
+                continue
+            for source in module.get("sources", []):
+                if source.get("type") == "dir":
+                    source = {**source, "path": os.path.normpath(os.path.join(base, source["path"]))}
+                found.append(source)
+        return found
+
+    def test_every_manifest_builds_fisherman_from_the_submodule(self):
+        submodule = os.path.join(REPO, "fisherman")
         manifests = sorted(glob.glob(os.path.join(
             REPO, "frontends", "*", "flatpak", "org.tunaos.Installer*.json")))
         self.assertEqual(len(manifests), 4,
                          f"expected four frontend manifests, found {manifests}")
-        pins = {}
+        manifests += sorted(glob.glob(os.path.join(REPO, "flatpak", "org.bootcinstaller.*.json")))
         for manifest in manifests:
-            with open(manifest, encoding="utf-8") as fh:
-                modules = json.load(fh)["modules"]
-            commits = [s.get("commit") for m in modules
-                       if m.get("name") == "fisherman" for s in m.get("sources", [])]
-            self.assertEqual(len(commits), 1,
-                             f"{manifest} must pin one fisherman commit")
-            pins[os.path.relpath(manifest, REPO)] = commits[0]
-        return pins
+            with self.subTest(manifest=os.path.relpath(manifest, REPO)):
+                sources = self._fisherman_sources(manifest)
+                self.assertEqual(sources, [{"type": "dir", "path": submodule}],
+                                 "build fisherman from the submodule, with no pin of its own")
 
-    def test_every_frontend_manifest_pins_the_submodule_revision(self):
-        pin = self._submodule_pin()
-        for manifest, commit in self._manifest_pins().items():
-            with self.subTest(manifest=manifest):
-                self.assertEqual(commit, pin,
-                                 f"{manifest} pins {commit}, not the fisherman "
-                                 f"submodule revision {pin}")
+    def test_the_frontends_share_one_fisherman_module(self):
+        for manifest in sorted(glob.glob(os.path.join(
+                REPO, "frontends", "*", "flatpak", "org.tunaos.Installer*.json"))):
+            with self.subTest(manifest=os.path.relpath(manifest, REPO)):
+                with open(manifest, encoding="utf-8") as fh:
+                    modules = json.load(fh)["modules"]
+                self.assertIn("../../../shared/flatpak/fisherman.json", modules)
+                self.assertNotIn("fisherman", [m.get("name") for m in modules
+                                               if isinstance(m, dict)])
+
+    def test_the_submodule_has_what_the_module_installs(self):
+        root = os.path.join(REPO, "fisherman")
+        if not os.path.isfile(os.path.join(root, "fisherman", "go.mod")):
+            self.skipTest("the fisherman submodule is not checked out")
+        for rel in ("fisherman/cmd/fisherman", "data/images.json", "data/images",
+                    "data/polkit/org.tunaos.Installer.policy"):
+            with self.subTest(path=rel):
+                self.assertTrue(os.path.exists(os.path.join(root, rel)), rel)
 
 
 if __name__ == "__main__":

@@ -23,10 +23,13 @@ import importlib.util
 import json
 import pathlib
 import re
+import sys
 
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "shared" / "ci"))
+import flatpak_manifest  # noqa: E402
 FLATPAK = ROOT / "flatpak"
 PRODUCTION = FLATPAK / "org.bootcinstaller.Installer.json"
 DEVEL = FLATPAK / "org.bootcinstaller.Installer.Devel.json"
@@ -38,6 +41,11 @@ _spec.loader.exec_module(generate_devel)
 
 
 def _load(path):
+    # Module includes (shared/flatpak/go.json) read as flatpak-builder reads them.
+    return flatpak_manifest.load(path)
+
+
+def _raw(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -134,4 +142,4 @@ def test_the_devel_assets_exist():
 
 def test_production_manifest_is_in_the_generator_format():
     """One format for both, so a hand edit and a generated file diff cleanly."""
-    assert PRODUCTION.read_text(encoding="utf-8") == generate_devel.dumps(_load(PRODUCTION))
+    assert PRODUCTION.read_text(encoding="utf-8") == generate_devel.dumps(_raw(PRODUCTION))
