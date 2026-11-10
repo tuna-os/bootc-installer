@@ -30,8 +30,8 @@ equivalent. The other half of the KDE approach — emitting walkthrough JSON
 from the widget tree instead of OCR — was already shared: ``_page_text``
 reads the visible page's widget tree and ``parity_report.write_report``
 writes the same shape (``ocr: false``, ``text_source: widget-tree``,
-``activation_key: null``) as KDE's parity_report.h states for its QML
-item-tree text.
+``activation_key: null``) as the KDE report, whose text comes from the QML
+item tree.
 
 Nothing here touches a disk. The disks come from the shared probe fixture,
 the QR companion server never binds a port, and ``BootcProgress.start`` --

@@ -4,7 +4,9 @@ Each harness used to carry its own copy of the arithmetic."""
 
 import json
 import pathlib
+import subprocess
 import sys
+import tempfile
 import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -66,6 +68,34 @@ class FixtureTests(unittest.TestCase):
         event = json.loads(capture_fixtures.RECOVERY_EVENT)
         self.assertEqual(event["type"], "recovery_key")
         self.assertEqual(event["key"], capture_fixtures.RECOVERY_KEY)
+
+
+class ReportFromPngsTests(unittest.TestCase):
+    """KDE hands report_from_pngs.py its own audit and its item text."""
+
+    def test_harness_audit_and_item_text_are_used(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = pathlib.Path(d)
+            for name in ("01-welcome.png", "02-disk.png"):
+                (d / name).write_bytes(b"not decoded: audit.json covers it")
+            audit = {"rendered": False, "colours": 7, "flat": 0.5,
+                     "ink": 0.25, "stddev": 0.125}
+            (d / "audit.json").write_text(json.dumps(
+                {"welcome": dict(audit, rendered=True), "disk": audit}))
+            (d / "texts.json").write_text(json.dumps(
+                {"welcome": "Welcome", "disk": "Where should it be installed?"}))
+            subprocess.run(
+                [sys.executable, str(REPO / "shared" / "walkthrough" / "report_from_pngs.py"),
+                 "kde", str(d), "--harness", "h", "--text-source", "qml-item-tree"],
+                check=True, capture_output=True)
+            report = json.loads((d / "walkthrough-kde.json").read_text())
+        self.assertEqual(report["text_source"], "qml-item-tree")
+        self.assertIn("item tree", report["notes"])
+        self.assertEqual(report["rendered_frames"], 1)
+        self.assertEqual(report["pages"][1]["colours"], 7)
+        self.assertEqual(report["pages"][1]["flat"], 0.5)
+        self.assertTrue(report["screens"]["welcome"])
+        self.assertTrue(report["screens"]["disk"])
 
 
 if __name__ == "__main__":
