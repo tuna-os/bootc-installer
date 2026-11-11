@@ -52,11 +52,12 @@ quickshell ui/installer.qml
 1. **Welcome**: the first screen. An unmet RAM, CPU or UEFI requirement
    stops the wizard here. For RAM and CPU you can continue. For UEFI you
    can only power off or open the firmware setup.
-2. **Session**: the keyboard, language and time zone of the live session,
-   and the network (`session-get`, `session-set`). The wizard sends only
-   the fields that you changed. A failure is a warning, and the wizard
-   continues. Off live media these fields are read-only. Nothing here goes
-   into the recipe.
+2. **Session**: the keyboard (an XKB layout), the language and the time
+   zone, and the network (`session-get`, `session-set`). A field that you
+   change goes into the recipe (`keyboard.layout`, `locale`, `timezone`).
+   On live media the wizard also applies it to the live session. A failure
+   there is a warning, and the wizard continues. Off live media the wizard
+   does not change this computer.
 3. **Source**: the live system, or one row for each leaf of the catalog.
    Offline images are first. Each row shows the product and the channel,
    and a search box filters the list. The wizard selects the image that
@@ -135,10 +136,9 @@ is in neither. No translation file ships yet.
 ## Parity notes
 
 - The phone companion is only in the GNOME frontend.
-- Keyboard, language and time zone apply to the live session only
-  (`localectl` and `timedatectl` on the host). The pinned fisherman has no
-  recipe keys for them, so the installed system keeps the defaults of the
-  image.
+- A keyboard, language or time zone that you change goes into the recipe,
+  and fisherman writes it to the installed system. Without a change, the
+  installed system keeps the defaults of the image.
 
 ## DBus Integration
 

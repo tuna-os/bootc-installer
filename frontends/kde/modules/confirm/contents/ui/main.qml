@@ -21,6 +21,7 @@ TunaComponents.SetupModule {
     // No network for an image that needs a download holds it too (#301):
     // the check runs again here, against the registry of the chosen image.
     nextEnabled: InstallerController.disk.length > 0 && InstallerController.hostnameProblem === ""
+        && InstallerController.regionProblem === ""
         && (!InstallerController.needsUserCreation
             || (InstallerController.username.length > 0 && InstallerController.usernameProblem === ""))
         && !networkGate.blocked
@@ -168,9 +169,51 @@ TunaComponents.SetupModule {
                     description: InstallerController.targetImgref
                 }
 
-                // No language, keyboard or time zone rows: nothing writes
-                // them to the installed system (#292), and this page lists
-                // only what the install does.
+                // The region choices of the welcome step: the recipe's
+                // locale, keyboard and timezone (#292). A row is hidden when
+                // the recipe has no such key.
+                FormCard.FormDelegateSeparator {
+                    visible: languageRow.visible
+                }
+
+                FormCard.FormTextDelegate {
+                    id: languageRow
+                    objectName: "confirmLanguage"
+                    visible: InstallerController.localeName.length > 0
+                    text: qsTr("Language")
+                    description: {
+                        const i = InstallerController.languageIds.indexOf(InstallerController.language)
+                        const name = i >= 0 ? InstallerController.languageNames[i] : InstallerController.language
+                        return qsTr("%1 (%2)").arg(name).arg(InstallerController.localeName)
+                    }
+                }
+
+                FormCard.FormDelegateSeparator {
+                    visible: keyboardRow.visible
+                }
+
+                FormCard.FormTextDelegate {
+                    id: keyboardRow
+                    objectName: "confirmKeyboard"
+                    visible: InstallerController.keyboardChosen
+                    text: qsTr("Keyboard")
+                    description: {
+                        const i = InstallerController.keyboardLayoutIds.indexOf(InstallerController.keyboardLayout)
+                        return i >= 0 ? InstallerController.keyboardLayoutNames[i] : InstallerController.keyboardLayout
+                    }
+                }
+
+                FormCard.FormDelegateSeparator {
+                    visible: timezoneRow.visible
+                }
+
+                FormCard.FormTextDelegate {
+                    id: timezoneRow
+                    objectName: "confirmTimezone"
+                    visible: InstallerController.timezoneChosen
+                    text: qsTr("Time zone")
+                    description: InstallerController.timezoneDisplay(InstallerController.timezone)
+                }
             }
             Label {
                 text: InstallerController.text("confirm_body")

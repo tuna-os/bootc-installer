@@ -152,7 +152,21 @@ ApplicationWindow {
             validate_image_type_unsupported: "This type of system image is not supported.",
             validate_bootloader_unsupported: "This boot loader is not supported.",
             validate_recipe_unreadable: "The installer could not read its settings.",
-            validate_recipe_malformed: "The installer settings are not valid."
+            validate_recipe_malformed: "The installer settings are not valid.",
+            validate_var_disk_encryption_unsupported: "A separate /var disk cannot be encrypted. Remove the /var disk, or choose no encryption.",
+            validate_var_disk_unsupported_composefs: "This system image cannot use a separate /var disk. Remove the /var disk.",
+            validate_custom_mount_target_duplicate: "Two partitions have the same mount point. Give each partition its own mount point.",
+            validate_custom_mount_partition_duplicate: "The same partition is used twice. Give each mount point its own partition.",
+            validate_custom_mount_not_persistable: "The installed system cannot mount this partition there. Use a folder below /var, or /home.",
+            validate_zfs_experimental: "ZFS is experimental. Accept that, or choose a different filesystem.",
+            validate_experimental_unsupported: "The installer asked for an experimental feature that this version does not know.",
+            validate_locale_invalid: "This language is not a valid locale name. Choose another language.",
+            validate_keyboard_layout_required: "Choose a keyboard layout.",
+            validate_keyboard_layout_invalid: "This keyboard layout is not valid. Choose another layout.",
+            validate_keyboard_variant_invalid: "This keyboard variant is not valid. Choose another variant.",
+            validate_keyboard_model_invalid: "This keyboard model is not valid. Choose another model.",
+            validate_timezone_invalid: "This time zone is not valid. Choose another time zone.",
+            validate_kept_filesystem_unusable: "A partition that the installer keeps has no usable filesystem. Format it, or choose another partition."
         })
         // COPY-DEFAULTS-END
         let line = copy[key] !== undefined ? copy[key] : (defaults[key] || "")
@@ -357,10 +371,23 @@ ApplicationWindow {
         // fisherman refuses zfs without the opt-in, in the same fragment.
         if (root.filesystem === "zfs")
             recipe.experimental = ["zfs"]
+        Object.assign(recipe, root.regionRecipe())
         if (root.needsUserCreation)
             recipe.user = { username: root.username }
         return recipe
     }
+    // The recipe keys of the Session step's picks (#292). None without a
+    // pick: the installed system keeps the image's values.
+    function regionRecipe() {
+        const keys = {}
+        const picked = root.installRegion || {}
+        if (picked.locale) keys.locale = picked.locale
+        if (picked.keyboard) keys.keyboard = { layout: picked.keyboard }
+        if (picked.timezone) keys.timezone = picked.timezone
+        return keys
+    }
+    readonly property string regionProblem: problemText("locale") || problemText("keyboard.layout")
+        || problemText("keyboard.variant") || problemText("keyboard.model") || problemText("timezone")
     function checkFields() { validateTimer.restart() }
     onHostnameChanged: checkFields()
     onPassphraseChanged: checkFields()
@@ -508,8 +535,10 @@ ApplicationWindow {
     //     host's list does not have it, so nothing else is shown or sent;
     //   - only a field the user changed is sent;
     //   - a failure is a warning, and Continue still moves on;
-    //   - off live media the fields are read-only: the settings of an
-    //     installed system are not this wizard's to change.
+    //   - off live media nothing is applied to this computer: the settings
+    //     of an installed system are not this wizard's to change.
+    // What the user changed also goes into the recipe (`locale`,
+    // `keyboard.layout`, `timezone`, #292), on live media and off it.
     property var keyboardLayouts: []
     property string keyboardLayout: ""
     property var localeList: []
@@ -528,11 +557,15 @@ ApplicationWindow {
     property string pendingSession: ""
     property var sentSession: ({})
     // What the user changed: a field whose text is not empty and is not the
-    // value the session has now.
+    // value the session has now. Applied to the session only on live media.
     function sessionChanges() {
+        return root.isLive ? root.regionPicks() : {}
+    }
+    // The region values the installed system gets: the user's changes, on
+    // any host. Kept when Continue leaves the step (installRegion).
+    property var installRegion: ({})
+    function regionPicks() {
         const changes = {}
-        if (!root.isLive)
-            return changes
         const fields = { keyboard: [keyCombo.editText, root.keyboardLayout],
             locale: [localeCombo.editText, root.localeName],
             timezone: [tzCombo.editText, root.timezoneName] }
@@ -951,6 +984,8 @@ ApplicationWindow {
         // user picked it, and the recipe says that it accepts that.
         if (root.filesystem === "zfs")
             recipe.experimental = ["zfs"]
+        // The Session step's picks: locale, keyboard, timezone (#292).
+        Object.assign(recipe, root.regionRecipe())
         // The account: left out when the image makes its own first user,
         // and with no username (the schema's "empty skips"). No groups
         // here: the backend writes the shared list or the operator's.
@@ -988,6 +1023,8 @@ ApplicationWindow {
     function applySession() {
         if (sessionSetProc.running)
             return
+        root.installRegion = root.regionPicks()
+        root.checkFields()
         const changes = root.sessionChanges()
         if (Object.keys(changes).length === 0) {
             root.sessionFailed = false
@@ -1173,8 +1210,8 @@ ApplicationWindow {
                 }
                 StyledText {
                     text: root.isLive
-                        ? qsTr("Keyboard, language, time and network for this live session. Nothing here goes into the installed system.")
-                        : qsTr("These settings change only on live media. This computer keeps its own keyboard, language and time zone.")
+                        ? qsTr("Keyboard, language and time zone for this live session and for the installed system, and the network.")
+                        : qsTr("Keyboard, language and time zone for the installed system. This computer keeps its own.")
                     color: Theme.surfaceVariantText
                     wrapMode: Text.Wrap
                     Layout.fillWidth: true
@@ -1197,7 +1234,6 @@ ApplicationWindow {
                             id: keyCombo
                             objectName: "sessionKeyboard"
                             editable: true
-                            enabled: root.isLive
                             model: root.keyboardModel
                             currentIndex: root.keyboardModel.indexOf(root.keyboardLayout)
                             implicitWidth: 300
@@ -1208,7 +1244,6 @@ ApplicationWindow {
                             id: localeCombo
                             objectName: "sessionLocale"
                             editable: true
-                            enabled: root.isLive
                             model: root.localeModel
                             currentIndex: root.localeModel.indexOf(root.localeName)
                             implicitWidth: 300
@@ -1219,7 +1254,6 @@ ApplicationWindow {
                             id: tzCombo
                             objectName: "sessionTimezone"
                             editable: true
-                            enabled: root.isLive
                             model: root.timezoneModel
                             currentIndex: root.timezoneModel.indexOf(root.timezoneName)
                             implicitWidth: 300
@@ -1875,6 +1909,15 @@ ApplicationWindow {
                             visible: root.needsUserCreation
                             text: root.username || "—"; isMonospace: true
                         }
+                        // The Session step's picks that go into the recipe (#292).
+                        StyledText { text: qsTr("Language"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().locale }
+                        StyledText { objectName: "confirmLocale"; visible: !!root.regionRecipe().locale; text: root.regionRecipe().locale || ""; isMonospace: true }
+                        StyledText { text: qsTr("Keyboard"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().keyboard }
+                        StyledText { objectName: "confirmKeyboard"; visible: !!root.regionRecipe().keyboard; text: root.regionRecipe().keyboard ? root.regionRecipe().keyboard.layout : ""; isMonospace: true }
+                        StyledText { text: qsTr("Timezone"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().timezone }
+                        StyledText { objectName: "confirmTimezone"; visible: !!root.regionRecipe().timezone; text: root.regionRecipe().timezone || ""; isMonospace: true }
+                        StyledText { text: qsTr("Region"); color: Theme.surfaceVariantText; visible: root.regionProblem !== "" }
+                        StyledText { objectName: "regionProblem"; visible: root.regionProblem !== ""; text: root.regionProblem; color: Theme.error; wrapMode: Text.Wrap; Layout.fillWidth: true }
                         StyledText { text: qsTr("Hostname"); color: Theme.surfaceVariantText }
                         ColumnLayout {
                             spacing: 2

@@ -35,6 +35,11 @@ struct Recipe {
     // switches, as the leaf has them.
     bool extrasSet = false;
     QJsonObject extras;
+    // The welcome step's region choices (#292). Empty: no key, and the
+    // installed system keeps the image's own value.
+    QString locale;          // "de_DE.UTF-8"
+    QString keyboardLayout;  // XKB layout, "de"
+    QString timezone;        // IANA, "Europe/Berlin"
     // Offline OCI stores. Left empty (so absent), fisherman exposes the
     // stores it finds on the host; the wizard never fills it.
     QStringList additionalImageStores;

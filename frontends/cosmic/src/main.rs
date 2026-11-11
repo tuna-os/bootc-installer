@@ -215,6 +215,16 @@ fn partial_recipe(r: &Recipe) -> serde_json::Value {
     if !experimental.is_empty() {
         partial["experimental"] = serde_json::json!(experimental);
     }
+    // The region picks, as the recipe has them (#292).
+    if !r.locale.is_empty() {
+        partial["locale"] = serde_json::json!(r.locale);
+    }
+    if let Some(keyboard) = &r.keyboard {
+        partial["keyboard"] = serde_json::json!(keyboard);
+    }
+    if !r.timezone.is_empty() {
+        partial["timezone"] = serde_json::json!(r.timezone);
+    }
     partial
 }
 
@@ -222,6 +232,20 @@ fn partial_recipe(r: &Recipe) -> serde_json::Value {
 /// two pages share one check; each holds Continue only on its own fields.
 fn is_account_field(field: &str) -> bool {
     field == "user" || field.starts_with("user.")
+}
+
+/// Whether a fisherman problem is about a region pick (`locale`,
+/// `keyboard.*`, `timezone`). Confirm shows it; the options page does not
+/// wait for it. fisherman refuses the same problem before any disk step.
+fn is_region_field(field: &str) -> bool {
+    field == "locale" || field == "timezone" || field == "keyboard" || field.starts_with("keyboard.")
+}
+
+impl TunaInstaller {
+    /// fisherman's problem with a region pick, as the line Confirm shows.
+    pub fn region_problem(&self) -> Option<&validate::Problem> {
+        self.problems.iter().find(|p| is_region_field(&p.field))
+    }
 }
 
 /// The account page's own rules (fisherman checks only the username's
@@ -798,8 +822,12 @@ impl TunaInstaller {
     /// are fisherman's; a check that could not run blocks nothing, because
     /// the install runs the same rules before it touches a disk.
     pub fn encryption_ok(&self) -> bool {
-        // The username is the account page's: it holds that page, not this.
-        !self.problems.iter().any(|p| !is_account_field(&p.field))
+        // The username is the account page's, the region picks are
+        // Confirm's: each holds its own page, not this one.
+        !self
+            .problems
+            .iter()
+            .any(|p| !is_account_field(&p.field) && !is_region_field(&p.field))
     }
 
     /// Whether Continue is live on the Options page: fisherman's rules
@@ -1250,32 +1278,59 @@ impl cosmic::Application for TunaInstaller {
                 Task::none()
             }
             Message::SelectLocale(idx) => {
-                if idx < self.locales.len() {
+                if idx >= self.locales.len() {
+                    return Task::none();
+                }
+                {
                     self.selected_locale = Some(idx);
                     let locale = self.locales[idx].clone();
-                    preflight::apply_best_effort(&preflight::apply_locale_command(&locale));
+                    // A pick goes into the recipe too (#292).
+                    self.recipe.locale.clone_from(&locale);
+                    // The capture harness picks too; it must not change the
+                    // runner's own settings.
+                    if !self.capturing() {
+                        preflight::apply_best_effort(&preflight::apply_locale_command(&locale));
+                    }
                 }
-                Task::none()
+                // fisherman checks the pick now, not at Install.
+                self.check_fields()
             }
             Message::SelectKeymap(idx) => {
-                if idx < self.keymaps.len() {
+                if idx >= self.keymaps.len() {
+                    return Task::none();
+                }
+                {
                     self.selected_keymap = Some(idx);
                     let keymap = self.keymaps[idx].clone();
-                    preflight::apply_best_effort(&preflight::apply_keymap_command(&keymap));
+                    self.recipe.keyboard = Some(model::Keyboard {
+                        layout: keymap.clone(),
+                        ..model::Keyboard::default()
+                    });
+                    if !self.capturing() {
+                        preflight::apply_best_effort(&preflight::apply_keymap_command(&keymap));
+                    }
                 }
-                Task::none()
+                // fisherman checks the pick now, not at Install.
+                self.check_fields()
             }
             Message::TimezoneQueryChanged(q) => {
                 self.tz_query = q;
                 Task::none()
             }
             Message::SelectTimezone(idx) => {
-                if idx < self.timezones.len() {
+                if idx >= self.timezones.len() {
+                    return Task::none();
+                }
+                {
                     self.selected_timezone = Some(idx);
                     let zone = self.timezones[idx].clone();
-                    preflight::apply_best_effort(&preflight::apply_timezone_command(&zone));
+                    self.recipe.timezone.clone_from(&zone);
+                    if !self.capturing() {
+                        preflight::apply_best_effort(&preflight::apply_timezone_command(&zone));
+                    }
                 }
-                Task::none()
+                // fisherman checks the pick now, not at Install.
+                self.check_fields()
             }
             Message::RecheckNetwork => {
                 let capturing = self.capturing();
