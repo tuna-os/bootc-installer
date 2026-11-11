@@ -486,7 +486,7 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                     && recipe.bootloader == "systemd"
                     && recipe.compose_fs_backend
                     && recipe.filesystem == "btrfs"
-                    && recipe.flatpaks == Some(Vec::new())
+                    && recipe.flatpaks == Some(vec!["org.example.App".to_string()])
                     && recipe.target_imgref == recipe.image)
                 {
                     eprintln!("capture: the selected leaf did not reach the recipe: {recipe:?}");
