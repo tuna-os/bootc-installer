@@ -1970,158 +1970,178 @@ ApplicationWindow {
                     font.italic: true
                     Layout.fillWidth: true
                 }
-                Rectangle {
+                // The warning, the summary, the source check and this
+                // computer's bootc storage are taller than a small window.
+                // They scroll, so Back and Install (and the hint bar) stay
+                // on the screen.
+                Flickable {
+                    id: confirmScroll
+                    objectName: "confirmScroll"
                     Layout.fillWidth: true
-                    radius: Theme.cornerRadiusM
-                    color: Theme.withAlpha(Theme.warning, 0.12)
-                    implicitHeight: warnText.implicitHeight + Theme.spacingM * 2
-                    StyledText {
-                        id: warnText
-                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: Theme.spacingM }
-                        text: "⚠  " + root.text(root.selectedDisk.removable ? "confirm_warning_removable" : "confirm_warning", { disk: root.selectedDisk.path ? root.selectedDisk.path : qsTr("the selected disk") })
-                        color: Theme.warning
-                    }
-                }
+                    Layout.fillHeight: true
+                    clip: true
+                    contentWidth: width
+                    contentHeight: confirmBody.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-                DankCard {
-                    Layout.fillWidth: true
-                    title: qsTr("Summary")
-                    GridLayout {
-                        width: parent.width
-                        columns: 2
-                        columnSpacing: Theme.spacingXL
-                        rowSpacing: Theme.spacingS
-                        StyledText { text: qsTr("Target disk"); color: Theme.surfaceVariantText }
-                        StyledText { text: root.selectedDisk.path ? root.selectedDisk.path : "—"; isMonospace: true }
-                        StyledText { text: qsTr("Image"); color: Theme.surfaceVariantText }
-                        StyledText {
-                            // The image that is installed (the NVIDIA image
-                            // on an NVIDIA machine), with the leaf's label.
-                            text: root.isLive && root.selectedLive
-                                ? qsTr("%1  (this system, no download)").arg(root.liveImage || qsTr("this system"))
-                                : (root.selectedLeaf
-                                    ? (root.selectedLeaf.label || root.selectedLeaf.name) + "  (" + root.selectedImage + ")"
-                                    : (root.selectedImage || "—"))
-                            isMonospace: true
-                            font.pixelSize: Theme.fontSizeSmall
-                            wrapMode: Text.WrapAnywhere
-                            Layout.fillWidth: true
-                        }
-                        // The image that updates follow, when it is not the
-                        // image that is installed (shared/catalog/README.md).
-                        StyledText {
-                            text: qsTr("Updates from")
-                            color: Theme.surfaceVariantText
-                            visible: confirmTarget.visible
-                        }
-                        StyledText {
-                            id: confirmTarget
-                            objectName: "confirmTargetImage"
-                            visible: root.targetImage !== "" && root.targetImage !== root.selectedImage
-                                && root.selectedImage !== ""
-                            text: root.targetImage
-                            isMonospace: true
-                            font.pixelSize: Theme.fontSizeSmall
-                            wrapMode: Text.WrapAnywhere
-                            Layout.fillWidth: true
-                        }
-                        StyledText { text: qsTr("Filesystem"); color: Theme.surfaceVariantText }
-                        StyledText {
-                            text: root.filesystem === "btrfs" && root.btrfsSubvolumes
-                                ? qsTr("%1  (subvolumes)").arg(root.filesystem) : root.filesystem
-                            isMonospace: true
-                        }
-                        StyledText { text: qsTr("Encryption"); color: Theme.surfaceVariantText }
-                        StyledText { text: root.encryptionText(root.encType, "_label"); isMonospace: true }
-                        StyledText { text: qsTr("Username"); color: Theme.surfaceVariantText; visible: root.needsUserCreation }
-                        StyledText {
-                            objectName: "confirmUsername"
-                            visible: root.needsUserCreation
-                            text: root.username || "—"; isMonospace: true
-                        }
-                        // The Session step's picks that go into the recipe (#292).
-                        StyledText { text: qsTr("Language"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().locale }
-                        StyledText { objectName: "confirmLocale"; visible: !!root.regionRecipe().locale; text: root.regionRecipe().locale || ""; isMonospace: true }
-                        StyledText { text: qsTr("Keyboard"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().keyboard }
-                        StyledText { objectName: "confirmKeyboard"; visible: !!root.regionRecipe().keyboard; text: root.regionRecipe().keyboard ? root.regionRecipe().keyboard.layout : ""; isMonospace: true }
-                        StyledText { text: qsTr("Timezone"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().timezone }
-                        StyledText { objectName: "confirmTimezone"; visible: !!root.regionRecipe().timezone; text: root.regionRecipe().timezone || ""; isMonospace: true }
-                        StyledText { text: qsTr("Region"); color: Theme.surfaceVariantText; visible: root.regionProblem !== "" }
-                        StyledText { objectName: "regionProblem"; visible: root.regionProblem !== ""; text: root.regionProblem; color: Theme.error; wrapMode: Text.Wrap; Layout.fillWidth: true }
-                        StyledText { text: qsTr("Hostname"); color: Theme.surfaceVariantText }
-                        ColumnLayout {
-                            spacing: 2
-                            DankTextField {
-                                id: hostField
-                                text: root.hostname
-                                onTextEdited: { root.hostnameTouched = true; root.hostname = text }  // not onTextChanged: that fires at load and would pin the branding default
-                                font.family: Theme.monoFontFamily
-                                implicitWidth: 260
-                                isError: root.hostnameProblem !== ""
-                            }
-                            // fisherman's hostname rule, in the copy's words.
-                            StyledText {
-                                text: root.hostnameProblem
-                                color: Theme.error
-                                visible: text !== ""
-                                font.pixelSize: Theme.fontSizeSmall
-                            }
-                        }
-                    }
-                }
-
-                // What fisherman says about the selected image: its source,
-                // the update reference of the new system, what this
-                // computer runs, and this computer's bootc storage.
-                DankCard {
-                    objectName: "confirmSourceCheck"
-                    Layout.fillWidth: true
-                    visible: root.sourceVisible
-                    title: qsTr("Selected image")
                     ColumnLayout {
-                        width: parent.width
-                        spacing: Theme.spacingXS
-                        Repeater {
-                            model: root.sourceRows
-                            ColumnLayout {
-                                spacing: 0
-                                Layout.fillWidth: true
+                        id: confirmBody
+                        width: confirmScroll.width
+                        spacing: Theme.spacingM
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            radius: Theme.cornerRadiusM
+                            color: Theme.withAlpha(Theme.warning, 0.12)
+                            implicitHeight: warnText.implicitHeight + Theme.spacingM * 2
+                            StyledText {
+                                id: warnText
+                                anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: Theme.spacingM }
+                                text: "⚠  " + root.text(root.selectedDisk.removable ? "confirm_warning_removable" : "confirm_warning", { disk: root.selectedDisk.path ? root.selectedDisk.path : qsTr("the selected disk") })
+                                color: Theme.warning
+                            }
+                        }
+
+                        DankCard {
+                            Layout.fillWidth: true
+                            title: qsTr("Summary")
+                            GridLayout {
+                                width: parent.width
+                                columns: 2
+                                columnSpacing: Theme.spacingXL
+                                rowSpacing: Theme.spacingS
+                                StyledText { text: qsTr("Target disk"); color: Theme.surfaceVariantText }
+                                StyledText { text: root.selectedDisk.path ? root.selectedDisk.path : "—"; isMonospace: true }
+                                StyledText { text: qsTr("Image"); color: Theme.surfaceVariantText }
                                 StyledText {
-                                    text: modelData.title
+                                    // The image that is installed (the NVIDIA image
+                                    // on an NVIDIA machine), with the leaf's label.
+                                    text: root.isLive && root.selectedLive
+                                        ? qsTr("%1  (this system, no download)").arg(root.liveImage || qsTr("this system"))
+                                        : (root.selectedLeaf
+                                            ? (root.selectedLeaf.label || root.selectedLeaf.name) + "  (" + root.selectedImage + ")"
+                                            : (root.selectedImage || "—"))
+                                    isMonospace: true
+                                    font.pixelSize: Theme.fontSizeSmall
                                     wrapMode: Text.WrapAnywhere
                                     Layout.fillWidth: true
                                 }
+                                // The image that updates follow, when it is not the
+                                // image that is installed (shared/catalog/README.md).
                                 StyledText {
-                                    text: modelData.subtitle
-                                    visible: text !== ""
+                                    text: qsTr("Updates from")
                                     color: Theme.surfaceVariantText
+                                    visible: confirmTarget.visible
+                                }
+                                StyledText {
+                                    id: confirmTarget
+                                    objectName: "confirmTargetImage"
+                                    visible: root.targetImage !== "" && root.targetImage !== root.selectedImage
+                                        && root.selectedImage !== ""
+                                    text: root.targetImage
+                                    isMonospace: true
                                     font.pixelSize: Theme.fontSizeSmall
-                                    wrapMode: Text.Wrap
+                                    wrapMode: Text.WrapAnywhere
                                     Layout.fillWidth: true
+                                }
+                                StyledText { text: qsTr("Filesystem"); color: Theme.surfaceVariantText }
+                                StyledText {
+                                    text: root.filesystem === "btrfs" && root.btrfsSubvolumes
+                                        ? qsTr("%1  (subvolumes)").arg(root.filesystem) : root.filesystem
+                                    isMonospace: true
+                                }
+                                StyledText { text: qsTr("Encryption"); color: Theme.surfaceVariantText }
+                                StyledText { text: root.encryptionText(root.encType, "_label"); isMonospace: true }
+                                StyledText { text: qsTr("Username"); color: Theme.surfaceVariantText; visible: root.needsUserCreation }
+                                StyledText {
+                                    objectName: "confirmUsername"
+                                    visible: root.needsUserCreation
+                                    text: root.username || "—"; isMonospace: true
+                                }
+                                // The Session step's picks that go into the recipe (#292).
+                                StyledText { text: qsTr("Language"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().locale }
+                                StyledText { objectName: "confirmLocale"; visible: !!root.regionRecipe().locale; text: root.regionRecipe().locale || ""; isMonospace: true }
+                                StyledText { text: qsTr("Keyboard"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().keyboard }
+                                StyledText { objectName: "confirmKeyboard"; visible: !!root.regionRecipe().keyboard; text: root.regionRecipe().keyboard ? root.regionRecipe().keyboard.layout : ""; isMonospace: true }
+                                StyledText { text: qsTr("Timezone"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().timezone }
+                                StyledText { objectName: "confirmTimezone"; visible: !!root.regionRecipe().timezone; text: root.regionRecipe().timezone || ""; isMonospace: true }
+                                StyledText { text: qsTr("Region"); color: Theme.surfaceVariantText; visible: root.regionProblem !== "" }
+                                StyledText { objectName: "regionProblem"; visible: root.regionProblem !== ""; text: root.regionProblem; color: Theme.error; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                                StyledText { text: qsTr("Hostname"); color: Theme.surfaceVariantText }
+                                ColumnLayout {
+                                    spacing: 2
+                                    DankTextField {
+                                        id: hostField
+                                        text: root.hostname
+                                        onTextEdited: { root.hostnameTouched = true; root.hostname = text }  // not onTextChanged: that fires at load and would pin the branding default
+                                        font.family: Theme.monoFontFamily
+                                        implicitWidth: 260
+                                        isError: root.hostnameProblem !== ""
+                                    }
+                                    // fisherman's hostname rule, in the copy's words.
+                                    StyledText {
+                                        text: root.hostnameProblem
+                                        color: Theme.error
+                                        visible: text !== ""
+                                        font.pixelSize: Theme.fontSizeSmall
+                                    }
                                 }
                             }
                         }
+
+                        // What fisherman says about the selected image: its source,
+                        // the update reference of the new system, what this
+                        // computer runs, and this computer's bootc storage.
+                        DankCard {
+                            objectName: "confirmSourceCheck"
+                            Layout.fillWidth: true
+                            visible: root.sourceVisible
+                            title: qsTr("Selected image")
+                            ColumnLayout {
+                                width: parent.width
+                                spacing: Theme.spacingXS
+                                Repeater {
+                                    model: root.sourceRows
+                                    ColumnLayout {
+                                        spacing: 0
+                                        Layout.fillWidth: true
+                                        StyledText {
+                                            text: modelData.title
+                                            wrapMode: Text.WrapAnywhere
+                                            Layout.fillWidth: true
+                                        }
+                                        StyledText {
+                                            text: modelData.subtitle
+                                            visible: text !== ""
+                                            color: Theme.surfaceVariantText
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            wrapMode: Text.Wrap
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        StyledText {
+                            text: root.text("confirm_body")
+                            visible: text !== ""
+                            color: Theme.surfaceVariantText
+                            horizontalAlignment: Text.AlignHCenter
+                            Layout.fillWidth: true
+                        }
+                        OfflineNotice {
+                            Layout.fillWidth: true
+                            visible: root.downloadBlocked
+                            checked: root.netChecked
+                            checking: netProc.running
+                            toolError: root.netToolError
+                            onRecheck: root.recheckNetwork()
+                            onOpenSettings: netToolProc.running = true
+                        }
                     }
                 }
-
-                StyledText {
-                    text: root.text("confirm_body")
-                    visible: text !== ""
-                    color: Theme.surfaceVariantText
-                    horizontalAlignment: Text.AlignHCenter
-                    Layout.fillWidth: true
-                }
-                OfflineNotice {
-                    Layout.fillWidth: true
-                    visible: root.downloadBlocked
-                    checked: root.netChecked
-                    checking: netProc.running
-                    toolError: root.netToolError
-                    onRecheck: root.recheckNetwork()
-                    onOpenSettings: netToolProc.running = true
-                }
-
-                Item { Layout.fillHeight: true }
 
                 RowLayout {
                     Layout.fillWidth: true

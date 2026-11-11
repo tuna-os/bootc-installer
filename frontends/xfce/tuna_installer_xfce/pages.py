@@ -650,8 +650,16 @@ class ConfirmPage(Page):
         self.source_label = Gtk.Label(xalign=0)
         self.source_label.set_line_wrap(True)
         self.source_label.set_selectable(True)
-        self.source_label.set_no_show_all(True)
-        self.pack_start(self.source_label, False, False, 0)
+        # In a scrolled box of its own: this computer's bootc storage can
+        # list several images, and the page must not push Back and Install
+        # off a small screen.
+        self.source_scroll = Gtk.ScrolledWindow()
+        self.source_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.source_scroll.set_propagate_natural_height(True)
+        self.source_scroll.set_max_content_height(160)
+        self.source_scroll.add(self.source_label)
+        self.source_scroll.set_no_show_all(True)
+        self.pack_start(self.source_scroll, False, False, 0)
         self.source_generation = 0
         self.source_blocked = False
         self.body = Gtk.Label(xalign=0)
@@ -766,6 +774,9 @@ class ConfirmPage(Page):
         lines = [title + ("\n    " + subtitle if subtitle else "") for title, subtitle in rows]
         self.source_label.set_text("\n".join(lines))
         self.source_label.set_visible(bool(lines))
+        self.source_scroll.set_visible(bool(lines))
+        if lines:
+            self.source_scroll.show_all()
 
     def _check_network(self):
         """Ask the window whether this install needs the network, and if so
