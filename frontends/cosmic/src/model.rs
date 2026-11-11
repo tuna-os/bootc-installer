@@ -135,14 +135,14 @@ pub fn groups_for(operator_recipe: Option<&serde_json::Value>) -> Vec<String> {
         .unwrap_or_else(default_groups)
 }
 
-/// [`groups_for`] the operator file below `etc` (`/etc`, or
-/// `/run/host/etc` in a Flatpak). A file that is missing or that does not
-/// parse gives the default list.
-pub fn groups_from_etc(etc: &str) -> Vec<String> {
-    let operator = std::fs::read_to_string(format!("{etc}/bootc-installer/recipe.json"))
+/// The operator recipe below `etc` (`/etc`, or `/run/host/etc` in a
+/// Flatpak), parsed: what [`groups_for`] and
+/// [`crate::image_catalog::live_leaf`] read. `None` for a file that is
+/// missing or that does not parse.
+pub fn read_operator_recipe(etc: &str) -> Option<serde_json::Value> {
+    std::fs::read_to_string(format!("{etc}/bootc-installer/recipe.json"))
         .ok()
-        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
-    groups_for(operator.as_ref())
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
 }
 
 /// The account page's fields as the recipe's `user` block, or `None` when no
@@ -331,13 +331,14 @@ mod tests {
     fn the_operator_file_is_read_below_etc() {
         let dir = tempfile::tempdir().unwrap();
         let etc = dir.path().to_str().unwrap();
-        assert_eq!(groups_from_etc(etc), default_groups(), "no file");
+        let groups = |etc| groups_for(read_operator_recipe(etc).as_ref());
+        assert_eq!(groups(etc), default_groups(), "no file");
         std::fs::create_dir_all(dir.path().join("bootc-installer")).unwrap();
         let file = dir.path().join("bootc-installer/recipe.json");
         std::fs::write(&file, r#"{"user": {"groups": ["wheel", "video"]}}"#).unwrap();
-        assert_eq!(groups_from_etc(etc), ["wheel", "video"]);
+        assert_eq!(groups(etc), ["wheel", "video"]);
         std::fs::write(&file, "not json").unwrap();
-        assert_eq!(groups_from_etc(etc), default_groups(), "a file that does not parse");
+        assert_eq!(groups(etc), default_groups(), "a file that does not parse");
     }
 
     #[test]
