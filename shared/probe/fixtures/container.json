@@ -152,5 +152,96 @@
   "dmi": {
     "vendor": "",
     "product": ""
+  },
+  "capabilities": {
+    "version": 1,
+    "live_host": {
+      "context": "live-host",
+      "is_live": false,
+      "image": "",
+      "digest": "",
+      "identity_reason": "not_bootc_booted",
+      "platform": "",
+      "backend": "",
+      "bootc_version": ""
+    },
+    "source": {
+      "selected": false,
+      "ref": "",
+      "transport": "",
+      "locality": "unknown",
+      "store": "",
+      "digest": "",
+      "platform": ""
+    },
+    "execution_root": {
+      "context": "none",
+      "established": false,
+      "reason": "no_source_selected",
+      "backend": "",
+      "bootc_version": ""
+    },
+    "target": {
+      "update_ref": "",
+      "update_ref_from": "",
+      "state": "not_installed"
+    },
+    "features": {
+      "bootc_image_storage": {
+        "status": "unknown",
+        "reason": "no_source_selected",
+        "context": "none"
+      },
+      "deployment_mount": {
+        "status": "unknown",
+        "reason": "no_source_selected",
+        "context": "none"
+      },
+      "finalization": {
+        "status": "unknown",
+        "reason": "no_source_selected",
+        "context": "none"
+      },
+      "install_configuration": {
+        "status": "unknown",
+        "reason": "no_source_selected",
+        "context": "none"
+      },
+      "native_inspection": {
+        "status": "unknown",
+        "reason": "no_source_selected",
+        "context": "none"
+      },
+      "unified_storage": {
+        "status": "unsupported",
+        "reason": "fisherman_refuses",
+        "context": "fisherman"
+      }
+    },
+    "install_defaults": {
+      "observed": false,
+      "root_filesystem": "",
+      "block_setups": [],
+      "bootloader": ""
+    },
+    "image": {
+      "observed": false,
+      "kernel_version": "",
+      "kernel_unified": false
+    }
+  },
+  "bootc_store": {
+    "version": 1,
+    "context": "live-host",
+    "available": false,
+    "reason": "bootc_missing",
+    "machine_platform": "x86_64",
+    "sources": {
+      "bootc_status": "bootc_missing",
+      "store_index": "not_applicable",
+      "image_list": "not_applicable"
+    },
+    "ignored_entries": 0,
+    "items": []
   }
 }

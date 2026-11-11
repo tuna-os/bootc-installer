@@ -107,6 +107,37 @@ print(json.dumps({
                       ("unified_storage", "unknown", "not_established"))}},
     "gpus": [],
     "dmi": {"vendor": "", "product": ""},
+    # No source selected, on a host without bootc: what `fisherman probe
+    # --json` answers on the runner (shared/probe/README.md, "Source
+    # check"). The shim gives this answer to a `--source` probe too, so a
+    # frontend reads it as a reply for another source and drops it.
+    "capabilities": {
+        "version": 1,
+        "live_host": {"context": "live-host", "is_live": False, "image": "", "digest": "",
+                      "identity_reason": "not_bootc_booted", "platform": "", "backend": "",
+                      "bootc_version": ""},
+        "source": {"selected": False, "ref": "", "transport": "", "locality": "unknown",
+                   "store": "", "digest": "", "platform": ""},
+        "execution_root": {"context": "none", "established": False,
+                           "reason": "no_source_selected", "backend": "", "bootc_version": ""},
+        "target": {"update_ref": "", "update_ref_from": "", "state": "not_installed"},
+        "features": dict(
+            {name: {"status": "unknown", "reason": "no_source_selected", "context": "none"}
+             for name in ("bootc_image_storage", "deployment_mount", "finalization",
+                          "install_configuration", "native_inspection")},
+            unified_storage={"status": "unsupported", "reason": "fisherman_refuses",
+                             "context": "fisherman"}),
+        "install_defaults": {"observed": False, "root_filesystem": "", "block_setups": [],
+                             "bootloader": ""},
+        "image": {"observed": False, "kernel_version": "", "kernel_unified": False},
+    },
+    "bootc_store": {
+        "version": 1, "context": "live-host", "available": False, "reason": "bootc_missing",
+        "machine_platform": "x86_64",
+        "sources": {"bootc_status": "bootc_missing", "store_index": "not_applicable",
+                    "image_list": "not_applicable"},
+        "ignored_entries": 0, "items": [],
+    },
 }, indent=2))
 PY
 

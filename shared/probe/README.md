@@ -205,6 +205,7 @@ byte-identical to fisherman's own golden output.
 | `laptop.json` | fisherman's golden output (`internal/probe/testdata/golden/probe.json`): a laptop booted from a live USB, with every exclusion rule |
 | `container.json` | a real `fisherman probe --json` run in a CI container: no eligible disk, no TPM, BIOS boot |
 | `vm.json` | hand-built to the schema: a BIOS VM with one disk that has no model, and every requirement unmet |
+| `capabilities` and `bootc_store` in `container.json`, `vm.json`, `pure-live-oci.json` | added by hand from fisherman `ae82391`: a host without bootc (`container.json`), the laptop's objects (the two live fixtures) |
 | `*.expected.json` | what every frontend renders from the fixture of the same name |
 
 ## Test seam

@@ -151,6 +151,38 @@ class SourceCheckRulesTest(unittest.TestCase):
                     self.assertIn(arg, ("--source", "--live-root", "--target-imgref"))
 
 
+class RealProbeOutputTest(unittest.TestCase):
+    """The probe fixtures are fisherman's output with `capabilities` and
+    `bootc_store` (laptop.json is its golden file). A plain probe selects
+    no source, so it answers no_source_selected, and a frontend that asked
+    about a source drops it as a reply for another source."""
+
+    def _probe(self, name):
+        with open(os.path.join(PROBE, "fixtures", name + ".json"), encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_a_plain_probe_selects_no_source(self):
+        from bootc_shared import source_check
+        for name in ("laptop", "container", "vm", "pure-live-oci"):
+            with self.subTest(fixture=name):
+                result = self._probe(name)
+                view = source_check.source_check(result, source_check.request())
+                self.assertEqual((view["state"], view["reason"]),
+                                 ("unavailable", "no_source_selected"))
+                asked = source_check.source_check(
+                    result, source_check.request(source="ghcr.io/example/os:stable"))
+                self.assertEqual(asked["state"], "stale")
+
+    def test_the_laptop_lists_its_booted_image(self):
+        from bootc_shared import source_check
+        store = source_check.bootc_store(self._probe("laptop"))
+        self.assertEqual(store["state"], "listed")
+        self.assertEqual([(i["ref"], i["kind"], i["installable"]) for i in store["items"]],
+                         [("ghcr.io/example/os:stable", "booted", False)])
+        self.assertEqual(source_check.bootc_store(self._probe("container"))["reason"],
+                         "bootc_missing")
+
+
 class BootcStoreRulesTest(unittest.TestCase):
     def test_no_item_is_installable(self):
         for case in _cases(STORE):

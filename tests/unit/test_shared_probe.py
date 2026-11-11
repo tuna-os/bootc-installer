@@ -69,12 +69,26 @@ def _go_structs():
         with open(os.path.join(PROBE_PKG, fname), encoding="utf-8") as fh:
             src = fh.read()
         for m in _STRUCT.finditer(src):
-            fields = {}
-            for f in _FIELD.finditer(m.group(2)):
-                name, *opts = f.group(2).split(",")
-                fields[name] = (f.group(1), "omitempty" in opts)
-            structs[m.group(1)] = fields
+            structs[m.group(1)] = _struct_fields(m.group(1), m.group(2), structs)
     return structs
+
+
+# A field whose type is an anonymous struct: `Sources struct { ... } `json:"sources"``
+# (BootcStore.sources). Its fields are registered as the struct "<Parent>.<json>".
+_INLINE = re.compile(r"^\s*\w+\s+struct \{\n(.*?)^\s*\} `json:\"([^\"]+)\"`", re.M | re.S)
+
+
+def _struct_fields(name, body, structs):
+    fields = {}
+    for m in _INLINE.finditer(body):
+        json_name, *opts = m.group(2).split(",")
+        inner = f"{name}.{json_name}"
+        structs[inner] = _struct_fields(inner, m.group(1), structs)
+        fields[json_name] = (inner, "omitempty" in opts)
+    for f in _FIELD.finditer(_INLINE.sub("", body)):
+        json_name, *opts = f.group(2).split(",")
+        fields[json_name] = (f.group(1), "omitempty" in opts)
+    return fields
 
 
 def _go_constants(prefix):
@@ -95,6 +109,10 @@ class TestFixturesMatchFisherman(unittest.TestCase):
         for name in ("Result", "Disk", "TPM", "System", "Live", "Offline"):
             self.assertIn(name, self.structs, f"probe.go no longer declares {name}")
             self.assertTrue(self.structs[name], name)
+        # The anonymous struct of BootcStore.sources, which a parser that
+        # only reads top-level structs would miss.
+        self.assertEqual(set(self.structs.get("BootcStore.sources", {})),
+                         {"bootc_status", "store_index", "image_list"})
 
     def test_laptop_fixture_is_fishermans_golden_output(self):
         with open(GOLDEN, "rb") as a, open(os.path.join(FIXTURES, "laptop.json"), "rb") as b:

@@ -31,9 +31,14 @@ schema only.
   `source_check_reason_<reason>`, `source_check_default_<name>`,
   `bootc_store_listed` and `bootc_store_kind_<kind>`, and the placeholder
   `{value}`. All five frontends render them.
-- The fisherman pin does not have the `bootc_store` and receipt fixtures
-  yet. `tests/unit/test_shared_source_check.py` compares each copy with
-  fisherman's golden file when the pin has that file.
+- The fisherman pin moved to `ae82391` (tuna-os/fisherman#436, #437,
+  #438). `tests/unit/test_shared_source_check.py` holds each copied fixture
+  to fisherman's golden file.
+- Changed: `probe/fixtures/laptop.json` is fisherman's new golden output,
+  with `capabilities` and `bootc_store`. `container.json`, `vm.json`,
+  `pure-live-oci.json` and the answer of the e2e shim got the two objects
+  too: a host without bootc for the container and the shim, the laptop's
+  for the two live fixtures. A plain probe selects no source.
 
 ## 2026-11-10: branding copy, the validate codes of fisherman `7f9021b`
 
