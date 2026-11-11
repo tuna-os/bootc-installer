@@ -69,7 +69,12 @@ def test_done_page_says_installed_and_offers_close_and_restart():
     done = pages.DonePage(_Win())
     done.set_result(True, "")
     assert core.BRANDING.text("done_title") in done.headline.get_text()
-    assert done.body.get_text() == core.BRANDING.text("done_subtitle")
+    body = done.body.get_text()
+    assert body.startswith(core.BRANDING.text("done_subtitle"))
+    # Installed, restart required, and how the first start is checked;
+    # never a verified start (#269).
+    assert core.BRANDING.text("done_verification") in body
+    assert "verified" not in body.lower()
     assert done.close_btn.get_label() == "Close"
     assert done.reboot_btn.get_label() == core.BRANDING.text("done_restart")
     assert done.reboot_btn.get_sensitive()

@@ -138,6 +138,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  session-set        Apply keyboard/locale/timezone JSON read from stdin to the live session")
 		fmt.Fprintln(os.Stderr, "  netcheck [image]   Report as JSON whether the registry of an image answers")
 		fmt.Fprintln(os.Stderr, "  network-settings   Open the desktop's network settings on the host")
+		fmt.Fprintln(os.Stderr, "  source-check       Check the selected image (request JSON on stdin) with fisherman probe --json --source")
 		fmt.Fprintln(os.Stderr, "  install            Run fisherman with the recipe JSON read from stdin")
 		fmt.Fprintln(os.Stderr, "  cancel             Stop a running install (the progress page's Cancel, the window's close)")
 		fmt.Fprintln(os.Stderr, "  log-path           Print the persistent install log file dialog_output.py shows")
@@ -154,6 +155,10 @@ func main() {
 		discoverDisks()
 	case "detect":
 		detectEnvironment()
+	case "source-check":
+		// The selected source's capabilities and this computer's bootc
+		// storage (#266, #267), from fisherman's probe (sourcecheck.go).
+		sourceCheckMain()
 	case "catalog":
 		catalogMain()
 	case "session-get":

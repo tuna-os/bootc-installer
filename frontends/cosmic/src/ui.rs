@@ -78,6 +78,7 @@ pub mod copy {
 
     pub const CONFIRM_SUBTITLE: &str = "The last screen before anything is written.";
     pub const CONFIRM_SUMMARY: &str = "Summary";
+    pub const CONFIRM_SELECTED_IMAGE: &str = "Selected image";
     pub const CONFIRM_TARGET_DISK: &str = "Target disk";
     pub const CONFIRM_IMAGE: &str = "Image";
     // The catalog label of the image: product and channel.
@@ -493,8 +494,20 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 t.push(tr(CONFIRM_UPDATES));
                 t.push(target);
             }
+            let rows = app.source_rows();
+            if !rows.is_empty() {
+                t.push(tr(CONFIRM_SELECTED_IMAGE));
+                for (title, subtitle) in rows {
+                    t.push(title);
+                    if !subtitle.is_empty() {
+                        t.push(subtitle);
+                    }
+                }
+            }
             t.push(tr(BACK));
-            t.push(t_line("confirm_button"));
+            if !app.source_blocked() {
+                t.push(t_line("confirm_button"));
+            }
             t
         }
         Page::Installing => vec![
@@ -513,6 +526,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             let (title, detail) = done_copy(app);
             let mut t = vec![title, detail];
             if app.install_ok() {
+                t.push(t_line("done_verification"));
                 // The recovery panel, when there is a key (#129). The key
                 // itself goes in too: the capture asserts on it, and a
                 // panel drawn without it is the failure worth catching.
@@ -1699,6 +1713,21 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
     .width(Length::Fill);
 
     let mut parts = vec![warning.into(), summary.into()];
+    // What fisherman says about the selected image (#266): the source, the
+    // update reference of the new system, what this computer runs, the
+    // check's state and reason, and this computer's bootc storage (#267).
+    let rows = app.source_rows();
+    if !rows.is_empty() {
+        let mut section = widget::settings::section().title(tr(CONFIRM_SELECTED_IMAGE));
+        for (title, subtitle) in rows {
+            let mut item = widget::column::with_children(vec![widget::text::body(title).into()]);
+            if !subtitle.is_empty() {
+                item = item.push(widget::text::caption(subtitle));
+            }
+            section = section.add(widget::settings::item_row(vec![item.into()]));
+        }
+        parts.push(section.into());
+    }
     let tagline = t_line("confirm_body");
     if !tagline.is_empty() {
         parts.push(widget::text::body(tagline).into());
@@ -1714,7 +1743,7 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
         body.into(),
         nav_row(
             Some(Message::BackPage),
-            Some((t_line("confirm_button"), Message::StartInstall, true)),
+            (!app.source_blocked()).then(|| (t_line("confirm_button"), Message::StartInstall, true)),
         ),
     )
 }
@@ -1839,6 +1868,12 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
             .into(),
         widget::text::body(detail).into(),
     ]);
+    // Installed, restart required: never "verified". Only the new system
+    // can check its own start (#269, shared/completion/README.md).
+    let verification = t_line("done_verification");
+    if app.install_ok() && !verification.is_empty() {
+        hero = hero.push(widget::text::caption(verification));
+    }
     // store_label -> store_url on every frontend when the branding sets a
     // store (docs/PARITY.md).
     let store_url = branding::get().store_url.clone();

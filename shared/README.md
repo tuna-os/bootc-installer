@@ -70,6 +70,18 @@ pin together, and `published_freshness.py` compares the served Flatpaks with
 `tests/unit/test_ci_published_freshness.py` cover them. A new frontend adds
 one row to `frontends.json`, and one `Publish (<name>)` job to `release.yml`.
 
+## `completion/`
+
+How the done page tells an installed system from a verified start (#269),
+and the reader of a `fisherman verify --json` result. The done page says
+"installed, restart required" and never "verified": only the new system
+can check its own start. Each frontend renders `done_verification`.
+`bootc_shared.completion` is the Python reader, and
+`tests/unit/test_shared_source_check.py` holds the case file to it. The
+KDE, COSMIC and Niri readers read the same `verification-cases.json`. A
+new frontend shows the line on its done page and ports the reader. See
+[completion/README.md](completion/README.md).
+
 ## `e2e/`
 
 The end-to-end gate. Each frontend drives its real backend path to the Done
@@ -88,7 +100,11 @@ The Python reader is `bootc_shared.probe` (see `python/`).
 `tests/unit/test_shared_probe.py` runs the reader against `fixtures/`, and
 refuses a frontend that reads `lsblk` itself. `tests/unit/test_probe_frontend.py` covers the GNOME side.
 A new frontend runs the command, reads the JSON, and points its capture at
-a fixture with `BOOTC_INSTALLER_FAKE_PROBE`. See
+a fixture with `BOOTC_INSTALLER_FAKE_PROBE`. The same command with
+`--source` gives the check of the selected image (`capabilities`, #266) and
+the images in this computer's bootc storage (`bootc_store`, #267);
+`bootc_shared.source_check` reads them, and each frontend runs its reader
+against `capabilities-cases.json` and `bootc-store-cases.json`. See
 [probe/README.md](probe/README.md).
 
 ## `progress/`

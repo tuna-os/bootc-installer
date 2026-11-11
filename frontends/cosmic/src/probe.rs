@@ -116,15 +116,23 @@ pub fn parse(json: &str) -> Result<Facts, String> {
 /// Runs the probe, or reads `BOOTC_INSTALLER_FAKE_PROBE`. Blocking: call it
 /// off the UI thread. There is no fallback scan; the error says why.
 pub fn run() -> Result<Facts, String> {
+    parse(&run_output(&[])?)
+}
+
+/// Runs `fisherman probe --json <extra>`, or reads
+/// `BOOTC_INSTALLER_FAKE_PROBE`, and gives its stdout. The source check
+/// (source_check.rs) passes the selection. Blocking: call it off the UI
+/// thread.
+pub fn run_output(extra: &[String]) -> Result<String, String> {
     if let Ok(fake) = std::env::var(FAKE_ENV) {
         if !fake.is_empty() {
-            let text = std::fs::read_to_string(&fake).map_err(|e| format!("{FAKE_ENV}={fake}: {e}"))?;
-            return parse(&text);
+            return std::fs::read_to_string(&fake).map_err(|e| format!("{FAKE_ENV}={fake}: {e}"));
         }
     }
     // The one resolver (offline.rs): unprivileged, and in a Flatpak the
     // staged copy of the packaged fisherman.
-    let argv = crate::offline::fisherman(crate::offline::Use::Probe, false)?;
+    let mut argv = crate::offline::fisherman(crate::offline::Use::Probe, false)?;
+    argv.extend(extra.iter().cloned());
     let mut child = Command::new(&argv[0])
         .args(&argv[1..])
         .stdin(Stdio::null())
@@ -166,7 +174,7 @@ pub fn run() -> Result<Facts, String> {
         let code = status.code().map_or("signal".to_string(), |c| c.to_string());
         return Err(format!("fisherman probe failed (exit {code}): {first}"));
     }
-    parse(&stdout)
+    Ok(stdout)
 }
 
 /// The welcome page's warning lines for fisherman's unmet requirements:

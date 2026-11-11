@@ -84,6 +84,20 @@ TunaComponents.SetupModule {
                 Layout.fillWidth: true
             }
 
+            // Installed, restart required: never "verified". Only the new
+            // system can check its own start (#269,
+            // shared/completion/README.md).
+            Label {
+                objectName: "doneVerification"
+                text: InstallerController.text("done_verification")
+                visible: InstallerController.succeeded && text.length > 0
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                opacity: 0.75
+
+                Layout.fillWidth: true
+            }
+
             // store_label -> store_url, on every frontend when the branding
             // sets a store (docs/PARITY.md).
             Label {

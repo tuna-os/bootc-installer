@@ -14,14 +14,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import logging
 import re
+import threading
 from gettext import gettext as _
+
+from bootc_shared import source_check
 
 from bootc_installer.utils import copy as copy_text
 from bootc_installer.utils.field_check import FieldCheck
 from bootc_installer.utils.processor import Processor
 
-from gi.repository import Adw, GObject, Gtk
+from gi.repository import Adw, GLib, GObject, Gtk
+
+logger = logging.getLogger("Installer::Confirm")
 
 
 # What the summary calls each root filesystem: the names the disk page's
@@ -131,10 +137,18 @@ class BootcConfirm(Adw.Bin):
     group_warning = Gtk.Template.Child()
     row_warning = Gtk.Template.Child()
     group_changes = Gtk.Template.Child()
+    group_source = Gtk.Template.Child()
     btn_confirm = Gtk.Template.Child()
     lbl_body = Gtk.Template.Child()
     page_header = Gtk.Template.Child()
 
+    # The source check (#266): each visit starts one, and a reply for an
+    # older visit is dropped (the generation, then the reader's own
+    # source/target binding). Class defaults, so that a view built without
+    # __init__ (the unit tests) has them too.
+    _source_generation = 0
+    _source_rows = ()
+    _source_blocked = False
 
     def __init__(self, window, **kwargs):
         super().__init__(**kwargs)
@@ -411,13 +425,76 @@ class BootcConfirm(Adw.Bin):
 
         for widget in self.active_widgets:
             self.group_changes.add(widget)
+        self.__start_source_check()
         self.__update_confirm_button()
         # One confirmation for each visit to the page.
         self._armed = True
 
+    def __start_source_check(self):
+        """Ask fisherman what the selected source's bootc can do, off the
+        UI thread. The probe gets the image references only; the recipe
+        that names them is built here and dropped (it holds the
+        passphrase)."""
+        self._source_generation += 1
+        generation = self._source_generation
+        self._source_blocked = False
+        window = self.__window
+        try:
+            from bootc_installer.core.system import Systeminfo
+            recipe = Processor.gen_install_recipe(
+                "", getattr(window, "finals", []) or [], getattr(window, "recipe", {}) or {})
+            req = source_check.recipe_request(recipe, Systeminfo.is_live())
+            del recipe
+        except Exception as exc:  # noqa: BLE001 - the install refuses it with its own message
+            logger.info("no source check: %s", exc)
+            self.__show_source_rows([])
+            return
+        args = source_check.probe_args(req)
+        if not args:
+            self.__show_source_rows([])
+            return
+        self.__show_source_rows(source_check.rows(None, None, self.__text))
+
+        def work():
+            result = Systeminfo.probe_source(args)
+            GLib.idle_add(self.__on_source_reply, generation, req, result)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def __on_source_reply(self, generation, req, result):
+        if generation != self._source_generation:
+            return False
+        view = source_check.source_check(result, req)
+        if view["state"] == "stale":
+            return False
+        self._source_blocked = source_check.blocks_install(view)
+        self.__show_source_rows(source_check.rows(
+            view, source_check.bootc_store(result), self.__text))
+        self.__update_confirm_button()
+        return False
+
+    def __text(self, key):
+        return copy_text.text(self.__window, key)
+
+    def __show_source_rows(self, rows):
+        for row in self._source_rows:
+            self.group_source.remove(row)
+        self._source_rows = []
+        for title, subtitle in rows:
+            row = Adw.ActionRow()
+            row.set_use_markup(False)
+            row.set_title_lines(0)
+            row.set_subtitle_lines(0)
+            row.set_title(title)
+            row.set_subtitle(subtitle)
+            self.group_source.add(row)
+            self._source_rows.append(row)
+        self.group_source.set_visible(bool(rows))
+
     def __update_confirm_button(self):
         self.btn_confirm.set_sensitive(
-            self._hostname_check is None or self._hostname_check.ok)
+            (self._hostname_check is None or self._hostname_check.ok)
+            and not self._source_blocked)
 
     def test_auto_advance(self):
         self.btn_confirm.emit("clicked")

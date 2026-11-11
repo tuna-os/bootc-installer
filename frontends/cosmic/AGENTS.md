@@ -175,6 +175,16 @@ formatter. If the probe fails, the disk page shows the reason. `cargo test
 probe` renders the shared fixtures, and `../../shared/probe/README.md` is the
 contract. Capture mode reads `shared/probe/fixtures/laptop.json`.
 
+The confirm page also asks fisherman about the selected image (#266):
+`check_source` runs `fisherman probe --json --source` off the UI thread,
+and `src/source_check.rs` reads its `capabilities` and `bootc_store`
+(#267). Only a blocked source holds Install. A reply for an older visit,
+or for another source, is dropped. Never offer an image of this computer's
+bootc storage as a source. The done page says "installed, restart
+required" and never "verified" (`done_verification`, #269). `cargo test
+source_check` reads the shared case files. The capture does not run the
+check, so the section is not in the screenshots.
+
 ## Sibling contract
 
 It produces the same recipe JSON as the Qt/KDE installer, shared with all four

@@ -1,0 +1,1 @@
+{"schema": "fisherman.boot-verification", "version": 1, "outcome": "verified"

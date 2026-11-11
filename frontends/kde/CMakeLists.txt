@@ -61,6 +61,8 @@ set(BACKEND_SOURCES
     src/readiness.h
     src/redact.cpp
     src/redact.h
+    src/sourcecheck.cpp
+    src/sourcecheck.h
     src/validate.cpp
     src/validate.h
 )
@@ -179,6 +181,7 @@ if(BUILD_TESTING)
         src/readiness.cpp
         src/redact.cpp
         src/probe.cpp
+        src/sourcecheck.cpp
         src/validate.cpp
         src/diskmodel.cpp
         # For the fisherman progress protocol parse. The controller's other
@@ -193,6 +196,8 @@ if(BUILD_TESTING)
     target_compile_definitions(tuna-installer-backend-tests PRIVATE
         BRANDING_FIXTURES_DIR="${TUNA_SHARED_DIR}/branding/fixtures"
         PROBE_FIXTURES_DIR="${TUNA_SHARED_DIR}/probe/fixtures"
+        SHARED_PROBE_DIR="${TUNA_SHARED_DIR}/probe"
+        SHARED_COMPLETION_DIR="${TUNA_SHARED_DIR}/completion"
         PROGRESS_FIXTURES_DIR="${TUNA_SHARED_DIR}/progress"
         CATALOG_FIXTURES_DIR="${TUNA_SHARED_DIR}/catalog/fixtures"
         SHARED_GROUPS_FILE="${TUNA_SHARED_DIR}/account/groups.json"

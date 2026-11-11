@@ -180,6 +180,16 @@ def probe(refresh=False):
     return _probe_cache["answer"]
 
 
+def probe_source(args):
+    """`fisherman probe --json` for the selected source (#266): `args` is
+    bootc_shared.source_check.probe_args(). The result, or None when it
+    failed. Not cached: a reply belongs to one selection."""
+    try:
+        return fisherman_probe.run(fisherman_command("probe") + list(args))
+    except (fisherman_probe.ProbeError, StageError):
+        return None
+
+
 def has_tpm():
     """fisherman's tpm.usable; False when the probe failed.
 

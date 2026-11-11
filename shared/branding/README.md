@@ -91,8 +91,9 @@ frontend implements every optional artwork slot.
 Everything a product might want to say in its own voice is a `copy` key.
 The neutral lines are in `copy-defaults.json`; a `branding.json` sets any
 subset under `"copy"`, and a key it sets to `""` hides that line wherever a
-frontend can hide it. `{name}` is the product name and `{disk}` the disk
-about to be erased.
+frontend can hide it. `{name}` is the product name, `{disk}` the disk
+about to be erased, and `{value}` the image reference or the value that the
+line names.
 
 | Key | Where it shows |
 |---|---|
@@ -105,6 +106,10 @@ about to be erased.
 | `recovery_key_title`, `recovery_key_body`, `recovery_key_copy`, `recovery_key_ack` | the recovery-key panel after a TPM enrolment |
 | `done_title`, `done_subtitle`, `done_restart`, `done_failed_title`, `done_cancelled_title` | the done page: installed, failed, or stopped by the user (fisherman exit code 130) |
 | `store_label` | the store link on the done page, shown only when `store_url` is set |
+| `done_verification` | the done page after an install: the new system is not checked yet, and how its first start is checked (`shared/completion/README.md`) |
+| `source_install_from`, `source_update_ref`, `source_live_host` | the confirm page: the source of the install, the update reference of the new system, and the image that this computer runs |
+| `source_check_<state>`, `source_check_reason_<reason>`, `source_check_default_<name>` | the confirm page: the check of the selected image (`shared/probe/README.md`, "Source check") |
+| `bootc_store_listed`, `bootc_store_kind_<kind>` | the confirm page: the images in this computer's bootc storage |
 
 ### Encryption choices
 

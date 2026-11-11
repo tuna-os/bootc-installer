@@ -12,6 +12,7 @@ from gi.repository import Gdk, GLib, Gtk, Pango
 
 from bootc_shared import progress as progress_parser  # noqa: E402
 from bootc_shared import redact  # noqa: E402
+from bootc_shared import source_check  # noqa: E402
 from bootc_shared import validate as fisherman_validate  # noqa: E402
 
 from . import core, gates, locale as locale_checks
@@ -643,6 +644,16 @@ class ConfirmPage(Page):
         self.summary = Gtk.Label(xalign=0)
         self.summary.set_line_wrap(True)
         self.pack_start(self.summary, False, False, 0)
+        # The source check (#266) and this computer's bootc storage (#267):
+        # what fisherman's probe says about the selected image. Only a
+        # blocked source holds Install.
+        self.source_label = Gtk.Label(xalign=0)
+        self.source_label.set_line_wrap(True)
+        self.source_label.set_selectable(True)
+        self.source_label.set_no_show_all(True)
+        self.pack_start(self.source_label, False, False, 0)
+        self.source_generation = 0
+        self.source_blocked = False
         self.body = Gtk.Label(xalign=0)
         self.body.set_line_wrap(True)
         self.body.set_no_show_all(True)
@@ -710,7 +721,51 @@ class ConfirmPage(Page):
             else "confirm_warning"
         )
         self.warn_text.set_text(core.BRANDING.text(warn_key, disk=disk))
+        self._check_source(r)
         self._check_network()
+
+    def _check_source(self, recipe):
+        """Probe the selected source off the UI thread, and drop a reply
+        for an older visit. The probe gets image references only."""
+        self.source_generation += 1
+        generation = self.source_generation
+        self.source_blocked = False
+        req = source_check.recipe_request(recipe, core.is_live())
+        args = source_check.probe_args(req)
+        if not args:
+            self._show_source([])
+            return
+        self._show_source(source_check.rows(None, None, core.BRANDING.text))
+        if core.dry_run():
+            # The capture reads BOOTC_INSTALLER_FAKE_PROBE; answer on this
+            # thread so the screenshot shows the result, not "Checking".
+            self._on_source(generation, req, core.probe_source(args))
+            return
+
+        def work():
+            result = core.probe_source(args)
+            GLib.idle_add(self._on_source, generation, req, result)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_source(self, generation, req, result):
+        if generation != self.source_generation:
+            return False
+        view = source_check.source_check(result, req)
+        if view["state"] == "stale":
+            return False
+        self.source_blocked = source_check.blocks_install(view)
+        self._show_source(source_check.rows(
+            view, source_check.bootc_store(result), core.BRANDING.text))
+        refresh = getattr(self.win, "refresh_nav", None)
+        if refresh is not None:
+            refresh()
+        return False
+
+    def _show_source(self, rows):
+        lines = [title + ("\n    " + subtitle if subtitle else "") for title, subtitle in rows]
+        self.source_label.set_text("\n".join(lines))
+        self.source_label.set_visible(bool(lines))
 
     def _check_network(self):
         """Ask the window whether this install needs the network, and if so
@@ -772,7 +827,7 @@ class ConfirmPage(Page):
         self.net_settings.set_visible(not ok)
 
     def can_continue(self):
-        return self.net_ok
+        return self.net_ok and not self.source_blocked
 
 
 class ProgressPage(Page):
@@ -1027,7 +1082,11 @@ class DonePage(Page):
         if ok:
             self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
                 core.BRANDING.text("done_title")) + "</b></big>")
-            self.body.set_text(core.BRANDING.text("done_subtitle"))
+            # Installed, restart required: never "verified". Only the new
+            # system can check its own start (shared/completion/README.md).
+            self.body.set_text("\n\n".join(line for line in (
+                core.BRANDING.text("done_subtitle"),
+                core.BRANDING.text("done_verification")) if line))
             self.store_btn.set_visible(bool(core.BRANDING.store_url))
             self.reboot_btn.show()
             self.log_btn.set_visible(False)

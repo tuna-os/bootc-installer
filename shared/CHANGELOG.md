@@ -12,6 +12,29 @@ sure that it does. Do not edit the hash of an old entry: add an entry.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-11: probe, the check of the selected image and this computer's bootc storage; completion
+
+- Added: `probe/capabilities-cases.json`, `probe/bootc-store-cases.json`,
+  the fixtures in `probe/fixtures/capabilities/` and
+  `probe/fixtures/bootc-store/`, and `probe/generate-source-check-cases.py`.
+  They hold the readers of the `capabilities` (tuna-os/fisherman#383) and
+  `bootc_store` (tuna-os/fisherman#384) objects of `fisherman probe
+  --json`. All five frontends use them: GNOME and XFCE through
+  `bootc_shared.source_check`, KDE, COSMIC and Niri through a port (#266,
+  #267).
+- Added: `completion/`, with `verification-cases.json`, its fixtures and
+  the readers of a `fisherman verify --json` result
+  (tuna-os/fisherman#385). All five frontends have a reader. No page reads
+  a result yet (#269).
+- Added: copy keys `done_verification`, `source_install_from`,
+  `source_update_ref`, `source_live_host`, `source_check_<state>`,
+  `source_check_reason_<reason>`, `source_check_default_<name>`,
+  `bootc_store_listed` and `bootc_store_kind_<kind>`, and the placeholder
+  `{value}`. All five frontends render them.
+- The fisherman pin does not have the `bootc_store` and receipt fixtures
+  yet. `tests/unit/test_shared_source_check.py` compares each copy with
+  fisherman's golden file when the pin has that file.
+
 ## 2026-11-10: recipe schema, the fields of fisherman `7f9021b`, and closed objects
 
 The fisherman pin moved to `7f9021b` (tuna-os/fisherman#429, #432, #433,

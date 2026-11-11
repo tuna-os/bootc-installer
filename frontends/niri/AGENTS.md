@@ -116,6 +116,16 @@ given. Do not add a disk filter or a size formatter. If the probe fails,
 it. `go test -run TestProbe` renders the shared fixtures, and
 `../../shared/probe/README.md` is the contract.
 
+`source-check` reads a request (`source`, `live_root`, `target`,
+`features`) on stdin, runs `fisherman probe --json --source`, and prints
+the views of `installer/sourcecheck.go` (#266, #267). The confirm page
+calls it on each visit and drops a reply for an older visit. Only a
+blocked source holds Install. Never offer an image of this computer's
+bootc storage as a source. The done page says "installed, restart
+required" and never "verified" (`done_verification`, #269).
+`sourcecheck_test.go` reads the shared case files. The QML stub answers
+`source-check` for the capture.
+
 ## The recipe, live media and validation
 
 - `install` reads the recipe on stdin and pipes it on to `fisherman -`;

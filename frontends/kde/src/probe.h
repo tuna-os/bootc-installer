@@ -55,4 +55,11 @@ Result parse(const QByteArray &json);
 // fallback scan: on failure, `error` says why and `disks` is empty.
 Result run();
 
+// Runs `fisherman probe --json <extraArgs>` (or reads
+// BOOTC_INSTALLER_FAKE_PROBE) and gives its stdout. The source check
+// (src/sourcecheck.h) passes the selection; it reads `capabilities` and
+// `bootc_store`. False when the probe failed. Blocks: call it off the UI
+// thread.
+bool runOutput(const QStringList &extraArgs, QByteArray *out);
+
 }

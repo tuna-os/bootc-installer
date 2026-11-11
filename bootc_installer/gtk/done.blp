@@ -21,6 +21,23 @@ template $BootcDone: Adw.Bin {
         }
       }
 
+      // After a successful install: the new system is not checked yet,
+      // and how its first start is checked (#269). views/done.py sets it.
+      Adw.PreferencesGroup group_verification {
+        visible: false;
+
+        Label lbl_verification {
+          label: "";
+          wrap: true;
+          justify: center;
+          halign: center;
+
+          styles [
+            "dim-label",
+          ]
+        }
+      }
+
       Adw.PreferencesGroup {
         Box {
           halign: center;

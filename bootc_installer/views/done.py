@@ -163,6 +163,8 @@ class BootcDone(Adw.Bin):
     store_group = Gtk.Template.Child()
     store_qr = Gtk.Template.Child()
     lbl_store = Gtk.Template.Child()
+    group_verification = Gtk.Template.Child()
+    lbl_verification = Gtk.Template.Child()
 
     def __init__(self, window, **kwargs):
         super().__init__(**kwargs)
@@ -216,6 +218,11 @@ class BootcDone(Adw.Bin):
                 time_str = f"{minutes}:{secs:02d}"
                 subtitle = (_("Installed in %s. ") % time_str) + subtitle
             self.page_header.subtitle = subtitle
+            # Installed, restart required: never "verified". Only the new
+            # system can check its own start (shared/completion/README.md).
+            verification = copy_text.text(self.__window, "done_verification")
+            self.lbl_verification.set_label(verification)
+            self.group_verification.set_visible(bool(verification))
             self.btn_reboot.set_label(copy_text.text(self.__window, "done_restart") or _("Restart now"))
             configured_logo = self.__window.recipe.get("distro_logo")
             if configured_logo == "org.bootcinstaller.Installer":
@@ -242,6 +249,7 @@ class BootcDone(Adw.Bin):
             self.page_header.title = (copy_text.text(self.__window, "done_cancelled_title")
                                       or _("Installation cancelled"))
             self.page_header.subtitle = exit_code_hint(EXIT_CANCELLED)
+            self.group_verification.set_visible(False)
             self.store_group.set_visible(False)
             self.btn_reboot.set_visible(False)
             self.btn_close.set_visible(True)
@@ -259,6 +267,7 @@ class BootcDone(Adw.Bin):
                         error, lambda key: copy_text.text(self.__window, key))
                     or self.__extract_failure_hint())
             self.page_header.subtitle = hint
+            self.group_verification.set_visible(False)
             self.store_group.set_visible(False)
             self.btn_reboot.set_visible(False)
             self.btn_close.set_visible(True)

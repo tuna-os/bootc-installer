@@ -449,6 +449,79 @@ void InstallerController::checkConnectivity()
     }).detach();
 }
 
+void InstallerController::checkSource()
+{
+    const int generation = ++m_sourceGeneration;
+    const sourcecheck::Request req = sourcecheck::fromRecipe(m_recipe.toJson(), m_recipe.liveMode);
+    const QStringList args = sourcecheck::probeArguments(req);
+    m_sourceCheck = QJsonObject();
+    m_bootcStore = QJsonObject();
+    m_sourceVisible = !args.isEmpty();
+    Q_EMIT sourceCheckChanged();
+    if (args.isEmpty())
+        return;
+    // The probe gets the image references only; the recipe stays here.
+    std::thread([this, generation, req, args]() {
+        QByteArray out;
+        const bool ok = probe::runOutput(args, &out);
+        QMetaObject::invokeMethod(
+            this, [this, generation, req, ok, out]() { applySourceReply(generation, req, ok, out); },
+            Qt::QueuedConnection);
+    }).detach();
+}
+
+void InstallerController::applySourceReply(int generation, const sourcecheck::Request &req, bool ok,
+                                           const QByteArray &probeOutput)
+{
+    if (generation != m_sourceGeneration)
+        return;
+    const QJsonObject view = sourcecheck::check(ok, probeOutput, req);
+    if (view.value(QLatin1String("state")).toString() == QLatin1String("stale"))
+        return;
+    m_sourceCheck = view;
+    m_bootcStore = sourcecheck::bootcStore(ok, probeOutput);
+    Q_EMIT sourceCheckChanged();
+}
+
+QVariantList InstallerController::sourceRows() const
+{
+    auto row = [](const QString &title, const QString &subtitle = QString()) {
+        return QVariantMap{{QStringLiteral("title"), title}, {QStringLiteral("subtitle"), subtitle}};
+    };
+    auto valueLine = [this](const QString &key, const QString &value) {
+        return m_branding.text(key, {{QStringLiteral("value"), value}});
+    };
+    QVariantList rows;
+    if (m_sourceCheck.isEmpty()) {
+        rows << row(text(QStringLiteral("source_check_") + QStringLiteral("checking")));
+        return rows;
+    }
+    const QStringList identities{QStringLiteral("install_from"), QStringLiteral("update_ref"),
+                                 QStringLiteral("live_host_image")};
+    const QStringList keys{QStringLiteral("source_install_from"), QStringLiteral("source_update_ref"),
+                           QStringLiteral("source_live_host")};
+    for (int i = 0; i < identities.size(); ++i) {
+        const QString value = m_sourceCheck.value(identities.at(i)).toString();
+        if (!value.isEmpty())
+            rows << row(valueLine(keys.at(i), value));
+    }
+    rows << row(text(QStringLiteral("source_check_") + m_sourceCheck.value(QLatin1String("state")).toString()),
+                text(m_sourceCheck.value(QLatin1String("reason_key")).toString()));
+    for (const QJsonValue &line : m_sourceCheck.value(QLatin1String("defaults")).toArray()) {
+        const QJsonObject d = line.toObject();
+        rows << row(valueLine(d.value(QLatin1String("key")).toString(), d.value(QLatin1String("value")).toString()));
+    }
+    if (m_bootcStore.value(QLatin1String("state")).toString() == QLatin1String("listed")) {
+        rows << row(text(QStringLiteral("bootc_store_listed")));
+        for (const QJsonValue &entry : m_bootcStore.value(QLatin1String("items")).toArray()) {
+            const QJsonObject item = entry.toObject();
+            rows << row(item.value(QLatin1String("ref")).toString(),
+                        text(QStringLiteral("bootc_store_kind_") + item.value(QLatin1String("kind")).toString()));
+        }
+    }
+    return rows;
+}
+
 void InstallerController::openNetworkSettings()
 {
     QStringList argv = offline::hostCommand(region::networkSettingsCommand());

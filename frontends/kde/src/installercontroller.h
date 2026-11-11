@@ -7,6 +7,7 @@
 // hardware and live media, `validate --json --partial` for the fields.
 
 #include <QFile>
+#include <QJsonObject>
 #include <QObject>
 #if QT_CONFIG(process)
 #include <QProcess>
@@ -25,6 +26,7 @@ class QProcess;
 #include <QVariantMap>
 #include "imagecatalog.h"
 #include "recipe.h"
+#include "sourcecheck.h"
 #include "validate.h"
 
 class InstallerController : public QObject
@@ -201,6 +203,14 @@ class InstallerController : public QObject
     // done page is what ends the chance to read it.
     Q_PROPERTY(bool recoveryKeyPending READ recoveryKeyPending NOTIFY recoveryChanged)
 
+    // The source check (#266) and this computer's bootc storage (#267):
+    // fisherman's probe for the selected image (src/sourcecheck.h). The
+    // confirm step calls checkSource() and shows sourceRows, a list of
+    // {title, subtitle}. Only a blocked source holds Install.
+    Q_PROPERTY(QVariantList sourceRows READ sourceRows NOTIFY sourceCheckChanged)
+    Q_PROPERTY(bool sourceVisible READ sourceVisible NOTIFY sourceCheckChanged)
+    Q_PROPERTY(bool sourceBlocked READ sourceBlocked NOTIFY sourceCheckChanged)
+
 public:
     explicit InstallerController(QObject *parent = nullptr);
 
@@ -344,6 +354,18 @@ public:
     // encryption_<type>_label and _description (shared/branding/README.md).
     // The encryption and confirm steps both read these, so they cannot
     // drift apart.
+    // Asks fisherman about the selected source, off the UI thread. A reply
+    // for an older call, or for another source or target, is dropped.
+    Q_INVOKABLE void checkSource();
+    QVariantList sourceRows() const;
+    bool sourceVisible() const { return m_sourceVisible; }
+    bool sourceBlocked() const { return sourcecheck::blocksInstall(m_sourceCheck); }
+    // Takes in a probe reply for the request of generation `generation`.
+    // Public for tests.
+    void applySourceReply(int generation, const sourcecheck::Request &req, bool ok,
+                          const QByteArray &probeOutput);
+    int sourceGeneration() const { return m_sourceGeneration; }
+
     Q_INVOKABLE QString encryptionLabel(const QString &type) const;
     Q_INVOKABLE QString encryptionDescription(const QString &type) const;
 
@@ -390,6 +412,7 @@ Q_SIGNALS:
     void recoveryChanged();
     void problemsChanged();
     void installCompleted(int exitCode);
+    void sourceCheckChanged();
 
 private:
     void appendLine(const QString &line, bool parse = true);
@@ -412,6 +435,12 @@ private:
     void signalInstallGroup(int signal);
 
     Recipe m_recipe;
+    // The source check: the view of the newest reply, the store view, and
+    // the count of requests (a reply of an older one is dropped).
+    QJsonObject m_sourceCheck;
+    QJsonObject m_bootcStore;
+    bool m_sourceVisible = false;
+    int m_sourceGeneration = 0;
     bool m_diskRemovable = false;
     // The hostname the branding ships, so a catalog default_hostname only
     // applies when the user has not picked their own yet.
