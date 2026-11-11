@@ -126,6 +126,36 @@ def _view(window, name):
     return getattr(window, f"_BootcWindow__view_{name}")
 
 
+def _stop(window, patchers):
+    window.destroy()
+    _pump()
+    for patcher in reversed(patchers):
+        patcher.stop()
+
+
+class _Criticals:
+    """Records CRITICAL messages of a GLib log domain while active.
+
+    adw_carousel_remove() on a widget that is not a page is a
+    g_return_if_fail(): it logs and raises nothing (#353)."""
+
+    def __init__(self, domain):
+        self.domain = domain
+        self.messages = []
+        self._handler = None
+
+    def __enter__(self):
+        def record(_domain, _level, message, *_args):
+            self.messages.append(message)
+        self._handler = GLib.log_set_handler(
+            self.domain, GLib.LogLevelFlags.LEVEL_CRITICAL, record, None)
+        return self
+
+    def __exit__(self, *exc):
+        GLib.log_remove_handler(self.domain, self._handler)
+        return False
+
+
 class TestDemoEndToEnd:
     def test_bootc_demo_and_bootc_test_reach_done_screen(self):
         # The product name comes from branding.json, then os-release; pin it
@@ -155,6 +185,57 @@ class TestDemoEndToEnd:
             _pump()
             for patcher in reversed(patchers):
                 patcher.stop()
+
+    def test_a_destroyed_window_does_not_drive_itself(self):
+        """#353. BOOTC_TEST advances each page that the carousel shows,
+        through the GLib.timeout_add that these tests replace for the whole
+        process. A window the previous test destroyed still got
+        page-changed; its carousel has no size, so every scroll_to() landed
+        on page 0 again, page 0 advanced again, and the next test's queue
+        never emptied. Here the late event is a scroll on the destroyed
+        window; the connection check is skipped so the chain is not stopped
+        by the network of the machine that runs the tests."""
+        window, scheduler, patchers = _make_window({
+            "BOOTC_DEMO": "1",
+            "BOOTC_TEST": "1",
+            "VANILLA_SKIP_CONN_CHECK": "1",
+        })
+        try:
+            scheduler.drain()
+            window.destroy()
+            _pump()
+            scheduler.pending.clear()
+
+            window.carousel.scroll_to(window.carousel.get_nth_page(0), False)
+            _pump()
+            scheduler.drain()
+            assert scheduler.pending == []
+        finally:
+            _stop(window, patchers)
+
+    def test_a_rebuild_removes_only_pages_the_carousel_has(self):
+        """#353. A rebuild removed every step from the carousel, also the
+        ones the last build skipped. That logged Adwaita-CRITICAL for each
+        skipped step on every Next of the image page."""
+        window, scheduler, patchers = _make_window({})
+        try:
+            scheduler.drain()
+            builder = getattr(window, "_BootcWindow__builder")
+            pages = {window.carousel.get_nth_page(i)
+                     for i in range(window.carousel.get_n_pages())}
+            skipped = [w for w in builder.widgets if w not in pages]
+            # Without a skipped step this test proves nothing.
+            assert skipped, "the bundled recipe no longer skips a step"
+
+            with _Criticals("Adwaita") as criticals:
+                window.rebuild_ui_after_image()
+                window.rebuild_ui_after_image()
+                _pump()
+            assert criticals.messages == []
+            assert window.carousel.get_nth_page(window.carousel.get_n_pages() - 1) \
+                is _view(window, "done")
+        finally:
+            _stop(window, patchers)
 
     def test_preview_screen_can_jump_to_confirm(self):
         window, scheduler, patchers = _make_window({"BOOTC_PREVIEW_SCREEN": "confirm"})
