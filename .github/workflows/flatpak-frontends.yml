@@ -8,7 +8,8 @@ name: Flatpak (frontends)
 #
 # Each frontend builds only when its own tree changed, on x86_64 only. A
 # change to the publish path that all of them share (publish-flatpak.yml,
-# publish-oci.yml, shared/ci/frontends.json) builds all four. The full
+# publish-oci.yml, shared/ci/frontends.json), to the shared modules
+# (shared/flatpak/) or to the fisherman gitlink builds all four. The full
 # two-arch publish happens in release.yml.
 
 on:
@@ -58,11 +59,15 @@ jobs:
           # Every frontend builds the data files in shared/account, branding
           # and recipe. XFCE also ships the shared Python package and the
           # dry-run transcript (shared/python/bootc_shared/_data.py, FILES).
+          # Every frontend builds the go and fisherman modules in
+          # shared/flatpak/ and fisherman from the submodule, so a change to
+          # either, or a move of the gitlink (the path `fisherman`), builds
+          # all four.
           xfce_shared='shared/python/|shared/progress/dry-run-transcript\.ndjson|'
           for n in kde cosmic niri xfce; do
             extra=""
             [ "$n" = xfce ] && extra="$xfce_shared"
-            if echo "$changed" | grep -qE "^(${extra}frontends/$n/|shared/(account|branding|recipe)/|shared/ci/frontends\.json|shared/ci/frontend_table\.py|\.github/workflows/(flatpak-frontends|publish-flatpak|publish-oci)\.yml)"; then
+            if echo "$changed" | grep -qE "^(${extra}frontends/$n/|shared/(account|branding|recipe|flatpak)/|fisherman$|shared/ci/frontends\.json|shared/ci/frontend_table\.py|\.github/workflows/(flatpak-frontends|publish-flatpak|publish-oci)\.yml)"; then
               echo "$n=true" >> "$GITHUB_OUTPUT"
             else
               echo "$n=false" >> "$GITHUB_OUTPUT"

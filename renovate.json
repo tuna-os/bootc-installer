@@ -9,22 +9,6 @@
   "git-submodules": {
     "enabled": true
   },
-  "customManagers": [
-    {
-      "customType": "regex",
-      "description": "The fisherman git source in each frontend Flatpak manifest. It must name the same commit as the fisherman submodule gitlink (tests/unit/test_shared_probe.py::TestFishermanPin), so it tracks the same ref: the prod branch in .gitmodules.",
-      "managerFilePatterns": [
-        "/^frontends/[^/]+/flatpak/org\\.tunaos\\.Installer[^/]*\\.json$/"
-      ],
-      "matchStrings": [
-        "\"url\":\\s*\"https://github\\.com/tuna-os/fisherman\\.git\",\\s*\"commit\":\\s*\"(?<currentDigest>[0-9a-f]{40})\""
-      ],
-      "depNameTemplate": "fisherman",
-      "packageNameTemplate": "https://github.com/tuna-os/fisherman.git",
-      "datasourceTemplate": "git-refs",
-      "currentValueTemplate": "prod"
-    }
-  ],
   "packageRules": [
     {
       "matchUpdateTypes": [
@@ -62,7 +46,7 @@
       "pinDigests": false
     },
     {
-      "description": "fisherman: the submodule gitlink and the four Flatpak manifest pins move in ONE PR (TestFishermanPin fails if they disagree) and merge on green. Both track fisherman's prod branch, which only advances after fisherman's promote gate (its E2E matrix green plus a soak), so only released fisherman commits are pinned.",
+      "description": "fisherman: the submodule gitlink is the only pin; every Flatpak builds fisherman from the submodule (shared/flatpak/fisherman.json, TestFishermanPin). It tracks fisherman's prod branch, which only advances after fisherman's promote gate (its E2E matrix green plus a soak), so only released fisherman commits are pinned. Merge on green.",
       "matchPackageNames": [
         "/^https://github\\.com/tuna-os/fisherman(\\.git)?$/"
       ],
