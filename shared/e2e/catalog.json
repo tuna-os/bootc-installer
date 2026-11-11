@@ -1,0 +1,41 @@
+{
+  "default_image": "quay.io/centos-bootc/centos-bootc:c10s",
+  "fallback_flatpaks": ["org.example.NeverCopied"],
+  "images": [
+    {
+      "name": "Composefs canary",
+      "imgref": "registry.example/os/composefs:1",
+      "desc": "A composefs image with a choice of filesystems. No VM job installs it.",
+      "composefs": true,
+      "bootloader": "systemd",
+      "filesystems": ["btrfs", "ext4"],
+      "needs_user_creation": false
+    },
+    {
+      "name": "CentOS bootc",
+      "registry": "quay.io/centos-bootc/centos-bootc",
+      "desc": "End-to-end canary.",
+      "bootloader": "grub2",
+      "filesystem": "xfs",
+      "composefs": false,
+      "extras": {"printServices": true, "oemSetup": true, "audioNames": true, "bootSplash": true},
+      "children": [
+        {
+          "name": "Stream 10",
+          "tag": "c10s",
+          "subtitle": "with an account",
+          "desc": "The VM job installs this leaf with the account that the frontend created.",
+          "needs_user_creation": true,
+          "flatpaks": []
+        },
+        {
+          "name": "Stream 10, no account",
+          "tag": "stream10",
+          "subtitle": "no account",
+          "desc": "The same image. The VM job installs this leaf with no account.",
+          "needs_user_creation": false
+        }
+      ]
+    }
+  ]
+}

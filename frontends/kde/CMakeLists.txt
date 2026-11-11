@@ -163,6 +163,9 @@ option(BUILD_E2E "Build the end-to-end driver that launches the real backend pat
 if(BUILD_E2E)
     qt_add_executable(tuna-installer-e2e tests/e2e.cpp)
     target_link_libraries(tuna-installer-e2e PRIVATE tunainstallerapp tunainstallerappplugin)
+    # The catalog every E2E driver gives its frontend (shared/e2e/README.md).
+    target_compile_definitions(tuna-installer-e2e PRIVATE
+        E2E_CATALOG_FILE="${TUNA_SHARED_DIR}/e2e/catalog.json")
 endif()
 
 if(BUILD_TESTING)
@@ -200,6 +203,7 @@ if(BUILD_TESTING)
         SHARED_COMPLETION_DIR="${TUNA_SHARED_DIR}/completion"
         PROGRESS_FIXTURES_DIR="${TUNA_SHARED_DIR}/progress"
         CATALOG_FIXTURES_DIR="${TUNA_SHARED_DIR}/catalog/fixtures"
+        NETWORK_TARGETS_FILE="${TUNA_SHARED_DIR}/network/targets.json"
         SHARED_GROUPS_FILE="${TUNA_SHARED_DIR}/account/groups.json"
         # The QML the strings lint reads (tests/test_backend.cpp, #300).
         KDE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"

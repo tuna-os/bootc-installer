@@ -87,6 +87,7 @@ private slots:
     void progressReproducesTheSharedFractionCases();
     // fisherman's overall_pct and step_id (tuna-os/fisherman#270).
     void progressReproducesTheSharedOverallPctCases();
+    void progressReproducesTheSharedErrorCases();
     void progressOverallPctDrivesTheBar();
     void progressStepIdReadsTheCopyLayer();
     void progressCompleteFillsTheBar();
@@ -126,6 +127,7 @@ private slots:
     // The shared catalog contract (shared/catalog/README.md): this parser
     // reads fixtures/catalog.json to the answers in fixtures/expected.json.
     void catalogContractSearchPaths();
+    void catalogContractOverride();
     void catalogContractDefaultSelection();
     void catalogContractLeaves();
     void catalogContractRecipes();
@@ -135,6 +137,7 @@ private slots:
     void liveLeafTakesTheOperatorLayout();
     void catalogSelectionReplacesThePreviousLeaf();
     void catalogNvidiaDetection();
+    void nvidiaDetectionFollowsThePciFixture();
     void catalogFilesystemProblemReachesTheDiskStep();
     // #302: the shared group list and the operator's.
     void accountGroupsAreTheSharedFile();
@@ -145,6 +148,7 @@ private slots:
     void anEndWithoutCancelIsStillAFailure();
     void cancelAsksFirstInTheQml();
     // #301
+    void networkTargetsFollowTheFixture();
     void connectivityTriesTheImageRegistryFirst();
     // #300
     void qmlStringsGoThroughQsTr();
@@ -930,6 +934,28 @@ static void replayProgressCases(const QString &file, int minCases)
 void BackendTest::progressReproducesTheSharedFractionCases()
 {
     replayProgressCases(QStringLiteral("fraction-cases.json"), 5);
+}
+
+// shared/progress/error-cases.json: the last `error` event is kept as
+// {message, code, field}, as the canonical parser keeps it, and it does not
+// move the bar.
+void BackendTest::progressReproducesTheSharedErrorCases()
+{
+    replayProgressCases(QStringLiteral("error-cases.json"), 6);
+    QFile f(QStringLiteral(PROGRESS_FIXTURES_DIR "/error-cases.json"));
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const QJsonArray cases = QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("cases")).toArray();
+    for (const QJsonValue &cv : cases) {
+        const QJsonObject kase = cv.toObject();
+        QStringList lines;
+        for (const QJsonValue &event : kase.value(QStringLiteral("events")).toArray())
+            lines << QString::fromUtf8(QJsonDocument(event.toObject()).toJson(QJsonDocument::Compact));
+        InstallerController c;
+        feed(c, lines);
+        const QJsonValue want = kase.value(QStringLiteral("error"));
+        const QVariantMap expected = want.isNull() ? QVariantMap() : want.toObject().toVariantMap();
+        QVERIFY2(c.installError() == expected, qPrintable(kase.value(QStringLiteral("name")).toString()));
+    }
 }
 
 // shared/progress/overall-pct-cases.json: fisherman's overall_pct is the
@@ -1991,6 +2017,38 @@ void BackendTest::catalogContractSearchPaths()
     }
 }
 
+void BackendTest::catalogContractOverride()
+{
+    // FISHERMAN_IMAGES_PATH, for each case of expected.json: its file first
+    // when it names one, then the search path as without it.
+    const QJsonObject override = sharedExpected().value(QStringLiteral("override")).toObject();
+    const QJsonArray cases = override.value(QStringLiteral("cases")).toArray();
+    if (cases.isEmpty())
+        QSKIP("shared/catalog/fixtures is absent");
+    QCOMPARE(override.value(QStringLiteral("env")).toString(), QString::fromLatin1(imagecatalog::IMAGES_ENV));
+    for (const QJsonValue &v : cases) {
+        const QJsonObject row = v.toObject();
+        const bool flatpak = row.value(QStringLiteral("in_flatpak")).toBool();
+        QStringList want = strings(row.value(QStringLiteral("paths")));
+        QCOMPARE(want.last(), QStringLiteral("<bundled>"));
+        want.last() = flatpak ? QStringLiteral("/app/share/fisherman/data/images.json")
+                              : QStringLiteral("/usr/share/fisherman/data/images.json");
+        QCOMPARE(imagecatalog::searchPaths(flatpak, row.value(QStringLiteral("xdg_config_home")).toString(),
+                                           row.value(QStringLiteral("value")).toString()),
+                 want);
+    }
+    // load(): a missing override file does not stop the search, and a good
+    // one is the catalog.
+    QTemporaryDir dir;
+    qputenv(imagecatalog::IMAGES_ENV, dir.filePath(QStringLiteral("absent.json")).toUtf8());
+    QCOMPARE(imagecatalog::defaultSearchPaths(false).first(), dir.filePath(QStringLiteral("absent.json")));
+    QCOMPARE(imagecatalog::defaultSearchPaths(false).size(), 5);
+    qputenv(imagecatalog::IMAGES_ENV, QByteArray(CATALOG_FIXTURES_DIR "/catalog.json"));
+    QVERIFY(!imagecatalog::load().leaves.isEmpty());
+    qunsetenv(imagecatalog::IMAGES_ENV);
+    QCOMPARE(imagecatalog::defaultSearchPaths(false).size(), 4);
+}
+
 void BackendTest::catalogContractDefaultSelection()
 {
     const QJsonObject expected = sharedExpected();
@@ -2337,6 +2395,23 @@ void BackendTest::catalogSelectionReplacesThePreviousLeaf()
     QCOMPARE(c.hostname(), QStringLiteral("my-box"));
 }
 
+void BackendTest::nvidiaDetectionFollowsThePciFixture()
+{
+    // shared/probe/fixtures/pci/cases.json: a PCI display device with
+    // NVIDIA's vendor id, and nothing else, is an NVIDIA GPU.
+    const QString pci = QStringLiteral(PROBE_FIXTURES_DIR "/pci");
+    QFile file(pci + QStringLiteral("/cases.json"));
+    QVERIFY2(file.open(QIODevice::ReadOnly), qPrintable(file.fileName()));
+    const QJsonArray cases = QJsonDocument::fromJson(file.readAll()).object().value(QStringLiteral("cases")).toArray();
+    QVERIFY(cases.size() >= 4);
+    for (const QJsonValue &v : cases) {
+        const QJsonObject row = v.toObject();
+        QVERIFY2(imagecatalog::hasNvidiaGpuInDevices(pci + QLatin1Char('/') + row.value(QStringLiteral("devices")).toString())
+                     == row.value(QStringLiteral("has_nvidia")).toBool(),
+                 qPrintable(row.value(QStringLiteral("name")).toString()));
+    }
+}
+
 void BackendTest::catalogNvidiaDetection()
 {
     QTemporaryDir dir;
@@ -2354,12 +2429,7 @@ void BackendTest::catalogNvidiaDetection()
     QVERIFY(writeFile(devices + QStringLiteral("/0000:01:00.0/class"), "0x030200\n"));
     QVERIFY(imagecatalog::hasNvidiaGpu(dir.path()));
 
-    QCOMPARE(imagecatalog::registryHost(QStringLiteral("ghcr.io/owner/image:tag")), QStringLiteral("ghcr.io"));
-    QCOMPARE(imagecatalog::registryHost(QStringLiteral("registry.example:5000/os/atlas:1")), QStringLiteral("registry.example"));
-    QCOMPARE(imagecatalog::registryHost(QStringLiteral("localhost/os:1")), QStringLiteral("localhost"));
-    QVERIFY(imagecatalog::registryHost(QStringLiteral("library/ubuntu:26.04")).isEmpty());
-    QVERIFY(imagecatalog::registryHost(QStringLiteral("ubuntu")).isEmpty());
-    QVERIFY(imagecatalog::registryHost(QString()).isEmpty());
+    // The registry of a reference: networkTargetsFollowTheFixture.
 }
 
 void BackendTest::catalogFilesystemProblemReachesTheDiskStep()
@@ -2774,17 +2844,52 @@ void BackendTest::confirmPageListsNoLocaleRows()
     QCOMPARE(Recipe::fromJson(recipe).toJson().value(QStringLiteral("keyboard")), recipe.value(QStringLiteral("keyboard")));
 }
 
+void BackendTest::networkTargetsFollowTheFixture()
+{
+    // shared/network/targets.json: the targets of each reference, the
+    // timeout and the variables that turn the check off.
+    QFile file(QStringLiteral(NETWORK_TARGETS_FILE));
+    QVERIFY2(file.open(QIODevice::ReadOnly), qPrintable(file.fileName()));
+    const QJsonObject fixture = QJsonDocument::fromJson(file.readAll()).object();
+    const QJsonArray cases = fixture.value(QStringLiteral("cases")).toArray();
+    QVERIFY(cases.size() >= 20);
+    for (const QJsonValue &v : cases) {
+        const QJsonObject row = v.toObject();
+        QStringList got;
+        for (const region::Target &t : region::connectivityTargets(row.value(QStringLiteral("imgref")).toString()))
+            got << t.host + QLatin1Char(':') + QString::number(t.port);
+        QCOMPARE(got, strings(row.value(QStringLiteral("targets"))));
+    }
+    QCOMPARE(region::CONNECT_TIMEOUT_MS, fixture.value(QStringLiteral("timeout_seconds")).toInt() * 1000);
+    QStringList names;
+    for (const char *name : region::SKIP_ENV_VARS)
+        names << QString::fromLatin1(name);
+    QCOMPARE(names, strings(fixture.value(QStringLiteral("skip_env"))));
+    for (const QJsonValue &v : fixture.value(QStringLiteral("skip_cases")).toArray()) {
+        const QJsonObject row = v.toObject();
+        for (const QString &name : names)
+            qunsetenv(name.toLatin1().constData());
+        const QJsonObject env = row.value(QStringLiteral("env")).toObject();
+        for (auto it = env.begin(); it != env.end(); ++it)
+            qputenv(it.key().toLatin1().constData(), it.value().toString().toUtf8());
+        QCOMPARE(region::connectivityCheckSkipped(), row.value(QStringLiteral("skip")).toBool());
+    }
+    for (const QString &name : names)
+        qunsetenv(name.toLatin1().constData());
+}
+
 void BackendTest::connectivityTriesTheImageRegistryFirst()
 {
     // The registry of the selected image, then the shared targets (#301).
-    const QList<region::Target> targets = region::connectivityTargets(QStringLiteral("quay.io"));
+    const QList<region::Target> targets =
+        region::connectivityTargets(QStringLiteral("quay.io/centos-bootc/centos-bootc:c10s"));
     QCOMPARE(targets.size(), 3);
     QCOMPARE(targets.at(0), (region::Target{QStringLiteral("quay.io"), 443}));
     QCOMPARE(targets.at(1), (region::Target{QStringLiteral("ghcr.io"), 443}));
     QCOMPARE(targets.at(2), (region::Target{QStringLiteral("8.8.8.8"), 53}));
-    // No registry in the reference, or the shared one: no row twice.
+    // No image, or one on the shared registry: no row twice.
     QCOMPARE(region::connectivityTargets(QString()).size(), 2);
-    QCOMPARE(region::connectivityTargets(QStringLiteral("ghcr.io")).size(), 2);
+    QCOMPARE(region::connectivityTargets(QStringLiteral("ghcr.io/example/os:1")).size(), 2);
     QVERIFY(!region::networkReachable({region::Target{QStringLiteral("nonexistent.invalid"), 443}}));
     QVERIFY(!region::networkReachable({}));
     // The settings tool is the desktop's, and the page offers the action

@@ -31,6 +31,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -122,28 +123,64 @@ func parseTimedatectlTimezone(out string) string {
 	return strings.TrimSpace(out)
 }
 
+// netcheckSkipEnv turns the check off (it passes) for a harness with no
+// route out: shared/network/targets.json, as in every frontend. An empty
+// value and "0" do not.
+var netcheckSkipEnv = []string{"VANILLA_SKIP_CONN_CHECK", "TUNA_INSTALLER_SKIP_CONN_CHECK"}
+
+// netcheckSkipped reports whether one of netcheckSkipEnv is set.
+func netcheckSkipped(getenv func(string) string) bool {
+	for _, name := range netcheckSkipEnv {
+		if value := getenv(name); value != "" && value != "0" {
+			return true
+		}
+	}
+	return false
+}
+
 // registryAddress is the host:port of the registry an image reference is
-// pulled from, or "" when the reference names none. 443 unless the reference
-// has a port. A reference with no registry is Docker Hub's.
+// pulled from, or "" when the reference names none (shared/network/README.md):
+// ostree prefixes and docker:// go; a local transport, a path or another URL
+// has none; a reference with no registry is Docker Hub's; 443 unless the
+// reference has a port.
 func registryAddress(image string) string {
 	ref := strings.TrimSpace(image)
-	for _, transport := range []string{"docker://", "ostree-unverified-registry:", "ostree-remote-registry:",
-		"ostree-image-signed:docker://", "registry:"} {
-		ref = strings.TrimPrefix(ref, transport)
+	for _, prefix := range []string{"ostree-unverified-registry:", "ostree-unverified-image:", "ostree-image-signed:"} {
+		if rest, ok := strings.CutPrefix(ref, prefix); ok {
+			ref = rest
+			break
+		}
 	}
-	if ref == "" || strings.Contains(ref, "://") || strings.HasPrefix(ref, "/") ||
-		strings.HasPrefix(ref, "containers-storage:") || strings.HasPrefix(ref, "oci:") ||
-		strings.HasPrefix(ref, "oci-archive:") || strings.HasPrefix(ref, "dir:") {
+	for _, prefix := range []string{"ostree-remote-registry:", "ostree-remote-image:"} {
+		if rest, ok := strings.CutPrefix(ref, prefix); ok {
+			// A remote name and a colon come before the reference.
+			_, ref, _ = strings.Cut(rest, ":")
+			break
+		}
+	}
+	ref = strings.TrimPrefix(ref, "docker://")
+	if ref == "" || strings.Contains(ref, "://") || strings.HasPrefix(ref, "/") {
 		return ""
+	}
+	for _, local := range []string{"containers-storage:", "oci:", "oci-archive:", "dir:"} {
+		if strings.HasPrefix(ref, local) {
+			return ""
+		}
 	}
 	first, _, hasPath := strings.Cut(ref, "/")
 	if !hasPath || !(strings.ContainsAny(first, ".:") || first == "localhost") {
 		return "registry-1.docker.io:443"
 	}
-	if _, _, err := net.SplitHostPort(first); err == nil {
-		return first
+	host, port, hasPort := strings.Cut(first, ":")
+	if host == "" {
+		return ""
 	}
-	return first + ":443"
+	if hasPort {
+		if _, err := strconv.Atoi(port); err == nil {
+			return first
+		}
+	}
+	return host + ":443"
 }
 
 // netcheckTargets is what to dial for an image: its own registry first (the
@@ -186,7 +223,10 @@ func checkConnectivity(image string, dial dialer) (connected bool, target string
 // netcheckMain is the `netcheck [image]` subcommand: always exit 0, the
 // answer is the JSON.
 func netcheckMain(image string) {
-	connected, target := checkConnectivity(image, tcpDial)
+	connected, target := true, ""
+	if !netcheckSkipped(os.Getenv) {
+		connected, target = checkConnectivity(image, tcpDial)
+	}
 	answer := map[string]any{
 		"connected": connected,
 		"target":    target,

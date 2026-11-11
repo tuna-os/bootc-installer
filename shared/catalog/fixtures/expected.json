@@ -22,6 +22,46 @@
       ]
     }
   ],
+  "override": {
+    "env": "FISHERMAN_IMAGES_PATH",
+    "cases": [
+      {
+        "value": "/tmp/harness/images.json",
+        "in_flatpak": false,
+        "xdg_config_home": "/home/user/.config",
+        "paths": [
+          "/tmp/harness/images.json",
+          "/etc/bootc-installer/images.json",
+          "/etc/tuna-installer/images.json",
+          "/home/user/.config/bootc-installer/images.json",
+          "<bundled>"
+        ]
+      },
+      {
+        "value": "/tmp/harness/images.json",
+        "in_flatpak": true,
+        "xdg_config_home": "/home/user/.var/app/org.example.Installer/config",
+        "paths": [
+          "/tmp/harness/images.json",
+          "/run/host/etc/bootc-installer/images.json",
+          "/run/host/etc/tuna-installer/images.json",
+          "/home/user/.var/app/org.example.Installer/config/bootc-installer/images.json",
+          "<bundled>"
+        ]
+      },
+      {
+        "value": "",
+        "in_flatpak": false,
+        "xdg_config_home": "/home/user/.config",
+        "paths": [
+          "/etc/bootc-installer/images.json",
+          "/etc/tuna-installer/images.json",
+          "/home/user/.config/bootc-installer/images.json",
+          "<bundled>"
+        ]
+      }
+    ]
+  },
   "default_selection": [
     {
       "branding_default_image": "",

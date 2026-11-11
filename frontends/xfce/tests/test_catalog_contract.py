@@ -178,3 +178,28 @@ def test_zfs_carries_the_experimental_opt_in():
     assert core.build_recipe(disk="/dev/vda", filesystem="zfs")["experimental"] == ["zfs"]
     assert "experimental" not in core.build_recipe(disk="/dev/vda", filesystem="xfs")
     assert core.experimental_for("btrfs") == {}
+
+
+def test_the_override_follows_the_fixture(monkeypatch):
+    """FISHERMAN_IMAGES_PATH, for each case of expected.json: the file is
+    first, then the shared list, then this frontend's bundled catalogs."""
+    override = EXPECTED["override"]
+    assert override["env"] == "FISHERMAN_IMAGES_PATH"
+    for case in override["cases"]:
+        monkeypatch.setenv(override["env"], case["value"])
+        monkeypatch.setenv("XDG_CONFIG_HOME", case["xdg_config_home"])
+        monkeypatch.setattr(core, "IN_FLATPAK", case["in_flatpak"])
+        paths = core.images_json_paths()
+        assert paths[:len(case["paths"]) - 1] == case["paths"][:-1], case
+        assert tuple(paths[len(case["paths"]) - 1:]) == core.BUNDLED_CATALOGS
+
+
+def test_nvidia_detection_follows_the_shared_pci_fixture():
+    """shared/probe/fixtures/pci/cases.json: a PCI display device with
+    NVIDIA's vendor id, and nothing else, is an NVIDIA GPU."""
+    pci = os.path.join(FIXTURES, "..", "..", "probe", "fixtures", "pci")
+    with open(os.path.join(pci, "cases.json"), encoding="utf-8") as stream:
+        cases = json.load(stream)["cases"]
+    assert len(cases) >= 4
+    for case in cases:
+        assert core.has_nvidia_gpu(os.path.join(pci, case["devices"])) is case["has_nvidia"], case

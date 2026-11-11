@@ -93,6 +93,9 @@ the gate on each push. `promote.yml` requires its jobs. A new frontend adds
 an `E2E (<name>)` job and an entry in the install matrix of `e2e.yml`, and
 the two job names in `REQUIRED_CHECKS`. See [e2e/README.md](e2e/README.md).
 
+Each driver gives its frontend `e2e/catalog.json`, the one E2E catalog. A
+new driver reads that file and picks a leaf from it.
+
 ## `flatpak/`
 
 The Flatpak modules that more than one manifest builds. `go.json` is the Go
@@ -108,6 +111,15 @@ in these files from `shared/flatpak/`, not from the manifest directory.
 `"../../../shared/flatpak/go.json"` and
 `"../../../shared/flatpak/fisherman.json"` to its `modules`, and sets
 `checkout-submodules` in its `ci/frontends.json` row.
+
+## `network/`
+
+The network check before an install that downloads its image:
+`targets.json` holds the targets for each image reference, in order, the
+timeout and the variables that turn the check off. The Python reader is
+`bootc_shared.network`. A test in each frontend reads the file. A new
+frontend reads the same file in its test. See
+[network/README.md](network/README.md).
 
 ## `probe/`
 
@@ -199,6 +211,9 @@ their workflows run `report_from_pngs.py`. A new
 frontend adds a capture harness and a `screenshots-<name>.yml` workflow
 that writes `walkthrough-<name>.json`, and `walkthrough.yml` adds it to the
 page.
+
+Each harness that shows an image list reads `capture-catalog.json`, which
+names no real product. `tests/unit/test_capture_catalog.py` covers it.
 
 ## How a new frontend starts
 

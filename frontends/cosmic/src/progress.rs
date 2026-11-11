@@ -39,6 +39,9 @@ pub struct Progress {
     /// be formatted into a log line and dropped: the event was rendered but
     /// never stored, so nothing could show it after the install finished.
     pub recovery_key: String,
+    /// fisherman's reason for the failure: the last `error` event, `None`
+    /// before one arrives (shared/progress/error-cases.json).
+    pub error: Option<InstallError>,
     cumulative_pct: f32,
     weight_pct: f32,
     /// How far through the current step the bar is, 0-1. Never decreases
@@ -47,6 +50,15 @@ pub struct Progress {
     /// `step_frac` when the first post-pull phase message arrived.
     post_pull_base: Option<f32>,
     product: String,
+}
+
+/// The parts of an `error` event: `code` and `field` are those of
+/// `fisherman validate`, "" from a fisherman that does not send them.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct InstallError {
+    pub message: String,
+    pub code: String,
+    pub field: String,
 }
 
 /// Share of a step's weight the layer pull covers; the rest is for the
@@ -98,6 +110,7 @@ impl Progress {
             step_name: String::new(),
             step_id: String::new(),
             recovery_key: String::new(),
+            error: None,
             cumulative_pct: 0.0,
             weight_pct: 0.0,
             step_frac: 0.0,
@@ -216,7 +229,15 @@ impl Progress {
                     message.to_string()
                 })
             }
-            "error" => Some(format!("ERROR: {}", str_field("message"))),
+            "error" => {
+                // The last one is kept; it does not move the bar.
+                self.error = Some(InstallError {
+                    message: str_field("message").to_string(),
+                    code: str_field("code").to_string(),
+                    field: str_field("field").to_string(),
+                });
+                Some(format!("ERROR: {}", str_field("message")))
+            }
             // Kept in the log as well as on the done page: the log is what
             // gets pasted into a bug report, and a key that only ever
             // existed on a screen the user already dismissed is no better
@@ -325,6 +346,39 @@ mod tests {
         format!(
             r#"{{"type":"step","step":{step},"total_steps":{total},"step_name":"{name}","cumulative_pct":{cumulative},"weight_pct":{weight}}}"#
         )
+    }
+
+    /// shared/progress/error-cases.json: the last `error` event is kept as
+    /// {message, code, field}, as the canonical parser keeps it, and it
+    /// does not move the bar.
+    #[test]
+    fn reproduces_the_shared_error_cases() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/progress/error-cases.json");
+        let text = std::fs::read_to_string(path).expect("shared/progress/error-cases.json");
+        let doc: Value = serde_json::from_str(&text).unwrap();
+        let cases = doc["cases"].as_array().unwrap();
+        assert!(cases.len() >= 6);
+        for case in cases {
+            let name = case["name"].as_str().unwrap();
+            let mut p = Progress::new("ExampleOS");
+            for (i, (event, want)) in case["events"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .zip(case["bar"].as_array().unwrap())
+                .enumerate()
+            {
+                p.consume(&event.to_string());
+                let want = want.as_f64().unwrap() as f32;
+                assert!((p.fraction - want).abs() < 1e-5, "{name} event {i}");
+            }
+            let want = case["error"].as_object().map(|e| InstallError {
+                message: e["message"].as_str().unwrap().to_string(),
+                code: e["code"].as_str().unwrap().to_string(),
+                field: e["field"].as_str().unwrap().to_string(),
+            });
+            assert_eq!(p.error, want, "{name}");
+        }
     }
 
     /// shared/progress/overall-pct-cases.json: fisherman's overall_pct is

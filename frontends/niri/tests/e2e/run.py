@@ -12,7 +12,7 @@ of spawning it. That exact byte string is then piped to the REAL backend
 binary, which pipes it on to fisherman (shared/e2e/setup.sh's validating
 shim) and streams its output.
 
-The catalog is tests/e2e/images.json, read by the REAL backend (`catalog`):
+The catalog is shared/e2e/catalog.json, read by the REAL backend (`catalog`):
 the image the wizard starts on is the branding's default_image, and its
 recipe keys are the backend's. The driver copies that catalog to
 <e2e dir>/catalog.json, so shared/e2e/check-recipe.py can hold the recipe's
@@ -35,8 +35,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 # default_image names the leaf of the catalog below that the wizard starts
 # on; on a runner that is the canary shared/e2e later rewrites.
 os.environ.setdefault("BOOTC_INSTALLER_BRANDING", os.path.join(REPO, "tests", "e2e", "branding.json"))
-# The catalog the backend reads (installer/catalog.go, FISHERMAN_IMAGES_PATH).
-CATALOG = os.environ.setdefault("FISHERMAN_IMAGES_PATH", os.path.join(REPO, "tests", "e2e", "images.json"))
+# The catalog the backend reads (installer/catalog.go, FISHERMAN_IMAGES_PATH):
+# shared/e2e/catalog.json, the one every E2E driver reads.
+CATALOG = os.environ.setdefault("FISHERMAN_IMAGES_PATH", os.path.normpath(
+    os.path.join(REPO, "..", "..", "shared", "e2e", "catalog.json")))
 os.environ["QML2_IMPORT_PATH"] = os.path.join(REPO, "tests", "qml-stubs")
 os.environ["QML_IMPORT_PATH"] = os.environ["QML2_IMPORT_PATH"]
 

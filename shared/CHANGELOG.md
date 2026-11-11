@@ -40,6 +40,26 @@ schema only.
   too: a host without bootc for the container and the shim, the laptop's
   for the two live fixtures. A plain probe selects no source.
 
+## 2026-11-10: fixtures for rules that drifted; one E2E and one capture catalog
+
+- Added: `progress/error-cases.json`. It pins the `error` event: a parser
+  keeps the last one as `message`, `code` and `field`, and the bar does not
+  move. The Python parser already did this. KDE, COSMIC and Niri now keep
+  the event too, and their tests read the file.
+- Added: `network/targets.json` and `network/README.md`. They pin the
+  network check. They give the targets for an image reference, in order.
+  They also give the timeout (5 s) and the two variables that stop the
+  check. The five frontends
+  had four different rules; the commit message lists each change.
+- Added: `probe/fixtures/pci/`. PCI sysfs trees and the NVIDIA answer for
+  each. No rule changed.
+- Added: `override` in `catalog/fixtures/expected.json`, for
+  `FISHERMAN_IMAGES_PATH`. COSMIC reads the variable again. KDE now goes on
+  with the search path when the file is missing or broken.
+- Added: `e2e/catalog.json`, the one catalog of the five E2E drivers, and
+  `walkthrough/capture-catalog.json`, the one catalog of the capture
+  harnesses. The capture catalog names no real product.
+
 ## 2026-11-10: branding copy, the ZFS label
 
 - Added: `filesystem_zfs_label`, "ZFS (experimental)": the name of ZFS in

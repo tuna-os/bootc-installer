@@ -28,24 +28,23 @@ sys.path.insert(0, str(REPO))
 E2E_DIR = os.environ.get("TUNA_E2E_DIR", "/tmp/tuna-e2e")
 TIMEOUT = float(os.environ.get("TUNA_E2E_TIMEOUT", "120"))
 
-# The system recipe the app ships (images, steps, log file), with the image
-# catalogue reduced to one entry the real fisherman can validate: no
-# composefs on xfs, no user creation. The frontend still reads every other
-# field from the shipped file.
+# The catalog every E2E driver gives its frontend (shared/e2e/README.md,
+# "The catalog"). This run installs the leaf named by its default_image:
+# that leaf needs an account, so the wizard shows the user step, the driver
+# fills it in below and the VM job installs the account.
+CATALOG_FILE = REPO / "shared" / "e2e" / "catalog.json"
+CATALOG = json.loads(CATALOG_FILE.read_text(encoding="utf-8"))
+IMAGE = CATALOG["default_image"]
+# The account the e2e user types. The VM job installs it for real, so it is
+# a valid name for fisherman (not reserved) and names no product.
+ACCOUNT = {"fullname": "E2E User", "username": "e2euser", "password": "e2e-password"}
+
+# The system recipe the app ships (steps, log file), with the catalog above
+# as its `images`. The frontend still reads every other field from the
+# shipped file.
 _sys = json.loads((REPO / "recipe.json").read_text())
-_sys["images"] = [{
-    "name": "E2E",
-    "imgref": "quay.io/centos-bootc/centos-bootc:c10s",
-    "bootloader": "grub2",
-    "filesystem": "xfs",
-    "composefs": False,
-    "needs_user_creation": False,
-    # The desktop steps that each install did before fisherman made them a
-    # choice. check-recipe.py requires them in the recipe.
-    "extras": {"printServices": True, "oemSetup": True,
-               "audioNames": True, "bootSplash": True},
-}]
-_sys["imgref"] = _sys["images"][0]["imgref"]
+_sys["images"] = CATALOG["images"]
+_sys["imgref"] = IMAGE
 # The shipped recipe has an image step that offers the whole catalog. This
 # run installs the one image above, so it takes the step out, as the recipe
 # loader does on live media; `imgref` then names the image. The other
@@ -53,8 +52,9 @@ _sys["imgref"] = _sys["images"][0]["imgref"]
 _sys["steps"].pop("image", None)
 # The catalog this run gave the frontend, for shared/e2e/check-recipe.py:
 # it judges "an account if, and only if, the image needs one" against it.
+os.makedirs(E2E_DIR, exist_ok=True)
 with open(os.path.join(E2E_DIR, "catalog.json"), "w") as fh:
-    json.dump({"images": _sys["images"]}, fh, indent=2)
+    json.dump(CATALOG, fh, indent=2)
 _sys_path = os.path.join(E2E_DIR, "gnome-sys-recipe.json")
 with open(_sys_path, "w") as fh:
     json.dump(_sys, fh, indent=2)
@@ -88,7 +88,34 @@ if not _res:
 Gio.Resource.load(_res)._register()
 Adw.init()
 
+from bootc_installer.defaults.user import BootcDefaultUsers
 from bootc_installer.windows.main_window import BootcWindow
+
+
+def _fill_account_then_next(page):
+    """The user step in BOOTC_TEST mode: type the account as a person does,
+    wait for fisherman's answer on the name (`validate --json --partial -`
+    through the shim), then press Next. The app's own test_auto_advance
+    presses Next on an empty form, which gives a recipe with no account."""
+    page.fullname_entry.set_text(ACCOUNT["fullname"])
+    page.username_entry.set_text(ACCOUNT["username"])
+    page.password_entry.set_text(ACCOUNT["password"])
+    page.password_confirmation.set_text(ACCOUNT["password"])
+    waited = {"ms": 0}
+
+    def next_when_ready():
+        waited["ms"] += 100
+        if page.btn_next.get_sensitive():
+            print(f"[e2e] account typed: {ACCOUNT['username']}")
+            page.btn_next.emit("clicked")
+            return GLib.SOURCE_REMOVE
+        if waited["ms"] >= 15000:
+            print("FAIL: the user step holds Next on a valid account after 15s",
+                  file=sys.stderr)
+            return GLib.SOURCE_REMOVE
+        return GLib.SOURCE_CONTINUE
+
+    GLib.timeout_add(100, next_when_ready)
 
 
 def main():
@@ -105,6 +132,7 @@ def main():
     patchers = [
         patch("bootc_installer.defaults.qr_companion.CompanionServer"),
         patch.object(BootcWindow, "set_installation_result", record),
+        patch.object(BootcDefaultUsers, "test_auto_advance", _fill_account_then_next),
     ]
     for p in patchers:
         p.start()
@@ -152,8 +180,21 @@ def main():
     if not result["ok"]:
         print("FAIL: the Done page reported failure", file=sys.stderr)
         return 1
-    if not os.path.exists(os.path.join(E2E_DIR, "recipe.json")):
+    received_path = os.path.join(E2E_DIR, "recipe.json")
+    if not os.path.exists(received_path):
         print("FAIL: the shim recorded no recipe", file=sys.stderr)
+        return 1
+    with open(received_path, encoding="utf-8") as fh:
+        received = json.load(fh)
+    # The leaf needs an account: the one typed above, with the shared groups.
+    user = received.get("user") or {}
+    if user.get("username") != ACCOUNT["username"] or not user.get("password"):
+        print(f"FAIL: fisherman received the user {user.get('username')!r}, "
+              f"not the account typed on the user step", file=sys.stderr)
+        return 1
+    if received.get("targetImgref") != IMAGE:
+        print(f"FAIL: fisherman received targetImgref {received.get('targetImgref')!r}, "
+              f"not {IMAGE!r}", file=sys.stderr)
         return 1
     print("OK: GNOME reached Done through the real backend launch path")
     return 0

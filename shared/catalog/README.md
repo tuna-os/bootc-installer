@@ -46,9 +46,10 @@ catalog of the machine. An operator can set it to try a catalog with no
 change to `/etc`. The variable is not a product setting: an ISO ships its
 catalog at path 1.
 
-The Python reader (`shared/python/bootc_shared/catalog.py`, for GNOME and
-XFCE) reads the variable, and so do KDE and Niri. COSMIC does not read it
-at this time.
+All five frontends read the variable: the Python reader
+(`shared/python/bootc_shared/catalog.py`, for GNOME and XFCE), KDE, Niri
+and COSMIC. `fixtures/expected.json` has the cases in `override`, and the
+catalog test of each frontend runs them.
 
 The Python frontends have one reader, `bootc_shared.catalog`.
 `tests/unit/test_shared_python_catalog.py` runs it against `fixtures/`.

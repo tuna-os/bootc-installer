@@ -207,6 +207,20 @@ byte-identical to fisherman's own golden output.
 | `vm.json` | hand-built to the schema: a BIOS VM with one disk that has no model, and every requirement unmet |
 | `capabilities` and `bootc_store` in `container.json`, `vm.json`, `pure-live-oci.json` | added by hand from fisherman `ae82391`: a host without bootc (`container.json`), the laptop's objects (the two live fixtures) |
 | `*.expected.json` | what every frontend renders from the fixture of the same name |
+| `pci/` | PCI sysfs trees for the NVIDIA rule (see "NVIDIA GPU") |
+
+## NVIDIA GPU
+
+The probe does not report the GPU yet. Until it does, each frontend reads
+`/sys/bus/pci/devices`. A machine has an NVIDIA GPU when a device there has
+a display class (`0x03xxxx`) and the vendor `0x10de`. The vendor can be
+in upper case. A device of another class, a device of another vendor, or
+no PCI tree at all is not an NVIDIA GPU.
+
+`fixtures/pci/cases.json` names a tree for each case and the answer. A test in each frontend runs the
+cases: `tests/unit/test_nvidia_pci_fixture.py` (GNOME),
+`tests/test_catalog_contract.py` (XFCE), `test_backend.cpp` (KDE),
+`hardware.rs` (COSMIC) and `catalog_test.go` (Niri).
 
 ## Test seam
 

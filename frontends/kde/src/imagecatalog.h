@@ -104,24 +104,28 @@ Leaf liveLeaf(const Leaf *catalogLeaf, const QByteArray &operatorRecipe);
 // True when a PCI display device of vendor 0x10de is below
 // `<sysRoot>/bus/pci/devices`. The probe does not report the GPU yet.
 bool hasNvidiaGpu(const QString &sysRoot = QStringLiteral("/sys"));
-
-// The registry host of an image reference ("ghcr.io" of
-// "ghcr.io/owner/image:tag"), or "" when the reference names none.
-QString registryHost(const QString &imgref);
+// The same scan over one PCI device directory (`<sys>/bus/pci/devices`);
+// shared/probe/fixtures/pci holds the cases.
+bool hasNvidiaGpuInDevices(const QString &pciDevices);
 
 // Where load() looks, in order (shared/catalog/README.md): the system
 // file, its legacy name, the user's file, then the packaged catalog. `etc`
 // is /run/host/etc in a Flatpak. The packaged catalog is fisherman's
 // images.json, at /app/share in the Flatpak and /usr/share natively.
-QStringList searchPaths(bool flatpak, const QString &xdgConfigHome);
+//
+// `override` is the value of IMAGES_ENV: when it names a file, that file
+// is tried first and the search goes on after it (shared/catalog/README.md,
+// "The override for a test or an operator").
+QStringList searchPaths(bool flatpak, const QString &xdgConfigHome,
+                        const QString &override = QString());
 QStringList defaultSearchPaths(bool flatpak);
 
 // Parses one manifest document. Pure: no filesystem, no environment.
 Catalog parse(const QByteArray &json);
 
-// Loads the catalog: IMAGES_ENV alone when set, else the first of
-// defaultSearchPaths() that is a catalog. A file that is missing or that
-// does not parse does not stop the search. No catalog at all is an empty
+// Loads the catalog: the first of defaultSearchPaths() that is a catalog,
+// with the IMAGES_ENV file in front when it names one. A file that is
+// missing or that does not parse does not stop the search. No catalog at all is an empty
 // one, not an error: live media and branding-default installs go on.
 Catalog load();
 // The same, over an explicit list (tests).

@@ -67,13 +67,20 @@ func xdgConfigHome() string {
 	return filepath.Join(home, ".config")
 }
 
+// catalogPathsWith is the search path with the imagesPathEnv value in
+// front when it names a file: that file is tried first, and a missing or
+// broken one does not stop the search (shared/catalog/README.md).
+func catalogPathsWith(override string, flatpak bool, xdgConfigHome string, bundled ...string) []string {
+	paths := []string{}
+	if override != "" {
+		paths = append(paths, override)
+	}
+	return append(paths, catalogSearchPaths(flatpak, xdgConfigHome, bundled...)...)
+}
+
 // catalogPaths is the search path of this process.
 func catalogPaths() []string {
-	paths := []string{}
-	if p := os.Getenv(imagesPathEnv); p != "" {
-		paths = append(paths, p)
-	}
-	return append(paths, catalogSearchPaths(inFlatpak(), xdgConfigHome(), bundledCatalogs...)...)
+	return catalogPathsWith(os.Getenv(imagesPathEnv), inFlatpak(), xdgConfigHome(), bundledCatalogs...)
 }
 
 // CatalogLeaf is one installable image with every inherited field resolved,
