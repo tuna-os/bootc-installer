@@ -526,7 +526,7 @@ class TestSourceCheck(unittest.TestCase):
         obj.btn_confirm.set_sensitive.assert_called_with(True)
 
     def test_blocked_reply_holds_install(self):
-        obj, rows = self._make_obj()
+        obj, _rows = self._make_obj()
         obj._source_generation = 1
         obj._BootcConfirm__on_source_reply(1, self._req(features=["unified_storage"]), self._probe())
         obj.btn_confirm.set_sensitive.assert_called_with(False)

@@ -20,7 +20,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tuna_installer_xfce import core, pages  # noqa: E402
 
-SHARED = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "shared", "probe")
+SHARED = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                      "..", "..", "..", "shared", "probe")
 IMAGE = "registry.example/os:1"
 
 

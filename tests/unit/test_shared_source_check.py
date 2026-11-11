@@ -24,6 +24,7 @@ import json
 import os
 import re
 import unittest
+from typing import ClassVar
 
 REPO = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 SHARED = os.path.join(REPO, "shared")
@@ -66,7 +67,7 @@ class FishermanFixturesTest(unittest.TestCase):
     pin does not have yet comes from an open fisherman pull request; the
     pin bump makes this test cover it."""
 
-    PAIRS = [
+    PAIRS: ClassVar[list] = [
         (os.path.join(PROBE, "fixtures", "capabilities"), "caps-",
          os.path.join(FISHERMAN, "probe", "testdata", "golden")),
         (os.path.join(PROBE, "fixtures", "bootc-store"), "store-",
