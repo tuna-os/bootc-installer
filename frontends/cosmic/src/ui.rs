@@ -484,7 +484,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 tr(ACCOUNT_USERNAME),
                 confirm_user,
             ];
-            if let Some(leaf) = app.active_leaf() {
+            if let Some(leaf) = app.active_leaf().filter(|leaf| !leaf.label.is_empty()) {
                 t.push(tr(CONFIRM_SYSTEM));
                 t.push(leaf.label.clone());
             }
@@ -1679,9 +1679,10 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
                 tr(CONFIRM_NO_ACCOUNT)
             }),
         ));
-    // The product and the channel, when the catalog has the image; then
-    // the reference itself.
-    let summary = match app.active_leaf() {
+    // The product and the channel, when the catalog has the image (a live
+    // leaf built from the ISO recipe alone has no label); then the
+    // reference itself.
+    let summary = match app.active_leaf().filter(|leaf| !leaf.label.is_empty()) {
         Some(leaf) => summary.add(widget::settings::item(
             tr(CONFIRM_SYSTEM),
             widget::text::body(leaf.label.clone()),

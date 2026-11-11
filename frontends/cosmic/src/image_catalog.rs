@@ -482,6 +482,56 @@ pub fn source_and_target(
     (base.clone(), base.clone())
 }
 
+/// The leaf "install this system" applies on live media: the catalog's leaf
+/// for the running image (`live`), with the layout the ISO builder probed
+/// from that image written over it. The operator recipe's (`<etc>/bootc-
+/// installer/recipe.json`) `bootloader`, `composeFsBackend` and
+/// `filesystem` win when set, an explicit `false` included; a key that is
+/// missing, empty or of the wrong type keeps the leaf's value. A
+/// `filesystem` is then the one choice. With no catalog leaf the running
+/// image is its own update target. `None` when neither says anything: the
+/// image is unlisted.
+///
+/// No tunaOS ISO ships a catalog, and fisherman's packaged one has no
+/// grouper leaf, so composefs-native grouper went down bootc's ostree path
+/// and fisherman exited 1 in "Installing OS" (tuna-os/tunaOS#4485). Same fix
+/// as KDE (#354) and XFCE (#343, #347).
+pub fn live_leaf(
+    catalog_leaf: Option<&ImageLeaf>,
+    live: &str,
+    operator_recipe: Option<&Value>,
+) -> Option<ImageLeaf> {
+    let recipe = operator_recipe.and_then(Value::as_object);
+    let text = |key: &str| {
+        recipe
+            .and_then(|r| r.get(key))
+            .and_then(Value::as_str)
+            .filter(|v| !v.is_empty())
+            .map(str::to_string)
+    };
+    let bootloader = text("bootloader");
+    let filesystem = text("filesystem");
+    let composefs = recipe.and_then(|r| r.get("composeFsBackend")).and_then(Value::as_bool);
+    if catalog_leaf.is_none() && bootloader.is_none() && filesystem.is_none() && composefs.is_none() {
+        return None;
+    }
+    let mut leaf = catalog_leaf.cloned().unwrap_or_else(|| ImageLeaf {
+        imgref: live.to_string(),
+        ..ImageLeaf::default()
+    });
+    if let Some(bootloader) = bootloader {
+        leaf.bootloader = bootloader;
+    }
+    if let Some(composefs) = composefs {
+        leaf.composefs = composefs;
+    }
+    if let Some(filesystem) = filesystem {
+        leaf.filesystems = vec![filesystem.clone()];
+        leaf.filesystem = filesystem;
+    }
+    Some(leaf)
+}
+
 impl Catalog {
     /// The leaf for an image reference. The NVIDIA variant of a leaf is
     /// that leaf.
@@ -859,5 +909,47 @@ mod tests {
         assert_eq!(catalog.leaves.len(), 3);
         assert_eq!(catalog.default_image, "registry.example/os/desktop:stable");
         assert!(load_first(&paths[..3]).is_none());
+    }
+
+    #[test]
+    fn live_leaf_takes_the_operator_layout() {
+        let live = "ghcr.io/tuna-os/grouper:cosmic";
+        // The grouper ISO's recipe (tunaOS#4485): no catalog leaf at all.
+        let grouper = serde_json::json!({
+            "bootloader": "systemd", "composeFsBackend": true, "user": {"groups": ["sudo"]}
+        });
+        let leaf = live_leaf(None, live, Some(&grouper)).unwrap();
+        assert_eq!((leaf.bootloader.as_str(), leaf.composefs), ("systemd", true));
+        assert_eq!(leaf.imgref, live, "the running image is its own update target");
+        let mut recipe = Recipe::default();
+        recipe.apply_leaf(&leaf, &Machine { is_live: true, ..Machine::default() });
+        let json = serde_json::to_value(&recipe).unwrap();
+        assert_eq!(json["bootloader"], "systemd");
+        assert_eq!(json["composeFsBackend"], true);
+        assert_eq!(recipe.target_imgref, live);
+
+        // Over a catalog leaf: a set key wins, an explicit false included;
+        // a missing, empty or mistyped one keeps the leaf's value.
+        let catalog_leaf = ImageLeaf {
+            imgref: live.into(),
+            label: "Grouper COSMIC".into(),
+            bootloader: "grub2".into(),
+            composefs: true,
+            filesystem: "btrfs".into(),
+            filesystems: vec!["btrfs".into(), "xfs".into()],
+            ..ImageLeaf::default()
+        };
+        let operator = serde_json::json!({"bootloader": "", "composeFsBackend": false, "filesystem": "ext4"});
+        let leaf = live_leaf(Some(&catalog_leaf), live, Some(&operator)).unwrap();
+        assert_eq!(leaf.bootloader, "grub2");
+        assert!(!leaf.composefs);
+        assert_eq!((leaf.filesystem.as_str(), leaf.filesystems.clone()), ("ext4", vec!["ext4".to_string()]));
+        assert_eq!(leaf.label, "Grouper COSMIC");
+        let mistyped = serde_json::json!({"bootloader": 1, "composeFsBackend": "yes", "filesystem": null});
+        assert_eq!(live_leaf(Some(&catalog_leaf), live, Some(&mistyped)).unwrap(), catalog_leaf);
+
+        // Neither a leaf nor a layout: the image stays unlisted.
+        assert_eq!(live_leaf(None, live, None), None);
+        assert_eq!(live_leaf(None, live, Some(&serde_json::json!({"user": {}}))), None);
     }
 }
