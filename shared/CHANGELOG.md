@@ -35,6 +35,18 @@ schema only.
   yet. `tests/unit/test_shared_source_check.py` compares each copy with
   fisherman's golden file when the pin has that file.
 
+## 2026-11-10: branding copy, the validate codes of fisherman `7f9021b`
+
+- Added: `validate_<code>` lines for the new codes of `fisherman validate`:
+  `var_disk_encryption_unsupported`, `var_disk_unsupported_composefs`,
+  `custom_mount_target_duplicate`, `custom_mount_partition_duplicate`,
+  `custom_mount_not_persistable`, `zfs_experimental`,
+  `experimental_unsupported`, `locale_invalid`, `keyboard_layout_required`,
+  `keyboard_layout_invalid`, `keyboard_variant_invalid`,
+  `keyboard_model_invalid`, `timezone_invalid` and
+  `kept_filesystem_unusable`. A frontend with no line for a code shows
+  fisherman's `message`, as before.
+
 ## 2026-11-10: recipe schema, the fields of fisherman `7f9021b`, and closed objects
 
 The fisherman pin moved to `7f9021b` (tuna-os/fisherman#429, #432, #433,

@@ -46,7 +46,8 @@ FRONTEND_TREES = (REPO / "bootc_installer", REPO / "frontends" / "xfce" / "tuna_
 
 def xfce_module():
     manifest = json.loads(XFCE_MANIFEST.read_text(encoding="utf-8"))
-    return next(m for m in manifest["modules"] if m["name"] == "tuna-installer-xfce")
+    return next(m for m in manifest["modules"]
+                if isinstance(m, dict) and m["name"] == "tuna-installer-xfce")
 
 
 def test_the_package_has_the_contract_modules():

@@ -47,6 +47,8 @@ cmake --build build
 Build and run the packaged app locally:
 
 ```bash
+# The manifest builds fisherman from the submodule.
+git -C ../.. submodule update --init fisherman
 flatpak-builder --user --install --force-clean build-flatpak flatpak/org.tunaos.InstallerKde.json
 flatpak run org.tunaos.InstallerKde
 ```

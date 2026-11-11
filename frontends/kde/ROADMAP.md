@@ -33,7 +33,6 @@ The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 | #300 | The frontend has no translatable strings |
 | #301 | An offline user gets no help to connect |
 | #288 | The default for `needs_user_creation` is not the same in every frontend |
-| #292 | Language, keyboard and time zone do not reach the installed system |
 | #296 | The catalog's Flatpak list for an image does not reach the recipe |
 | #297 | `nvidia_imgref`, `flatpak_var_path` and `targetImgref` from the catalog do not all reach the recipe |
 | #302 | The first account is only in `wheel` |

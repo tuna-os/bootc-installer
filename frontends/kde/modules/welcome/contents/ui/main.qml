@@ -160,10 +160,9 @@ TunaComponents.SetupModule {
                 Layout.alignment: Qt.AlignHCenter
             }
 
-            // Region & language. Wizard state, not recipe state: the recipe
-            // has no field for them yet (#292), and nothing applies them to
-            // this session either. The line below the heading says so, and
-            // the confirm step does not list them among what is installed.
+            // Region & language. The recipe carries them (`locale`,
+            // `keyboard`, `timezone`) and fisherman writes them to the
+            // installed system (#292). The confirm step lists them.
             Label {
                 text: qsTr("Region & language")
                 font.bold: true
@@ -176,11 +175,24 @@ TunaComponents.SetupModule {
             }
 
             Label {
-                objectName: "regionNotApplied"
-                text: qsTr("The installer does not apply these choices yet. Set the language, keyboard and time zone in the installed system.")
+                objectName: "regionApplied"
+                text: qsTr("The installed system uses these settings.")
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
                 opacity: 0.75
+
+                Layout.fillWidth: true
+                Layout.maximumWidth: root.cardWidth
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+            Label {
+                objectName: "regionProblem"
+                text: InstallerController.regionProblem
+                visible: text.length > 0
+                color: Kirigami.Theme.negativeTextColor
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
 
                 Layout.fillWidth: true
                 Layout.maximumWidth: root.cardWidth

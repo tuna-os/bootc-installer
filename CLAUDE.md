@@ -14,6 +14,7 @@ bootc-installer is the monorepo for every TunaOS / Bluefin bootc installer front
 | `shared/python/` | `bootc_shared`: the one Python package that GNOME and XFCE both import for the probe, validate, progress, readiness, branding and account contracts. Do not copy a module into a frontend; `tests/unit/test_shared_python_package.py` holds the two builds to it |
 | `shared/branding/` | product identity contract: `branding.json` first, `os-release` second, neutral last; one resolver per language, all tested against `fixtures/` |
 | `shared/walkthrough/` | screen contract + parity report + `aggregate.py` that builds `docs/walkthrough/` |
+| `shared/flatpak/` | the `go` and `fisherman` Flatpak modules; every manifest lists `go.json` by path, the four frontends list `fisherman.json`, which builds the submodule, so the gitlink is the one fisherman pin |
 | `fisherman/` | backend submodule |
 
 Workflows live only in the root `.github/workflows/`; per-frontend ones are named `<thing>-<frontend>.yml` and use `working-directory: frontends/<name>`.

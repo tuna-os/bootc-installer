@@ -9,7 +9,9 @@ frontends.json, next to this file, has one row per frontend:
                            it must track the manifest's runtime and
                            runtime-version
     checkout-submodules    true when the manifest builds from the fisherman
-                           submodule (GNOME); the others pin a commit
+                           submodule; every manifest does today (GNOME from
+                           ../fisherman, the others through
+                           shared/flatpak/fisherman.json)
     also-latest            true when the publish also moves the unqualified
                            `latest` tags (GNOME, for consumers that predate
                            the per-frontend tags)

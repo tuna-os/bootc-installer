@@ -59,9 +59,12 @@ InstallerController::InstallerController(QObject *parent)
     m_defaultHostname = m_branding.defaultHostname;
     m_offlineImages = facts.offlineImages;
 
-    // The first account's groups: the shared default list, or the ISO
-    // builder's `user.groups` (shared/account/README.md).
-    m_recipe.user.groups = account::groupsFromFile(account::operatorRecipePath(offline::inFlatpak()));
+    // The ISO builder's recipe (shared/account/README.md): the first
+    // account's groups, the shared default list unless it names
+    // `user.groups`, and on live media the running image's layout.
+    const QByteArray operatorRecipe =
+        account::readOperatorRecipe(account::operatorRecipePath(offline::inFlatpak()));
+    m_recipe.user.groups = account::groups(operatorRecipe);
     m_seededHostname = m_recipe.hostname;
     m_filesystemChoices = ownFilesystems();
     // The probe does not report the GPU yet (shared/catalog/README.md).
@@ -82,13 +85,15 @@ InstallerController::InstallerController(QObject *parent)
     } else {
         // Live media has no image page: the image stays empty and fisherman
         // installs the running system. The leaf of the image the probe
-        // names (live.live_image) says whether an account is needed, and
-        // gives the fields fisherman cannot read from the image. An image
-        // the catalog does not have needs an account.
+        // names (live.live_image) says whether an account is needed. The
+        // fields fisherman cannot read from the image are that leaf's, with
+        // the layout the ISO builder probed over them (liveLeaf): an ISO
+        // ships no catalog, and a composefs-native image installed with
+        // none of them fails in fisherman's "Installing OS" (tunaOS#4485). An
+        // image the catalog does not have needs an account.
         m_needsUser = m_catalog.needsUserCreation(m_liveImage);
         m_recipe.userRequired = m_needsUser;
-        if (const imagecatalog::Leaf *leaf = m_catalog.find(m_liveImage))
-            applyLeaf(*leaf);
+        applyLeaf(imagecatalog::liveLeaf(m_catalog.find(m_liveImage), operatorRecipe));
     }
 
     // Region & language preflight defaults: the live session's own values.
@@ -108,6 +113,8 @@ InstallerController::InstallerController(QObject *parent)
     m_timezones = region::availableTimezones();
     if (!m_timezones.contains(m_timezone))
         m_timezone = QStringLiteral("UTC");
+    // The recipe gets a region value only when the user picks one (#292):
+    // a value nobody looked at must not replace the image's own.
 
     checkFields();
 }
@@ -129,7 +136,15 @@ QByteArray InstallerController::partialRecipe() const
         // password, and the password has no business on a validate call.
         {QStringLiteral("user"), QJsonObject{{QStringLiteral("username"), m_recipe.user.username}}},
     };
-    return QJsonDocument(partial).toJson(QJsonDocument::Compact);
+    // The region keys exactly as the recipe has them, so fisherman's
+    // locale, keyboard and time zone rules apply before Install.
+    const QJsonObject recipe = m_recipe.toJson();
+    QJsonObject withRegion = partial;
+    for (const char *key : {"locale", "keyboard", "timezone", "experimental"}) {
+        if (recipe.contains(QLatin1String(key)))
+            withRegion.insert(QLatin1String(key), recipe.value(QLatin1String(key)));
+    }
+    return QJsonDocument(withRegion).toJson(QJsonDocument::Compact);
 }
 
 void InstallerController::checkFields()
@@ -194,6 +209,16 @@ QString InstallerController::problemText(const QString &fieldPrefix) const
             continue;
         const QString line = p.code.isEmpty() ? QString() : text(validate::copyKey(p));
         return line.isEmpty() ? p.message : line;
+    }
+    return {};
+}
+
+QString InstallerController::regionProblem() const
+{
+    for (const QString &field : {QStringLiteral("locale"), QStringLiteral("keyboard"), QStringLiteral("timezone")}) {
+        const QString line = problemText(field);
+        if (!line.isEmpty())
+            return line;
     }
     return {};
 }
@@ -391,26 +416,32 @@ void InstallerController::setContinueAnyway(bool v)
 
 void InstallerController::setLanguage(const QString &v)
 {
-    if (m_language == v)
-        return;
+    // A pick, the current value included, goes into the recipe.
+    m_recipe.locale = region::localeName(v);
     m_language = v;
     Q_EMIT regionChanged();
+    Q_EMIT recipeChanged();
+    checkFields();
 }
 
 void InstallerController::setKeyboardLayout(const QString &v)
 {
-    if (m_keyboardLayout == v)
-        return;
+    // A pick, the current value included, goes into the recipe.
+    m_recipe.keyboardLayout = v;
     m_keyboardLayout = v;
     Q_EMIT regionChanged();
+    Q_EMIT recipeChanged();
+    checkFields();
 }
 
 void InstallerController::setTimezone(const QString &v)
 {
-    if (m_timezone == v)
-        return;
+    // A pick, the current value included, goes into the recipe.
+    m_recipe.timezone = v;
     m_timezone = v;
     Q_EMIT regionChanged();
+    Q_EMIT recipeChanged();
+    checkFields();
 }
 
 QString InstallerController::timezoneDisplay(const QString &ianaId) const

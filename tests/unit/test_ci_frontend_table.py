@@ -59,13 +59,18 @@ class TableTest(unittest.TestCase):
                 self.assertEqual(row["flatpak-builder-image"],
                                  f"{family}-{manifest['runtime-version']}")
 
-    def test_only_a_frontend_outside_frontends_builds_from_the_submodule(self):
-        # GNOME's manifest builds fisherman from the submodule; the others
-        # pin a commit in the manifest (shared/ci/fisherman_pins.py).
+    def test_a_manifest_that_builds_from_the_submodule_gets_it_checked_out(self):
+        # Every manifest builds fisherman from the submodule (GNOME from
+        # ../fisherman, the others through shared/flatpak/fisherman.json),
+        # so a row that does not check it out builds from an empty directory.
+        import flatpak_manifest
+        submodule = os.path.join(REPO, "fisherman")
         for name, row in self.table.items():
             with self.subTest(frontend=name):
-                in_tree = row["manifest-path"].startswith(f"frontends/{name}/")
-                self.assertEqual(row["checkout-submodules"], not in_tree)
+                paths = flatpak_manifest.local_paths(os.path.join(REPO, row["manifest-path"]))
+                uses = any(kind == "dir" and target == submodule for _m, kind, target in paths)
+                self.assertTrue(uses, f"{name} does not build fisherman from the submodule")
+                self.assertEqual(row["checkout-submodules"], uses)
 
     def test_only_gnome_moves_the_unqualified_latest_tags(self):
         # `latest` is GNOME's historical alias. A second frontend with it
@@ -87,7 +92,7 @@ class OutputsTest(unittest.TestCase):
             "app-id=org.tunaos.InstallerCosmic\n"
             "manifest-path=frontends/cosmic/flatpak/org.tunaos.InstallerCosmic.json\n"
             "flatpak-builder-image=freedesktop-25.08\n"
-            "checkout-submodules=false\n"
+            "checkout-submodules=true\n"
             "also-latest=false\n")
 
     def test_main_appends_to_github_output(self):

@@ -132,6 +132,7 @@ private slots:
     void catalogBrandingDefaultWinsInTheController();
     void catalogLoadSkipsAFileThatIsNoCatalog();
     void catalogLiveMediaReadsTheLeafOfTheLiveImage();
+    void liveLeafTakesTheOperatorLayout();
     void catalogSelectionReplacesThePreviousLeaf();
     void catalogNvidiaDetection();
     void catalogFilesystemProblemReachesTheDiskStep();
@@ -2243,6 +2244,47 @@ void BackendTest::catalogLiveMediaReadsTheLeafOfTheLiveImage()
     }
 }
 
+void BackendTest::liveLeafTakesTheOperatorLayout()
+{
+    // tunaOS grouper: no catalog leaf, and the ISO builder's probe of the
+    // running image in the operator recipe (tunaOS#4485).
+    const QByteArray grouper(
+        R"({"bootloader": "systemd", "composeFsBackend": true, "filesystem": "ext4", "user": {"groups": []}})");
+    const imagecatalog::Leaf none = imagecatalog::liveLeaf(nullptr, grouper);
+    QCOMPARE(none.bootloader, QStringLiteral("systemd"));
+    QVERIFY(none.composefs);
+    QCOMPARE(none.filesystem, QStringLiteral("ext4"));
+    QCOMPARE(none.filesystems, QStringList{QStringLiteral("ext4")});
+
+    // A leaf's values give way to the operator's, an explicit false included;
+    // what the operator recipe does not set stays the leaf's.
+    imagecatalog::Leaf leaf;
+    leaf.bootloader = QStringLiteral("systemd");
+    leaf.composefs = true;
+    leaf.filesystem = QStringLiteral("btrfs");
+    leaf.filesystems = {QStringLiteral("btrfs"), QStringLiteral("xfs")};
+    leaf.defaultHostname = QStringLiteral("skipjack");
+    const imagecatalog::Leaf el10 = imagecatalog::liveLeaf(
+        &leaf, R"({"bootloader": "grub2", "composeFsBackend": false, "filesystem": "xfs"})");
+    QCOMPARE(el10.bootloader, QStringLiteral("grub2"));
+    QVERIFY(!el10.composefs);
+    QCOMPARE(el10.filesystems, QStringList{QStringLiteral("xfs")});
+    QCOMPARE(el10.defaultHostname, QStringLiteral("skipjack"));
+
+    // Missing, empty or mistyped keys, no file, or a file that does not
+    // parse: the leaf as it is (fisherman's defaults without one).
+    for (const QByteArray &json : {QByteArray(), QByteArray(""), QByteArray("{ not json"),
+                                   QByteArray(R"({"bootloader": "", "composeFsBackend": "true", "filesystem": 4})")}) {
+        const imagecatalog::Leaf kept = imagecatalog::liveLeaf(&leaf, json);
+        QCOMPARE(kept.bootloader, leaf.bootloader);
+        QCOMPARE(kept.composefs, leaf.composefs);
+        QCOMPARE(kept.filesystem, leaf.filesystem);
+        QCOMPARE(kept.filesystems, leaf.filesystems);
+        const imagecatalog::Leaf bare = imagecatalog::liveLeaf(nullptr, json);
+        QVERIFY(bare.bootloader.isEmpty() && !bare.composefs && bare.filesystems.isEmpty());
+    }
+}
+
 void BackendTest::catalogSelectionReplacesThePreviousLeaf()
 {
     if (sharedCatalog().isEmpty())
@@ -2378,11 +2420,16 @@ void BackendTest::accountGroupCases()
             QVERIFY(writeFile(path, json));
         }
         // The same through the file, as the controller reads it.
-        QVERIFY2(account::groupsFromFile(path) == want, name);
+        QVERIFY2(account::groups(account::readOperatorRecipe(path)) == want, name);
     }
-    // A file that does not parse is the default list.
+    // A file that does not parse is the default list; an empty file is such
+    // a file, not "no file".
     QVERIFY(writeFile(dir.filePath(QStringLiteral("bad.json")), "{ not json"));
-    QCOMPARE(account::groupsFromFile(dir.filePath(QStringLiteral("bad.json"))), account::defaultGroups());
+    QCOMPARE(account::groups(account::readOperatorRecipe(dir.filePath(QStringLiteral("bad.json")))),
+             account::defaultGroups());
+    QVERIFY(writeFile(dir.filePath(QStringLiteral("empty.json")), ""));
+    QVERIFY(!account::readOperatorRecipe(dir.filePath(QStringLiteral("empty.json"))).isNull());
+    QVERIFY(account::readOperatorRecipe(dir.filePath(QStringLiteral("absent.json"))).isNull());
 }
 
 // ---- cancel (#299) ----------------------------------------------------------
@@ -2682,17 +2729,49 @@ void BackendTest::cancelAsksFirstInTheQml()
 
 void BackendTest::confirmPageListsNoLocaleRows()
 {
-    // #292: nothing writes the language, keyboard or time zone to the
-    // installed system, so the page that lists what the install does must
-    // not list them. The welcome step says that its pickers are not applied.
+    // #292: the welcome step's pickers go into the recipe, and the confirm
+    // step lists them. The welcome step no longer says "not applied".
     const QString confirm = qmlCode(QString::fromUtf8(
         readFixture(QStringLiteral(KDE_SOURCE_DIR "/modules/confirm/contents/ui/main.qml"))));
-    QVERIFY(!confirm.isEmpty());
-    for (const QString &word : {QStringLiteral("language"), QStringLiteral("keyboardLayout"), QStringLiteral("timezone")})
-        QVERIFY2(!confirm.contains(word, Qt::CaseInsensitive), qPrintable(word));
+    for (const QString &name : {QStringLiteral("confirmLanguage"), QStringLiteral("confirmKeyboard"),
+                                QStringLiteral("confirmTimezone"), QStringLiteral("regionProblem")})
+        QVERIFY2(confirm.contains(name), qPrintable(name));
     const QString welcome = qmlCode(QString::fromUtf8(
         readFixture(QStringLiteral(KDE_SOURCE_DIR "/modules/welcome/contents/ui/main.qml"))));
-    QVERIFY(welcome.contains(QStringLiteral("regionNotApplied")));
+    QVERIFY(!welcome.contains(QStringLiteral("regionNotApplied")));
+    QVERIFY(welcome.contains(QStringLiteral("regionProblem")));
+
+    // Nothing picked: the recipe keeps the image's values.
+    {
+        InstallerController untouched;
+        const QJsonObject recipe = untouched.recipe().toJson();
+        for (const char *key : {"locale", "keyboard", "timezone"})
+            QVERIFY2(!recipe.contains(QLatin1String(key)), key);
+    }
+    // The pickers' values reach the recipe, in fisherman's shape.
+    InstallerController c;
+    c.setLanguage(QStringLiteral("de"));
+    c.setKeyboardLayout(QStringLiteral("de"));
+    c.setTimezone(QStringLiteral("Europe/Berlin"));
+    const QJsonObject recipe = c.recipe().toJson();
+    QCOMPARE(recipe.value(QStringLiteral("locale")).toString(), QStringLiteral("de_DE.UTF-8"));
+    QCOMPARE(recipe.value(QStringLiteral("keyboard")).toObject(),
+             (QJsonObject{{QStringLiteral("layout"), QStringLiteral("de")}}));
+    QCOMPARE(recipe.value(QStringLiteral("timezone")).toString(), QStringLiteral("Europe/Berlin"));
+    // And the partial recipe that the live check sends has them.
+    const QJsonObject partial = QJsonDocument::fromJson(c.partialRecipe()).object();
+    QCOMPARE(partial.value(QStringLiteral("locale")).toString(), QStringLiteral("de_DE.UTF-8"));
+    QCOMPARE(partial.value(QStringLiteral("timezone")).toString(), QStringLiteral("Europe/Berlin"));
+    // A language with no locale name of fisherman's form: no key.
+    QCOMPARE(region::localeName(QString()), QString());
+    QCOMPARE(region::localeName(QStringLiteral("en")).left(3), QStringLiteral("en_"));
+    Recipe empty;
+    empty.disk = QStringLiteral("/dev/vda");
+    const QJsonObject none = empty.toJson();
+    for (const char *key : {"locale", "keyboard", "timezone"})
+        QVERIFY2(!none.contains(QLatin1String(key)), key);
+    // Round trip.
+    QCOMPARE(Recipe::fromJson(recipe).toJson().value(QStringLiteral("keyboard")), recipe.value(QStringLiteral("keyboard")));
 }
 
 void BackendTest::connectivityTriesTheImageRegistryFirst()

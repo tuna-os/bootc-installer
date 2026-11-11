@@ -142,6 +142,15 @@ class InstallerController : public QObject
     // The filesystem's, which includes a composefs image on a filesystem
     // without fs-verity (#287). The disk step shows it and holds Next.
     Q_PROPERTY(QString filesystemProblem READ filesystemProblem NOTIFY problemsChanged)
+    // fisherman's answer for the recipe's locale, keyboard and time zone:
+    // the first problem, or "".
+    Q_PROPERTY(QString regionProblem READ regionProblem NOTIFY problemsChanged)
+    // The recipe's `locale` for the picked language, for the confirm step.
+    Q_PROPERTY(QString localeName READ localeName NOTIFY regionChanged)
+    // Whether the recipe has the keyboard and the time zone: the user
+    // picked them.
+    Q_PROPERTY(bool keyboardChosen READ keyboardChosen NOTIFY regionChanged)
+    Q_PROPERTY(bool timezoneChosen READ timezoneChosen NOTIFY regionChanged)
 
     // The product name, resolved ONCE at startup from the branding contract
     // (src/branding.h: branding.json, then os-release, then neutral). Every
@@ -294,6 +303,10 @@ public:
     QString encryptionProblem() const { return problemText(QStringLiteral("encryption")); }
     QString usernameProblem() const { return problemText(QStringLiteral("user.username")); }
     QString filesystemProblem() const;
+    QString regionProblem() const;
+    QString localeName() const { return m_recipe.locale; }
+    bool keyboardChosen() const { return !m_recipe.keyboardLayout.isEmpty(); }
+    bool timezoneChosen() const { return !m_recipe.timezone.isEmpty(); }
     // The fields as a partial recipe for `validate --json --partial -`.
     QByteArray partialRecipe() const;
     // Takes in fisherman's answer (validate --json stdout). Public for tests.
