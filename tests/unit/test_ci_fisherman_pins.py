@@ -1,9 +1,11 @@
-"""shared/ci/fisherman_pins.py: the bump moves every fisherman pin together.
+"""shared/ci/fisherman_pins.py: the fisherman pin is the submodule gitlink.
 
-TestFishermanPin (test_shared_probe.py) requires the submodule gitlink and
-each frontend Flatpak manifest's fisherman source to name one commit.
-Moving only the gitlink turns that test red. These tests run the rewrite in
-throwaway git repositories, with no network.
+Every Flatpak builds fisherman from the submodule (shared/flatpak/
+fisherman.json for the four frontends, ../fisherman for GNOME), so the
+gitlink is the only pin. The script moves it and refuses to run while a
+manifest pins a tuna-os/fisherman git source, because it would leave that
+second pin behind. These tests run it in throwaway git repositories, with no
+network.
 """
 
 import json
@@ -21,18 +23,15 @@ import fisherman_pins as fp  # noqa: E402
 OLD = "a" * 40
 NEW = "b" * 40
 URL = "https://github.com/tuna-os/fisherman.git"
+SHARED_MODULE = "../../../shared/flatpak/fisherman.json"
 
 
-def manifest(app_id, sources, nested=False):
-    """A Flatpak app manifest; `sources` go on the module that builds fisherman."""
-    backend = {"name": "backend", "buildsystem": "simple", "sources": sources}
-    modules = [{"name": "dep", "sources": [{"type": "archive", "url": "https://example.invalid/x.tgz"}]}]
-    if nested:
-        modules.append({"name": "outer", "modules": [backend]})
-    else:
-        modules.append(backend)
-    modules.append({"name": "app", "sources": [{"type": "dir", "path": "../"}]})
-    return {"app-id": app_id, "runtime": "r", "modules": modules}
+def manifest(app_id, modules):
+    return {"app-id": app_id, "runtime": "r", "modules": [
+        {"name": "dep", "sources": [{"type": "archive", "url": "https://example.invalid/x.tgz"}]},
+        *modules,
+        {"name": "app", "sources": [{"type": "dir", "path": ".."}]},
+    ]}
 
 
 def git_source(commit=OLD, url=URL):
@@ -52,6 +51,10 @@ def git(repo, *args):
                           capture_output=True, text=True).stdout
 
 
+def gitlink(repo):
+    return git(repo, "ls-files", "-s", "fisherman").split()[1]
+
+
 @pytest.fixture
 def repo(tmp_path):
     if shutil.which("git") is None:
@@ -59,129 +62,74 @@ def repo(tmp_path):
     r = str(tmp_path)
     git(r, "init", "-q")
     git(r, "update-index", "--add", "--cacheinfo", f"160000,{OLD},fisherman")
-    # Four frontends; names are arbitrary on purpose: the pin is found by URL.
-    write(r, "frontends/alpha/flatpak/org.example.Alpha.json",
-          manifest("org.example.Alpha", [git_source()]))
-    write(r, "frontends/beta/flatpak/org.example.Beta.json",
-          manifest("org.example.Beta", [git_source(url="https://github.com/tuna-os/fisherman")], nested=True))
-    write(r, "frontends/gamma/flatpak/org.example.Gamma.json",
-          manifest("org.example.Gamma", [git_source(url="git@github.com:tuna-os/fisherman.git")]))
-    write(r, "frontends/delta/flatpak/org.example.Delta.json",
-          manifest("org.example.Delta", [git_source()]))
-    # Not an app manifest (cargo-sources.json is a list): never touched.
+    write(r, "shared/flatpak/fisherman.json",
+          {"name": "fisherman", "sources": [{"type": "dir", "path": "../../fisherman"}]})
+    for name in ("alpha", "beta"):
+        write(r, f"frontends/{name}/flatpak/org.example.{name.title()}.json",
+              manifest(f"org.example.{name.title()}", [SHARED_MODULE]))
+    write(r, "flatpak/org.example.Root.json", manifest("org.example.Root", [
+        {"name": "fisherman", "sources": [{"type": "dir", "path": "../fisherman"}]}]))
+    # Not an app manifest (cargo-sources.json is a list): never read.
     write(r, "frontends/alpha/flatpak/cargo-sources.json",
           [{"type": "git", "url": URL, "commit": OLD}])
     return r
 
 
-def pins(repo):
-    gitlink = git(repo, "ls-files", "-s", "fisherman").split()[1]
-    out = {"fisherman": gitlink}
-    for rel in fp.app_manifests(repo):
-        with open(os.path.join(repo, rel), encoding="utf-8") as fh:
-            out[rel] = fp.the_fisherman_source(json.load(fh), rel)["commit"]
-    return out
-
-
-def test_all_five_pins_move_together(repo):
-    assert set(pins(repo).values()) == {OLD}
-    assert len(pins(repo)) == 5
-
-    moved = fp.set_all_pins(repo, NEW)
-
-    assert set(moved.values()) == {OLD} and len(moved) == 4
-    assert set(pins(repo).values()) == {NEW}
-    # Staged, so the workflow's `git commit` carries all five.
-    staged = set(git(repo, "diff", "--cached", "--name-only").split())
-    assert staged == {"fisherman", *moved}
-
-
-def test_only_the_commit_line_changes(repo):
-    rel = "frontends/alpha/flatpak/org.example.Alpha.json"
-    with open(os.path.join(repo, rel), encoding="utf-8") as fh:
-        before = fh.read()
-
-    fp.set_all_pins(repo, NEW)
-
-    with open(os.path.join(repo, rel), encoding="utf-8") as fh:
-        after = fh.read()
-    assert after == before.replace(OLD, NEW)
-
-
-def test_non_app_json_is_left_alone(repo):
-    rel = "frontends/alpha/flatpak/cargo-sources.json"
-    with open(os.path.join(repo, rel), encoding="utf-8") as fh:
-        before = fh.read()
-    fp.set_all_pins(repo, NEW)
-    with open(os.path.join(repo, rel), encoding="utf-8") as fh:
-        assert fh.read() == before
+def test_the_gitlink_moves_and_is_staged(repo):
+    fp.set_pin(repo, NEW)
+    # gitlink() reads the index: the new commit is staged for `git commit`.
+    assert gitlink(repo) == NEW
 
 
 def test_already_current_is_a_no_op(repo):
-    fp.set_all_pins(repo, NEW)
-    moved = fp.set_all_pins(repo, NEW)
-    assert set(moved.values()) == {NEW}
-    assert set(pins(repo).values()) == {NEW}
+    fp.set_pin(repo, NEW)
+    fp.set_pin(repo, NEW)
+    assert gitlink(repo) == NEW
 
 
-def _assert_untouched(repo):
-    assert set(pins_or_raw(repo)) == {OLD}
+@pytest.mark.parametrize("where", ["frontend", "nested", "include", "root"])
+def test_a_second_pin_fails_and_writes_nothing(repo, where):
+    pinned = {"name": "backend", "sources": [git_source()]}
+    if where == "frontend":
+        write(repo, "frontends/gamma/flatpak/org.example.Gamma.json",
+              manifest("org.example.Gamma", [pinned]))
+        name = "Gamma"
+    elif where == "nested":
+        write(repo, "frontends/gamma/flatpak/org.example.Gamma.json",
+              manifest("org.example.Gamma", [{"name": "outer", "modules": [pinned]}]))
+        name = "Gamma"
+    elif where == "include":
+        # The shared module itself goes back to a git pin: both includers fail.
+        write(repo, "shared/flatpak/fisherman.json", pinned)
+        name = "Alpha"
+    else:
+        write(repo, "flatpak/org.example.Root.json", manifest("org.example.Root", [pinned]))
+        name = "Root"
+
+    with pytest.raises(fp.PinError, match=rf"{name}\.json.*pins a tuna-os/fisherman git source"):
+        fp.set_pin(repo, NEW)
+    assert gitlink(repo) == OLD
 
 
-def pins_or_raw(repo):
-    """Every fisherman commit in the tree, without requiring exactly one per file."""
-    found = [git(repo, "ls-files", "-s", "fisherman").split()[1]]
-    for rel in fp.app_manifests(repo):
-        with open(os.path.join(repo, rel), encoding="utf-8") as fh:
-            found += [s["commit"] for s in fp.fisherman_sources(json.load(fh))]
-    return found
+def test_another_git_source_is_not_a_pin(repo):
+    write(repo, "frontends/gamma/flatpak/org.example.Gamma.json", manifest("org.example.Gamma", [
+        {"name": "lib", "sources": [git_source(url="https://github.com/other/repo.git")]}]))
+    fp.set_pin(repo, NEW)
+    assert gitlink(repo) == NEW
 
 
-def test_missing_fisherman_source_fails_and_writes_nothing(repo):
-    write(repo, "frontends/epsilon/flatpak/org.example.Epsilon.json",
-          manifest("org.example.Epsilon", [{"type": "git", "url": "https://github.com/other/repo.git", "commit": OLD}]))
-
-    with pytest.raises(fp.PinError, match=r"Epsilon\.json: expected exactly one .* found 0"):
-        fp.set_all_pins(repo, NEW)
-
-    _assert_untouched(repo)
-
-
-def test_duplicated_fisherman_source_fails_and_writes_nothing(repo):
-    write(repo, "frontends/epsilon/flatpak/org.example.Epsilon.json",
-          manifest("org.example.Epsilon", [git_source(), git_source()]))
-
-    with pytest.raises(fp.PinError, match=r"Epsilon\.json: expected exactly one .* found 2"):
-        fp.set_all_pins(repo, NEW)
-
-    _assert_untouched(repo)
-
-
-def test_ambiguous_commit_text_fails(repo):
-    """The old sha also pins another source: the text edit cannot tell which."""
-    data = manifest("org.example.Epsilon", [git_source()])
-    data["modules"][0]["sources"] = [{"type": "git", "url": "https://github.com/other/x.git", "commit": OLD}]
-    write(repo, "frontends/epsilon/flatpak/org.example.Epsilon.json", data)
-
-    with pytest.raises(fp.PinError, match="appears 2 times"):
-        fp.set_all_pins(repo, NEW)
-    _assert_untouched(repo)
-
-
-def test_unpinned_fisherman_source_fails():
-    text = json.dumps(manifest("org.example.X", [{"type": "git", "url": URL, "branch": "dev"}]))
-    with pytest.raises(fp.PinError, match="no full commit pin"):
-        fp.rewrite_manifest_text(text, NEW, "x.json")
+def test_a_missing_include_fails(repo):
+    write(repo, "frontends/gamma/flatpak/org.example.Gamma.json",
+          manifest("org.example.Gamma", ["../../../shared/flatpak/nope.json"]))
+    with pytest.raises(fp.PinError, match="nope.json does not exist"):
+        fp.set_pin(repo, NEW)
+    assert gitlink(repo) == OLD
 
 
 def test_rejects_a_short_or_bad_sha(repo):
     with pytest.raises(fp.PinError, match="not a full commit sha"):
-        fp.set_all_pins(repo, "b" * 7)
-
-
-def test_no_manifests_fails(tmp_path):
-    with pytest.raises(fp.PinError, match="no Flatpak app manifest"):
-        fp.set_all_pins(str(tmp_path), NEW, stage=False)
+        fp.set_pin(repo, "b" * 7)
+    assert gitlink(repo) == OLD
 
 
 @pytest.mark.parametrize("url,ok", [
@@ -199,21 +147,15 @@ def test_fisherman_url_matching(url, ok):
 
 
 def test_cli_reports_errors_without_a_traceback(repo, capsys):
-    write(repo, "frontends/epsilon/flatpak/org.example.Epsilon.json",
-          manifest("org.example.Epsilon", []))
+    write(repo, "frontends/gamma/flatpak/org.example.Gamma.json",
+          manifest("org.example.Gamma", [{"name": "b", "sources": [git_source()]}]))
     assert fp.main(["--repo", repo, "--commit", NEW]) == 1
     assert "::error::" in capsys.readouterr().err
-    _assert_untouched(repo)
+    assert gitlink(repo) == OLD
 
 
-def test_real_manifests_each_have_exactly_one_fisherman_pin():
-    """The checked-in frontends satisfy what the bump relies on."""
+def test_the_real_manifests_have_no_second_pin():
+    """The checked-in manifests satisfy what the script relies on."""
     manifests = fp.app_manifests(REPO)
-    assert manifests, "no frontend Flatpak app manifests found"
-    for rel in manifests:
-        with open(os.path.join(REPO, rel), encoding="utf-8") as fh:
-            text = fh.read()
-        source = fp.the_fisherman_source(json.loads(text), rel)
-        new_text, old = fp.rewrite_manifest_text(text, NEW, rel)
-        assert old == source["commit"]
-        assert new_text == text.replace(old, NEW)
+    assert len(manifests) >= 6, manifests  # GNOME x2 + four frontends
+    assert fp.second_pins(REPO) == {}

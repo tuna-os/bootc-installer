@@ -18,17 +18,25 @@ tunaOS, on the byte-copied flatpak tooling).
 The sweep below is deliberately about the SHAPE rather than the go module:
 any future arch-specific download is caught the same way, without anyone
 remembering this incident.
+
+The sweep covers the four frontend manifests too, and reads a module that a
+manifest names by path (shared/flatpak/go.json) the way flatpak-builder
+does, so a module moved into a shared file is still checked.
 """
 from __future__ import annotations
 
-import json
 import pathlib
 import re
+import sys
 
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-MANIFESTS = sorted((ROOT / "flatpak").glob("*.json"))
+sys.path.insert(0, str(ROOT / "shared" / "ci"))
+import flatpak_manifest  # noqa: E402
+
+MANIFESTS = sorted((ROOT / "flatpak").glob("*.json")) + sorted(
+    ROOT.glob("frontends/*/flatpak/org.*.json"))
 
 # Substrings that mark a URL as built for one architecture. Deliberately
 # narrow: matching bare "arm" or "386" would flag unrelated project names.
@@ -46,12 +54,12 @@ def _sources(manifest: dict):
 
 def test_there_are_manifests_to_check():
     """A glob that matches nothing would make every test below vacuous."""
-    assert MANIFESTS
+    assert len(MANIFESTS) == 6, MANIFESTS
 
 
 @pytest.mark.parametrize("path", MANIFESTS, ids=lambda p: p.name)
 def test_every_arch_specific_source_declares_its_arch(path):
-    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest = flatpak_manifest.load(path)
     for module_name, source in _sources(manifest):
         url = str(source.get("url", ""))
         if ARCH_MARKERS.search(url):
@@ -65,7 +73,7 @@ def test_every_arch_specific_source_declares_its_arch(path):
 def test_the_go_toolchain_covers_both_published_arches(path):
     """x86_64 and aarch64 are the two arches the release workflow builds, so
     both must resolve to a toolchain or the module produces nothing."""
-    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest = flatpak_manifest.load(path)
     go = [m for m in manifest.get("modules", []) if m.get("name") == "go"]
     if not go:
         pytest.skip(f"{path.name} has no go module")
@@ -81,7 +89,7 @@ def test_the_go_toolchain_covers_both_published_arches(path):
 def test_no_two_sources_claim_the_same_arch(path):
     """Two candidates for one arch is ambiguous, and flatpak-builder would
     pick by order rather than by intent."""
-    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest = flatpak_manifest.load(path)
     for module_name, _ in _sources(manifest):
         pass
     for module in manifest.get("modules", []):
@@ -95,12 +103,13 @@ def test_no_two_sources_claim_the_same_arch(path):
             assert count == 1, (path.name, module.get("name"), arch, count)
 
 
-def test_the_two_manifests_agree_on_the_go_toolchain():
-    """The production and Devel manifests are near-copies; an arch fix landing
-    in one and not the other is the drift this repo has paid for before."""
+def test_the_manifests_agree_on_the_go_toolchain():
+    """The production and Devel manifests are near-copies, and the four
+    frontends build the same fisherman; an arch fix landing in one and not
+    the other is the drift this repo has paid for before."""
     versions = {}
     for path in MANIFESTS:
-        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest = flatpak_manifest.load(path)
         go = [m for m in manifest.get("modules", []) if m.get("name") == "go"]
         if go:
             versions[path.name] = sorted(

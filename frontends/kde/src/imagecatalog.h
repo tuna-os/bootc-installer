@@ -89,6 +89,18 @@ struct ImageChoice {
 ImageChoice sourceAndTarget(const Leaf &leaf, bool hasNvidia, bool isLive,
                             const QStringList &offlineImages);
 
+// The leaf "install this system" applies on live media: the catalog's leaf
+// for the running image (or none), with the layout the ISO builder probed
+// from that image written over it. The operator recipe's (<etc>/bootc-
+// installer/recipe.json, account::readOperatorRecipe) `bootloader`,
+// `composeFsBackend` and `filesystem` win when set, as in the GNOME
+// frontend (bootc_installer/utils/processor.py); a key that is missing,
+// empty or of another type leaves the leaf's value. fisherman does not find
+// the backend from the image, so without them a composefs-native image goes
+// down bootc's ostree path (tuna-os/tunaOS#4485, XFCE #343). A `filesystem`
+// is the one choice, as for a leaf that names one.
+Leaf liveLeaf(const Leaf *catalogLeaf, const QByteArray &operatorRecipe);
+
 // True when a PCI display device of vendor 0x10de is below
 // `<sysRoot>/bus/pci/devices`. The probe does not report the GPU yet.
 bool hasNvidiaGpu(const QString &sysRoot = QStringLiteral("/sys"));

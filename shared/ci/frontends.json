@@ -10,28 +10,28 @@
     "app-id": "org.tunaos.InstallerKde",
     "manifest-path": "frontends/kde/flatpak/org.tunaos.InstallerKde.json",
     "flatpak-builder-image": "kde-6.11",
-    "checkout-submodules": false,
+    "checkout-submodules": true,
     "also-latest": false
   },
   "cosmic": {
     "app-id": "org.tunaos.InstallerCosmic",
     "manifest-path": "frontends/cosmic/flatpak/org.tunaos.InstallerCosmic.json",
     "flatpak-builder-image": "freedesktop-25.08",
-    "checkout-submodules": false,
+    "checkout-submodules": true,
     "also-latest": false
   },
   "niri": {
     "app-id": "org.tunaos.InstallerNiri",
     "manifest-path": "frontends/niri/flatpak/org.tunaos.InstallerNiri.json",
     "flatpak-builder-image": "kde-6.11",
-    "checkout-submodules": false,
+    "checkout-submodules": true,
     "also-latest": false
   },
   "xfce": {
     "app-id": "org.tunaos.InstallerXfce",
     "manifest-path": "frontends/xfce/flatpak/org.tunaos.InstallerXfce.json",
     "flatpak-builder-image": "gnome-49",
-    "checkout-submodules": false,
+    "checkout-submodules": true,
     "also-latest": false
   }
 }

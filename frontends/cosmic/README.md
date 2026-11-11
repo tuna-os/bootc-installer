@@ -62,6 +62,8 @@ GPL-3.0-only
 # NOT one-time: re-run this in the same commit as any Cargo.lock change.
 just cargo-sources
 
+# The manifest builds fisherman from the submodule.
+git -C ../.. submodule update --init fisherman
 flatpak-builder --user --install --force-clean build flatpak/org.tunaos.InstallerCosmic.json
 flatpak run org.tunaos.InstallerCosmic
 ```

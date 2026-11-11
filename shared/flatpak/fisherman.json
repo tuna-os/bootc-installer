@@ -1,0 +1,16 @@
+{
+  "name": "fisherman",
+  "buildsystem": "simple",
+  "build-commands": [
+    "PATH=/app/go/bin:$PATH go build -C fisherman -o /app/bin/fisherman ./cmd/fisherman",
+    "install -Dm644 data/images.json /app/share/fisherman/data/images.json",
+    "cp -r data/images /app/share/fisherman/data/images",
+    "install -Dm644 data/polkit/org.tunaos.Installer.policy /app/share/polkit-1/actions/org.tunaos.Installer.policy"
+  ],
+  "sources": [
+    {
+      "type": "dir",
+      "path": "../../fisherman"
+    }
+  ]
+}
