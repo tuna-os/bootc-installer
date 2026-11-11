@@ -262,6 +262,24 @@ ImageChoice sourceAndTarget(const Leaf &leaf, bool hasNvidia, bool isLive,
     return {base, base};
 }
 
+Leaf liveLeaf(const Leaf *catalogLeaf, const QByteArray &operatorRecipe)
+{
+    Leaf leaf = catalogLeaf ? *catalogLeaf : Leaf{};
+    const QJsonObject recipe = QJsonDocument::fromJson(operatorRecipe).object();
+    const QJsonValue bootloader = recipe.value(QLatin1String("bootloader"));
+    if (bootloader.isString() && !bootloader.toString().isEmpty())
+        leaf.bootloader = bootloader.toString();
+    const QJsonValue composefs = recipe.value(QLatin1String("composeFsBackend"));
+    if (composefs.isBool())
+        leaf.composefs = composefs.toBool();
+    const QJsonValue filesystem = recipe.value(QLatin1String("filesystem"));
+    if (filesystem.isString() && !filesystem.toString().isEmpty()) {
+        leaf.filesystem = filesystem.toString();
+        leaf.filesystems = {leaf.filesystem};
+    }
+    return leaf;
+}
+
 bool hasNvidiaGpu(const QString &sysRoot)
 {
     const QDir devices(sysRoot + QStringLiteral("/bus/pci/devices"));

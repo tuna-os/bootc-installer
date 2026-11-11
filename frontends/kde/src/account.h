@@ -28,7 +28,9 @@ QStringList groups(const QByteArray &operatorRecipe);
 // <etc>/bootc-installer/recipe.json; <etc> is /run/host/etc in a Flatpak.
 QString operatorRecipePath(bool flatpak);
 
-// groups() of the file at `path`.
-QStringList groupsFromFile(const QString &path);
+// The contents of the operator recipe file at `path`, as groups() and
+// imagecatalog::liveLeaf() take them: a null QByteArray when it cannot be
+// read, and an empty file is non-null (a file that does not parse).
+QByteArray readOperatorRecipe(const QString &path);
 
 } // namespace account

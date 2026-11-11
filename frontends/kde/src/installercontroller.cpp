@@ -59,9 +59,12 @@ InstallerController::InstallerController(QObject *parent)
     m_defaultHostname = m_branding.defaultHostname;
     m_offlineImages = facts.offlineImages;
 
-    // The first account's groups: the shared default list, or the ISO
-    // builder's `user.groups` (shared/account/README.md).
-    m_recipe.user.groups = account::groupsFromFile(account::operatorRecipePath(offline::inFlatpak()));
+    // The ISO builder's recipe (shared/account/README.md): the first
+    // account's groups, the shared default list unless it names
+    // `user.groups`, and on live media the running image's layout.
+    const QByteArray operatorRecipe =
+        account::readOperatorRecipe(account::operatorRecipePath(offline::inFlatpak()));
+    m_recipe.user.groups = account::groups(operatorRecipe);
     m_seededHostname = m_recipe.hostname;
     m_filesystemChoices = ownFilesystems();
     // The probe does not report the GPU yet (shared/catalog/README.md).
@@ -82,13 +85,15 @@ InstallerController::InstallerController(QObject *parent)
     } else {
         // Live media has no image page: the image stays empty and fisherman
         // installs the running system. The leaf of the image the probe
-        // names (live.live_image) says whether an account is needed, and
-        // gives the fields fisherman cannot read from the image. An image
-        // the catalog does not have needs an account.
+        // names (live.live_image) says whether an account is needed. The
+        // fields fisherman cannot read from the image are that leaf's, with
+        // the layout the ISO builder probed over them (liveLeaf): an ISO
+        // ships no catalog, and a composefs-native image installed with
+        // none of them fails in fisherman's "Installing OS" (tunaOS#4485). An
+        // image the catalog does not have needs an account.
         m_needsUser = m_catalog.needsUserCreation(m_liveImage);
         m_recipe.userRequired = m_needsUser;
-        if (const imagecatalog::Leaf *leaf = m_catalog.find(m_liveImage))
-            applyLeaf(*leaf);
+        applyLeaf(imagecatalog::liveLeaf(m_catalog.find(m_liveImage), operatorRecipe));
     }
 
     // Region & language preflight defaults: the live session's own values.
