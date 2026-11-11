@@ -19,6 +19,7 @@ from ._real_window import (
     RecordingServer,
     current_page,
     go,
+    go_to_before,
     page_by_key,
     pages,
     pump,
@@ -79,6 +80,7 @@ def test_the_server_runs_only_on_the_companion_page(tmp_path):
         assert seen.count("qr_companion") == 2
 
         # First visit: the code is there at once, not after Back and forward.
+        go_to_before(window, "qr_companion")
         go(window, +1)
         assert current_page(window) is companion
         assert companion.state_stack.get_visible_child_name() == "companion"
@@ -126,6 +128,7 @@ def test_account_from_the_phone_reaches_the_user_page_and_the_finals(tmp_path):
         user = page_by_key(window, "user")
         assert user.username_entry.get_text() == "" and user.password_entry.get_text() == ""
 
+        go_to_before(window, "qr_companion")
         go(window, +1)
         assert current_page(window) is companion and RecordingServer.any_running()
         here = window.carousel.get_position()
@@ -189,6 +192,7 @@ def test_no_route_shows_unavailable_and_no_address(tmp_path):
     with real_window(tmp_path, shipped_recipe(needs_user_creation=True)) as window:
         RecordingServer.start_result = False
         companion = page_by_key(window, "qr_companion")
+        go_to_before(window, "qr_companion")
         go(window, +1)
         assert current_page(window) is companion
         assert companion.state_stack.get_visible_child_name() == "unavailable"

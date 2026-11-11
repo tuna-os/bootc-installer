@@ -115,9 +115,9 @@ libcosmic / iced (Rust). Source: `frontends/cosmic/`.
 | <img src="cosmic/01-requirements.png" width="360"> | **requirements**  <br><sub>Requirements met Firmware setup Power off Continue</sub> |
 | <img src="cosmic/02-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to TunaOS Welcome. This assistant will guide you through installing TunaOS onto this computer. You will choose a target disk and a f</sub> |
 | <img src="cosmic/03-image.png" width="360"> | **image**  <br><sub>Choose a system What to install onto the disk. Search systems  Capture Desktop › Stable The photographed system. Capture Desktop › Beta regi</sub> |
-| <img src="cosmic/04-language.png" width="360"> | **language**  <br><sub>Language Changes this session only. The installed system keeps its own language. en_US.UTF-8 en_GB.UTF-8 fr_FR.UTF-8 de_DE.UTF-8 es_ES.UTF-8</sub> |
-| <img src="cosmic/05-keyboard.png" width="360"> | **keyboard**  <br><sub>Keyboard Changes this session only. The installed system keeps its own keyboard layout. us gb fr de es it br jp ru cn Back Continue</sub> |
-| <img src="cosmic/06-timezone.png" width="360"> | **timezone**  <br><sub>Time zone Search, then pick where you are. Changes this session only. The installed system keeps its own time zone. Search time zones  Europ</sub> |
+| <img src="cosmic/04-language.png" width="360"> | **language**  <br><sub>Language Changes this session and the installed system. en_US.UTF-8 en_GB.UTF-8 fr_FR.UTF-8 de_DE.UTF-8 es_ES.UTF-8 it_IT.UTF-8 pt_BR.UTF-8 </sub> |
+| <img src="cosmic/05-keyboard.png" width="360"> | **keyboard**  <br><sub>Keyboard Changes this session and the installed system. us gb fr de es it br jp ru cn Back Continue</sub> |
+| <img src="cosmic/06-timezone.png" width="360"> | **timezone**  <br><sub>Time zone Search, then pick where you are. Changes this session and the installed system. Search time zones  Europe/Berlin Europe/Paris Euro</sub> |
 | <img src="cosmic/07-network.png" width="360"> | **network**  <br><sub>Network The installer needs the network to fetch images. Connected. Recheck Back Continue</sub> |
 | <img src="cosmic/08-disk.png" width="360"> | **disk**  <br><sub>Select a disk Everything on the disk you pick will be erased. Samsung SSD 870 EVO 500GB /dev/sda · 465.8 GiB · SATA Extreme SSD /dev/sdc · 9</sub> |
 | <img src="cosmic/09-options.png" width="360"> | **options**  <br><sub>Options Sensible defaults are already chosen. Change them only if you need to. System Computer name tunaos Filesystem btrfs Encryption Disk </sub> |
@@ -142,7 +142,7 @@ Quickshell QML + Go backend. Source: `frontends/niri/`.
 | | |
 |---|---|
 | <img src="niri/01-welcome.png" width="360"> | **welcome**  <br><sub>Step 1 of 9 · Welcome ⬢ Welcome to TunaOS This wizard will guide you through installing TunaOS onto your computer. Get started Get started E</sub> |
-| <img src="niri/02-session.png" width="360"> | **session**  <br><sub>Step 2 of 9 · Session Session These settings change only on live media. This computer keeps its own keyboard, language and time zone. Keyboa</sub> |
+| <img src="niri/02-session.png" width="360"> | **session**  <br><sub>Step 2 of 9 · Session Session Keyboard, language and time zone for the installed system. This computer keeps its own. Keyboard and language </sub> |
 | <img src="niri/03-source.png" width="360"> | **source**  <br><sub>Step 3 of 9 · Source What do you want to install? Search images Example OS › Stable ghcr.io/example/os:stable  ·  available offline Example </sub> |
 | <img src="niri/04-disk.png" width="360"> | **disk**  <br><sub>Step 4 of 9 · Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  ·  465.8 Gi</sub> |
 | <img src="niri/05-encryption.png" width="360"> | **encryption**  <br><sub>Step 5 of 9 · Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without </sub> |

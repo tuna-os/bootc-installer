@@ -14,12 +14,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""The keyboard step. One XKB layout and its variant: the recipe's
+`keyboard` (#292), which fisherman writes to the installed system. The
+pick also switches the live session's layout, so the passphrase and the
+password that follow are typed as the user means. With no row selected the
+recipe has no `keyboard`, and the image keeps its own."""
+
 import os
 import re
 
 from gi.repository import Adw, Gio, GLib, Gtk
 
 from bootc_installer.core.keymaps import KeyMaps
+from bootc_installer.utils.field_check import ChoiceCheck, drop_focus_inside
 
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/widget-keyboard.ui")
 class KeyboardRow(Adw.ActionRow):
@@ -39,6 +46,8 @@ class KeyboardRow(Adw.ActionRow):
         self.__key = key
         self.__selected_keyboard = selected_keyboard
 
+        # Plain text: a layout's name can hold "<" or "&".
+        self.set_use_markup(False)
         self.set_title(title)
         self.set_subtitle(subtitle)
         self.suffix_bin.set_label(key)
@@ -46,12 +55,16 @@ class KeyboardRow(Adw.ActionRow):
         self.select_button.connect("toggled", self.__on_check_button_toggled)
 
     def __on_check_button_toggled(self, widget):
+        # One layout: the rows are a radio group, and the list holds the
+        # selected one.
+        entry = {"layout": self.__layout, "variant": self.__variant}
         if widget.get_active():
-            self.__selected_keyboard.append({"layout": self.__layout, "model": "pc105", "variant": self.__variant})
-            self.get_parent().emit("selected-rows-changed")
-        else:
-            self.__selected_keyboard.remove({"layout": self.__layout, "model": "pc105", "variant": self.__variant})
-            self.get_parent().emit("selected-rows-changed")
+            self.__selected_keyboard[:] = [entry]
+        elif entry in self.__selected_keyboard:
+            self.__selected_keyboard.remove(entry)
+        parent = self.get_parent()
+        if parent is not None:
+            parent.emit("selected-rows-changed")
 
 
 
@@ -63,38 +76,42 @@ class BootcDefaultKeyboard(Adw.Bin):
     entry_test = Gtk.Template.Child()
     entry_search_keyboard = Gtk.Template.Child()
     all_keyboards_group = Gtk.Template.Child()
-    selected_keyboard = []
+    problem_label = Gtk.Template.Child()
 
-    search_controller = Gtk.EventControllerKey.new()
-    test_focus_controller = Gtk.EventControllerFocus.new()
 
     match_regex = re.compile(r"[^a-zA-Z0-9 ]")
 
     def __init__(self, window, distro_info, key, step, **kwargs):
         super().__init__(**kwargs)
+        # Per page, made when the page is: not at import, before GTK is up.
+        self.search_controller = Gtk.EventControllerKey.new()
+        self.test_focus_controller = Gtk.EventControllerFocus.new()
         self.__window = window
         self.__distro_info = distro_info
         self.__key = key
         self.__step = step
         self.delta = True
+        # The selected layout, as a list of one (empty: none). One list per
+        # page: the rows write into it.
+        self.selected_keyboard = []
+        self.check = ChoiceCheck(window, "keyboard", self.problem_label,
+                                 on_change=self.__keyboard_verify)
         self.__keymaps = KeyMaps()
         self.__keyboard_rows = self.__generate_keyboard_list_widgets(
             self.selected_keyboard
         )
+        for row in self.__keyboard_rows[1:]:
+            row.select_button.set_group(self.__keyboard_rows[0].select_button)
 
-
-    def gen_deltas(self):
-        for i, widget in enumerate(self.__keyboard_rows):
-            self.all_keyboards_group.append(widget)
-
-        # controllers
+        # Controllers and signals once: gen_deltas runs on each visit, and
+        # a second "clicked" handler moved two pages on one click.
         self.entry_search_keyboard.add_controller(self.search_controller)
         self.entry_test.add_controller(self.test_focus_controller)
 
         # signals
         self.btn_next.connect("clicked", self.__next)
         self.all_keyboards_group.connect(
-            "selected-rows-changed", self.__keyboard_verify
+            "selected-rows-changed", self.__on_selection_changed
         )
         self.all_keyboards_group.connect("row-selected", self.__keyboard_verify)
         self.all_keyboards_group.connect("row-activated", self.__keyboard_verify)
@@ -104,16 +121,25 @@ class BootcDefaultKeyboard(Adw.Bin):
         if "VANILLA_NO_APPLY_XKB" not in os.environ:
             self.test_focus_controller.connect("enter", self.__apply_layout)
 
+    def gen_deltas(self):
+        for widget in self.__keyboard_rows:
+            self.all_keyboards_group.append(widget)
 
     def del_deltas(self):
+        drop_focus_inside(self)
         self.all_keyboards_group.remove_all()
 
 
+    def __on_selection_changed(self, *args):
+        finals = self.get_finals()
+        if finals:
+            self.check.submit(finals)
+        self.__keyboard_verify()
+
     def __keyboard_verify(self, *args):
-        if self.selected_keyboard != []:
-            self.btn_next.set_sensitive(True)
-        else:
-            self.btn_next.set_sensitive(False)
+        check = getattr(self, "check", None)
+        ok = check is None or check.ok
+        self.btn_next.set_sensitive(self.selected_keyboard != [] and ok)
 
     def __next(self, *args):
         if "VANILLA_NO_APPLY_XKB" in os.environ:
@@ -121,16 +147,22 @@ class BootcDefaultKeyboard(Adw.Bin):
         else:
             self.__window.next(None, self.__apply_layout)
 
+    def test_auto_advance(self):
+        """BOOTC_TEST and the demo tests: move on with what is selected
+        now, which may be nothing (the image keeps its own value)."""
+        self.__window.next()
+
     def get_finals(self):
-
-        if self.selected_keyboard == []:
-            return {
-                "keyboard": [{"layout": "us", "model": "pc105", "variant": ""}]
-            }  # fallback
-
-        return {
-            "keyboard": self.selected_keyboard 
-        }
+        """The recipe's `keyboard` for the selected row: the XKB layout,
+        and the variant when the row has one. No key when no row is
+        selected: there is no fallback layout."""
+        if not self.selected_keyboard:
+            return {}
+        selected = self.selected_keyboard[0]
+        keyboard = {"layout": selected["layout"]}
+        if selected.get("variant"):
+            keyboard["variant"] = selected["variant"]
+        return {"keyboard": keyboard}
 
     def __generate_keyboard_list_widgets(self, selected_keyboard):
         keyboard_widgets = []

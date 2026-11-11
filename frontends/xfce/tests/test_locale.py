@@ -99,28 +99,72 @@ def test_needs_network_mirrors_conn_check_should_show():
     assert locale_checks.needs_network(True) is False
 
 
-def test_the_identity_page_offers_only_what_it_applies(monkeypatch):
-    """A Language and a Timezone combo sat here and nothing read them
-    (#292). The keyboard layout is applied to the session, and says so."""
+def _identity_page(monkeypatch, submitted=None):
     import types
 
     from tuna_installer_xfce import pages
 
     applied = []
+    monkeypatch.setattr(locale_checks, "available_languages", lambda: ["C.UTF-8", "de_DE.UTF-8"])
     monkeypatch.setattr(locale_checks, "available_keyboard_layouts", lambda: ["us", "de"])
-    monkeypatch.setattr(locale_checks, "current_keyboard_layout", lambda: "us")
+    monkeypatch.setattr(locale_checks, "available_timezones", lambda: ["UTC", "Europe/Berlin"])
     monkeypatch.setattr(locale_checks, "apply_keyboard_layout", applied.append)
+    sent = submitted if submitted is not None else []
     monkeypatch.setattr(pages, "live_check", lambda on_result: types.SimpleNamespace(
-        submit=lambda recipe: None))
+        submit=sent.append))
     win = types.SimpleNamespace(needs_user_creation=lambda: True,
                                 refresh_nav=lambda: None, selected_leaf=lambda: None)
-    page = pages.IdentityPage(win)
-    assert not hasattr(page, "lang_combo")
-    assert not hasattr(page, "tz_combo")
-    assert not hasattr(page, "locale_selection")
-    assert "this session only" in page.locale_expander.get_label()
+    return pages.IdentityPage(win), applied
+
+
+def test_the_identity_page_writes_only_what_the_person_picked(monkeypatch):
+    """The language, keyboard and time zone reach the installed system
+    (#292). Each combo starts at "keep", which writes no key."""
+    sent = []
+    page, applied = _identity_page(monkeypatch, sent)
+    assert "this session" not in page.locale_expander.get_label()
+    assert page.region_fields() == {}
+    assert "locale" not in page.partial_recipe()
+    page.lang_combo.set_active_id("de_DE.UTF-8")
     page.kb_combo.set_active_id("de")
+    page.tz_combo.set_active_id("Europe/Berlin")
+    assert page.region_fields() == {"locale": "de_DE.UTF-8", "keyboard": {"layout": "de"},
+                                    "timezone": "Europe/Berlin"}
+    # fisherman checks each pick (`validate --partial`).
+    assert sent[-1]["timezone"] == "Europe/Berlin"
+    assert sent[-1]["keyboard"] == {"layout": "de"}
+    # The keyboard also switches this live session.
     assert applied == ["de"]
+    page.kb_combo.set_active_id("")
+    assert "keyboard" not in page.region_fields()
+
+
+def test_a_region_problem_holds_the_page(monkeypatch):
+    page, _applied = _identity_page(monkeypatch)
+    page.hostname.set_text("box")
+    page.username.set_text("jo")
+    page.password.set_text("pw")
+    page.password2.set_text("pw")
+    page._on_checked([], None)
+    assert page.can_continue()
+    page._on_checked([{"field": "keyboard.layout", "code": "keyboard_layout_invalid",
+                       "message": "bad"}], None)
+    assert not page.can_continue()
+    assert page.region_problem.get_text()
+
+
+def test_build_recipe_writes_the_three_keys():
+    from tuna_installer_xfce import core
+
+    recipe = core.build_recipe(disk="/dev/vda", filesystem="xfs")
+    for key in ("locale", "keyboard", "timezone"):
+        assert key not in recipe
+    recipe = core.build_recipe(disk="/dev/vda", filesystem="xfs", locale="de_DE.UTF-8",
+                               keyboard_layout="de", timezone="Europe/Berlin")
+    assert (recipe["locale"], recipe["keyboard"], recipe["timezone"]) == (
+        "de_DE.UTF-8", {"layout": "de"}, "Europe/Berlin")
+    assert core.is_region_field("keyboard.variant")
+    assert not core.is_region_field("hostname")
 
 
 # ─── which host the connectivity check asks (#301) ──────────────────────────

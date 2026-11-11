@@ -178,11 +178,18 @@ PATCHERS = [
     # not run: the page is rendered as the user first sees it.
     patch("bootc_installer.defaults.conn_check.BootcDefaultConnCheck._run_check",
           lambda self: None),
+    # The time zone page asks GeoIP for a guess. The capture makes none, so
+    # the page renders the same on every runner, online or not.
+    patch("bootc_installer.defaults.timezone.get_location",
+          lambda callback=None: callback(None) if callback else None),
 ]
 
 CAPTIONS = {
     "welcome": "What the installer is about to do.",
     "qr_companion": "Optional: scan a QR code and type your account details on your phone.",
+    "language": "The language of the installed system.",
+    "keyboard": "The keyboard layout, for this session and the installed system.",
+    "timezone": "The time zone of the installed system.",
     "conn-check": "A check that the image registry can be reached.",
     "image": "Choose the image to install from the catalog.",
     "disk": "Choose the disk. Nothing is written yet.",
@@ -397,11 +404,52 @@ def _choose_image(win):
         return
 
 
+# What the capture picks on the language, keyboard and time zone steps, and
+# so what the confirm page must list: the recipe's `locale`, `keyboard` and
+# `timezone` (#292).
+REGION_PICKS = {"language": "de_DE.UTF-8", "keyboard": ("de", ""), "timezone": "Europe/Berlin"}
+
+
+def _choose_region(win):
+    """Pick a language, a keyboard layout and a time zone, as a user does
+    on the three steps."""
+    carousel = win.carousel
+    for index in range(carousel.get_n_pages()):
+        page = carousel.get_nth_page(index)
+        key = getattr(page, "_bootc_step_key", None)
+        if key == "language":
+            rows = page._BootcDefaultLanguage__language_rows
+            row = next((r for r in rows
+                        if r._LanguageRow__subtitle == REGION_PICKS["language"]), None)
+            if row is None:
+                SEED_FAILURES.append("language: no row for " + REGION_PICKS["language"])
+            else:
+                row.select_button.set_active(True)
+        elif key == "keyboard":
+            rows = page._BootcDefaultKeyboard__keyboard_rows
+            row = next((r for r in rows
+                        if (r._KeyboardRow__layout, r._KeyboardRow__variant)
+                        == REGION_PICKS["keyboard"]), None)
+            if row is None:
+                SEED_FAILURES.append("keyboard: no row for the layout de")
+            else:
+                row.select_button.set_active(True)
+        elif key == "timezone":
+            # The rows are built when the page shows; the pick is the
+            # page's own state, which a row's toggle sets.
+            page.selected_timezone = REGION_PICKS["timezone"]
+
+
 def _seed(win, page, name):
     """Put each page into the state a user would see it in."""
+    if name in ("language", "keyboard", "timezone"):
+        # The rows go in when the page is entered (window.next).
+        page.gen_deltas()
+        _pump(0.5)
     if name == "confirm":
         _choose_image(win)
         _choose_disk(win)
+        _choose_region(win)
         win.update_finals()
     elif name == "progress":
         _seed_progress(page)
@@ -454,6 +502,11 @@ def main():
             frames.append(path)
             finding = _audit(path, name)
             finding["text"] = " ".join(t for t in _page_text(page) if t)
+            if name == "confirm":
+                for want in (REGION_PICKS["language"], REGION_PICKS["keyboard"][0],
+                             REGION_PICKS["timezone"]):
+                    if want not in finding["text"]:
+                        SEED_FAILURES.append(f"confirm: no row shows the pick {want}")
             findings.append(finding)
         win.destroy()
         app.quit()

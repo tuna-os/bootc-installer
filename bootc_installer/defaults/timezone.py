@@ -14,6 +14,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""The time zone step. The selected zone goes into the recipe as
+`timezone` (#292), an IANA name ("Europe/Berlin"); fisherman links
+/etc/localtime to it in the installed system. A GeoIP guess selects a row
+that the user sees before Next. With no row selected the recipe has no
+`timezone`, and the image keeps its own."""
+
 import json
 import logging
 import pathlib
@@ -29,6 +35,7 @@ from bootc_installer.core.timezones import (
     get_location,
     get_timezone_preview,
 )
+from bootc_installer.utils.field_check import ChoiceCheck, drop_focus_inside
 
 logger = logging.getLogger("BootcInstaller::Timezone")
 
@@ -64,6 +71,7 @@ class TimezoneRow(Adw.ActionRow):
         self.tz_name = tz_name
         self.parent_expander = parent_expander
 
+        self.set_use_markup(False)
         self.set_title(title)
         self.country_label.set_label(tz_name)
 
@@ -85,9 +93,11 @@ class BootcDefaultTimezone(Adw.Bin):
     current_tz_label = Gtk.Template.Child()
     current_location_label = Gtk.Template.Child()
     dinosaur_label = Gtk.Template.Child()
+    problem_label = Gtk.Template.Child()
 
-    search_controller = Gtk.EventControllerKey.new()
-    selected_timezone = {"region": "Europe", "zone": None}
+    # Countries filled in at each idle callback.
+    POPULATE_BATCH = 40
+
 
     expanders_list = dict(
         sorted(
@@ -101,12 +111,18 @@ class BootcDefaultTimezone(Adw.Bin):
 
     def __init__(self, window, distro_info, key, step, **kwargs):
         super().__init__(**kwargs)
+        # Per page, made when the page is: not at import, before GTK is up.
+        self.search_controller = Gtk.EventControllerKey.new()
         self.__window = window
         self.__distro_info = distro_info
         self.__key = key
         self.__step = step
         self.__step_num = step["num"]
         self.delta = True
+        # The selected zone, an IANA name, or None.
+        self.selected_timezone = None
+        self.check = ChoiceCheck(window, "timezone", self.problem_label,
+                                 on_change=self.__update_next)
 
         # signals
         self.btn_next.connect("clicked", self.__window.next)
@@ -123,6 +139,7 @@ class BootcDefaultTimezone(Adw.Bin):
 
 
     def del_deltas(self):
+        drop_focus_inside(self)
         self.__tz_entries = []
         for i in self.__expanders:
             self.all_timezones_group.remove(i)
@@ -134,30 +151,44 @@ class BootcDefaultTimezone(Adw.Bin):
             return
 
         def timezone_verify_callback(result, *args):
-            if result:
+            # The guess selects a row only while the user has picked none:
+            # it must not replace a pick on a second visit.
+            if result and self.selected_timezone is None:
                 current_city = result.get_city_name()
                 current_country = result.get_country_name()
-                for entry in self.__tz_entries:
-                    if current_city == entry.title and current_country == entry.subtitle:
-                        self.selected_timezone["zone"] = current_city
-                        self.selected_timezone["region"] = current_country
-                        entry.select_button.set_active(True)
-                        return
-                self.btn_next.set_sensitive(True)
+                get_zone = getattr(result, "get_timezone_str", None)
+                zone = get_zone() if callable(get_zone) else None
+                # The row of the city, else the first row of its zone. The
+                # row's own IANA name is what __on_row_toggle stores.
+                match = next((entry for entry in self.__tz_entries
+                              if current_city == entry.title
+                              and current_country == entry.subtitle), None)
+                if match is None and isinstance(zone, str) and zone:
+                    match = next((entry for entry in self.__tz_entries
+                                  if entry.tz_name == zone), None)
+                if match is not None:
+                    match.select_button.set_active(True)
+                    return
+            self.__update_next()
 
         thread = threading.Thread(target=get_location, args=(timezone_verify_callback,))
         thread.start()
 
+    def test_auto_advance(self):
+        """BOOTC_TEST and the demo tests: move on with what is selected
+        now, which may be nothing (the image keeps its own value)."""
+        self.__window.next()
+
     def get_finals(self):
-        try:
-            return {
-                "timezone": {
-                    "region": self.selected_timezone["region"],
-                    "zone": self.selected_timezone["zone"],
-                }
-            }
-        except IndexError:
-            return {"timezone": {"region": "Europe", "zone": "London"}}
+        """`timezone` is the IANA name of the selected row. No key when no
+        row is selected: there is no fallback zone."""
+        return {"timezone": self.selected_timezone} if self.selected_timezone else {}
+
+    def __update_next(self, *args):
+        check = getattr(self, "check", None)
+        ok = check is None or check.ok
+        # Next with no row: the image keeps its own zone.
+        self.btn_next.set_sensitive(ok)
 
     def __on_search_key_pressed(self, *args):
         def remove_accents(msg: str):
@@ -188,10 +219,12 @@ class BootcDefaultTimezone(Adw.Bin):
                 current_expander += 1
             visible_entries += match
 
-    def __on_row_toggle(self, __check_button, widget):
-        tz_split = widget.tz_name.split("/", 1)
-        self.selected_timezone["region"] = tz_split[0]
-        self.selected_timezone["zone"] = tz_split[1]
+    def __on_row_toggle(self, check_button, widget):
+        # A radio group: the row that is switched off emits too.
+        if not check_button.get_active():
+            return
+        self.selected_timezone = widget.tz_name
+        self.check.submit({"timezone": widget.tz_name})
         self.current_tz_label.set_label(widget.tz_name)
         self.current_location_label.set_label(_("(at %s, %s)") % (widget.title, widget.subtitle))
 
@@ -206,22 +239,40 @@ class BootcDefaultTimezone(Adw.Bin):
             self.dinosaur_label.set_label("")
             self.dinosaur_label.set_visible(False)
 
-        self.btn_next.set_sensitive(True)
+        self.__update_next()
 
     def __generate_timezone_list_widgets(self):
         def __populate_expander(expander, region, country, *args):
             for city, tzname in all_timezones[region][country].items():
                 timezone_row = TimezoneRow(city, country, tzname, self.__on_row_toggle, expander)
                 self.__tz_entries.append(timezone_row)
-                if len(self.__tz_entries) > 0:
+                if len(self.__tz_entries) > 1:
                     timezone_row.select_button.set_group(self.__tz_entries[0].select_button)
                 expander.add_row(timezone_row)
+                # The rows are new on each visit: show the pick again.
+                if tzname == self.selected_timezone:
+                    timezone_row.select_button.set_active(True)
 
+        pending = []
         for country, region in self.expanders_list.items():
             if len(all_timezones[region][country]) > 0:
                 expander = Adw.ExpanderRow.new()
+                # Plain text: "Turks & Caicos Is" is not markup.
+                expander.set_use_markup(False)
                 expander.set_title(country)
                 expander.set_subtitle(region)
                 self.all_timezones_group.add(expander)
                 self.__expanders.append(expander)
-                GLib.idle_add(__populate_expander, expander, region, country)
+                pending.append((expander, region, country))
+
+        def __populate_some(*args):
+            # Some countries at each idle, in order: the page draws at once,
+            # and two hundred countries are not two hundred callbacks.
+            for _ in range(min(self.POPULATE_BATCH, len(pending))):
+                __populate_expander(*pending.pop(0))
+            if pending:
+                GLib.idle_add(__populate_some)
+            return False
+
+        if pending:
+            GLib.idle_add(__populate_some)

@@ -99,6 +99,7 @@ about to be erased.
 | `welcome_title`, `welcome_subtitle` | welcome heading and line under it |
 | `welcome_install`, `welcome_install_subtitle`, `welcome_button` | the install row (GNOME) or the forward button |
 | `encryption_<type>_label`, `encryption_<type>_description` | each encryption choice, and the confirm page's encryption row (the label) |
+| `filesystem_zfs_label` | the name of ZFS in the filesystem choice and on the confirm page; it says that ZFS is experimental |
 | `confirm_title`, `confirm_subtitle`, `confirm_body`, `confirm_warning`, `confirm_warning_removable`, `confirm_button` | the last page before the disk is written |
 | `progress_title`, `progress_note` | while fisherman runs |
 | `step_<step_id>` | the label of the install step that is running |

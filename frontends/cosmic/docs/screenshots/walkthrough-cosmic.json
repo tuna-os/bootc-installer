@@ -124,31 +124,31 @@
       "name": "language",
       "png": "docs/screenshots/04-language.png",
       "rendered": true,
-      "colours": 196,
+      "colours": 195,
       "flat": 0.5238113516556631,
-      "ink": 0.9931419212856338,
-      "stddev": 0.0676849262735039,
-      "text_excerpt": "Language Changes this session only. The installed system keeps its own language. en_US.UTF-8 en_GB.UTF-8 fr_FR.UTF-8 de_DE.UTF-8 es_ES.UTF-8 it_IT.UTF-8 pt_BR.UTF-8 nl_NL.UTF-8 ja_JP.UTF-8 zh_CN.UTF-8 Back Continue"
+      "ink": 0.9931931009775321,
+      "stddev": 0.06695109271539579,
+      "text_excerpt": "Language Changes this session and the installed system. en_US.UTF-8 en_GB.UTF-8 fr_FR.UTF-8 de_DE.UTF-8 es_ES.UTF-8 it_IT.UTF-8 pt_BR.UTF-8 nl_NL.UTF-8 ja_JP.UTF-8 zh_CN.UTF-8 Back Continue"
     },
     {
       "name": "keyboard",
       "png": "docs/screenshots/05-keyboard.png",
       "rendered": true,
-      "colours": 184,
+      "colours": 180,
       "flat": 0.5271892113209479,
-      "ink": 0.9938968217411331,
-      "stddev": 0.06464589498759726,
-      "text_excerpt": "Keyboard Changes this session only. The installed system keeps its own keyboard layout. us gb fr de es it br jp ru cn Back Continue"
+      "ink": 0.9940631557398024,
+      "stddev": 0.06357153560128224,
+      "text_excerpt": "Keyboard Changes this session and the installed system. us gb fr de es it br jp ru cn Back Continue"
     },
     {
       "name": "timezone",
       "png": "docs/screenshots/06-timezone.png",
       "rendered": true,
-      "colours": 195,
+      "colours": 199,
       "flat": 0.46579917088899125,
-      "ink": 0.9931291263626593,
-      "stddev": 0.0660659420576623,
-      "text_excerpt": "Time zone Search, then pick where you are. Changes this session only. The installed system keeps its own time zone. Search time zones  Europe/Berlin Europe/Paris Europe/Rome America/New_York Asia/Tokyo Back Continue"
+      "ink": 0.9929372025180409,
+      "stddev": 0.06640756397347561,
+      "text_excerpt": "Time zone Search, then pick where you are. Changes this session and the installed system. Search time zones  Europe/Berlin Europe/Paris Europe/Rome America/New_York Asia/Tokyo Back Continue"
     },
     {
       "name": "network",
@@ -207,7 +207,7 @@
       "colours": 303,
       "flat": 0.49199037821792313,
       "ink": 0.9907876554583142,
-      "stddev": 0.075254263942183,
+      "stddev": 0.0749444153716106,
       "text_excerpt": "Confirm installation The last screen before anything is written. Everything on /dev/sda will be erased. This cannot be undone.  Summary Target disk /dev/sda Filesystem btrfs Encryption Passphrase Computer name tunaos Username alex System Ca"
     },
     {
@@ -274,16 +274,16 @@
   "transition_pixels": [
     26280,
     296731,
-    120394,
-    4515,
-    68426,
-    344756,
+    120008,
+    4111,
+    67945,
+    344298,
     386145,
     165758,
     158969,
     191247,
     340548,
-    150062,
+    149342,
     320666,
     31623,
     35734,

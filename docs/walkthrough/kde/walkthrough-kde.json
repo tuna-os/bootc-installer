@@ -93,10 +93,10 @@
       "name": "welcome",
       "png": "docs/screenshots/01-welcome.png",
       "rendered": true,
-      "colours": 541,
-      "flat": 0.7799694728190677,
-      "ink": 0.17158330398027474,
-      "stddev": 0.08966084399926993,
+      "colours": 555,
+      "flat": 0.7825672185041681,
+      "ink": 0.1706733591640249,
+      "stddev": 0.08896666971489771,
       "text_excerpt": "Step 1 of 7 \u00b7 Welcome\nWelcome to TunaOS\nThis wizard will guide you through installing TunaOS onto this computer.\nYou will choose a disk and how it should be encrypted. Everything after that is handled by the installer.\nRegion & language\nThe"
     },
     {
@@ -133,10 +133,10 @@
       "name": "confirm",
       "png": "docs/screenshots/05-confirm.png",
       "rendered": true,
-      "colours": 372,
-      "flat": 0.6182634730538922,
-      "ink": 0.37498440618762474,
-      "stddev": 0.06160353176013785,
+      "colours": 408,
+      "flat": 0.4919691866267465,
+      "ink": 0.49362213073852296,
+      "stddev": 0.06680407485060794,
       "text_excerpt": "Step 5 of 7 \u00b7 Confirm Installation\nConfirm installation\nEverything on /dev/nvme0n1 will be erased. This cannot be undone.\nEverything on /dev/nvme0n1 will be erased. This cannot be undone.\nEverything on /dev/nvme0n1 will be erased. This cann"
     },
     {
@@ -191,11 +191,11 @@
     }
   ],
   "transition_pixels": [
-    15409,
+    15076,
     10270,
     10482,
-    11168,
-    11175,
+    11912,
+    11972,
     13067,
     11227,
     176621,

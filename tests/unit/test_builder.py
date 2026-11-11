@@ -16,6 +16,9 @@ _STUBBED_MODULES = (
     "bootc_installer.defaults.user",
     "bootc_installer.defaults.welcome",
     "bootc_installer.defaults.qr_companion",
+    "bootc_installer.defaults.language",
+    "bootc_installer.defaults.keyboard",
+    "bootc_installer.defaults.timezone",
     "bootc_installer.layouts.yes_no",
     "bootc_installer.utils.builder",
 )
@@ -89,6 +92,10 @@ def _import_builder_fresh(default_image="ghcr.io/projectbluefin/bluefin:latest")
         "bootc_installer.defaults.qr_companion",
         BootcDefaultQrCompanion=type("BootcDefaultQrCompanion", (), {}),
     )
+    for name, cls in (("language", "BootcDefaultLanguage"),
+                      ("keyboard", "BootcDefaultKeyboard"),
+                      ("timezone", "BootcDefaultTimezone")):
+        _stub_module(f"bootc_installer.defaults.{name}", **{cls: type(cls, (), {})})
     _stub_module(
         "bootc_installer.layouts.yes_no",
         BootcLayoutYesNo=type("BootcLayoutYesNo", (), {}),
@@ -120,6 +127,9 @@ class TestBuilder(unittest.TestCase):
                 "user",
                 "welcome",
                 "qr_companion",
+                "language",
+                "keyboard",
+                "timezone",
             ):
                 defaults_pkg.__dict__.pop(attr, None)
         except Exception:

@@ -108,6 +108,17 @@ def go(window, step):
     return current_page(window)
 
 
+def go_to_before(window, key):
+    """Next until the page before the step `key` shows: the language,
+    keyboard and time zone steps sit between Welcome and the steps that
+    a test drives."""
+    keys = [getattr(p, "_bootc_step_key", None) for p in pages(window)]
+    target = keys.index(key) - 1
+    while int(round(window.carousel.get_position())) < target:
+        go(window, +1)
+    return current_page(window)
+
+
 def shipped_recipe(**image_overrides):
     """recipe.json as shipped; with `image_overrides`, as a host that pins
     one image ships it.

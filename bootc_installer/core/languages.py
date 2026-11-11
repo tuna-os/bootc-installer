@@ -1,6 +1,19 @@
+"""The locales the language step offers, with their names.
+
+GnomeDesktop names a locale in its own language ("Deutsch (Deutschland)").
+It is optional: without its typelib the row shows the locale itself. Each
+row's value is the locale name, the recipe's `locale`.
+"""
+
 import locale
 
-from gi.repository import GnomeDesktop
+try:
+    import gi
+
+    gi.require_version("GnomeDesktop", "4.0")
+    from gi.repository import GnomeDesktop
+except (ImportError, ValueError, AttributeError):
+    GnomeDesktop = None
 
 all_locale = [
     "ab_GE.UTF-8",
@@ -166,12 +179,33 @@ all_locale = [
     "pt_BR.UTF-8",
     "pt_PT.UTF-8",
 ]
+
+
+def language_name(code):
+    """The name of a locale, or the locale itself when nothing names it."""
+    if GnomeDesktop is not None:
+        try:
+            name = GnomeDesktop.get_language_from_locale(code, None)
+        except Exception:  # noqa: BLE001 - a typelib error must not stop the step
+            name = None
+        if name:
+            return name
+    return code
+
+
+def session_locale():
+    """The live session's locale ("en_US.UTF-8"), or "" when it has none
+    that the list could hold (C, POSIX, or nothing set)."""
+    name, encoding = locale.getlocale()
+    if not name or name in ("C", "POSIX"):
+        return ""
+    return f"{name}.{encoding}" if encoding else name
+
+
 all_languages = {}
 
 for _locale in all_locale:
-    all_languages[_locale] = GnomeDesktop.get_language_from_locale(_locale, None)
+    all_languages[_locale] = language_name(_locale)
 
 all_languages = dict(sorted(all_languages.items(), key=lambda item: item[1]))
-current_language = "{}.{}".format(
-    locale.getdefaultlocale()[0], locale.getdefaultlocale()[1]
-)
+current_language = session_locale()

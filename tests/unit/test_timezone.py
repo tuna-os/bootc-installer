@@ -259,6 +259,10 @@ class TestLoadDinosaurs(unittest.TestCase):
         self.assertEqual(result, {})
 
 
+_ACTIVE = MagicMock()
+_ACTIVE.get_active.return_value = True
+
+
 class TestBootcDefaultTimezone(unittest.TestCase):
     def setUp(self):
         self.mod = _import_timezone_fresh()
@@ -291,27 +295,20 @@ class TestBootcDefaultTimezone(unittest.TestCase):
         obj.all_timezones_group.remove.assert_any_call(expander_one)
         obj.all_timezones_group.remove.assert_any_call(expander_two)
 
-    def test_get_finals_returns_selected_timezone(self):
+    def test_get_finals_returns_the_iana_name(self):
+        """The recipe's `timezone` is an IANA name, not a city and a
+        country (#292)."""
         obj = self.mod.BootcDefaultTimezone.__new__(self.mod.BootcDefaultTimezone)
-        obj.selected_timezone = {"region": "America", "zone": "New_York"}
+        obj.selected_timezone = "America/New_York"
 
-        result = obj.get_finals()
+        self.assertEqual(obj.get_finals(), {"timezone": "America/New_York"})
 
-        self.assertEqual(
-            result,
-            {"timezone": {"region": "America", "zone": "New_York"}},
-        )
-
-    def test_get_finals_falls_back_when_selection_raises_index_error(self):
+    def test_get_finals_has_no_key_without_a_selection(self):
+        """No fallback zone: without a pick the image keeps its own."""
         obj = self.mod.BootcDefaultTimezone.__new__(self.mod.BootcDefaultTimezone)
-        obj.selected_timezone = _IndexErrorSelection()
+        obj.selected_timezone = None
 
-        result = obj.get_finals()
-
-        self.assertEqual(
-            result,
-            {"timezone": {"region": "Europe", "zone": "London"}},
-        )
+        self.assertEqual(obj.get_finals(), {})
 
     def test_timezone_verify_ignores_other_pages(self):
         obj = self.mod.BootcDefaultTimezone.__new__(self.mod.BootcDefaultTimezone)
@@ -325,10 +322,11 @@ class TestBootcDefaultTimezone(unittest.TestCase):
     def test_timezone_verify_selects_matching_timezone(self):
         obj = self.mod.BootcDefaultTimezone.__new__(self.mod.BootcDefaultTimezone)
         setattr(obj, "_BootcDefaultTimezone__step_num", 3)
-        obj.selected_timezone = {"region": "Europe", "zone": None}
+        obj.selected_timezone = None
         entry = types.SimpleNamespace(
             title="New York",
             subtitle="United States",
+            tz_name="America/New_York",
             select_button=MagicMock(),
         )
         setattr(obj, "_BootcDefaultTimezone__tz_entries", [entry])
@@ -344,12 +342,51 @@ class TestBootcDefaultTimezone(unittest.TestCase):
         ):
             obj.timezone_verify(idx=3)
 
-        self.assertEqual(
-            obj.selected_timezone,
-            {"region": "United States", "zone": "New York"},
-        )
+        # The row is switched on; its toggle handler stores the IANA name.
         entry.select_button.set_active.assert_called_once_with(True)
         obj.btn_next.set_sensitive.assert_not_called()
+
+    def test_the_guess_does_not_replace_a_pick(self):
+        obj = self.mod.BootcDefaultTimezone.__new__(self.mod.BootcDefaultTimezone)
+        setattr(obj, "_BootcDefaultTimezone__step_num", 3)
+        obj.selected_timezone = "Europe/Rome"
+        obj.check = None
+        entry = types.SimpleNamespace(title="New York", subtitle="United States",
+                                      tz_name="America/New_York", select_button=MagicMock())
+        setattr(obj, "_BootcDefaultTimezone__tz_entries", [entry])
+        obj.btn_next = MagicMock()
+
+        def _fake_get_location(callback):
+            callback(_FakeLocation("New York", "United States"))
+
+        with patch.object(self.mod, "get_location", side_effect=_fake_get_location), patch.object(
+            self.mod.threading, "Thread",
+            side_effect=lambda target, args: _FakeThread(target, args),
+        ):
+            obj.timezone_verify(idx=3)
+
+        entry.select_button.set_active.assert_not_called()
+        self.assertEqual(obj.selected_timezone, "Europe/Rome")
+
+    def test_a_guess_without_its_city_selects_the_first_row_of_its_zone(self):
+        """The tzdata fallback guesses a zone, not a GWeather city."""
+        obj = self.mod.BootcDefaultTimezone.__new__(self.mod.BootcDefaultTimezone)
+        setattr(obj, "_BootcDefaultTimezone__step_num", 3)
+        obj.selected_timezone = None
+        rome = types.SimpleNamespace(title="Rome", subtitle="Italy",
+                                     tz_name="Europe/Rome", select_button=MagicMock())
+        setattr(obj, "_BootcDefaultTimezone__tz_entries", [rome])
+        obj.btn_next = MagicMock()
+        guess = types.SimpleNamespace(get_city_name=lambda: "Milano",
+                                      get_country_name=lambda: "Italia",
+                                      get_timezone_str=lambda: "Europe/Rome")
+
+        with patch.object(self.mod, "get_location", side_effect=lambda cb: cb(guess)), \
+                patch.object(self.mod.threading, "Thread",
+                             side_effect=lambda target, args: _FakeThread(target, args)):
+            obj.timezone_verify(idx=3)
+
+        rome.select_button.set_active.assert_called_once_with(True)
 
     def test_timezone_verify_enables_next_when_detection_does_not_match(self):
         obj = self.mod.BootcDefaultTimezone.__new__(self.mod.BootcDefaultTimezone)
@@ -361,10 +398,12 @@ class TestBootcDefaultTimezone(unittest.TestCase):
                 types.SimpleNamespace(
                     title="Rome",
                     subtitle="Italy",
+                    tz_name="Europe/Rome",
                     select_button=MagicMock(),
                 )
             ],
         )
+        obj.selected_timezone = None
         obj.btn_next = MagicMock()
 
         def _fake_get_location(callback):
@@ -427,7 +466,8 @@ class TestBootcDefaultTimezone(unittest.TestCase):
 
     def test_row_toggle_updates_labels_and_shows_matching_dinosaur(self):
         obj = self.mod.BootcDefaultTimezone.__new__(self.mod.BootcDefaultTimezone)
-        obj.selected_timezone = {"region": None, "zone": None}
+        obj.selected_timezone = None
+        obj.check = MagicMock(ok=True)
         obj.current_tz_label = MagicMock()
         obj.current_location_label = MagicMock()
         obj.dinosaur_label = MagicMock()
@@ -443,12 +483,11 @@ class TestBootcDefaultTimezone(unittest.TestCase):
             "_DINOSAURS",
             {"United States": {"name": "T. rex", "location": "Montana"}},
         ):
-            getattr(obj, "_BootcDefaultTimezone__on_row_toggle")(None, widget)
+            getattr(obj, "_BootcDefaultTimezone__on_row_toggle")(_ACTIVE, widget)
 
-        self.assertEqual(
-            obj.selected_timezone,
-            {"region": "America", "zone": "New_York"},
-        )
+        self.assertEqual(obj.selected_timezone, "America/New_York")
+        # fisherman checks the name (`validate --partial`).
+        obj.check.submit.assert_called_once_with({"timezone": "America/New_York"})
         obj.current_tz_label.set_label.assert_called_once_with("America/New_York")
         obj.current_location_label.set_label.assert_called_once()
         obj.dinosaur_label.set_markup.assert_called_once()
@@ -457,7 +496,8 @@ class TestBootcDefaultTimezone(unittest.TestCase):
 
     def test_row_toggle_hides_dinosaur_when_country_has_no_entry(self):
         obj = self.mod.BootcDefaultTimezone.__new__(self.mod.BootcDefaultTimezone)
-        obj.selected_timezone = {"region": None, "zone": None}
+        obj.selected_timezone = None
+        obj.check = MagicMock(ok=True)
         obj.current_tz_label = MagicMock()
         obj.current_location_label = MagicMock()
         obj.dinosaur_label = MagicMock()
@@ -469,14 +509,28 @@ class TestBootcDefaultTimezone(unittest.TestCase):
         )
 
         with patch.object(self.mod, "_DINOSAURS", {}):
-            getattr(obj, "_BootcDefaultTimezone__on_row_toggle")(None, widget)
+            getattr(obj, "_BootcDefaultTimezone__on_row_toggle")(_ACTIVE, widget)
 
         obj.dinosaur_label.set_label.assert_called_once_with("")
         obj.dinosaur_label.set_visible.assert_called_once_with(False)
 
+    def test_the_row_that_is_switched_off_changes_nothing(self):
+        obj = self.mod.BootcDefaultTimezone.__new__(self.mod.BootcDefaultTimezone)
+        obj.selected_timezone = "Europe/Rome"
+        obj.check = MagicMock(ok=True)
+        widget = types.SimpleNamespace(tz_name="Europe/Paris", title="Paris", subtitle="France")
+        off = MagicMock()
+        off.get_active.return_value = False
+
+        getattr(obj, "_BootcDefaultTimezone__on_row_toggle")(off, widget)
+
+        self.assertEqual(obj.selected_timezone, "Europe/Rome")
+        obj.check.submit.assert_not_called()
+
     def test_generate_timezone_list_widgets_builds_expanders_and_rows(self):
         obj = self.mod.BootcDefaultTimezone.__new__(self.mod.BootcDefaultTimezone)
         obj.expanders_list = {"Italy": "Europe"}
+        obj.selected_timezone = None
         obj.all_timezones_group = MagicMock()
         setattr(obj, "_BootcDefaultTimezone__expanders", [])
         setattr(obj, "_BootcDefaultTimezone__tz_entries", [])
@@ -509,7 +563,9 @@ class TestBootcDefaultTimezone(unittest.TestCase):
         obj.all_timezones_group.add.assert_called_once_with(expander)
         expander.add_row.assert_any_call(first_row)
         expander.add_row.assert_any_call(second_row)
-        first_row.select_button.set_group.assert_called_once_with(first_row.select_button)
+        # The first row is the group; a button is not its own group (GTK
+        # refuses that with a critical).
+        first_row.select_button.set_group.assert_not_called()
         second_row.select_button.set_group.assert_called_once_with(first_row.select_button)
 
 

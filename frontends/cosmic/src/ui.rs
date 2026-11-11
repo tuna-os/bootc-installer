@@ -186,6 +186,19 @@ fn t_line(key: &str) -> String {
     branding::text(key)
 }
 
+/// What a filesystem is called: its id, and for zfs the copy
+/// `filesystem_zfs_label`. fisherman accepts zfs only as experimental (the
+/// recipe's `experimental`), and the name says so.
+fn filesystem_label(fs: &str) -> String {
+    if fs == "zfs" {
+        let line = t_line("filesystem_zfs_label");
+        if !line.is_empty() {
+            return line;
+        }
+    }
+    fs.to_string()
+}
+
 /// The same with `{disk}` filled in.
 fn t_disk(key: &str, disk: &str) -> String {
     branding::get().text_with(key, &[("disk", disk)])
@@ -484,7 +497,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 tr(ACCOUNT_USERNAME),
                 confirm_user,
             ];
-            if let Some(leaf) = app.active_leaf() {
+            if let Some(leaf) = app.active_leaf().filter(|leaf| !leaf.label.is_empty()) {
                 t.push(tr(CONFIRM_SYSTEM));
                 t.push(leaf.label.clone());
             }
@@ -1453,6 +1466,7 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
     // frontend's own. `FilesystemChanged` indexes the same list.
     let fs_choices = app.filesystem_choices();
     let fs_index = fs_choices.iter().position(|f| *f == recipe.filesystem);
+    let fs_labels: Vec<String> = fs_choices.iter().map(|f| filesystem_label(f)).collect();
 
     // tunaOS#734: this list is `has_tpm`-filtered, same set XFCE offers on
     // this hardware, and `idx` below is a position in it — NOT in the full
@@ -1491,7 +1505,7 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
         )
         .add(widget::settings::item(
             tr(OPTIONS_FILESYSTEM),
-            widget::dropdown(fs_choices, fs_index, Message::FilesystemChanged),
+            widget::dropdown(fs_labels, fs_index, Message::FilesystemChanged),
         ));
 
     // fisherman's problem with the choice (an empty passphrase, LUKS on
@@ -1661,7 +1675,7 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
         .add(widget::settings::item(tr(CONFIRM_TARGET_DISK), widget::text::body(disk)))
         .add(widget::settings::item(
             tr(OPTIONS_FILESYSTEM),
-            widget::text::body(recipe.filesystem.clone()),
+            widget::text::body(filesystem_label(&recipe.filesystem)),
         ))
         .add(widget::settings::item(
             tr(OPTIONS_ENCRYPTION),
@@ -1679,9 +1693,10 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
                 tr(CONFIRM_NO_ACCOUNT)
             }),
         ));
-    // The product and the channel, when the catalog has the image; then
-    // the reference itself.
-    let summary = match app.active_leaf() {
+    // The product and the channel, when the catalog has the image (a live
+    // leaf built from the ISO recipe alone has no label); then the
+    // reference itself.
+    let summary = match app.active_leaf().filter(|leaf| !leaf.label.is_empty()) {
         Some(leaf) => summary.add(widget::settings::item(
             tr(CONFIRM_SYSTEM),
             widget::text::body(leaf.label.clone()),
