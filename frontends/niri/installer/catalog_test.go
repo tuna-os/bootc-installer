@@ -25,6 +25,15 @@ type expectedCatalog struct {
 		XDGConfigHome string   `json:"xdg_config_home"`
 		Paths         []string `json:"paths"`
 	} `json:"search_paths"`
+	Override struct {
+		Env   string `json:"env"`
+		Cases []struct {
+			Value         string   `json:"value"`
+			InFlatpak     bool     `json:"in_flatpak"`
+			XDGConfigHome string   `json:"xdg_config_home"`
+			Paths         []string `json:"paths"`
+		} `json:"cases"`
+	} `json:"override"`
 	DefaultSelection []struct {
 		Branding string  `json:"branding_default_image"`
 		Catalog  string  `json:"catalog_default_image"`
@@ -95,6 +104,22 @@ func TestSharedCatalogSearchPaths(t *testing.T) {
 	for _, path := range catalogSearchPaths(true, "/cfg")[:2] {
 		if !strings.HasPrefix(path, "/run/host/etc/") {
 			t.Errorf("%s is not below /run/host in a Flatpak", path)
+		}
+	}
+}
+
+// FISHERMAN_IMAGES_PATH, for each case of the shared fixture: its file
+// first when it names one, then the search path as without it.
+func TestSharedCatalogOverride(t *testing.T) {
+	_, want := loadShared(t)
+	if want.Override.Env != imagesPathEnv || len(want.Override.Cases) == 0 {
+		t.Fatalf("the fixture's override is %q with %d cases; this backend reads %q",
+			want.Override.Env, len(want.Override.Cases), imagesPathEnv)
+	}
+	for _, c := range want.Override.Cases {
+		got := catalogPathsWith(c.Value, c.InFlatpak, c.XDGConfigHome, "<bundled>")
+		if !reflect.DeepEqual(got, c.Paths) {
+			t.Errorf("override=%q flatpak=%v\n got %v\nwant %v", c.Value, c.InFlatpak, got, c.Paths)
 		}
 	}
 }
@@ -444,6 +469,34 @@ func TestCatalogWithoutAFileIsEmpty(t *testing.T) {
 
 // The GPU: a PCI display device whose vendor is 0x10de. A network card of
 // that vendor, or a display device of another, is not one.
+// shared/probe/fixtures/pci/cases.json: a PCI display device with NVIDIA's
+// vendor id, and nothing else, is an NVIDIA GPU.
+func TestHasNvidiaGPUFollowsThePciFixture(t *testing.T) {
+	pci := filepath.Join("..", "..", "..", "shared", "probe", "fixtures", "pci")
+	data, err := os.ReadFile(filepath.Join(pci, "cases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Cases []struct {
+			Name      string `json:"name"`
+			Devices   string `json:"devices"`
+			HasNvidia bool   `json:"has_nvidia"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixture.Cases) < 4 {
+		t.Fatalf("%d cases", len(fixture.Cases))
+	}
+	for _, c := range fixture.Cases {
+		if got := hasNvidiaGPU(filepath.Join(pci, c.Devices)); got != c.HasNvidia {
+			t.Errorf("%s: hasNvidiaGPU = %v, want %v", c.Name, got, c.HasNvidia)
+		}
+	}
+}
+
 func TestHasNvidiaGPU(t *testing.T) {
 	device := func(root, name, vendor, class string) {
 		dir := filepath.Join(root, name)

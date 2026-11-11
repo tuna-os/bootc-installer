@@ -30,6 +30,11 @@ The same script writes it, and the same five test suites read it. It is a
 separate file because fisherman's tests replay `fraction-cases.json`
 through its own computation of `overall_pct`.
 
+[`error-cases.json`](error-cases.json) pins what a parser keeps of the
+`error` event: the last one, as `message`, `code` and `field`. A part that
+is missing or is not a string is `""`. The event does not move the bar.
+The same script writes the file, and the same five test suites read it.
+
 ## Events
 
 Every event carries `type`, plus `timestamp` (RFC 3339) and `elapsed_ms`.

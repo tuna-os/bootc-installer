@@ -16,8 +16,10 @@ Independent verdicts, all required:
   * the account follows the catalog contract (shared/catalog/README.md):
     the recipe creates a user, in wheel, exactly when the image needs one.
     The catalog is `--catalog`, else <e2e dir>/catalog.json, which the
-    frontend's driver writes: the catalog it gave the frontend. A driver
-    that does not export one yet is judged by LEGACY_USER_STEP;
+    frontend's driver writes: the catalog it gave the frontend. Every
+    driver gives its frontend shared/e2e/catalog.json, so an exported
+    catalog with other content fails. A driver that does not export one
+    is judged by LEGACY_USER_STEP;
   * the desktop extras follow the same catalog: the recipe has the `extras`
     object of the leaf it installs, or no key when the leaf has none. The
     shim has no catalog, as a fisherman that a Flatpak stages has none, so
@@ -34,6 +36,8 @@ import sys
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 REAL = "/usr/local/lib/tuna-e2e/fisherman.real"
 E2E_DIR = os.environ.get("TUNA_E2E_DIR", "/tmp/tuna-e2e")
+# The catalog every E2E driver gives its frontend (README.md, "The catalog").
+SHARED_CATALOG = os.path.join(REPO, "shared", "e2e", "catalog.json")
 # Every driver now writes <e2e dir>/catalog.json, so this set is empty. A
 # frontend named here would keep the old verdict (the recipe must create an
 # account) when no catalog is exported. With no catalog, an account is not
@@ -134,6 +138,20 @@ def load_catalog(explicit=None):
     return _catalog_resolver().load(path)
 
 
+def shared_catalog_failures(catalog, explicit=None):
+    """The exported catalog must be the shared one: one catalog for the
+    five drivers, so each VM run's account follows the leaf the driver
+    chose, and not a catalog of the driver's own. `--catalog` is the job's
+    own choice and is not held to it."""
+    if catalog is None or explicit:
+        return []
+    with open(SHARED_CATALOG, encoding="utf-8") as fh:
+        shared = json.load(fh)
+    if catalog != shared:
+        return [f"catalog: the driver exported a catalog that is not {SHARED_CATALOG}"]
+    return []
+
+
 def main():
     args = sys.argv[1:]
     catalog_path = None
@@ -209,6 +227,7 @@ def main():
     except (OSError, ValueError) as error:
         catalog = None
         failures.append(f"catalog: {error}")
+    failures.extend(shared_catalog_failures(catalog, catalog_path))
     required = account_required(frontend, recipe, catalog)
     if catalog is None and required is None:
         print(f"account: NOT JUDGED. The {frontend} driver exports no catalog "

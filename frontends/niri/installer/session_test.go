@@ -207,6 +207,53 @@ func TestNetcheckTargetsStartWithTheImagesRegistry(t *testing.T) {
 	}
 }
 
+// shared/network/targets.json: the targets of each reference, the timeout
+// and the variables that turn the check off, as in every frontend.
+func TestNetcheckTargetsFollowTheSharedFixture(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "shared", "network", "targets.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Shared    []string `json:"shared_targets"`
+		Timeout   int      `json:"timeout_seconds"`
+		SkipEnv   []string `json:"skip_env"`
+		SkipCases []struct {
+			Env  map[string]string `json:"env"`
+			Skip bool              `json:"skip"`
+		} `json:"skip_cases"`
+		Cases []struct {
+			Imgref  string   `json:"imgref"`
+			Targets []string `json:"targets"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixture.Cases) < 20 {
+		t.Fatalf("%d cases", len(fixture.Cases))
+	}
+	for _, c := range fixture.Cases {
+		if got := netcheckTargets(c.Imgref); strings.Join(got, " ") != strings.Join(c.Targets, " ") {
+			t.Errorf("netcheckTargets(%q) = %v, want %v", c.Imgref, got, c.Targets)
+		}
+	}
+	if strings.Join(netcheckFallbacks, " ") != strings.Join(fixture.Shared, " ") {
+		t.Errorf("shared targets %v, want %v", netcheckFallbacks, fixture.Shared)
+	}
+	if netcheckTimeout != time.Duration(fixture.Timeout)*time.Second {
+		t.Errorf("timeout %v, want %ds", netcheckTimeout, fixture.Timeout)
+	}
+	if strings.Join(netcheckSkipEnv, " ") != strings.Join(fixture.SkipEnv, " ") {
+		t.Errorf("skip variables %v, want %v", netcheckSkipEnv, fixture.SkipEnv)
+	}
+	for _, c := range fixture.SkipCases {
+		if got := netcheckSkipped(func(name string) string { return c.Env[name] }); got != c.Skip {
+			t.Errorf("env %v: skipped = %v, want %v", c.Env, got, c.Skip)
+		}
+	}
+}
+
 func TestCheckConnectivityTriesTheTargetsInOrder(t *testing.T) {
 	var dialled []string
 	answers := func(up ...string) dialer {

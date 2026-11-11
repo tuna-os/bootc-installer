@@ -141,28 +141,16 @@ const CAPTURE_USERNAME: &str = "alex";
 const CAPTURE_FULLNAME: &str = "Alex Example";
 const CAPTURE_PASSWORD: &str = "tr0ub4dor and 3";
 
-/// The catalog the walkthrough photographs, read through the same parser
-/// a real catalog goes through. Two products; the first has two channels,
-/// so the rows show why a row is a breadcrumb and not a leaf name. The
+/// The catalog the walkthrough photographs: `shared/walkthrough/
+/// capture-catalog.json`, the one every capture harness reads, through the
+/// same parser a real catalog goes through. Two products; the first has
+/// three channels, so the rows show why a row is a breadcrumb and not a
+/// leaf name. The
 /// selected leaf needs a user and carries a tour slide, so the image,
 /// account and tour pages all render their populated states from the same
 /// selection. No product of ours in any of it.
-const FIXTURE_CATALOG: &str = r#"{
-  "default_image": "registry.example/os/capture-desktop:stable",
-  "images": [
-    {"name": "Capture Desktop", "registry": "registry.example/os/capture-desktop",
-     "bootloader": "systemd", "composefs": true, "filesystems": ["btrfs", "ext4"],
-     "flatpaks": [],
-     "children": [
-       {"name": "Stable", "tag": "stable", "desc": "The photographed system.",
-        "carousel": [{"title": "Capture at a glance",
-                      "description": "Everything is where you left it."}]},
-       {"name": "Beta", "tag": "beta"}
-     ]},
-    {"name": "Capture Minimal", "imgref": "registry.example/os/capture-minimal:stable",
-     "needs_user_creation": false}
-  ]
-}"#;
+const FIXTURE_CATALOG: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/walkthrough/capture-catalog.json");
 
 /// The frames after the page list: a page in another state, not a page of
 /// its own, so none of them is in `Page::ORDER`.
@@ -318,7 +306,9 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                 // way init selects one (`default_index`), and applied
                 // through the page's own message.
                 Page::Image => {
-                    app.catalog = crate::image_catalog::parse_manifest(FIXTURE_CATALOG)
+                    let text = std::fs::read_to_string(FIXTURE_CATALOG)
+                        .unwrap_or_else(|e| panic!("{FIXTURE_CATALOG}: {e}"));
+                    app.catalog = crate::image_catalog::parse_manifest(&text)
                         .expect("the capture catalog parses");
                     let Some(default) = app.catalog.default_index("") else {
                         eprintln!("capture: the fixture catalog's default_image is not a leaf");
@@ -499,7 +489,7 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                     && recipe.bootloader == "systemd"
                     && recipe.compose_fs_backend
                     && recipe.filesystem == "btrfs"
-                    && recipe.flatpaks == Some(Vec::new())
+                    && recipe.flatpaks == Some(vec!["org.example.App".to_string()])
                     && recipe.target_imgref == recipe.image)
                 {
                     eprintln!("capture: the selected leaf did not reach the recipe: {recipe:?}");

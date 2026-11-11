@@ -38,46 +38,47 @@ int main(int argc, char *argv[])
         return 2;
     }
 
-    // The catalog this driver gives the frontend, written next to the recipe
-    // so shared/e2e/check-recipe.py can judge "an account iff the image
-    // needs one" against it. The image is the ostree + grub2 canary the VM
-    // job installs. A second leaf is a composefs image with its own
-    // filesystem: selecting it first shows that the next leaf's values
-    // replace it (#287).
+    // The catalog every E2E driver gives its frontend (shared/e2e/catalog.json),
+    // copied next to the recipe so shared/e2e/check-recipe.py can judge "an
+    // account iff the image needs one" against it. This run installs the
+    // canary leaf, which needs an account. The composefs leaf has its own
+    // filesystem and needs none: selecting it first shows that the next
+    // leaf's values replace it (#287).
     const QString e2eDir = qEnvironmentVariable("TUNA_E2E_DIR", QStringLiteral("/tmp/tuna-e2e"));
     const QString catalogPath = e2eDir + QStringLiteral("/catalog.json");
     const QString canary = QStringLiteral("quay.io/centos-bootc/centos-bootc:c10s");
+    const QString composefsLeaf = QStringLiteral("registry.example/os/composefs:1");
+    QJsonObject sharedCatalog;
     {
+        QFile source(QStringLiteral(E2E_CATALOG_FILE));
+        if (!source.open(QIODevice::ReadOnly)) {
+            out << "FAIL: cannot read " << source.fileName() << "\n";
+            return 2;
+        }
+        const QByteArray text = source.readAll();
+        sharedCatalog = QJsonDocument::fromJson(text).object();
+        QFile::remove(catalogPath);
         QFile catalog(catalogPath);
-        if (!catalog.open(QIODevice::WriteOnly)) {
+        if (!catalog.open(QIODevice::WriteOnly) || catalog.write(text) != text.size()) {
             out << "FAIL: cannot write " << catalogPath << "\n";
             return 2;
         }
-        catalog.write(R"({
-  "images": [
-    {"name": "Composefs canary", "imgref": "registry.example/os/composefs:1",
-     "composefs": true, "bootloader": "systemd", "filesystems": ["btrfs", "ext4"],
-     "needs_user_creation": false},
-    {"name": "CentOS bootc", "registry": "quay.io/centos-bootc/centos-bootc",
-     "bootloader": "grub2", "filesystem": "xfs", "needs_user_creation": true,
-     "extras": {"printServices": true, "oemSetup": true, "audioNames": true, "bootSplash": true},
-     "flatpaks": [],
-     "children": [{"name": "Stream 10", "tag": "c10s"}]}
-  ]
-}
-)");
     }
     qputenv("FISHERMAN_IMAGES_PATH", catalogPath.toUtf8());
 
     InstallerController controller;
-    if (controller.catalogIndex() != -1) {
-        out << "FAIL: an image is selected at start, and neither the branding nor the catalog names one\n";
+    // The catalog's default_image is the selection at the start
+    // (shared/catalog/README.md, "Default selection").
+    const QString defaultImage = sharedCatalog.value(QStringLiteral("default_image")).toString();
+    if (controller.catalogIndex() != controller.catalogImgrefs().indexOf(defaultImage)) {
+        out << "FAIL: the image selected at start is not the catalog's default_image "
+            << defaultImage << "\n";
         return 1;
     }
     // What a user picks on the disk step: the disk, then the composefs
     // image, then the image this run installs.
     controller.setDisk(QString::fromUtf8(disk));
-    controller.selectCatalogImage(0);
+    controller.selectCatalogImage(controller.catalogImgrefs().indexOf(composefsLeaf));
     if (controller.filesystem() != QLatin1String("btrfs") || controller.needsUserCreation()) {
         out << "FAIL: the composefs leaf did not bring its filesystem and its account flag\n";
         return 1;

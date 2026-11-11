@@ -237,3 +237,16 @@ def test_zfs_carries_the_experimental_opt_in():
             recipe = Processor.gen_install_recipe("", [disk], {"imgref": "r/x:1"})
         assert recipe["filesystem"] == fs
         assert recipe.get("experimental") == want
+
+
+def test_the_override_follows_the_fixture():
+    """FISHERMAN_IMAGES_PATH (shared/catalog/README.md): the search path
+    that GNOME's image page reads, for each case of expected.json. The
+    bundled catalog follows the list."""
+    override = EXPECTED["override"]
+    assert override["env"] == catalog.OVERRIDE_ENV == "FISHERMAN_IMAGES_PATH"
+    for case in override["cases"]:
+        environ = {override["env"]: case["value"], "XDG_CONFIG_HOME": case["xdg_config_home"]}
+        assert catalog.default_search_paths(environ, "/home/user", flatpak=case["in_flatpak"]) \
+            == case["paths"][:-1], case
+        assert case["paths"][-1] == "<bundled>"

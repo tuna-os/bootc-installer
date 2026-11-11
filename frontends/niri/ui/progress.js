@@ -39,7 +39,17 @@ var PHASE_MILESTONES = [
 ]
 
 function newState() {
-    return { step: 0, cumulativePct: 0, weightPct: 0, stepFrac: 0, postPullBase: -1, fraction: 0 }
+    return { step: 0, cumulativePct: 0, weightPct: 0, stepFrac: 0, postPullBase: -1, fraction: 0,
+             error: null }
+}
+
+// The parts of an `error` event: {message, code, field}, "" for a part that
+// is missing or is not a string (shared/progress/error-cases.json).
+function errorOf(event) {
+    function text(key) {
+        return typeof event[key] === "string" ? event[key] : ""
+    }
+    return { message: text("message"), code: text("code"), field: text("field") }
 }
 
 function milestone(message) {
@@ -73,6 +83,10 @@ function stepLabel(event, lookup) {
 // Applies one parsed event to `state` and returns the bar fraction (0-1).
 function advance(state, event) {
     var before = state.fraction
+    // fisherman's reason for a failure: the last one is kept, and it does
+    // not move the bar.
+    if (event.type === "error")
+        state.error = errorOf(event)
     derive(state, event)
     var overall = overallFraction(event)
     if (overall >= 0 && (event.type === "step" || event.type === "substep"))

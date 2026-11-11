@@ -279,3 +279,37 @@ class StepIdCopyTest(unittest.TestCase):
                 self.assertEqual(
                     pp._FRIENDLY_STEP_LABELS[name].replace("{product}", "{name}"),
                     self.copy["step_" + step_id])
+
+
+ERROR_CASES = os.path.join(REPO, "shared", "progress", "error-cases.json")
+
+
+class ErrorCasesTest(unittest.TestCase):
+    """shared/progress/error-cases.json pins what a parser keeps of the
+    `error` event (the last one, as {message, code, field}). COSMIC, KDE and
+    Niri test their own parsers against it."""
+
+    def test_fixture_is_what_the_canonical_parser_produces(self):
+        gen = _load(GENERATOR, "_fraction_gen_errors")
+        with open(ERROR_CASES, encoding="utf-8") as fh:
+            committed = json.load(fh)
+        self.assertEqual(
+            committed, json.loads(json.dumps(gen.build_errors())),
+            "error-cases.json is stale; run "
+            "python3 shared/progress/generate-fraction-cases.py")
+
+    def test_the_python_parser_reproduces_the_fixture(self):
+        with open(ERROR_CASES, encoding="utf-8") as fh:
+            cases = json.load(fh)["cases"]
+        self.assertGreaterEqual(len(cases), 6)
+        self.assertEqual({case["error"] is None for case in cases}, {True, False})
+        pp = _load(CANONICAL, "_pp_errors")
+        for case in cases:
+            state, bar = pp.new_progress_state(), 0.0
+            for i, (event, want) in enumerate(zip(case["events"], case["bar"])):
+                update = pp.apply_progress_event(json.dumps(event), state)
+                if update and update.get("fraction") is not None:
+                    bar = update["fraction"]
+                with self.subTest(case=case["name"], event=i):
+                    self.assertAlmostEqual(bar, want, places=6)
+            self.assertEqual(state["error"], case["error"], case["name"])

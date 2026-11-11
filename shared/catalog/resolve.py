@@ -49,6 +49,10 @@ INHERITED = {
 # fisherman refuses a recipe key that it does not know.
 EXTRAS = ("printServices", "oemSetup", "audioNames", "bootSplash")
 
+# The file of a test harness or an operator, tried before path 1
+# (README.md, "The override for a test or an operator").
+OVERRIDE_ENV = "FISHERMAN_IMAGES_PATH"
+
 BOOTLOADERS = ("", "grub2", "systemd")
 FILESYSTEMS = ("xfs", "ext4", "btrfs", "zfs")
 
@@ -59,10 +63,11 @@ class CatalogError(ValueError):
 
 # ── Search path ──────────────────────────────────────────────────────────────
 
-def search_paths(in_flatpak, xdg_config_home, bundled=BUNDLED):
-    """The ordered list of catalog files. The first that loads is used."""
+def search_paths(in_flatpak, xdg_config_home, bundled=BUNDLED, override=""):
+    """The ordered list of catalog files. The first that loads is used.
+    `override` is the value of OVERRIDE_ENV: a file that is tried first."""
     etc = "/run/host/etc" if in_flatpak else "/etc"
-    return [
+    return ([override] if override else []) + [
         f"{etc}/bootc-installer/images.json",
         f"{etc}/tuna-installer/images.json",
         f"{xdg_config_home.rstrip('/')}/bootc-installer/images.json",
@@ -75,7 +80,8 @@ def default_search_paths(bundled, environ=None, home=None):
     environ = os.environ if environ is None else environ
     home = home or os.path.expanduser("~")
     xdg = environ.get("XDG_CONFIG_HOME") or os.path.join(home, ".config")
-    return search_paths(os.path.exists(FLATPAK_INFO), xdg, bundled)
+    return search_paths(os.path.exists(FLATPAK_INFO), xdg, bundled,
+                        environ.get(OVERRIDE_ENV, ""))
 
 
 def load(path):
@@ -385,6 +391,19 @@ def expected(catalog):
             for flatpak, xdg in ((False, "/home/user/.config"),
                                  (True, "/home/user/.var/app/org.example.Installer/config"))
         ],
+        # OVERRIDE_ENV: its file first when it names one; empty is unset.
+        "override": {
+            "env": OVERRIDE_ENV,
+            "cases": [
+                {"value": value, "in_flatpak": flatpak, "xdg_config_home": xdg,
+                 "paths": search_paths(flatpak, xdg, override=value)}
+                for value, flatpak, xdg in (
+                    ("/tmp/harness/images.json", False, "/home/user/.config"),
+                    ("/tmp/harness/images.json", True,
+                     "/home/user/.var/app/org.example.Installer/config"),
+                    ("", False, "/home/user/.config"))
+            ],
+        },
         "default_selection": selection,
         "unknown_image": {"imgref": "registry.example/os/not-in-the-catalog:1",
                           "needs_user_creation": needs_user_creation(

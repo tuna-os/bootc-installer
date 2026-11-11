@@ -1,0 +1,42 @@
+{
+  "comment": "What a frontend probes before an install that downloads its image, in order. README.md has the rule.",
+  "shared_targets": ["ghcr.io:443", "8.8.8.8:53"],
+  "docker_hub": "registry-1.docker.io:443",
+  "default_port": 443,
+  "timeout_seconds": 5,
+  "skip_env": ["VANILLA_SKIP_CONN_CHECK", "TUNA_INSTALLER_SKIP_CONN_CHECK"],
+  "skip_cases": [
+    {"env": {}, "skip": false},
+    {"env": {"VANILLA_SKIP_CONN_CHECK": "1"}, "skip": true},
+    {"env": {"TUNA_INSTALLER_SKIP_CONN_CHECK": "yes"}, "skip": true},
+    {"env": {"VANILLA_SKIP_CONN_CHECK": ""}, "skip": false},
+    {"env": {"TUNA_INSTALLER_SKIP_CONN_CHECK": "0"}, "skip": false},
+    {"env": {"VANILLA_SKIP_CONN_CHECK": "0", "TUNA_INSTALLER_SKIP_CONN_CHECK": "1"}, "skip": true}
+  ],
+  "cases": [
+    {"imgref": "quay.io/fedora/fedora-bootc:42", "targets": ["quay.io:443", "ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "ghcr.io/example/os:stable", "targets": ["ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "  ghcr.io/example/os:stable\n", "targets": ["ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "registry.example:5000/os/atlas:1", "targets": ["registry.example:5000", "ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "localhost:5000/os:1", "targets": ["localhost:5000", "ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "localhost/os:1", "targets": ["localhost:443", "ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "registry.example/os@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", "targets": ["registry.example:443", "ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "fedora", "targets": ["registry-1.docker.io:443", "ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "library/ubuntu:24.04", "targets": ["registry-1.docker.io:443", "ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "docker.io/library/fedora:42", "targets": ["docker.io:443", "ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "docker://quay.io/fedora/fedora-bootc:42", "targets": ["quay.io:443", "ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "ostree-unverified-registry:quay.io/fedora/fedora-bootc:42", "targets": ["quay.io:443", "ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "ostree-unverified-image:docker://quay.io/fedora/fedora-bootc:42", "targets": ["quay.io:443", "ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "ostree-image-signed:docker://registry.example:5000/os:1", "targets": ["registry.example:5000", "ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "ostree-remote-registry:fedora:quay.io/fedora/fedora-bootc:42", "targets": ["quay.io:443", "ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "ostree-remote-image:fedora:docker://quay.io/fedora/fedora-bootc:42", "targets": ["quay.io:443", "ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "containers-storage:localhost/os:1", "targets": ["ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "oci:/var/lib/images/os", "targets": ["ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "oci-archive:/run/media/os.tar", "targets": ["ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "dir:/var/lib/images/os", "targets": ["ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "/var/lib/images/os", "targets": ["ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "https://example.com/os.tar", "targets": ["ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "", "targets": ["ghcr.io:443", "8.8.8.8:53"]},
+    {"imgref": "   ", "targets": ["ghcr.io:443", "8.8.8.8:53"]}
+  ]
+}

@@ -72,6 +72,12 @@ os.environ.setdefault("BOOTC_CUSTOM_RECIPE", os.path.join(REPO, "recipe.json"))
 os.environ.setdefault(
     "BOOTC_INSTALLER_BRANDING",
     os.path.join(REPO, "shared", "walkthrough", "capture-branding.json"))
+# The image catalog of every capture harness: no product of ours, and its
+# default_image needs an account. Without it the image page lists the
+# catalog of the runner, or the bundled one, which names real products.
+os.environ.setdefault(
+    "FISHERMAN_IMAGES_PATH",
+    os.path.join(REPO, "shared", "walkthrough", "capture-catalog.json"))
 # That branding names the app's own icon, which meson installs into the icon
 # theme but a from-source run has never seen -- it would render as the broken
 # -image glyph. data/ is laid out as a datadir (icons/hicolor/...), so putting
@@ -371,9 +377,10 @@ def _choose_image(win):
     """Choose an image on the image page and rebuild the later steps, as
     the page's Next button does.
 
-    The bundled recipe names no image, and the capture branding's default
-    is not in fisherman's catalog, so nothing is selected at the start.
-    Without a choice the confirm page has no Image row. The choice also
+    The bundled recipe names no image. The capture branding's default is
+    not in the capture catalog, so the catalog's default_image is the
+    selection at the start; when nothing is selected, the confirm page has
+    no Image row. The choice also
     decides which pages exist: the phone companion and the account page
     show only for an image that needs an account, so the capture prefers
     one, to render every page the wizard has.

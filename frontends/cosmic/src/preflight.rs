@@ -24,42 +24,74 @@ use std::time::Duration;
 /// selected image: a registry, then bare DNS.
 pub const CONNECT_TARGETS: [(&str, u16); 2] = [("ghcr.io", 443), ("8.8.8.8", 53)];
 
-/// Seconds per target, as in GNOME.
+/// Seconds per target: `timeout_seconds` of `shared/network/targets.json`.
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// Skip the whole check (and pass): `VANILLA_SKIP_CONN_CHECK`, as in GNOME.
+/// The variables that turn the check off (and pass it), for a harness with
+/// no route out: `shared/network/targets.json`, as in every frontend.
+pub const SKIP_ENV_VARS: [&str; 2] = ["VANILLA_SKIP_CONN_CHECK", "TUNA_INSTALLER_SKIP_CONN_CHECK"];
+
+/// Whether a harness turned the check off: one of [`SKIP_ENV_VARS`] has a
+/// value that is not empty and not `0`.
 pub fn conn_check_skipped() -> bool {
-    std::env::var_os("VANILLA_SKIP_CONN_CHECK").is_some()
+    skip_requested(|name| std::env::var(name).ok())
 }
 
-/// The registry host of an image reference: the part before the first
-/// `/` when it looks like a host (a dot, a port or `localhost`), else
-/// Docker Hub. `None` for an empty reference.
-pub fn registry_host(imgref: &str) -> Option<String> {
-    let reference = imgref.trim();
-    let reference = reference
-        .split_once("://")
-        .map_or(reference, |(_, rest)| rest);
-    if reference.is_empty() {
+fn skip_requested(get: impl Fn(&str) -> Option<String>) -> bool {
+    SKIP_ENV_VARS
+        .iter()
+        .any(|name| get(name).is_some_and(|value| !value.is_empty() && value != "0"))
+}
+
+/// The registry that serves an image reference, as (host, port)
+/// (`shared/network/README.md`): ostree prefixes and `docker://` go; a
+/// local transport, a path or another URL has none; a name with no
+/// registry is Docker Hub's; the port of the reference is kept, else 443.
+pub fn registry_target(imgref: &str) -> Option<(String, u16)> {
+    let mut reference = imgref.trim();
+    for prefix in ["ostree-unverified-registry:", "ostree-unverified-image:", "ostree-image-signed:"] {
+        if let Some(rest) = reference.strip_prefix(prefix) {
+            reference = rest;
+            break;
+        }
+    }
+    for prefix in ["ostree-remote-registry:", "ostree-remote-image:"] {
+        if let Some(rest) = reference.strip_prefix(prefix) {
+            // A remote name and a colon come before the reference.
+            reference = rest.split_once(':').map_or("", |(_, r)| r);
+            break;
+        }
+    }
+    let reference = reference.strip_prefix("docker://").unwrap_or(reference);
+    if reference.is_empty()
+        || reference.contains("://")
+        || reference.starts_with('/')
+        || ["containers-storage:", "oci:", "oci-archive:", "dir:"]
+            .iter()
+            .any(|local| reference.starts_with(local))
+    {
         return None;
     }
-    let first = reference.split('/').next().unwrap_or("");
-    let is_host = reference.contains('/')
-        && (first.contains('.') || first.contains(':') || first == "localhost");
-    if !is_host {
-        return Some("registry-1.docker.io".to_string());
+    let Some((first, _)) = reference.split_once('/') else {
+        return Some(("registry-1.docker.io".to_string(), 443));
+    };
+    if !(first.contains('.') || first.contains(':') || first == "localhost") {
+        return Some(("registry-1.docker.io".to_string(), 443));
     }
-    // A port in the reference is the registry's own; the check is for 443.
-    Some(first.split(':').next().unwrap_or(first).to_string())
+    let (host, port) = first.split_once(':').unwrap_or((first, ""));
+    if host.is_empty() {
+        return None;
+    }
+    Some((host.to_string(), port.parse().unwrap_or(443)))
 }
 
 /// The targets for an install of `imgref`, in order: the registry of the
-/// selected image on 443 first, because that is the host the install
-/// downloads from, then the shared list. No target is tried twice.
+/// selected image first, because that is the host the install downloads
+/// from, then the shared list. No target is tried twice.
 pub fn connect_targets(imgref: &str) -> Vec<(String, u16)> {
     let mut targets: Vec<(String, u16)> = Vec::new();
-    if let Some(host) = registry_host(imgref) {
-        targets.push((host, 443));
+    if let Some(own) = registry_target(imgref) {
+        targets.push(own);
     }
     for (host, port) in CONNECT_TARGETS {
         if !targets.iter().any(|(h, p)| h == host && *p == port) {
@@ -312,21 +344,34 @@ mod tests {
     }
 
     #[test]
-    fn the_registry_of_the_selected_image_is_probed_first() {
-        assert_eq!(registry_host("quay.io/example/os:stable").as_deref(), Some("quay.io"));
-        assert_eq!(registry_host("docker://quay.io/example/os").as_deref(), Some("quay.io"));
-        assert_eq!(registry_host("registry.example:5000/os:1").as_deref(), Some("registry.example"));
-        assert_eq!(registry_host("localhost/os:1").as_deref(), Some("localhost"));
-        // No registry in the reference is Docker Hub.
-        assert_eq!(registry_host("library/os:1").as_deref(), Some("registry-1.docker.io"));
-        assert_eq!(registry_host("os").as_deref(), Some("registry-1.docker.io"));
-        assert_eq!(registry_host("  "), None);
-
-        let targets = connect_targets("quay.io/example/os:stable");
-        assert_eq!(targets[0], ("quay.io".to_string(), 443));
-        assert_eq!(targets[1..], [("ghcr.io".to_string(), 443), ("8.8.8.8".to_string(), 53)]);
-        // The shared list alone with no image, and no host twice.
-        assert_eq!(connect_targets("").len(), 2);
-        assert_eq!(connect_targets("ghcr.io/example/os:1").len(), 2);
+    fn connect_targets_follow_the_shared_fixture() {
+        let text = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../shared/network/targets.json"
+        ))
+        .unwrap();
+        let fixture: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let cases = fixture["cases"].as_array().unwrap();
+        assert!(cases.len() >= 20);
+        for case in cases {
+            let got: Vec<String> = connect_targets(case["imgref"].as_str().unwrap())
+                .iter()
+                .map(|(host, port)| format!("{host}:{port}"))
+                .collect();
+            let want: Vec<String> = case["targets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|t| t.as_str().unwrap().to_string())
+                .collect();
+            assert_eq!(got, want, "{case}");
+        }
+        assert_eq!(CONNECT_TIMEOUT.as_secs(), fixture["timeout_seconds"].as_u64().unwrap());
+        assert_eq!(fixture["skip_env"], serde_json::json!(SKIP_ENV_VARS));
+        for case in fixture["skip_cases"].as_array().unwrap() {
+            let env = case["env"].as_object().unwrap();
+            let got = skip_requested(|name| env.get(name).and_then(|v| v.as_str()).map(String::from));
+            assert_eq!(got, case["skip"].as_bool().unwrap(), "{case}");
+        }
     }
 }

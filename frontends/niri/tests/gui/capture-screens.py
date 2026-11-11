@@ -36,8 +36,8 @@ from PyQt6 import sip  # noqa: E402
 
 # The screen contract, the pixel audit and the capture fixtures live once, in
 # shared/walkthrough/, for every frontend.
-sys.path.insert(0, os.path.normpath(os.path.join(
-    REPO, "..", "..", "shared", "walkthrough")))
+SHARED_WALKTHROUGH = os.path.normpath(os.path.join(REPO, "..", "..", "shared", "walkthrough"))
+sys.path.insert(0, SHARED_WALKTHROUGH)
 import capture_fixtures  # noqa: E402
 import parity_report  # noqa: E402
 import pixel_audit  # noqa: E402
@@ -103,6 +103,44 @@ fixture_lines = capture_fixtures.fixture_log
 _PROBE_EXPECTED = os.path.join(REPO, "..", "..", "shared", "probe", "fixtures",
                                "laptop.expected.json")
 
+
+
+CAPTURE_CATALOG = os.path.join(SHARED_WALKTHROUGH, "capture-catalog.json")
+
+
+def capture_leaves(offline_images):
+    """{imgref: leaf} in the shape `catalog` prints (installer/catalog.go)
+    for shared/walkthrough/capture-catalog.json. The leaves come from the
+    reference reader (shared/catalog/resolve.py), which the backend's own
+    test holds to the same fixture; the node's words and tour come from the
+    node, as the backend reads them."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("shared_catalog_resolve", os.path.join(
+        SHARED_WALKTHROUGH, "..", "catalog", "resolve.py"))
+    resolve = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(resolve)
+    catalog = resolve.load(CAPTURE_CATALOG)
+    nodes = {}
+
+    def walk(items, registry, carousel):
+        for node in items:
+            registry_here = node.get("registry", registry)
+            carousel_here = node.get("carousel", carousel)
+            if node.get("imgref"):
+                nodes[node["imgref"]] = (node, carousel_here)
+            elif node.get("tag"):
+                nodes[f"{registry_here}:{node['tag']}"] = (node, carousel_here)
+            walk(node.get("children") or [], registry_here, carousel_here)
+
+    walk(catalog["images"], "", [])
+    out = {}
+    for leaf in resolve.leaves(catalog):
+        node, carousel = nodes[leaf["imgref"]]
+        shown = dict(leaf, desc=node.get("desc", ""),
+                     carousel=[dict({"image": ""}, **slide) for slide in carousel])
+        shown["recipe"] = resolve.recipe_fragment(leaf, offline_images=offline_images)["recipe"]
+        out[leaf["imgref"]] = shown
+    return out
 
 def find_item(root, name):
     """The QQuickItem with this objectName, searched down the VISUAL tree.
@@ -261,44 +299,17 @@ def main():
     # copy of fisherman's encryption-choices.json.
     with open(os.path.join(REPO, "installer", "encryption-choices.json"), encoding="utf-8") as fh:
         root.setProperty("encryptionChoices", json.load(fh)["choices"])
-    # The catalog the backend's `catalog` reports, joined here against the
-    # probe's offline images the way the Source step does. Imgrefs match
-    # the fixture's offline_images, so both rows read "available offline".
-    def leaf(channel, tag, **fields):
-        """One leaf in the shape `catalog` prints (installer/catalog.go):
-        the resolved fields, the labels, and the recipe keys."""
-        imgref = f"ghcr.io/example/os:{tag}"
-        out = {"name": channel, "desc": "", "imgref": imgref,
-               "product": "Example OS", "channel": channel,
-               "label": f"Example OS {channel}",
-               "path": ["Example OS", channel],
-               "breadcrumb": f"Example OS \u203a {channel}",
-               "nvidia_imgref": "", "bootloader": "systemd",
-               "composefs": False, "filesystem": "", "filesystems": [],
-               "default_hostname": "", "flatpaks": None, "flatpaks_url": "",
-               "flatpak_var_path": "", "needs_user_creation": True,
-               "image_type": "bootc", "carousel": []}
-        out.update(fields)
-        out["recipe"] = {"image": imgref, "targetImgref": imgref,
-                         "bootloader": out["bootloader"],
-                         "composeFsBackend": out["composefs"]}
-        if out["filesystem"]:
-            out["recipe"]["filesystem"] = out["filesystem"]
-        if out["flatpaks"] is not None:
-            out["recipe"]["flatpaks"] = out["flatpaks"]
-        return out
-
-    STABLE = leaf("Stable", "stable", filesystem="btrfs",
-                  filesystems=["btrfs", "ext4"], flatpaks=["org.example.App"],
-                  default_hostname="example")
-    BETA = leaf("Beta", "beta", filesystem="ext4", filesystems=["ext4"],
-                needs_user_creation=False, flatpaks=[],
-                carousel=[{"title": "Welcome",
-                           "description": "This is the tour.", "image": ""}])
-    # Not in the fixture's offline images: this one needs a download.
-    EDGE = leaf("Edge", "edge")
+    # The catalog the backend's `catalog` reports for the capture catalog
+    # of every harness (shared/walkthrough/capture-catalog.json), joined
+    # here against the probe's offline images the way the Source step does.
+    # Stable and Beta are in the fixture's offline_images, so both rows read
+    # "available offline"; Edge needs a download.
+    leaves = capture_leaves(probed["offline_images"])
+    STABLE, BETA, EDGE = (leaves[f"ghcr.io/example/os:{tag}"] for tag in ("stable", "beta", "edge"))
+    # The leaf that ships tour slides.
+    TOUR = next(leaf for leaf in leaves.values() if leaf["carousel"])
     CATALOG = {"path": "/etc/bootc-installer/images.json", "skipped": [],
-               "default_image": "", "selected": "", "leaves": [STABLE, BETA, EDGE],
+               "default_image": "", "selected": "", "leaves": list(leaves.values()),
                "machine": {"has_nvidia": False, "is_live": False,
                            "offline_images": probed["offline_images"]},
                "live_leaf": None, "live_needs_user_creation": True}
@@ -472,7 +483,7 @@ def main():
         # The tour overlay is independent of the page: open it over the
         # done screen with the leaf that ships slides selected.
         if name == "11-tour":
-            root.setProperty("selectedLeaf", BETA)
+            root.setProperty("selectedLeaf", TOUR)
             root.setProperty("tourIndex", 0)
             root.setProperty("tourOpen", True)
         else:

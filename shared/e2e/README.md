@@ -35,10 +35,34 @@ recipe must also have the `extras` object of the catalog leaf, or no
 that a Flatpak stages has none. For
 that, the driver writes the catalog that it gave the frontend to
 `/tmp/tuna-e2e/catalog.json` (or the job passes `--catalog <file>`). An
-image that is not in that catalog needs an account. No driver writes the
-file yet (#288). Until one does, the COSMIC, KDE and Niri recipes must
-create a user, as before, and the script prints `account: NOT JUDGED` for
-GNOME and XFCE.
+image that is not in that catalog needs an account.
+
+### The catalog
+
+`catalog.json` here is the one catalog of the five drivers. Each driver
+gives it to its frontend and writes it to `/tmp/tuna-e2e/catalog.json`.
+`check-recipe.py` fails when that file has other content. The catalog has
+these leaves:
+
+| Leaf | Account | What it tests |
+|---|---|---|
+| `quay.io/centos-bootc/centos-bootc:c10s` (`default_image`) | yes | the install that the VM job boots with an account; `flatpaks: []` |
+| `quay.io/centos-bootc/centos-bootc:stream10` | no | the same image, booted with no account; no `flatpaks` key |
+| `registry.example/os/composefs:1` | no | a composefs leaf with a choice of filesystems; no VM job installs it |
+
+The `extras` object is on the parent of the two canary leaves. The
+`fallback_flatpaks` list is not empty, so a frontend that sends it fails.
+
+| Driver | Leaf that it installs | Account in the VM |
+|---|---|---|
+| GNOME (`tests/e2e/run_gnome.py`) | `c10s` | yes: the driver types `e2euser` on the user step |
+| XFCE (`frontends/xfce/tests/e2e/run.py`) | `c10s` | yes: the driver types `e2euser` on the identity page |
+| KDE (`frontends/kde/tests/e2e.cpp`) | `c10s` | yes |
+| Niri (`frontends/niri/tests/e2e/run.py`) | `c10s` | yes |
+| COSMIC (`e2e_install_path_reaches_fisherman`) | `stream10` | no |
+
+The KDE and Niri drivers also select a leaf with no account first, and
+make sure that the account step goes away.
 
 ## Layer 2: the recipe is installed and booted
 

@@ -343,6 +343,10 @@ public:
     bool succeeded() const { return m_finished && m_exitCode == 0 && !m_cancelled; }
     bool cancelled() const { return m_finished && m_cancelled; }
     QString recoveryKey() const { return m_recoveryKey; }
+    // fisherman's reason for the failure: the last `error` event as
+    // {message, code, field} ("" for a part it did not send), or an empty
+    // map before one arrives (shared/progress/error-cases.json).
+    QVariantMap installError() const { return m_installError; }
     bool recoveryAck() const { return m_recoveryAck; }
     void setRecoveryAck(bool v);
     // A failed install enrolled nothing, and a non-TPM install was never
@@ -471,6 +475,7 @@ private:
     qreal m_fraction = 0.0;
     QString m_stepName;
     QString m_recoveryKey;
+    QVariantMap m_installError;
     bool m_recoveryAck = false;
     // Carried across lines so a substep can interpolate inside its step.
     int m_cumulativePct = 0;
