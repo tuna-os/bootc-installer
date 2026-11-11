@@ -116,34 +116,19 @@ confirm_mod.BootcChoiceEntry = lambda title, subtitle, icon, **kw: MagicMock()
 confirm_mod.BootcChoiceExpanderEntry = lambda title, subtitle, icon, **kw: MagicMock()
 
 
-class TestProcessKeyboards(unittest.TestCase):
-    def _make_obj(self):
-        obj = confirm_mod.BootcConfirm.__new__(confirm_mod.BootcConfirm)
-        obj.active_widgets = []
-        return obj
+class TestKeyboardSummary(unittest.TestCase):
+    """The Keyboard row is the recipe's `keyboard`: one XKB layout (#292)."""
 
-    def test_single_keyboard_no_variant_adds_one_widget(self):
-        obj = self._make_obj()
-        obj.process_keyboards([{"layout": "us", "variant": ""}])
-        self.assertEqual(len(obj.active_widgets), 1)
+    def test_layout_alone(self):
+        self.assertEqual(confirm_mod.keyboard_summary({"layout": "us"}), "us")
 
-    def test_single_keyboard_with_variant_combines_layout_and_variant(self):
-        obj = self._make_obj()
-        obj.process_keyboards([{"layout": "us", "variant": "intl"}])
-        self.assertEqual(len(obj.active_widgets), 1)
+    def test_layout_and_variant(self):
+        self.assertEqual(confirm_mod.keyboard_summary(
+            {"layout": "de", "variant": "nodeadkeys"}), "de+nodeadkeys")
 
-    def test_multiple_keyboards_each_add_a_widget(self):
-        obj = self._make_obj()
-        obj.process_keyboards([
-            {"layout": "us", "variant": ""},
-            {"layout": "fr", "variant": "azerty"},
-        ])
-        self.assertEqual(len(obj.active_widgets), 2)
-
-    def test_empty_keyboards_list_adds_nothing(self):
-        obj = self._make_obj()
-        obj.process_keyboards([])
-        self.assertEqual(len(obj.active_widgets), 0)
+    def test_no_selection_has_no_row(self):
+        for value in (None, {}, {"variant": "intl"}, [{"layout": "us"}]):
+            self.assertEqual(confirm_mod.keyboard_summary(value), "")
 
 
 class TestSummaryHelpers(unittest.TestCase):
@@ -212,8 +197,20 @@ class TestConfirmUpdate(unittest.TestCase):
 
     def test_update_with_timezone_adds_widget(self):
         obj = self._make_obj()
-        obj.update([{"timezone": {"region": "America", "zone": "New_York"}}])
+        obj.update([{"timezone": "America/New_York"}])
         self.assertGreater(len(obj.active_widgets), 0)
+
+    def test_update_with_a_keyboard_adds_widget(self):
+        obj = self._make_obj()
+        obj.update([{"keyboard": {"layout": "de", "variant": "nodeadkeys"}}])
+        self.assertGreater(len(obj.active_widgets), 0)
+
+    def test_update_without_region_values_adds_no_region_rows(self):
+        """A step with no selection sends no key: no row, as the recipe
+        has no value."""
+        obj = self._make_obj()
+        obj.update([{}, {"keyboard": {}}, {"timezone": ""}, {"language": ""}])
+        self.assertEqual(len(obj.active_widgets), 0)
 
     def test_update_with_users_adds_widget(self):
         obj = self._make_obj()

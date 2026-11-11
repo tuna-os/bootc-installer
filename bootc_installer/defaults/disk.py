@@ -31,6 +31,7 @@ from gi.repository import Adw, GLib, Gtk
 
 from bootc_installer.core.disks import DisksManager
 from bootc_installer.core.system import Systeminfo
+from bootc_installer.utils import copy as copy_text
 from bootc_installer.utils.field_check import FieldCheck
 from bootc_installer.defaults.disk_plan import (
     build_auto_partition_recipe,
@@ -329,7 +330,11 @@ class BootcDefaultDisk(Adw.Bin):
             self.__check_fs_tool(self.__filesystem_options[0] if self.__filesystem_options else "xfs")
             return
 
-        _LABELS = {"xfs": "XFS", "btrfs": _("Btrfs (with subvolumes)"), "zfs": "ZFS"}
+        # ZFS is experimental in fisherman (no VM test boots it): the
+        # branding copy says so.
+        _LABELS = {"xfs": "XFS", "btrfs": _("Btrfs (with subvolumes)"),
+                   "zfs": copy_text.text(getattr(self, "_BootcDefaultDisk__window", None),
+                                         "filesystem_zfs_label") or "ZFS"}
         model = Gtk.StringList.new([_LABELS.get(fs, fs.upper()) for fs in self.__filesystem_options])
         self.filesystem_row.set_model(model)
         selected = getattr(self, "_BootcDefaultDisk__filesystem_default_index", 0)

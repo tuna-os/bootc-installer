@@ -17,6 +17,7 @@
   "encryption_tpm2_luks_description": "Unlocks automatically on this hardware.",
   "encryption_tpm2_luks_passphrase_label": "TPM + passphrase",
   "encryption_tpm2_luks_passphrase_description": "Automatic unlock, passphrase as fallback.",
+  "filesystem_zfs_label": "ZFS (experimental)",
   "confirm_title": "Confirm installation",
   "confirm_subtitle": "",
   "confirm_body": "",

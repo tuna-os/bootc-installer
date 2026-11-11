@@ -50,7 +50,9 @@ default is right for nearly everyone.
 The computer name becomes the hostname. Its first value comes from the image.
 The account is an administrator on the new system. Type the password two
 times: Next waits until the two match. The eye icon shows what you typed.
-The keyboard layout applies to this session only.
+Open "Language, keyboard and time zone" to choose them for the new system.
+Each one keeps the image's setting until you choose. The keyboard layout
+also changes for this session at once.
 
 ## 6. Confirm
 
