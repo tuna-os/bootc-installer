@@ -105,7 +105,7 @@
       "name": "02-session",
       "png": "docs/screenshots/02-session.png",
       "rendered": true,
-      "colours": 410,
+      "colours": 409,
       "flat": 0.6247,
       "ink": 0.026266666666666667,
       "stddev": 0.09779041921278185,
@@ -118,7 +118,7 @@
       "colours": 432,
       "flat": 0.6474,
       "ink": 0.10933333333333334,
-      "stddev": 0.10750889952689044,
+      "stddev": 0.10751722337607074,
       "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Example OS \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Example OS \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Example OS \u203a Edge ghcr.io/example/os:edge  \u00b7"
     },
     {
@@ -128,7 +128,7 @@
       "colours": 484,
       "flat": 0.6199333333333333,
       "ink": 0.11003333333333333,
-      "stddev": 0.10557607011149404,
+      "stddev": 0.10556755838076784,
       "text_excerpt": "Step 4 of 9 \u00b7 Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  \u00b7  465.8 GiB  \u00b7  SATA Extreme SSD /dev/sdc  \u00b7  931.5 GiB  \u00b7  USB Cruzer Blade /dev/sdd  \u00b7  59.6 GiB  \u00b7  USB WD_"
     },
     {
@@ -148,7 +148,7 @@
       "colours": 346,
       "flat": 0.5258333333333334,
       "ink": 0.030633333333333332,
-      "stddev": 0.10060174578702649,
+      "stddev": 0.10059300974972753,
       "text_excerpt": "Step 6 of 9 \u00b7 Account Your account The account you sign in with. It can administer this computer. Account Username alex Full name Alex Example Password capture Password again capture Show passwords Show passwords Back Back Continue Continue"
     },
     {

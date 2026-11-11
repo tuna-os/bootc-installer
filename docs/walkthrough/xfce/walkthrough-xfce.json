@@ -129,30 +129,30 @@
       "name": "identity",
       "png": "docs/screenshots/05-identity.png",
       "rendered": true,
-      "colours": 321,
-      "flat": 0.8695080030078419,
-      "ink": 0.017080244924266838,
-      "stddev": 0.09715822649013776,
-      "text_excerpt": "Name this computer Hostname Confirm password Password Full name Username Your account Keyboard Keyboard layout (this session only)"
+      "colours": 393,
+      "flat": 0.7891143286039417,
+      "ink": 0.01847368166190499,
+      "stddev": 0.0998788175510276,
+      "text_excerpt": "Name this computer Hostname Confirm password Password Full name Username Your account Time zone Keyboard Language Language, keyboard and time zone"
     },
     {
       "name": "confirm",
       "png": "docs/screenshots/06-confirm.png",
       "rendered": true,
-      "colours": 296,
-      "flat": 0.9507465893221614,
-      "ink": 0.019980663873670642,
-      "stddev": 0.08749017434502943,
-      "text_excerpt": "Confirm installation Target disk: /dev/sda\nFilesystem:  btrfs\nEncryption:  No encryption\nHostname:    tunaos\nImage:       ghcr.io/tuna-os/bonito:latest\nUser:        jo Everything on /dev/sda will be erased. This cannot be undone."
+      "colours": 299,
+      "flat": 0.9520604329088179,
+      "ink": 0.020507481477894534,
+      "stddev": 0.08876493665663615,
+      "text_excerpt": "Confirm installation Target disk: /dev/sda\nFilesystem:  btrfs\nEncryption:  No encryption\nHostname:    tunaos\nImage:       ghcr.io/tuna-os/bonito:latest\nUser:        jo\nLanguage:    en_US.UTF-8\nKeyboard:    za\nTime zone:   Zulu Everything on"
     },
     {
       "name": "progress",
       "png": "docs/screenshots/07-progress.png",
       "rendered": true,
       "colours": 277,
-      "flat": 0.4758029863572886,
-      "ink": 0.016059727145772907,
-      "stddev": 0.09630475543985703,
+      "flat": 0.5218875599244589,
+      "ink": 0.014478717737639825,
+      "stddev": 0.09201753514381247,
       "text_excerpt": "Installing TunaOS\u2026  Do not power off the computer. [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pulling image: layer 47/"
     },
     {
@@ -160,9 +160,9 @@
       "png": "docs/screenshots/08-done.png",
       "rendered": true,
       "colours": 257,
-      "flat": 0.9449726071543667,
-      "ink": 0.01678483188312386,
-      "stddev": 0.07571207200690531,
+      "flat": 0.950389811631398,
+      "ink": 0.015132439107065033,
+      "stddev": 0.07198641604722662,
       "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Close Close Power off Power off Restart now Restart now"
     },
     {
@@ -170,9 +170,9 @@
       "png": "docs/screenshots/09-recovery.png",
       "rendered": true,
       "colours": 325,
-      "flat": 0.8455258352132345,
-      "ink": 0.023283918788269416,
-      "stddev": 0.0982256879828818,
+      "flat": 0.860733136409859,
+      "ink": 0.020991719529320614,
+      "stddev": 0.09346097195655902,
       "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password mana"
     },
     {
@@ -180,9 +180,9 @@
       "png": "docs/screenshots/10-cancelled.png",
       "rendered": true,
       "colours": 226,
-      "flat": 0.9345257277903104,
-      "ink": 0.010661725212160276,
-      "stddev": 0.06944084053016557,
+      "flat": 0.9409713815311607,
+      "ink": 0.00961212532080771,
+      "stddev": 0.06601080158337323,
       "text_excerpt": "Installation cancelled You stopped the installation. The target disk holds an incomplete system: start the installer again to use it.\n\nFull log: /home/runner/.local/state/tuna-installer/install.log Close Close View install log View install "
     }
   ],
@@ -190,9 +190,9 @@
     13265,
     15349,
     15886,
-    16444,
-    18788,
-    18034,
+    21967,
+    23295,
+    19095,
     17199,
     13233,
     18799

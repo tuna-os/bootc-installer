@@ -23,7 +23,7 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 
 | Frontend | Pages | Rendered | Transitions | Harness |
 |---|---|---|---|---|
-| GNOME | 11 | 11 | 10 | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
+| GNOME | 14 | 14 | 13 | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
 | KDE Plasma | 10 | 10 | 9 | tests/capture.cpp (Kirigami/QML, offscreen) |
 | COSMIC | 18 | 18 | 17 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
 | Niri | 14 | 14 | 13 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
@@ -38,16 +38,19 @@ GTK4 / libadwaita (Python). Source: `bootc_installer/`.
 | | |
 |---|---|
 | <img src="gnome/01-welcome.png" width="360"> | **welcome** What the installer is about to do. <br><sub>Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Power Off Power Off Press Su</sub> |
-| <img src="gnome/02-conn-check.png" width="360"> | **conn check** A check that the image registry can be reached. <br><sub>Checking Connection Please wait until the connection check is done</sub> |
-| <img src="gnome/03-image.png" width="360"> | **image** Choose the image to install from the catalog. <br><sub>Choose an Image Select a BootcOS image to install, or enter a custom bootc-compatible image URL. Search images… Aurora Aurora Aurora Aurora </sub> |
-| <img src="gnome/04-qr_companion.png" width="360"> | **qr companion** Optional: scan a QR code and type your account details on your phone. <br><sub>Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR </sub> |
-| <img src="gnome/05-disk.png" width="360"> | **disk** Choose the disk. Nothing is written yet. <br><sub>Computer is not plugged in — connect power before installing Install Location Select the disk where you want to install. All data on the sel</sub> |
-| <img src="gnome/06-encryption.png" width="360"> | **encryption** Full-disk encryption, with or without TPM2. <br><sub>Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You'll type it at every boot. Encrypt this disk You'll type i</sub> |
-| <img src="gnome/07-user.png" width="360"> | **user** Your account and password. <br><sub>Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Conf</sub> |
-| <img src="gnome/08-confirm.png" width="360"> | **confirm** The last screen before anything is written. <br><sub>Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be und</sub> |
-| <img src="gnome/09-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installing TunaOS… Downloading… (47 of 71 parts) 0:00 elapsed 35% Do not power off the computer. Cancel Cancel</sub> |
-| <img src="gnome/10-recovery-key.png" width="360"> | **recovery key** The LUKS recovery key, shown once after an encrypted install. <br><sub>Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere sa</sub> |
-| <img src="gnome/11-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>Aurora DX is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now</sub> |
+| <img src="gnome/02-language.png" width="360"> | **language** The language of the installed system. <br><sub>Language Select your language Search languages aa_DJ.UTF-8 aa_DJ.UTF-8 aa_DJ.UTF-8 ab_GE.UTF-8 ab_GE.UTF-8 ab_GE.UTF-8 af_ZA.UTF-8 af_ZA.UTF</sub> |
+| <img src="gnome/03-keyboard.png" width="360"> | **keyboard** The keyboard layout, for this session and the installed system. <br><sub>Keyboard Layout Select your preferred keyboard layout Search keyboard layouts Abkhazian (Russia) Abkhazian Abkhazian (Russia) Abkhazian ru+a</sub> |
+| <img src="gnome/04-timezone.png" width="360"> | **timezone** The time zone of the installed system. <br><sub>Date & Time Select your preferred timezone Search timezones Afghanistan Afghanistan Asia Afghanistan Asia Kabul Kabul Asia/Kabul Albania Alb</sub> |
+| <img src="gnome/05-conn-check.png" width="360"> | **conn check** A check that the image registry can be reached. <br><sub>Checking Connection Please wait until the connection check is done</sub> |
+| <img src="gnome/06-image.png" width="360"> | **image** Choose the image to install from the catalog. <br><sub>Choose an Image Select a BootcOS image to install, or enter a custom bootc-compatible image URL. Search images… Aurora Aurora Aurora Aurora </sub> |
+| <img src="gnome/07-qr_companion.png" width="360"> | **qr companion** Optional: scan a QR code and type your account details on your phone. <br><sub>Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR </sub> |
+| <img src="gnome/08-disk.png" width="360"> | **disk** Choose the disk. Nothing is written yet. <br><sub>Computer is not plugged in — connect power before installing Install Location Select the disk where you want to install. All data on the sel</sub> |
+| <img src="gnome/09-encryption.png" width="360"> | **encryption** Full-disk encryption, with or without TPM2. <br><sub>Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You'll type it at every boot. Encrypt this disk You'll type i</sub> |
+| <img src="gnome/10-user.png" width="360"> | **user** Your account and password. <br><sub>Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Conf</sub> |
+| <img src="gnome/11-confirm.png" width="360"> | **confirm** The last screen before anything is written. <br><sub>Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be und</sub> |
+| <img src="gnome/12-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installing TunaOS… Downloading… (47 of 71 parts) 0:00 elapsed 35% Do not power off the computer. Cancel Cancel</sub> |
+| <img src="gnome/13-recovery-key.png" width="360"> | **recovery key** The LUKS recovery key, shown once after an encrypted install. <br><sub>Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere sa</sub> |
+| <img src="gnome/14-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>Aurora DX is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now</sub> |
 
 ## KDE Plasma
 
@@ -174,7 +177,7 @@ You'll choose what to install and where; nothing is written to any disk </sub> |
 | <img src="xfce/02-source.png" width="360"> | **source**  <br><sub>What do you want to install? Bluefin › Bluefin Bluefin › Bluefin ghcr.io/ublue-os/bluefin:latest TunaOS › GNOME TunaOS › GNOME ghcr.io/tuna-</sub> |
 | <img src="xfce/03-destination.png" width="360"> | **destination**  <br><sub>Where should TunaOS be installed? Samsung SSD 870 EVO 500GB    /dev/sda    465.8 GiB    SATA Samsung SSD 870 EVO 500GB    /dev/sda    465.8 </sub> |
 | <img src="xfce/04-setup.png" width="360"> | **setup**  <br><sub>Disk encryption No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at every boot. TP</sub> |
-| <img src="xfce/05-identity.png" width="360"> | **identity**  <br><sub>Name this computer Hostname Confirm password Password Full name Username Your account Keyboard Keyboard layout (this session only)</sub> |
+| <img src="xfce/05-identity.png" width="360"> | **identity**  <br><sub>Name this computer Hostname Confirm password Password Full name Username Your account Time zone Keyboard Language Language, keyboard and tim</sub> |
 | <img src="xfce/06-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation Target disk: /dev/sda
 Filesystem:  btrfs
 Encryption:  No encryption
