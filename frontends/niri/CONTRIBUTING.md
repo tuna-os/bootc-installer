@@ -49,6 +49,8 @@ python3 tests/gui/capture-screens.py /tmp/screenshots
 To build and test the Flatpak package locally:
 
 ```bash
+# The manifest builds fisherman from the submodule.
+git -C ../.. submodule update --init fisherman
 flatpak-builder --user --install --force-clean build flatpak/org.tunaos.InstallerNiri.json
 flatpak run org.tunaos.InstallerNiri
 ```

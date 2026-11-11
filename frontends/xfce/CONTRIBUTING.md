@@ -47,6 +47,8 @@ python3 tests/gui/capture-screens.py /tmp/screenshots
 To build and test the Flatpak manifest locally:
 
 ```bash
+# The manifest builds fisherman from the submodule.
+git -C ../.. submodule update --init fisherman
 flatpak-builder --user --install --force-clean build flatpak/org.tunaos.InstallerXfce.json
 flatpak run org.tunaos.InstallerXfce
 ```

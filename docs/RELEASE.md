@@ -177,9 +177,10 @@ stay on `@main`; Renovate is told not to pin them.
   image lives in `tuna-os/fisherman` (`bootcrew-vm.yml`), and the live-ISO
   smoke test in `tuna-os/tunaOS` (`installer-smoke.yml`).
 - It does not version the fisherman submodule. Renovate moves the pointer:
-  the gitlink and the four frontend Flatpak manifest pins track fisherman's
-  `prod` branch (`.gitmodules`, `renovate.json` group `fisherman`), which only
-  advances after fisherman's own promote gate. Renovate opens one PR to `dev`
+  the gitlink tracks fisherman's `prod` branch (`.gitmodules`,
+  `renovate.json` group `fisherman`), which only advances after fisherman's
+  own promote gate. Every Flatpak builds fisherman from the submodule, so the
+  gitlink is the only pin. Renovate opens one PR to `dev`
   and merges it when every check is green; from there it ships like any other
   change. To pin by hand, run `shared/ci/fisherman_pins.py --commit <sha>`.
 - It does not need a personal access token. `GITHUB_TOKEN` pushes do not

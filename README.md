@@ -116,9 +116,10 @@ fisherman then checks the image on the media before it reads a disk or uses the 
 [`docs/live-iso.md`](docs/live-iso.md) tells you how to build such an ISO.
 
 fisherman is a git submodule.
-The Flatpak manifests of the other four frontends pin the same commit.
-Renovate keeps the pins current.
-To move them by hand, run `shared/ci/fisherman_pins.py`, which updates the submodule and the four pins together.
+Every Flatpak builds fisherman from that submodule, so the gitlink is the only pin.
+The four frontend manifests use the shared module `shared/flatpak/fisherman.json`.
+Renovate keeps the gitlink current.
+To move it by hand, run `shared/ci/fisherman_pins.py`.
 
 | Frontend | Path | Toolkit | Walkthrough |
 |---|---|---|---|

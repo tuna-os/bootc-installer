@@ -99,6 +99,8 @@ Please see [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, testing workflows
 ## Flatpak
 
 ```bash
+# The manifest builds fisherman from the submodule.
+git -C ../.. submodule update --init fisherman
 flatpak-builder --user --install --force-clean build \
   flatpak/org.tunaos.InstallerXfce.json
 flatpak run org.tunaos.InstallerXfce

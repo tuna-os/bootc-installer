@@ -1,172 +1,206 @@
 {
-  "activation_key": null,
-  "advanced_transitions": 7,
-  "failures": 0,
   "flavor": "kde",
-  "frames": 8,
-  "harness": "tests/capture.cpp (Kirigami/QML, offscreen)",
-  "notes": "GPU-less capture: pages are driven programmatically and text is read from the item tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job.",
+  "frames": 10,
+  "rendered_frames": 10,
+  "advanced_transitions": 9,
+  "visual_states": 10,
+  "activation_key": null,
   "ocr": false,
-  "pages": [
-    {
-      "colours": 412,
-      "flat": 0.9770018785957497,
-      "ink": 0.021868028648585183,
-      "name": "01-welcome",
-      "png": "docs/screenshots/01-welcome.png",
-      "rendered": true,
-      "stddev": 0.07072686175203091
-    },
-    {
-      "colours": 437,
-      "flat": 0.7004740518962076,
-      "ink": 0.29714009481037923,
-      "name": "02-disk",
-      "png": "docs/screenshots/02-disk.png",
-      "rendered": true,
-      "stddev": 0.06134422222183268
-    },
-    {
-      "colours": 394,
-      "flat": 0.5836608033932136,
-      "ink": 0.4121132734530938,
-      "name": "03-encryption",
-      "png": "docs/screenshots/03-encryption.png",
-      "rendered": true,
-      "stddev": 0.06226990800977924
-    },
-    {
-      "colours": 251,
-      "flat": 0.6966535678642715,
-      "ink": 0.29721806387225547,
-      "name": "04-account",
-      "png": "docs/screenshots/04-account.png",
-      "rendered": true,
-      "stddev": 0.07536962871657688
-    },
-    {
-      "colours": 372,
-      "flat": 0.6182634730538922,
-      "ink": 0.37498440618762474,
-      "name": "05-confirm",
-      "png": "docs/screenshots/05-confirm.png",
-      "rendered": true,
-      "stddev": 0.06160353176013785
-    },
-    {
-      "colours": 342,
-      "flat": 0.7577829415795275,
-      "ink": 0.24132332350224922,
-      "name": "06-progress",
-      "png": "docs/screenshots/06-progress.png",
-      "rendered": true,
-      "stddev": 0.07664987097993729
-    },
-    {
-      "colours": 338,
-      "flat": 0.9778237642362334,
-      "ink": 0.018551133028061523,
-      "name": "07-done",
-      "png": "docs/screenshots/07-done.png",
-      "rendered": true,
-      "stddev": 0.06868508308822775
-    },
-    {
-      "colours": 418,
-      "flat": 0.8383086767641188,
-      "ink": 0.15008218856404837,
-      "name": "08-recovery",
-      "png": "docs/screenshots/08-recovery.png",
-      "rendered": true,
-      "stddev": 0.07006032057049805
-    }
-  ],
-  "rendered_frames": 8,
   "screens": {
+    "welcome": true,
     "disk": true,
-    "done": true,
     "encryption": true,
-    "install": true,
     "summary": true,
-    "welcome": true
+    "install": true,
+    "done": true
   },
+  "strict": true,
+  "failures": 0,
+  "source": "offscreen-capture",
+  "harness": "tests/capture.cpp (Kirigami/QML, offscreen)",
+  "text_source": "qml-item-tree",
   "screens_detail": {
-    "disk": {
-      "matched_keywords": [
-        "choose the disk",
-        "be installed"
-      ],
-      "on_pages": [
-        "02-disk"
-      ],
+    "welcome": {
+      "required": true,
       "reached": true,
-      "required": true
+      "on_pages": [
+        "welcome"
+      ],
+      "matched_keywords": [
+        "get started",
+        "welcome",
+        "will guide you through"
+      ]
+    },
+    "disk": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "disk"
+      ],
+      "matched_keywords": [
+        "be installed",
+        "choose the disk"
+      ]
+    },
+    "encryption": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "encryption"
+      ],
+      "matched_keywords": [
+        "disk encryption"
+      ]
+    },
+    "summary": {
+      "required": true,
+      "reached": true,
+      "on_pages": [
+        "confirm"
+      ],
+      "matched_keywords": [
+        "confirm installation"
+      ]
+    },
+    "install": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "progress",
+        "cancel-confirm"
+      ],
+      "matched_keywords": [
+        "do not power off",
+        "partitioning"
+      ]
     },
     "done": {
+      "required": false,
+      "reached": true,
+      "on_pages": [
+        "done",
+        "recovery"
+      ],
       "matched_keywords": [
         "is installed",
         "remove the installation media"
-      ],
-      "on_pages": [
-        "07-done",
-        "08-recovery"
-      ],
-      "reached": true,
-      "required": false
-    },
-    "encryption": {
-      "matched_keywords": [
-        "disk encryption"
-      ],
-      "on_pages": [
-        "03-encryption"
-      ],
-      "reached": true,
-      "required": false
-    },
-    "install": {
-      "matched_keywords": [
-        "partitioning"
-      ],
-      "on_pages": [
-        "06-progress"
-      ],
-      "reached": true,
-      "required": false
-    },
-    "summary": {
-      "matched_keywords": [
-        "confirm installation"
-      ],
-      "on_pages": [
-        "05-confirm"
-      ],
-      "reached": true,
-      "required": true
-    },
-    "welcome": {
-      "matched_keywords": [
-        "welcome",
-        "get started"
-      ],
-      "on_pages": [
-        "01-welcome"
-      ],
-      "reached": true,
-      "required": true
+      ]
     }
   },
-  "source": "offscreen-capture",
-  "strict": true,
-  "text_source": "qml-item-tree",
-  "transition_pixels": [
-    176009,
-    126678,
-    121281,
-    89483,
-    339632,
-    478306,
-    96844
+  "pages": [
+    {
+      "name": "welcome",
+      "png": "docs/screenshots/01-welcome.png",
+      "rendered": true,
+      "colours": 541,
+      "flat": 0.7799694728190677,
+      "ink": 0.17158330398027474,
+      "stddev": 0.08966084399926993,
+      "text_excerpt": "Step 1 of 7 \u00b7 Welcome\nWelcome to TunaOS\nThis wizard will guide you through installing TunaOS onto this computer.\nYou will choose a disk and how it should be encrypted. Everything after that is handled by the installer.\nRegion & language\nThe"
+    },
+    {
+      "name": "disk",
+      "png": "docs/screenshots/02-disk.png",
+      "rendered": true,
+      "colours": 432,
+      "flat": 0.6303330838323353,
+      "ink": 0.351437749500998,
+      "stddev": 0.06195886355066795,
+      "text_excerpt": "Step 2 of 7 \u00b7 Target Disk\nTarget Disk\nChoose the disk where TunaOS will be installed.\nEverything on the selected disk will be erased.\nEverything on the selected disk will be erased.\nEverything on the selected disk will be erased.\nFilesystem"
+    },
+    {
+      "name": "encryption",
+      "png": "docs/screenshots/03-encryption.png",
+      "rendered": true,
+      "colours": 394,
+      "flat": 0.5836608033932136,
+      "ink": 0.4121132734530938,
+      "stddev": 0.06226990800977924,
+      "text_excerpt": "Step 3 of 7 \u00b7 Disk Encryption\nDisk Encryption\nEncryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling.\nNo encryption\nAnyone with the disk can read your files.\nNo encryption\nAnyone with"
+    },
+    {
+      "name": "account",
+      "png": "docs/screenshots/04-account.png",
+      "rendered": true,
+      "colours": 251,
+      "flat": 0.6966535678642715,
+      "ink": 0.29721806387225547,
+      "stddev": 0.07536962871657688,
+      "text_excerpt": "Step 4 of 7 \u00b7 User Account\nUser Account\nCreate the account you will sign in with. It can also administer this computer.\nAlex Example\nFull name (optional)\nFull name (optional)\nAlex Example\nalex\nUsername\nUsername\nalex\nPassword\nPassword\nShow P"
+    },
+    {
+      "name": "confirm",
+      "png": "docs/screenshots/05-confirm.png",
+      "rendered": true,
+      "colours": 372,
+      "flat": 0.6182634730538922,
+      "ink": 0.37498440618762474,
+      "stddev": 0.06160353176013785,
+      "text_excerpt": "Step 5 of 7 \u00b7 Confirm Installation\nConfirm installation\nEverything on /dev/nvme0n1 will be erased. This cannot be undone.\nEverything on /dev/nvme0n1 will be erased. This cannot be undone.\nEverything on /dev/nvme0n1 will be erased. This cann"
+    },
+    {
+      "name": "progress",
+      "png": "docs/screenshots/06-progress.png",
+      "rendered": true,
+      "colours": 342,
+      "flat": 0.7577829415795275,
+      "ink": 0.24132332350224922,
+      "stddev": 0.07664987097993729,
+      "text_excerpt": "Step 6 of 7 \u00b7 Installing\nInstalling\nInstalling TunaOS\u2026 /dev/nvme0n1. Do not power off the computer.\nStep 5 of 8 \u2014 Installing TunaOS\u2026\n[1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting file"
+    },
+    {
+      "name": "done",
+      "png": "docs/screenshots/07-done.png",
+      "rendered": true,
+      "colours": 338,
+      "flat": 0.9778237642362334,
+      "ink": 0.018551133028061523,
+      "stddev": 0.06868508308822775,
+      "text_excerpt": "Step 7 of 7 \u00b7 Finished\nTunaOS is installed\nRemove the installation media and restart the computer.\nRestart now\n&Restart now\nClose\n&Close"
+    },
+    {
+      "name": "recovery",
+      "png": "docs/screenshots/08-recovery.png",
+      "rendered": true,
+      "colours": 418,
+      "flat": 0.8383086767641188,
+      "ink": 0.15008218856404837,
+      "stddev": 0.07006032057049805,
+      "text_excerpt": "Step 7 of 7 \u00b7 Finished\nTunaOS is installed\nRemove the installation media and restart the computer.\nSave your recovery key\nSave your recovery key\nIf your disk fails to unlock automatically, you will need this recovery key to access your data"
+    },
+    {
+      "name": "cancel-confirm",
+      "png": "docs/screenshots/09-cancel-confirm.png",
+      "rendered": true,
+      "colours": 515,
+      "flat": 0.6543480203771561,
+      "ink": 0.14520213304733817,
+      "stddev": 0.10539422926217538,
+      "text_excerpt": "Step 6 of 7 \u00b7 Installing\nInstalling\nInstalling TunaOS\u2026 /dev/nvme0n1. Do not power off the computer.\nStep 5 of 8 \u2014 Installing TunaOS\u2026\n[1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting file"
+    },
+    {
+      "name": "cancelled",
+      "png": "docs/screenshots/10-cancelled.png",
+      "rendered": true,
+      "colours": 170,
+      "flat": 0.9900639896677234,
+      "ink": 0.009231536926147704,
+      "stddev": 0.05618261774991484,
+      "text_excerpt": "Step 7 of 7 \u00b7 Finished\nInstallation cancelled\nYou stopped the installation. The selected disk is erased and has no complete system. Start the installer again to install.\nClose\n&Close"
+    }
   ],
-  "visual_states": 8
+  "transition_pixels": [
+    15409,
+    10270,
+    10482,
+    11168,
+    11175,
+    13067,
+    11227,
+    176621,
+    173064
+  ],
+  "spec_drift": [],
+  "notes": "GPU-less capture: pages are driven programmatically and text is read from the item tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
 }

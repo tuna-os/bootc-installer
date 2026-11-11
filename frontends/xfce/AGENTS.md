@@ -75,6 +75,8 @@ real output handler and fails when the key is in the file.
 You can test the Flatpak path only from a built Flatpak:
 
 ```bash
+# The manifest builds fisherman from the submodule.
+git -C ../.. submodule update --init fisherman
 flatpak-builder --user --install --force-clean build \
   flatpak/org.tunaos.InstallerXfce.json
 flatpak run org.tunaos.InstallerXfce

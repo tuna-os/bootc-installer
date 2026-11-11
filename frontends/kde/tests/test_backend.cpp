@@ -127,6 +127,7 @@ private slots:
     void catalogBrandingDefaultWinsInTheController();
     void catalogLoadSkipsAFileThatIsNoCatalog();
     void catalogLiveMediaReadsTheLeafOfTheLiveImage();
+    void liveLeafTakesTheOperatorLayout();
     void catalogSelectionReplacesThePreviousLeaf();
     void catalogNvidiaDetection();
     void catalogFilesystemProblemReachesTheDiskStep();
@@ -2104,6 +2105,47 @@ void BackendTest::catalogLiveMediaReadsTheLeafOfTheLiveImage()
     }
 }
 
+void BackendTest::liveLeafTakesTheOperatorLayout()
+{
+    // tunaOS grouper: no catalog leaf, and the ISO builder's probe of the
+    // running image in the operator recipe (tunaOS#4485).
+    const QByteArray grouper(
+        R"({"bootloader": "systemd", "composeFsBackend": true, "filesystem": "ext4", "user": {"groups": []}})");
+    const imagecatalog::Leaf none = imagecatalog::liveLeaf(nullptr, grouper);
+    QCOMPARE(none.bootloader, QStringLiteral("systemd"));
+    QVERIFY(none.composefs);
+    QCOMPARE(none.filesystem, QStringLiteral("ext4"));
+    QCOMPARE(none.filesystems, QStringList{QStringLiteral("ext4")});
+
+    // A leaf's values give way to the operator's, an explicit false included;
+    // what the operator recipe does not set stays the leaf's.
+    imagecatalog::Leaf leaf;
+    leaf.bootloader = QStringLiteral("systemd");
+    leaf.composefs = true;
+    leaf.filesystem = QStringLiteral("btrfs");
+    leaf.filesystems = {QStringLiteral("btrfs"), QStringLiteral("xfs")};
+    leaf.defaultHostname = QStringLiteral("skipjack");
+    const imagecatalog::Leaf el10 = imagecatalog::liveLeaf(
+        &leaf, R"({"bootloader": "grub2", "composeFsBackend": false, "filesystem": "xfs"})");
+    QCOMPARE(el10.bootloader, QStringLiteral("grub2"));
+    QVERIFY(!el10.composefs);
+    QCOMPARE(el10.filesystems, QStringList{QStringLiteral("xfs")});
+    QCOMPARE(el10.defaultHostname, QStringLiteral("skipjack"));
+
+    // Missing, empty or mistyped keys, no file, or a file that does not
+    // parse: the leaf as it is (fisherman's defaults without one).
+    for (const QByteArray &json : {QByteArray(), QByteArray(""), QByteArray("{ not json"),
+                                   QByteArray(R"({"bootloader": "", "composeFsBackend": "true", "filesystem": 4})")}) {
+        const imagecatalog::Leaf kept = imagecatalog::liveLeaf(&leaf, json);
+        QCOMPARE(kept.bootloader, leaf.bootloader);
+        QCOMPARE(kept.composefs, leaf.composefs);
+        QCOMPARE(kept.filesystem, leaf.filesystem);
+        QCOMPARE(kept.filesystems, leaf.filesystems);
+        const imagecatalog::Leaf bare = imagecatalog::liveLeaf(nullptr, json);
+        QVERIFY(bare.bootloader.isEmpty() && !bare.composefs && bare.filesystems.isEmpty());
+    }
+}
+
 void BackendTest::catalogSelectionReplacesThePreviousLeaf()
 {
     if (sharedCatalog().isEmpty())
@@ -2239,11 +2281,16 @@ void BackendTest::accountGroupCases()
             QVERIFY(writeFile(path, json));
         }
         // The same through the file, as the controller reads it.
-        QVERIFY2(account::groupsFromFile(path) == want, name);
+        QVERIFY2(account::groups(account::readOperatorRecipe(path)) == want, name);
     }
-    // A file that does not parse is the default list.
+    // A file that does not parse is the default list; an empty file is such
+    // a file, not "no file".
     QVERIFY(writeFile(dir.filePath(QStringLiteral("bad.json")), "{ not json"));
-    QCOMPARE(account::groupsFromFile(dir.filePath(QStringLiteral("bad.json"))), account::defaultGroups());
+    QCOMPARE(account::groups(account::readOperatorRecipe(dir.filePath(QStringLiteral("bad.json")))),
+             account::defaultGroups());
+    QVERIFY(writeFile(dir.filePath(QStringLiteral("empty.json")), ""));
+    QVERIFY(!account::readOperatorRecipe(dir.filePath(QStringLiteral("empty.json"))).isNull());
+    QVERIFY(account::readOperatorRecipe(dir.filePath(QStringLiteral("absent.json"))).isNull());
 }
 
 // ---- cancel (#299) ----------------------------------------------------------

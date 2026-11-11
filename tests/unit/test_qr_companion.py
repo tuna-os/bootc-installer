@@ -342,11 +342,13 @@ def test_the_flatpak_ships_segno(manifest):
     """segno was imported optionally and shipped nowhere, so every user saw
     the fallback instead of a QR code. The Flatpak must carry it, pinned,
     and install it before the app."""
-    import json
     import pathlib
 
-    path = pathlib.Path(__file__).resolve().parents[2] / "flatpak" / manifest
-    modules = json.loads(path.read_text())["modules"]
+    root = pathlib.Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(root / "shared" / "ci"))
+    import flatpak_manifest
+
+    modules = flatpak_manifest.load(root / "flatpak" / manifest)["modules"]
     names = [m["name"] for m in modules]
     assert "python3-segno" in names
     assert names.index("python3-segno") < names.index("bootc-installer")

@@ -1,9 +1,9 @@
 {
   "flavor": "gnome",
-  "frames": 8,
-  "rendered_frames": 8,
-  "advanced_transitions": 7,
-  "visual_states": 8,
+  "frames": 11,
+  "rendered_frames": 11,
+  "advanced_transitions": 10,
+  "visual_states": 11,
   "activation_key": null,
   "ocr": false,
   "screens": {
@@ -66,10 +66,12 @@
       "required": false,
       "reached": true,
       "on_pages": [
+        "conn-check",
         "progress"
       ],
       "matched_keywords": [
-        "do not power off"
+        "do not power off",
+        "please wait"
       ]
     },
     "done": {
@@ -96,84 +98,117 @@
       "text_excerpt": "Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Power Off Power Off Press Super+Alt+S to enable the screen reader Credits Credits"
     },
     {
+      "name": "conn-check",
+      "png": "docs/screenshots/02-conn-check.png",
+      "rendered": true,
+      "colours": 183,
+      "flat": 0.9638471673254282,
+      "ink": 0.009644268774703557,
+      "stddev": 0.07025900494415825,
+      "text_excerpt": "Checking Connection Please wait until the connection check is done"
+    },
+    {
+      "name": "image",
+      "png": "docs/screenshots/03-image.png",
+      "rendered": true,
+      "colours": 415,
+      "flat": 0.6632806324110672,
+      "ink": 0.023372859025032937,
+      "stddev": 0.10414993568154879,
+      "text_excerpt": "Choose an Image Select a BootcOS image to install, or enter a custom bootc-compatible image URL. Search images\u2026 Aurora Aurora Aurora Aurora DX Aurora DX ghcr.io/ublue-os/aurora-dx Aurora DX ghcr.io/ublue-os/aurora-dx Beta ghcr.io/ublue-os/a"
+    },
+    {
       "name": "qr_companion",
-      "png": "docs/screenshots/02-qr_companion.png",
+      "png": "docs/screenshots/04-qr_companion.png",
       "rendered": true,
       "colours": 290,
-      "flat": 0.8550592885375494,
+      "flat": 0.8549538866930171,
       "ink": 0.03313570487483531,
-      "stddev": 0.14985634389948976,
+      "stddev": 0.14985947451491227,
       "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
     },
     {
       "name": "disk",
-      "png": "docs/screenshots/03-disk.png",
+      "png": "docs/screenshots/05-disk.png",
       "rendered": true,
-      "colours": 278,
-      "flat": 0.7448484848484849,
-      "ink": 0.020289855072463767,
-      "stddev": 0.10833703526805596,
+      "colours": 277,
+      "flat": 0.7447167325428194,
+      "ink": 0.020276679841897235,
+      "stddev": 0.10833487758817598,
       "text_excerpt": "Computer is not plugged in \u2014 connect power before installing Install Location Select the disk where you want to install. All data on the selected disk will be permanently erased. Samsung SSD 870 EVO 500GB /dev/sda \u00b7 465.8 GiB \u00b7 SATA Samsung"
     },
     {
       "name": "encryption",
-      "png": "docs/screenshots/04-encryption.png",
+      "png": "docs/screenshots/06-encryption.png",
       "rendered": true,
-      "colours": 279,
-      "flat": 0.7612121212121212,
-      "ink": 0.020303030303030302,
-      "stddev": 0.10244502060483458,
+      "colours": 281,
+      "flat": 0.7031488801054019,
+      "ink": 0.021752305665349143,
+      "stddev": 0.1057596492790874,
       "text_excerpt": "Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You'll type it at every boot. Encrypt this disk You'll type it at every boot. Password Password Password Confirm Password Confirm Password Confirm Password Use h"
     },
     {
+      "name": "user",
+      "png": "docs/screenshots/07-user.png",
+      "rendered": true,
+      "colours": 327,
+      "flat": 0.7092753623188406,
+      "ink": 0.008932806324110672,
+      "stddev": 0.06375305467928326,
+      "text_excerpt": "Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Confirm Password Confirm Password"
+    },
+    {
       "name": "confirm",
-      "png": "docs/screenshots/05-confirm.png",
+      "png": "docs/screenshots/08-confirm.png",
       "rendered": true,
       "colours": 374,
-      "flat": 0.6715415019762846,
-      "ink": 0.014677206851119895,
-      "stddev": 0.08090776174456381,
+      "flat": 0.671501976284585,
+      "ink": 0.014637681159420289,
+      "stddev": 0.0807118014079716,
       "text_excerpt": "Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be undone. Summary Summary Target disk Samsung SSD 870 EVO 500GB (/dev/sda, 465.8 GiB) Target disk Samsung"
     },
     {
       "name": "progress",
-      "png": "docs/screenshots/06-progress.png",
+      "png": "docs/screenshots/09-progress.png",
       "rendered": true,
-      "colours": 181,
-      "flat": 0.9573649538866931,
-      "ink": 0.007549407114624506,
-      "stddev": 0.05809491205679763,
-      "text_excerpt": "Installing TunaOS\u2026 Downloading\u2026 (47 of 71 parts) 0:00 elapsed 35% Do not power off the computer."
+      "colours": 174,
+      "flat": 0.9525955204216073,
+      "ink": 0.007075098814229249,
+      "stddev": 0.057473853805099374,
+      "text_excerpt": "Installing TunaOS\u2026 Downloading\u2026 (47 of 71 parts) 0:00 elapsed 35% Do not power off the computer. Cancel Cancel"
     },
     {
       "name": "recovery-key",
-      "png": "docs/screenshots/07-recovery-key.png",
+      "png": "docs/screenshots/10-recovery-key.png",
       "rendered": true,
       "colours": 256,
       "flat": 0.8902371541501977,
       "ink": 0.01785243741765481,
-      "stddev": 0.09072446218336834,
+      "stddev": 0.09072438481569614,
       "text_excerpt": "Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf I have saved "
     },
     {
       "name": "done",
-      "png": "docs/screenshots/08-done.png",
+      "png": "docs/screenshots/11-done.png",
       "rendered": true,
-      "colours": 245,
-      "flat": 0.9479578392621871,
-      "ink": 0.01805006587615283,
-      "stddev": 0.08391740493686557,
-      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now"
+      "colours": 428,
+      "flat": 0.9351383399209486,
+      "ink": 0.01704874835309618,
+      "stddev": 0.07713911845322649,
+      "text_excerpt": "Aurora DX is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now"
     }
   ],
   "transition_pixels": [
-    54931,
-    68059,
-    45670,
-    45057,
-    34834,
-    37080,
-    38773
+    21121,
+    45376,
+    70270,
+    68063,
+    51794,
+    43788,
+    43476,
+    39057,
+    38578,
+    39294
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."

@@ -63,9 +63,10 @@ parser in a test and compares the result with `fixtures/expected.json`. See
 Scripts and data for the workflows. `frontends.json` is the table of the
 frontends: the app id, the Flatpak manifest, the builder image, and two
 switches. `publish-flatpak.yml` publishes each frontend from its row, and
-`frontend_table.py` reads the row. `fisherman_pins.py` moves every fisherman
-pin together, and `published_freshness.py` compares the served Flatpaks with
-`prod`. `tests/unit/test_ci_frontend_table.py`,
+`frontend_table.py` reads the row. `fisherman_pins.py` moves the fisherman
+submodule pin, the one pin. `flatpak_manifest.py` reads a Flatpak manifest
+with its module includes, as flatpak-builder does, and checks its local
+sources. `published_freshness.py` compares the served Flatpaks with `prod`. `tests/unit/test_ci_frontend_table.py`,
 `tests/unit/test_ci_fisherman_pins.py` and
 `tests/unit/test_ci_published_freshness.py` cover them. A new frontend adds
 one row to `frontends.json`, and one `Publish (<name>)` job to `release.yml`.
@@ -79,6 +80,22 @@ page. `check-recipe.py` then examines the recipe that the frontend wrote, and
 the gate on each push. `promote.yml` requires its jobs. A new frontend adds
 an `E2E (<name>)` job and an entry in the install matrix of `e2e.yml`, and
 the two job names in `REQUIRED_CHECKS`. See [e2e/README.md](e2e/README.md).
+
+## `flatpak/`
+
+The Flatpak modules that more than one manifest builds. `go.json` is the Go
+toolchain, and all six manifests list it by path. `fisherman.json` builds
+fisherman from the submodule and installs its catalog and polkit policy. The
+four frontend manifests list it by path, so the submodule gitlink is the only
+fisherman pin. GNOME keeps its own fisherman module, because it installs the
+catalog and the policy in other modules. flatpak-builder reads a source path
+in these files from `shared/flatpak/`, not from the manifest directory.
+`TestFishermanPin` in `tests/unit/test_shared_probe.py` and
+`tests/unit/test_manifest_sources_are_arch_aware.py` cover them, and
+`validate-flatpak.yml` resolves every include. A new frontend adds
+`"../../../shared/flatpak/go.json"` and
+`"../../../shared/flatpak/fisherman.json"` to its `modules`, and sets
+`checkout-submodules` in its `ci/frontends.json` row.
 
 ## `probe/`
 
