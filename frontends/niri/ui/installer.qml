@@ -88,6 +88,7 @@ ApplicationWindow {
             encryption_tpm2_luks_description: "Unlocks automatically on this hardware.",
             encryption_tpm2_luks_passphrase_label: "TPM + passphrase",
             encryption_tpm2_luks_passphrase_description: "Automatic unlock, passphrase as fallback.",
+            filesystem_zfs_label: "ZFS (experimental)",
             confirm_title: "Confirm installation",
             confirm_subtitle: "",
             confirm_body: "",
@@ -1800,7 +1801,11 @@ ApplicationWindow {
                                             Layout.fillWidth: true
                                             firstInGroup: index === 0
                                             lastInGroup: index === root.filesystems.length - 1
-                                            primaryText: modelData
+                                            // zfs is experimental in fisherman:
+                                            // the copy says so.
+                                            primaryText: modelData === "zfs"
+                                                ? (root.text("filesystem_zfs_label") || modelData)
+                                                : modelData
                                             monospace: true
                                             isSelected: root.filesystem === modelData
                                             onClicked: root.filesystem = modelData
@@ -2048,7 +2053,10 @@ ApplicationWindow {
                                 StyledText { text: qsTr("Filesystem"); color: Theme.surfaceVariantText }
                                 StyledText {
                                     text: root.filesystem === "btrfs" && root.btrfsSubvolumes
-                                        ? qsTr("%1  (subvolumes)").arg(root.filesystem) : root.filesystem
+                                        ? qsTr("%1  (subvolumes)").arg(root.filesystem)
+                                        : root.filesystem === "zfs"
+                                            ? (root.text("filesystem_zfs_label") || root.filesystem)
+                                            : root.filesystem
                                     isMonospace: true
                                 }
                                 StyledText { text: qsTr("Encryption"); color: Theme.surfaceVariantText }

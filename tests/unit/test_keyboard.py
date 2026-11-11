@@ -144,23 +144,48 @@ class TestBootcDefaultKeyboardGetFinals(unittest.TestCase):
     def setUp(self):
         self.mod = _import_keyboard_fresh()
 
-    def test_get_finals_returns_fallback_when_no_keyboard_selected(self):
+    def test_get_finals_has_no_key_when_no_keyboard_is_selected(self):
+        """No fallback layout: without a pick the image keeps its own
+        keyboard (#292)."""
         obj = self.mod.BootcDefaultKeyboard.__new__(self.mod.BootcDefaultKeyboard)
         obj.selected_keyboard = []
 
-        self.assertEqual(
-            obj.get_finals(),
-            {"keyboard": [{"layout": "us", "model": "pc105", "variant": ""}]},
-        )
+        self.assertEqual(obj.get_finals(), {})
 
-    def test_get_finals_returns_selected_keyboard_list(self):
+    def test_get_finals_returns_the_xkb_layout_and_variant(self):
         obj = self.mod.BootcDefaultKeyboard.__new__(self.mod.BootcDefaultKeyboard)
-        obj.selected_keyboard = [{"layout": "de", "model": "pc105", "variant": "neo"}]
+        obj.selected_keyboard = [{"layout": "de", "variant": "neo"}]
 
-        self.assertEqual(
-            obj.get_finals(),
-            {"keyboard": [{"layout": "de", "model": "pc105", "variant": "neo"}]},
-        )
+        self.assertEqual(obj.get_finals(), {"keyboard": {"layout": "de", "variant": "neo"}})
+
+    def test_get_finals_leaves_an_empty_variant_out(self):
+        obj = self.mod.BootcDefaultKeyboard.__new__(self.mod.BootcDefaultKeyboard)
+        obj.selected_keyboard = [{"layout": "us", "variant": ""}]
+
+        self.assertEqual(obj.get_finals(), {"keyboard": {"layout": "us"}})
+
+
+class TestKeyboardRowToggle(unittest.TestCase):
+    def setUp(self):
+        self.mod = _import_keyboard_fresh()
+
+    def _row(self, layout, variant, selected):
+        row = self.mod.KeyboardRow.__new__(self.mod.KeyboardRow)
+        row._KeyboardRow__layout = layout
+        row._KeyboardRow__variant = variant
+        row._KeyboardRow__selected_keyboard = selected
+        row.get_parent = MagicMock(return_value=None)
+        return row
+
+    def test_a_pick_replaces_the_previous_one(self):
+        selected = []
+        us, de = self._row("us", "", selected), self._row("de", "neo", selected)
+        on, off = MagicMock(), MagicMock()
+        on.get_active.return_value, off.get_active.return_value = True, False
+        us._KeyboardRow__on_check_button_toggled(on)
+        de._KeyboardRow__on_check_button_toggled(on)
+        us._KeyboardRow__on_check_button_toggled(off)
+        self.assertEqual(selected, [{"layout": "de", "variant": "neo"}])
 
 
 class TestBootcDefaultKeyboardLayoutArray(unittest.TestCase):
@@ -278,33 +303,57 @@ class TestBootcDefaultKeyboardDeltas(unittest.TestCase):
         obj._BootcDefaultKeyboard__window = SimpleNamespace(carousel=MagicMock())
         return obj
 
-    def test_gen_deltas_appends_rows_and_connects_handlers(self):
+    def test_gen_deltas_appends_rows_and_connects_nothing(self):
+        """gen_deltas runs on each visit. It connected the Next handler
+        each time, so a second visit moved two pages on one click."""
         obj = self._make_obj()
 
-        with patch.dict(os.environ, {}, clear=True):
-            obj.gen_deltas()
+        obj.gen_deltas()
+        obj.gen_deltas()
 
-        self.assertEqual(obj.all_keyboards_group.append.call_count, 2)
-        obj.entry_search_keyboard.add_controller.assert_called_once_with(obj.search_controller)
-        obj.entry_test.add_controller.assert_called_once_with(obj.test_focus_controller)
+        self.assertEqual(obj.all_keyboards_group.append.call_count, 4)
+        obj.btn_next.connect.assert_not_called()
+        obj.entry_search_keyboard.add_controller.assert_not_called()
+        obj.all_keyboards_group.connect.assert_not_called()
+
+    def _init(self, environ):
+        window = SimpleNamespace(carousel=MagicMock())
+        rows = [SimpleNamespace(select_button=MagicMock()) for _ in range(3)]
+        tmpl = {name: MagicMock() for name in (
+            "btn_next", "entry_test", "entry_search_keyboard",
+            "all_keyboards_group", "problem_label")}
+        cls = self.mod.BootcDefaultKeyboard
+        with patch.dict(os.environ, environ, clear=True), \
+                patch.object(self.mod, "ChoiceCheck") as check, \
+                patch.object(self.mod, "KeyMaps"), \
+                patch.object(cls, "_BootcDefaultKeyboard__generate_keyboard_list_widgets",
+                             return_value=rows), \
+                patch.object(self.mod.Adw.Bin, "__init__", lambda self, **kw: None, create=True):
+            obj = cls.__new__(cls)
+            for name, value in tmpl.items():
+                setattr(obj, name, value)
+            obj.__init__(window, {}, "keyboard", {})
+        return obj, window, rows, check
+
+    def test_init_connects_each_handler_once_and_groups_the_rows(self):
+        obj, window, rows, check = self._init({})
         obj.btn_next.connect.assert_called_once()
         self.assertEqual(obj.all_keyboards_group.connect.call_count, 3)
-        obj._BootcDefaultKeyboard__window.carousel.connect.assert_called_once_with(
-            "page-changed", obj._BootcDefaultKeyboard__keyboard_verify
-        )
-        obj.search_controller.connect.assert_called_once_with(
-            "key-released", obj._BootcDefaultKeyboard__on_search_key_pressed
-        )
+        window.carousel.connect.assert_called_once_with(
+            "page-changed", obj._BootcDefaultKeyboard__keyboard_verify)
+        obj.entry_search_keyboard.add_controller.assert_called_once_with(obj.search_controller)
+        obj.entry_test.add_controller.assert_called_once_with(obj.test_focus_controller)
         obj.test_focus_controller.connect.assert_called_once_with(
-            "enter", obj._BootcDefaultKeyboard__apply_layout
-        )
+            "enter", obj._BootcDefaultKeyboard__apply_layout)
+        # One layout: the rows are one radio group.
+        rows[0].select_button.set_group.assert_not_called()
+        for row in rows[1:]:
+            row.select_button.set_group.assert_called_once_with(rows[0].select_button)
+        check.assert_called_once()
+        self.assertEqual(check.call_args[0][1], "keyboard")
 
-    def test_gen_deltas_skips_apply_layout_hook_when_env_disables_xkb(self):
-        obj = self._make_obj()
-
-        with patch.dict(os.environ, {"VANILLA_NO_APPLY_XKB": "1"}, clear=True):
-            obj.gen_deltas()
-
+    def test_init_skips_apply_layout_hook_when_env_disables_xkb(self):
+        obj, *_ = self._init({"VANILLA_NO_APPLY_XKB": "1"})
         obj.test_focus_controller.connect.assert_not_called()
 
     def test_del_deltas_removes_all_keyboard_rows(self):

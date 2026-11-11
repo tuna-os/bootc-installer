@@ -573,7 +573,8 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
                  target_imgref="", hostname="", bootloader="", composefs=False,
                  flatpaks=None, flatpak_var_path="", image_type="bootc",
                  extras=None, needs_user=True, username="", fullname="",
-                 password="", groups=None, branding=None):
+                 password="", groups=None, branding=None, locale="",
+                 keyboard_layout="", timezone=""):
     """Assemble the fisherman recipe from already-resolved values.
 
     This is the contract with the install backend, the same document every
@@ -595,6 +596,9 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
       * `flatpaks` is a list or None. `[]` tells fisherman to copy no
         Flatpak; None (a list this frontend cannot read offline, or no
         value) writes no key, and fisherman applies its own default.
+      * `locale`, `keyboard_layout` and `timezone` are the identity
+        page's picks; "" writes no key, and the image keeps its own
+        (region_fields).
       * `extras` is the leaf's object or None. None writes no key, and
         fisherman looks the image up in the catalog that it finds.
       * The user block is omitted entirely when the image creates its own
@@ -630,6 +634,8 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
         recipe["imageType"] = image_type
     if extras is not None:
         recipe["extras"] = {key: bool(extras.get(key, False)) for key in EXTRAS}
+    recipe.update(region_fields(locale=locale, keyboard_layout=keyboard_layout,
+                                timezone=timezone))
     if needs_user and username:
         recipe["user"] = {
             "username": username,
@@ -638,6 +644,25 @@ def build_recipe(*, disk, filesystem, btrfs_subvolumes=False,
             "groups": list(DEFAULT_GROUPS if groups is None else groups),
         }
     return recipe
+
+
+def region_fields(locale="", keyboard_layout="", timezone=""):
+    """The recipe's `locale`, `keyboard` and `timezone` (#292): a key for
+    each value the person picked, none for "". `keyboard` is an XKB layout,
+    the name that `localectl list-x11-keymap-layouts` gives."""
+    fields = {}
+    if locale:
+        fields["locale"] = locale
+    if keyboard_layout:
+        fields["keyboard"] = {"layout": keyboard_layout}
+    if timezone:
+        fields["timezone"] = timezone
+    return fields
+
+
+def is_region_field(field):
+    """Whether a validate problem's field is one of region_fields' keys."""
+    return field in ("locale", "keyboard", "timezone") or field.startswith("keyboard.")
 
 
 def experimental_for(filesystem):

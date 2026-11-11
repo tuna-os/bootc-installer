@@ -2,14 +2,11 @@
 
 GTK-free helpers:
 
-- The identity page offers the keyboard layout and applies it to the live
-  session (setxkbmap), so the passphrase a person types is the one they
-  mean. It is labelled "this session only": the recipe has no locale,
-  keyboard or timezone field yet (tuna-os/fisherman#405), so nothing here
-  reaches the installed system.
-- The language and timezone readers have no caller in the wizard now. The
-  page had a combo for each and nothing read the values (#292), so the
-  combos went. The readers stay for the recipe fields.
+- The identity page offers a language, a keyboard layout and a time zone
+  from these lists. A pick goes into the recipe's `locale`,
+  `keyboard.layout` or `timezone` (#292). The keyboard pick also switches
+  the live session (setxkbmap), so the passphrase a person types next is
+  the one they mean.
 - has_connectivity() is the probe behind the confirm page's network gate;
   needs_network() says when that gate applies.
 

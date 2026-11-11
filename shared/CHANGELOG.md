@@ -40,6 +40,13 @@ schema only.
   too: a host without bootc for the container and the shim, the laptop's
   for the two live fixtures. A plain probe selects no source.
 
+## 2026-11-10: branding copy, the ZFS label
+
+- Added: `filesystem_zfs_label`, "ZFS (experimental)": the name of ZFS in
+  the filesystem picker and on the confirm page. fisherman accepts ZFS
+  only with `"experimental": ["zfs"]` in the recipe. GNOME, XFCE, COSMIC
+  and Niri show it; KDE offers no ZFS.
+
 ## 2026-11-10: branding copy, the validate codes of fisherman `7f9021b`
 
 - Added: `validate_<code>` lines for the new codes of `fisherman validate`:

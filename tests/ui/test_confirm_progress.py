@@ -61,8 +61,8 @@ class TestConfirmScreen:
         confirm = BootcConfirm(_branded_window())
         finals = [
             {"language": "pt_BR.UTF-8"},
-            {"keyboard": [{"layout": "us", "variant": ""}, {"layout": "br", "variant": "abnt2"}]},
-            {"timezone": {"region": "America", "zone": "Sao_Paulo"}},
+            {"keyboard": {"layout": "br", "variant": "abnt2"}},
+            {"timezone": "America/Sao_Paulo"},
             {"user": {"username": "jorge", "fullname": "Jorge Castro"}},
             {"disk": {"auto": {"disk": "/dev/nvme0n1", "pretty_size": "1 TB",
                                "model": "WD_BLACK SN850X"},
@@ -87,9 +87,10 @@ class TestConfirmScreen:
         assert confirm.page_header.subtitle == '"Segue em frente." — Alguém'
         assert confirm.btn_confirm.get_label() == "Onward"
         assert ("Language", "pt_BR.UTF-8") in rows
-        assert ("Keyboard 1", "us") in rows
-        assert ("Keyboard 2", "br+abnt2") in rows
-        assert ("Timezone", "America Sao_Paulo") in rows
+        # The recipe's keyboard and timezone (#292): one XKB layout, an
+        # IANA zone.
+        assert ("Keyboard", "br+abnt2") in rows
+        assert ("Time zone", "America/Sao_Paulo") in rows
         assert ("Users", "jorge (Jorge Castro)") in rows
         # The model names the physical disk, the path says which device.
         assert ("Target disk", "WD_BLACK SN850X (/dev/nvme0n1, 1 TB)") in rows

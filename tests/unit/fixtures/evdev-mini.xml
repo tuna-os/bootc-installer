@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Two layouts in the shape of xkeyboard-config's rules/evdev.xml, for
+     tests/unit/test_gnome_region.py. -->
+<xkbConfigRegistry version="1.1">
+  <layoutList>
+    <layout>
+      <configItem>
+        <name>us</name>
+        <shortDescription>en</shortDescription>
+        <description>English (US)</description>
+      </configItem>
+    </layout>
+    <layout>
+      <configItem>
+        <name>de</name>
+        <shortDescription>de</shortDescription>
+        <description>German</description>
+      </configItem>
+      <variantList>
+        <variant>
+          <configItem>
+            <name>nodeadkeys</name>
+            <description>German (no dead keys)</description>
+          </configItem>
+        </variant>
+      </variantList>
+    </layout>
+  </layoutList>
+</xkbConfigRegistry>

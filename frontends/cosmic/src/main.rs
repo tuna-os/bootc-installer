@@ -498,6 +498,12 @@ pub struct TunaInstaller {
     /// The first account's groups: shared/account/groups.json, or the
     /// operator's `user.groups`.
     user_groups: Vec<String>,
+    /// The ISO's operator recipe (`<etc>/bootc-installer/recipe.json`),
+    /// parsed once at start-up; `None` when missing or not JSON.
+    operator_recipe: Option<serde_json::Value>,
+    /// On live media, the leaf "install this system" applies
+    /// (`image_catalog::live_leaf`); built by `sync_image`.
+    live_leaf: Option<image_catalog::ImageLeaf>,
     /// "Continue anyway" overrides for the RAM/CPU gates.
     hw_overrides: hardware::Overrides,
     /// The exit-confirm state (RequestQuit): the view renders the confirm
@@ -652,14 +658,12 @@ impl TunaInstaller {
     pub fn selected_leaf(&self) -> Option<&image_catalog::ImageLeaf> {
         self.selected_image.and_then(|i| self.catalog.leaves.get(i))
     }
-    /// The leaf the recipe was built from: on live media the leaf of the
-    /// booted image, else the typed custom image when the catalog has it,
-    /// else the selected leaf.
+    /// The leaf the recipe was built from: on live media the booted image's
+    /// live leaf (`image_catalog::live_leaf`), else the typed custom image
+    /// when the catalog has it, else the selected leaf.
     pub fn active_leaf(&self) -> Option<&image_catalog::ImageLeaf> {
-        if !self.capturing() {
-            if let Some(live) = self.live_image.as_deref() {
-                return self.catalog.find(live).map(|i| &self.catalog.leaves[i]);
-            }
+        if !self.capturing() && self.live_image.is_some() {
+            return self.live_leaf.as_ref();
         }
         let custom = self.custom_image.trim();
         if !custom.is_empty() {
@@ -893,10 +897,14 @@ impl TunaInstaller {
         if !self.capturing() {
             if let Some(live) = self.live_image.clone() {
                 // Live media installs the running system: `image` stays
-                // empty. The leaf of the booted image still says how
+                // empty. The booted image's live leaf (its catalog leaf with
+                // the ISO recipe's layout over it) still says how
                 // (bootloader, composefs, filesystem) and what updates
                 // follow.
-                match self.catalog.find(&live).map(|i| self.catalog.leaves[i].clone()) {
+                let catalog_leaf = self.catalog.find(&live).map(|i| &self.catalog.leaves[i]);
+                self.live_leaf =
+                    image_catalog::live_leaf(catalog_leaf, &live, self.operator_recipe.as_ref());
+                match self.live_leaf.clone() {
                     Some(leaf) => {
                         self.recipe.apply_leaf(&leaf, &machine);
                         self.apply_default_hostname(&leaf.default_hostname);
@@ -1063,13 +1071,14 @@ impl cosmic::Application for TunaInstaller {
         // else nothing: never the first row. Nothing shells out: it is flat
         // files, read here.
         let mut catalog = image_catalog::Catalog::default();
-        let mut user_groups = model::default_groups();
+        let mut operator_recipe = None;
         if !capturing {
             if let Some(loaded) = image_catalog::load_catalog() {
                 catalog = loaded;
             }
-            user_groups = model::groups_from_etc(image_catalog::etc_dir());
+            operator_recipe = model::read_operator_recipe(image_catalog::etc_dir());
         }
+        let user_groups = model::groups_for(operator_recipe.as_ref());
         let default_image = branding::get().default_image.clone();
         let selected_image = catalog.default_index(&default_image);
         let image_preselected =
@@ -1117,6 +1126,8 @@ impl cosmic::Application for TunaInstaller {
             has_nvidia: !capturing && hardware::has_nvidia_gpu(),
             offline_images: Vec::new(),
             user_groups,
+            operator_recipe,
+            live_leaf: None,
             hw_overrides: hardware::Overrides::default(),
             show_exit_dialog: false,
             locales: Vec::new(),

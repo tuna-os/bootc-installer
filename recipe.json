@@ -5,6 +5,18 @@
             "template": "welcome",
             "protected": true
         },
+        "language": {
+            "template": "language",
+            "protected": true
+        },
+        "keyboard": {
+            "template": "keyboard",
+            "protected": true
+        },
+        "timezone": {
+            "template": "timezone",
+            "protected": true
+        },
         "conn-check": {
             "template": "conn-check",
             "protected": true

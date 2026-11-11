@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: vanilla-installer\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 00:33+0000\n"
+"POT-Creation-Date: 2026-11-11 02:03+0000\n"
 "PO-Revision-Date: 2023-12-29 16:06+0000\n"
 "Last-Translator: \"K.B.Dharun Krishna\" <kbdharunkrishna@gmail.com>\n"
 "Language-Team: Tamil <https://hosted.weblate.org/projects/vanilla-os/"
@@ -20,7 +20,7 @@ msgstr ""
 
 #: data/org.bootcinstaller.Installer.appdata.xml.in:6
 #: data/org.bootcinstaller.Installer.desktop.in:3
-#: bootc_installer/gtk/window.blp:7 bootc_installer/windows/main_window.py:558
+#: bootc_installer/gtk/window.blp:7 bootc_installer/windows/main_window.py:601
 #, fuzzy
 msgid "bootc Installer"
 msgstr "நிறுவ வேண்டாம்"
@@ -47,17 +47,17 @@ msgstr "நிறுவலை உறுதிப்படுத்தவும�
 msgid "Summary"
 msgstr ""
 
-#: bootc_installer/gtk/confirm.blp:53
+#: bootc_installer/gtk/confirm.blp:67 bootc_installer/gtk/default-nvidia.blp:40
+#: bootc_installer/gtk/default-vm.blp:40
+#: bootc_installer/gtk/default-welcome.blp:23
+#: bootc_installer/views/confirm.py:449
+msgid "Install"
+msgstr "நிறுவு"
+
+#: bootc_installer/gtk/confirm.blp:86
 #, fuzzy
 msgid "Selected image"
 msgstr "ஒரு வட்டைத் தேர்ந்தெடுக்கவும்"
-
-#: bootc_installer/gtk/confirm.blp:74 bootc_installer/gtk/default-nvidia.blp:40
-#: bootc_installer/gtk/default-vm.blp:40
-#: bootc_installer/gtk/default-welcome.blp:23
-#: bootc_installer/views/confirm.py:424
-msgid "Install"
-msgstr "நிறுவு"
 
 #: bootc_installer/gtk/default-conn-check.blp:19
 #: bootc_installer/defaults/conn_check.py:146
@@ -128,7 +128,7 @@ msgstr ""
 
 #: bootc_installer/gtk/default-disk.blp:115
 #: bootc_installer/utils/phone_companion.py:143
-#: bootc_installer/views/confirm.py:292
+#: bootc_installer/views/confirm.py:317
 #, fuzzy
 msgid "Hostname"
 msgstr "பயனர் பெயர்"
@@ -214,7 +214,7 @@ msgid ""
 msgstr ""
 
 #: bootc_installer/gtk/default-hardware.blp:63
-#: bootc_installer/views/confirm.py:382
+#: bootc_installer/views/confirm.py:407
 msgid "Graphics"
 msgstr ""
 
@@ -292,7 +292,7 @@ msgstr "விசைப்பலகை தளவமைப்புகளைத�
 
 #: bootc_installer/gtk/default-language.blp:37
 #: bootc_installer/gtk/widget-language.blp:13
-#: bootc_installer/views/confirm.py:193
+#: bootc_installer/views/confirm.py:211
 msgid "Language"
 msgstr "மொழி"
 
@@ -396,7 +396,7 @@ msgstr "உங்களுக்கு விருப்பமான நேர 
 msgid "Search timezones"
 msgstr "நேர மண்டலங்களைத் தேடுங்கள்"
 
-#: bootc_installer/gtk/default-timezone.blp:78
+#: bootc_installer/gtk/default-timezone.blp:90
 msgid "Current timezone: "
 msgstr ""
 
@@ -464,7 +464,7 @@ msgstr "மாற்றங்களை உறுதிப்படுத்த�
 
 #: bootc_installer/gtk/dialog-disk-confirm.blp:17
 #: bootc_installer/gtk/progress.blp:312
-#: bootc_installer/windows/main_window.py:598
+#: bootc_installer/windows/main_window.py:641
 msgid "Cancel"
 msgstr "ரத்துசெய்"
 
@@ -599,60 +599,62 @@ msgstr ""
 msgid "Installer requires an active internet connection"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:110
+#: bootc_installer/defaults/disk.py:111
 msgid "Entire disk will be used."
 msgstr "முழு வட்டு பயன்படுத்தப்படும்."
 
-#: bootc_installer/defaults/disk.py:114
+#: bootc_installer/defaults/disk.py:115
 #, python-format
 msgid "LVM volume group: %s"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:115
+#: bootc_installer/defaults/disk.py:116
 #, fuzzy
 msgid "Volume group will be removed."
 msgstr "பதிவு எதுவும் சேமிக்கப்படாது."
 
-#: bootc_installer/defaults/disk.py:119
+#: bootc_installer/defaults/disk.py:120
 #, python-format
 msgid "LVM physical volume: %s"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:120
+#: bootc_installer/defaults/disk.py:121
 msgid "Physical volume will be removed."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:186
+#: bootc_installer/defaults/disk.py:187
 msgid "Could not detect disks"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:189
+#: bootc_installer/defaults/disk.py:190
 msgid "No disks detected"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:191
+#: bootc_installer/defaults/disk.py:192
 msgid ""
 "Connect a disk of at least 50 GiB to install to. Nothing can be installed "
 "until one is available."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:332
+#. ZFS is experimental in fisherman (no VM test boots it): the
+#. branding copy says so.
+#: bootc_installer/defaults/disk.py:335
 msgid "Btrfs (with subvolumes)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:373
+#: bootc_installer/defaults/disk.py:378
 msgid "Install the \"{}\" package on the host to use this filesystem"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:376
+#: bootc_installer/defaults/disk.py:381
 msgid "Missing host tool: \"{}\" — install the \"{}\" package"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:454
+#: bootc_installer/defaults/disk.py:459
 msgid "Virtual disk (for VMs / testing)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:456
+#: bootc_installer/defaults/disk.py:461
 #, python-format
 msgid "Creates a %s disk image and attaches it as a loop device"
 msgstr ""
@@ -804,7 +806,7 @@ msgstr ""
 msgid "Copied"
 msgstr ""
 
-#: bootc_installer/defaults/timezone.py:196
+#: bootc_installer/defaults/timezone.py:229
 #, python-format
 msgid "(at %s, %s)"
 msgstr ""
@@ -829,42 +831,42 @@ msgstr ""
 msgid "Please select at least one option."
 msgstr "குறைந்தபட்சம் ஒரு விருப்பத்தைத் தேர்ந்தெடுக்கவும்."
 
-#: bootc_installer/utils/builder.py:63
+#: bootc_installer/utils/builder.py:70
 #, python-format
 msgid "(%s) Processing step..."
 msgstr ""
 
-#: bootc_installer/utils/builder.py:67
+#: bootc_installer/utils/builder.py:74
 #, python-format
 msgid "(%s) Display-conditions found"
 msgstr ""
 
-#: bootc_installer/utils/builder.py:72
+#: bootc_installer/utils/builder.py:79
 #, fuzzy, python-format
 msgid "(%s) Performing display-condition: %s"
 msgstr "காட்சி-நிலையை செயல்படுத்துகிறது: %s"
 
-#: bootc_installer/utils/builder.py:81
+#: bootc_installer/utils/builder.py:88
 #, python-format
 msgid "(%s) Display-conditions not met"
 msgstr ""
 
-#: bootc_installer/utils/builder.py:83
+#: bootc_installer/utils/builder.py:90
 #, fuzzy, python-format
 msgid "(%s) Display-conditions met"
 msgstr "காட்சி-நிலையை செயல்படுத்துகிறது: %s"
 
-#: bootc_installer/utils/builder.py:86
+#: bootc_installer/utils/builder.py:93
 #, python-format
 msgid "Step %s skipped due to display-conditions"
 msgstr "காட்சி-நிபந்தனைகள் காரணமாக படி %s தவிர்க்கப்பட்டது"
 
-#: bootc_installer/utils/builder.py:97
+#: bootc_installer/utils/builder.py:104
 #, python-format
 msgid "(%s) Initializing widgets for template: %s"
 msgstr ""
 
-#: bootc_installer/utils/builder.py:104
+#: bootc_installer/utils/builder.py:111
 #, python-format
 msgid "(%s) Widgets initialized"
 msgstr ""
@@ -984,51 +986,56 @@ msgstr "செய்முறை அகராதி அல்ல"
 msgid "Step {step_key} is not a dictionary"
 msgstr "படி {step} என்பது அகராதி அல்ல"
 
-#: bootc_installer/views/confirm.py:90
+#: bootc_installer/views/confirm.py:95
 #, fuzzy
 msgid "will be erased"
 msgstr "பதிவு எதுவும் சேமிக்கப்படாது."
 
-#: bootc_installer/views/confirm.py:90
+#: bootc_installer/views/confirm.py:95
 msgid "kept, its data is not erased"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:99
+#: bootc_installer/views/confirm.py:114
 #, python-brace-format
 msgid "{first} and {second}"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:201
-msgid "Timezone"
+#: bootc_installer/views/confirm.py:219
+msgid "Keyboard"
+msgstr "விசைப்பலகை"
+
+#: bootc_installer/views/confirm.py:225
+#, fuzzy
+msgid "Time zone"
 msgstr "நேர மண்டலம்"
 
-#: bootc_installer/views/confirm.py:213
+#: bootc_installer/views/confirm.py:237
 msgid "Users"
 msgstr "பயனர்கள்"
 
-#: bootc_installer/views/confirm.py:224
+#: bootc_installer/views/confirm.py:248
 msgid "/var disk"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:237 bootc_installer/views/confirm.py:264
+#: bootc_installer/views/confirm.py:261 bootc_installer/views/confirm.py:289
 msgid "Target disk"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:246
+#: bootc_installer/views/confirm.py:270
 msgid "Filesystem"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:285
+#: bootc_installer/views/confirm.py:310
 #, fuzzy
 msgid "Encryption"
 msgstr "சாதன குறியாக்கம்"
 
-#: bootc_installer/views/confirm.py:313 bootc_installer/views/confirm.py:321
-#: bootc_installer/views/confirm.py:339 bootc_installer/views/confirm.py:357
+#: bootc_installer/views/confirm.py:338 bootc_installer/views/confirm.py:346
+#: bootc_installer/views/confirm.py:364 bootc_installer/views/confirm.py:382
 msgid "Image"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:365
+#: bootc_installer/views/confirm.py:390
 msgid "Updates follow"
 msgstr ""
 
@@ -1043,13 +1050,8 @@ msgstr ""
 #. A second disk for /var that is formatted is named too (#313): in
 #. the same sentence, or in a sentence of its own after the
 #. removable-drive line, which is about one disk.
-#: bootc_installer/views/confirm.py:399
+#: bootc_installer/views/confirm.py:424
 msgid "All data on this disk will be erased. This cannot be undone."
-msgstr ""
-
-#: bootc_installer/views/confirm.py:537
-#, python-brace-format
-msgid "Keyboard {keyboard_index}"
 msgstr ""
 
 #: bootc_installer/views/done.py:111
@@ -1208,77 +1210,77 @@ msgstr ""
 msgid "Log not available."
 msgstr "கிடைக்கவில்லை"
 
-#: bootc_installer/windows/main_window.py:499
+#: bootc_installer/windows/main_window.py:542
 #, python-brace-format
 msgid "The recipe file {path} cannot be read: {error}"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:504
+#: bootc_installer/windows/main_window.py:547
 #, python-brace-format
 msgid "The recipe file {path} is not valid JSON: {error}"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:507
+#: bootc_installer/windows/main_window.py:550
 #, python-brace-format
 msgid "The recipe file {path} does not hold a JSON object."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:525
+#: bootc_installer/windows/main_window.py:568
 #, fuzzy
 msgid "The recipe names no installation disk."
 msgstr "உங்கள் வெண்ணிலா OS நிறுவலை மாற்றி அமையுங்கள்."
 
-#: bootc_installer/windows/main_window.py:544
+#: bootc_installer/windows/main_window.py:587
 msgid "fisherman did not accept the recipe."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:593
+#: bootc_installer/windows/main_window.py:636
 #, fuzzy
 msgid "Exit Installer?"
 msgstr "நிறுவு"
 
-#: bootc_installer/windows/main_window.py:594
+#: bootc_installer/windows/main_window.py:637
 msgid ""
 "An installation is in progress. If you exit now, the installer stops it, and "
 "the disk can be left without a system that starts."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:596
+#: bootc_installer/windows/main_window.py:639
 #, fuzzy
 msgid "Any progress will be lost."
 msgstr "பதிவு எதுவும் சேமிக்கப்படாது."
 
-#: bootc_installer/windows/main_window.py:599
+#: bootc_installer/windows/main_window.py:642
 msgid "Exit"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:618
+#: bootc_installer/windows/main_window.py:661
 #, fuzzy
 msgid "Cancel the installation?"
 msgstr "நிறுவலை உறுதிப்படுத்தவும்"
 
-#: bootc_installer/windows/main_window.py:619
+#: bootc_installer/windows/main_window.py:662
 msgid ""
 "The installer stops the work on the disk. The disk can be left without a "
 "system that starts."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:622
+#: bootc_installer/windows/main_window.py:665
 #, fuzzy
 msgid "Continue Installation"
 msgstr "நிறுவலை உறுதிப்படுத்தவும்"
 
-#: bootc_installer/windows/main_window.py:623
+#: bootc_installer/windows/main_window.py:666
 #, fuzzy
 msgid "Cancel Installation"
 msgstr "நிறுவலை உறுதிப்படுத்தவும்"
 
-#: bootc_installer/windows/main_window.py:675
+#: bootc_installer/windows/main_window.py:718
 msgid ""
 "The installation storage configuration is invalid. Check the system recipe."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:684
+#: bootc_installer/windows/main_window.py:727
 msgid "No installation disk is selected. Go back and choose a disk."
 msgstr ""
 
@@ -1504,9 +1506,6 @@ msgstr ""
 
 #~ msgid "Recipe steps is not a list"
 #~ msgstr "செய்முறை படிகள் பட்டியல் அல்ல"
-
-#~ msgid "Keyboard"
-#~ msgstr "விசைப்பலகை"
 
 #~ msgid "Disk"
 #~ msgstr "வட்டு"
