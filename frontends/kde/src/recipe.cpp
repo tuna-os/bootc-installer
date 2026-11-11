@@ -31,6 +31,12 @@ QJsonObject Recipe::toJson() const
         obj["imageType"] = imageType;
     if (extrasSet)
         obj["extras"] = extras;
+    if (!locale.isEmpty())
+        obj["locale"] = locale;
+    if (!keyboardLayout.isEmpty())
+        obj["keyboard"] = QJsonObject{{QStringLiteral("layout"), keyboardLayout}};
+    if (!timezone.isEmpty())
+        obj["timezone"] = timezone;
     if (!additionalImageStores.isEmpty())
         obj["additionalImageStores"] = QJsonArray::fromStringList(additionalImageStores);
     obj["distroID"] = distroID;
@@ -65,6 +71,9 @@ Recipe Recipe::fromJson(const QJsonObject &obj)
     r.imageType = obj["imageType"].toString();
     r.extrasSet = obj["extras"].isObject();
     r.extras = obj["extras"].toObject();
+    r.locale = obj["locale"].toString();
+    r.keyboardLayout = obj["keyboard"].toObject().value(QStringLiteral("layout")).toString();
+    r.timezone = obj["timezone"].toString();
     for (const auto &val : obj["flatpaks"].toArray()) {
         r.flatpaks.append(val.toString());
     }

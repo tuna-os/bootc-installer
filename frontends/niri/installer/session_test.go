@@ -15,8 +15,8 @@ import (
 	"time"
 )
 
-// localectl status shape (trimmed): the LANG value, the X11 layout first,
-// the console keymap as fallback.
+// localectl status shape (trimmed): the LANG value and the X11 layout. A
+// console keymap is not an XKB layout, so it is not the keyboard.
 func TestParseLocalectlStatus(t *testing.T) {
 	locale, keyboard := parseLocalectlStatus(`System Locale: LANG=en_US.UTF-8
     VC Keymap: us
@@ -30,8 +30,8 @@ func TestParseLocalectlStatus(t *testing.T) {
 	}
 
 	locale, keyboard = parseLocalectlStatus("   System Locale: LANG=C.UTF-8\n    VC Keymap: fr\n")
-	if locale != "C.UTF-8" || keyboard != "fr" {
-		t.Errorf("got %q %q, want C.UTF-8 fr", locale, keyboard)
+	if locale != "C.UTF-8" || keyboard != "" {
+		t.Errorf("got %q %q, want C.UTF-8 and no layout", locale, keyboard)
 	}
 }
 
@@ -50,9 +50,9 @@ func TestSessionGetReadsStubbedHostTools(t *testing.T) {
 	}
 	dir := t.TempDir()
 	writeStub(t, dir, "localectl", "#!/bin/sh\n"+
-		"if [ \"$1\" = \"status\" ]; then echo 'System Locale: LANG=de_DE.UTF-8'; echo '   VC Keymap: de'; "+
+		"if [ \"$1\" = \"status\" ]; then echo 'System Locale: LANG=de_DE.UTF-8'; echo '   X11 Layout: de'; "+
 		"elif [ \"$1\" = \"list-locales\" ]; then echo 'de_DE.UTF-8'; echo 'en_US.UTF-8'; "+
-		"elif [ \"$1\" = \"list-keymaps\" ]; then echo 'de'; echo 'us'; fi\n")
+		"elif [ \"$1\" = \"list-x11-keymap-layouts\" ]; then echo 'de'; echo 'us'; fi\n")
 	writeStub(t, dir, "timedatectl", "#!/bin/sh\n"+
 		"if [ \"$1\" = \"show\" ]; then echo 'Europe/Berlin'; "+
 		"elif [ \"$1\" = \"list-timezones\" ]; then echo 'Europe/Berlin'; echo 'UTC'; fi\n")
@@ -94,7 +94,7 @@ func TestSessionSetAppliesEachField(t *testing.T) {
 	}
 	data, _ := os.ReadFile(calls)
 	log := string(data)
-	for _, want := range []string{"localectl set-keymap de", "localectl set-locale LANG=de_DE.UTF-8", "timedatectl set-timezone Europe/Berlin"} {
+	for _, want := range []string{"localectl set-x11-keymap de", "localectl set-locale LANG=de_DE.UTF-8", "timedatectl set-timezone Europe/Berlin"} {
 		if !strings.Contains(log, want) {
 			t.Errorf("host calls lack %q:\n%s", want, log)
 		}

@@ -2,14 +2,10 @@
 
 // Region & language data for the welcome step's preflight section.
 //
-// The GNOME frontend collects a language, a keyboard layout and a timezone on
-// dedicated steps (bootc_installer/defaults/language.py, keyboard.py,
-// timezone.py) and shows them back on its confirm screen; its finals travel
-// in the recipe dict, which fisherman silently ignores — its Recipe struct
-// has no such fields, and this frontend's recipe stays field-identical to
-// that struct (tests/unit/test_shared_recipe_schema.py pins it). So these
-// values are wizard state, not recipe state: they are shown on the confirm
-// screen, exactly where GNOME shows them, and not written anywhere else.
+// The welcome step picks a language, a keyboard layout and a time zone. They
+// go into the recipe as `locale`, `keyboard.layout` and `timezone`, and
+// fisherman writes them to the installed system (#292). The confirm step
+// lists them.
 //
 // Lists come from Qt and the platform, not from a bundled copy: languages
 // from QLocale's own database, timezones from QTimeZone, keyboard layouts
@@ -34,6 +30,10 @@ struct Language {
 };
 QList<Language> availableLanguages();
 QString systemLanguage(); // id of the live session's language, "" when unknown
+// The recipe's `locale` for a language id: the language's default territory
+// in UTF-8 ("de" -> "de_DE.UTF-8"). "" when Qt has no locale name of the
+// form fisherman accepts for it: the recipe then has no `locale`.
+QString localeName(const QString &languageId);
 
 struct Keymap {
     QString id;          // "us", "de", ...

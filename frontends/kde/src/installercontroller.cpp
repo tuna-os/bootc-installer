@@ -113,6 +113,8 @@ InstallerController::InstallerController(QObject *parent)
     m_timezones = region::availableTimezones();
     if (!m_timezones.contains(m_timezone))
         m_timezone = QStringLiteral("UTC");
+    // The recipe gets a region value only when the user picks one (#292):
+    // a value nobody looked at must not replace the image's own.
 
     checkFields();
 }
@@ -134,7 +136,15 @@ QByteArray InstallerController::partialRecipe() const
         // password, and the password has no business on a validate call.
         {QStringLiteral("user"), QJsonObject{{QStringLiteral("username"), m_recipe.user.username}}},
     };
-    return QJsonDocument(partial).toJson(QJsonDocument::Compact);
+    // The region keys exactly as the recipe has them, so fisherman's
+    // locale, keyboard and time zone rules apply before Install.
+    const QJsonObject recipe = m_recipe.toJson();
+    QJsonObject withRegion = partial;
+    for (const char *key : {"locale", "keyboard", "timezone", "experimental"}) {
+        if (recipe.contains(QLatin1String(key)))
+            withRegion.insert(QLatin1String(key), recipe.value(QLatin1String(key)));
+    }
+    return QJsonDocument(withRegion).toJson(QJsonDocument::Compact);
 }
 
 void InstallerController::checkFields()
@@ -199,6 +209,16 @@ QString InstallerController::problemText(const QString &fieldPrefix) const
             continue;
         const QString line = p.code.isEmpty() ? QString() : text(validate::copyKey(p));
         return line.isEmpty() ? p.message : line;
+    }
+    return {};
+}
+
+QString InstallerController::regionProblem() const
+{
+    for (const QString &field : {QStringLiteral("locale"), QStringLiteral("keyboard"), QStringLiteral("timezone")}) {
+        const QString line = problemText(field);
+        if (!line.isEmpty())
+            return line;
     }
     return {};
 }
@@ -396,26 +416,32 @@ void InstallerController::setContinueAnyway(bool v)
 
 void InstallerController::setLanguage(const QString &v)
 {
-    if (m_language == v)
-        return;
+    // A pick, the current value included, goes into the recipe.
+    m_recipe.locale = region::localeName(v);
     m_language = v;
     Q_EMIT regionChanged();
+    Q_EMIT recipeChanged();
+    checkFields();
 }
 
 void InstallerController::setKeyboardLayout(const QString &v)
 {
-    if (m_keyboardLayout == v)
-        return;
+    // A pick, the current value included, goes into the recipe.
+    m_recipe.keyboardLayout = v;
     m_keyboardLayout = v;
     Q_EMIT regionChanged();
+    Q_EMIT recipeChanged();
+    checkFields();
 }
 
 void InstallerController::setTimezone(const QString &v)
 {
-    if (m_timezone == v)
-        return;
+    // A pick, the current value included, goes into the recipe.
+    m_recipe.timezone = v;
     m_timezone = v;
     Q_EMIT regionChanged();
+    Q_EMIT recipeChanged();
+    checkFields();
 }
 
 QString InstallerController::timezoneDisplay(const QString &ianaId) const

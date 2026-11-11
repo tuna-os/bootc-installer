@@ -337,14 +337,16 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                     .iter()
                     .map(|s| s.to_string())
                     .collect();
-                    app.selected_locale = Some(0);
+                    // A pick, through the page's own message: the recipe
+                    // gets it, and Confirm lists it (#292).
+                    let _ = cosmic::Application::update(app, crate::Message::SelectLocale(3));
                 }
                 Page::Keyboard => {
                     app.keymaps = ["us", "gb", "fr", "de", "es", "it", "br", "jp", "ru", "cn"]
                         .iter()
                         .map(|s| s.to_string())
                         .collect();
-                    app.selected_keymap = Some(0);
+                    let _ = cosmic::Application::update(app, crate::Message::SelectKeymap(3));
                 }
                 Page::Timezone => {
                     app.timezones = vec![
@@ -355,6 +357,7 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                         "Asia/Tokyo".to_string(),
                     ];
                     app.tz_query = String::new();
+                    let _ = cosmic::Application::update(app, crate::Message::SelectTimezone(0));
                 }
                 // No network in the capture job: photograph the passing state.
                 Page::Network => {
@@ -493,11 +496,23 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                     std::process::exit(2);
                 }
             }
-            // The three session-only pages say that they are (#292).
+            // The three locale pages say that a pick reaches the installed
+            // system (#292), and the pick is in the recipe.
             if matches!(page, Some(Page::Language | Page::Keyboard | Page::Timezone))
-                && !text.contains("this session only")
+                && !text.contains("the installed system")
             {
-                eprintln!("capture: the {name} page does not say it changes this session only");
+                eprintln!("capture: the {name} page does not say that a pick reaches the installed system");
+                std::process::exit(2);
+            }
+            let recipe = app.recipe();
+            let picked = match page {
+                Some(Page::Language) => recipe.locale == "de_DE.UTF-8",
+                Some(Page::Keyboard) => recipe.keyboard.as_ref().map(|k| k.layout.as_str()) == Some("de"),
+                Some(Page::Timezone) => recipe.timezone == "Europe/Berlin",
+                _ => true,
+            };
+            if !picked {
+                eprintln!("capture: the {name} page's pick did not reach the recipe: {recipe:?}");
                 std::process::exit(2);
             }
 
@@ -554,6 +569,13 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                 && !(text.contains(CAPTURE_USERNAME) && text.contains("Capture Desktop Stable"))
             {
                 eprintln!("capture: the confirm page does not show the username and the image label");
+                std::process::exit(2);
+            }
+            // The region picks the recipe carries, on Confirm (#292).
+            if page == Some(Page::Confirm)
+                && !["de_DE.UTF-8", "Europe/Berlin"].iter().all(|v| text.contains(v))
+            {
+                eprintln!("capture: the confirm page does not list the language and time zone picks");
                 std::process::exit(2);
             }
 

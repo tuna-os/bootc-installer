@@ -704,6 +704,10 @@ int main(int argc, char *argv[])
     controller->setUsername(captureUsername);
     controller->setFullname(u"Alex Example"_s);
     controller->setUserPassword(capturePassword);
+    // The region pickers, as a user leaves them: the confirm step lists them.
+    controller->setLanguage(u"en"_s);
+    controller->setKeyboardLayout(u"us"_s);
+    controller->setTimezone(u"Europe/Berlin"_s);
     // Fills the log and the result. Runs no process and touches no disk.
     // exitCode 0, not a "still running" sentinel: loadDemoState() always sets
     // the finished flag, so there is no way to express a live install through
@@ -957,13 +961,13 @@ int main(int argc, char *argv[])
                 return 1;
             }
         }
-        // The confirm page lists what the install does. Nothing writes the
-        // language, keyboard or time zone to the installed system (#292).
+        // The confirm page lists what the install does, the language,
+        // keyboard and time zone included: the recipe carries them (#292).
         if (step.second == u"05-confirm"_s) {
             const QString shown = itemText(window->contentItem());
             for (const auto &row : {u"Language"_s, u"Keyboard"_s, u"Time zone"_s}) {
-                if (shown.contains(row)) {
-                    out << "FAIL: the confirm step lists \"" << row << "\", which the install does not apply\n";
+                if (!shown.contains(row)) {
+                    out << "FAIL: the confirm step does not list \"" << row << "\", which the install applies\n";
                     return 1;
                 }
             }

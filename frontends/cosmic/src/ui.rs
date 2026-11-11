@@ -143,18 +143,19 @@ pub mod copy {
 
     // Locale preflight (language.py / keyboard.py / timezone.py).
     pub const LANGUAGE_TITLE: &str = "Language";
-    // These three pages change the live session only (#292): the recipe
-    // has no field for them yet, and each subtitle says so.
+    // A pick on these three pages changes the live session and goes into
+    // the recipe (#292); each subtitle says so. With no pick, the
+    // installed system keeps the image's own value.
     pub const LANGUAGE_SUBTITLE: &str =
-        "Changes this session only. The installed system keeps its own language.";
+        "Changes this session and the installed system.";
     pub const LANGUAGE_EMPTY: &str = "No locales were reported.";
     pub const KEYBOARD_TITLE: &str = "Keyboard";
     pub const KEYBOARD_SUBTITLE: &str =
-        "Changes this session only. The installed system keeps its own keyboard layout.";
-    pub const KEYBOARD_EMPTY: &str = "No keymaps were reported.";
+        "Changes this session and the installed system.";
+    pub const KEYBOARD_EMPTY: &str = "No keyboard layouts were reported.";
     pub const TIMEZONE_TITLE: &str = "Time zone";
     pub const TIMEZONE_SUBTITLE: &str = "Search, then pick where you are. \
-         Changes this session only. The installed system keeps its own time zone.";
+         Changes this session and the installed system.";
     pub const TIMEZONE_SEARCH_HINT: &str = "Search time zones";
     pub const TIMEZONE_EMPTY: &str = "No time zones matched.";
 
@@ -493,6 +494,13 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 t.push(tr(CONFIRM_UPDATES));
                 t.push(target);
             }
+            for (label, value) in confirm_region(app) {
+                t.push(label);
+                t.push(value);
+            }
+            if let Some(problem) = app.region_problem() {
+                t.push(problem.render());
+            }
             t.push(tr(BACK));
             t.push(t_line("confirm_button"));
             t
@@ -553,6 +561,23 @@ fn disk_empty_text(app: &TunaInstaller) -> Vec<String> {
         None if app.probed() => vec![tr(DISK_NONE)],
         None => vec![tr(DISK_SCANNING)],
     }
+}
+
+/// The language, keyboard and time zone rows of Confirm: (label, value)
+/// for each region key that the recipe has.
+fn confirm_region(app: &TunaInstaller) -> Vec<(String, String)> {
+    let recipe = app.recipe();
+    let mut rows = Vec::new();
+    if !recipe.locale.is_empty() {
+        rows.push((tr(LANGUAGE_TITLE), recipe.locale.clone()));
+    }
+    if let Some(keyboard) = &recipe.keyboard {
+        rows.push((tr(KEYBOARD_TITLE), keyboard.layout.clone()));
+    }
+    if !recipe.timezone.is_empty() {
+        rows.push((tr(TIMEZONE_TITLE), recipe.timezone.clone()));
+    }
+    rows
 }
 
 fn confirm_disk(app: &TunaInstaller) -> String {
@@ -1672,6 +1697,10 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
         )),
         None => summary,
     };
+    // The region picks the recipe carries (#292); none without a pick.
+    let summary = confirm_region(app).into_iter().fold(summary, |summary, (label, value)| {
+        summary.add(widget::settings::item(label, widget::text::body(value)))
+    });
 
     // Not `widget::warning::warning`: its filled amber background renders the
     // body text near-invisible on the dark COSMIC palette, which the first
@@ -1699,6 +1728,13 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
     .width(Length::Fill);
 
     let mut parts = vec![warning.into(), summary.into()];
+    if let Some(problem) = app.region_problem() {
+        parts.push(
+            widget::text::body(problem.render())
+                .class(cosmic::theme::Text::Color(theme.cosmic().warning_text_color().into()))
+                .into(),
+        );
+    }
     let tagline = t_line("confirm_body");
     if !tagline.is_empty() {
         parts.push(widget::text::body(tagline).into());

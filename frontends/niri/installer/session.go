@@ -95,7 +95,9 @@ func nonEmptyLines(out string) []string {
 }
 
 // parseLocalectlStatus reads `localectl status`: the System Locale's LANG
-// value, and the X11 layout (falling back to the console keymap).
+// value, and the X11 layout. The keyboard is an XKB layout, the name the
+// recipe's keyboard.layout takes; a console keymap ("de-latin1") is not
+// one, so a host with only a console keymap reports no current layout.
 func parseLocalectlStatus(out string) (locale, keyboard string) {
 	for _, line := range strings.Split(out, "\n") {
 		name, value, ok := strings.Cut(line, ":")
@@ -111,10 +113,6 @@ func parseLocalectlStatus(out string) (locale, keyboard string) {
 			}
 		case "X11 Layout":
 			keyboard = strings.TrimSpace(value)
-		case "VC Keymap":
-			if keyboard == "" {
-				keyboard = strings.TrimSpace(value)
-			}
 		}
 	}
 	return locale, keyboard
@@ -296,7 +294,7 @@ func sessionGet() SessionState {
 	state.Locale.Current = locale
 	state.Locale.Available = nonEmptyLines(run("localectl", "list-locales"))
 	state.Keyboard.Current = keyboard
-	state.Keyboard.Available = nonEmptyLines(run("localectl", "list-keymaps"))
+	state.Keyboard.Available = nonEmptyLines(run("localectl", "list-x11-keymap-layouts"))
 	state.Timezone.Current = parseTimedatectlTimezone(run("timedatectl", "show", "-p", "Timezone", "--value"))
 	state.Timezone.Available = nonEmptyLines(run("timedatectl", "list-timezones"))
 	state.Connected, _ = checkConnectivity("", tcpDial)
@@ -325,7 +323,9 @@ type hostRunner func(args ...string) error
 func applySession(want sessionApply, run hostRunner, hasSetxkbmap func() bool) map[string]string {
 	failures := map[string]string{}
 	if want.Keyboard != "" {
-		if err := run("localectl", "set-keymap", want.Keyboard); err != nil {
+		// set-x11-keymap takes the XKB layout and also sets the matching
+		// console keymap.
+		if err := run("localectl", "set-x11-keymap", want.Keyboard); err != nil {
 			failures["keyboard"] = err.Error()
 		} else if hasSetxkbmap() {
 			// Best-effort: no X11 session means nothing to set.

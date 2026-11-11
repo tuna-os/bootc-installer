@@ -51,6 +51,22 @@ QString systemLanguage()
     return QLocale::languageToCode(QLocale::system().language());
 }
 
+QString localeName(const QString &languageId)
+{
+    if (languageId.isEmpty())
+        return {};
+    const QLocale::Language language = QLocale::codeToLanguage(languageId);
+    if (language == QLocale::AnyLanguage || language == QLocale::C)
+        return {};
+    // name() is "language_TERRITORY"; fisherman's rule is
+    // language[_TERRITORY][.codeset] with a 2-3 letter lower-case language.
+    const QString name = QLocale(language).name();
+    static const QRegularExpression valid(QStringLiteral("^[a-z]{2,3}(_[A-Z]{2,3})?$"));
+    if (!valid.match(name).hasMatch())
+        return {};
+    return name + QStringLiteral(".UTF-8");
+}
+
 namespace
 {
 
