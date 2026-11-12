@@ -197,7 +197,7 @@ parser for `progress/`, the resolver for `branding/`, the groups of
 frontends had each written and that had drifted: the catalog reader
 (`catalog`), NVIDIA detection (`hardware`), the targets of the network
 check (`network`), the stage and the command for fisherman
-(`fisherman_host`), and the removal of the recovery key from a log
+(`fisherman_host`), the reader for `fisherman plan --json -` (`plan`), and the removal of the recovery key from a log
 (`redact`). `tests/unit/test_shared_python_catalog.py` and
 `tests/unit/test_shared_python_host.py` cover those. There is one copy. The data files stay
 in their contract directories, because the other three frontends read them

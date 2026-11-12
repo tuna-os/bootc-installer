@@ -26,7 +26,8 @@ KEY = SPEC["key"]
 def test_the_unprivileged_commands_never_escalate():
     for purpose, tail in (("probe", ["probe", "--json"]),
                           ("validate", ["validate", "--json", "--partial", "-"]),
-                          ("validate-full", ["validate", "--json", "-"])):
+                          ("validate-full", ["validate", "--json", "-"]),
+                          ("plan", ["plan", "--json", "-"])):
         assert fisherman_host.command(purpose, in_flatpak=False) == [
             "/usr/local/bin/fisherman", *tail]
         assert fisherman_host.command(purpose, in_flatpak=True, host_path="/c/f") == [

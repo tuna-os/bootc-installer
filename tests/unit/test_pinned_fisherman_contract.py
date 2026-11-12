@@ -7,9 +7,9 @@ answers through bootc_shared. A field that fisherman renames, or an answer
 that the reader takes for a reply about another source, fails here, not on
 a user's computer.
 
-Only `probe --json` (with and without a selected source) and `validate
---json --partial -` run. Neither needs root, pulls an image or touches a
-disk. The build needs Go; without it the test skips.
+Only `probe --json` (with and without a selected source), `validate
+--json --partial -` and `plan --json -` run. None needs root, pulls an
+image or touches a disk. The build needs Go; without it the test skips.
 """
 
 import json
@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 import unittest
 
+from bootc_shared import plan as install_plan
 from bootc_shared import progress, source_check
 from bootc_shared import validate as fisherman_validate
 from bootc_shared.branding import COPY_DEFAULTS
@@ -109,6 +110,20 @@ class PinnedFishermanContract(unittest.TestCase):
         self.assertEqual([p["code"] for p in problems], ["source_reuse_experimental"])
         line = fisherman_validate.render(problems[0], lambda key: COPY_DEFAULTS.get(key, ""))
         self.assertEqual(line, COPY_DEFAULTS["validate_source_reuse_experimental"])
+
+    def test_the_plan_reader_takes_the_real_plan_command(self):
+        """`plan --json -` of the pin, for a disk that is not there: the
+        reader parses the answer, and the recipe's passphrase is not in it."""
+        secret = "pinned-plan-sentinel-passphrase"
+        recipe = {"disk": "/dev/bootc-installer-no-such-disk", "image": REF,
+                  "encryption": {"type": "luks-passphrase", "passphrase": secret}}
+        proc = subprocess.run(install_plan.argv([self.fisherman]), input=json.dumps(recipe),
+                              capture_output=True, text=True, timeout=120, check=False)
+        self.assertNotIn(secret, proc.stdout + proc.stderr)
+        result = install_plan.run(install_plan.argv([self.fisherman]), recipe)
+        self.assertFalse(result["valid"])
+        self.assertIsNone(result["plan"])
+        self.assertTrue(result["errors"])
 
     def test_the_receipt_events_of_the_pin_parse(self):
         path = os.path.join(SOURCE, "internal", "progress", "testdata", "receipt-events.ndjson")

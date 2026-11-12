@@ -272,6 +272,19 @@ class TestErrorEventHint(unittest.TestCase):
             lambda key: copy.get(key, ""))
         self.assertEqual(hint, "Choose a larger disk.")
 
+    def test_a_swapped_disk_shows_the_disk_identity_line(self):
+        """A recipe that the confirm page bound with `diskIdentity`
+        (tuna-os/fisherman#371) and a device that changed since: the
+        install's refusal reads as the branding line."""
+        from bootc_shared.branding import COPY_DEFAULTS
+
+        from bootc_installer.views.done import error_event_hint
+        hint = error_event_hint(
+            {"message": "disk /dev/sda reports serial \"B\", not \"A\"",
+             "code": "disk_identity_mismatch", "field": "diskIdentity.serial"},
+            lambda key: COPY_DEFAULTS.get(key, ""))
+        self.assertEqual(hint, COPY_DEFAULTS["validate_disk_identity_mismatch"])
+
     def test_a_code_without_copy_falls_back_to_the_message(self):
         from bootc_installer.views.done import error_event_hint
         hint = error_event_hint(
