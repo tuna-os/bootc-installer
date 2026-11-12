@@ -18,6 +18,27 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-12: a strict walkthrough report has a meaning
+
+- Changed: `walkthrough/parity_report.py` computes `strict` and `failures`.
+  A required screen that no good frame shows is a failure: the frame is
+  missing, is not a readable PNG, did not pass the pixel audit, or is a byte
+  copy of another frame. The report has the new keys `failure_reasons`,
+  `screen_outcomes` (`passed`, `failed`, `exempt`, `optional-missing`,
+  `not-measured`) and `contract_digest`. The old keys stay (#186).
+- Added: `screen_exemptions` in a feature manifest
+  (`walkthrough/features.schema.json`): screen id to the reason. No frontend
+  has an exemption.
+- Changed: a PNG-only report from `walkthrough/report_from_pngs.py` is
+  `strict: false` and `advisory: true`.
+- Changed: `walkthrough/aggregate.py` checks each strict report again
+  against its frames, and `--strict` exits 1 on a failure. A report with no
+  `contract_digest` comes from an old emitter: the page labels it advisory.
+  `walkthrough.yml` runs with `--strict`.
+
+Contracts version: `1.1.0`
+Contracts sha256: `cf51dcf38a85ec48372c24eb384829f3193eb651af63db2537fe8fa4c32b2d70`
+
 ## 2026-11-12: the contracts have a version
 
 - Added: `VERSION`, the version of the contracts. It starts at `1.0.0`, the

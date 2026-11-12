@@ -225,7 +225,13 @@ share the pixel audit (`pixel_audit.py`) and the capture fixtures
 (`capture_fixtures.py`: the cut transcript, the recovery event and the GIF
 step). `tests/unit/test_walkthrough_pixel_audit.py` covers both. The
 compiled harnesses (KDE, COSMIC) write their PNGs and a `texts.json`, and
-their workflows run `report_from_pngs.py`. A new
+their workflows run `report_from_pngs.py`. A report is strict: each
+required screen shows on a page whose frame is present, readable, rendered
+and not a copy of another frame, or the `screen_exemptions` of the
+frontend's feature manifest exempt it with a reason. Else the screen is a
+failure. `aggregate.py --strict` checks each strict report again against
+its frames, and `walkthrough.yml` fails on a failure. A PNG-only report is
+advisory. `tests/unit/test_walkthrough_strict.py` covers each case. A new
 frontend adds a capture harness and a `screenshots-<name>.yml` workflow
 that writes `walkthrough-<name>.json`, and `walkthrough.yml` adds it to the
 page.

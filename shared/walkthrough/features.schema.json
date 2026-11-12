@@ -317,6 +317,24 @@
           "description": "End-to-end gate (real install and boot)"
         }
       }
+    },
+    "screen_exemptions": {
+      "type": "object",
+      "description": "Screen id of the contract in shared/walkthrough/parity_report.py -> why this frontend does not show that screen. A required screen that a strict capture does not reach is a failure unless it is listed here. aggregate.py and parity_report.py read it.",
+      "propertyNames": {
+        "enum": [
+          "welcome",
+          "disk",
+          "encryption",
+          "summary",
+          "install",
+          "done"
+        ]
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 20
+      }
     }
   }
 }

@@ -9,8 +9,9 @@ For frontends whose capture harness does not emit the parity report itself
   * when the harness left a `texts.json` next to the PNGs ({"<page>": "the
     page's text"}), that text is matched against the contract keywords like
     any widget-tree capture, and `text_source` says where it came from;
-  * without `texts.json`, `text_source` is "none" and `screens` is null for
-    every contract screen. The aggregator renders those cells as "not
+  * without `texts.json`, `text_source` is "none", `screens` is null for
+    every contract screen, and the report is `strict: false` and
+    `advisory: true`. The aggregator renders those cells as "not
     measured" rather than as a gap. That is the honest answer: nothing here
     can tell which screen a picture shows;
   * when the harness left an `audit.json` ({"<page>": {"rendered": ...,
@@ -116,6 +117,16 @@ def main():
         # Overwrite the fields that only hold when text was actually read.
         summary["text_source"] = "none"
         summary["screens"] = {k: None for k in summary["screens"]}
+        # Nothing was measured, so nothing can pass or fail: the report is
+        # advisory and says so. It cannot stand in for a strict one.
+        summary["strict"] = False
+        summary["advisory"] = True
+        summary["failures"] = 0
+        summary["failure_reasons"] = []
+        summary["screen_outcomes"] = {
+            k: {"required": v["required"], "outcome": parity_report.NOT_MEASURED,
+                "evidence": []}
+            for k, v in summary["screen_outcomes"].items()}
         summary["notes"] = ("PNG-only report: this harness does not read widget text, "
                             "so contract screens are NOT MEASURED (null), not unreached. "
                             "Rendered/blank per page is still audited from the pixels.")

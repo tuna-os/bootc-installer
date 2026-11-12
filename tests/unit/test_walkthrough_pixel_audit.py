@@ -4,6 +4,7 @@ Each harness used to carry its own copy of the arithmetic."""
 
 import json
 import pathlib
+import struct
 import subprocess
 import sys
 import tempfile
@@ -76,8 +77,11 @@ class ReportFromPngsTests(unittest.TestCase):
     def test_harness_audit_and_item_text_are_used(self):
         with tempfile.TemporaryDirectory() as d:
             d = pathlib.Path(d)
-            for name in ("01-welcome.png", "02-disk.png"):
-                (d / name).write_bytes(b"not decoded: audit.json covers it")
+            # A PNG header and nothing a decoder could audit: audit.json
+            # covers the pixels. The strict check reads the header (#186).
+            for i, name in enumerate(("01-welcome.png", "02-disk.png")):
+                (d / name).write_bytes(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR"
+                                       + struct.pack(">II", 8, 8) + bytes([i]))
             audit = {"rendered": False, "colours": 7, "flat": 0.5,
                      "ink": 0.25, "stddev": 0.125}
             (d / "audit.json").write_text(json.dumps(
@@ -95,7 +99,15 @@ class ReportFromPngsTests(unittest.TestCase):
         self.assertEqual(report["pages"][1]["colours"], 7)
         self.assertEqual(report["pages"][1]["flat"], 0.5)
         self.assertTrue(report["screens"]["welcome"])
-        self.assertTrue(report["screens"]["disk"])
+        # The disk text matched, but the harness audit says the page did not
+        # render, so the screen has no evidence: a strict failure (#186).
+        self.assertEqual(report["screens_detail"]["disk"]["on_pages"], ["disk"])
+        self.assertFalse(report["screens"]["disk"])
+        self.assertEqual(report["screen_outcomes"]["disk"]["outcome"], "failed")
+        # summary fails too: this fixture has no confirm page.
+        self.assertEqual([f["screen"] for f in report["failure_reasons"]],
+                         ["disk", "summary"])
+        self.assertEqual(report["failures"], 2)
 
 
 if __name__ == "__main__":
