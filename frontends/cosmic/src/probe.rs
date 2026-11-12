@@ -119,6 +119,8 @@ pub fn parse(json: &str) -> Result<Facts, String> {
 
 /// Runs the probe, or reads `BOOTC_INSTALLER_FAKE_PROBE`. Blocking: call it
 /// off the UI thread. There is no fallback scan; the error says why.
+/// The wasm build reads a fixture instead (`TunaInstaller::probe`).
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub fn run() -> Result<Facts, String> {
     parse(&run_output(&[])?)
 }

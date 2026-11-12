@@ -12,6 +12,7 @@
 //! [`fisherman_argv`] is the one resolver for the fisherman command:
 //! probe, validate and install, natively, on live media and in a Flatpak.
 
+#[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 
@@ -34,7 +35,8 @@ pub enum Use {
     Probe,
     /// `validate --json --partial -`, as the desktop user.
     Validate,
-    /// `-` (the recipe on stdin), as root.
+    /// `-` (the recipe on stdin), as root. The wasm build never installs.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     Install,
 }
 
@@ -114,6 +116,7 @@ pub fn fisherman(what: Use, live: bool) -> Result<Vec<String>, String> {
 /// Whether `path` is safe to hold a helper that root will run: missing, or
 /// a real file or directory that this user owns and, with `check_mode`,
 /// that no other user can write.
+#[cfg(unix)]
 fn path_is_private(path: &Path, check_mode: bool) -> Result<(), String> {
     use std::os::unix::fs::MetadataExt;
     let meta = match std::fs::symlink_metadata(path) {
@@ -141,6 +144,7 @@ fn path_is_private(path: &Path, check_mode: bool) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg_attr(not(unix), allow(dead_code))]
 fn sha256_hex(bytes: &[u8]) -> String {
     use sha2::Digest;
     sha2::Sha256::digest(bytes)
@@ -175,6 +179,7 @@ fn host_sha256(path: &str) -> Option<String> {
 /// always sets) is a path the host has too. A copy that succeeded in the
 /// sandbox is not proof of that, so `host_sha` asks the host for the hash
 /// before any caller may run the file as root.
+#[cfg(unix)]
 pub fn stage_on_host(
     source: &str,
     cache_home: Option<&str>,
@@ -212,6 +217,17 @@ pub fn stage_on_host(
     }
 }
 
+/// Ownership and modes are unix facts. Without them nothing is private
+/// enough for root to run, so nothing is staged (the wasm build, #105).
+#[cfg(not(unix))]
+pub fn stage_on_host(
+    _source: &str,
+    _cache_home: Option<&str>,
+    _host_sha: &dyn Fn(&str) -> Option<String>,
+) -> Result<String, String> {
+    Err("this target has no unix permissions: fisherman cannot be staged".to_string())
+}
+
 /// Wrap argv so it executes on the host when sandboxed.
 pub fn host_command(argv: &[&str]) -> Vec<String> {
     let mut cmd: Vec<String> = Vec::new();
@@ -235,6 +251,7 @@ pub fn persist_install_log(log: &str, recovery_key: &str) {
 }
 
 /// persist_install_log, into `dir`.
+#[cfg(unix)]
 pub fn write_install_log(dir: &Path, log: &str, recovery_key: &str) {
     use std::io::Write;
 
@@ -256,6 +273,13 @@ pub fn write_install_log(dir: &Path, log: &str, recovery_key: &str) {
     if let Err(e) = write() {
         tracing::warn!("could not persist install log to {}: {e}", path.display());
     }
+}
+
+/// The log is private (0600) or it is not written. Without unix modes
+/// nothing is written (the wasm build, #105).
+#[cfg(not(unix))]
+pub fn write_install_log(dir: &Path, _log: &str, _recovery_key: &str) {
+    tracing::warn!("no install log in {}: this target has no unix permissions", dir.display());
 }
 
 #[cfg(test)]
