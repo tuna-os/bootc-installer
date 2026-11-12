@@ -4,7 +4,6 @@ GTK widgets are stubbed at import time, and widget subclasses are instantiated
 with __new__ plus manual attribute injection so no display is required.
 """
 
-import copy
 import importlib
 import sys
 import types

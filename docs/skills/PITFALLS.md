@@ -97,7 +97,7 @@ Do NOT restructure these — they are intentional.
 python3 -m ruff check bootc_installer/ tests/
 ```
 
-The codebase is ruff-clean. All new code must pass.
+CI runs this command in the unit test job, with the version and rules in `ruff.toml` and `docs/guide/developing.md`. An error fails the job.
 
 ---
 

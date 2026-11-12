@@ -268,7 +268,7 @@ class BootcDefaultTimezone(Adw.Bin):
         def __populate_some(*args):
             # Some countries at each idle, in order: the page draws at once,
             # and two hundred countries are not two hundred callbacks.
-            for _ in range(min(self.POPULATE_BATCH, len(pending))):
+            for _batch in range(min(self.POPULATE_BATCH, len(pending))):
                 __populate_expander(*pending.pop(0))
             if pending:
                 GLib.idle_add(__populate_some)

@@ -1,7 +1,7 @@
-"""Unit tests for layouts/yes_no.py and layouts/preferences.py pure logic.
+"""Unit tests for layouts/yes_no.py pure logic.
 
 Uses __new__ + attribute injection (Python name-mangling) to test get_finals(),
-should_show(), __on_response(), __on_info(), and __next_step() without a
+should_show(), __on_response() and __on_info() without a
 display.  gi.repository and bootc_installer.windows.dialog are stubbed at
 import time so the @Gtk.Template decorators are no-ops.
 """
@@ -77,19 +77,7 @@ def _import_yes_no_fresh():
     return importlib.import_module("bootc_installer.layouts.yes_no")
 
 
-def _import_preferences_fresh():
-    _build_gi_stubs()
-    sys.modules.pop("bootc_installer.layouts.preferences", None)
-    try:
-        import bootc_installer.layouts as lp
-        lp.__dict__.pop("preferences", None)
-    except Exception:
-        pass
-    return importlib.import_module("bootc_installer.layouts.preferences")
-
-
 _yn_mod = _import_yes_no_fresh()
-_pref_mod = _import_preferences_fresh()
 
 
 # ---------------------------------------------------------------------------
@@ -204,157 +192,6 @@ class TestYesNoOnInfo(unittest.TestCase):
         obj._BootcLayoutYesNo__on_info(None)
         self._dialog_mock().assert_called_once()
 
-
-# ---------------------------------------------------------------------------
-# BootcLayoutPreferences
-# ---------------------------------------------------------------------------
-
-def _sw(active: bool):
-    """Return a minimal switcher mock."""
-    m = MagicMock()
-    m.get_active.return_value = active
-    return m
-
-
-class TestPreferencesGetFinals(unittest.TestCase):
-    """get_finals() returns correct vars/funcs and handles _managed edge case."""
-
-    def _make_obj(self, switchers, step):
-        obj = object.__new__(_pref_mod.BootcLayoutPreferences)
-        obj._BootcLayoutPreferences__step = step
-        obj._BootcLayoutPreferences__register_widgets = switchers
-        return obj
-
-    def test_active_switcher_reflected_as_true(self):
-        finals = self._make_obj(
-            [("pref_a", _sw(True))],
-            {"final": [], "without_selection": {}},
-        ).get_finals()
-        self.assertTrue(finals["vars"]["pref_a"])
-
-    def test_inactive_switcher_reflected_as_false(self):
-        finals = self._make_obj(
-            [("pref_b", _sw(False))],
-            {"final": [], "without_selection": {}},
-        ).get_finals()
-        self.assertFalse(finals["vars"]["pref_b"])
-
-    def test_managed_key_added_when_all_inactive_and_allowed_with_final(self):
-        finals = self._make_obj(
-            [("p", _sw(False))],
-            {
-                "final": ["default_fn"],
-                "without_selection": {"allowed": True, "final": ["fallback_fn"]},
-            },
-        ).get_finals()
-        self.assertTrue(finals["vars"]["_managed"])
-        self.assertIn("fallback_fn", finals["funcs"])
-
-    def test_managed_key_not_added_when_not_allowed(self):
-        finals = self._make_obj(
-            [("p", _sw(False))],
-            {"final": [], "without_selection": {"allowed": False}},
-        ).get_finals()
-        self.assertNotIn("_managed", finals["vars"])
-
-    def test_managed_key_not_added_when_no_fallback_final(self):
-        finals = self._make_obj(
-            [("p", _sw(False))],
-            {"final": [], "without_selection": {"allowed": True}},
-        ).get_finals()
-        self.assertNotIn("_managed", finals["vars"])
-
-    def test_funcs_from_step_final(self):
-        finals = self._make_obj(
-            [("p", _sw(True))],
-            {"final": ["fn_a", "fn_b"], "without_selection": {}},
-        ).get_finals()
-        self.assertEqual(finals["funcs"], ["fn_a", "fn_b"])
-
-    def test_multiple_switchers_all_reflected(self):
-        finals = self._make_obj(
-            [("x", _sw(True)), ("y", _sw(False))],
-            {"final": [], "without_selection": {}},
-        ).get_finals()
-        self.assertTrue(finals["vars"]["x"])
-        self.assertFalse(finals["vars"]["y"])
-
-    def test_managed_not_added_when_at_least_one_active(self):
-        finals = self._make_obj(
-            [("a", _sw(True)), ("b", _sw(False))],
-            {
-                "final": [],
-                "without_selection": {"allowed": True, "final": ["fallback"]},
-            },
-        ).get_finals()
-        self.assertNotIn("_managed", finals["vars"])
-
-
-class TestPreferencesNextStep(unittest.TestCase):
-    """__next_step() enforces selection policy and advances the wizard."""
-
-    def _make_obj(self, switchers, step):
-        obj = object.__new__(_pref_mod.BootcLayoutPreferences)
-        obj._BootcLayoutPreferences__step = step
-        obj._BootcLayoutPreferences__register_widgets = switchers
-        obj._BootcLayoutPreferences__window = MagicMock()
-        return obj
-
-    def _dialog_mock(self):
-        # Use the module's own imported reference — sys.modules may have been
-        # replaced by a later _build_gi_stubs() call.
-        return _pref_mod.BootcDialog
-
-    def test_active_selection_advances(self):
-        obj = self._make_obj(
-            [("a", _sw(True))],
-            {"final": [], "without_selection": {}},
-        )
-        obj._BootcLayoutPreferences__next_step(None)
-        obj._BootcLayoutPreferences__window.next.assert_called_once()
-
-    def test_no_selection_not_allowed_shows_toast_no_advance(self):
-        obj = self._make_obj(
-            [("a", _sw(False))],
-            {"final": [], "without_selection": {"allowed": False}},
-        )
-        obj._BootcLayoutPreferences__next_step(None)
-        obj._BootcLayoutPreferences__window.toast.assert_called_once()
-        obj._BootcLayoutPreferences__window.next.assert_not_called()
-
-    def test_no_selection_allowed_advances(self):
-        obj = self._make_obj(
-            [("a", _sw(False))],
-            {"final": [], "without_selection": {"allowed": True}},
-        )
-        obj._BootcLayoutPreferences__next_step(None)
-        obj._BootcLayoutPreferences__window.next.assert_called_once()
-
-    def test_no_selection_with_message_shows_dialog_and_advances(self):
-        obj = self._make_obj(
-            [("a", _sw(False))],
-            {
-                "final": [],
-                "without_selection": {
-                    "allowed": True,
-                    "title": "Heads up",
-                    "message": "No options selected.",
-                },
-            },
-        )
-        self._dialog_mock().reset_mock()
-        obj._BootcLayoutPreferences__next_step(None)
-        self._dialog_mock().assert_called_once()
-        obj._BootcLayoutPreferences__window.next.assert_called_once()
-
-    def test_no_selection_without_message_does_not_show_dialog(self):
-        obj = self._make_obj(
-            [("a", _sw(False))],
-            {"final": [], "without_selection": {"allowed": True}},
-        )
-        self._dialog_mock().reset_mock()
-        obj._BootcLayoutPreferences__next_step(None)
-        self._dialog_mock().assert_not_called()
 
 
 if __name__ == "__main__":

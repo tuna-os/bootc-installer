@@ -15,7 +15,7 @@ the "Build (production, aarch64)" job.
 `--device=all` stays. The installer lists and partitions disks through
 fisherman on the host, so the sandbox may not need it, but nobody has run
 the application with `--device=dri` on a live ISO yet (GPU detection reads
-/sys, the companion and Wi-Fi pages talk to host services). Narrow it in a
+/sys, the companion page talks to host services). Narrow it in a
 change that carries that run.
 """
 

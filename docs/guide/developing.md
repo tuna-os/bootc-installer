@@ -78,6 +78,24 @@ python3 -m ruff check bootc_installer/ tests/   # Lint
 CI fails if the unit test coverage is less than the value of `--cov-fail-under` in `.github/workflows/python-test.yml`.
 Do not make that value lower.
 
+### Lint with ruff
+
+`ruff.toml` at the repository root holds the ruff configuration.
+It names the rules: `E4`, `E7`, `E9` and `F` (pyflakes), with `E402` off, because PyGObject needs `gi.require_version()` before its imports.
+Ruff reads `_` as a builtin, because it is the gettext alias.
+
+Install the version that CI uses, then run the check from the repository root:
+
+```bash
+pip install ruff==0.17.2
+python3 -m ruff check bootc_installer/ tests/
+```
+
+The "Unit Tests (no display)" job in `.github/workflows/python-test.yml` runs the same command on every pull request, and an error fails the job.
+`python3 -m ruff check --fix bootc_installer/ tests/` repairs the errors that have a safe fix.
+To add a rule, add its code to `select` in `ruff.toml` and repair the errors in the same change.
+To change the version, change it in the workflow and in this section together.
+
 ### Install tests in a VM
 
 These tests need root and QEMU.

@@ -74,6 +74,13 @@ jobs:
       - name: Install pytest, coverage, segno and PyYAML
         run: pip install pytest pytest-cov segno==1.6.6 pyyaml==6.0.2
 
+      # ruff.toml names the rules; the version is pinned so that a ruff
+      # release cannot change the result (#321).
+      - name: Lint with ruff
+        run: |
+          pip install ruff==0.17.2
+          python3 -m ruff check bootc_installer/ tests/
+
       - name: Run unit tests
         run: pytest tests/unit/ -v --tb=short --cov=bootc_installer --cov-report=xml --cov-report=term-missing --cov-fail-under=51
 

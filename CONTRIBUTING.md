@@ -104,7 +104,7 @@ See [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) for deeper architecture do
 
 ## Code style
 
-- Python: [Ruff](https://docs.astral.sh/ruff/) (`python3 -m ruff check`)
+- Python: [Ruff](https://docs.astral.sh/ruff/) (`python3 -m ruff check bootc_installer/ tests/`). CI runs it. `ruff.toml` names the rules; see [the developer guide](docs/guide/developing.md#lint-with-ruff).
 - Go: `gofmt` + `go vet`
 - Commit messages: Conventional Commits
 

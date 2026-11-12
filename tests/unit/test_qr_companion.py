@@ -108,15 +108,23 @@ def mod():
 
 
 def _page(mod, start_ok=True, reason="no-tls"):
+    """The page as the window shows it: the carousel moves to it, and the
+    page-changed handler the page connected starts the server. The step
+    number (1) is not the carousel index (3), as in the real window, where
+    hidden steps leave the carousel (#304, #321)."""
     window = MagicMock()
-    page = mod.BootcDefaultQrCompanion(window, {}, "qr_companion", {"num": 2})
+    page = mod.BootcDefaultQrCompanion(window, {}, "qr_companion", {"num": 1})
+    on_page_changed = window.carousel.connect.call_args[0][1]
+    carousel = MagicMock()
+    carousel.get_nth_page.side_effect = lambda i: [object(), object(), object(), page][int(i)]
     server = MagicMock()
     server.start.return_value = start_ok
     server.auth_token = TOKEN if start_ok else None
     server.host = "192.0.2.10" if start_ok else None
     server.unavailable_reason = None if start_ok else reason
     with patch.object(mod, "CompanionServer", return_value=server):
-        page._BootcDefaultQrCompanion__start_companion()
+        on_page_changed(carousel, 3.0)
+    server.start.assert_called_once_with()
     return page, window
 
 
@@ -135,7 +143,7 @@ def _png_size(png):
 def test_qr_companion_step_lifecycle(mod):
     """Verify the GUI companion step parses contexts, skips, and resolves finals cleanly."""
     window_mock = MagicMock()
-    step_widget = mod.BootcDefaultQrCompanion(window_mock, {}, "qr_companion", {"num": 2})
+    step_widget = mod.BootcDefaultQrCompanion(window_mock, {}, "qr_companion", {"num": 1})
 
     assert step_widget.step_id == "qr_companion"
 
@@ -157,7 +165,7 @@ def test_the_page_shows_only_when_the_user_step_does(mod, needs_user):
     user step hides and so does this page."""
     window = MagicMock()
     window.image_step = None
-    page = mod.BootcDefaultQrCompanion(window, {}, "qr_companion", {"num": 2})
+    page = mod.BootcDefaultQrCompanion(window, {}, "qr_companion", {"num": 1})
     context = {"sys_recipe": {"images": [{"needs_user_creation": needs_user}]}}
     assert page.should_show(context) is needs_user
 

@@ -39,7 +39,7 @@ def _runtime_lines(path):
     text = path.read_text(encoding="utf-8", errors="replace")
     lines = text.splitlines()
     if path.suffix == ".rs" and "#[cfg(test)]" in text:
-        lines = lines[: next(i for i, l in enumerate(lines) if "#[cfg(test)]" in l)]
+        lines = lines[: next(i for i, text_line in enumerate(lines) if "#[cfg(test)]" in text_line)]
     in_doc = False
     for n, line in enumerate(lines, 1):
         stripped = line.strip()

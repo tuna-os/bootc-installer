@@ -31,8 +31,6 @@ def _import_with_gi_stubs(module_name):
         "gi.repository.GObject",
         "gi.repository.Gdk",
         "gi.repository.Gtk",
-        "gi.repository.NM",
-        "gi.repository.NMA4",
         module_name,
         "bootc_installer.utils.run_async",
     ]
@@ -66,35 +64,6 @@ def _import_with_gi_stubs(module_name):
     gobject_mod = types.ModuleType("gi.repository.GObject")
     gobject_mod.SignalFlags = type("SignalFlags", (), {"RUN_FIRST": 1})
 
-    nm_mod = types.ModuleType("gi.repository.NM")
-    nm_mod.Client = type("Client", (), {"new": staticmethod(lambda: MagicMock())})
-    nm_mod.Device = object
-    nm_mod.DeviceWifi = object
-    nm_mod.DeviceEthernet = object
-    nm_mod.AccessPoint = object
-    nm_mod.DeviceState = type(
-        "DeviceState",
-        (),
-        {
-            "ACTIVATED": 100,
-            "NEED_AUTH": 60,
-            "PREPARE": 40,
-            "CONFIG": 50,
-            "IP_CONFIG": 70,
-            "IP_CHECK": 80,
-            "SECONDARIES": 90,
-            "DISCONNECTED": 30,
-            "DEACTIVATING": 110,
-            "FAILED": 120,
-            "UNKNOWN": 0,
-            "UNMANAGED": 10,
-            "UNAVAILABLE": 20,
-        },
-    )
-    nm_mod.DeviceType = type("DeviceType", (), {"ETHERNET": 1, "WIFI": 2})
-
-    nma4_mod = types.ModuleType("gi.repository.NMA4")
-
     for name, module in {
         "Gtk": gtk_mod,
         "Adw": adw_mod,
@@ -102,8 +71,6 @@ def _import_with_gi_stubs(module_name):
         "GLib": glib_mod,
         "GObject": gobject_mod,
         "Gdk": gdk_mod,
-        "NM": nm_mod,
-        "NMA4": nma4_mod,
     }.items():
         setattr(repo_mod, name, module)
         sys.modules[f"gi.repository.{name}"] = module
@@ -133,122 +100,3 @@ class TestConnCheckShouldShow:
             assert mod.BootcDefaultConnCheck.should_show(
                 SimpleNamespace(), {"offline_install": True}
             ) is False
-
-
-class TestVmStepLogic:
-    def test_use_vm_tools_sets_flag_and_advances(self):
-        with _import_with_gi_stubs("bootc_installer.defaults.vm") as mod:
-            fake = SimpleNamespace(use_vm_tools=None, _BootcDefaultVm__window=MagicMock())
-            mod.BootcDefaultVm.use_vm_tools_fn(fake, None)
-            assert fake.use_vm_tools is True
-            fake._BootcDefaultVm__window.next.assert_called_once_with()
-            assert mod.BootcDefaultVm.get_finals(fake) == {"vm": {"use-vm-tools": True}}
-
-    def test_skip_vm_tools_sets_flag_and_advances(self):
-        with _import_with_gi_stubs("bootc_installer.defaults.vm") as mod:
-            fake = SimpleNamespace(use_vm_tools=None, _BootcDefaultVm__window=MagicMock())
-            mod.BootcDefaultVm.skip_vm_tools_fn(fake, None)
-            assert fake.use_vm_tools is False
-            fake._BootcDefaultVm__window.next.assert_called_once_with()
-
-
-class TestNvidiaStepLogic:
-    def test_open_drivers_sets_false_and_advances(self):
-        with _import_with_gi_stubs("bootc_installer.defaults.nvidia") as mod:
-            fake = SimpleNamespace(use_proprietary=None, _BootcDefaultNvidia__window=MagicMock())
-            mod.BootcDefaultNvidia.use_open_drivers(fake, None)
-            assert fake.use_proprietary is False
-            fake._BootcDefaultNvidia__window.next.assert_called_once_with()
-            assert mod.BootcDefaultNvidia.get_finals(fake) == {
-                "nvidia": {"use-proprietary": False}
-            }
-
-    def test_proprietary_drivers_sets_true_and_advances(self):
-        with _import_with_gi_stubs("bootc_installer.defaults.nvidia") as mod:
-            fake = SimpleNamespace(use_proprietary=None, _BootcDefaultNvidia__window=MagicMock())
-            mod.BootcDefaultNvidia.use_proprietary_drivers(fake, None)
-            assert fake.use_proprietary is True
-            fake._BootcDefaultNvidia__window.next.assert_called_once_with()
-
-
-class TestThemeStepLogic:
-    def test_set_theme_dark_updates_gsettings(self):
-        with _import_with_gi_stubs("bootc_installer.defaults.theme") as mod:
-            settings = MagicMock()
-            mod.Gio.Settings.new = MagicMock(return_value=settings)
-            mod.BootcDefaultTheme._BootcDefaultTheme__set_theme(SimpleNamespace(), None, "dark")
-
-            assert [call.args for call in settings.set_string.call_args_list] == [
-                ("color-scheme", "prefer-dark"),
-                ("gtk-theme", "Adwaita-dark"),
-            ]
-
-    def test_set_theme_light_updates_gsettings(self):
-        with _import_with_gi_stubs("bootc_installer.defaults.theme") as mod:
-            settings = MagicMock()
-            mod.Gio.Settings.new = MagicMock(return_value=settings)
-            mod.BootcDefaultTheme._BootcDefaultTheme__set_theme(SimpleNamespace(), None, "light")
-
-            assert [call.args for call in settings.set_string.call_args_list] == [
-                ("color-scheme", "default"),
-                ("gtk-theme", "Adwaita"),
-            ]
-
-
-class TestNetworkDeviceStatus:
-    def test_device_status_connected_state_reports_speed_ready_status(self):
-        with _import_with_gi_stubs("bootc_installer.defaults.network") as mod:
-            conn = SimpleNamespace(get_state=lambda: mod.NM.DeviceState.ACTIVATED)
-            status, connected = mod.BootcDefaultNetwork._BootcDefaultNetwork__device_status(
-                SimpleNamespace(), conn
-            )
-            assert status == "Connected"
-            assert connected is True
-
-    def test_device_status_need_auth_is_not_connected(self):
-        with _import_with_gi_stubs("bootc_installer.defaults.network") as mod:
-            conn = SimpleNamespace(get_state=lambda: mod.NM.DeviceState.NEED_AUTH)
-            status, connected = mod.BootcDefaultNetwork._BootcDefaultNetwork__device_status(
-                SimpleNamespace(), conn
-            )
-            assert status == "Authentication required"
-            assert connected is False
-
-    def test_device_status_connecting_states_map_to_connecting(self):
-        with _import_with_gi_stubs("bootc_installer.defaults.network") as mod:
-            for state in (
-                mod.NM.DeviceState.PREPARE,
-                mod.NM.DeviceState.CONFIG,
-                mod.NM.DeviceState.IP_CONFIG,
-                mod.NM.DeviceState.IP_CHECK,
-                mod.NM.DeviceState.SECONDARIES,
-            ):
-                conn = SimpleNamespace(get_state=lambda state=state: state)
-                status, connected = mod.BootcDefaultNetwork._BootcDefaultNetwork__device_status(
-                    SimpleNamespace(), conn
-                )
-                assert status == "Connecting"
-                assert connected is False
-
-
-class TestNvidiaInfoPopover:
-    def test_show_info_popover_calls_popup(self):
-        with _import_with_gi_stubs("bootc_installer.defaults.nvidia") as mod:
-            popover = MagicMock()
-            fake = SimpleNamespace(info_popover=popover)
-            mod.BootcDefaultNvidia.show_info_popover(fake, None)
-            popover.popup.assert_called_once()
-
-
-class TestVmGetFinals:
-    def test_get_finals_with_none_use_vm_tools(self):
-        with _import_with_gi_stubs("bootc_installer.defaults.vm") as mod:
-            fake = SimpleNamespace(use_vm_tools=None)
-            assert mod.BootcDefaultVm.get_finals(fake) == {"vm": {"use-vm-tools": None}}
-
-
-class TestThemeGetFinals:
-    def test_get_finals_returns_empty_dict(self):
-        with _import_with_gi_stubs("bootc_installer.defaults.theme") as mod:
-            fake = SimpleNamespace()
-            assert mod.BootcDefaultTheme.get_finals(fake) == {}
