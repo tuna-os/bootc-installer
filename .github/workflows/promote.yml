@@ -57,6 +57,7 @@ on:
       - Prose
       - Browser walkthrough
       - KDE wasm build
+      - Recipe compliance
     types: [completed]
     branches: [dev]
   # Catch-up only. The gate sleeps out the soak itself (see the header), so
@@ -120,6 +121,7 @@ env:
     E2E (install cosmic)
     E2E (install niri)
     E2E (install xfce)
+    Recipe compliance
   # Minimum age of the candidate commit before it may ship.
   SOAK_MINUTES: "30"
 
