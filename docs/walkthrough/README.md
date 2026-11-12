@@ -25,9 +25,9 @@ again here against its frames; an advisory one is not a pass.
 
 | Frontend | Pages | Rendered | Transitions | Report | Harness |
 |---|---|---|---|---|---|
-| GNOME | 13 | 13 | 12 | advisory (old emitter) | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
-| KDE Plasma | 10 | 10 | 9 | advisory (old emitter) | tests/capture.cpp (Kirigami/QML, offscreen) |
-| COSMIC | 18 | 18 | 17 | advisory (old emitter) | src/capture.rs (libcosmic on lavapipe under Xvfb) |
+| GNOME | 13 | 13 | 12 | strict, passed | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
+| KDE Plasma | 10 | 10 | 9 | strict, passed | tests/capture.cpp (Kirigami/QML, offscreen) |
+| COSMIC | 18 | 18 | 17 | strict, passed | src/capture.rs (libcosmic on lavapipe under Xvfb) |
 | Niri | 14 | 14 | 13 | strict, passed | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
 | XFCE | 10 | 10 | 9 | strict, passed | tests/gui/capture-screens.py (GTK3 under Xvfb) |
 

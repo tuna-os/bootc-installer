@@ -47,17 +47,17 @@
     "gnome": {
       "frames": 13,
       "report": true,
-      "kind": "advisory"
+      "kind": "strict"
     },
     "kde": {
       "frames": 10,
       "report": true,
-      "kind": "advisory"
+      "kind": "strict"
     },
     "cosmic": {
       "frames": 18,
       "report": true,
-      "kind": "advisory"
+      "kind": "strict"
     },
     "niri": {
       "frames": 14,
