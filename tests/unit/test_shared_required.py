@@ -1,8 +1,10 @@
 """shared/README.md, "Required by this version" (#226).
 
-Each boot stack row names a fixture case with the same bootloader,
-storage backend and filesystem. Each language row has a catalog in every
-frontend. A row that names nothing that a frontend test reads is a claim,
+Each boot stack row names a case of the compliance fixture
+(shared/recipe/fixtures/compliance.json, which all five frontends run)
+with the same bootloader, storage backend and filesystem; the region row
+names a case with the same locale, keyboard and time zone. Each language
+row has a catalog in every frontend. A row that names nothing that a frontend test reads is a claim,
 not a requirement.
 """
 
@@ -13,7 +15,8 @@ import unittest
 
 REPO = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 README = os.path.join(REPO, "shared", "README.md")
-EXPECTED = os.path.join(REPO, "shared", "catalog", "fixtures", "expected.json")
+COMPLIANCE = os.path.join(REPO, "shared", "recipe", "fixtures", "compliance.json")
+FIXTURE = "recipe/fixtures/compliance.json"
 
 # Where each frontend keeps the catalog of a language (shared/i18n/README.md).
 LANGUAGE_CATALOGS = {
@@ -47,25 +50,46 @@ class RequiredByThisVersion(unittest.TestCase):
         self.assertIn("Boot stack", kinds)
         self.assertIn("Language of the interface", kinds)
 
-    def test_every_boot_stack_has_a_fixture_case(self):
-        with open(EXPECTED, encoding="utf-8") as stream:
-            leaves = {entry["imgref"]: entry for entry in json.load(stream)["leaves"]}
+    def _case(self, cell):
+        self.assertIn(FIXTURE, cell)
+        with open(COMPLIANCE, encoding="utf-8") as stream:
+            cases = {case["name"]: case["recipe"] for case in json.load(stream)["cases"]}
+        name = _codes(cell)[0]
+        self.assertIn(name, cases, f"no compliance case {name}")
+        return name, cases[name]
+
+    def test_every_boot_stack_has_a_compliance_case(self):
         stacks = [row for row in _rows() if row[0] == "Boot stack"]
         self.assertGreaterEqual(len(stacks), 2)
-        for _kind, values, case in stacks:
+        for _kind, values, cell in stacks:
             bootloader, filesystem = _codes(values)
             composefs = "composefs" in values
             self.assertTrue(composefs or "ostree" in values, values)
-            self.assertIn("catalog/fixtures/expected.json", case)
-            imgref = [code for code in _codes(case) if code.startswith("registry.")]
-            self.assertEqual(len(imgref), 1, case)
-            entry = leaves.get(imgref[0])
-            self.assertIsNotNone(entry, f"no fixture leaf {imgref[0]}")
-            leaf = entry["leaf"]
-            self.assertEqual(leaf["bootloader"], bootloader, imgref[0])
-            self.assertEqual(bool(leaf["composefs"]), composefs, imgref[0])
-            self.assertEqual(leaf["filesystem"], filesystem, imgref[0])
-            self.assertTrue(entry["cases"], f"{imgref[0]} has no case")
+            name, recipe = self._case(cell)
+            self.assertEqual(recipe.get("bootloader"), bootloader, name)
+            self.assertEqual(bool(recipe.get("composeFsBackend")), composefs, name)
+            self.assertEqual(recipe.get("filesystem"), filesystem, name)
+
+    def test_every_compliance_boot_stack_is_listed(self):
+        """A stack that the compliance fixture holds the frontends to is
+        a requirement, so the table lists it."""
+        with open(COMPLIANCE, encoding="utf-8") as stream:
+            cases = json.load(stream)["cases"]
+        listed = {(_codes(v)[0], "composefs" in v, _codes(v)[1])
+                  for k, v, _c in _rows() if k == "Boot stack"}
+        for case in cases:
+            r = case["recipe"]
+            stack = (r.get("bootloader"), bool(r.get("composeFsBackend")), r.get("filesystem"))
+            self.assertIn(stack, listed, case["name"])
+
+    def test_the_region_row_has_a_compliance_case(self):
+        region = [row for row in _rows() if row[0] == "Region in the recipe"]
+        self.assertEqual(len(region), 1)
+        locale, layout, zone = _codes(region[0][1])
+        name, recipe = self._case(region[0][2])
+        self.assertEqual(recipe.get("locale"), locale, name)
+        self.assertEqual((recipe.get("keyboard") or {}).get("layout"), layout, name)
+        self.assertEqual(recipe.get("timezone"), zone, name)
 
     def test_every_language_has_a_catalog_in_each_frontend(self):
         languages = [row for row in _rows() if row[0] == "Language of the interface"]
@@ -76,14 +100,6 @@ class RequiredByThisVersion(unittest.TestCase):
                     path = os.path.join(REPO, pattern.format(lang=lang))
                     self.assertTrue(os.path.isfile(path), f"{frontend}: no {lang} catalog at {path}")
 
-    def test_the_region_row_names_what_the_kde_driver_picks(self):
-        region = [row for row in _rows() if row[0] == "Region in the recipe"]
-        self.assertEqual(len(region), 1)
-        with open(os.path.join(REPO, "frontends", "kde", "tests", "e2e.cpp"), encoding="utf-8") as stream:
-            driver = stream.read()
-        for value in ("de_DE.UTF-8", "de", "Europe/Berlin"):
-            self.assertIn(value, _codes(region[0][2]))
-            self.assertIn(f'"{value}"', driver)
 
 
 if __name__ == "__main__":

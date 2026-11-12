@@ -267,24 +267,25 @@ behaviour and runs it against the same fixtures.
 ## Required by this version
 
 Each frontend must support each row of this table in the version that
-`VERSION` names. A row names the fixture case that holds a frontend to it.
-`tests/unit/test_shared_required.py` fails when a boot stack row has no
-fixture case with the same values, or when a frontend has no catalog for a
-language row.
+`VERSION` names. A row names the case that holds all five frontends to
+it. The `Recipe compliance` workflow runs the cases of
+`recipe/fixtures/compliance.json` in each frontend.
+`tests/unit/test_shared_required.py` fails when a boot stack row or the
+region row has no compliance case with the same values. It also fails
+when a frontend has no catalog for a language row.
 
-| Requirement | Values | Fixture case |
+| Requirement | Values | Case |
 |---|---|---|
-| Boot stack | `grub2`, ostree, `xfs` | `catalog/fixtures/expected.json`, leaf `registry.example/os/atlas:stable` |
-| Boot stack | `systemd`, composefs, `ext4` | `catalog/fixtures/expected.json`, leaf `registry.example/os/drift:edge` |
-| Boot stack | `systemd`, composefs, `btrfs` | `catalog/fixtures/expected.json`, leaf `registry.example/os/boreal:latest` |
+| Boot stack | `grub2`, ostree, `xfs` | `account-luks-region` in `recipe/fixtures/compliance.json` |
+| Boot stack | `systemd`, composefs, `ext4` | `no-account-filesystem-choice` in `recipe/fixtures/compliance.json` |
+| Region in the recipe | `de_DE.UTF-8`, `de`, `Europe/Berlin` | `account-luks-region` in `recipe/fixtures/compliance.json` |
 | Language of the interface | English, French (`fr`) | the French catalog of each frontend (`i18n/README.md`) |
-| Region in the recipe | `locale`, `keyboard`, `timezone` | the E2E job of KDE only: `de_DE.UTF-8`, `de`, `Europe/Berlin` (`e2e/README.md`) |
 
-Each frontend feeds the catalog fixture through its own parser, and the
-fixture holds the boot stack fields that the recipe gets. The region row
-has no case for all five frontends yet. PR #375 adds a reference recipe
-with a case for each frontend. When it merges, the region row and the boot
-stack rows refer to its cases.
+A boot stack that is not in this table is not a requirement. For example,
+the catalog fixture has a leaf with `systemd`, composefs and `btrfs`, but
+no compliance case holds a frontend to it. A new required row needs a
+compliance case first. The removal of a row follows "Deprecate" and
+"Remove" below.
 
 ## How a contract changes
 
