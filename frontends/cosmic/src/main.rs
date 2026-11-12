@@ -31,14 +31,31 @@ use cosmic::iced::{Length, Size};
 use cosmic::prelude::*;
 use cosmic::widget;
 use cosmic::iced::futures::{SinkExt, Stream, StreamExt};
+#[cfg(not(target_arch = "wasm32"))]
 use std::process::Stdio;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::io::{AsyncBufReadExt, BufReader};
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::process::Command as TokioCommand;
+
+// The browser-only build (#105): `--no-default-features --features web`
+// for wasm32-unknown-unknown, never one without the other. The shipped
+// installer is the `desktop` feature on a native target.
+#[cfg(all(target_arch = "wasm32", not(feature = "web")))]
+compile_error!("a wasm32 build needs `--no-default-features --features web`");
+#[cfg(all(target_arch = "wasm32", feature = "desktop"))]
+compile_error!("the `desktop` feature does not build for wasm32: use `--no-default-features --features web`");
+#[cfg(all(feature = "web", not(target_arch = "wasm32")))]
+compile_error!("the `web` feature is only for `--target wasm32-unknown-unknown`");
 
 pub use model::{DiskInfo, Recipe};
 
 pub const APP_ID: &str = "org.tunaos.InstallerCosmic";
 
+/// The entry point, also in a browser: wasm-bindgen starts the `main` of a
+/// binary, so the web build needs no entry of its own and no dependency
+/// that Cargo.lock does not already have. In a browser no environment
+/// variable is set, so `capture` is `None`.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
@@ -1771,10 +1788,22 @@ impl cosmic::Application for TunaInstaller {
 
 impl TunaInstaller {
     /// `fisherman probe --json`, off the UI thread (shared/probe/README.md).
+    #[cfg(not(target_arch = "wasm32"))]
     async fn probe() -> Result<probe::Facts, String> {
         tokio::task::spawn_blocking(probe::run)
             .await
             .map_err(|e| format!("Task join error: {e}"))?
+    }
+
+    /// A browser has no host, no fisherman and no tokio reactor. It gets
+    /// the probe fixture of the capture harness, compiled in, so the wizard
+    /// can show disks and nothing can touch one (#105).
+    #[cfg(target_arch = "wasm32")]
+    async fn probe() -> Result<probe::Facts, String> {
+        probe::parse(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../shared/probe/fixtures/laptop.json"
+        )))
     }
 
     /// Runs fisherman and yields its output a line at a time, then the exit
@@ -1793,6 +1822,7 @@ impl TunaInstaller {
     /// (shared/progress/README.md); stderr is plain text and is interleaved
     /// into the same stream line by line (see `merged_lines`), which the
     /// parser passes through untouched.
+    #[cfg(not(target_arch = "wasm32"))]
     fn stream_fisherman(
         recipe: serde_json::Value,
         pid_slot: std::sync::Arc<std::sync::Mutex<Option<u32>>>,
@@ -1870,6 +1900,22 @@ impl TunaInstaller {
             let _ = output.send(Message::InstallFinished(Ok(code))).await;
         })
     }
+
+    /// A browser build never starts fisherman: it has no host (#105).
+    #[cfg(target_arch = "wasm32")]
+    fn stream_fisherman(
+        _recipe: serde_json::Value,
+        _pid_slot: std::sync::Arc<std::sync::Mutex<Option<u32>>>,
+        _live: bool,
+    ) -> impl Stream<Item = Message> {
+        cosmic::iced::stream::channel(1, async move |mut output| {
+            let _ = output
+                .send(Message::InstallFinished(Err(
+                    "A browser build cannot install.".to_string(),
+                )))
+                .await;
+        })
+    }
 }
 
 /// Spawn a host command detached: power off, firmware setup, and the
@@ -1918,6 +1964,7 @@ fn check_network_task(
 /// process group", which must never be the installer's own group. This
 /// The progress page's Cancel (after its dialog) and the header's Exit
 /// both signal that group (`hardware::terminate_process_group`).
+#[cfg(not(target_arch = "wasm32"))]
 async fn spawn_wrapper(argv: &[String], stdin_data: Vec<u8>) -> std::io::Result<tokio::process::Child> {
     use tokio::io::AsyncWriteExt;
     let mut child = TokioCommand::new(&argv[0])
@@ -1942,6 +1989,7 @@ async fn spawn_wrapper(argv: &[String], stdin_data: Vec<u8>) -> std::io::Result<
 /// split across the two streams. The tasks keep draining after the receiver
 /// is dropped, so an abandoned install page cannot leave the child blocked on
 /// a full pipe.
+#[cfg(not(target_arch = "wasm32"))]
 fn merged_lines<O, E>(stdout: Option<O>, stderr: Option<E>) -> tokio::sync::mpsc::UnboundedReceiver<String>
 where
     O: tokio::io::AsyncRead + Unpin + Send + 'static,

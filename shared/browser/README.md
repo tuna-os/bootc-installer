@@ -161,8 +161,16 @@ libcosmic, let alone its renderer.
 
 That is where the obvious reading stops, and it is wrong. **The COSMIC
 installer renders in a browser**, and Playwright can click through it —
-eight patches, 278 diff lines, five of them upstream. `wasm-patches/` has
+eight patches, 278 diff lines, five of them in libraries. `wasm-patches/` has
 them, the screenshots and the commands.
+
+**`wasm-cosmic.yml` compiles it for wasm on each COSMIC change.** The job
+is advisory: it never blocks `dev` or the promotion. It builds against the
+tuna-os forks of libcosmic, iced and rust-atomicwrites, pinned by commit in
+`frontends/cosmic/web/`, through `cargo --config`. `Cargo.lock` and the
+Flatpak do not change. The frontend side is the `web` feature, which is off
+by default (`--no-default-features --features web`). `wasm-patches/README.md`
+says where each patch comes from now.
 
 The most useful thing found there: libcosmic's vendored `iced_winit`
 **already has a web path**, inherited from upstream iced, which attaches a
@@ -176,7 +184,10 @@ The single most costly line is in `iced_wgpu`: it sets
 ungated. wasm panics on `remove_var`, so no libcosmic app can reach its
 first frame in a browser until that cfg is matched up. One line.
 
-#105 tracks the upstream conversation.
+pop-os does not accept LLM-generated changes, so agents send no upstream
+PRs for these fixes (#105). The browser walkthrough for COSMIC needs a page
+bridge through `postMessage` and patch `07` (WebGL) in a fork. That work
+comes in a later PR.
 
 ### KDE (C++, Qt6 Widgets + Quick)
 
@@ -247,11 +258,11 @@ page interface are in `frontends/niri/tests/wasm/README.md` (#103).
 |---|---|---|---|
 | GNOME | GTK4 / libadwaita | **works** | — |
 | XFCE | GTK3 | **works** | canvas only, so no DOM geometry |
-| COSMIC | libcosmic (Iced fork) | not yet | `atomicwrites` has no wasm arm, via `cosmic-config` (#105) |
+| COSMIC | libcosmic (Iced fork) | not yet | compiles for wasm against the tuna-os forks (advisory `wasm-cosmic.yml`); no page bridge and no WebGL patch yet (#105) |
 | KDE | Qt6 Widgets + Quick | not yet | C++ builds for wasm; the KF6 QML stack does not yet (#104) |
 | Niri | Go + QML (Quickshell) | **works** | canvas only; Qt for WebAssembly, not Broadway (#103) |
 
 Three of five work today. GNOME and XFCE use Broadway, which is part of GTK.
 Niri uses Qt for WebAssembly, because its UI is QML that runs without the Go.
-COSMIC and KDE also need a wasm build. #104 and #105 record the measurements
-for each of them.
+COSMIC and KDE also need a wasm build. Each has a CI job that compiles it.
+#104 and #105 record the measurements for each of them.

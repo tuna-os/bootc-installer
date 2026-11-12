@@ -39,6 +39,7 @@ on the actual `dev` commit, never the PR's.
 | `validate-flatpak.yml` | each GNOME Flatpak manifest is valid JSON with an app id, a runtime and a command | every push |
 | `cargo-test-cosmic.yml` | COSMIC frontend `cargo test` | when the COSMIC sources changed |
 | `browser-walkthrough.yml`, `wasm-kde.yml` | GNOME, XFCE and Niri advance in a browser; the KDE frontend compiles for WebAssembly | when that frontend changed |
+| `wasm-cosmic.yml` | advisory: the COSMIC frontend compiles for WebAssembly against the pinned tuna-os forks. It never blocks promotion | when the COSMIC frontend changed |
 | `actionlint.yml` | the workflow files pass actionlint | when a workflow changed |
 | `sbom.yml` | each frontend's SPDX SBOM builds and passes the release check (dry run: a run artifact only) | when an SBOM input changed |
 | `ste.yml` | the Markdown prose stays in the `.ste-budget` | when a Markdown file changed |

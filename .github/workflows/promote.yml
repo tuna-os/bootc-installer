@@ -57,6 +57,7 @@ on:
       - Prose
       - Browser walkthrough
       - KDE wasm build
+      - COSMIC wasm build
       - SBOM
     types: [completed]
     branches: [dev]
