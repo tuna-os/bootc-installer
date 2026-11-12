@@ -12,16 +12,11 @@ if blueprint_compiler.found()
       'gtk/default-conn-check.blp',
       'gtk/default-disk.blp',
       'gtk/default-encryption.blp',
-      'gtk/default-hardware.blp',
       'gtk/default-image.blp',
       'gtk/default-keyboard.blp',
       'gtk/default-language.blp',
-      'gtk/default-network.blp',
-      'gtk/default-nvidia.blp',
-      'gtk/default-theme.blp',
       'gtk/default-timezone.blp',
       'gtk/default-users.blp',
-      'gtk/default-vm.blp',
       'gtk/default-welcome.blp',
       'gtk/dialog.blp',
       'gtk/dialog-disk-confirm.blp',
@@ -29,7 +24,6 @@ if blueprint_compiler.found()
       'gtk/dialog-output.blp',
       'gtk/dialog-poweroff.blp',
       'gtk/done.blp',
-      'gtk/layout-preferences.blp',
       'gtk/layout-yes-no.blp',
       'gtk/progress.blp',
       'gtk/recovery-key.blp',
@@ -44,7 +38,6 @@ if blueprint_compiler.found()
       'gtk/window-cpu.blp',
       'gtk/window-ram.blp',
       'gtk/window-unsupported.blp',
-      'gtk/wireless-row.blp',
     ),
     output: '.',
     command: [
@@ -80,15 +73,6 @@ conf.set('pkgdatadir', pkgdatadir)
 configure_file(
   input: 'bootc-installer.in',
   output: 'bootc-installer',
-  configuration: conf,
-  install: true,
-  install_dir: get_option('bindir'),
-  install_mode: 'rwxr-xr-x'
-)
-
-configure_file(
-  input: 'bootc-installer-processor.in',
-  output: 'bootc-installer-processor',
   configuration: conf,
   install: true,
   install_dir: get_option('bindir'),

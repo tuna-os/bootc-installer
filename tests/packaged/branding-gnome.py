@@ -14,7 +14,7 @@ import gi
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Adw, Gio
+from gi.repository import Adw, Gdk, Gio, Gtk
 
 Gio.Resource.load(pkg + '/bootc-installer.gresource')._register()
 Adw.init()
@@ -40,10 +40,19 @@ with patch('bootc_installer.defaults.welcome._needs_bluetooth_pairing', return_v
 done = BootcDone(controller)
 done.set_result(True, None)
 for label, image in [('welcome', welcome.page_header._icon),
-                     ('done', done.page_header._icon), ('catalog', _make_icon(identity.logo))]:
+                     ('done', done.page_header._icon)]:
     texture = image.get_paintable()
     assert texture is not None, label
     assert (texture.get_intrinsic_width(), texture.get_intrinsic_height()) == (120, 60), label
+# The catalog draws a logo at the size it shows, through one paintable for
+# each file and size (#321), so its intrinsic size is the row's, not the
+# file's. It must still name the host file, and that file must decode here.
+catalog = _make_icon(identity.logo).get_paintable()
+assert isinstance(catalog, Gtk.IconPaintable), catalog
+assert catalog.get_file().get_path() == path, catalog.get_file().get_path()
+assert (catalog.get_intrinsic_width(), catalog.get_intrinsic_height()) == (32, 32), 'catalog'
+decoded = Gdk.Texture.new_from_filename(path)
+assert (decoded.get_width(), decoded.get_height()) == (120, 60), 'catalog'
 assert welcome.page_header.title == 'Welcome to ' + identity.name
 assert done.page_header.title == identity.name + ' is installed'
 done.set_result(False, None)

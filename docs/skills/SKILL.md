@@ -98,17 +98,16 @@ Single variant: `org.bootcinstaller.Installer`. Entry point: `main.py`. Blueprin
 
 ```
 bootc_installer/
-├── core/         disks.py, system.py, locale.py, locales/
-├── defaults/     disk.py, encryption.py, user.py, image.py, welcome.py,
-│                 network.py, conn_check.py, nvidia.py, theme.py, vm.py,
+├── core/         disks.py, system.py, languages.py, keymaps.py, timezones.py
+├── defaults/     disk.py, disk_plan.py, encryption.py, user.py, image.py,
+│                 welcome.py, language.py, keyboard.py, timezone.py, conn_check.py,
 │                 qr_companion.py
-├── views/        progress.py, done.py, confirm.py, confirm_data.py,
-│                 recovery_key.py, tour.py
+├── views/        progress.py, done.py, confirm.py, recovery_key.py
 ├── widgets/      page_header.py
 ├── windows/      main_window.py, dialog.py, dialog_credits.py,
-│                 dialog_output.py, dialog_poweroff.py, dialog_recovery.py,
+│                 dialog_output.py, dialog_poweroff.py,
 │                 window_cpu.py, window_ram.py, window_unsupported.py
-├── layouts/      yes_no.py, preferences.py
+├── layouts/      yes_no.py
 ├── utils/        processor.py, recipe.py, finals.py, builder.py,
 │                 codec_check.py, phone_companion.py,
 │                 run_async.py
@@ -190,7 +189,7 @@ tests/
 | `test_encryption.py` | Passphrase strength, `get_finals` |
 | `test_meson_sources.py` | Every `.py` listed in `meson.build` (regression guard) |
 | `test_main_window.py` | `page.delta` getattr safety regression |
-| `test_network_helpers.py` | `defaults/network.py` (NM stubbed) |
+| `test_no_unreachable_modules.py` | Every module and Blueprint is reachable from the launcher (#312) |
 | `test_disks.py` | Boot disk filtering |
 
 ### GTK unit testing without a display

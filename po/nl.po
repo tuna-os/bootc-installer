@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: vanilla-installer\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 02:03+0000\n"
+"POT-Creation-Date: 2026-11-12 06:42+0000\n"
 "PO-Revision-Date: 2024-01-04 20:01+0000\n"
 "Last-Translator: Philip Goto <philip.goto@gmail.com>\n"
 "Language-Team: Dutch <https://hosted.weblate.org/projects/vanilla-os/"
@@ -20,7 +20,7 @@ msgstr ""
 
 #: data/org.bootcinstaller.Installer.appdata.xml.in:6
 #: data/org.bootcinstaller.Installer.desktop.in:3
-#: bootc_installer/gtk/window.blp:7 bootc_installer/windows/main_window.py:601
+#: bootc_installer/gtk/window.blp:7 bootc_installer/windows/main_window.py:609
 #, fuzzy
 msgid "bootc Installer"
 msgstr "Niet installeren"
@@ -47,14 +47,13 @@ msgstr "Installatie bevestigen"
 msgid "Summary"
 msgstr ""
 
-#: bootc_installer/gtk/confirm.blp:67 bootc_installer/gtk/default-nvidia.blp:40
-#: bootc_installer/gtk/default-vm.blp:40
+#: bootc_installer/gtk/confirm.blp:75
 #: bootc_installer/gtk/default-welcome.blp:23
-#: bootc_installer/views/confirm.py:449
+#: bootc_installer/views/confirm.py:458
 msgid "Install"
 msgstr "Installeren"
 
-#: bootc_installer/gtk/confirm.blp:86
+#: bootc_installer/gtk/confirm.blp:94
 #, fuzzy
 msgid "Selected image"
 msgstr "Selecteer een schijf"
@@ -75,12 +74,9 @@ msgstr "Wacht even tot de verbindings­controle is voltooid"
 #: bootc_installer/gtk/default-image.blp:22
 #: bootc_installer/gtk/default-keyboard.blp:28
 #: bootc_installer/gtk/default-language.blp:20
-#: bootc_installer/gtk/default-network.blp:21
-#: bootc_installer/gtk/default-theme.blp:48
 #: bootc_installer/gtk/default-timezone.blp:23
-#: bootc_installer/gtk/default-users.blp:21
-#: bootc_installer/gtk/layout-preferences.blp:26
-#: bootc_installer/gtk/window.blp:66 bootc_installer/gtk/window.blp:67
+#: bootc_installer/gtk/default-users.blp:21 bootc_installer/gtk/window.blp:66
+#: bootc_installer/gtk/window.blp:67
 msgid "Next"
 msgstr "Volgende"
 
@@ -128,7 +124,7 @@ msgstr ""
 
 #: bootc_installer/gtk/default-disk.blp:115
 #: bootc_installer/utils/phone_companion.py:143
-#: bootc_installer/views/confirm.py:317
+#: bootc_installer/views/confirm.py:326
 #, fuzzy
 msgid "Hostname"
 msgstr "Gebruikersnaam"
@@ -191,66 +187,6 @@ msgstr "Bevestig wachtwoord"
 msgid "Use hardware-backed encryption"
 msgstr ""
 
-#: bootc_installer/gtk/default-hardware.blp:19
-msgid "System Check"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:20
-msgid "Verifying hardware compatibility"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:44
-msgid "Your system is ready"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:59
-msgid "Hardware"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:60
-msgid ""
-"We’ll quickly review the main components needed for a smooth installation "
-"and first boot."
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:63
-#: bootc_installer/views/confirm.py:407
-msgid "Graphics"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:68
-#: bootc_installer/gtk/default-hardware.blp:84
-#: bootc_installer/gtk/default-hardware.blp:100
-#: bootc_installer/gtk/default-hardware.blp:116
-#: bootc_installer/gtk/default-hardware.blp:132
-#: bootc_installer/gtk/default-hardware.blp:148
-msgid "Scanning…"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:79
-msgid "Processor"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:95
-msgid "Memory"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:111
-msgid "Storage"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:127
-msgid "Security Chip"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:143
-msgid "Secure Boot"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:170
-msgid "Scanning hardware"
-msgstr ""
-
 #: bootc_installer/gtk/default-image.blp:40
 msgid "Choose an Image"
 msgstr ""
@@ -292,7 +228,7 @@ msgstr "Toetsenbord­indeling zoeken"
 
 #: bootc_installer/gtk/default-language.blp:37
 #: bootc_installer/gtk/widget-language.blp:13
-#: bootc_installer/views/confirm.py:211
+#: bootc_installer/views/confirm.py:220
 msgid "Language"
 msgstr "Taal"
 
@@ -303,88 +239,6 @@ msgstr "Selecteer uw taal"
 #: bootc_installer/gtk/default-language.blp:45
 msgid "Search languages"
 msgstr "Taal zoeken"
-
-#: bootc_installer/gtk/default-network.blp:38
-msgid "Internet"
-msgstr "Internet"
-
-#: bootc_installer/gtk/default-network.blp:39
-msgid "An active internet connection is required to install the system"
-msgstr ""
-"Een actieve internet­verbinding is vereist om het systeem te installeren"
-
-#: bootc_installer/gtk/default-network.blp:44
-msgid "Wired"
-msgstr "Bedraad"
-
-#: bootc_installer/gtk/default-network.blp:48
-msgid "Wireless Networks"
-msgstr "Draadloze netwerken"
-
-#: bootc_installer/gtk/default-network.blp:52
-msgid "Advanced"
-msgstr "Geavanceerd"
-
-#: bootc_installer/gtk/default-network.blp:55
-msgid "Connect to Hidden Network..."
-msgstr "Verbinden met verborgen netwerk…"
-
-#: bootc_installer/gtk/default-network.blp:80
-msgid "Open Proxy Settings..."
-msgstr "Proxy-instellingen openen…"
-
-#: bootc_installer/gtk/default-nvidia.blp:19
-msgid "NVIDIA® Drivers"
-msgstr "NVIDIA®-stuurprogramma's"
-
-#: bootc_installer/gtk/default-nvidia.blp:20
-#, fuzzy
-msgid ""
-"Choose whether to install proprietary NVIDIA drivers for better "
-"compatibility and performance"
-msgstr ""
-"Kies of u propriëtaire NVIDIA-stuurprogramma's wilt installeren voor betere "
-"compatibiliteit en prestaties."
-
-#: bootc_installer/gtk/default-nvidia.blp:31
-#: bootc_installer/gtk/default-vm.blp:31
-#: bootc_installer/defaults/qr_companion.py:291
-msgid "Skip"
-msgstr "Overslaan"
-
-#: bootc_installer/gtk/default-nvidia.blp:70
-msgid "About Proprietary Drivers"
-msgstr "Over propriëtaire stuurprogramma's"
-
-#: bootc_installer/gtk/default-nvidia.blp:79
-#, fuzzy
-msgid ""
-"A proprietary driver has private code that neither bootc installer nor "
-"Debian developers can review.\n"
-"\n"
-"Security and other updates are dependent on the driver vendor."
-msgstr ""
-"Een propriëtair stuur­programma heeft privécode die noch de ontwikkelaars van "
-"Vanilla OS noch die van Debian kunnen bekijken.\n"
-"\n"
-"Beveiligings- en andere updates zijn afhankelijk van de leverancier van het "
-"stuur­programma."
-
-#: bootc_installer/gtk/default-theme.blp:15
-msgid "Default"
-msgstr "Standaard"
-
-#: bootc_installer/gtk/default-theme.blp:27
-msgid "Dark"
-msgstr "Donker"
-
-#: bootc_installer/gtk/default-theme.blp:40
-msgid "Color Scheme"
-msgstr "Kleurenschema"
-
-#: bootc_installer/gtk/default-theme.blp:41
-msgid "Choose a color scheme for your system"
-msgstr "Kies een kleurenschema voor uw systeem"
 
 #: bootc_installer/gtk/default-timezone.blp:40
 msgid "Date & Time"
@@ -418,18 +272,6 @@ msgstr "Naam"
 #: bootc_installer/utils/phone_companion.py:136
 msgid "Username"
 msgstr "Gebruikersnaam"
-
-#: bootc_installer/gtk/default-vm.blp:19
-msgid "VM Tools"
-msgstr ""
-
-#: bootc_installer/gtk/default-vm.blp:20
-#, fuzzy
-msgid ""
-"Choose whether to install VM Tools for better compatibility and performance"
-msgstr ""
-"Kies of u propriëtaire NVIDIA-stuurprogramma's wilt installeren voor betere "
-"compatibiliteit en prestaties."
 
 #: bootc_installer/gtk/default-welcome.blp:24
 msgid "Installs to your internal disk. Takes about 5–10 minutes."
@@ -465,8 +307,8 @@ msgid "Confirm Changes"
 msgstr "Veranderingen bevestigen"
 
 #: bootc_installer/gtk/dialog-disk-confirm.blp:17
-#: bootc_installer/gtk/progress.blp:312
-#: bootc_installer/windows/main_window.py:641
+#: bootc_installer/gtk/progress.blp:328
+#: bootc_installer/windows/main_window.py:649
 msgid "Cancel"
 msgstr "Annuleren"
 
@@ -540,27 +382,27 @@ msgstr ""
 msgid "Installation will continue normally. Feel free to browse around. Rawr."
 msgstr ""
 
-#: bootc_installer/gtk/progress.blp:191 bootc_installer/views/progress.py:831
-#: bootc_installer/views/progress.py:906
+#: bootc_installer/gtk/progress.blp:191 bootc_installer/views/progress.py:852
+#: bootc_installer/views/progress.py:929
 #, fuzzy
 msgid "Installing"
 msgstr "Installeren…"
 
-#: bootc_installer/gtk/progress.blp:225 bootc_installer/views/progress.py:838
+#: bootc_installer/gtk/progress.blp:241 bootc_installer/views/progress.py:860
 msgid "0:00 elapsed"
 msgstr ""
 
-#: bootc_installer/gtk/progress.blp:280
+#: bootc_installer/gtk/progress.blp:296
 #, fuzzy
 msgid "Copy Console Log"
 msgstr "Console-uitvoer tonen"
 
-#: bootc_installer/gtk/progress.blp:290
+#: bootc_installer/gtk/progress.blp:306
 #, fuzzy
 msgid "Show Console Output"
 msgstr "Console-uitvoer tonen"
 
-#: bootc_installer/gtk/progress.blp:300
+#: bootc_installer/gtk/progress.blp:316
 #, fuzzy
 msgid "Show Installation Media"
 msgstr "Installatie bevestigen"
@@ -589,11 +431,6 @@ msgstr "Installeren"
 #: bootc_installer/gtk/window.blp:46
 msgid "About"
 msgstr ""
-
-#: bootc_installer/gtk/wireless-row.blp:35
-#: bootc_installer/defaults/network.py:389
-msgid "Connected"
-msgstr "Verbonden"
 
 #: bootc_installer/defaults/conn_check.py:135
 msgid "No Internet Connection!"
@@ -681,62 +518,6 @@ msgstr ""
 msgid "Strong passphrase"
 msgstr ""
 
-#: bootc_installer/defaults/network.py:40
-msgid "Insecure network (WEP)"
-msgstr "Onveilig netwerk (WEP)"
-
-#: bootc_installer/defaults/network.py:41
-msgid "Secure network (WPA)"
-msgstr "Onveilig netwerk (WPA)"
-
-#: bootc_installer/defaults/network.py:42
-msgid "Secure network (WPA2)"
-msgstr "Veilig netwerk (WPA2)"
-
-#: bootc_installer/defaults/network.py:43
-msgid "Secure network (WPA3)"
-msgstr "Veilig netwerk (WPA3)"
-
-#: bootc_installer/defaults/network.py:392
-msgid "Authentication required"
-msgstr "Authenticatie vereist"
-
-#: bootc_installer/defaults/network.py:400
-msgid "Connecting"
-msgstr "Verbinden"
-
-#: bootc_installer/defaults/network.py:402
-msgid "Disconnected"
-msgstr "Niet verbonden"
-
-#: bootc_installer/defaults/network.py:404
-msgid "Disconnecting"
-msgstr "Verbinding verbreken"
-
-#: bootc_installer/defaults/network.py:406
-msgid "Connection Failed"
-msgstr "Verbinden mislukt"
-
-#: bootc_installer/defaults/network.py:408
-msgid "Status Unknown"
-msgstr "Status onbekend"
-
-#: bootc_installer/defaults/network.py:410
-msgid "Unmanaged"
-msgstr "Onbeheerd"
-
-#: bootc_installer/defaults/network.py:412
-msgid "Unavailable"
-msgstr "Niet beschikbaar"
-
-#: bootc_installer/defaults/network.py:414
-msgid "Unknown"
-msgstr "Onbekend"
-
-#: bootc_installer/defaults/network.py:426
-msgid "Cable Unplugged"
-msgstr "Kabel niet verbonden"
-
 #: bootc_installer/defaults/qr_companion.py:163
 msgid "Set Up From Your Phone"
 msgstr ""
@@ -779,6 +560,10 @@ msgstr ""
 #: bootc_installer/defaults/qr_companion.py:456
 msgid "Copy link"
 msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:291
+msgid "Skip"
+msgstr "Overslaan"
 
 #: bootc_installer/defaults/qr_companion.py:294
 msgid "Enter your details on this computer instead"
@@ -830,10 +615,6 @@ msgstr ""
 #: bootc_installer/defaults/user.py:173
 msgid "Strong"
 msgstr ""
-
-#: bootc_installer/layouts/preferences.py:67
-msgid "Please select at least one option."
-msgstr "Selecteer ten minste één optie."
 
 #: bootc_installer/utils/builder.py:70
 #, python-format
@@ -1004,43 +785,47 @@ msgstr ""
 msgid "{first} and {second}"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:219
+#: bootc_installer/views/confirm.py:228
 msgid "Keyboard"
 msgstr "Toetsenbord"
 
-#: bootc_installer/views/confirm.py:225
+#: bootc_installer/views/confirm.py:234
 #, fuzzy
 msgid "Time zone"
 msgstr "Tijdzone"
 
-#: bootc_installer/views/confirm.py:237
+#: bootc_installer/views/confirm.py:246
 msgid "Users"
 msgstr "Gebruikers"
 
-#: bootc_installer/views/confirm.py:248
+#: bootc_installer/views/confirm.py:257
 msgid "/var disk"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:261 bootc_installer/views/confirm.py:289
+#: bootc_installer/views/confirm.py:270 bootc_installer/views/confirm.py:298
 msgid "Target disk"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:270
+#: bootc_installer/views/confirm.py:279
 msgid "Filesystem"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:310
+#: bootc_installer/views/confirm.py:319
 #, fuzzy
 msgid "Encryption"
 msgstr "Apparaat­versleuteling"
 
-#: bootc_installer/views/confirm.py:338 bootc_installer/views/confirm.py:346
-#: bootc_installer/views/confirm.py:364 bootc_installer/views/confirm.py:382
+#: bootc_installer/views/confirm.py:347 bootc_installer/views/confirm.py:355
+#: bootc_installer/views/confirm.py:373 bootc_installer/views/confirm.py:391
 msgid "Image"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:390
+#: bootc_installer/views/confirm.py:399
 msgid "Updates follow"
+msgstr ""
+
+#: bootc_installer/views/confirm.py:416
+msgid "Graphics"
 msgstr ""
 
 #. Destructive action warning: the branding contract's confirm_warning,
@@ -1054,103 +839,103 @@ msgstr ""
 #. A second disk for /var that is formatted is named too (#313): in
 #. the same sentence, or in a sentence of its own after the
 #. removable-drive line, which is about one disk.
-#: bootc_installer/views/confirm.py:424
+#: bootc_installer/views/confirm.py:433
 msgid "All data on this disk will be erased. This cannot be undone."
 msgstr ""
 
-#: bootc_installer/views/done.py:111
+#: bootc_installer/views/done.py:113
 msgid ""
 "The administrator password prompt was closed, or the installer helper cannot "
 "run. Nothing was changed on the disk. Try again."
 msgstr ""
 
-#: bootc_installer/views/done.py:114
+#: bootc_installer/views/done.py:116
 msgid ""
 "The installer did not get administrator rights, or its helper program is "
 "missing. Nothing was changed on the disk."
 msgstr ""
 
-#: bootc_installer/views/done.py:117
+#: bootc_installer/views/done.py:119
 msgid ""
 "The installation was stopped before it finished. The disk can hold a partial "
 "system that does not start."
 msgstr ""
 
-#: bootc_installer/views/done.py:143 bootc_installer/views/done.py:332
+#: bootc_installer/views/done.py:145 bootc_installer/views/done.py:339
 msgid "Error: {}"
 msgstr ""
 
-#: bootc_installer/views/done.py:219
+#: bootc_installer/views/done.py:224
 #, fuzzy, python-format
 msgid "Installed in %s. "
 msgstr "Installeren…"
 
-#: bootc_installer/views/done.py:226
+#: bootc_installer/views/done.py:233
 #, fuzzy
 msgid "Restart now"
 msgstr "Herstarten"
 
-#: bootc_installer/views/done.py:250
+#: bootc_installer/views/done.py:257
 #, fuzzy
 msgid "Installation cancelled"
 msgstr "installatie-bevestigd"
 
-#: bootc_installer/views/done.py:261
+#: bootc_installer/views/done.py:268
 #, fuzzy
 msgid "Installation failed"
 msgstr "installatie-bevestigd"
 
-#: bootc_installer/views/done.py:302
+#: bootc_installer/views/done.py:309
 msgid "Check the log for details. Click 'Show Log' below."
 msgstr ""
 
-#: bootc_installer/views/done.py:311
+#: bootc_installer/views/done.py:318
 msgid "The installer exited unexpectedly. Check the log for details."
 msgstr ""
 
-#: bootc_installer/views/done.py:316
+#: bootc_installer/views/done.py:323
 msgid ""
 "A required system tool is missing. Ensure you are running from the official "
 "live media."
 msgstr ""
 
-#: bootc_installer/views/done.py:318
+#: bootc_installer/views/done.py:325
 msgid ""
 "Network error during image download. Check your internet connection and try "
 "again."
 msgstr ""
 
-#: bootc_installer/views/done.py:320
+#: bootc_installer/views/done.py:327
 msgid "Not enough disk space. Select a larger disk or free up space."
 msgstr ""
 
-#: bootc_installer/views/done.py:322
+#: bootc_installer/views/done.py:329
 msgid "Permission denied. The installer needs administrator access to proceed."
 msgstr ""
 
-#: bootc_installer/views/done.py:324
+#: bootc_installer/views/done.py:331
 msgid ""
 "Disk encryption setup failed. Try disabling encryption or check your "
 "passphrase."
 msgstr ""
 
-#: bootc_installer/views/done.py:326
+#: bootc_installer/views/done.py:333
 msgid "Disk partitioning failed. The disk may be in use or damaged."
 msgstr ""
 
-#: bootc_installer/views/done.py:328
+#: bootc_installer/views/done.py:335
 msgid "Filesystem mount failed. The disk may be in use by another process."
 msgstr ""
 
-#: bootc_installer/views/done.py:345
+#: bootc_installer/views/done.py:352
 msgid "Could not reboot"
 msgstr ""
 
-#: bootc_installer/views/done.py:346
+#: bootc_installer/views/done.py:353
 msgid "Please reboot manually by running: systemctl reboot"
 msgstr ""
 
-#: bootc_installer/views/done.py:348
+#: bootc_installer/views/done.py:355
 msgid "OK"
 msgstr ""
 
@@ -1171,21 +956,21 @@ msgstr ""
 msgid "Optimizing drive\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:309
+#: bootc_installer/views/progress.py:322
 msgid "Stopping the installation\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:589
+#: bootc_installer/views/progress.py:602
 #, python-format
 msgid "~%d sec remaining"
 msgstr ""
 
-#: bootc_installer/views/progress.py:592
+#: bootc_installer/views/progress.py:605
 #, python-format
 msgid "~%d min remaining"
 msgstr ""
 
-#: bootc_installer/views/progress.py:599
+#: bootc_installer/views/progress.py:612
 #, python-format
 msgid "%s elapsed"
 msgstr ""
@@ -1214,79 +999,196 @@ msgstr ""
 msgid "Log not available."
 msgstr "Niet beschikbaar"
 
-#: bootc_installer/windows/main_window.py:542
+#: bootc_installer/windows/main_window.py:549
 #, python-brace-format
 msgid "The recipe file {path} cannot be read: {error}"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:547
+#: bootc_installer/windows/main_window.py:554
 #, python-brace-format
 msgid "The recipe file {path} is not valid JSON: {error}"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:550
+#: bootc_installer/windows/main_window.py:557
 #, python-brace-format
 msgid "The recipe file {path} does not hold a JSON object."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:568
+#: bootc_installer/windows/main_window.py:575
 #, fuzzy
 msgid "The recipe names no installation disk."
 msgstr "Pas uw installatie van Vanilla OS aan"
 
-#: bootc_installer/windows/main_window.py:587
+#: bootc_installer/windows/main_window.py:595
 msgid "fisherman did not accept the recipe."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:636
+#: bootc_installer/windows/main_window.py:644
 #, fuzzy
 msgid "Exit Installer?"
 msgstr "Installeren"
 
-#: bootc_installer/windows/main_window.py:637
+#: bootc_installer/windows/main_window.py:645
 msgid ""
 "An installation is in progress. If you exit now, the installer stops it, and "
 "the disk can be left without a system that starts."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:639
+#: bootc_installer/windows/main_window.py:647
 #, fuzzy
 msgid "Any progress will be lost."
 msgstr "Logboek wordt niet opgeslagen"
 
-#: bootc_installer/windows/main_window.py:642
+#: bootc_installer/windows/main_window.py:650
 msgid "Exit"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:661
+#: bootc_installer/windows/main_window.py:673
 #, fuzzy
 msgid "Cancel the installation?"
 msgstr "Installatie bevestigen"
 
-#: bootc_installer/windows/main_window.py:662
+#: bootc_installer/windows/main_window.py:674
 msgid ""
 "The installer stops the work on the disk. The disk can be left without a "
 "system that starts."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:665
+#: bootc_installer/windows/main_window.py:677
 #, fuzzy
 msgid "Continue Installation"
 msgstr "Installatie bevestigen"
 
-#: bootc_installer/windows/main_window.py:666
+#: bootc_installer/windows/main_window.py:678
 #, fuzzy
 msgid "Cancel Installation"
 msgstr "Installatie bevestigen"
 
-#: bootc_installer/windows/main_window.py:718
+#: bootc_installer/windows/main_window.py:733
 msgid ""
 "The installation storage configuration is invalid. Check the system recipe."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:727
+#: bootc_installer/windows/main_window.py:742
 msgid "No installation disk is selected. Go back and choose a disk."
 msgstr ""
+
+#~ msgid "Internet"
+#~ msgstr "Internet"
+
+#~ msgid "An active internet connection is required to install the system"
+#~ msgstr ""
+#~ "Een actieve internet­verbinding is vereist om het systeem te installeren"
+
+#~ msgid "Wired"
+#~ msgstr "Bedraad"
+
+#~ msgid "Wireless Networks"
+#~ msgstr "Draadloze netwerken"
+
+#~ msgid "Advanced"
+#~ msgstr "Geavanceerd"
+
+#~ msgid "Connect to Hidden Network..."
+#~ msgstr "Verbinden met verborgen netwerk…"
+
+#~ msgid "Open Proxy Settings..."
+#~ msgstr "Proxy-instellingen openen…"
+
+#~ msgid "NVIDIA® Drivers"
+#~ msgstr "NVIDIA®-stuurprogramma's"
+
+#, fuzzy
+#~ msgid ""
+#~ "Choose whether to install proprietary NVIDIA drivers for better "
+#~ "compatibility and performance"
+#~ msgstr ""
+#~ "Kies of u propriëtaire NVIDIA-stuurprogramma's wilt installeren voor "
+#~ "betere compatibiliteit en prestaties."
+
+#~ msgid "About Proprietary Drivers"
+#~ msgstr "Over propriëtaire stuurprogramma's"
+
+#, fuzzy
+#~ msgid ""
+#~ "A proprietary driver has private code that neither bootc installer nor "
+#~ "Debian developers can review.\n"
+#~ "\n"
+#~ "Security and other updates are dependent on the driver vendor."
+#~ msgstr ""
+#~ "Een propriëtair stuur­programma heeft privécode die noch de ontwikkelaars "
+#~ "van Vanilla OS noch die van Debian kunnen bekijken.\n"
+#~ "\n"
+#~ "Beveiligings- en andere updates zijn afhankelijk van de leverancier van "
+#~ "het stuur­programma."
+
+#~ msgid "Default"
+#~ msgstr "Standaard"
+
+#~ msgid "Dark"
+#~ msgstr "Donker"
+
+#~ msgid "Color Scheme"
+#~ msgstr "Kleurenschema"
+
+#~ msgid "Choose a color scheme for your system"
+#~ msgstr "Kies een kleurenschema voor uw systeem"
+
+#, fuzzy
+#~ msgid ""
+#~ "Choose whether to install VM Tools for better compatibility and "
+#~ "performance"
+#~ msgstr ""
+#~ "Kies of u propriëtaire NVIDIA-stuurprogramma's wilt installeren voor "
+#~ "betere compatibiliteit en prestaties."
+
+#~ msgid "Connected"
+#~ msgstr "Verbonden"
+
+#~ msgid "Insecure network (WEP)"
+#~ msgstr "Onveilig netwerk (WEP)"
+
+#~ msgid "Secure network (WPA)"
+#~ msgstr "Onveilig netwerk (WPA)"
+
+#~ msgid "Secure network (WPA2)"
+#~ msgstr "Veilig netwerk (WPA2)"
+
+#~ msgid "Secure network (WPA3)"
+#~ msgstr "Veilig netwerk (WPA3)"
+
+#~ msgid "Authentication required"
+#~ msgstr "Authenticatie vereist"
+
+#~ msgid "Connecting"
+#~ msgstr "Verbinden"
+
+#~ msgid "Disconnected"
+#~ msgstr "Niet verbonden"
+
+#~ msgid "Disconnecting"
+#~ msgstr "Verbinding verbreken"
+
+#~ msgid "Connection Failed"
+#~ msgstr "Verbinden mislukt"
+
+#~ msgid "Status Unknown"
+#~ msgstr "Status onbekend"
+
+#~ msgid "Unmanaged"
+#~ msgstr "Onbeheerd"
+
+#~ msgid "Unavailable"
+#~ msgstr "Niet beschikbaar"
+
+#~ msgid "Unknown"
+#~ msgstr "Onbekend"
+
+#~ msgid "Cable Unplugged"
+#~ msgstr "Kabel niet verbonden"
+
+#~ msgid "Please select at least one option."
+#~ msgstr "Selecteer ten minste één optie."
 
 #~ msgid "Recovery"
 #~ msgstr "Herstel"

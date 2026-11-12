@@ -1,10 +1,11 @@
 """The phone companion in the real window, with the shipped recipe (#304, #305).
 
-The page-level tests (test_qr_companion_page.py) call the page's own methods.
-They could not see either defect: the server followed a step number that did
-not match the carousel, and the user page read the phone's data before any
-phone could have sent it. Both only show when the real BootcWindow builds the
-real carousel from recipe.json.
+The page-level tests used to call the page's own methods, so they could not
+see either defect: the server followed a step number that did not match the
+carousel, and the user page read the phone's data before any phone could
+have sent it. Both only show when the real BootcWindow builds the real
+carousel from recipe.json. test_qr_companion_page.py now opens this window
+too (#321).
 """
 
 import json

@@ -39,9 +39,8 @@ def test_meson_builds_the_domain_the_launcher_binds():
     assert _meson_domain() == i18n.DOMAIN
 
 
-@pytest.mark.parametrize("launcher", ["bootc-installer.in", "bootc-installer-processor.in"])
-def test_the_launchers_bind_through_the_one_module(launcher):
-    text = (ROOT / "bootc_installer" / launcher).read_text()
+def test_the_launcher_binds_through_the_one_module():
+    text = (ROOT / "bootc_installer" / "bootc-installer.in").read_text()
     assert "from bootc_installer.utils import i18n" in text
     assert "i18n.bind(localedir)" in text
     # No second place that could name another domain.

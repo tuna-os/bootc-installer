@@ -3,7 +3,6 @@ layoutsdir = join_paths(pkgdatadir, 'bootc_installer/layouts')
 
 sources = [
   '__init__.py',
-  'preferences.py',
   'yes_no.py',
 ]
 

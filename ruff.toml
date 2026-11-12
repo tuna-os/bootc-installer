@@ -1,3 +1,11 @@
+# Ruff for the GNOME frontend (bootc_installer/ and tests/).
+#
+#     python3 -m ruff check bootc_installer/ tests/
+#
+# CI runs that command in the "Unit Tests (no display)" job of
+# .github/workflows/python-test.yml, with the ruff version pinned there.
+# docs/guide/developing.md says how to run it and how to change the rules.
+
 target-version = "py310"
 line-length = 100
 
@@ -5,3 +13,12 @@ line-length = 100
 # (see CONTRIBUTING.md); without this, ruff's default F821 flags every
 # translated string as an undefined name.
 builtins = ["_"]
+
+[lint]
+# Name the rules: a newer ruff selects more rules by default, so without
+# this list the same tree passes or fails with the ruff version.
+# E4, E7, E9: import, statement and syntax errors. F: pyflakes.
+select = ["E4", "E7", "E9", "F"]
+# PyGObject needs gi.require_version() before `from gi.repository import`,
+# so a module-level import after code is the rule here, not an error.
+ignore = ["E402"]

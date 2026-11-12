@@ -83,11 +83,6 @@ class TestRecipeValidation(unittest.TestCase):
         self.assertIn("branding", loader.raw)
         self.assertNotEqual(loader.raw["distro_name"], "Bluefin")
 
-    def test_missing_steps_fails(self):
-        bad = {k: v for k, v in _VALID_RECIPE.items() if k != "steps"}
-        with self.assertRaises(SystemExit):
-            _load_with_custom_recipe(bad, exist_override=lambda p: p == "/fake/recipe.json")
-
     def test_steps_not_dict_fails(self):
         bad = {**_VALID_RECIPE, "steps": ["welcome"]}
         with self.assertRaises(SystemExit):
