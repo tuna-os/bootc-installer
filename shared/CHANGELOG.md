@@ -9,8 +9,26 @@ the form `Recipe schema sha256:` with the hash of the file after the change
 line must match the file. `tests/unit/test_shared_contract_docs.py` makes
 sure that it does. Do not edit the hash of an old entry: add an entry.
 
+An entry that changes a contract file also has a `Contracts version:` line
+with the new value of `VERSION`, and a `Contracts sha256:` line with the
+digest of the contract files. `python3 shared/ci/contract_version.py`
+prints both lines. README.md says which files are contract files and which
+change increases which part of the version.
+
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
+
+## 2026-11-12: the contracts have a version
+
+- Added: `VERSION`, the version of the contracts. It starts at `1.0.0`, the
+  state of the contracts on this date. README.md ("How a contract changes")
+  has the rule: which files are contract files, and which change increases
+  which part. `ci/contract_version.py` computes the digest, and
+  `tests/unit/test_shared_contract_docs.py` fails when a contract file
+  changes with no new entry and no greater version (#226).
+
+Contracts version: `1.0.0`
+Contracts sha256: `ac5c1a4b3c17fd0aaa71ec359c157f8cbe8564f77b891b8bddd91805c2a5f9eb`
 
 ## 2026-11-12: fisherman `b5b9250`, the image and runtime failure codes
 
