@@ -1,0 +1,85 @@
+name: COSMIC wasm build
+
+# Compiles the COSMIC frontend for wasm32-unknown-unknown, the first step of
+# rendering the COSMIC wizard in a browser (#105). It is a check only:
+# nothing is bundled, served or driven yet. The Playwright entry in
+# browser-walkthrough.yml comes in a later PR.
+#
+# Upstream does not take these fixes (pop-os closed libcosmic#1446,
+# iced#397 and iced#398). This job builds against the tuna-os forks instead,
+# each pinned by a full commit SHA in frontends/cosmic/web/: cargo-patch.toml
+# has the patch overrides, and assemble-iced.sh makes the iced tree. The
+# patches reach Cargo only through `--config` in this job. Cargo.toml has
+# no [patch], and the committed Cargo.lock, the Flatpak cargo sources and
+# the native build do not change. The `cargo update` step changes the lock
+# in this job's checkout only.
+#
+# ADVISORY. A fork that stops building must not hold dev. On a pull request
+# a failed check shows red, and the job-level continue-on-error keeps the
+# run green. On dev the check step may fail and the job stays green with a
+# warning, so the promote gate (which reads check runs) never sees red.
+# The job is not in REQUIRED_CHECKS. tests/unit/test_wasm_cosmic.py holds
+# the workflow to this.
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "frontends/cosmic/**"
+      - ".github/workflows/wasm-cosmic.yml"
+  pull_request:
+    paths:
+      - "frontends/cosmic/**"
+      - ".github/workflows/wasm-cosmic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wasm-cosmic-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: COSMIC wasm check (advisory)
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: frontends/cosmic
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: frontends/cosmic
+          key: wasm
+
+      - name: assemble the pinned iced tree
+        run: web/assemble-iced.sh
+
+      - name: cargo check (wasm32, tuna-os forks)
+        id: wasm
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
+        run: |
+          # The lock names jackpot51/rust-atomicwrites 0.4.2; the fork is
+          # 0.4.4, so Cargo uses the patch only after this update.
+          cargo update --config web/cargo-patch.toml -p atomicwrites
+          cargo check --target wasm32-unknown-unknown \
+            --no-default-features --features web \
+            --config web/cargo-patch.toml
+
+      - name: report
+        if: always()
+        env:
+          OUTCOME: ${{ steps.wasm.outcome }}
+        run: |
+          echo "COSMIC wasm check: $OUTCOME (advisory)" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$OUTCOME" != "success" ]; then
+            echo "::warning::The advisory COSMIC wasm check did not pass ($OUTCOME). It does not block dev. Refer to shared/browser/wasm-patches/README.md."
+          fi

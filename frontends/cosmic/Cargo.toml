@@ -25,16 +25,26 @@ description = "COSMIC (libcosmic) installer for TunaOS — drives fisherman boot
 libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = [
     "winit",
     "wgpu",
-    "tokio",
     "a11y",
-    "desktop",
 ] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["rt", "sync", "macros", "time"] }
 anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 png = "0.18"
 tempfile = "3"
 sha2 = "0.11"
+
+[features]
+# The installer that ships. The Flatpak and every native build use the
+# default features, so they resolve the same crates as before.
+default = ["desktop"]
+desktop = ["libcosmic/tokio", "libcosmic/desktop", "tokio/full"]
+# A browser-only build for wasm32-unknown-unknown (#105). It is off by
+# default and only .github/workflows/wasm-cosmic.yml turns it on, with
+# `--no-default-features --features web` and the fork patches in
+# web/cargo-patch.toml. It draws the wizard from the capture fixtures and
+# does not reach a disk, fisherman or the host.
+web = []

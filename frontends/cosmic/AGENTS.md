@@ -58,6 +58,29 @@ a capture task rather than a "run cosmic-comp in CI" task.
 If a screenshot job fails with an adapter or surface error rather than a Rust
 error, that is this machinery, not your UI change.
 
+## The browser-only wasm build
+
+`../../.github/workflows/wasm-cosmic.yml` runs `cargo check --target
+wasm32-unknown-unknown --no-default-features --features web` against the
+tuna-os forks of libcosmic, iced and rust-atomicwrites (#105). The job is
+advisory. It never blocks `dev`.
+
+- The shipped installer is the `desktop` feature, which is the default.
+  `web` is off by default, and the two do not build together.
+- The fork pins are in `web/cargo-patch.toml` and `web/assemble-iced.sh`,
+  each a full commit SHA. They reach Cargo only through `--config` in that
+  job. Do not add a `[patch]` to `Cargo.toml`, and do not commit the lock
+  that the job makes. `../../tests/unit/test_wasm_cosmic.py` checks this.
+- Code that needs a host goes under `cfg(unix)` or
+  `cfg(not(target_arch = "wasm32"))`. On wasm the probe reads
+  `shared/probe/fixtures/laptop.json`, nothing is staged, no install log is
+  written and the install refuses to start.
+- Do not add a dependency for the web build. A new dependency changes
+  `Cargo.lock` and `flatpak/cargo-sources.json`.
+- Agents send no upstream PRs for these fixes: pop-os does not accept
+  LLM-generated changes. `../../shared/browser/wasm-patches/README.md` says
+  where each patch comes from.
+
 ## `cargo-sources.json` must track `Cargo.lock`
 
 flatpak-builder runs `cargo --offline build`, so `flatpak/cargo-sources.json`
