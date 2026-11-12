@@ -128,6 +128,10 @@ text, label or title call, and on a `copy` constant that does not go
 through `tr`. `i18n.rs` says why this is a shim and not `fl!`. The
 template is `i18n/template.json`. After you change a `copy` constant, run
 `python3 ../../shared/i18n/templates.py cosmic` and commit the template.
+Then run `python3 ../../shared/i18n/catalogs.py fr cosmic` to update the
+French catalog `i18n/fr.json`. The Flatpak installs each `i18n/<lang>.json`
+except the template. `the_shipped_french_catalog_loads_and_translates` in
+`i18n.rs` loads it.
 
 ## The recipe, live media and validation
 

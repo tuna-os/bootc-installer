@@ -133,8 +133,18 @@ Each line of text is in `qsTr()`, or comes from a copy key of
 `branding.json` through `root.text()`. `installer/i18n_test.go` fails on a string in `ui/*.qml` that
 is in neither. The template is `i18n/tuna-installer-niri.ts`. After you
 change a marked string, run `python3 ../../shared/i18n/templates.py niri`
-and commit the template. No translation ships yet, and no code loads one
-(see `../../shared/i18n/README.md`).
+and commit the template. Then run
+`python3 ../../shared/i18n/catalogs.py fr niri` to update the French catalog
+`i18n/tuna-installer-niri_fr.ts`.
+
+Quickshell loads no catalog. `translations/` is a small QML module in C++
+(`TunaInstaller.Translations`) that loads the `.qm` file for the locale and
+retranslates the engine. `ui/i18n.js` creates it. The Flatpak builds the
+module and the `.qm` files, and the launcher puts the module on
+`QML_IMPORT_PATH`. Without the module the text stays English. Test it
+with `cmake -S translations -B build -DBUILD_TESTING=ON`, then
+`cmake --build build` and `ctest --test-dir build` (see
+`../../shared/i18n/README.md`).
 
 ## Parity notes
 

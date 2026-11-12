@@ -24,6 +24,17 @@ schema only.
   seven `image_*` codes, `selinux_workaround_unavailable` and the 19 failure
   codes. The done page reads them through the same key as a validate code.
 
+## 2026-11-12: each frontend ships a translation
+
+- Added: `i18n/catalogs.py`. The script writes the catalog of a language
+  for KDE, Niri, XFCE and COSMIC. A translation comes from the catalog, then
+  from the same English text in `po/<lang>.po` of GNOME (translated, not
+  fuzzy). `--check` fails on a stale catalog or a lost placeholder, and
+  `tests/unit/test_frontend_translation_catalogs.py` runs it (#300).
+- Added: a French catalog in each frontend. Each frontend builds, installs
+  and loads it, and a test in each frontend translates a known string
+  with it.
+
 ## 2026-11-12: fisherman `0c370b6`, two validate codes, one account default
 
 - Changed: the fisherman pin moves to `0c370b6`. It refuses a bad `image`

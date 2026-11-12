@@ -17,6 +17,7 @@ import Quickshell
 import Quickshell.Io
 import "."
 import "progress.js" as BarMath
+import "i18n.js" as I18n
 
 ApplicationWindow {
     id: root
@@ -784,7 +785,13 @@ ApplicationWindow {
     // logPath, named on the progress page next to its Copy button.
     property string logPath: ""
 
-    Component.onCompleted: detectProc.running = true
+    // The Qt catalog for the locale, or null where none loads (i18n.js).
+    property QtObject catalog: null
+
+    Component.onCompleted: {
+        root.catalog = I18n.createCatalog(root, Qt.resolvedUrl("installer.qml"))
+        detectProc.running = true
+    }
 
     // Readiness stamp — see ../installer/readiness.go.
     //

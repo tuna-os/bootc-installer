@@ -125,7 +125,11 @@ fails when the two differ.
   literal. Do not use `_` as a parameter or variable name in those modules.
   The template is `po/tuna-installer-xfce.pot`. After you change a marked
   string, run `python3 ../../shared/i18n/templates.py xfce` and commit the
-  template.
+  template. Then run `python3 ../../shared/i18n/catalogs.py fr xfce` to
+  update `po/fr.po`. The Flatpak compiles each `po/<lang>.po` to a `.mo`
+  file (`separate-locales` is `false`, so the bundle holds the files).
+  `tests/test_catalogs.py` compiles the catalogs with `msgfmt` and loads
+  them through `i18n.py`.
 - The keyboard combo applies to the live session only. The recipe has no
   locale field yet, so do not add a control that only stores a value.
 
