@@ -145,6 +145,7 @@
       "flat": 0.7825672185041681,
       "ink": 0.1706733591640249,
       "stddev": 0.08896666971489771,
+      "sha256": "91b3a3196ed76b8238d307f718da7f9405dce31ec670e0cfa98fd31a345587f2",
       "text_excerpt": "Step 1 of 7 \u00b7 Welcome\nWelcome to TunaOS\nThis wizard will guide you through installing TunaOS onto this computer.\nYou will choose a disk and how it should be encrypted. Everything after that is handled by the installer.\nRegion & language\nThe"
     },
     {
@@ -155,6 +156,7 @@
       "flat": 0.6303330838323353,
       "ink": 0.351437749500998,
       "stddev": 0.06195886355066795,
+      "sha256": "d117abefa9711492211082cb5af59d3d4a5a9df64f6cde61aa6c0958fc4759c5",
       "text_excerpt": "Step 2 of 7 \u00b7 Target Disk\nTarget Disk\nChoose the disk where TunaOS will be installed.\nEverything on the selected disk will be erased.\nEverything on the selected disk will be erased.\nEverything on the selected disk will be erased.\nFilesystem"
     },
     {
@@ -165,6 +167,7 @@
       "flat": 0.5836608033932136,
       "ink": 0.4121132734530938,
       "stddev": 0.06226990800977924,
+      "sha256": "aed5a96123abd09a7ab872e6ad7357f30da75139ef72f6e84226a5e409f57664",
       "text_excerpt": "Step 3 of 7 \u00b7 Disk Encryption\nDisk Encryption\nEncryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling.\nNo encryption\nAnyone with the disk can read your files.\nNo encryption\nAnyone with"
     },
     {
@@ -175,6 +178,7 @@
       "flat": 0.6966535678642715,
       "ink": 0.29721806387225547,
       "stddev": 0.07536962871657688,
+      "sha256": "c98ddb55bf7a9e37f75588b43914c4c2587b942bd72fea2ff4ba8c54766630d0",
       "text_excerpt": "Step 4 of 7 \u00b7 User Account\nUser Account\nCreate the account you will sign in with. It can also administer this computer.\nAlex Example\nFull name (optional)\nFull name (optional)\nAlex Example\nalex\nUsername\nUsername\nalex\nPassword\nPassword\nShow P"
     },
     {
@@ -185,6 +189,7 @@
       "flat": 0.4919691866267465,
       "ink": 0.49243700099800397,
       "stddev": 0.06706481474506798,
+      "sha256": "bd90ee203ce98168ff6a4a80061cc11e679a37d3f189234adfa62f2022053310",
       "text_excerpt": "Step 5 of 7 \u00b7 Confirm Installation\nConfirm installation\nEverything on /dev/nvme0n1 will be erased. This cannot be undone.\nEverything on /dev/nvme0n1 will be erased. This cannot be undone.\nEverything on /dev/nvme0n1 will be erased. This cann"
     },
     {
@@ -195,6 +200,7 @@
       "flat": 0.7577829415795275,
       "ink": 0.24132332350224922,
       "stddev": 0.07682274537081049,
+      "sha256": "91646a43665e99c3121532c33ed04c48a9c72e77c23c209bb38d936c56037b4d",
       "text_excerpt": "Step 6 of 7 \u00b7 Installing\nInstalling\nInstalling TunaOS\u2026 /dev/nvme0n1. Do not power off the computer.\nStep 5 of 8 \u2014 Installing TunaOS\u2026\n[1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting file"
     },
     {
@@ -205,6 +211,7 @@
       "flat": 0.9696342608899847,
       "ink": 0.026388399671245743,
       "stddev": 0.07512092344883955,
+      "sha256": "747065f693119a1712d6126ad749f44af6bd745ce77996854282268f9b6c3482",
       "text_excerpt": "Step 7 of 7 \u00b7 Finished\nTunaOS is installed\nRemove the installation media and restart the computer.\nThe new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation.\nResta"
     },
     {
@@ -215,6 +222,7 @@
       "flat": 0.8349917811435952,
       "ink": 0.15727368791828109,
       "stddev": 0.07146668874543928,
+      "sha256": "16d38424ed01365fa851b7678eb0f508f4812c16da65d2efd4570979b473aaf8",
       "text_excerpt": "Step 7 of 7 \u00b7 Finished\nTunaOS is installed\nRemove the installation media and restart the computer.\nThe new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation.\nSave "
     },
     {
@@ -225,6 +233,7 @@
       "flat": 0.6543480203771561,
       "ink": 0.14520213304733817,
       "stddev": 0.10539422926217538,
+      "sha256": "86a70f6661e45273837697b599f72cfda940b9514aca7625cad0674d644e11ff",
       "text_excerpt": "Step 6 of 7 \u00b7 Installing\nInstalling\nInstalling TunaOS\u2026 /dev/nvme0n1. Do not power off the computer.\nStep 5 of 8 \u2014 Installing TunaOS\u2026\n[1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting file"
     },
     {
@@ -235,6 +244,7 @@
       "flat": 0.9900639896677234,
       "ink": 0.009231536926147704,
       "stddev": 0.05618261774991484,
+      "sha256": "d6c5b4201ccd53b24f94c45604a4e5ac29c833709925f5c6313d6d11b8278bdb",
       "text_excerpt": "Step 7 of 7 \u00b7 Finished\nInstallation cancelled\nYou stopped the installation. The selected disk is erased and has no complete system. Start the installer again to install.\nClose\n&Close"
     }
   ],
