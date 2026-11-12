@@ -12,6 +12,17 @@ sure that it does. Do not edit the hash of an old entry: add an entry.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-12: the receipt event, and installs from the bootc storage of this computer
+
+- Added: the recipe field `sourceReuse` (`store`, `digest`, `platform`)
+  and the `experimental` entry `bootc_store_reuse`
+  (tuna-os/fisherman#384, #443). With `sourceReuse`, the recipe must also
+  have `bootc_store_reuse` in `experimental`, an empty `image` and a
+  `targetImgref`.
+- The fisherman pin moved to `cddfa7b` (tuna-os/fisherman#441, #443).
+
+Recipe schema sha256: `da4ed42217d25a9ab9e6402d9ac82827e5fee8d5d5e2eef84940111d8574826a`
+
 ## 2026-11-11: probe, the check of the selected image and this computer's bootc storage; completion
 
 - Added: `probe/capabilities-cases.json`, `probe/bootc-store-cases.json`,
