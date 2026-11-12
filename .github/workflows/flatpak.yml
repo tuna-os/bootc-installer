@@ -36,18 +36,19 @@ jobs:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
       options: --privileged
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
+          persist-credentials: false
 
-      - uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6.8
         with:
           bundle: org.bootcinstaller.Installer.flatpak
           manifest-path: flatpak/org.bootcinstaller.Installer.json
           cache-key: flatpak-builder-production-${{ github.sha }}
           upload-artifact: false
 
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: org.bootcinstaller.Installer.flatpak
           path: org.bootcinstaller.Installer.flatpak
@@ -69,11 +70,12 @@ jobs:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
       options: --privileged
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
+          persist-credentials: false
 
-      - uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6.8
         with:
           arch: aarch64
           bundle: org.bootcinstaller.Installer-aarch64.flatpak
@@ -81,7 +83,7 @@ jobs:
           cache-key: flatpak-builder-production-aarch64-${{ github.sha }}
           upload-artifact: false
 
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: org.bootcinstaller.Installer-aarch64.flatpak
           path: org.bootcinstaller.Installer-aarch64.flatpak
@@ -96,18 +98,19 @@ jobs:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
       options: --privileged
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
+          persist-credentials: false
 
-      - uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6.8
         with:
           bundle: org.bootcinstaller.Installer.Devel.flatpak
           manifest-path: flatpak/org.bootcinstaller.Installer.Devel.json
           cache-key: flatpak-builder-devel-${{ github.sha }}
           upload-artifact: false
 
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: org.bootcinstaller.Installer.Devel.flatpak
           path: org.bootcinstaller.Installer.Devel.flatpak
@@ -140,8 +143,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8.0.2
         with:
           name: org.bootcinstaller.Installer.flatpak
           path: packaged-bundle
@@ -173,7 +178,7 @@ jobs:
               --command=python3 org.bootcinstaller.Installer - "$phase" \
               < tests/packaged/host-staging-gnome.py | tee -a packaged-staging.json
           done
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: packaged-gnome-branding-proof

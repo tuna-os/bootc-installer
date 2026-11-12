@@ -41,14 +41,22 @@ PROMOTE = WORKFLOWS / "promote.yml"
 DEV = "dev"
 
 # Workflows that a push to `dev` starts, but whose completion must not fire
-# the gate. Map the workflow `name:` to the reason. The gate reads the check
-# runs of every workflow, so there is no reason at this time and the set is
-# empty. An entry here needs a reason that survives review.
-NOT_A_TRIGGER = {}
+# the gate. Map the workflow `name:` to the reason. An entry here needs a
+# reason that survives review.
+NOT_A_TRIGGER = {
+    "actions-security": "It checks only the workflow files and stops in about "
+                        "a minute, before the build and E2E workflows that fire "
+                        "the gate. The gate reads every check run, so a red run "
+                        "still holds the promotion.",
+}
 
 # Workflows that run on every push to `dev` (no path filter), but have no
 # job in REQUIRED_CHECKS. Map the workflow `name:` to the reason.
-NOT_REQUIRED = {}
+NOT_REQUIRED = {
+    "actions-security": "A lint of the workflow files, not a release check. "
+                        "The gate reads every check run, so a red run still "
+                        "holds the promotion.",
+}
 
 
 def load(path):

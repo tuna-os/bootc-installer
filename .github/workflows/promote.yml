@@ -30,7 +30,7 @@ name: Promote dev → prod
 # gate is wrong; it is not the normal path.
 
 on:
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers] the event only wakes the gate; it checks out dev and never uses the triggering run's code or artifacts
     # Every workflow that a push to dev can start, by its `name:`. The gate
     # reads every check run on the candidate, and only the last workflow to
     # finish sees "everything complete". A workflow that is absent from this
@@ -79,10 +79,7 @@ on:
         type: boolean
         default: false
 
-permissions:
-  contents: write
-  actions: write
-  checks: read
+permissions: {}
 
 # One promotion at a time, and never cancel one that is mid-push.
 concurrency:
@@ -131,15 +128,19 @@ jobs:
   gate:
     name: Gate
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      checks: read
     outputs:
       promote: ${{ steps.decide.outputs.promote }}
       sha: ${{ steps.candidate.outputs.sha }}
       reason: ${{ steps.decide.outputs.reason }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ env.DEV_BRANCH }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Pick the candidate
         id: candidate
@@ -291,8 +292,11 @@ jobs:
     needs: gate
     if: needs.gate.outputs.promote == 'true'
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] the next step pushes prod with these credentials
         with:
           ref: ${{ needs.gate.outputs.sha }}
           fetch-depth: 0
