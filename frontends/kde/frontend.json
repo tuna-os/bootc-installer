@@ -1,0 +1,60 @@
+{
+  "$comment": "The canonical build and test commands of the KDE frontend. shared/ci/frontend_tests.py runs these; tests/unit/test_ci_frontend_meta.py holds each command to the workflow step that it names.",
+  "frontend": "kde",
+  "build": [
+    {
+      "id": "configure",
+      "run": "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_CAPTURE=ON -DBUILD_TESTING=ON",
+      "cwd": "frontends/kde",
+      "workflow": "screenshots-kde.yml",
+      "job": "capture",
+      "requires": ["cmake", "ninja", "c++", "pkg-config:Qt6Quick"]
+    },
+    {
+      "id": "compile",
+      "run": "cmake --build build -j\"$(nproc)\"",
+      "cwd": "frontends/kde",
+      "workflow": "screenshots-kde.yml",
+      "job": "capture",
+      "requires": ["cmake", "ninja", "c++"]
+    }
+  ],
+  "test": [
+    {
+      "id": "unit",
+      "run": "ctest --test-dir build --output-on-failure",
+      "cwd": "frontends/kde",
+      "workflow": "screenshots-kde.yml",
+      "job": "capture",
+      "requires": ["ctest"],
+      "needs": ["configure", "compile"]
+    }
+  ],
+  "compliance": [
+    {
+      "id": "configure",
+      "run": "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DTUNA_TRANSLATIONS=OFF",
+      "cwd": "frontends/kde",
+      "workflow": "recipe-compliance.yml",
+      "job": "kde",
+      "requires": ["cmake", "ninja", "c++", "pkg-config:Qt6Quick"]
+    },
+    {
+      "id": "compile",
+      "run": "cmake --build build --target tuna-installer-backend-tests -j\"$(nproc)\"",
+      "cwd": "frontends/kde",
+      "workflow": "recipe-compliance.yml",
+      "job": "kde",
+      "requires": ["cmake", "ninja", "c++"]
+    },
+    {
+      "id": "recipe",
+      "run": "./build/tuna-installer-backend-tests recipeCompliance recipeComplianceNormaliser",
+      "cwd": "frontends/kde",
+      "workflow": "recipe-compliance.yml",
+      "job": "kde",
+      "requires": [],
+      "env": {"QT_QPA_PLATFORM": "offscreen"}
+    }
+  ]
+}

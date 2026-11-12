@@ -76,6 +76,27 @@ checks the version (see "How a contract changes").
 `frontends.json`, one `Publish (<name>)` job to `release.yml`, one entry to
 the matrix of `sbom.yml`, and one lock file list to `flatpak_sbom.py`.
 
+Each frontend has a metadata file with its build and test commands:
+`frontend-gnome.json` here for GNOME, and `frontends/<name>/frontend.json`
+for the other four. A file has three lists: `build`, `test` and
+`compliance`. Each command names the workflow and the job that runs it.
+`tests/unit/test_ci_frontend_meta.py` fails when a command is not a line
+of that job, in the same directory and with the same variables. Thus the
+files cannot drift from CI. `frontend_tests.py` runs the commands from the
+repository root:
+
+```bash
+python3 shared/ci/frontend_tests.py --list           # the plan; runs nothing
+python3 shared/ci/frontend_tests.py                   # all tests of all five
+python3 shared/ci/frontend_tests.py kde niri:backend  # one frontend, one test
+python3 shared/ci/frontend_tests.py --compliance      # the recipe compliance tests
+```
+
+The script prints each command before it runs it. When a tool is missing,
+the script skips the command and gives the name of the tool. The exit code
+is 1 when a command fails. With `--require-all`, a skip is also a failure.
+A new frontend adds its file, with the commands of its workflows.
+
 ## `completion/`
 
 How the done page tells an installed system from a verified start (#269),
@@ -236,8 +257,10 @@ share the pixel audit (`pixel_audit.py`) and the capture fixtures
 step). `tests/unit/test_walkthrough_pixel_audit.py` covers both. The
 compiled harnesses (KDE, COSMIC) write their PNGs and a `texts.json`, and
 their workflows run `report_from_pngs.py`. A report is strict: each
-required screen shows on a page whose frame is present, readable, rendered
-and not a copy of another frame, or the `screen_exemptions` of the
+required screen shows on a page whose frame is present, readable, rendered,
+not a copy of another frame, the same file that the emitter audited
+(`sha256`), and changed from the frame before it (a stale grab does not
+change), or the `screen_exemptions` of the
 frontend's feature manifest exempt it with a reason. Else the screen is a
 failure. `aggregate.py --strict` checks each strict report again against
 its frames, and `walkthrough.yml` fails on a failure. A PNG-only report is

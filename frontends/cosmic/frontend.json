@@ -1,0 +1,34 @@
+{
+  "$comment": "The canonical build and test commands of the COSMIC frontend. shared/ci/frontend_tests.py runs these; tests/unit/test_ci_frontend_meta.py holds each command to the workflow step that it names.",
+  "frontend": "cosmic",
+  "build": [
+    {
+      "id": "release",
+      "run": "cargo build --release",
+      "cwd": "frontends/cosmic",
+      "workflow": "screenshots-cosmic.yml",
+      "job": "capture",
+      "requires": ["cargo", "pkg-config:xkbcommon", "pkg-config:wayland-client"]
+    }
+  ],
+  "test": [
+    {
+      "id": "unit",
+      "run": "cargo test -- --nocapture",
+      "cwd": "frontends/cosmic",
+      "workflow": "cargo-test-cosmic.yml",
+      "job": "test",
+      "requires": ["cargo", "pkg-config:xkbcommon", "pkg-config:wayland-client"]
+    }
+  ],
+  "compliance": [
+    {
+      "id": "recipe",
+      "run": "cargo test --locked recipe_compliance -- --nocapture",
+      "cwd": "frontends/cosmic",
+      "workflow": "recipe-compliance.yml",
+      "job": "cosmic",
+      "requires": ["cargo", "pkg-config:xkbcommon", "pkg-config:wayland-client"]
+    }
+  ]
+}

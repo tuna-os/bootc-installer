@@ -18,6 +18,26 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-12: a stale frame is not evidence
+
+- Changed: `walkthrough/parity_report.py` writes the `sha256` of each
+  frame in `pages`. The consumer (`walkthrough/aggregate.py`) refuses a
+  page when the frame in the artifact has a different `sha256`: the frame
+  is not the frame that the emitter audited. A report without the key is
+  not checked (#186).
+- Changed: a page whose frame changed by `DIFF_PIXELS` (500) pixels or
+  fewer from the frame before it is a stale grab. It cannot be the
+  evidence for a screen. The emitter and the consumer read
+  `transition_pixels`. A transition that ImageMagick did not measure is
+  not checked.
+- Fixed: `changed_pixels()` gives `None` when `compare` fails (a missing
+  frame, two sizes). Before, an error was "0 pixels changed".
+- All five frontends use the change through `write_report`, and no
+  frontend changes. The committed captures in `docs/walkthrough/` pass.
+
+Contracts version: `1.3.0`
+Contracts sha256: `024221abf0ef00e4a97010ffb04faedb43e565113728bd8ba223f7e346181e27`
+
 ## 2026-11-12: one recipe for the same choices
 
 - Added: `recipe/fixtures/compliance.json`. Each case has the choices of a

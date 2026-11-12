@@ -180,6 +180,10 @@ def changed_pixels(a, b):
             continue
     else:
         return None
+    # 0: the same, 1: different, 2: an error (a missing or unreadable frame,
+    # two sizes). An error measures nothing; it is not "0 pixels changed".
+    if r.returncode not in (0, 1):
+        return None
     import re
     m = re.search(r"(\d+)", (r.stderr or "").strip())
     return int(m.group(1)) if m else 0
@@ -224,7 +228,10 @@ def match_screens(pages):
 # reached on a page with good evidence, or exempt by a declared, reasoned
 # entry in the frontend's feature manifest. Good evidence: the page's PNG
 # exists, is a readable PNG, passed the pixel audit (`rendered` is true),
-# and is not a byte-identical copy of another page's frame. A screen that
+# is the same file that the emitter audited (its `sha256`), is not a
+# byte-identical copy of another page's frame, and changed from the frame
+# before it (a stale grab that still shows the previous page has the new
+# page's widget text, but not its pixels). A screen that
 # fails is in `failure_reasons`, and `failures` is their count. Nothing
 # here is unconditional.
 
@@ -302,6 +309,8 @@ def png_problem(path):
 
 
 def _file_digest(path):
+    if not path:
+        return None
     try:
         with open(path, "rb") as fh:
             return hashlib.sha256(fh.read()).hexdigest()
@@ -309,25 +318,46 @@ def _file_digest(path):
         return None
 
 
-def page_evidence(pages, resolve=lambda png: png):
+def page_evidence(pages, resolve=lambda png: png, transitions=None):
     """{page name: None when the page is good evidence, else the reason}.
 
     `resolve` maps a page's recorded `png` to the file to check (the
     consumer reads a copy of the frames in another directory).
+
+    `transitions` is the report's `transition_pixels`: the pixels that
+    changed from the frame before each page. A page whose frame changed by
+    DIFF_PIXELS or fewer is a stale grab of the page before it, and it
+    cannot be the evidence for a screen. An unmeasured transition (None, no
+    ImageMagick) is not checked.
+
+    A page that records the `sha256` of its frame must still have that
+    frame: a different file in its place (a frame from another run, a
+    replaced frame) is not the frame that the emitter audited.
     """
+    if not isinstance(transitions, list) or len(transitions) != max(len(pages) - 1, 0):
+        transitions = None
     out, seen = {}, {}
-    for p in pages:
+    for i, p in enumerate(pages):
         path = resolve(p.get("png"))
         reason = png_problem(path)
         if reason is None and p.get("rendered") is not True:
             reason = ("frame did not pass the pixel audit" if p.get("rendered") is False
                       else "frame has no pixel audit")
+        digest = _file_digest(path) if reason is None else None
         if reason is None:
-            digest = _file_digest(path)
             if digest in seen:
                 reason = f"frame is a byte copy of page '{seen[digest]}'"
             else:
                 seen[digest] = p["name"]
+        if reason is None and p.get("sha256") and p["sha256"] != digest:
+            reason = "frame is not the frame that the report audited (sha256 differs)"
+        if reason is None and i > 0 and transitions is not None:
+            changed = transitions[i - 1]
+            if isinstance(changed, int) and not isinstance(changed, bool) \
+                    and changed <= DIFF_PIXELS:
+                reason = (f"frame shows no change from page '{pages[i - 1]['name']}' "
+                          f"({changed} pixels changed, the floor is {DIFF_PIXELS}): "
+                          "a stale grab")
         out[p["name"]] = reason
     return out
 
@@ -391,7 +421,7 @@ def write_report(outdir, flavor, pages, harness, exemptions=None):
     _matched, detail = match_screens(pages)
     if exemptions is None:
         exemptions = load_exemptions(flavor)
-    evidence = page_evidence(pages)
+    evidence = page_evidence(pages, transitions=diffs)
     outcomes, reached, failures = evaluate(detail, evidence, exemptions)
 
     drift = verify_spec_matches_upstream()
@@ -424,9 +454,12 @@ def write_report(outdir, flavor, pages, harness, exemptions=None):
         "harness": harness,
         "text_source": "widget-tree",
         "screens_detail": detail,
+        # `sha256` binds each page to the frame that this run audited: the
+        # consumer rejects a different file under the same name.
         "pages": [dict({k: p[k] for k in
                         ("name", "png", "rendered", "colours", "flat", "ink",
                          "stddev") if k in p},
+                       sha256=_file_digest(p.get("png")),
                        text_excerpt=(p.get("text") or "")[:240])
                   for p in pages],
         "transition_pixels": diffs,
