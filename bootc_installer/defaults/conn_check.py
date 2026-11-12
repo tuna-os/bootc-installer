@@ -17,13 +17,13 @@
 import logging
 import os
 import socket
-import subprocess
 from gettext import gettext as _
 
 from gi.repository import Adw, Gtk
 
 from bootc_shared import network
 
+from bootc_installer.utils.host import HostExecutor, Scope, build_argv, default_executor
 from bootc_installer.utils.run_async import RunAsync
 
 logging.basicConfig(level=logging.INFO)
@@ -45,26 +45,24 @@ NETWORK_SETTINGS_SCRIPT = (
 )
 
 
+NETWORK_SETTINGS_COMMAND = ("sh", "-c", NETWORK_SETTINGS_SCRIPT)
+
+
 def network_settings_argv(in_flatpak=None) -> list:
-    """The command that opens the network settings, on the host in a
-    Flatpak (`flatpak-spawn --host`)."""
+    """The command that opens the network settings: `Scope.HOST`, so on
+    the host in a Flatpak."""
     if in_flatpak is None:
         in_flatpak = _IN_FLATPAK
-    argv = ["sh", "-c", NETWORK_SETTINGS_SCRIPT]
-    return (["flatpak-spawn", "--host"] + argv) if in_flatpak else argv
+    return build_argv(NETWORK_SETTINGS_COMMAND, Scope.HOST, in_flatpak=in_flatpak)
 
 
-def open_network_settings(in_flatpak=None) -> bool:
+def open_network_settings(executor: HostExecutor | None = None) -> bool:
     """Start the network settings and do not wait for them. False when the
     command could not start."""
-    try:
-        subprocess.Popen(network_settings_argv(in_flatpak), stdin=subprocess.DEVNULL,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
-    except OSError as error:
-        logger.warning("Could not open the network settings: %s", error)
-        return False
-    return True
+    result = (executor or default_executor()).spawn(NETWORK_SETTINGS_COMMAND, scope=Scope.HOST)
+    if not result.started:
+        logger.warning("Could not open the network settings: %s", result.describe())
+    return result.started
 
 
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/default-conn-check.ui")

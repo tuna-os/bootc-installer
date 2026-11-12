@@ -32,7 +32,9 @@ def _mock_welcome_imports():
     adw.Bin = object
     gtk = types.ModuleType("Gtk")
     gtk.Template = _DummyTemplate
+    glib = types.ModuleType("GLib")
     gi_repository.Adw = adw
+    gi_repository.GLib = glib
     gi_repository.Gtk = gtk
 
     done = types.ModuleType("bootc_installer.views.done")
@@ -45,6 +47,7 @@ def _mock_welcome_imports():
         "gi": gi,
         "gi.repository": gi_repository,
         "gi.repository.Adw": adw,
+        "gi.repository.GLib": glib,
         "gi.repository.Gtk": gtk,
         "bootc_installer.views.done": done,
         "bootc_installer.windows.dialog_poweroff": dialog_poweroff,
@@ -126,31 +129,10 @@ class TestWelcomeBluetoothLogic(unittest.TestCase):
         with patch.object(self.mod.pathlib, "Path", side_effect=lambda path: _FakePath(fs, path)):
             self.assertTrue(self.mod._needs_bluetooth_pairing())
 
-    def test_bluetooth_launcher_uses_host_command_in_flatpak(self):
-        self.mod._IN_FLATPAK = True
-        with patch.object(self.mod.subprocess, "Popen", side_effect=FileNotFoundError) as popen:
+    def test_bluetooth_row_opens_the_host_settings(self):
+        with patch.object(self.mod, "open_bluetooth_settings") as opener:
             self.mod.BootcDefaultWelcome._BootcDefaultWelcome__on_bluetooth_clicked(object(), None)
-
-        attempted = [call.args[0] for call in popen.call_args_list]
-        self.assertEqual(
-            attempted[0],
-            ["flatpak-spawn", "--host", "gnome-control-center", "bluetooth"],
-        )
-        self.assertIn(["flatpak-spawn", "--host", "gnome-bluetooth-panel"], attempted)
-        self.assertIn(["flatpak-spawn", "--host", "blueman-manager"], attempted)
-
-    def test_bluetooth_launcher_returns_on_first_successful_popen(self):
-        self.mod._IN_FLATPAK = False
-        from unittest.mock import MagicMock
-        popen_mock = MagicMock()
-        with patch.object(self.mod.subprocess, "Popen", return_value=popen_mock) as popen:
-            self.mod.BootcDefaultWelcome._BootcDefaultWelcome__on_bluetooth_clicked(object(), None)
-        self.assertEqual(popen.call_count, 1)
-
-    def test_bluetooth_launcher_stops_on_generic_exception(self):
-        self.mod._IN_FLATPAK = False
-        with patch.object(self.mod.subprocess, "Popen", side_effect=RuntimeError("fail")):
-            self.mod.BootcDefaultWelcome._BootcDefaultWelcome__on_bluetooth_clicked(object(), None)
+        opener.assert_called_once_with()
 
     def test_detection_skips_device_without_device_path(self):
         """When device_path does not exist, the device is skipped (line 40 continue)."""

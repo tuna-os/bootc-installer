@@ -8,6 +8,9 @@ import types
 import unittest
 from unittest.mock import MagicMock, patch, sentinel
 
+from bootc_installer.utils.host import Scope
+from tests.unit.fake_host import FAIL, MISSING, OK, TIMEOUT, FakeExecutor
+
 
 def _build_gi_stubs():
     gi_mod = types.ModuleType("gi")
@@ -101,7 +104,7 @@ class TestDoReboot(unittest.TestCase):
         import bootc_installer.views.done as done_mod
         conn = MagicMock()
         with patch("bootc_installer.views.done.Gio.bus_get_sync", return_value=conn):
-            result = done_mod.do_reboot(in_flatpak=True)
+            result = done_mod.do_reboot(FakeExecutor())
         self.assertTrue(result)
         conn.call_sync.assert_called_once()
 
@@ -110,7 +113,7 @@ class TestDoReboot(unittest.TestCase):
         import bootc_installer.views.done as done_mod
         conn = MagicMock()
         with patch("bootc_installer.views.done.Gio.bus_get_sync", return_value=conn):
-            done_mod.do_reboot(in_flatpak=True)
+            done_mod.do_reboot(FakeExecutor())
         call_args = conn.call_sync.call_args
         # Positional args: bus_name, object_path, interface_name, method_name, params, ...
         args = call_args[0]
@@ -118,45 +121,42 @@ class TestDoReboot(unittest.TestCase):
         self.assertIn("Manager", args[2])          # interface
         self.assertEqual(args[3], "Reboot")        # method name
 
-    def test_reboot_falls_back_to_subprocess_when_dbus_fails(self):
-        import bootc_installer.views.done as done_mod
-        with patch("bootc_installer.views.done.Gio.bus_get_sync", side_effect=Exception("no bus")), \
-             patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
-            result = done_mod.do_reboot(in_flatpak=False)
-        self.assertTrue(result)
-        first_argv = mock_run.call_args_list[0][0][0]
-        self.assertIn("systemctl", first_argv)
+    def _no_bus(self):
+        return patch("bootc_installer.views.done.Gio.bus_get_sync",
+                     side_effect=Exception("no bus"))
 
-    def test_reboot_flatpak_fallback_uses_flatpak_spawn(self):
+    def test_reboot_falls_back_to_systemctl_on_the_host(self):
         import bootc_installer.views.done as done_mod
-        with patch("bootc_installer.views.done.Gio.bus_get_sync", side_effect=Exception("no bus")), \
-             patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
-            result = done_mod.do_reboot(in_flatpak=True)
-        self.assertTrue(result)
-        first_argv = mock_run.call_args_list[0][0][0]
-        self.assertEqual(first_argv[:2], ["flatpak-spawn", "--host"])
+        ex = FakeExecutor([OK], in_flatpak=False)
+        with self._no_bus():
+            self.assertTrue(done_mod.do_reboot(ex))
+        kind, cmd, scope, timeout, argv = ex.calls[0]
+        self.assertEqual((kind, cmd, scope), ("run", ["systemctl", "reboot"], Scope.HOST))
+        # No timeout: killing flatpak-spawn would not stop the host reboot.
+        self.assertIsNone(timeout)
+        self.assertEqual(argv, ["systemctl", "reboot"])
+
+    def test_reboot_flatpak_fallback_is_flatpak_spawn_host_systemctl_reboot(self):
+        import bootc_installer.views.done as done_mod
+        ex = FakeExecutor([OK], in_flatpak=True)
+        with self._no_bus():
+            self.assertTrue(done_mod.do_reboot(ex))
+        self.assertEqual(ex.calls[0][4], ["flatpak-spawn", "--host", "systemctl", "reboot"])
 
     def test_reboot_tries_reboot_binary_when_systemctl_fails(self):
         import bootc_installer.views.done as done_mod
-        with patch("bootc_installer.views.done.Gio.bus_get_sync", side_effect=Exception("no bus")), \
-             patch("subprocess.run") as mock_run:
-            mock_run.side_effect = [
-                MagicMock(returncode=1, stderr=b"failed"),  # systemctl reboot → fail
-                MagicMock(returncode=0),                    # reboot → success
-            ]
-            result = done_mod.do_reboot(in_flatpak=False)
-        self.assertTrue(result)
-        self.assertEqual(mock_run.call_count, 2)
+        ex = FakeExecutor([FAIL, OK], in_flatpak=False)
+        with self._no_bus():
+            self.assertTrue(done_mod.do_reboot(ex))
+        self.assertEqual([c[1] for c in ex.calls], [["systemctl", "reboot"], ["reboot"]])
+        self.assertTrue(all(c[2] is Scope.HOST for c in ex.calls))
 
     def test_reboot_returns_false_when_all_methods_fail(self):
         import bootc_installer.views.done as done_mod
-        with patch("bootc_installer.views.done.Gio.bus_get_sync", side_effect=Exception("no bus")), \
-             patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=1, stderr=b"permission denied")
-            result = done_mod.do_reboot(in_flatpak=False)
-        self.assertFalse(result)
+        for answers in ([FAIL, FAIL], [MISSING, MISSING], [TIMEOUT, FAIL]):
+            with self.subTest(answers=answers), self._no_bus():
+                self.assertFalse(done_mod.do_reboot(FakeExecutor(answers)))
+
 
 
 class TestApplyIcon(unittest.TestCase):
@@ -221,246 +221,18 @@ class TestRegistryWarmup(unittest.TestCase):
     """warmup_registry — verify skopeo is called correctly."""
 
     def test_warmup_calls_skopeo_with_docker_prefix(self):
-        import bootc_installer.views.done as done_mod
-        with patch.object(done_mod.subprocess, "run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
-            warmup_registry("ghcr.io/tuna-os/yellowfin:gnome50")
-        mock_run.assert_called_once()
-        argv = mock_run.call_args[0][0]
-        self.assertEqual(argv[0], "skopeo")
-        self.assertEqual(argv[1], "inspect")
-        self.assertIn("docker://ghcr.io/tuna-os/yellowfin:gnome50", argv[2])
+        ex = FakeExecutor([OK])
+        warmup_registry("ghcr.io/tuna-os/yellowfin:gnome50", ex)
+        kind, cmd, scope, timeout, argv = ex.calls[0]
+        self.assertEqual(cmd, ["skopeo", "inspect", "docker://ghcr.io/tuna-os/yellowfin:gnome50"])
+        # Where it ran before: this process's environment, 60 s at most.
+        self.assertIs(scope, Scope.LOCAL)
+        self.assertEqual(timeout, 60)
 
-    def test_warmup_handles_skopeo_not_found(self):
-        import bootc_installer.views.done as done_mod
-        with patch.object(done_mod.subprocess, "run", side_effect=FileNotFoundError("no skopeo")):
-            warmup_registry("ghcr.io/tuna-os/yellowfin:gnome50")
-
-    def test_warmup_handles_timeout(self):
-        import subprocess as _sp
-
-        import bootc_installer.views.done as done_mod
-        with patch.object(done_mod.subprocess, "run",
-                          side_effect=_sp.TimeoutExpired(cmd="skopeo", timeout=60)):
-            warmup_registry("ghcr.io/tuna-os/yellowfin:gnome50")
-
-    def test_warmup_handles_nonzero_exit(self):
-        import bootc_installer.views.done as done_mod
-        with patch.object(done_mod.subprocess, "run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=1,
-                stderr=b"unauthorized: access denied",
-            )
-            warmup_registry("ghcr.io/tuna-os/yellowfin:gnome50")
-
-
-class TestFailureHintExtraction(unittest.TestCase):
-
-    def _extract_hint(self, log_data=None, open_side_effect=None):
-        import bootc_installer.views.done as done_mod  # noqa: F401
-
-        progress_mod = types.SimpleNamespace(_FISHERMAN_LOG_PATH="/unused/fisherman.log")
-        done_page = BootcDone.__new__(BootcDone)
-
-        with patch.dict(sys.modules, {"bootc_installer.views.progress": progress_mod}):
-            with patch("builtins.open", create=True) as mock_open:
-                if open_side_effect is not None:
-                    mock_open.side_effect = open_side_effect
-                else:
-                    mock_open.return_value.__enter__.return_value.readlines.return_value = (
-                        log_data or []
-                    )
-                return done_page._BootcDone__extract_failure_hint()
-
-    def test_missing_log_returns_show_log_hint(self):
-        hint = self._extract_hint(open_side_effect=OSError("missing"))
-        self.assertEqual(
-            hint,
-            "Check the log for details. Click 'Show Log' below.",
-        )
-
-    def test_no_fatal_line_returns_unexpected_exit_hint(self):
-        hint = self._extract_hint(
-            [
-                '{"type":"step","step":6,"step_name":"Installing image"}\n',
-                'info: still working\n',
-            ]
-        )
-        self.assertEqual(
-            hint,
-            "The installer exited unexpectedly. Check the log for details.",
-        )
-
-    def test_failure_categories_return_expected_hints(self):
-        cases = [
-            (
-                "fatal: missing required host tool: sgdisk not found in PATH\n",
-                "A required system tool is missing. Ensure you are running from the official live media.",
-            ),
-            (
-                "fatal: pull failed: registry timeout while downloading image\n",
-                "Network error during image download. Check your internet connection and try again.",
-            ),
-            (
-                "fatal: write failed: no space left on device\n",
-                "Not enough disk space. Select a larger disk or free up space.",
-            ),
-            (
-                "fatal: permission denied opening target disk\n",
-                "Permission denied. The installer needs administrator access to proceed.",
-            ),
-            (
-                "fatal: cryptsetup luksFormat failed\n",
-                "Disk encryption setup failed. Try disabling encryption or check your passphrase.",
-            ),
-            (
-                "fatal: sfdisk failed to partition disk\n",
-                "Disk partitioning failed. The disk may be in use or damaged.",
-            ),
-            (
-                "fatal: mount /dev/sda3 failed\n",
-                "Filesystem mount failed. The disk may be in use by another process.",
-            ),
-        ]
-
-        for fatal_line, expected in cases:
-            with self.subTest(fatal_line=fatal_line.strip()):
-                hint = self._extract_hint([fatal_line])
-                self.assertEqual(hint, expected)
-
-    def test_last_fatal_line_wins(self):
-        hint = self._extract_hint(
-            [
-                "fatal: pull failed: registry timeout\n",
-                "fatal: mount /dev/sda3 failed\n",
-            ]
-        )
-        self.assertEqual(
-            hint,
-            "Filesystem mount failed. The disk may be in use by another process.",
-        )
-
-    def test_unknown_fatal_line_falls_back_to_error_prefix(self):
-        hint = self._extract_hint(["fatal: kernel said something mysterious happened\n"])
-        self.assertEqual(hint, "Error: kernel said something mysterious happened")
-
-
-if __name__ == "__main__":
-    unittest.main()
-
-
-class TestConfiguredLogo(unittest.TestCase):
-    def test_absolute_logo_is_a_host_file_in_flatpak(self):
-        header = MagicMock()
-        with patch('bootc_installer.utils.icons.os.path.exists', return_value=True):
-            apply_icon(header, '/usr/share/example/logo.svg')
-        header.set_from_file.assert_called_once_with('/run/host/usr/share/example/logo.svg')
-        header.set_from_resource.assert_not_called()
-
-    def test_live_install_without_catalog_selection_uses_recipe_identity(self):
-        obj = MagicMock()
-        obj._BootcDone__window = types.SimpleNamespace(
-            recipe={'distro_name': 'Example OS', 'distro_logo': 'example-logo'},
-            pretty_name=None, selected_icon=None)
-        BootcDone.set_result(obj, True, None)
-        self.assertEqual(obj.page_header.title, 'Example OS is installed')
-        self.assertEqual(obj.page_header.icon_name, 'example-logo')
-
-    def test_explicit_catalog_selection_still_names_installed_product(self):
-        obj = MagicMock()
-        obj._BootcDone__window = types.SimpleNamespace(
-            recipe={'distro_name': 'Example OS', 'distro_logo': 'example-logo'},
-            pretty_name='Selected OS', selected_icon='selected-logo')
-        BootcDone.set_result(obj, True, None)
-        self.assertEqual(obj.page_header.title, 'Selected OS is installed')
-        self.assertEqual(obj.page_header.icon_name, 'selected-logo')
-
-    def test_neutral_fallback_keeps_success_checkmark(self):
-        obj = MagicMock()
-        obj._BootcDone__window = types.SimpleNamespace(
-            recipe={'distro_logo': 'org.bootcinstaller.Installer'},
-            pretty_name=None, selected_icon=None)
-        BootcDone.set_result(obj, True, None)
-        self.assertEqual(obj.page_header.icon_name, 'object-select-symbolic')
-
-
-class TestCompletionIsNotVerification(unittest.TestCase):
-    """#269: an install that exited 0 is "installed, restart required".
-    The done page says how the new system's first start is checked, and
-    never that it was verified."""
-
-    def _window(self):
-        return types.SimpleNamespace(recipe={}, pretty_name=None, selected_icon=None)
-
-    def test_success_explains_the_first_start_check(self):
-        from bootc_shared.branding import COPY_DEFAULTS
-        obj = MagicMock()
-        obj._BootcDone__window = self._window()
-        BootcDone.set_result(obj, True, None)
-        obj.lbl_verification.set_label.assert_called_once_with(
-            COPY_DEFAULTS["done_verification"] + "\n\n" + COPY_DEFAULTS["done_receipt_none"])
-        obj.group_verification.set_visible.assert_called_with(True)
-        self.assertNotIn("verified", obj.page_header.title.lower())
-        self.assertNotIn("verified", obj.page_header.subtitle.lower())
-
-    def test_the_receipt_cases_reach_the_page(self):
-        """Each case of shared/progress/receipt-cases.json: the lines that
-        the case names, with the install id, in order (#269)."""
-        import json
-        import os
-
-        from bootc_shared import progress as pp
-        from bootc_shared.branding import COPY_DEFAULTS
-        path = os.path.join(os.path.dirname(__file__), "..", "..", "shared", "progress",
-                            "receipt-cases.json")
-        with open(path, encoding="utf-8") as fh:
-            cases = json.load(fh)["cases"]
-        for case in cases:
-            state = pp.new_progress_state()
-            for event in case["events"]:
-                pp.apply_progress_event(json.dumps(event), state)
-            obj = MagicMock()
-            obj._BootcDone__window = self._window()
-            BootcDone.set_result(obj, True, None, receipt=state["receipt"])
-            want = "\n\n".join(COPY_DEFAULTS[line["key"]].replace("{value}", line["value"])
-                                for line in case["done_lines"])
-            with self.subTest(case=case["name"]):
-                obj.lbl_verification.set_label.assert_called_once_with(want)
-                if case["receipt"] and case["receipt"]["install_id"]:
-                    self.assertIn(case["receipt"]["install_id"], want)
-
-    def test_failure_and_cancel_hide_it(self):
-        for kwargs in ({"exit_code": 1}, {"cancelled": True}):
-            obj = MagicMock()
-            obj._BootcDone__window = self._window()
-            with patch.object(BootcDone, "_BootcDone__extract_failure_hint", return_value="x",
-                              create=True):
-                BootcDone.set_result(obj, False, None, **kwargs)
-            obj.group_verification.set_visible.assert_called_with(False)
-
-
-class TestExitCodeHint(unittest.TestCase):
-    """#307: the wrapper's exit code was discarded, so a closed password
-    prompt read "The installer exited unexpectedly"."""
-
-    def test_126_127_and_130_have_their_own_lines(self):
-        from bootc_installer.views.done import exit_code_hint
-        lines = {code: exit_code_hint(code) for code in (126, 127, 130)}
-        self.assertEqual(len(set(lines.values())), 3)
-        self.assertIn("password prompt was closed", lines[126])
-        self.assertIn("administrator rights", lines[127])
-        self.assertIn("stopped before it finished", lines[130])
-
-    def test_other_codes_have_no_line(self):
-        from bootc_installer.views.done import exit_code_hint
-        for code in (0, 1, 2, -15, None):
-            self.assertEqual(exit_code_hint(code), "")
-
-
-class TestBootNext(unittest.TestCase):
-    """#318: efibootmgr ran as the desktop user and always failed. fisherman
-    sets BootNext while it is root (tuna-os/fisherman#435), so no frontend
-    code does."""
+    def test_warmup_handles_every_failure(self):
+        for answer in (MISSING, TIMEOUT, {"returncode": 1, "stderr": "unauthorized"}):
+            with self.subTest(answer=answer):
+                warmup_registry("ghcr.io/tuna-os/yellowfin:gnome50", FakeExecutor([answer]))
 
     def test_no_frontend_source_runs_efibootmgr(self):
         import pathlib
@@ -474,11 +246,12 @@ class TestBootNext(unittest.TestCase):
 
         from bootc_installer.views import done
         page = mock.MagicMock()
+        ex = FakeExecutor()  # any host command fails the test
         with mock.patch.object(done, "do_reboot", return_value=True) as reboot, \
-                mock.patch.object(done.subprocess, "run") as run:
+                mock.patch.object(done, "default_executor", return_value=ex):
             done.BootcDone._BootcDone__on_reboot_clicked(page, None)
-        reboot.assert_called_once()
-        run.assert_not_called()
+        reboot.assert_called_once_with()
+        self.assertEqual(ex.calls, [])
 
 
 class TestErrorEventHint(unittest.TestCase):

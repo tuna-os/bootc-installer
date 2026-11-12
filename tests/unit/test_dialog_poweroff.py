@@ -9,7 +9,10 @@ import importlib
 import sys
 import types
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
+from bootc_installer.utils.host import Scope
+from tests.unit.fake_host import MISSING, OK, FakeExecutor
 
 
 def _build_gi_stubs():
@@ -54,22 +57,26 @@ _mod = _import_fresh()
 
 
 class HostSystemctlTests(unittest.TestCase):
+    def test_the_dialog_uses_the_host_actions_helper(self):
+        from bootc_installer.utils import host_actions
+        self.assertIs(_mod._host_systemctl, host_actions.host_systemctl)
+
     def test_wraps_in_flatpak_spawn_inside_the_sandbox(self):
-        with patch.object(_mod, "_IN_FLATPAK", True), \
-                patch.object(_mod.subprocess, "call") as call:
-            _mod._host_systemctl("reboot", "--firmware-setup")
-        call.assert_called_once_with(
-            ["flatpak-spawn", "--host", "systemctl", "reboot", "--firmware-setup"])
+        ex = FakeExecutor([OK], in_flatpak=True)
+        self.assertTrue(_mod._host_systemctl("reboot", "--firmware-setup", executor=ex))
+        kind, cmd, scope, timeout, argv = ex.calls[0]
+        self.assertEqual(
+            argv, ["flatpak-spawn", "--host", "systemctl", "reboot", "--firmware-setup"])
+        self.assertIs(scope, Scope.HOST)
+        self.assertIsNone(timeout)
 
     def test_runs_directly_outside_the_sandbox(self):
-        with patch.object(_mod, "_IN_FLATPAK", False), \
-                patch.object(_mod.subprocess, "call") as call:
-            _mod._host_systemctl("poweroff")
-        call.assert_called_once_with(["systemctl", "poweroff"])
+        ex = FakeExecutor([OK], in_flatpak=False)
+        _mod._host_systemctl("poweroff", executor=ex)
+        self.assertEqual(ex.calls[0][4], ["systemctl", "poweroff"])
 
     def test_missing_binary_is_logged_not_raised(self):
-        with patch.object(_mod.subprocess, "call", side_effect=FileNotFoundError("systemctl")):
-            _mod._host_systemctl("reboot")  # must not raise
+        self.assertFalse(_mod._host_systemctl("reboot", executor=FakeExecutor([MISSING])))
 
 
 if __name__ == "__main__":

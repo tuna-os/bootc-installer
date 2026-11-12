@@ -287,6 +287,29 @@ package (`python/`), and a Python frontend imports it. A Python frontend
 does not keep a copy. A frontend in a different language implements the same
 behaviour and runs it against the same fixtures.
 
+## Required by this version
+
+Each frontend must support each row of this table in the version that
+`VERSION` names. A row names the case that holds all five frontends to
+it. The `Recipe compliance` workflow runs the cases of
+`recipe/fixtures/compliance.json` in each frontend.
+`tests/unit/test_shared_required.py` fails when a boot stack row or the
+region row has no compliance case with the same values. It also fails
+when a frontend has no catalog for a language row.
+
+| Requirement | Values | Case |
+|---|---|---|
+| Boot stack | `grub2`, ostree, `xfs` | `account-luks-region` in `recipe/fixtures/compliance.json` |
+| Boot stack | `systemd`, composefs, `ext4` | `no-account-filesystem-choice` in `recipe/fixtures/compliance.json` |
+| Region in the recipe | `de_DE.UTF-8`, `de`, `Europe/Berlin` | `account-luks-region` in `recipe/fixtures/compliance.json` |
+| Language of the interface | English, French (`fr`) | the French catalog of each frontend (`i18n/README.md`) |
+
+A boot stack that is not in this table is not a requirement. For example,
+the catalog fixture has a leaf with `systemd`, composefs and `btrfs`, but
+no compliance case holds a frontend to it. A new required row needs a
+compliance case first. The removal of a row follows "Deprecate" and
+"Remove" below.
+
 ## How a contract changes
 
 A change to a contract changes all five frontends at once. These rules

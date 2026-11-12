@@ -15,16 +15,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-import os
 import pathlib
-import subprocess
 
 from gi.repository import Adw, GLib, Gtk
 
+from bootc_installer.utils.host_actions import open_bluetooth_settings
 from bootc_installer.views.done import apply_icon
 from bootc_installer.windows.dialog_poweroff import BootcPoweroffDialog
-
-_IN_FLATPAK = os.path.exists("/.flatpak-info")
 
 
 logger = logging.getLogger("Installer::Welcome")
@@ -166,22 +163,7 @@ class BootcDefaultWelcome(Adw.Bin):
         return {}
 
     def __on_bluetooth_clicked(self, row):
-        commands = [
-            ["gnome-control-center", "bluetooth"],
-            ["gnome-bluetooth-panel"],
-            ["blueman-manager"],
-        ]
-
-        for command in commands:
-            if _IN_FLATPAK:
-                command = ["flatpak-spawn", "--host"] + command
-            try:
-                subprocess.Popen(command)
-                return
-            except FileNotFoundError:
-                continue
-            except Exception:
-                return
+        open_bluetooth_settings()
 
     def __on_poweroff_clicked(self, row):
         BootcPoweroffDialog(self.__window).show()

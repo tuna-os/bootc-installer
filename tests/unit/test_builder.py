@@ -1,11 +1,13 @@
 """Unit tests for bootc_installer.utils.builder."""
 
 import importlib
-import subprocess
 import sys
 import types
 import unittest
 from unittest.mock import MagicMock, mock_open, patch
+
+from bootc_installer.utils.host import Scope
+from tests.unit.fake_host import FAIL, MISSING, OK, TIMEOUT, FakeExecutor
 
 
 _STUBBED_MODULES = (
@@ -229,7 +231,7 @@ class TestBuilder(unittest.TestCase):
         builder_mod.RecipeLoader = lambda: _FakeRecipeLoader(recipe)
 
         with patch.object(builder_mod.os.path, "exists", return_value=True), patch.object(
-            builder_mod.subprocess, "check_output", return_value=b""
+            builder_mod, "default_executor", return_value=FakeExecutor([OK])
         ):
             builder = builder_mod.Builder(types.SimpleNamespace())
 
@@ -248,9 +250,7 @@ class TestBuilder(unittest.TestCase):
         builder_mod.RecipeLoader = lambda: _FakeRecipeLoader(recipe)
 
         with patch.object(builder_mod.os.path, "exists", return_value=True), patch.object(
-            builder_mod.subprocess,
-            "check_output",
-            side_effect=subprocess.CalledProcessError(1, "check-image"),
+            builder_mod, "default_executor", return_value=FakeExecutor([FAIL])
         ):
             builder = builder_mod.Builder(types.SimpleNamespace())
 
@@ -269,13 +269,32 @@ class TestBuilder(unittest.TestCase):
         builder_mod.RecipeLoader = lambda: _FakeRecipeLoader(recipe)
 
         with patch.object(builder_mod.os.path, "exists", return_value=True), patch.object(
-            builder_mod.subprocess, "check_output", return_value=b"yes"
+            builder_mod, "default_executor",
+            return_value=FakeExecutor([{"returncode": 0, "stdout": "yes"}])
         ):
             builder = builder_mod.Builder(types.SimpleNamespace())
 
         self.assertEqual(len(builder.widgets), 1)
         self.assertEqual(builder.widgets[0].key, "image")
         self.assertEqual(len(builder.property_list), 1)
+
+    def test_display_condition_runs_sh_c_with_the_command_as_one_argument(self):
+        builder_mod, _ = _import_builder_fresh()
+        ex = FakeExecutor([{"returncode": 0, "stdout": "yes"}])
+        self.assertTrue(builder_mod.display_condition_met("test -e /x; echo yes", ex))
+        kind, cmd, scope, timeout, argv = ex.calls[0]
+        self.assertEqual(argv, ["sh", "-c", "test -e /x; echo yes"])
+        self.assertIs(scope, Scope.LOCAL)
+        self.assertEqual(timeout, builder_mod.DISPLAY_CONDITION_TIMEOUT)
+
+    def test_display_condition_not_met(self):
+        builder_mod, _ = _import_builder_fresh()
+        for answer in (OK, {"returncode": 0, "stdout": "1"}, FAIL, TIMEOUT, MISSING):
+            with self.subTest(answer=answer):
+                self.assertFalse(builder_mod.display_condition_met("c", FakeExecutor([answer])))
+        # stderr counted as before (stderr=STDOUT).
+        self.assertTrue(builder_mod.display_condition_met(
+            "c", FakeExecutor([{"returncode": 0, "stderr": "warn"}])))
 
     def test_get_finals_collects_widget_outputs_without_accumulating(self):
         builder_mod, _ = _import_builder_fresh()

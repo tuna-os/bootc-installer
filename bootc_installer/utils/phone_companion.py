@@ -18,11 +18,12 @@ import os
 import re
 import secrets
 import shutil
-import subprocess
 import sys
 import tempfile
 from gettext import gettext as _
 from urllib.parse import parse_qs, urlparse
+
+from bootc_installer.utils.host import Scope, default_executor
 
 logger = logging.getLogger("Installer::PhoneCompanion")
 
@@ -639,7 +640,7 @@ class CompanionRequestHandler(http.server.SimpleHTTPRequestHandler):
         else:
             self.send_error(404, "Not Found")
 
-def generate_self_signed_cert():
+def generate_self_signed_cert(executor=None):
     """Generate a one-day self-signed certificate with openssl.
 
     Returns (certfile, keyfile) in a fresh private directory, or None. The
@@ -651,18 +652,20 @@ def generate_self_signed_cert():
     cert = os.path.join(certdir, "cert.pem")
     key = os.path.join(certdir, "key.pem")
     try:
-        subprocess.run([
+        result = (executor or default_executor()).run([
             "openssl", "req", "-x509", "-newkey", "rsa:2048",
             "-keyout", key,
             "-out", cert,
             "-days", "1", "-nodes",
             "-subj", "/CN=bootc-companion"
-        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return cert, key
+        ], scope=Scope.LOCAL, timeout=60)
+        if result.ok:
+            return cert, key
+        logger.warning("Could not generate a self-signed certificate: %s", result.describe())
     except Exception as e:
         logger.warning("Could not generate a self-signed certificate: %s", e)
-        shutil.rmtree(certdir, ignore_errors=True)
-        return None
+    shutil.rmtree(certdir, ignore_errors=True)
+    return None
 
 
 def _remove_cert_dir(cert):

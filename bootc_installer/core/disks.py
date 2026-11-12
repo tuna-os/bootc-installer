@@ -5,16 +5,32 @@ Which disks may be installed to, their size labels and models come from
 Nothing here filters or formats a disk: fisherman decides. What remains below
 is partition-level detail the probe does not report (the manual partition
 picker, the Windows-data scan).
+
+The lsblk, findmnt and pvs reads go through `HostExecutor` with
+`Scope.LOCAL`, the same place they ran before (#82). Each one takes an
+`executor` so a test can record the argv.
 """
 
 import json
 import logging
 import os
-import subprocess
 
 from bootc_shared import probe as fisherman_probe
 
+from bootc_installer.utils.host import HostExecutor, Scope, default_executor
+
 logger = logging.getLogger("Installer::Disks")
+
+_TIMEOUT = 10
+
+
+def _read(argv, executor: HostExecutor | None) -> str | None:
+    """stdout of `argv`, stripped, or None when the command failed."""
+    result = (executor or default_executor()).run(argv, scope=Scope.LOCAL, timeout=_TIMEOUT)
+    if not result.ok:
+        logger.debug("%s", result.describe())
+        return None
+    return result.stdout.strip()
 
 
 class Diskutils:
@@ -24,13 +40,18 @@ class Diskutils:
         return fisherman_probe.format_size(size)
 
     @staticmethod
-    def separate_device_and_partn(part_dev: str) -> tuple[str, str | None]:
-        info_json = subprocess.check_output(
-            # An argument list, never a shell string: part_dev can come from
-            # a recipe, and "/dev/sda1; rm -rf /" in a shell string is
-            # a command (#163).
+    def separate_device_and_partn(part_dev: str,
+                                  executor: HostExecutor | None = None) -> tuple[str, str | None]:
+        # An argument list, never a shell string: part_dev can come from
+        # a recipe, and "/dev/sda1; rm -rf /" in a shell string is
+        # a command (#163).
+        result = (executor or default_executor()).run(
             ["lsblk", "--json", "-o", "NAME,PKNAME,PARTN", part_dev],
-        ).decode("utf-8")
+            scope=Scope.LOCAL, timeout=_TIMEOUT,
+        )
+        if not result.ok:
+            raise ValueError(f"cannot read {part_dev}: {result.describe()}")
+        info_json = result.stdout
         info_multiple = json.loads(info_json)["blockdevices"]
 
         if len(info_multiple) > 1:
@@ -44,11 +65,15 @@ class Diskutils:
         return "/dev/" + info["pkname"], str(info["partn"])
 
     @staticmethod
-    def fetch_lvm_pvs() -> list[list[str]]:
+    def fetch_lvm_pvs(executor: HostExecutor | None = None) -> list[list[str]]:
+        result = (executor or default_executor()).run(
+            ["sudo", "pvs", "--reportformat=json"], scope=Scope.LOCAL, timeout=_TIMEOUT)
+        if not result.ok:
+            logger.warning("Could not enumerate LVM PVs (safe to ignore in Flatpak): %s",
+                           result.describe())
+            return []
         try:
-            output_json = subprocess.check_output(
-                ["sudo", "pvs", "--reportformat=json"], stderr=subprocess.DEVNULL
-            ).decode("utf-8")
+            output_json = result.stdout
             output_pvs = json.loads(output_json)["report"][0]["pv"]
             pv_with_vgs = []
             for pv_output in output_pvs:
@@ -124,9 +149,10 @@ class Disk:
 
 
 class Partition:
-    def __init__(self, disk: str, partition: str):
+    def __init__(self, disk: str, partition: str, executor: HostExecutor | None = None):
         self.__disk = disk
         self.__partition = partition
+        self.__executor = executor
         self.__mountpoint = self.__get_mountpoint()
         self.__size = self.__get_size()
         self.__fs_type = self.__get_fs_type()
@@ -134,47 +160,19 @@ class Partition:
         self.__label = self.__get_label()
 
     def __get_mountpoint(self):
-        try:
-            return (
-                subprocess.check_output(["findmnt", "-n", "-o", "TARGET", self.partition])
-                .decode("utf-8")
-                .strip()
-            )
-        except subprocess.CalledProcessError:
-            return None
+        return _read(["findmnt", "-n", "-o", "TARGET", self.partition], self.__executor)
 
     def __get_size(self):
         return int(open(f"{self.block}/size").read().strip()) * 512
 
     def __get_fs_type(self):
-        try:
-            return (
-                subprocess.check_output(["lsblk", "-d", "-n", "-o", "FSTYPE", self.partition])
-                .decode("utf-8")
-                .strip()
-            )
-        except subprocess.CalledProcessError:
-            return None
+        return _read(["lsblk", "-d", "-n", "-o", "FSTYPE", self.partition], self.__executor)
 
     def __get_uuid(self):
-        try:
-            return (
-                subprocess.check_output(["lsblk", "-d", "-n", "-o", "UUID", self.partition])
-                .decode("utf-8")
-                .strip()
-            )
-        except subprocess.CalledProcessError:
-            return None
+        return _read(["lsblk", "-d", "-n", "-o", "UUID", self.partition], self.__executor)
 
     def __get_label(self):
-        try:
-            return (
-                subprocess.check_output(["findmnt", "-n", "-o", "LABEL", self.partition])
-                .decode("utf-8")
-                .strip()
-            )
-        except subprocess.CalledProcessError:
-            return None
+        return _read(["findmnt", "-n", "-o", "LABEL", self.partition], self.__executor)
 
     @property
     def partition(self):

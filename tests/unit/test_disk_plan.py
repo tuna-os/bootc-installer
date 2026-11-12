@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import unittest
 
 from bootc_installer.defaults.disk_plan import (
+    var_disk_offered,
     build_auto_partition_recipe,
     build_disk_finals,
 )
@@ -73,3 +74,10 @@ class TestDiskPlan(unittest.TestCase):
         self.assertEqual(
             result["var_disk"], {"disk": "/dev/sdb", "keep_existing": True}
         )
+
+    def test_var_disk_is_not_offered_where_fisherman_refuses_it(self):
+        self.assertTrue(var_disk_offered({"composefs_backend": False}, "xfs"))
+        self.assertTrue(var_disk_offered(None, "btrfs"))
+        self.assertFalse(var_disk_offered({"composefs_backend": True}, "ext4"))
+        self.assertFalse(var_disk_offered({"composefs_backend": False}, "zfs"))
+
