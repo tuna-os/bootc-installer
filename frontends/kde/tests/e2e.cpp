@@ -41,12 +41,12 @@ int main(int argc, char *argv[])
     // The catalog every E2E driver gives its frontend (shared/e2e/catalog.json),
     // copied next to the recipe so shared/e2e/check-recipe.py can judge "an
     // account iff the image needs one" against it. This run installs the
-    // canary leaf, which needs an account. The composefs leaf has its own
-    // filesystem and needs none: selecting it first shows that the next
-    // leaf's values replace it (#287).
+    // catalog's default_image, the SSH canary leaf, which needs an account.
+    // The VM job installs the recipe with that image as it is (#322). The
+    // composefs leaf has its own filesystem and needs none: selecting it
+    // first shows that the next leaf's values replace it (#287).
     const QString e2eDir = qEnvironmentVariable("TUNA_E2E_DIR", QStringLiteral("/tmp/tuna-e2e"));
     const QString catalogPath = e2eDir + QStringLiteral("/catalog.json");
-    const QString canary = QStringLiteral("quay.io/centos-bootc/centos-bootc:c10s");
     const QString composefsLeaf = QStringLiteral("registry.example/os/composefs:1");
     QJsonObject sharedCatalog;
     {
@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
     // The catalog's default_image is the selection at the start
     // (shared/catalog/README.md, "Default selection").
     const QString defaultImage = sharedCatalog.value(QStringLiteral("default_image")).toString();
+    const QString canary = defaultImage;
     if (controller.catalogIndex() != controller.catalogImgrefs().indexOf(defaultImage)) {
         out << "FAIL: the image selected at start is not the catalog's default_image "
             << defaultImage << "\n";
@@ -89,8 +90,37 @@ int main(int argc, char *argv[])
         out << "FAIL: selecting the canary left values of the leaf before it in the recipe\n";
         return 1;
     }
-    controller.setEncryptionType(QStringLiteral("none"));
     controller.setHostname(QStringLiteral("kde-e2e"));
+
+    // Region and encryption (#325): a language, a keyboard layout that is
+    // not US and a time zone, each picked from the lists the wizard offers,
+    // on a disk with a LUKS passphrase. The VM job boots the result, types
+    // the passphrase at the prompt and checks all three in the guest
+    // (shared/e2e/vm-checks/region.sh). The passphrase has only keys that
+    // are the same on a US and a German layout: the VM types it with US
+    // key codes, and the prompt uses the recipe's layout.
+    const QString language = QStringLiteral("de");
+    const QString layout = QStringLiteral("de");
+    const QString zone = QStringLiteral("Europe/Berlin");
+    if (!controller.languageIds().contains(language)
+        || !controller.keyboardLayoutIds().contains(layout)
+        || !controller.timezones().contains(zone)) {
+        out << "FAIL: the region step does not offer " << language << ", " << layout
+            << " and " << zone << "\n";
+        return 1;
+    }
+    controller.setLanguage(language);
+    controller.setKeyboardLayout(layout);
+    controller.setTimezone(zone);
+    const QString passphrase = QStringLiteral("kdeluks2026passphrase");
+    controller.setEncryptionType(QStringLiteral("luks-passphrase"));
+    controller.setPassphrase(passphrase);
+    if (controller.localeName() != QLatin1String("de_DE.UTF-8") || !controller.keyboardChosen()
+        || !controller.timezoneChosen()) {
+        out << "FAIL: the region picks did not reach the recipe: locale "
+            << controller.localeName() << "\n";
+        return 1;
+    }
 
     // The account step. First a name fisherman refuses, through the same
     // `validate --json --partial -` the step runs while the user types (the
@@ -184,6 +214,22 @@ int main(int argc, char *argv[])
         || recipe.contains(QStringLiteral("composeFsBackend"))
         || !recipe.value(QStringLiteral("flatpaks")).isArray()) {
         out << "FAIL: the recipe does not carry the selected catalog leaf\n";
+        return 1;
+    }
+    const QJsonObject encryption = recipe.value(QStringLiteral("encryption")).toObject();
+    if (recipe.value(QStringLiteral("locale")).toString() != QLatin1String("de_DE.UTF-8")
+        || recipe.value(QStringLiteral("keyboard")).toObject()
+               != QJsonObject{{QStringLiteral("layout"), layout}}
+        || recipe.value(QStringLiteral("timezone")).toString() != zone
+        || encryption.value(QStringLiteral("type")).toString() != QLatin1String("luks-passphrase")
+        || encryption.value(QStringLiteral("passphrase")).toString() != passphrase) {
+        out << "FAIL: the recipe does not carry the region picks and the LUKS passphrase: "
+            << QJsonDocument(QJsonObject{{QStringLiteral("locale"), recipe.value(QStringLiteral("locale"))},
+                                         {QStringLiteral("keyboard"), recipe.value(QStringLiteral("keyboard"))},
+                                         {QStringLiteral("timezone"), recipe.value(QStringLiteral("timezone"))},
+                                         {QStringLiteral("encryption"), encryption.value(QStringLiteral("type"))}})
+                   .toJson(QJsonDocument::Compact)
+            << "\n";
         return 1;
     }
     const QJsonObject user = recipe.value(QStringLiteral("user")).toObject();

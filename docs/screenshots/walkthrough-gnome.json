@@ -140,9 +140,9 @@
       "png": "docs/screenshots/06-qr_companion.png",
       "rendered": true,
       "colours": 290,
-      "flat": 0.8548748353096179,
-      "ink": 0.03313570487483531,
-      "stddev": 0.14988430159463118,
+      "flat": 0.8548616600790514,
+      "ink": 0.03310935441370224,
+      "stddev": 0.14985744881688995,
       "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
     },
     {
@@ -169,10 +169,10 @@
       "name": "user",
       "png": "docs/screenshots/09-user.png",
       "rendered": true,
-      "colours": 325,
+      "colours": 323,
       "flat": 0.7092094861660079,
-      "ink": 0.006653491436100132,
-      "stddev": 0.06251759048633838,
+      "ink": 0.01764163372859025,
+      "stddev": 0.07376134391394285,
       "text_excerpt": "Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Confirm Password Confirm Password"
     },
     {
@@ -181,8 +181,8 @@
       "rendered": true,
       "colours": 355,
       "flat": 0.557536231884058,
-      "ink": 0.010303030303030303,
-      "stddev": 0.06954049967517038,
+      "ink": 0.010368906455862978,
+      "stddev": 0.06962356374055274,
       "text_excerpt": "Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be undone. Summary Summary Target disk Samsung SSD 870 EVO 500GB (/dev/sda, 465.8 GiB) Target disk Samsung"
     },
     {
@@ -202,7 +202,7 @@
       "colours": 256,
       "flat": 0.8902371541501977,
       "ink": 0.01785243741765481,
-      "stddev": 0.09072446218336834,
+      "stddev": 0.09072438481569614,
       "text_excerpt": "Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf I have saved "
     },
     {
@@ -221,12 +221,12 @@
     27739,
     29291,
     27037,
-    70835,
-    68062,
+    70837,
+    68058,
     51793,
-    43783,
-    42527,
-    37437,
+    43788,
+    42528,
+    37432,
     38578,
     44391
   ],

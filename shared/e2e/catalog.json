@@ -1,5 +1,5 @@
 {
-  "default_image": "quay.io/centos-bootc/centos-bootc:c10s",
+  "default_image": "ghcr.io/tuna-os/fisherman/centos-bootc:ssh-enabled",
   "fallback_flatpaks": ["org.example.NeverCopied"],
   "images": [
     {
@@ -12,9 +12,9 @@
       "needs_user_creation": false
     },
     {
-      "name": "CentOS bootc",
-      "registry": "quay.io/centos-bootc/centos-bootc",
-      "desc": "End-to-end canary.",
+      "name": "CentOS bootc SSH canary",
+      "registry": "ghcr.io/tuna-os/fisherman/centos-bootc",
+      "desc": "CentOS Stream 10 bootc with SSH on (fisherman build-ssh-images.yml). The VM job boots the recipe as the frontend wrote it.",
       "bootloader": "grub2",
       "filesystem": "xfs",
       "composefs": false,
@@ -22,7 +22,7 @@
       "children": [
         {
           "name": "Stream 10",
-          "tag": "c10s",
+          "tag": "ssh-enabled",
           "subtitle": "with an account",
           "desc": "The VM job installs this leaf with the account that the frontend created.",
           "needs_user_creation": true,
@@ -30,9 +30,9 @@
         },
         {
           "name": "Stream 10, no account",
-          "tag": "stream10",
+          "tag": "ssh-enabled-5c269694da9843a2cf610f8b45fbc23fab3e1f13",
           "subtitle": "no account",
-          "desc": "The same image. The VM job installs this leaf with no account.",
+          "desc": "The same canary at one fixed build, so that the two leaves have different references. The VM job installs this leaf with no account.",
           "needs_user_creation": false
         }
       ]
