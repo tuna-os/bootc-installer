@@ -16,7 +16,6 @@
 
 import logging
 import os
-import subprocess
 from gettext import gettext as _
 
 from bootc_installer.defaults.conn_check import BootcDefaultConnCheck
@@ -30,9 +29,29 @@ from bootc_installer.defaults.user import BootcDefaultUsers
 from bootc_installer.defaults.welcome import BootcDefaultWelcome
 from bootc_installer.defaults.qr_companion import BootcDefaultQrCompanion
 from bootc_installer.layouts.yes_no import BootcLayoutYesNo
+from bootc_installer.utils.host import HostExecutor, Scope, default_executor
 from bootc_installer.utils.recipe import RecipeLoader
 
 logger = logging.getLogger("Installer::Builder")
+
+# A display condition that runs longer than this does not show its step.
+DISPLAY_CONDITION_TIMEOUT = 60
+
+
+def display_condition_met(command: str, executor: HostExecutor | None = None) -> bool:
+    """Whether a recipe step's display condition lets the step show.
+
+    A condition is a shell command by the recipe's contract, so it runs as
+    `sh -c <command>`: an argv, with the command as one element, in this
+    process's environment (`Scope.LOCAL`), as before. It is met when it
+    exits 0 and prints something other than "" or "1" (stdout and stderr).
+    """
+    result = (executor or default_executor()).run(
+        ["sh", "-c", command], scope=Scope.LOCAL, timeout=DISPLAY_CONDITION_TIMEOUT)
+    if not result.ok:
+        logger.info("Display condition failed: %s", result.describe())
+        return False
+    return (result.stdout + result.stderr) not in ("", "1")
 
 
 templates = {
@@ -74,25 +93,15 @@ class Builder:
                 logger.info(_("(%s) Display-conditions found") % key)
 
                 for command in step["display-conditions"]:
-                    try:
-                        logger.info(
-                            _("(%s) Performing display-condition: %s") % (key, command)
-                        )
-                        output = subprocess.check_output(
-                            command, shell=True, stderr=subprocess.STDOUT
-                        )
-                        if (
-                            output.decode("utf-8") == ""
-                            or output.decode("utf-8") == "1"
-                        ):
-                            logger.info(_("(%s) Display-conditions not met") % key)
-                            break
-                        logger.info(_("(%s) Display-conditions met") % key)
-                    except subprocess.CalledProcessError:
+                    logger.info(
+                        _("(%s) Performing display-condition: %s") % (key, command)
+                    )
+                    if not display_condition_met(command):
                         logger.info(
                             _("Step %s skipped due to display-conditions") % key
                         )
                         break
+                    logger.info(_("(%s) Display-conditions met") % key)
                 else:
                     _condition_met = True
 

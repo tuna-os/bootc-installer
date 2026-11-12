@@ -160,5 +160,40 @@ class TestRun(unittest.TestCase):
             self.assertNotIn("gi.repository", f.read())
 
 
+class TestSpawn(unittest.TestCase):
+    def test_spawn_does_not_wait_and_detaches(self):
+        seen = []
+
+        def popen(argv, **kwargs):
+            seen.append((argv, kwargs))
+            return object()
+
+        r = HostExecutor(in_flatpak=True, popen=popen).spawn(["blueman-manager"])
+        argv, kwargs = seen[0]
+        self.assertEqual(argv, ["flatpak-spawn", "--host", "blueman-manager"])
+        self.assertTrue(kwargs["start_new_session"])
+        self.assertNotIn("shell", kwargs)
+        self.assertTrue(r.started)
+        self.assertIsNone(r.returncode)
+        self.assertFalse(r.ok)
+
+    def test_spawn_local_and_missing(self):
+        ex = HostExecutor(in_flatpak=True)
+        r = ex.spawn(["bootc-installer-no-such-command"], scope=Scope.LOCAL)
+        self.assertTrue(r.missing_command)
+        self.assertFalse(r.started)
+        self.assertEqual(r.argv, ("bootc-installer-no-such-command",))
+
+    def test_spawn_real_process(self):
+        start = time.monotonic()
+        r = HostExecutor(in_flatpak=False).spawn(["sleep", "5"])
+        self.assertTrue(r.started)
+        self.assertLess(time.monotonic() - start, 2)
+
+    def test_spawn_refuses_shell_strings(self):
+        with self.assertRaises(TypeError):
+            HostExecutor(in_flatpak=False).spawn("gnome-control-center wifi")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -165,11 +165,9 @@ def test_the_private_key_does_not_stay_on_disk(certs_in, server):
 
 
 def test_a_failed_certificate_leaves_no_directory(certs_in, monkeypatch):
-    def fail(*args, **kwargs):
-        raise OSError("openssl missing")
+    from tests.unit.fake_host import MISSING, FakeExecutor
 
-    monkeypatch.setattr(phone_companion.subprocess, "run", fail)
-    assert phone_companion.generate_self_signed_cert() is None
+    assert phone_companion.generate_self_signed_cert(FakeExecutor([MISSING])) is None
     assert list(certs_in.iterdir()) == []
 
 

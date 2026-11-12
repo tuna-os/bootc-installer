@@ -41,10 +41,14 @@ def test_offline_offers_network_settings_and_check_again():
 
 def test_network_settings_runs_the_hosts_tool():
     page, _window = _offline_page()
-    with patch.object(conn_check.subprocess, "Popen") as popen:
+    from tests.unit.fake_host import STARTED, FakeExecutor
+
+    ex = FakeExecutor([STARTED], in_flatpak=conn_check._IN_FLATPAK)
+    with patch.object(conn_check, "default_executor", return_value=ex):
         page.btn_network_settings.emit("clicked")
-    popen.assert_called_once()
-    assert popen.call_args.args[0] == conn_check.network_settings_argv()
+    assert len(ex.calls) == 1
+    assert ex.calls[0][0] == "spawn"
+    assert ex.calls[0][4] == conn_check.network_settings_argv()
 
 
 def test_check_again_hides_both_buttons_while_it_checks():

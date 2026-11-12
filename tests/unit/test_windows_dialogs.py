@@ -255,24 +255,37 @@ class TestDialogPoweroffInit(unittest.TestCase):
         obj.row_firmware_setup.set_visible.assert_called_once_with(True)
 
 
+def _host_actions_executor(answer):
+    """A recording executor behind bootc_installer.utils.host_actions."""
+    from tests.unit.fake_host import FakeExecutor
+    ex = FakeExecutor([answer], in_flatpak=False)
+    return ex, patch("bootc_installer.utils.host_actions.default_executor", return_value=ex)
+
+
 class TestDialogPoweroffActions(unittest.TestCase):
     def setUp(self):
         self.obj = BootcPoweroffDialog.__new__(BootcPoweroffDialog)
 
+    def _ran(self, handler):
+        from bootc_installer.utils.host import Scope
+        from tests.unit.fake_host import OK
+        ex, patcher = _host_actions_executor(OK)
+        with patcher:
+            handler(None)
+        self.assertIs(ex.calls[0][2], Scope.HOST)
+        return ex.calls[0][4]
+
     def test_on_poweroff_calls_systemctl_poweroff(self):
-        with patch("subprocess.call") as mock_call:
-            self.obj._BootcPoweroffDialog__on_poweroff(None)
-            mock_call.assert_called_with(["systemctl", "poweroff"])
+        self.assertEqual(self._ran(self.obj._BootcPoweroffDialog__on_poweroff),
+                         ["systemctl", "poweroff"])
 
     def test_on_reboot_calls_systemctl_reboot(self):
-        with patch("subprocess.call") as mock_call:
-            self.obj._BootcPoweroffDialog__on_reboot(None)
-            mock_call.assert_called_with(["systemctl", "reboot"])
+        self.assertEqual(self._ran(self.obj._BootcPoweroffDialog__on_reboot),
+                         ["systemctl", "reboot"])
 
     def test_on_firmware_setup_calls_systemctl_reboot_firmware(self):
-        with patch("subprocess.call") as mock_call:
-            self.obj._BootcPoweroffDialog__on_firmware_setup(None)
-            mock_call.assert_called_with(["systemctl", "reboot", "--firmware-setup"])
+        self.assertEqual(self._ran(self.obj._BootcPoweroffDialog__on_firmware_setup),
+                         ["systemctl", "reboot", "--firmware-setup"])
 
 
 class TestWindowCpu(unittest.TestCase):
@@ -289,12 +302,13 @@ class TestWindowCpu(unittest.TestCase):
                                               COPY_DEFAULTS["requirements_cpu"]])
 
     def test_continue_spawns_process_and_exits(self):
+        from tests.unit.fake_host import STARTED
         obj = BootcCpuWindow.__new__(BootcCpuWindow)
-        with patch.object(_window_cpu_mod.subprocess, "Popen") as mock_popen, \
-             patch.object(_window_cpu_mod.sys, "exit") as mock_exit:
+        ex, patcher = _host_actions_executor(STARTED)
+        with patcher, patch.object(_window_cpu_mod.sys, "exit") as mock_exit:
             obj._BootcCpuWindow__continue(None)
-            mock_popen.assert_called_once()
             mock_exit.assert_called_once_with(0)
+        self.assertEqual([(c[0], c[4]) for c in ex.calls], [("spawn", ["env", "IGNORE_RAM=1", "IGNORE_CPU=1", "vanilla-installer"])])
 
 
 class TestWindowRam(unittest.TestCase):
@@ -311,12 +325,13 @@ class TestWindowRam(unittest.TestCase):
                                               COPY_DEFAULTS["requirements_ram"]])
 
     def test_continue_spawns_process_and_exits(self):
+        from tests.unit.fake_host import STARTED
         obj = BootcRamWindow.__new__(BootcRamWindow)
-        with patch.object(_window_ram_mod.subprocess, "Popen") as mock_popen, \
-             patch.object(_window_ram_mod.sys, "exit") as mock_exit:
+        ex, patcher = _host_actions_executor(STARTED)
+        with patcher, patch.object(_window_ram_mod.sys, "exit") as mock_exit:
             obj._BootcRamWindow__continue(None)
-            mock_popen.assert_called_once()
             mock_exit.assert_called_once_with(0)
+        self.assertEqual([(c[0], c[4]) for c in ex.calls], [("spawn", ["env", "IGNORE_RAM=1", "vanilla-installer"])])
 
 
 class TestWindowUnsupported(unittest.TestCase):
@@ -333,10 +348,15 @@ class TestWindowUnsupported(unittest.TestCase):
                                               COPY_DEFAULTS["requirements_uefi"]])
 
     def test_on_poweroff_calls_systemctl(self):
+        from bootc_installer.utils.host import Scope
+        from tests.unit.fake_host import OK
         obj = BootcUnsupportedWindow.__new__(BootcUnsupportedWindow)
-        with patch("subprocess.call") as mock_call:
+        ex, patcher = _host_actions_executor(OK)
+        with patcher:
             obj._BootcUnsupportedWindow__on_poweroff(None)
-            mock_call.assert_called_with(["systemctl", "poweroff"])
+        # On the host now, as the poweroff dialog: a Flatpak has no systemctl.
+        self.assertEqual(ex.calls[0][4], ["systemctl", "poweroff"])
+        self.assertIs(ex.calls[0][2], Scope.HOST)
 
 
 if __name__ == "__main__":

@@ -1,12 +1,14 @@
 import io
 import json
 import re
-import subprocess
+import shutil
 from unittest.mock import MagicMock, call, patch
 
 import pytest
 
 from bootc_installer.utils import phone_companion
+from bootc_installer.utils.host import Scope
+from tests.unit.fake_host import FAIL, MISSING, OK, TIMEOUT, FakeExecutor
 from bootc_installer.utils.phone_companion import (
     COMPANION_HTML,
     render_companion_html,
@@ -82,36 +84,35 @@ def test_generate_self_signed_cert_runs_openssl_into_a_private_dir():
     import os
     import stat
 
-    with patch("bootc_installer.utils.phone_companion.subprocess.run") as run_mock:
-        cert, key = generate_self_signed_cert()
+    ex = FakeExecutor([OK])
+    cert, key = generate_self_signed_cert(ex)
 
     certdir = os.path.dirname(cert)
     assert os.path.dirname(key) == certdir
     assert not certdir.startswith("/tmp/companion")
     # mkdtemp: only this user can read the key or plant files in its place.
     assert stat.S_IMODE(os.stat(certdir).st_mode) == 0o700
-    run_mock.assert_called_once_with(
-        [
-            "openssl", "req", "-x509", "-newkey", "rsa:2048",
-            "-keyout", key,
-            "-out", cert,
-            "-days", "1", "-nodes",
-            "-subj", "/CN=bootc-companion",
-        ],
-        check=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    kind, cmd, scope, timeout, argv = ex.calls[0]
+    assert cmd == [
+        "openssl", "req", "-x509", "-newkey", "rsa:2048",
+        "-keyout", key,
+        "-out", cert,
+        "-days", "1", "-nodes",
+        "-subj", "/CN=bootc-companion",
+    ]
+    assert scope is Scope.LOCAL
+    assert timeout == 60
+    shutil.rmtree(certdir, ignore_errors=True)
 
 
-def test_generate_self_signed_cert_returns_false_on_failure():
-    with patch(
-        "bootc_installer.utils.phone_companion.subprocess.run",
-        side_effect=OSError("openssl missing"),
-    ), patch("bootc_installer.utils.phone_companion.logger.warning") as warning_mock:
-        assert generate_self_signed_cert() is None
-
-    warning_mock.assert_called_once()
+def test_generate_self_signed_cert_returns_none_on_failure():
+    for answer in (MISSING, FAIL, TIMEOUT):
+        with patch("bootc_installer.utils.phone_companion.logger.warning") as warning_mock, \
+                patch("bootc_installer.utils.phone_companion.shutil.rmtree",
+                      wraps=shutil.rmtree) as rmtree:
+            assert generate_self_signed_cert(FakeExecutor([answer])) is None
+        warning_mock.assert_called_once()
+        rmtree.assert_called_once()
 
 
 def test_companion_server_init_sets_default_state():

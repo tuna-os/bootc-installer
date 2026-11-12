@@ -15,6 +15,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from bootc_installer.core.disks import Disk as _Disk
 from bootc_installer.core.disks import Diskutils
 from bootc_installer.core.disks import Partition as _Partition
+from bootc_installer.utils.host import Scope
+from tests.unit.fake_host import FAIL, MISSING, TIMEOUT, FakeExecutor
 
 
 # ---------------------------------------------------------------------------
@@ -111,29 +113,32 @@ class TestPartitionComparisons(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Diskutils — subprocess-dependent methods
+# Diskutils — host commands, through a recording executor (#82)
 # ---------------------------------------------------------------------------
 
 class TestSeparateDeviceAndPartn(unittest.TestCase):
     """Tests for Diskutils.separate_device_and_partn()."""
 
-    def _mock_output(self, name, pkname, partn):
+    def _executor(self, name, pkname, partn):
         payload = json.dumps({
             "blockdevices": [{"name": name, "pkname": pkname, "partn": partn}]
         })
-        return payload.encode()
+        return FakeExecutor([{"returncode": 0, "stdout": payload}])
 
     def test_partition_returns_disk_and_number(self):
-        with patch("subprocess.check_output",
-                   return_value=self._mock_output("nvme0n1p2", "nvme0n1", 2)):
-            disk, num = Diskutils.separate_device_and_partn("/dev/nvme0n1p2")
+        ex = self._executor("nvme0n1p2", "nvme0n1", 2)
+        disk, num = Diskutils.separate_device_and_partn("/dev/nvme0n1p2", ex)
         self.assertEqual(disk, "/dev/nvme0n1")
         self.assertEqual(num, "2")
+        kind, cmd, scope, timeout, argv = ex.calls[0]
+        self.assertEqual(cmd, ["lsblk", "--json", "-o", "NAME,PKNAME,PARTN", "/dev/nvme0n1p2"])
+        # Where it ran before: this process's environment.
+        self.assertIs(scope, Scope.LOCAL)
+        self.assertEqual(argv, cmd)
 
     def test_bare_device_returns_none_for_partn(self):
-        with patch("subprocess.check_output",
-                   return_value=self._mock_output("sda", None, None)):
-            disk, num = Diskutils.separate_device_and_partn("/dev/sda")
+        disk, num = Diskutils.separate_device_and_partn(
+            "/dev/sda", self._executor("sda", None, None))
         self.assertEqual(disk, "/dev/sda")
         self.assertIsNone(num)
 
@@ -143,10 +148,15 @@ class TestSeparateDeviceAndPartn(unittest.TestCase):
                 {"name": "sda1", "pkname": "sda", "partn": 1},
                 {"name": "sdb1", "pkname": "sdb", "partn": 1},
             ]
-        }).encode()
-        with patch("subprocess.check_output", return_value=payload):
-            with self.assertRaises(ValueError):
-                Diskutils.separate_device_and_partn("/dev/sda1")
+        })
+        with self.assertRaises(ValueError):
+            Diskutils.separate_device_and_partn(
+                "/dev/sda1", FakeExecutor([{"returncode": 0, "stdout": payload}]))
+
+    def test_a_failed_lsblk_is_a_value_error(self):
+        for answer in (FAIL, TIMEOUT, MISSING):
+            with self.subTest(answer=answer), self.assertRaises(ValueError):
+                Diskutils.separate_device_and_partn("/dev/sda1", FakeExecutor([answer]))
 
 
 class TestFetchLvmPvs(unittest.TestCase):
@@ -158,23 +168,24 @@ class TestFetchLvmPvs(unittest.TestCase):
                 {"pv_name": "/dev/sda2", "vg_name": "vg_data"},
                 {"pv_name": "/dev/sdb1", "vg_name": ""},
             ]}]
-        }).encode()
-        with patch("subprocess.check_output", return_value=payload):
-            result = Diskutils.fetch_lvm_pvs()
+        })
+        ex = FakeExecutor([{"returncode": 0, "stdout": payload}])
+        result = Diskutils.fetch_lvm_pvs(ex)
         self.assertEqual(result, [["/dev/sda2", "vg_data"], ["/dev/sdb1", None]])
+        self.assertEqual(ex.calls[0][1], ["sudo", "pvs", "--reportformat=json"])
+        self.assertIs(ex.calls[0][2], Scope.LOCAL)
 
     def test_empty_vg_name_becomes_none(self):
         payload = json.dumps({
             "report": [{"pv": [{"pv_name": "/dev/sdc1", "vg_name": ""}]}]
-        }).encode()
-        with patch("subprocess.check_output", return_value=payload):
-            result = Diskutils.fetch_lvm_pvs()
+        })
+        result = Diskutils.fetch_lvm_pvs(FakeExecutor([{"returncode": 0, "stdout": payload}]))
         self.assertEqual(result, [["/dev/sdc1", None]])
 
-    def test_returns_empty_list_on_exception(self):
-        with patch("subprocess.check_output", side_effect=Exception("pvs not found")):
-            result = Diskutils.fetch_lvm_pvs()
-        self.assertEqual(result, [])
+    def test_returns_empty_list_on_failure(self):
+        for answer in (FAIL, TIMEOUT, MISSING, {"returncode": 0, "stdout": "not json"}):
+            with self.subTest(answer=answer):
+                self.assertEqual(Diskutils.fetch_lvm_pvs(FakeExecutor([answer])), [])
 
 
 # ---------------------------------------------------------------------------
@@ -239,44 +250,37 @@ class TestDiskClass(unittest.TestCase):
 class TestPartitionInit(unittest.TestCase):
     """Tests for Partition.__init__ via mocked I/O."""
 
-    def _make_partition(self, mountpoint=b"", fs_type=b"xfs", uuid=b"abc-123", label=b""):
+    def _make_partition(self, mountpoint="", fs_type="xfs", uuid="abc-123", label=""):
         import io
 
-        outputs = [mountpoint, fs_type, uuid, label]
-        call_idx = [0]
-
-        def fake_check_output(cmd, **kw):
-            idx = call_idx[0]
-            call_idx[0] += 1
-            if idx < len(outputs):
-                return outputs[idx]
-            return b""
-
-        with patch("subprocess.check_output", side_effect=fake_check_output), \
-             patch("builtins.open", return_value=io.StringIO("2097152\n")):
+        self.executor = FakeExecutor([{"returncode": 0, "stdout": out + "\n"}
+                                      for out in (mountpoint, fs_type, uuid, label)])
+        with patch("builtins.open", return_value=io.StringIO("2097152\n")):
             from bootc_installer.core.disks import Partition
-            return Partition("nvme0n1", "nvme0n1p2")
+            return Partition("nvme0n1", "nvme0n1p2", self.executor)
 
     def test_partition_init_sets_properties(self):
-        p = self._make_partition(mountpoint=b"/", fs_type=b"xfs", uuid=b"abc-123", label=b"root")
+        p = self._make_partition(mountpoint="/", fs_type="xfs", uuid="abc-123", label="root")
+        self.assertEqual([call[1] for call in self.executor.calls], [
+            ["findmnt", "-n", "-o", "TARGET", "/dev/nvme0n1p2"],
+            ["lsblk", "-d", "-n", "-o", "FSTYPE", "/dev/nvme0n1p2"],
+            ["lsblk", "-d", "-n", "-o", "UUID", "/dev/nvme0n1p2"],
+            ["findmnt", "-n", "-o", "LABEL", "/dev/nvme0n1p2"],
+        ])
+        self.assertTrue(all(call[2] is Scope.LOCAL for call in self.executor.calls))
         self.assertEqual(p.mountpoint, "/")
         self.assertEqual(p.fs_type, "xfs")
         self.assertEqual(p.uuid, "abc-123")
         self.assertEqual(p.label, "root")
         self.assertEqual(p.size, 2097152 * 512)
 
-    def test_partition_init_handles_subprocess_errors(self):
-        """CalledProcessError from any subprocess returns None gracefully."""
-        import subprocess as _sp
-
-        def raise_cpe(cmd, **kw):
-            raise _sp.CalledProcessError(1, cmd)
-
+    def test_partition_init_handles_failed_commands(self):
+        """A failed, missing or timed-out command gives None, never raises."""
         import io
-        with patch("subprocess.check_output", side_effect=raise_cpe), \
-             patch("builtins.open", return_value=io.StringIO("0\n")):
+        ex = FakeExecutor([FAIL, MISSING, TIMEOUT, FAIL])
+        with patch("builtins.open", return_value=io.StringIO("0\n")):
             from bootc_installer.core.disks import Partition
-            p = Partition("sda", "sda1")
+            p = Partition("sda", "sda1", ex)
 
         self.assertIsNone(p.mountpoint)
         self.assertIsNone(p.fs_type)
@@ -366,8 +370,8 @@ if __name__ == "__main__":
 
 
 class TestNoShellInjection(unittest.TestCase):
-    """#163: device paths reach subprocess as one argv element, never a shell
-    string, so shell metacharacters in them are inert."""
+    """#163: device paths reach the executor as one argv element, never a
+    shell string, so shell metacharacters in them are inert."""
 
     HOSTILE = "/dev/sda1; touch {marker}; #"
 
@@ -376,7 +380,7 @@ class TestNoShellInjection(unittest.TestCase):
 
         marker = os.path.join(tempfile.mkdtemp(), "pwned")
         path = self.HOSTILE.format(marker=marker)
-        # The real subprocess runs: lsblk rejects the odd device name, which
+        # The real executor runs: lsblk rejects the odd device name, which
         # is fine. What must not happen is the shell running `touch`.
         try:
             Diskutils.separate_device_and_partn(path)
@@ -385,18 +389,12 @@ class TestNoShellInjection(unittest.TestCase):
         self.assertFalse(os.path.exists(marker), "the device path was run as a shell command")
 
     def test_every_disks_call_passes_an_argv_list(self):
-        calls = []
-
-        def fake(cmd, *args, **kwargs):
-            calls.append((cmd, kwargs))
-            return b'{"blockdevices": [{"name": "sda1", "pkname": "sda", "partn": 1}]}'
-
-        with patch("subprocess.check_output", side_effect=fake):
-            Diskutils.separate_device_and_partn("/dev/sda1; id")
-        cmd, kwargs = calls[0]
-        self.assertIsInstance(cmd, list)
-        self.assertEqual(cmd[-1], "/dev/sda1; id")
-        self.assertNotIn("shell", kwargs)
+        ex = FakeExecutor([{"returncode": 0, "stdout":
+                            '{"blockdevices": [{"name": "sda1", "pkname": "sda", "partn": 1}]}'}])
+        Diskutils.separate_device_and_partn("/dev/sda1; id", ex)
+        argv = ex.calls[0][4]
+        self.assertIsInstance(argv, list)
+        self.assertEqual(argv[-1], "/dev/sda1; id")
 
     def test_no_shell_true_left_in_disks_module(self):
         import bootc_installer.core.disks as disks_mod
