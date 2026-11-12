@@ -10,6 +10,7 @@ import subprocess
 from bootc_shared import account as shared_account
 from bootc_shared import branding, fisherman_host, hardware, progress, redact
 from bootc_shared import catalog as shared_catalog
+from bootc_shared import plan as install_plan
 from bootc_shared import probe as fisherman_probe
 from bootc_shared import validate as fisherman_validate
 
@@ -122,7 +123,7 @@ FISHERMAN_PURPOSES = fisherman_host.PURPOSES
 def fisherman_command(purpose, *, in_flatpak=None, live=None, host_path=None):
     """The argv that runs fisherman for `purpose` (fisherman_host.command).
 
-    "probe", "validate" and "validate-full" run unprivileged, never through
+    "probe", "validate", "validate-full" and "plan" run unprivileged, never through
     pkexec or sudo. "install" runs with privileges and reads the recipe on
     stdin. In a Flatpak `host_path` is the staged binary (staged here when
     not given; StageError when that fails). `live` is fisherman's
@@ -188,6 +189,19 @@ def probe_source(args):
         return fisherman_probe.run(fisherman_command("probe") + list(args))
     except (fisherman_probe.ProbeError, StageError):
         return None
+
+
+def request_plan(recipe):
+    """(result, error) of `fisherman plan --json -` for `recipe`
+    (tuna-os/fisherman#371): the parsed plan result and None, or None and
+    why fisherman could not be asked. Unprivileged, recipe on stdin, never
+    on argv. Waits up to install_plan.TIMEOUT_SECONDS, so call it off the
+    UI thread. An older fisherman has no plan command: that is an error
+    here, and the confirm page then works as it did before plans."""
+    try:
+        return install_plan.run(fisherman_command("plan"), recipe), None
+    except (install_plan.PlanError, StageError) as exc:
+        return None, str(exc)
 
 
 def has_tpm():
