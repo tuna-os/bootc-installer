@@ -36,6 +36,9 @@ TunaComponents.SetupModule {
         // What fisherman says about the selected image (#266) and this
         // computer's bootc storage (#267); asked again on each visit.
         InstallerController.checkSource();
+        // What the install would do to which disk (tuna-os/fisherman#371);
+        // Install binds the recipe to that disk.
+        InstallerController.requestPlan();
     }
 
     contentItem: ScrollView {
@@ -226,6 +229,38 @@ TunaComponents.SetupModule {
                     description: InstallerController.timezoneDisplay(InstallerController.timezone)
                 }
             }
+            // The install plan (tuna-os/fisherman#371): the disk fisherman
+            // writes to, what it reports about itself, and each device whose
+            // data the install destroys, from `fisherman plan --json -`.
+            // Hidden when fisherman gives no plan.
+            FormCard.FormHeader {
+                visible: InstallerController.planRows.length > 0
+                title: InstallerController.text("confirm_plan_title")
+                maximumWidth: root.cardWidth
+
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+            FormCard.FormCard {
+                objectName: "confirmPlan"
+                visible: InstallerController.planRows.length > 0
+                maximumWidth: root.cardWidth
+
+                Layout.alignment: Qt.AlignHCenter
+
+                Repeater {
+                    model: InstallerController.planRows
+
+                    FormCard.FormTextDelegate {
+                        required property var modelData
+
+                        text: modelData.title
+                        description: modelData.subtitle
+                        textItem.wrapMode: Text.Wrap
+                    }
+                }
+            }
+
             // The install source (#267): download the image (the default),
             // or copy the system that this computer runs from its bootc
             // storage. Only when fisherman's probe has an item that
@@ -253,6 +288,7 @@ TunaComponents.SetupModule {
                     onToggled: if (checked) {
                         InstallerController.reuseSelected = false
                         InstallerController.checkSource()
+                        InstallerController.requestPlan()
                     }
                 }
 
@@ -264,6 +300,7 @@ TunaComponents.SetupModule {
                     onToggled: if (checked) {
                         InstallerController.reuseSelected = true
                         InstallerController.checkSource()
+                        InstallerController.requestPlan()
                     }
                 }
             }
