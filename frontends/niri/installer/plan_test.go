@@ -21,6 +21,10 @@ import (
 
 const planSecret = "correct-horse-battery-staple"
 
+// planDigest stands for the digest that a fisherman with `plan.binding`
+// writes where its goldens say @PLAN_DIGEST@.
+var planDigest = "sha256:" + strings.Repeat("ab", 32)
+
 var planGoldenDir = filepath.Join("..", "..", "..", "fisherman", "fisherman", "cmd", "fisherman", "testdata", "plan")
 
 func planGolden(t *testing.T, name string) []byte {
@@ -29,7 +33,8 @@ func planGolden(t *testing.T, name string) []byte {
 	if err != nil {
 		planNoGoldens(t)
 	}
-	return bytes.ReplaceAll(data, []byte("@DIR@"), []byte("/dev"))
+	data = bytes.ReplaceAll(data, []byte("@DIR@"), []byte("/dev"))
+	return bytes.ReplaceAll(data, []byte("@PLAN_DIGEST@"), []byte(planDigest))
 }
 
 // planNoGoldens skips locally without the submodule; CI checks it out, so
@@ -98,7 +103,7 @@ func TestPlanEveryGoldenParses(t *testing.T) {
 	for _, path := range paths {
 		name := strings.TrimSuffix(filepath.Base(path), ".golden")
 		view := planOf(t, name)
-		if !view.Valid && (len(view.Rows) != 0 || view.DiskIdentity != nil) {
+		if !view.Valid && (len(view.Rows) != 0 || view.DiskIdentity != nil || view.PlanBinding != nil) {
 			t.Errorf("%s: an invalid plan has rows or a binding", name)
 		}
 		for _, row := range view.Rows {
@@ -187,6 +192,144 @@ func TestPlanBindsNothingWithoutAPlanForThisDisk(t *testing.T) {
 	}
 	if _, ok := planJS(t, invalid, planRecipe("/dev/sda")).Recipe["diskIdentity"]; ok {
 		t.Error("an invalid plan bound the recipe")
+	}
+}
+
+// planWithBinding is a golden plan as a fisherman with `plan.binding`
+// prints it, with `binding` in place of the golden's own (nil: none, as an
+// older fisherman prints).
+func planWithBinding(t *testing.T, name string, binding any) PlanView {
+	t.Helper()
+	var result map[string]any
+	if err := json.Unmarshal(planGolden(t, name), &result); err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
+	plan := result["plan"].(map[string]any)
+	if binding == nil {
+		delete(plan, "binding")
+	} else {
+		plan["binding"] = binding
+	}
+	data, _ := json.Marshal(result)
+	view, err := parsePlan(data)
+	if err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
+	return view
+}
+
+func planBindingJSON(r planRendered) (string, bool) {
+	b, ok := r.Recipe["planBinding"]
+	data, _ := json.Marshal(b)
+	return string(data), ok
+}
+
+func TestPlanBindingIsCopiedAsPlanBinding(t *testing.T) {
+	view := planWithBinding(t, "grub2-plain", map[string]any{"digest": planDigest, "read_image": true})
+	yes := true
+	if !reflect.DeepEqual(view.PlanBinding, &PlanBinding{Digest: planDigest, ReadImage: &yes}) {
+		t.Fatalf("binding = %+v", view.PlanBinding)
+	}
+	got := planJS(t, view, planRecipe("/dev/sda"))
+	if b, _ := planBindingJSON(got); b != `{"digest":"`+planDigest+`","readImage":true}` {
+		t.Errorf("planBinding = %s", b)
+	}
+	if _, ok := got.Recipe["diskIdentity"]; !ok {
+		t.Error("the binding dropped diskIdentity")
+	}
+	if got.Recipe["encryption"].(map[string]any)["passphrase"] != planSecret {
+		t.Errorf("bind dropped the rest of the recipe: %v", got.Recipe)
+	}
+}
+
+func TestPlanGoldensBindingIsCopied(t *testing.T) {
+	for name, readImage := range map[string]bool{"grub2-plain": false, "read-image-registry": true} {
+		view := planOf(t, name)
+		if view.PlanBinding == nil {
+			t.Skip("the pinned fisherman has no plan.binding")
+		}
+		want := `{"digest":"` + planDigest + `","readImage":` + map[bool]string{true: "true", false: "false"}[readImage] + `}`
+		if b, _ := planBindingJSON(planJS(t, view, planRecipe("/dev/sda"))); b != want {
+			t.Errorf("%s: planBinding = %s, want %s", name, b, want)
+		}
+	}
+}
+
+func TestPlanWithoutABindingBindsTheDiskOnly(t *testing.T) {
+	view := planWithBinding(t, "grub2-plain", nil)
+	if view.PlanBinding != nil {
+		t.Fatalf("binding = %+v", view.PlanBinding)
+	}
+	got := planJS(t, view, planRecipe("/dev/sda"))
+	if _, ok := got.Recipe["planBinding"]; ok {
+		t.Error("a plan without a binding set planBinding")
+	}
+	if _, ok := got.Recipe["diskIdentity"]; !ok {
+		t.Error("a plan without a binding dropped diskIdentity")
+	}
+}
+
+func TestPlanMalformedBindingIsNotCopied(t *testing.T) {
+	for _, binding := range []any{
+		"sha256:" + strings.Repeat("ab", 32), map[string]any{}, map[string]any{"digest": ""},
+		map[string]any{"digest": "sha256:ABC"}, map[string]any{"digest": "sha256:" + strings.Repeat("AB", 32)},
+		map[string]any{"digest": "md5:" + strings.Repeat("ab", 16)},
+		map[string]any{"digest": "sha256:" + strings.Repeat("ab", 32) + "\n"},
+		map[string]any{"digest": 7}, map[string]any{"read_image": true}, []any{}, 3,
+	} {
+		view := planWithBinding(t, "grub2-plain", binding)
+		if view.PlanBinding != nil {
+			t.Errorf("%v: binding = %+v", binding, view.PlanBinding)
+		}
+		if _, ok := planJS(t, view, planRecipe("/dev/sda")).Recipe["planBinding"]; ok {
+			t.Errorf("%v: a malformed binding set planBinding", binding)
+		}
+	}
+	// A view that names a malformed digest (not one plan.go prints) is
+	// not copied by plan.js either.
+	view := planOf(t, "grub2-plain")
+	view.PlanBinding = &PlanBinding{Digest: "sha256:ABC"}
+	if _, ok := planJS(t, view, planRecipe("/dev/sda")).Recipe["planBinding"]; ok {
+		t.Error("plan.js copied a malformed digest")
+	}
+}
+
+func TestPlanReadImageIsCopiedOnlyAsABoolean(t *testing.T) {
+	view := planWithBinding(t, "grub2-plain", map[string]any{"digest": planDigest, "read_image": "yes"})
+	if !reflect.DeepEqual(view.PlanBinding, &PlanBinding{Digest: planDigest}) {
+		t.Fatalf("binding = %+v", view.PlanBinding)
+	}
+	if b, _ := planBindingJSON(planJS(t, view, planRecipe("/dev/sda"))); b != `{"digest":"`+planDigest+`"}` {
+		t.Errorf("planBinding = %s", b)
+	}
+}
+
+func TestPlanBindingNotForAnotherDisk(t *testing.T) {
+	view := planWithBinding(t, "grub2-plain", map[string]any{"digest": planDigest, "read_image": false})
+	for _, disk := range []string{"/dev/sdb", ""} {
+		got := planJS(t, view, planRecipe(disk))
+		if _, ok := got.Recipe["planBinding"]; ok {
+			t.Errorf("a plan for /dev/sda set planBinding on a recipe for %q", disk)
+		}
+	}
+}
+
+func TestPlanManualLayoutIsBoundToItsPlanNotADisk(t *testing.T) {
+	view := planWithBinding(t, "manual", map[string]any{"digest": planDigest, "read_image": false})
+	got := planJS(t, view, planRecipe("/dev/sda"))
+	if b, _ := planBindingJSON(got); b != `{"digest":"`+planDigest+`","readImage":false}` {
+		t.Errorf("planBinding = %s", b)
+	}
+	if _, ok := got.Recipe["diskIdentity"]; ok {
+		t.Error("a manual layout set diskIdentity")
+	}
+}
+
+func TestPlanErrorCodesHaveCopyKeys(t *testing.T) {
+	for _, code := range []string{"plan_stale", "plan_binding_invalid", "disk_identity_mismatch", "disk_identity_invalid"} {
+		if line := copyDefaults()["validate_"+code]; line == "" || strings.Contains(line, "{") {
+			t.Errorf("validate_%s = %q", code, line)
+		}
 	}
 }
 

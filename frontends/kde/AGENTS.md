@@ -193,8 +193,9 @@ The confirm step also shows fisherman's install plan (tuna-os/fisherman#371):
 recipe on stdin, with a timeout. `src/plan.{h,cpp}` is a port of
 `../../shared/python/bootc_shared/plan.py`: `planRows` in the
 `confirm_plan_*` copy keys, and `confirmedRecipe()` (what Install writes)
-binds `diskIdentity` only when the plan is for the recipe's disk. No plan,
-no binding. `test_backend` (`plan*`) reads fisherman's golden plans.
+binds `diskIdentity` only when the plan is for the recipe's disk, and
+`planBinding` (the plan's `binding`) unless the plan is for another disk.
+No plan, no binding. `test_backend` (`plan*`) reads fisherman's golden plans.
 
 The progress step shows fisherman's `source_reuse` events for a copy of
 this computer's system (`reuseLines`, `sourcecheck::sourceReuseLines`,

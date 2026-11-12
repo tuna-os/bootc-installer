@@ -6,6 +6,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonValue>
+#include <QRegularExpression>
 #include <QtGlobal>
 #if QT_CONFIG(process)
 #include <QProcess>
@@ -156,14 +157,37 @@ QJsonObject diskIdentity(const QJsonObject &plan)
     return out;
 }
 
+QJsonObject planBinding(const QJsonObject &plan)
+{
+    // `sha256:` and 64 lowercase hex digits, the whole string.
+    static const QRegularExpression digestPattern(
+        QRegularExpression::anchoredPattern(QStringLiteral("sha256:[0-9a-f]{64}")));
+    const QJsonValue binding = plan.value(QLatin1String("binding"));
+    if (!binding.isObject())
+        return {};
+    const QJsonValue digest = binding.toObject().value(QLatin1String("digest"));
+    if (!digest.isString() || !digestPattern.match(digest.toString()).hasMatch())
+        return {};
+    QJsonObject out{{QStringLiteral("digest"), digest}};
+    const QJsonValue readImage = binding.toObject().value(QLatin1String("read_image"));
+    if (readImage.isBool())
+        out.insert(QLatin1String("readImage"), readImage);
+    return out;
+}
+
 QJsonObject bind(const QJsonObject &recipe, const QJsonObject &plan)
 {
-    const QJsonObject binding = diskIdentity(plan);
-    const QString disk = target(plan).value(QLatin1String("disk")).toString();
-    if (binding.isEmpty() || disk.isEmpty() || disk != recipe.value(QLatin1String("disk")).toString())
+    if (plan.isEmpty())
         return recipe;
+    const QString disk = target(plan).value(QLatin1String("disk")).toString();
+    const QString recipeDisk = recipe.value(QLatin1String("disk")).toString();
     QJsonObject bound = recipe;
-    bound.insert(QLatin1String("diskIdentity"), binding);
+    const QJsonObject identityOfDisk = diskIdentity(plan);
+    if (!identityOfDisk.isEmpty() && !disk.isEmpty() && disk == recipeDisk)
+        bound.insert(QLatin1String("diskIdentity"), identityOfDisk);
+    const QJsonObject saved = planBinding(plan);
+    if (!saved.isEmpty() && (disk.isEmpty() || disk == recipeDisk))
+        bound.insert(QLatin1String("planBinding"), saved);
     return bound;
 }
 

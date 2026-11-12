@@ -169,8 +169,8 @@ signal is a cancel (`installOutcome()`).
 - `plan` runs `fisherman plan --json -` the same way, with the install
   recipe on stdin (`installer/plan.go`, a port of
   `shared/python/bootc_shared/plan.py`). `ui/plan.js` makes the
-  `confirm_plan_*` lines and binds `diskIdentity` on Install. Without a
-  plan, nothing is shown or bound. `plan_test.go` reads fisherman's
+  `confirm_plan_*` lines and binds `diskIdentity` and `planBinding` on
+  Install. Without a plan, nothing is shown or bound. `plan_test.go` reads fisherman's
   golden plans.
 
 `../../shared/recipe/README.md` is the contract.

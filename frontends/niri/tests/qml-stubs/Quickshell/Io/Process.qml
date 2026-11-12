@@ -77,7 +77,8 @@ QtObject {
         }),
         // `plan`: the view of installer/plan.go for the disk that the
         // capture selects (shared/probe/fixtures/laptop, /dev/sda), with
-        // the serial and size of fisherman's grub2-plain golden plan.
+        // the serial and size of fisherman's grub2-plain golden plan, and a
+        // fixed plan.binding digest.
         "plan": JSON.stringify({
             valid: true, errors: [], disk: "/dev/sda",
             rows: [
@@ -86,7 +87,8 @@ QtObject {
                 { kind: "bound", values: {} },
                 { kind: "wipe_disk", values: { disk: "/dev/sda" } }
             ],
-            diskIdentity: { serial: "FIXTURE-SDA-SERIAL", sizeBytes: 500107862016 }
+            diskIdentity: { serial: "FIXTURE-SDA-SERIAL", sizeBytes: 500107862016 },
+            planBinding: { digest: "sha256:" + "ab".repeat(32), readImage: false }
         }),
         // `catalog`: no catalog file, as on a machine that ships none.
         "catalog": JSON.stringify({ path: "", skipped: [], default_image: "", selected: "", leaves: [],

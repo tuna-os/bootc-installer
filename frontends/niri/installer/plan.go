@@ -12,8 +12,9 @@ package main
 // passphrase). The plan itself holds no secret.
 //
 // This backend prints a view for the QML: the rows of the page as kinds
-// with their values, and the recipe's `diskIdentity`. ui/plan.js turns the
-// kinds into the confirm_plan_* copy keys and binds the install recipe.
+// with their values, the recipe's `diskIdentity` and its `planBinding`.
+// ui/plan.js turns the kinds into the confirm_plan_* copy keys and binds
+// the install recipe.
 // plan_test.go reads fisherman's golden plans and must give the rows and
 // the binding of the Python reader.
 
@@ -26,6 +27,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -57,6 +59,18 @@ type DiskIdentity struct {
 
 func (d DiskIdentity) empty() bool { return d == DiskIdentity{} }
 
+// planDigestPattern is the only digest a binding is copied with:
+// `sha256:` and 64 lowercase hex digits (PLAN.md, "plan.binding").
+var planDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+
+// PlanBinding is the recipe's `planBinding`: plan.binding.digest, and
+// read_image as readImage when it is a boolean. fisherman refuses an
+// install whose plan is no longer this one (plan_stale).
+type PlanBinding struct {
+	Digest    string `json:"digest"`
+	ReadImage *bool  `json:"readImage,omitempty"`
+}
+
 // PlanRow is one line of the confirm page. Kind is "target" (title and
 // detail), "bound", "unbound", or the effect of a destroyed device. A value
 // that is "" is unknown: the page shows confirm_plan_unknown.
@@ -66,13 +80,16 @@ type PlanRow struct {
 }
 
 // PlanView is what `plan` prints. Disk is the plan's target disk, for the
-// binding; DiskIdentity is nil when the plan can bind nothing.
+// binding ("" for a manual layout); DiskIdentity is nil when the plan knows
+// no identity of the disk, PlanBinding when the plan has no binding (a
+// fisherman before it) or a malformed one.
 type PlanView struct {
 	Valid        bool          `json:"valid"`
 	Errors       []string      `json:"errors"`
 	Disk         string        `json:"disk"`
 	Rows         []PlanRow     `json:"rows"`
 	DiskIdentity *DiskIdentity `json:"diskIdentity,omitempty"`
+	PlanBinding  *PlanBinding  `json:"planBinding,omitempty"`
 }
 
 // errPlan is "fisherman could not be asked, or its answer was unreadable".
@@ -118,7 +135,27 @@ func parsePlan(text []byte) (PlanView, error) {
 	if ident := planDiskIdentity(target); !ident.empty() {
 		view.DiskIdentity = &ident
 	}
+	view.PlanBinding = planBindingOf(plan)
 	return view, nil
+}
+
+// planBindingOf is the recipe's `planBinding` for the plan, or nil when
+// the plan has no binding or its digest is not `sha256:` and 64 lowercase
+// hex digits.
+func planBindingOf(plan map[string]any) *PlanBinding {
+	binding, ok := plan["binding"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	digest, ok := binding["digest"].(string)
+	if !ok || !planDigestPattern.MatchString(digest) {
+		return nil
+	}
+	out := &PlanBinding{Digest: digest}
+	if readImage, ok := binding["read_image"].(bool); ok {
+		out.ReadImage = &readImage
+	}
+	return out
 }
 
 // planKnown: a string the plan knows, not "unknown" and not empty; else "".
