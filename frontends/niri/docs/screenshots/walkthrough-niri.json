@@ -153,7 +153,7 @@
       "name": "02-session",
       "png": "docs/screenshots/02-session.png",
       "rendered": true,
-      "colours": 410,
+      "colours": 409,
       "flat": 0.6247,
       "ink": 0.026266666666666667,
       "stddev": 0.09779041921278185,
@@ -186,7 +186,7 @@
       "colours": 521,
       "flat": 0.4215333333333333,
       "ink": 0.2012,
-      "stddev": 0.11962846478068354,
+      "stddev": 0.11963561917385698,
       "text_excerpt": "Step 5 of 9 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
@@ -196,7 +196,7 @@
       "colours": 346,
       "flat": 0.5258333333333334,
       "ink": 0.030633333333333332,
-      "stddev": 0.10060174578702649,
+      "stddev": 0.10059300974972753,
       "text_excerpt": "Step 6 of 9 \u00b7 Account Your account The account you sign in with. It can administer this computer. Account Username alex Full name Alex Example Password capture Password again capture Show passwords Show passwords Back Back Continue Continue"
     },
     {
@@ -206,7 +206,7 @@
       "colours": 528,
       "flat": 0.49853333333333333,
       "ink": 0.0434,
-      "stddev": 0.11600864622662221,
+      "stddev": 0.11601600351490633,
       "text_excerpt": "Step 7 of 9 \u00b7 Confirm Confirm installation \u26a0  Everything on /dev/sda will be erased. This cannot be undone. Summary Target disk /dev/sda Image Capture Desktop Stable  (ghcr.io/example/os:stable) Filesystem btrfs Encryption No encryption Use"
     },
     {
