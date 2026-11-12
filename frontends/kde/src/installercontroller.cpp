@@ -348,7 +348,8 @@ void InstallerController::applyPlanReply(int generation, const plan::Result &res
     }
     m_plan = result.plan;
     qCInfo(logInstaller) << "install plan:" << plan::destroys(m_plan).size() << "device(s) destroyed, disk identity"
-                         << plan::diskIdentity(m_plan).keys();
+                         << plan::diskIdentity(m_plan).keys() << "plan binding"
+                         << !plan::planBinding(m_plan).isEmpty();
     Q_EMIT planChanged();
 }
 
@@ -1311,7 +1312,8 @@ void InstallerController::startInstall()
     // to be a 0600 file in a QTemporaryDir, handed to root by path.
     // Bound to the disk of the confirm step's plan (`diskIdentity`): fisherman
     // refuses the install if another device is now at that path
-    // (disk_identity_mismatch, tuna-os/fisherman#371).
+    // (disk_identity_mismatch, tuna-os/fisherman#371), and to the plan itself
+    // (`planBinding`): it refuses a plan that changed since (plan_stale).
     const QByteArray recipeJson = QJsonDocument(confirmedRecipe()).toJson(QJsonDocument::Compact);
 
     // In a Flatpak fisherman is the staged copy the host verified

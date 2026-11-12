@@ -128,6 +128,9 @@ private slots:
     // plans give the lines and the binding of tests/unit/test_shared_plan.py.
     void planEveryGoldenParses();
     void planBindingCopiesWhatTheDiskReports();
+    void planBindingCopiesThePlansBinding();
+    void planBindingIsNotCopiedWhenMalformed_data();
+    void planBindingIsNotCopiedWhenMalformed();
     void planTargetRowsMarkUnknownValues();
     void planEachDestroyedDeviceHasALine();
     void planUnreadableAnswersAreErrors();
@@ -3306,8 +3309,10 @@ void BackendTest::shippedCatalogLoadsAndTranslates()
 // ── fisherman plan (tuna-os/fisherman#371) ──────────────────────────────────
 
 static const char *PLAN_SECRET = "correct-horse-battery-staple";
+static const char *PLAN_DIGEST = "sha256:abababababababababababababababababababababababababababababababab";
 
-// A golden plan of the pinned fisherman, with the fixture directory as /dev;
+// A golden plan of the pinned fisherman, with the fixture directory as /dev
+// and a fixed digest for the one a fisherman with `plan.binding` writes;
 // empty when the submodule is not checked out.
 static QByteArray planGolden(const QString &name)
 {
@@ -3315,7 +3320,7 @@ static QByteArray planGolden(const QString &name)
     QFile f(QStringLiteral(PLAN_GOLDENS_DIR) + QLatin1Char('/') + name + QStringLiteral(".golden"));
     if (!f.open(QIODevice::ReadOnly))
         return {};
-    return f.readAll().replace("@DIR@", "/dev");
+    return f.readAll().replace("@DIR@", "/dev").replace("@PLAN_DIGEST@", PLAN_DIGEST);
 #else
     Q_UNUSED(name);
     return {};
@@ -3408,6 +3413,103 @@ void BackendTest::planBindingCopiesWhatTheDiskReports()
     const QJsonObject manual = planOf(QStringLiteral("manual"));
     QVERIFY(plan::diskIdentity(manual).isEmpty());
     QVERIFY(!plan::bind(planTestRecipe(), manual).contains(QStringLiteral("diskIdentity")));
+}
+
+// `plan` as a fisherman with `plan.binding` (tuna-os/fisherman#472) prints
+// it: `binding` in place of its own, or none when `binding` is undefined.
+static QJsonObject withBinding(QJsonObject plan, const QJsonValue &binding)
+{
+    if (binding.isUndefined())
+        plan.remove(QStringLiteral("binding"));
+    else
+        plan.insert(QStringLiteral("binding"), binding);
+    return plan;
+}
+
+static QJsonObject planDigestBinding(const QJsonValue &readImage = false)
+{
+    QJsonObject b{{QStringLiteral("digest"), QLatin1String(PLAN_DIGEST)}};
+    if (!readImage.isUndefined())
+        b.insert(QStringLiteral("read_image"), readImage);
+    return b;
+}
+
+void BackendTest::planBindingCopiesThePlansBinding()
+{
+    REQUIRE_PLAN_GOLDENS();
+    const QString digest = QLatin1String(PLAN_DIGEST);
+    const QJsonObject grub = withBinding(planOf(QStringLiteral("grub2-plain")), planDigestBinding(true));
+    const QJsonObject expected{{QStringLiteral("digest"), digest}, {QStringLiteral("readImage"), true}};
+    QCOMPARE(plan::planBinding(grub), expected);
+    const QJsonObject bound = plan::bind(planTestRecipe(), grub);
+    QCOMPARE(bound.value(QStringLiteral("planBinding")).toObject(), expected);
+    QVERIFY(bound.contains(QStringLiteral("diskIdentity")));
+    QVERIFY(!planTestRecipe().contains(QStringLiteral("planBinding")));
+
+    // The pinned fisherman's own `plan.binding`, with and without
+    // --read-image.
+    for (const auto &[name, readImage] : {QPair<QString, bool>{QStringLiteral("grub2-plain"), false},
+                                          QPair<QString, bool>{QStringLiteral("read-image-registry"), true}}) {
+        const QJsonObject golden = planOf(name);
+        if (!golden.contains(QStringLiteral("binding")))
+            QSKIP("the pinned fisherman has no plan.binding");
+        QCOMPARE(plan::bind(planTestRecipe(), golden).value(QStringLiteral("planBinding")).toObject(),
+                 (QJsonObject{{QStringLiteral("digest"), digest}, {QStringLiteral("readImage"), readImage}}));
+    }
+
+    // An older fisherman prints no binding: the disk only.
+    const QJsonObject older = withBinding(grub, QJsonValue(QJsonValue::Undefined));
+    QVERIFY(plan::planBinding(older).isEmpty());
+    const QJsonObject diskOnly = plan::bind(planTestRecipe(), older);
+    QVERIFY(!diskOnly.contains(QStringLiteral("planBinding")));
+    QVERIFY(diskOnly.contains(QStringLiteral("diskIdentity")));
+
+    // read_image is copied only as a boolean.
+    QCOMPARE(plan::planBinding(withBinding(QJsonObject(), planDigestBinding(QStringLiteral("yes")))),
+             (QJsonObject{{QStringLiteral("digest"), digest}}));
+
+    // Not for another disk than the recipe's.
+    for (const QString &disk : {QStringLiteral("/dev/sdb"), QString()})
+        QCOMPARE(plan::bind(planTestRecipe(disk), grub), planTestRecipe(disk));
+
+    // A manual layout is bound to its plan, not to a disk.
+    const QJsonObject manual = withBinding(planOf(QStringLiteral("manual")), planDigestBinding(false));
+    const QJsonObject manualBound = plan::bind(planTestRecipe(), manual);
+    QCOMPARE(manualBound.value(QStringLiteral("planBinding")).toObject(),
+             (QJsonObject{{QStringLiteral("digest"), digest}, {QStringLiteral("readImage"), false}}));
+    QVERIFY(!manualBound.contains(QStringLiteral("diskIdentity")));
+
+    // Every plan error code has a line (validate_<code>).
+    const branding::Branding copy = planCopy();
+    for (const char *code : {"plan_stale", "plan_binding_invalid", "disk_identity_mismatch", "disk_identity_invalid"}) {
+        const QString line = copy.text(QStringLiteral("validate_") + QLatin1String(code));
+        QVERIFY2(!line.isEmpty() && !line.contains(QLatin1Char('{')), code);
+    }
+}
+
+void BackendTest::planBindingIsNotCopiedWhenMalformed_data()
+{
+    QTest::addColumn<QJsonValue>("binding");
+    const QString hex = QStringLiteral("ab").repeated(32);
+    QTest::newRow("null") << QJsonValue(QJsonValue::Null);
+    QTest::newRow("string") << QJsonValue(QStringLiteral("sha256:") + hex);
+    QTest::newRow("empty") << QJsonValue(QJsonObject());
+    QTest::newRow("empty digest") << QJsonValue(QJsonObject{{QStringLiteral("digest"), QString()}});
+    QTest::newRow("short") << QJsonValue(QJsonObject{{QStringLiteral("digest"), QStringLiteral("sha256:ABC")}});
+    QTest::newRow("upper") << QJsonValue(QJsonObject{{QStringLiteral("digest"), QStringLiteral("sha256:") + hex.toUpper()}});
+    QTest::newRow("md5") << QJsonValue(QJsonObject{{QStringLiteral("digest"), QStringLiteral("md5:") + QStringLiteral("ab").repeated(16)}});
+    QTest::newRow("newline") << QJsonValue(QJsonObject{{QStringLiteral("digest"), QStringLiteral("sha256:") + hex + QLatin1Char('\n')}});
+    QTest::newRow("number") << QJsonValue(QJsonObject{{QStringLiteral("digest"), 7}});
+    QTest::newRow("no digest") << QJsonValue(QJsonObject{{QStringLiteral("read_image"), true}});
+}
+
+void BackendTest::planBindingIsNotCopiedWhenMalformed()
+{
+    REQUIRE_PLAN_GOLDENS();
+    QFETCH(QJsonValue, binding);
+    const QJsonObject grub = withBinding(planOf(QStringLiteral("grub2-plain")), binding);
+    QVERIFY(plan::planBinding(grub).isEmpty());
+    QVERIFY(!plan::bind(planTestRecipe(), grub).contains(QStringLiteral("planBinding")));
 }
 
 void BackendTest::planTargetRowsMarkUnknownValues()
@@ -3541,8 +3643,10 @@ void BackendTest::planBindsTheInstallRecipe()
     QCOMPARE(c.planDiskIdentity().value(QStringLiteral("serial")).toString(), QStringLiteral("FIXTURE-SDA-SERIAL"));
     const QJsonObject bound = c.confirmedRecipe();
     QCOMPARE(bound.value(QStringLiteral("diskIdentity")).toObject(), plan::diskIdentity(grub.plan));
+    QCOMPARE(bound.value(QStringLiteral("planBinding")).toObject(), plan::planBinding(grub.plan));
     QJsonObject unbound = bound;
     unbound.remove(QStringLiteral("diskIdentity"));
+    unbound.remove(QStringLiteral("planBinding"));
     QCOMPARE(unbound, c.installRecipe());
     // The recipe stays on stdin: the bound one still carries the passphrase
     // only inside its JSON.
@@ -3552,6 +3656,7 @@ void BackendTest::planBindsTheInstallRecipe()
     // Another disk since: nothing is bound.
     c.setDisk(QStringLiteral("/dev/sdb"));
     QVERIFY(!c.confirmedRecipe().contains(QStringLiteral("diskIdentity")));
+    QVERIFY(!c.confirmedRecipe().contains(QStringLiteral("planBinding")));
 
     // An invalid recipe or no answer: no rows, nothing bound.
     for (const plan::Result &none : {plan::parse(planGolden(QStringLiteral("identity-serial-changed"))),
@@ -3563,13 +3668,19 @@ void BackendTest::planBindsTheInstallRecipe()
         QCOMPARE(d.confirmedRecipe(), d.installRecipe());
     }
 
-    // A manual layout shows what it erases and binds nothing.
+    // A manual layout shows what it erases and binds no disk, only its plan
+    // (when the pinned fisherman prints a binding).
     InstallerController m;
     m.setDisk(QStringLiteral("/dev/sda"));
-    m.applyPlanReply(m.planGeneration(), plan::parse(planGolden(QStringLiteral("manual"))));
+    const plan::Result manual = plan::parse(planGolden(QStringLiteral("manual")));
+    m.applyPlanReply(m.planGeneration(), manual);
     QCOMPARE(m.planRows().size(), 3);
     QVERIFY(m.planDiskIdentity().isEmpty());
-    QCOMPARE(m.confirmedRecipe(), m.installRecipe());
+    QJsonObject manualRecipe = m.confirmedRecipe();
+    QVERIFY(!manualRecipe.contains(QStringLiteral("diskIdentity")));
+    QCOMPARE(manualRecipe.value(QStringLiteral("planBinding")).toObject(), plan::planBinding(manual.plan));
+    manualRecipe.remove(QStringLiteral("planBinding"));
+    QCOMPARE(manualRecipe, m.installRecipe());
 }
 
 QTEST_APPLESS_MAIN(BackendTest)

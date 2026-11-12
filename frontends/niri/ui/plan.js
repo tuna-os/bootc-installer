@@ -3,9 +3,10 @@
 // The install plan of the confirm page (tuna-os/fisherman#371).
 //
 // The backend's `plan` runs `fisherman plan --json -` and prints a view
-// (installer/plan.go): the rows as kinds with their values, the target disk
-// and the recipe's `diskIdentity`. rows() gives each kind its copy keys;
-// bind() copies the identity into the install recipe. The rules are those of
+// (installer/plan.go): the rows as kinds with their values, the target disk,
+// the recipe's `diskIdentity` and its `planBinding`. rows() gives each kind
+// its copy keys; bind() copies the identity and the binding into the install
+// recipe. The rules are those of
 // shared/python/bootc_shared/plan.py; installer/plan_test.go sends
 // fisherman's golden plans through the backend and this file (under node,
 // tests/plan-rows.mjs) and checks the lines of the Python reader.
@@ -45,16 +46,36 @@ function rows(view, text) {
     return out
 }
 
-// `recipe` with `diskIdentity` from the view, or `recipe` itself when the
-// plan cannot bind it: no plan, a manual layout, no known identity, or a
-// plan for another disk than the recipe's `disk`.
+// `recipe` with `diskIdentity` and `planBinding` from the view, or `recipe`
+// itself when the plan cannot bind it. `diskIdentity` needs a known identity
+// of the recipe's `disk` (not a manual layout or a plan for another disk);
+// `planBinding` needs a binding (installer/plan.go copies only a well-formed
+// one) and a plan that is not for another disk than the recipe's `disk`: a
+// manual layout, which has no target disk, is still bound to its plan.
 function bind(recipe, view) {
-    if (!view || !view.valid || !view.diskIdentity || !view.disk || !recipe || view.disk !== recipe.disk)
+    if (!view || !view.valid || !recipe)
         return recipe
-    var identity = {}
+    var fields = {}
     var any = false
-    for (var k in view.diskIdentity) {
-        identity[k] = view.diskIdentity[k]
+    if (view.diskIdentity && view.disk && view.disk === recipe.disk) {
+        var identity = {}
+        var known = false
+        for (var k in view.diskIdentity) {
+            identity[k] = view.diskIdentity[k]
+            known = true
+        }
+        if (known) {
+            fields.diskIdentity = identity
+            any = true
+        }
+    }
+    var saved = view.planBinding
+    if (saved && typeof saved.digest === "string" && /^sha256:[0-9a-f]{64}$/.test(saved.digest)
+            && (!view.disk || view.disk === recipe.disk)) {
+        var binding = { digest: saved.digest }
+        if (typeof saved.readImage === "boolean")
+            binding.readImage = saved.readImage
+        fields.planBinding = binding
         any = true
     }
     if (!any)
@@ -62,6 +83,7 @@ function bind(recipe, view) {
     var bound = {}
     for (var key in recipe)
         bound[key] = recipe[key]
-    bound.diskIdentity = identity
+    for (var f in fields)
+        bound[f] = fields[f]
     return bound
 }

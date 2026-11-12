@@ -453,7 +453,8 @@ public:
     void applyPlanReply(int generation, const plan::Result &result);
     int planGeneration() const { return m_planGeneration; }
     // What Install writes to fisherman: installRecipe(), bound to the disk of
-    // the plan with `diskIdentity` when the plan is for the recipe's disk;
+    // the plan with `diskIdentity` when the plan is for the recipe's disk,
+    // and to the plan itself with `planBinding` (plan::bind());
     // installRecipe() unchanged without one. Public for tests.
     QJsonObject confirmedRecipe() const;
     // How an install ended: "succeeded", "cancelled" or "failed"

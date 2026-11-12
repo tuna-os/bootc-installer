@@ -34,7 +34,7 @@
     "translatable": "strings marked (qsTr, tr); template `i18n/tuna-installer-kde.ts`; CMake compiles `i18n/tuna-installer-kde_fr.ts` to a `.qm` that loads for the locale; catalogs kept current by a check (#300)",
     "progress_bar": "yes",
     "source_check": "confirm step, Selected image card; a blocked source holds Install",
-    "install_plan": "yes: the target disk (model, size, serial; unknown when the disk does not report it) and each device erased, on a card of the confirm step; Install binds the recipe to that disk with `diskIdentity`; without a plan (an older fisherman) the step is as before",
+    "install_plan": "yes: the target disk (model, size, serial; unknown when the disk does not report it) and each device erased, on a card of the confirm step; Install binds the recipe to that disk with `diskIdentity`, and to the plan with `planBinding` when fisherman reports `plan.binding`; without a plan (an older fisherman) the step is as before",
     "bootc_store_view": "yes, on the confirm step; the system that this computer runs is a second install source there (experimental, never the default, never on live media)",
     "source_reuse_progress": "yes: a label under the step line; the bar is indeterminate until the first step; the cancel dialog says that the disk does not change",
     "done_not_verified": "yes",

@@ -14,8 +14,10 @@
 //
 // A plan is not a permission: the install checks the device again. To make
 // it refuse a disk that is not the one the user confirmed, the controller
-// copies the plan's identity into the recipe as `diskIdentity` (bind()).
-// Without a plan (an older fisherman, a timeout) the install runs as before.
+// copies the plan's identity into the recipe as `diskIdentity` (bind()), and
+// to make it refuse an install whose plan changed since the user confirmed
+// it, the plan's `binding` as `planBinding` (plan_stale). Without a plan (an
+// older fisherman, a timeout) the install runs as before.
 
 #include <QByteArray>
 #include <QJsonObject>
@@ -74,9 +76,18 @@ QJsonObject identity(const QJsonObject &plan);
 // identity, each only when the plan knows it. {} when it knows none.
 QJsonObject diskIdentity(const QJsonObject &plan);
 
-// `recipe` with `diskIdentity` from `plan`, or `recipe` unchanged when the
-// plan cannot bind it: no plan, a manual layout, no known identity, or a
-// plan for another disk than the recipe's `disk`.
+// The recipe's `planBinding`: `plan.binding.digest`, and `read_image` as
+// `readImage` when it is a boolean (PLAN.md, "plan.binding"). {} when the
+// plan has no binding (a fisherman before it) or its digest is not
+// `sha256:` and 64 lowercase hex digits.
+QJsonObject planBinding(const QJsonObject &plan);
+
+// `recipe` bound to `plan`, or `recipe` unchanged when the plan cannot bind
+// it. `diskIdentity` is set when the plan knows an identity of the recipe's
+// `disk` (not for a manual layout, an unknown identity or a plan for another
+// disk). `planBinding` is set when the plan has a binding and is not for
+// another disk than the recipe's `disk`: a manual layout, which has no
+// target disk, is still bound to its plan.
 QJsonObject bind(const QJsonObject &recipe, const QJsonObject &plan);
 
 // (device, effect) of `plan.destroys`, in fisherman's order.
