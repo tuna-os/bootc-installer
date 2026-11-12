@@ -20,10 +20,6 @@ install_data(
 
 
 install_data(
-    join_paths(actions_dir, 'background-app-ghost-symbolic.svg'),
-    install_dir: join_paths(get_option('datadir'), 'icons', 'hicolor', 'scalable', 'actions')
-)
-install_data(
     join_paths(actions_dir, 'vanilla-installer-harddisk-symbolic.svg'),
     install_dir: join_paths(get_option('datadir'), 'icons', 'hicolor', 'scalable', 'actions')
 )

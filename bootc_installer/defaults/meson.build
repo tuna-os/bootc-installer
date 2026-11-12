@@ -11,11 +11,7 @@ sources = [
   'disk_plan.py',
   'encryption.py',
   'image.py',
-  'nvidia.py',
-  'vm.py',
   'conn_check.py',
-  'network.py',
-  'theme.py',
   'user.py',
   'qr_companion.py',
 ]
