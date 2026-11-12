@@ -9,8 +9,37 @@ the form `Recipe schema sha256:` with the hash of the file after the change
 line must match the file. `tests/unit/test_shared_contract_docs.py` makes
 sure that it does. Do not edit the hash of an old entry: add an entry.
 
+An entry that changes a contract file also has a `Contracts version:` line
+with the new value of `VERSION`, and a `Contracts sha256:` line with the
+digest of the contract files. `python3 shared/ci/contract_version.py`
+prints both lines. README.md says which files are contract files and which
+change increases which part of the version.
+
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
+
+## 2026-11-12: a strict walkthrough report has a meaning
+
+- Changed: `walkthrough/parity_report.py` computes `strict` and `failures`.
+  A required screen that no good frame shows is a failure: the frame is
+  missing, is not a readable PNG, did not pass the pixel audit, or is a byte
+  copy of another frame. The report has the new keys `failure_reasons`,
+  `screen_outcomes` (`passed`, `failed`, `exempt`, `optional-missing`,
+  `not-measured`) and `contract_digest`. The old keys stay (#186).
+- Added: `screen_exemptions` in a feature manifest
+  (`walkthrough/features.schema.json`): screen id to the reason. No frontend
+  has an exemption.
+- Changed: a PNG-only report from `walkthrough/report_from_pngs.py` is
+  `strict: false` and `advisory: true`.
+- Changed: `walkthrough/aggregate.py` checks each strict report again
+  against its frames, and `--strict` exits 1 on a failure. A report with no
+  `contract_digest` comes from an old emitter: the page labels it advisory.
+  `walkthrough.yml` runs with `--strict`.
+- Version 1.1.0 also covers the entry below, which adds fields to the
+  `error` event (#370). One minor version covers both additions.
+
+Contracts version: `1.1.0`
+Contracts sha256: `57aa1fd377bd3b1d8f07f1b5c82f918ae8c3190eba91e8e68813f9ff8cecb15c`
 
 ## 2026-11-12: the step, the disk and the cleanup of a failure
 
@@ -26,6 +55,18 @@ schema only.
 - Added: four copy keys in `branding/copy-defaults.json`:
   `done_failed_disk_unchanged`, `done_failed_disk_changed`,
   `done_failed_cleanup_failed` and `done_failed_cleanup_timed_out`.
+
+## 2026-11-12: the contracts have a version
+
+- Added: `VERSION`, the version of the contracts. It starts at `1.0.0`, the
+  state of the contracts on this date. README.md ("How a contract changes")
+  has the rule: which files are contract files, and which change increases
+  which part. `ci/contract_version.py` computes the digest, and
+  `tests/unit/test_shared_contract_docs.py` fails when a contract file
+  changes with no new entry and no greater version (#226).
+
+Contracts version: `1.0.0`
+Contracts sha256: `ac5c1a4b3c17fd0aaa71ec359c157f8cbe8564f77b891b8bddd91805c2a5f9eb`
 
 ## 2026-11-12: fisherman `b5b9250`, the image and runtime failure codes
 

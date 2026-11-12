@@ -39,7 +39,7 @@ jobs:
     name: Aggregate walkthroughs
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: dev
@@ -68,13 +68,19 @@ jobs:
           done
           ls -R captures | head -80
 
+      # --strict: a strict report whose required evidence is missing is a
+      # failure (#186). The page is still built and committed first, so it
+      # shows the gap; the last step then fails the job.
       - name: Build docs/walkthrough
+        id: build
         run: |
+          set +e
           python3 shared/walkthrough/aggregate.py captures docs/walkthrough \
-            --repo "$GITHUB_REPOSITORY"
-          cat docs/walkthrough/README.md | head -60
+            --repo "$GITHUB_REPOSITORY" --strict
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+          head -60 docs/walkthrough/README.md
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: walkthrough
           path: docs/walkthrough/
@@ -85,3 +91,9 @@ jobs:
           paths: docs/walkthrough
           message: "docs: refresh cross-frontend walkthrough [skip ci]"
           ssh-key: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}
+
+      - name: Fail on a strict walkthrough failure
+        if: steps.build.outputs.rc != '0'
+        run: |
+          echo "::error::a required screen has no evidence; see the failures in the Build step and docs/walkthrough/README.md"
+          exit 1

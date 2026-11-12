@@ -66,7 +66,9 @@ switches. `publish-flatpak.yml` publishes each frontend from its row, and
 `frontend_table.py` reads the row. `fisherman_pins.py` moves the fisherman
 submodule pin, the one pin. `flatpak_manifest.py` reads a Flatpak manifest
 with its module includes, as flatpak-builder does, and checks its local
-sources. `published_freshness.py` compares the served Flatpaks with `prod`. `tests/unit/test_ci_frontend_table.py`,
+sources. `published_freshness.py` compares the served Flatpaks with `prod`.
+`contract_version.py` computes the digest of the contract files and checks
+the version (see "How a contract changes"). `tests/unit/test_ci_frontend_table.py`,
 `tests/unit/test_ci_fisherman_pins.py` and
 `tests/unit/test_ci_published_freshness.py` cover them. A new frontend adds
 one row to `frontends.json`, and one `Publish (<name>)` job to `release.yml`.
@@ -223,7 +225,13 @@ share the pixel audit (`pixel_audit.py`) and the capture fixtures
 (`capture_fixtures.py`: the cut transcript, the recovery event and the GIF
 step). `tests/unit/test_walkthrough_pixel_audit.py` covers both. The
 compiled harnesses (KDE, COSMIC) write their PNGs and a `texts.json`, and
-their workflows run `report_from_pngs.py`. A new
+their workflows run `report_from_pngs.py`. A report is strict: each
+required screen shows on a page whose frame is present, readable, rendered
+and not a copy of another frame, or the `screen_exemptions` of the
+frontend's feature manifest exempt it with a reason. Else the screen is a
+failure. `aggregate.py --strict` checks each strict report again against
+its frames, and `walkthrough.yml` fails on a failure. A PNG-only report is
+advisory. `tests/unit/test_walkthrough_strict.py` covers each case. A new
 frontend adds a capture harness and a `screenshots-<name>.yml` workflow
 that writes `walkthrough-<name>.json`, and `walkthrough.yml` adds it to the
 page.
@@ -269,6 +277,27 @@ frontend reads the new fixture in the same pull request.
   a recipe field, fisherman must stop support first: the schema cannot lose
   a field that fisherman's `Recipe` struct still has.
 
-The contracts have no version number at this time. The date of the newest
-`CHANGELOG.md` entry, and the sha256 of the recipe schema, identify the
-state of the contracts.
+`VERSION` holds the version of the contracts, in the form
+MAJOR.MINOR.PATCH. One version covers all the contract files. A contract
+file is each file in `shared/` that git tracks, except Markdown, `VERSION`,
+and the CI tools in `ci/`, `browser/` and `e2e/`.
+`ci/contract_version.py` keeps this list.
+
+Each change to a contract file increases the version, in the same pull
+request:
+
+- **MAJOR** for a removal, or for a change that an old reader cannot read.
+- **MINOR** for an addition, a deprecation, or a new recipe schema that adds
+  a field.
+- **PATCH** for a change that no reader sees in its fields: a corrected
+  fixture value, a new test case, a fix in shared code.
+
+The `CHANGELOG.md` entry of the change has two more lines, which
+`python3 shared/ci/contract_version.py` prints:
+`Contracts version:` with the new version, and `Contracts sha256:` with the
+digest of the contract files. `tests/unit/test_shared_contract_docs.py`
+fails when a contract file changes with no new entry, and when the version
+in the entry is not `VERSION`. The `Shared contract version` job of
+`python-test.yml` runs `ci/contract_version.py --check` with the full
+history. It fails when the version is not greater than the version of the
+base, and when the change edits an old entry.

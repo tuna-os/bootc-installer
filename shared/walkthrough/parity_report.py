@@ -34,8 +34,10 @@ screens may be credited — is deliberately identical to
 `scripts/installer-walkthrough.py` so the two sources are comparable.
 """
 
+import hashlib
 import json
 import os
+import struct
 import subprocess
 import sys
 
@@ -216,7 +218,155 @@ def match_screens(pages):
     return reached, detail
 
 
-def write_report(outdir, flavor, pages, harness):
+# ── Strict evidence (#186) ───────────────────────────────────────────────
+#
+# `strict: true` means each required screen of the contract is either
+# reached on a page with good evidence, or exempt by a declared, reasoned
+# entry in the frontend's feature manifest. Good evidence: the page's PNG
+# exists, is a readable PNG, passed the pixel audit (`rendered` is true),
+# and is not a byte-identical copy of another page's frame. A screen that
+# fails is in `failure_reasons`, and `failures` is their count. Nothing
+# here is unconditional.
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.normpath(os.path.join(HERE, "..", ".."))
+
+# The feature manifest of each frontend (the same table as features.py).
+MANIFESTS = {
+    "gnome": "shared/walkthrough/features-gnome.json",
+    "kde": "frontends/kde/features.json",
+    "cosmic": "frontends/cosmic/features.json",
+    "niri": "frontends/niri/features.json",
+    "xfce": "frontends/xfce/features.json",
+}
+
+# An exemption must say why in at least this many characters.
+MIN_REASON = 20
+
+PASSED, FAILED, EXEMPT, OPTIONAL_MISSING, NOT_MEASURED = (
+    "passed", "failed", "exempt", "optional-missing", "not-measured")
+
+
+def contract_digest():
+    """sha256 of the screen contract as this copy has it.
+
+    The report carries it, and the consumer compares it with its own copy:
+    a report made against another contract cannot bless a strict result.
+    """
+    blob = json.dumps([{"id": s["id"], "required": s["required"],
+                        "keywords": sorted(k.lower() for k in s["keywords"])}
+                       for s in SCREENS], sort_keys=True)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def load_exemptions(flavor, repo=REPO):
+    """{screen id: reason} from the frontend's manifest `screen_exemptions`.
+
+    Raises ValueError for an unknown screen or a reason that says nothing.
+    A frontend with no manifest (a test, a new frontend) has none.
+    """
+    rel = MANIFESTS.get(flavor)
+    path = os.path.join(repo, rel) if rel else None
+    if not path or not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as fh:
+        raw = json.load(fh).get("screen_exemptions") or {}
+    ids = {s["id"] for s in SCREENS}
+    out = {}
+    for sid, reason in raw.items():
+        if sid not in ids:
+            raise ValueError(f"{rel}: screen_exemptions names '{sid}', which is "
+                             "not a screen of the contract")
+        if not isinstance(reason, str) or len(reason.strip()) < MIN_REASON:
+            raise ValueError(f"{rel}: the exemption of '{sid}' needs a reason "
+                             f"of at least {MIN_REASON} characters")
+        out[sid] = reason.strip()
+    return out
+
+
+def png_problem(path):
+    """None when `path` is a readable PNG with a size, else the reason."""
+    if not path or not os.path.exists(path):
+        return "frame is missing"
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(24)
+    except OSError as exc:
+        return f"frame cannot be read ({exc.strerror})"
+    if len(head) < 24 or head[:8] != b"\x89PNG\r\n\x1a\n" or head[12:16] != b"IHDR":
+        return "frame is not a readable PNG"
+    width, height = struct.unpack(">II", head[16:24])
+    if not width or not height:
+        return "frame has no pixels"
+    return None
+
+
+def _file_digest(path):
+    try:
+        with open(path, "rb") as fh:
+            return hashlib.sha256(fh.read()).hexdigest()
+    except OSError:
+        return None
+
+
+def page_evidence(pages, resolve=lambda png: png):
+    """{page name: None when the page is good evidence, else the reason}.
+
+    `resolve` maps a page's recorded `png` to the file to check (the
+    consumer reads a copy of the frames in another directory).
+    """
+    out, seen = {}, {}
+    for p in pages:
+        path = resolve(p.get("png"))
+        reason = png_problem(path)
+        if reason is None and p.get("rendered") is not True:
+            reason = ("frame did not pass the pixel audit" if p.get("rendered") is False
+                      else "frame has no pixel audit")
+        if reason is None:
+            digest = _file_digest(path)
+            if digest in seen:
+                reason = f"frame is a byte copy of page '{seen[digest]}'"
+            else:
+                seen[digest] = p["name"]
+        out[p["name"]] = reason
+    return out
+
+
+def evaluate(detail, evidence, exemptions):
+    """Outcome of each screen, and the failures.
+
+    `detail` is match_screens()'s detail; `evidence` is page_evidence().
+    Returns (outcomes, reached, failures). A failure names the screen and
+    says why, with the reason of each page that matched but could not count.
+    """
+    outcomes, reached, failures = {}, {}, []
+    for sc in SCREENS:
+        sid = sc["id"]
+        pages = detail[sid]["on_pages"]
+        good = [n for n in pages if evidence.get(n) is None]
+        bad = [f"{n}: {evidence[n]}" for n in pages if evidence.get(n) is not None]
+        reached[sid] = bool(good)
+        entry = {"required": sc["required"], "evidence": good}
+        if bad:
+            entry["rejected"] = bad
+        if good:
+            entry["outcome"] = PASSED
+        elif sid in exemptions:
+            entry["outcome"] = EXEMPT
+            entry["reason"] = exemptions[sid]
+        elif sc["required"]:
+            entry["outcome"] = FAILED
+            why = ("matched only on pages that cannot count (" + "; ".join(bad) + ")"
+                   if bad else "no captured page shows it")
+            entry["reason"] = why
+            failures.append({"screen": sid, "reason": why})
+        else:
+            entry["outcome"] = OPTIONAL_MISSING
+        outcomes[sid] = entry
+    return outcomes, reached, failures
+
+
+def write_report(outdir, flavor, pages, harness, exemptions=None):
     """Write `<outdir>/walkthrough-<flavor>.json` and print a short summary.
 
     Returns (path, summary). Never raises on a missing ImageMagick: transition
@@ -238,7 +388,11 @@ def write_report(outdir, flavor, pages, harness):
         visual_states = None
 
     rendered = sum(1 for p in pages if p["rendered"])
-    reached, detail = match_screens(pages)
+    _matched, detail = match_screens(pages)
+    if exemptions is None:
+        exemptions = load_exemptions(flavor)
+    evidence = page_evidence(pages)
+    outcomes, reached, failures = evaluate(detail, evidence, exemptions)
 
     drift = verify_spec_matches_upstream()
 
@@ -257,8 +411,13 @@ def write_report(outdir, flavor, pages, harness):
         # False on purpose: the text came from the widget tree, not OCR.
         "ocr": False,
         "screens": reached,
+        # Strict: every required screen has good evidence or a declared
+        # exemption, else it is in failure_reasons. Computed, not asserted.
         "strict": True,
-        "failures": 0,
+        "failures": len(failures),
+        "failure_reasons": failures,
+        "screen_outcomes": outcomes,
+        "contract_digest": contract_digest(),
 
         # ── extra context; a consumer reading only the above is unaffected ─
         "source": "offscreen-capture",
@@ -287,17 +446,15 @@ def write_report(outdir, flavor, pages, harness):
 
     print(f"\n  parity report -> {os.path.basename(path)}")
     for sc in SCREENS:
-        mark = "reached" if reached[sc["id"]] else "NOT reached"
+        outcome = outcomes[sc["id"]]["outcome"]
         req = "required" if sc["required"] else "optional"
-        where = ", ".join(detail[sc["id"]]["on_pages"]) or "-"
-        print(f"    {sc['id']:11s} {mark:12s} ({req:8s}) {where}")
-    missing = [s["id"] for s in SCREENS
-               if s["required"] and not reached[s["id"]]]
-    if missing:
-        # Reported, not fatal. This capture's job is to FILL the parity
-        # matrix; deciding what a gap costs is the matrix's job, and failing
-        # the screenshot build here would just get the emitter disabled.
-        print(f"    NOTE: required screen(s) not detected: {', '.join(missing)}",
+        where = ", ".join(outcomes[sc["id"]]["evidence"]) or "-"
+        print(f"    {sc['id']:11s} {outcome:16s} ({req:8s}) {where}")
+    for f in failures:
+        # The report says so, and the consumer (aggregate.py --strict, run by
+        # walkthrough.yml) fails on it. The capture job itself stays green on
+        # this alone, so the page still shows the gap.
+        print(f"    FAIL: required screen '{f['screen']}': {f['reason']}",
               file=sys.stderr)
     if drift:
         print(f"    WARNING: screen spec has drifted from {SPEC_URL}:",
