@@ -21,6 +21,14 @@ name: End to end
 #     has a German locale and keyboard, a time zone and LUKS, and the
 #     booted guest is checked for all of them (#325).
 #
+#  Artifacts (#270). No job uploads a recipe or a log as it is: the recipe
+#  holds the test LUKS passphrase and password. check-recipe.py stages a
+#  summary and a redacted copy in e2e-publish/ (shared/e2e/publish.py),
+#  and each upload step takes only that directory. The install job
+#  restores the drivers' test values from shared/e2e/test-credentials.json,
+#  so no secret passes between jobs. vm-install.sh keeps the recipe and the
+#  logs private and stages only the allowlisted, redacted files.
+#
 # Every job here is listed in promote.yml's REQUIRED_CHECKS, so nothing
 # reaches prod without all five frontends having installed something that
 # booted. No path filter on purpose: a required check must exist on every
@@ -77,7 +85,7 @@ jobs:
         if: always()
         with:
           name: e2e-recipe-gnome
-          path: e2e-recipe-gnome.json
+          path: e2e-publish/
           if-no-files-found: error
 
   xfce:
@@ -111,7 +119,7 @@ jobs:
         if: always()
         with:
           name: e2e-recipe-xfce
-          path: frontends/xfce/e2e-recipe-xfce.json
+          path: frontends/xfce/e2e-publish/
           if-no-files-found: error
 
   niri:
@@ -153,7 +161,7 @@ jobs:
         if: always()
         with:
           name: e2e-recipe-niri
-          path: frontends/niri/e2e-recipe-niri.json
+          path: frontends/niri/e2e-publish/
           if-no-files-found: error
 
   cosmic:
@@ -193,7 +201,7 @@ jobs:
         if: always()
         with:
           name: e2e-recipe-cosmic
-          path: frontends/cosmic/e2e-recipe-cosmic.json
+          path: frontends/cosmic/e2e-publish/
           if-no-files-found: error
 
   kde:
@@ -245,7 +253,7 @@ jobs:
         if: always()
         with:
           name: e2e-recipe-kde
-          path: frontends/kde/e2e-recipe-kde.json
+          path: frontends/kde/e2e-publish/
           if-no-files-found: error
 
   install:
@@ -284,7 +292,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login -u "${{ github.actor }}" --password-stdin ghcr.io
       - name: install the frontend's recipe for real and boot it
         env:
-          RECIPE: recipes/e2e-recipe-${{ matrix.frontend }}.json
+          RECIPE: recipes/e2e-recipe-${{ matrix.frontend }}.redacted.json
           FRONTEND: ${{ matrix.frontend }}
         run: bash shared/e2e/vm-install.sh "$RECIPE" "$FRONTEND"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

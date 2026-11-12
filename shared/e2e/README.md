@@ -111,8 +111,59 @@ sshd rejected every probe) and adds an `sshd_config.d` drop-in. The BLS
 entries are then patched like fisherman's `bootcrew-ci-test` does
 (`console=ttyS0` so the serial log in the artifact shows the boot,
 `enforcing=0` because the injected files carry no SELinux labels). The
-artifact `e2e-install-<frontend>` holds the recipe that the VM job
-installed, the install log and the boot log.
+artifact `e2e-install-<frontend>` holds the recipe summary, the install
+log, the boot log and the logs of `boot-verify.sh`, all redacted. The next
+section has the rules.
+
+## What the artifacts hold (#270)
+
+A recipe holds the LUKS passphrase and the account password. Here they
+are synthetic test values, but anyone who can read a run can download its
+artifacts. Thus no job uploads a raw recipe or a raw log. `publish.py` has
+the rules:
+
+- `SECRET_FIELDS` names the secret fields: `encryption.passphrase` and
+  `user.password`. A unit test fails on a schema property with a secret
+  name that is not in this list.
+- The summary (`e2e-recipe-<frontend>.summary.json`) copies an allowlist of
+  recipe keys. A secret becomes the fixed marker `<redacted>`, never a hash
+  of the value. The summary lists the names of the keys that it leaves out
+  (`withheld`).
+- The redacted recipe (`e2e-recipe-<frontend>.redacted.json`) is the
+  frontend's bytes, with each secret replaced by the marker of its field.
+  `check-recipe.py` writes it only when the VM job can restore the exact
+  bytes. Thus each secret must be the test value of the driver in
+  `test-credentials.json`. A frontend that changed what the driver typed
+  fails here.
+- A publication directory holds only the names in `STAGE_ALLOWLIST`. Each
+  secret value in a log becomes the marker, and a long log keeps its first
+  and last 2 MiB.
+
+The frontend jobs upload `e2e-publish/`, which holds the summary and the
+redacted recipe. The full recipe stays in `/tmp/tuna-e2e/` on the runner.
+`setup.sh` masks the test credentials in the job log.
+
+The install job downloads the redacted recipe. `check-recipe.py --vm
+--frontend <name>` puts the test values back and writes the recipe to a
+private directory (`mktemp -d`). The install log, the boot log and the
+files of `boot-verify.sh` (`ARTIFACTS_DIR`) also go there. The console
+gets a redacted copy of each stream. On exit, also after a failure,
+`publish.py stage` copies the summary and the allowlisted logs to
+`/tmp/tuna-e2e-vm/`, the one directory that the job uploads. Then the
+script deletes the private directory.
+
+`walkthrough.yml` runs `publish.py audit docs/walkthrough` before it
+uploads or commits the page. The audit accepts only PNG, GIF, JSON and
+Markdown files. It fails on a secret field with a value or on a test
+credential. `tests/unit/test_e2e_publication.py` puts sentinel secrets in
+the recipe, the logs, the backend's answer and the credentials file. It
+makes sure that no sentinel reaches a publication directory or the console,
+as it is, as a hash or as base64.
+
+Not in this change: the receipts and the evidence classes of #270. A
+receipt records the run, the source and the harness of the evidence, and
+how much the evidence proves. Its contract is tunaOS#3475, which is not
+final.
 
 ## Run it locally
 

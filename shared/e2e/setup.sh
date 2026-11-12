@@ -141,6 +141,16 @@ print(json.dumps({
 }, indent=2))
 PY
 
+# The drivers' test credentials (test-credentials.json) are masked in the
+# job log, for a driver or a frontend that prints a recipe (#270). The
+# artifacts never hold them: check-recipe.py publishes a redacted copy.
+if [ -n "${GITHUB_ACTIONS:-}" ]; then
+  python3 -c 'import json,sys
+for fields in json.load(open(sys.argv[1]))["frontends"].values():
+    for value in fields.values():
+        print("::add-mask::" + value)' "$HERE/test-credentials.json"
+fi
+
 # Frontends run these by name; the fake ones must win the PATH lookup.
 echo "== PATH prefix: $HERE/fake-bin"
 if [ -n "${GITHUB_PATH:-}" ]; then

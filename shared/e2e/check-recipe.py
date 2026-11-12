@@ -24,13 +24,23 @@ Independent verdicts, all required:
     object of the leaf it installs, or no key when the leaf has none. The
     shim has no catalog, as a fisherman that a Flatpak stages has none, so
     a frontend that drops the object installs a system without the steps.
-The recipe is then copied to e2e-recipe-<frontend>.json for the VM job.
 
-    check-recipe.py --vm <e2e-recipe-<frontend>.json> <loop device> <out.json>
+The recipe never goes to an artifact or to stdout as it is: it holds the
+test LUKS passphrase and password (#270). The script prints a summary and
+writes two files to the publication staging directory ./e2e-publish/
+(shared/e2e/publish.py): e2e-recipe-<frontend>.summary.json, and
+e2e-recipe-<frontend>.redacted.json, the frontend's bytes with each secret
+replaced by a marker. The redacted copy is written only when the secrets
+are the driver's test values (shared/e2e/test-credentials.json), so the VM
+job can restore the exact bytes, and the check proves that it can.
 
-The VM job's mode (vm-install.sh). It writes the recipe that the VM job
-installs, and proves that it is the frontend's recipe: the same bytes, with
-at most one substitution, the value of `disk`. The disk is the only value
+    check-recipe.py --vm <e2e-recipe-<frontend>.redacted.json> <loop device> <out.json>
+                    [--frontend NAME]
+
+The VM job's mode (vm-install.sh). It restores the test credentials of
+NAME, writes the recipe that the VM job installs to <out.json> (a private
+directory, never an artifact), and proves that it is the frontend's
+recipe: the same bytes, with at most one substitution, the value of `disk`. The disk is the only value
 the frontend cannot know: it is the loop device of another runner. When
 that device path is the same here (vm-install.sh attaches the disk there
 when it is free), the copy is byte for byte. Any other difference fails.
@@ -43,7 +53,9 @@ import subprocess
 import sys
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-REAL = "/usr/local/lib/tuna-e2e/fisherman.real"
+# Overridable for tests/unit/test_e2e_publication.py, as in the shim.
+REAL = os.environ.get("TUNA_E2E_REAL", "/usr/local/lib/tuna-e2e/fisherman.real")
+PUBLISH_DIR = "e2e-publish"
 E2E_DIR = os.environ.get("TUNA_E2E_DIR", "/tmp/tuna-e2e")
 # The catalog every E2E driver gives its frontend (README.md, "The catalog").
 SHARED_CATALOG = os.path.join(REPO, "shared", "e2e", "catalog.json")
@@ -161,6 +173,33 @@ def shared_catalog_failures(catalog, explicit=None):
 _ABSENT = object()
 
 
+def _publish():
+    spec = importlib.util.spec_from_file_location(
+        "shared_e2e_publish", os.path.join(REPO, "shared", "e2e", "publish.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def redacted_copy(raw, frontend, credentials=None):
+    """(redacted bytes, None), or (None, failure): the bytes that the VM
+    job gets, and the proof that it can restore the frontend's own bytes
+    from them. No failure message holds a secret value."""
+    publish = _publish()
+    try:
+        redacted = publish.redact_bytes(raw)
+        if credentials is None:
+            credentials = publish.load_credentials()
+        restored = publish.restore_bytes(redacted, frontend, credentials)
+    except (OSError, KeyError, ValueError) as error:
+        return None, f"redacted recipe: {error}"
+    if restored != raw:
+        return None, ("redacted recipe: a secret in the recipe is not the test value of "
+                      f"the {frontend} driver in shared/e2e/test-credentials.json, so the "
+                      "VM job cannot restore the frontend's bytes")
+    return redacted, None
+
+
 def vm_recipe(frontend_bytes, loopdev):
     """The recipe the VM job installs: `frontend_bytes`, with the JSON
     string of the old `disk` value replaced by `loopdev`. Raises ValueError
@@ -205,12 +244,24 @@ def vm_recipe_failures(frontend_bytes, vm_bytes, loopdev):
 
 def vm_main(args):
     """`--vm <frontend recipe> <loop device> <out>`: see the module doc."""
+    frontend = None
+    if "--frontend" in args:
+        at = args.index("--frontend")
+        if at + 1 >= len(args):
+            sys.exit(__doc__)
+        frontend = args[at + 1]
+        del args[at:at + 2]
     if len(args) != 3:
         sys.exit(__doc__)
     source, loopdev, out = args
     with open(source, "rb") as fh:
         frontend_bytes = fh.read()
+    publish = _publish()
     try:
+        restored = publish.restore_bytes(frontend_bytes, frontend or "", publish.load_credentials())
+        if restored != frontend_bytes:
+            print(f"vm recipe: restored the test credentials of {frontend}")
+        frontend_bytes = restored
         vm_bytes = vm_recipe(frontend_bytes, loopdev)
     except ValueError as error:
         print(f"FAIL: {error}", file=sys.stderr)
@@ -251,8 +302,9 @@ def main(argv=None):
         sys.exit(f"FAIL: {path} does not exist: the frontend never launched fisherman")
     with open(path) as fh:
         recipe = json.load(fh)
-    print(f"recipe from {frontend}:")
-    print(json.dumps(recipe, indent=2))
+    secrets = list(_publish().secret_values(recipe).values())
+    print(f"recipe from {frontend} (summary, shared/e2e/publish.py):")
+    print(json.dumps(_publish().summary(recipe, frontend), indent=2))
 
     failures = []
 
@@ -323,13 +375,24 @@ def main(argv=None):
         print(f"extras: {recipe.get('extras', 'no key')!r}, as the catalog says")
     failures.extend(extras)
 
-    out = f"e2e-recipe-{frontend}.json"
-    shutil.copyfile(path, out)
-    print(f"kept as {out}")
+    with open(path, "rb") as fh:
+        raw = fh.read()
+    publish = _publish()
+    # Emptied first: a file of an earlier run is not evidence of this one.
+    shutil.rmtree(PUBLISH_DIR, ignore_errors=True)
+    os.makedirs(PUBLISH_DIR)
+    publish.stage(path, frontend, PUBLISH_DIR)
+    redacted, problem = redacted_copy(raw, frontend)
+    if problem:
+        failures.append(problem)
+    else:
+        name = f"e2e-recipe-{frontend}.redacted.json"
+        publish.write_staged(PUBLISH_DIR, name, redacted.decode())
+    print(f"published to {PUBLISH_DIR}/: {', '.join(sorted(os.listdir(PUBLISH_DIR)))}")
 
     if failures:
         for f in failures:
-            print(f"FAIL: {f}", file=sys.stderr)
+            print(f"FAIL: {publish.redact_text(f, secrets)}", file=sys.stderr)
         return 1
     print(f"OK: {frontend} produced a recipe the real fisherman accepts")
     return 0

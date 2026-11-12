@@ -80,6 +80,12 @@ jobs:
           echo "rc=$?" >> "$GITHUB_OUTPUT"
           head -60 docs/walkthrough/README.md
 
+      # The publication allowlist (#270): only images, JSON and Markdown,
+      # and no recipe secret or E2E test credential. A failure stops the
+      # upload and the commit.
+      - name: Audit what the artifact and the commit publish
+        run: python3 shared/e2e/publish.py audit docs/walkthrough
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: walkthrough

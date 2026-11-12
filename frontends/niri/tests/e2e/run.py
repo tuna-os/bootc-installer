@@ -185,7 +185,11 @@ def main():
     if not written:
         sys.exit("FAIL: startInstall wrote nothing to the backend's stdin")
     recipe = json.loads(written)
-    print("[e2e] recipe the QML wrote:\n" + json.dumps(recipe, indent=2))
+    # The summary, not the recipe: it holds the test password (#270).
+    shown = json.loads(written)
+    if isinstance(shown.get("user"), dict) and shown["user"].get("password"):
+        shown["user"]["password"] = "<redacted>"
+    print("[e2e] recipe the QML wrote (password redacted):\n" + json.dumps(shown, indent=2))
     if recipe.get("disk") != disk:
         sys.exit(f"FAIL: QML chose {recipe.get('disk')!r}, expected {disk!r}")
     # The account: the fields the user typed, and NO groups. The backend
