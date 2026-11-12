@@ -57,8 +57,12 @@ jobs:
           mkdir -p captures
           for n in gnome kde cosmic niri xfce; do
             wf="screenshots-$n.yml"
+            # Only push and workflow_dispatch runs. A fork pull request from a
+            # branch named dev also has head branch dev, but its event is
+            # pull_request, so its captures are never committed to dev.
             run_id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "$wf" --branch dev \
-                       --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty' || true)
+                       --status success --limit 50 --json databaseId,event \
+                       --jq '[.[] | select(.event == "push" or .event == "workflow_dispatch")][0].databaseId // empty' || true)
             if [ -z "$run_id" ]; then
               echo "::warning::no successful $wf run on dev yet; $n will read as pending"
               continue
