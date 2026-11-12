@@ -186,9 +186,9 @@
       "png": "docs/screenshots/06-qr_companion.png",
       "rendered": true,
       "colours": 290,
-      "flat": 0.8548748353096179,
+      "flat": 0.8548484848484849,
       "ink": 0.03310935441370224,
-      "stddev": 0.14988690008371808,
+      "stddev": 0.14985938465146925,
       "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
     },
     {
@@ -215,10 +215,10 @@
       "name": "user",
       "png": "docs/screenshots/09-user.png",
       "rendered": true,
-      "colours": 326,
+      "colours": 327,
       "flat": 0.7092094861660079,
-      "ink": 0.02059288537549407,
-      "stddev": 0.07839364672606343,
+      "ink": 0.02067193675889328,
+      "stddev": 0.0813719711954672,
       "text_excerpt": "Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Confirm Password Confirm Password"
     },
     {
@@ -226,9 +226,9 @@
       "png": "docs/screenshots/10-confirm.png",
       "rendered": true,
       "colours": 355,
-      "flat": 0.557536231884058,
-      "ink": 0.010316205533596839,
-      "stddev": 0.06954850274389669,
+      "flat": 0.5575494071146245,
+      "ink": 0.010329380764163372,
+      "stddev": 0.06956309402456487,
       "text_excerpt": "Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be undone. Summary Summary Target disk Samsung SSD 870 EVO 500GB (/dev/sda, 465.8 GiB) Target disk Samsung"
     },
     {
@@ -267,12 +267,12 @@
     27739,
     29291,
     27037,
-    70839,
-    68062,
+    70835,
+    68061,
     51793,
-    43786,
-    42533,
-    37418,
+    43790,
+    42543,
+    37437,
     38578,
     44391
   ],
