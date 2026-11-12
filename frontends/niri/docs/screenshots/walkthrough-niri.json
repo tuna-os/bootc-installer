@@ -154,11 +154,11 @@
       "name": "02-session",
       "png": "docs/screenshots/02-session.png",
       "rendered": true,
-      "colours": 409,
+      "colours": 410,
       "flat": 0.6247,
       "ink": 0.026266666666666667,
       "stddev": 0.09779041921278185,
-      "sha256": "9efae789ea88c32d4ad49c6ac18b2908ae4e9acd6dce97a97ce5a22d8f591d39",
+      "sha256": "65744320755a56e4b92f5b39539d1e5dd731c8641a459533ae0487b72069f9cc",
       "text_excerpt": "Step 2 of 9 \u00b7 Session Session Keyboard, language and time zone for the installed system. This computer keeps its own. Keyboard and language Keyboard us Language en_US.UTF-8 Timezone Europe/Berlin Network Connected \u2014 downloads will work. Rec"
     },
     {
@@ -169,7 +169,7 @@
       "flat": 0.5597333333333333,
       "ink": 0.1155,
       "stddev": 0.1152965279548122,
-      "sha256": "067d72578d5fc3f1d8d3ee13c1cc8ea32758e80b8afd305449dafae7cf96716a",
+      "sha256": "4c22d447dc55c42c83948dd9e99a7e309a63abb729e21d9d9cb33843e4600d63",
       "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Capture Desktop \u203a Edge ghcr.io/exa"
     },
     {
@@ -212,8 +212,8 @@
       "colours": 528,
       "flat": 0.49853333333333333,
       "ink": 0.0434,
-      "stddev": 0.11601600351490633,
-      "sha256": "3cc471c85e32cf5e0a70483cc26e02ad1b0d115f664da69039d285d5e01061b3",
+      "stddev": 0.11600864622662221,
+      "sha256": "f7cef4f71c1b1b44feb237b9e5c743a9f0ff6c781bf8cfb8a248aad337e834e8",
       "text_excerpt": "Step 7 of 9 \u00b7 Confirm Confirm installation \u26a0  Everything on /dev/sda will be erased. This cannot be undone. Summary Target disk /dev/sda Image Capture Desktop Stable  (ghcr.io/example/os:stable) Filesystem btrfs Encryption No encryption Use"
     },
     {
@@ -268,7 +268,7 @@
       "flat": 0.422,
       "ink": 0.0396,
       "stddev": 0.10962146762859741,
-      "sha256": "8796eacc9b9d3534ed580ae116a6c017348c590b54dad0a18ca1988bd1044395",
+      "sha256": "148bc8b40fd3aed96b52033804dae30f2eac8f29ac7e8e2ac275e1d48683debe",
       "text_excerpt": "Step 8 of 9 \u00b7 Installing Installing TunaOS\u2026 Step 5 of 8 \u2014 Installing OS [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pul"
     },
     {
