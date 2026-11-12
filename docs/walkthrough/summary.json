@@ -45,25 +45,31 @@
   },
   "frontends": {
     "gnome": {
-      "frames": 10,
-      "report": true
+      "frames": 13,
+      "report": true,
+      "kind": "advisory"
     },
     "kde": {
       "frames": 10,
-      "report": true
+      "report": true,
+      "kind": "advisory"
     },
     "cosmic": {
-      "frames": 10,
-      "report": true
+      "frames": 18,
+      "report": true,
+      "kind": "advisory"
     },
     "niri": {
-      "frames": 10,
-      "report": true
+      "frames": 14,
+      "report": true,
+      "kind": "strict"
     },
     "xfce": {
       "frames": 10,
-      "report": true
+      "report": true,
+      "kind": "strict"
     }
   },
-  "problems": []
+  "problems": [],
+  "failures": []
 }

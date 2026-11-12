@@ -10,7 +10,9 @@ Which screens of the shared contract each frontend reaches, as measured by
 reading the visible widget text of every captured page against
 `shared/walkthrough/parity_report.py`. ✅ reached · ❌ required screen not
 reached · ⚠️ optional screen not reached · ➖ not measured (this frontend's
-harness does not read its widget text yet) · ⏳ no capture on record.
+harness does not read its widget text yet) · ⚪ exempt by the frontend's
+`screen_exemptions` · ⏳ no capture on record. A strict report is checked
+again here against its frames; an advisory one is not a pass.
 
 | Screen | GNOME | KDE Plasma | COSMIC | Niri | XFCE |
 |---|---|---|---|---|---|
@@ -21,13 +23,13 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 | `install` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `done` | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-| Frontend | Pages | Rendered | Transitions | Harness |
-|---|---|---|---|---|
-| GNOME | 13 | 13 | 12 | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
-| KDE Plasma | 10 | 10 | 9 | tests/capture.cpp (Kirigami/QML, offscreen) |
-| COSMIC | 18 | 18 | 17 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
-| Niri | 14 | 14 | 13 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
-| XFCE | 10 | 10 | 9 | tests/gui/capture-screens.py (GTK3 under Xvfb) |
+| Frontend | Pages | Rendered | Transitions | Report | Harness |
+|---|---|---|---|---|---|
+| GNOME | 13 | 13 | 12 | advisory (old emitter) | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
+| KDE Plasma | 10 | 10 | 9 | advisory (old emitter) | tests/capture.cpp (Kirigami/QML, offscreen) |
+| COSMIC | 18 | 18 | 17 | advisory (old emitter) | src/capture.rs (libcosmic on lavapipe under Xvfb) |
+| Niri | 14 | 14 | 13 | strict, passed | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
+| XFCE | 10 | 10 | 9 | strict, passed | tests/gui/capture-screens.py (GTK3 under Xvfb) |
 
 ## GNOME
 

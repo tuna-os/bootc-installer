@@ -16,6 +16,53 @@
   },
   "strict": true,
   "failures": 0,
+  "failure_reasons": [],
+  "screen_outcomes": {
+    "welcome": {
+      "required": true,
+      "evidence": [
+        "welcome"
+      ],
+      "outcome": "passed"
+    },
+    "disk": {
+      "required": true,
+      "evidence": [
+        "destination"
+      ],
+      "outcome": "passed"
+    },
+    "encryption": {
+      "required": false,
+      "evidence": [
+        "setup"
+      ],
+      "outcome": "passed"
+    },
+    "summary": {
+      "required": true,
+      "evidence": [
+        "confirm"
+      ],
+      "outcome": "passed"
+    },
+    "install": {
+      "required": false,
+      "evidence": [
+        "progress"
+      ],
+      "outcome": "passed"
+    },
+    "done": {
+      "required": false,
+      "evidence": [
+        "done",
+        "recovery"
+      ],
+      "outcome": "passed"
+    }
+  },
+  "contract_digest": "ce5bcf532ef301196a6a740a9d29a1a88c963ad19b8911f538be482092b67dff",
   "source": "offscreen-capture",
   "harness": "tests/gui/capture-screens.py (GTK3 under Xvfb)",
   "text_source": "widget-tree",
