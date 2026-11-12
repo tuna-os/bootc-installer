@@ -89,15 +89,11 @@ Step 5 of 8 — Installing TunaOS…
 | <img src="kde/07-done.png" width="360"> | **done**  <br><sub>Step 7 of 7 · Finished
 TunaOS is installed
 Remove the installation media and restart the computer.
-Restart now
-&Restart now
-Close
-&Close</sub> |
+The new system has not started yet, so no</sub> |
 | <img src="kde/08-recovery.png" width="360"> | **recovery**  <br><sub>Step 7 of 7 · Finished
 TunaOS is installed
 Remove the installation media and restart the computer.
-Save your recovery key
-Save your recovery</sub> |
+The new system has not started yet, so no</sub> |
 | <img src="kde/09-cancel-confirm.png" width="360"> | **cancel confirm**  <br><sub>Step 6 of 7 · Installing
 Installing
 Installing TunaOS… /dev/nvme0n1. Do not power off the computer.
