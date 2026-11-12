@@ -34,7 +34,7 @@
     "translatable": "strings marked with qsTr; template `i18n/tuna-installer-niri.ts`; ships `i18n/tuna-installer-niri_fr.ts` as a `.qm`, loaded for the locale by `translations/` (a QML module); catalogs kept current by a check (#300)",
     "progress_bar": "yes",
     "source_check": "confirm page, Selected image card; a blocked source holds Install",
-    "install_plan": "no (tuna-os/fisherman#371)",
+    "install_plan": "yes: the target disk (model, size, serial; unknown when the disk does not report it) and each device erased, on a card of the confirm page; Install binds the recipe to that disk with `diskIdentity`; without a plan (an older fisherman) the page is as before",
     "bootc_store_view": "yes, on the confirm page; the system that this computer runs is a second install source there (experimental, never the default, never on live media)",
     "source_reuse_progress": "yes: a line under the step line; the bar holds until the first step; the cancel card says that the disk does not change",
     "done_not_verified": "yes",
