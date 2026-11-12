@@ -129,8 +129,8 @@ other four. Video and credits then leave the contract; nothing else gets
 them.
 
 All five render the identity keys (`name`, `id`, `default_hostname`, URLs);
-see `shared/branding/README.md`. Off live media, Niri and XFCE do
-not use `default_image` yet (#289).
+see `shared/branding/README.md`. Off live media, all five select the leaf
+of `default_image` at the start (`shared/catalog/README.md`).
 
 ## Features
 
@@ -217,10 +217,11 @@ four frontends a catalog, gates, locale pages and a companion.
    screen. Each holds the restart button until the user acknowledges the
    key (#129).
 4. **User account**: all five have the step, and each shows it only when
-   the image needs an account. Three things are still open. The frontends
-   do not agree on the default when the catalog does not set
-   `needs_user_creation` (#288). Four of them put the account only in
-   `wheel` (#302). XFCE asks for the password once (#295).
+   the image needs an account. All five create an account when the catalog
+   does not set `needs_user_creation`. On live media, all five read the
+   flag from the leaf of `live.live_image` (#288). Two things are still
+   open. Four of them put the account only in `wheel` (#302). XFCE asks
+   for the password once (#295).
 5. **Store and tour assets**: only worth it where the desktop has a place
    for artwork. Every resolver already resolves the keys, so this is view
    work only. KDE and COSMIC now show `welcome_image` and
