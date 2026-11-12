@@ -12,6 +12,21 @@ sure that it does. Do not edit the hash of an old entry: add an entry.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-12: the step, the disk and the cleanup of a failure
+
+- Changed: `progress/error-cases.json`. A parser now keeps `step_id`,
+  `disk_changed` and `cleanup` of the `error` event as well as `message`,
+  `code` and `field` (tuna-os/fisherman#449). Each case has the failure
+  page's `lines`. Six new cases are fisherman's own events, and three
+  have parts of the wrong type. The Python, C++, Rust and JavaScript
+  parsers read the file.
+- Added: `bootc_shared.progress.failure_lines()`. The failure page says
+  whether the disk changed, and when the cleanup failed or did not end in
+  time. A part that fisherman did not send adds no line.
+- Added: four copy keys in `branding/copy-defaults.json`:
+  `done_failed_disk_unchanged`, `done_failed_disk_changed`,
+  `done_failed_cleanup_failed` and `done_failed_cleanup_timed_out`.
+
 ## 2026-11-12: fisherman `b5b9250`, the image and runtime failure codes
 
 - Changed: the fisherman pin moves to `b5b9250`. Before the disk is touched,

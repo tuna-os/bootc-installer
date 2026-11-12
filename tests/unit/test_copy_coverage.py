@@ -239,6 +239,11 @@ SOURCE_RENDER = "source_check.rows("
 # install-source choice (#267).
 RECEIPT_RENDER = "completion.receipt_text("
 REUSE_RENDER = "source_check.reuse_rows("
+# The failure page's lines for fisherman's `error` event (fisherman#449):
+# bootc_shared.progress.failure_text() names every done_failed_disk_* and
+# done_failed_cleanup_* line.
+FAILURE_RENDER = "failure_text("
+FAILURE_FAMILIES = ("done_failed_disk_", "done_failed_cleanup_")
 # The progress page's lines for the copy of this computer's system (#267):
 # bootc_shared.progress.source_reuse_text() names every progress_reuse_*
 # line but the cancel question, which a frontend names itself.
@@ -261,6 +266,8 @@ def rendered_source_keys(text, keys):
         found |= {k for k in keys if k.startswith(("source_", "bootc_store_"))}
     if RECEIPT_RENDER in text:
         found |= {k for k in keys if k.startswith("done_receipt_") or k == "done_verification"}
+    if FAILURE_RENDER in text:
+        found |= {k for k in keys if k.startswith(FAILURE_FAMILIES)}
     if REUSE_RENDER in text:
         found |= {k for k in keys if k.startswith("source_reuse_")}
     if COPY_PROGRESS_RENDER in text:

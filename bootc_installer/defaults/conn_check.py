@@ -15,7 +15,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+import os
 import socket
+import subprocess
 from gettext import gettext as _
 
 from gi.repository import Adw, Gtk
@@ -27,12 +29,50 @@ from bootc_installer.utils.run_async import RunAsync
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("BootcInstaller::Conn_Check")
 
+_IN_FLATPAK = os.path.exists("/.flatpak-info")
+
+# The desktop's own network settings, the first tool the host has: GNOME's
+# first, then the others a live image can carry. The same tools as the
+# XFCE (core.NETWORK_TOOLS), KDE (region::networkSettingsCommand), COSMIC
+# (hardware::network_settings_command) and Niri buttons. A sandbox has none
+# of them, so in a Flatpak the script runs on the host.
+NETWORK_SETTINGS_SCRIPT = (
+    "if command -v gnome-control-center >/dev/null 2>&1; then exec gnome-control-center wifi; "
+    "elif command -v nm-connection-editor >/dev/null 2>&1; then exec nm-connection-editor; "
+    "elif command -v systemsettings >/dev/null 2>&1; then exec systemsettings kcm_networkmanagement; "
+    "elif command -v cosmic-settings >/dev/null 2>&1; then exec cosmic-settings network; "
+    "else exit 127; fi"
+)
+
+
+def network_settings_argv(in_flatpak=None) -> list:
+    """The command that opens the network settings, on the host in a
+    Flatpak (`flatpak-spawn --host`)."""
+    if in_flatpak is None:
+        in_flatpak = _IN_FLATPAK
+    argv = ["sh", "-c", NETWORK_SETTINGS_SCRIPT]
+    return (["flatpak-spawn", "--host"] + argv) if in_flatpak else argv
+
+
+def open_network_settings(in_flatpak=None) -> bool:
+    """Start the network settings and do not wait for them. False when the
+    command could not start."""
+    try:
+        subprocess.Popen(network_settings_argv(in_flatpak), stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+    except OSError as error:
+        logger.warning("Could not open the network settings: %s", error)
+        return False
+    return True
+
 
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/default-conn-check.ui")
 class BootcDefaultConnCheck(Adw.Bin):
     __gtype_name__ = "BootcDefaultConnCheck"
 
     btn_recheck = Gtk.Template.Child()
+    btn_network_settings = Gtk.Template.Child()
     page_header = Gtk.Template.Child()
 
     def __init__(self, window, distro_info, key, step, **kwargs):
@@ -52,6 +92,7 @@ class BootcDefaultConnCheck(Adw.Bin):
 
         # signals
         self.btn_recheck.connect("clicked", self.__on_btn_recheck_clicked)
+        self.btn_network_settings.connect("clicked", self.__on_btn_network_settings_clicked)
         self.__window.carousel.connect("page-changed", self.__on_page_changed)
 
     @property
@@ -136,11 +177,17 @@ class BootcDefaultConnCheck(Adw.Bin):
                 _("Installer requires an active internet connection")
             )
             self.btn_recheck.set_visible(True)
+            self.btn_network_settings.set_visible(True)
 
         RunAsync(async_fn, callback)
 
+    def __on_btn_network_settings_clicked(self, widget, *args):
+        # The user connects there, then presses Check Again.
+        open_network_settings()
+
     def __on_btn_recheck_clicked(self, widget, *args):
         widget.set_visible(False)
+        self.btn_network_settings.set_visible(False)
         self.page_header.icon_name = "content-loading-symbolic"
         self.page_header.title = _("Checking Connection")
         self.page_header.subtitle = (

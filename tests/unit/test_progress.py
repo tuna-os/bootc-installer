@@ -410,6 +410,22 @@ class TestFailureReport(unittest.TestCase):
         self.assertIn("field=disk", lines[1])
         self.assertEqual(lines[-2:], ["  a", "  b"])
 
+    def test_names_the_step_the_disk_and_the_cleanup(self):
+        """tuna-os/fisherman#449: the log says which step ran, whether
+        the disk changed and what the teardown did."""
+        key = "abcd-efgh-ijkl-mnop"
+        lines = self.mod.failure_report(
+            1, {"message": "LUKS open: exit status 2", "code": "luks_failed", "field": "",
+                "step_id": "luks", "disk_changed": True,
+                "cleanup": {"status": "timed_out", "message": "close " + key}}, [],
+            recovery_key=key)
+        self.assertEqual(lines[2], "fisherman error: step=luks, disk_changed=yes, "
+                                   "cleanup=timed_out: close [redacted]")
+        older = self.mod.failure_report(1, {"message": "m", "code": "", "field": "",
+                                            "step_id": "", "disk_changed": None,
+                                            "cleanup": None}, [])
+        self.assertFalse(any("disk_changed" in line for line in older))
+
     def test_says_when_there_was_no_error_event(self):
         lines = self.mod.failure_report(137, None, [])
         self.assertEqual(lines[0], "fisherman exited with code 137")

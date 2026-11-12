@@ -243,11 +243,50 @@ function plainRef(ref) {
 
 // The parts of an `error` event: {message, code, field}, "" for a part that
 // is missing or is not a string (shared/progress/error-cases.json).
+// fisherman's `error` event as bootc_shared.progress._error_of() keeps it
+// (shared/progress/error-cases.json): the strings are "" when missing or not
+// a string; disk_changed is the boolean, else null; cleanup is
+// {status, message}, else null, and a status other than ok, failed or
+// timed_out is "" (tuna-os/fisherman#449).
 function errorOf(event) {
-    function text(key) {
-        return typeof event[key] === "string" ? event[key] : ""
+    function text(source, key) {
+        return typeof source[key] === "string" ? source[key] : ""
     }
-    return { message: text("message"), code: text("code"), field: text("field") }
+    var cleanup = null
+    var c = event.cleanup
+    if (c !== null && typeof c === "object" && !Array.isArray(c)) {
+        var status = text(c, "status")
+        cleanup = {
+            status: ["ok", "failed", "timed_out"].indexOf(status) >= 0 ? status : "",
+            message: text(c, "message")
+        }
+    }
+    return {
+        message: text(event, "message"), code: text(event, "code"), field: text(event, "field"),
+        step_id: text(event, "step_id"),
+        disk_changed: typeof event.disk_changed === "boolean" ? event.disk_changed : null,
+        cleanup: cleanup
+    }
+}
+
+// The failure page's copy keys for the last `error` event, in order:
+// whether the disk changed, then a cleanup that failed or timed out
+// (bootc_shared.progress.failure_lines). A part fisherman did not send
+// adds no line.
+function failureLines(error) {
+    var lines = []
+    if (!error)
+        return lines
+    if (error.disk_changed === true)
+        lines.push("done_failed_disk_changed")
+    else if (error.disk_changed === false)
+        lines.push("done_failed_disk_unchanged")
+    var status = error.cleanup ? error.cleanup.status : ""
+    if (status === "failed")
+        lines.push("done_failed_cleanup_failed")
+    else if (status === "timed_out")
+        lines.push("done_failed_cleanup_timed_out")
+    return lines
 }
 
 function milestone(message) {

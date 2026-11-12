@@ -31,9 +31,9 @@ separate file because fisherman's tests replay `fraction-cases.json`
 through its own computation of `overall_pct`.
 
 [`error-cases.json`](error-cases.json) pins what a parser keeps of the
-`error` event: the last one, as `message`, `code` and `field`. A part that
-is missing or is not a string is `""`. The event does not move the bar.
-The same script writes the file, and the same five test suites read it.
+`error` event, and the lines of the failure page. See "The error event"
+below. The event does not move the bar. The same script writes the file,
+and the same five test suites read it.
 
 [`receipt-cases.json`](receipt-cases.json) pins what a parser keeps of the
 `receipt` event, and the lines of the done page. See "The receipt event"
@@ -60,7 +60,7 @@ them.
 | `receipt` | `version`, `written`, `install_id`, `path`, `first_boot_check`, `reason` | What the install did with the installation receipt (tuna-os/fisherman#441) |
 | `source_reuse` | `version`, `phase`, `digest`, `platform`, `source`, `destination`, `destination_digest`, `estimate`, `measured`, `code`, `reason` | The copy of this computer's system before the first step (tuna-os/fisherman#384) |
 | `complete` | `message`, `boot_id` (optional), `overall_pct` | Install finished |
-| `error` | `message`, `code` (optional), `field` (optional) | Terminal failure. `code` and `field` are those of `fisherman validate` (`fisherman/docs/VALIDATE.md`), when the failure has one |
+| `error` | `message`, `code`, `field` (optional), `step_id` (optional), `disk_changed`, `cleanup` | Terminal failure. See "The error event" below |
 
 ## Driving a progress bar
 
@@ -161,6 +161,46 @@ file to them. `bootc_shared.completion.receipt_lines()` is the canonical
 choice of lines. GNOME and XFCE call it. KDE (`sourcecheck::receiptLines`),
 COSMIC (`source_check::receipt_lines`) and Niri (`receiptLines` in
 `ui/progress.js`) port it.
+
+## The error event
+
+fisherman sends one `error` event when the install fails, and nothing
+after it (`fisherman/docs/JSON-PROGRESS-FORMAT.md`). Since
+tuna-os/fisherman#449 the event has a `code` every time. For a recipe
+rule or a preflight check, the code is the code of `fisherman validate`
+(`fisherman/docs/VALIDATE.md`). For another failure, it is a failure code
+that names the operation, or `unknown`. The event also tells the step
+that ran, whether the disk changed, and what the teardown did. A parser
+keeps the last event:
+
+| Field | From |
+|---|---|
+| `message`, `code`, `field`, `step_id` | the string, or `""` when it is missing or is not a string |
+| `disk_changed` | `true` or `false` as fisherman sent it, else null |
+| `cleanup` | `{status, message}`, or null when `cleanup` is missing or is not an object. `status` is `ok`, `failed` or `timed_out`, and `""` for another value |
+
+An older fisherman sends only `message`, and sometimes `code` and `field`.
+Then `disk_changed` and `cleanup` are null.
+
+The failure page shows the lines of
+`bootc_shared.progress.failure_lines()`, after the reason for the
+failure:
+
+| Event | Line |
+|---|---|
+| `disk_changed` is `false` | `done_failed_disk_unchanged`: the disk was not changed |
+| `disk_changed` is `true` | `done_failed_disk_changed`: the disk can hold an incomplete system |
+| `cleanup.status` is `failed` | `done_failed_cleanup_failed`: restart before another attempt |
+| `cleanup.status` is `timed_out` | `done_failed_cleanup_timed_out`: restart before another attempt |
+
+A null part adds no line. The page never says that the disk is not
+changed when fisherman did not say so. A cancelled install (exit 130)
+shows the cancelled page, not these lines. KDE
+(`InstallerController::failureLines`), COSMIC (`progress::failure_lines`)
+and Niri (`failureLines` in `ui/progress.js`) port the rule. Six cases
+of `error-cases.json` are fisherman's own events
+(`internal/progress/testdata/error-events.json`), and a test holds the
+file to them.
 
 ## The copy of this computer's system
 

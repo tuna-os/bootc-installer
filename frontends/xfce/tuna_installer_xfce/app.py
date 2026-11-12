@@ -355,7 +355,7 @@ class InstallerWindow(Gtk.ApplicationWindow):
         log_tail = "".join(self._log_tail) if message is None else message
         self.pages["done"].set_result(
             ok, log_tail, self.pages["progress"].recovery_key(), cancelled=cancelled,
-            receipt=self.pages["progress"].receipt())
+            receipt=self.pages["progress"].receipt(), error=self.pages["progress"].error())
         self._enter(PAGE_ORDER.index("done"))
 
     def _on_delete(self, *_args):

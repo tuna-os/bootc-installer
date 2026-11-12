@@ -239,6 +239,10 @@ class InstallerController : public QObject
     // nothing checked the new system, and what fisherman's `receipt` event
     // says it set up for the first-boot check.
     Q_PROPERTY(QStringList receiptLines READ receiptLines NOTIFY receiptChanged)
+    // The failure page's lines for fisherman's last `error` event
+    // (tuna-os/fisherman#449): whether the disk was changed, and a cleanup
+    // that failed or timed out.
+    Q_PROPERTY(QStringList failureLines READ failureLines NOTIFY installCompleted)
     // The progress step's lines for the copy of this computer's system
     // before the first step (#267): fisherman's `source_reuse` events.
     Q_PROPERTY(QStringList reuseLines READ reuseLines NOTIFY sourceReuseChanged)
@@ -380,8 +384,8 @@ public:
     bool cancelled() const { return m_finished && m_cancelled; }
     QString recoveryKey() const { return m_recoveryKey; }
     // fisherman's reason for the failure: the last `error` event as
-    // {message, code, field} ("" for a part it did not send), or an empty
-    // map before one arrives (shared/progress/error-cases.json).
+    // sourcecheck::errorOf() keeps it, or an empty map before one arrives
+    // (shared/progress/error-cases.json).
     QVariantMap installError() const { return m_installError; }
     bool recoveryAck() const { return m_recoveryAck; }
     void setRecoveryAck(bool v);
@@ -418,6 +422,7 @@ public:
         return m_branding.text(QStringLiteral("source_reuse_install_from"), {{QStringLiteral("value"), reuseRef()}});
     }
     QStringList receiptLines() const;
+    QStringList failureLines() const;
     QJsonValue receipt() const { return m_receipt; }
     QStringList reuseLines() const;
     QJsonValue sourceReuse() const { return m_sourceReuse; }

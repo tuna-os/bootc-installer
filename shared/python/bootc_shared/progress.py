@@ -414,13 +414,71 @@ def copy_cancel(state: dict) -> bool:
             and not view.get("released") and not state.get("current_step"))
 
 
+CLEANUP_STATUSES = ("ok", "failed", "timed_out")
+
+
 def _error_of(event: dict) -> dict:
-    """The parts of an `error` event a frontend shows or logs: `message`,
-    and `code` and `field` ("" from a fisherman that does not send them)."""
-    def text(key):
-        value = event.get(key, "")
+    """The parts of an `error` event a frontend shows or logs
+    (fisherman docs/JSON-PROGRESS-FORMAT.md, tuna-os/fisherman#449):
+
+      message, code, field, step_id
+                    strings; "" when missing or not a string (an older
+                    fisherman sends only `message`)
+      disk_changed  True or False as fisherman sent it; None when it is
+                    missing or not a boolean: then nothing is said about
+                    the disk
+      cleanup       {"status", "message"}, or None when it is missing or
+                    not an object. `status` is ok, failed or timed_out,
+                    "" for any other value
+    """
+    def text(source, key):
+        value = source.get(key, "")
         return value if isinstance(value, str) else ""
-    return {"message": text("message"), "code": text("code"), "field": text("field")}
+    disk_changed = event.get("disk_changed")
+    cleanup = event.get("cleanup")
+    if isinstance(cleanup, dict):
+        status = text(cleanup, "status")
+        cleanup = {"status": status if status in CLEANUP_STATUSES else "",
+                   "message": text(cleanup, "message")}
+    else:
+        cleanup = None
+    return {"message": text(event, "message"), "code": text(event, "code"),
+            "field": text(event, "field"), "step_id": text(event, "step_id"),
+            "disk_changed": disk_changed if isinstance(disk_changed, bool) else None,
+            "cleanup": cleanup}
+
+
+# The failure page's lines for the `error` event, as copy keys
+# (shared/branding/copy-defaults.json).
+FAILURE_DISK_CHANGED = "done_failed_disk_changed"
+FAILURE_DISK_UNCHANGED = "done_failed_disk_unchanged"
+FAILURE_CLEANUP = {"failed": "done_failed_cleanup_failed",
+                   "timed_out": "done_failed_cleanup_timed_out"}
+
+
+def failure_lines(error) -> list:
+    """The copy keys the failure page shows for fisherman's last `error`
+    event (`_error_of`), in order: whether the disk changed, then a
+    cleanup that failed or timed out. A part fisherman did not send adds
+    no line: an older fisherman's page says nothing about the disk."""
+    if not isinstance(error, dict):
+        return []
+    lines = []
+    if error.get("disk_changed") is True:
+        lines.append(FAILURE_DISK_CHANGED)
+    elif error.get("disk_changed") is False:
+        lines.append(FAILURE_DISK_UNCHANGED)
+    cleanup = error.get("cleanup")
+    if isinstance(cleanup, dict) and cleanup.get("status") in FAILURE_CLEANUP:
+        lines.append(FAILURE_CLEANUP[cleanup["status"]])
+    return lines
+
+
+def failure_text(error, text) -> list:
+    """failure_lines() as the strings to show: `text(key)` is the
+    frontend's copy resolver. An empty line (a product hid it) is left
+    out."""
+    return [line for line in (text(key) for key in failure_lines(error)) if line]
 
 
 def apply_progress_event(line: str, state: dict) -> dict | None:
@@ -433,7 +491,8 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
       "pulse"     — bool; True means switch bar to pulse mode
       "complete"  — bool; True means install finished
     An `error` event returns the same dict with no change in it, plus
-      "error"     — {"message", "code", "field"}: why fisherman failed
+      "error"     — {"message", "code", "field", "step_id", "disk_changed",
+                    "cleanup"}: why fisherman failed (`_error_of`)
     ``state`` is mutated in-place to track multi-line context.
     Returns None for non-JSON lines or events that require no UI change.
     """
@@ -541,7 +600,8 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
         # instead of a search of the log for "fatal:".
         state["error"] = _error_of(event)
         return {"fraction": None, "label": None, "pulse": False, "complete": False,
-                "error": dict(state["error"])}
+                "error": {**state["error"], "cleanup": (dict(state["error"]["cleanup"])
+                                                        if state["error"]["cleanup"] else None)}}
 
     return None
 

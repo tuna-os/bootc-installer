@@ -106,6 +106,7 @@ line names.
 | `step_<step_id>` | the label of the install step that is running |
 | `recovery_key_title`, `recovery_key_body`, `recovery_key_copy`, `recovery_key_ack` | the recovery-key panel after a TPM enrolment |
 | `done_title`, `done_subtitle`, `done_restart`, `done_failed_title`, `done_cancelled_title` | the done page: installed, failed, or stopped by the user (fisherman exit code 130) |
+| `done_failed_disk_unchanged`, `done_failed_disk_changed`, `done_failed_cleanup_failed`, `done_failed_cleanup_timed_out` | the failure page: whether fisherman changed the disk, and a cleanup that failed or did not end in time (`shared/progress/README.md`, "The error event") |
 | `store_label` | the store link on the done page, shown only when `store_url` is set |
 | `done_verification` | the done page after an install: the new system is not checked yet (`shared/completion/README.md`) |
 | `done_receipt_<state>`, `done_receipt_reason_<reason>` | the done page after an install: what fisherman's `receipt` event says, with the install ID as `{value}` (`shared/progress/README.md`, "The receipt event") |
