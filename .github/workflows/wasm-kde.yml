@@ -66,8 +66,10 @@ jobs:
         run: |
           source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
           QT="$RUNNER_TEMP/qt/$QT_VERSION"
+          # The browser preview ships no translation catalog: no lrelease for wasm.
           "$QT/wasm_multithread/bin/qt-cmake" -G Ninja -S . -B build-wasm \
             -DQT_HOST_PATH="$QT/gcc_64" \
-            -DBUILD_CAPTURE=ON -DBUILD_TESTING=ON
+            -DBUILD_CAPTURE=ON -DBUILD_TESTING=ON \
+            -DTUNA_TRANSLATIONS=OFF
           cmake --build build-wasm
           ls -l build-wasm/*.wasm

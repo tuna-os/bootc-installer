@@ -74,6 +74,10 @@ contracts, so run them before you push:
 copies because `go:embed` cannot leave the module. Do not edit them. After a
 change in `shared/`, run `go generate ./...` in `installer/`. The tests fail
 when a copy is different from the shared file.
+- `translations/` is a C++ QML module that loads the Qt catalog for the
+  locale, because Quickshell loads none. Its test is
+  `translations/tests/test_catalog.cpp` (the `Translations (niri)` job of
+  `ci-niri.yml`). See the "Translation" section of `README.md`.
 - `i18n_test.go` fails on a text literal in `ui/*.qml` that is not in
   `qsTr()` and not a `root.text()` key.
 

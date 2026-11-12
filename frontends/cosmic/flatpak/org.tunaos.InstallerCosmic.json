@@ -34,6 +34,7 @@
       "build-commands": [
         "cargo --offline build --release",
         "install -Dm755 target/release/tuna-installer-cosmic /app/bin/tuna-installer-cosmic",
+        "for catalog in i18n/*.json; do [ \"$catalog\" = i18n/template.json ] || install -Dm644 \"$catalog\" /app/share/tuna-installer-cosmic/locale/$(basename \"$catalog\"); done",
         "install -Dm644 data/org.tunaos.InstallerCosmic.desktop /app/share/applications/org.tunaos.InstallerCosmic.desktop",
         "install -Dm644 data/org.tunaos.InstallerCosmic.metainfo.xml /app/share/metainfo/org.tunaos.InstallerCosmic.metainfo.xml",
         "install -Dm644 data/icons/hicolor/scalable/apps/org.tunaos.InstallerCosmic.svg /app/share/icons/hicolor/scalable/apps/org.tunaos.InstallerCosmic.svg"

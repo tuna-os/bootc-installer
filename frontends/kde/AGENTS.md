@@ -98,7 +98,12 @@ Put each string that a person reads in `qsTr()` (QML) or `tr()` (C++).
 text, label or title property. The template is `i18n/tuna-installer-kde.ts`.
 After you change a marked string, run
 `python3 ../../shared/i18n/templates.py kde` from this directory and commit
-the template. No translation ships yet. See `../../shared/i18n/README.md`.
+the template. Then run `python3 ../../shared/i18n/catalogs.py fr kde` to
+update the French catalog `i18n/tuna-installer-kde_fr.ts`. CMake compiles
+each catalog to a `.qm` file (`TUNA_TRANSLATIONS`, on by default; it needs
+Qt Linguist Tools), and `src/translations.cpp` loads the file for the
+locale. `test_backend` (`shippedCatalogLoadsAndTranslates`) loads the
+catalog that the build compiled. See `../../shared/i18n/README.md`.
 
 ### QML gotchas already paid for
 

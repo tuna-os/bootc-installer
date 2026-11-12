@@ -59,13 +59,70 @@ The lines of `shared/branding/copy-defaults.json` and the `copy` of a
 `branding.json` are not in a template. A product owns those lines. See
 "Languages" in [../branding/README.md](../branding/README.md).
 
-## What is not done
+## Catalogs
 
-- No frontend ships a translation yet. Each template is the start for one.
-- KDE loads `share/tuna-installer-kde/translations/tuna-installer-kde_<locale>.qm`
-  when it exists, but its build does not compile a `.ts` file to a `.qm` file.
-- Niri has no code that loads a Qt catalog. Quickshell runs the QML, and a
-  `.qm` file has no effect until the frontend installs a translator.
-- XFCE loads `tuna-installer-xfce.mo` from `/app/share/locale` or
-  `/usr/share/locale`. Its Flatpak installs no `.mo` file yet.
-- COSMIC uses a small `tr()` shim, not Fluent (`fl!`). `src/i18n.rs` says why.
+A catalog is a template with translations. `catalogs.py` writes the
+catalog of a language for each frontend, and its `--check` fails when the
+messages of a catalog are not the messages of its template, or when a
+translation drops or adds a placeholder.
+
+```bash
+python3 shared/i18n/catalogs.py fr          # write the French catalog of each frontend
+python3 shared/i18n/catalogs.py fr niri     # write one catalog
+python3 shared/i18n/catalogs.py --check     # exit 1 when a catalog is out of date
+```
+
+Run the script for each language after you run `templates.py`.
+`tests/unit/test_frontend_translation_catalogs.py` runs the check.
+
+Each message gets its translation in this order:
+
+1. The translation that the catalog has. The script keeps the work of a
+   translator.
+2. The translation of the same English text in `po/<lang>.po` of GNOME,
+   if that entry is translated and is not fuzzy.
+3. No translation. The script does not make up a translation. A message
+   with no translation shows the English text.
+
+| Frontend | Catalog | Build | Load |
+|---|---|---|---|
+| KDE | `i18n/tuna-installer-kde_<lang>.ts` | CMake compiles it to `.qm` and installs it in `share/tuna-installer-kde/translations` | `src/translations.cpp`, from `main.cpp` |
+| Niri | `i18n/tuna-installer-niri_<lang>.ts` | `translations/CMakeLists.txt` compiles it to `.qm` and installs it in `share/tuna-installer-niri/translations` | the QML module `TunaInstaller.Translations` (`translations/catalog.cpp`), from `ui/i18n.js` |
+| XFCE | `po/<lang>.po` | the Flatpak compiles it to `share/locale/<lang>/LC_MESSAGES/tuna-installer-xfce.mo` | `tuna_installer_xfce/i18n.py` |
+| COSMIC | `i18n/<lang>.json` | the Flatpak installs it in `share/tuna-installer-cosmic/locale` | `src/i18n.rs` |
+
+Each frontend has a test that loads its catalog and translates a known
+string: `shippedCatalogLoadsAndTranslates` in KDE `test_backend`,
+`translations/tests/test_catalog.cpp` for Niri (the `Translations (niri)`
+job of `ci-niri.yml`), `tests/test_catalogs.py` for XFCE and
+`the_shipped_french_catalog_loads_and_translates` in COSMIC `i18n.rs`.
+The tests prove the catalog and the code that loads it. Only the
+`<frontend> / publish / Build OCI` job of each frontend proves that the
+Flatpak installs the catalog.
+
+Quickshell runs the Niri QML in a plain `QQmlEngine`, and that engine
+loads no catalog. Thus the Niri frontend has a small QML module in C++
+that loads the `.qm` file for the locale and retranslates the engine. The
+launcher of the Flatpak puts the module on `QML_IMPORT_PATH`. Where the
+module is not there (the screenshot harness, the wasm preview), the text
+stays English.
+
+The XFCE Flatpak sets `separate-locales` to `false`. Otherwise
+`flatpak-builder` moves `share/locale` to a `.Locale` extension, and the
+OCI bundle does not hold that extension.
+
+### The first language
+
+Each frontend ships French first. French is one of the most complete
+languages in `po/` of GNOME. On 2026-11-12, twelve languages had the same
+number of translated messages (71 of 269), and each one gave the same
+strings to the frontends. French is the choice from that group. The test
+`test_the_seed_is_one_of_the_most_complete_gnome_languages` holds it. Only
+the strings that GNOME has translated have a French translation. The other
+strings show English until a translator adds them.
+
+COSMIC keeps its `tr()` shim and does not use Fluent (`fl!`). The JSON
+catalog uses the English text as the key, the same as gettext and Qt, so
+the script fills it from `po/` of GNOME. Fluent uses a second name for each
+message, and it adds two dependencies and a new `cargo-sources.json`.
+`src/i18n.rs` gives the full reason.

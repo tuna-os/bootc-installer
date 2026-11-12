@@ -12,6 +12,7 @@
 #include "validate.h"
 #include "redact.h"
 #include "sourcecheck.h"
+#include "translations.h"
 
 #include <QDir>
 #include <QFile>
@@ -29,6 +30,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTranslator>
 #include <QUrl>
 
 #include <csignal>
@@ -159,6 +161,7 @@ private slots:
     void connectivityTriesTheImageRegistryFirst();
     // #300
     void qmlStringsGoThroughQsTr();
+    void shippedCatalogLoadsAndTranslates();
     void confirmPageListsNoLocaleRows();
 
     // The user block follows the account step: omitted when the selected
@@ -3110,6 +3113,39 @@ void BackendTest::connectivityTriesTheImageRegistryFirst()
         QVERIFY2(page.contains(QStringLiteral("NetworkGate {")), step);
         QVERIFY2(page.contains(QStringLiteral("!networkGate.blocked")), step);
     }
+}
+
+// #300: the French catalog this build compiled (i18n/tuna-installer-kde_fr.ts
+// to translations/tuna-installer-kde_fr.qm) loads through the function
+// main.cpp calls, and translates a known string in its QML context. Without
+// TUNA_TRANSLATIONS there is no catalog to load, and the test fails rather
+// than passing on nothing.
+void BackendTest::shippedCatalogLoadsAndTranslates()
+{
+#ifndef TUNA_QM_DIR
+    QFAIL("built with -DTUNA_TRANSLATIONS=OFF: no catalog to test");
+#else
+    const QStringList dirs{QStringLiteral("/nonexistent"), QStringLiteral(TUNA_QM_DIR)};
+    QVERIFY(QFileInfo::exists(QStringLiteral(TUNA_QM_DIR "/tuna-installer-kde_fr.qm")));
+
+    QTranslator french;
+    QVERIFY(translations::load(french, QLocale(QStringLiteral("fr_FR")), dirs));
+    // Wizard.qml's Back button, translated in GNOME's po/fr.po.
+    QCOMPARE(french.translate("Wizard", "Back"), QStringLiteral("Retour"));
+    QCOMPARE(french.translate("main", "Cancel"), QStringLiteral("Annuler"));
+    // A message the catalog leaves untranslated has no translation: qsTr()
+    // then shows the English text.
+    QVERIFY(french.translate("Wizard", "User Account").isEmpty());
+
+    // A language with no catalog loads nothing.
+    QTranslator none;
+    QVERIFY(!translations::load(none, QLocale(QStringLiteral("ja_JP")), dirs));
+    QVERIFY(!translations::load(none, QLocale(QStringLiteral("fr_FR")), {QStringLiteral("/nonexistent")}));
+
+    // main.cpp's search path ends in the directory CMake installs into.
+    for (const QString &dir : translations::directories())
+        QVERIFY2(dir.endsWith(QStringLiteral("/tuna-installer-kde/translations")), qPrintable(dir));
+#endif
 }
 
 QTEST_APPLESS_MAIN(BackendTest)
