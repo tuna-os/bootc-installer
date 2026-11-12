@@ -37,6 +37,7 @@ from bootc_installer.defaults.disk_plan import (
     build_auto_partition_recipe,
     build_disk_finals,
     filesystem_options,
+    var_disk_offered,
 )
 
 logger = logging.getLogger("Installer::Disk")
@@ -226,6 +227,7 @@ class BootcDefaultDisk(Adw.Bin):
         # We do the initial setup now, but also refresh when this page becomes active
         # (image selection happens on the previous step, so __init__ runs too early).
         self.__filesystem_options = ["xfs"]
+        self.__image_finals = None
         self.__window.carousel.connect("page-changed", self.__on_carousel_page_changed)
         self.__refresh_from_image_step()
         self.__set_default_hostname()
@@ -313,7 +315,21 @@ class BootcDefaultDisk(Adw.Bin):
             except Exception:
                 unique_hostname = default_hostname
             self.hostname_entry.set_text(unique_hostname)
+        self.__image_finals = finals
         self.__setup_filesystem_row(supported)
+        self.__update_var_disk_offer()
+
+    def __update_var_disk_offer(self):
+        """Turn the /var disk switch off, and say why, when fisherman would
+        refuse a varDisk for this image or filesystem (#252)."""
+        finals = self.__image_finals
+        offered = var_disk_offered(finals, self.__get_selected_filesystem())
+        if not offered and self.var_disk_switch.get_active():
+            self.var_disk_switch.set_active(False)
+        self.var_disk_switch.set_sensitive(offered)
+        self.var_disk_switch.set_subtitle(
+            "" if offered else copy_text.text(getattr(self, "_BootcDefaultDisk__window", None),
+                                              "validate_var_disk_unsupported_composefs"))
 
     # Maps filesystem type → (required tool, package name)
     _FS_TOOLS = disk_host.FS_TOOLS
@@ -343,6 +359,7 @@ class BootcDefaultDisk(Adw.Bin):
 
     def __on_filesystem_changed(self, row, _pspec):
         self.__check_fs_tool(self.__get_selected_filesystem())
+        self.__update_var_disk_offer()
 
     def __check_fs_tool(self, fs):
         """Highlight the filesystem row and block Next if the required mkfs tool is missing."""
