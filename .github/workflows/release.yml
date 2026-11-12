@@ -139,7 +139,6 @@ jobs:
     # (keyless) and store the attestation; no other job gets them.
     permissions:
       contents: write
-      actions: read
       id-token: write
       attestations: write
     steps:
