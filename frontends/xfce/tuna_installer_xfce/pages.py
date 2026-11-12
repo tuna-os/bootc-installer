@@ -1,4 +1,4 @@
-"""TunaOS installer for XFCE — classic GTK3 wizard. Design: ../DESIGN.md.
+"""The bootc installer for XFCE — classic GTK3 wizard. Design: ../DESIGN.md.
 Flow and recipe contract: ../../INSTALLER-FRONTENDS.md."""
 
 import os
