@@ -9,6 +9,7 @@ sources = [
   'timezone.py',
   'disk.py',
   'disk_plan.py',
+  'disk_host.py',
   'encryption.py',
   'image.py',
   'conn_check.py',

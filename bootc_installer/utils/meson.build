@@ -14,6 +14,7 @@ sources = [
   'phone_companion.py',
   'fisherman_runner.py',
   'fisherman_session.py',
+  'host.py',
   'field_check.py',
   'copy.py',
   'sha512crypt.py',

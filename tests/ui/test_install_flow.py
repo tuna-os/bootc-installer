@@ -217,6 +217,8 @@ def flow(tmp_path):
     patchers = [
         patch.dict(os.environ, env, clear=False),
         patch("bootc_installer.defaults.disk.DisksManager", return_value=_FakeDisksManager()),
+        # The host may lack mkfs.xfs; the probe fails closed (#85).
+        patch("bootc_installer.defaults.disk_host.fs_tool_available", return_value=True),
         patch("bootc_installer.defaults.qr_companion.CompanionServer"),
         # The connection-check page moves on by itself; these tests place
         # the carousel themselves.

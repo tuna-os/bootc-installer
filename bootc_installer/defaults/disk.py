@@ -22,7 +22,6 @@
 #   BootcDefaultDisk           — main disk wizard step (whole-disk install)
 
 import pathlib
-import subprocess
 from gettext import gettext as _
 import logging
 import os
@@ -33,6 +32,7 @@ from bootc_installer.core.disks import DisksManager
 from bootc_installer.core.system import Systeminfo
 from bootc_installer.utils import copy as copy_text
 from bootc_installer.utils.field_check import FieldCheck
+from bootc_installer.defaults import disk_host
 from bootc_installer.defaults.disk_plan import (
     build_auto_partition_recipe,
     build_disk_finals,
@@ -316,11 +316,7 @@ class BootcDefaultDisk(Adw.Bin):
         self.__setup_filesystem_row(supported)
 
     # Maps filesystem type → (required tool, package name)
-    _FS_TOOLS = {
-        "xfs": ("mkfs.xfs", "xfsprogs"),
-        "btrfs": ("mkfs.btrfs", "btrfs-progs"),
-        "zfs": ("zpool", "zfsutils-linux"),
-    }
+    _FS_TOOLS = disk_host.FS_TOOLS
 
     def __setup_filesystem_row(self, filesystems):
         """Show a filesystem picker when the selected image supports multiple rootfs types."""
@@ -358,15 +354,7 @@ class BootcDefaultDisk(Adw.Bin):
             self.fs_tool_error_banner.set_visible(False)
             self.__update_next_button()
             return
-        try:
-            result = subprocess.run(
-                ["flatpak-spawn", "--host", "sh", "-c", f"command -v {tool}"],
-                capture_output=True,
-                timeout=3,
-            )
-            available = result.returncode == 0
-        except Exception:
-            available = True  # assume available if check fails
+        available = disk_host.fs_tool_available(tool)
         self.__fs_tool_ok = available
         if available:
             self.filesystem_row.remove_css_class("error")
@@ -493,41 +481,7 @@ class BootcDefaultDisk(Adw.Bin):
 
     def __setup_loopback(self) -> str | None:
         """Create the disk image and attach it as a loop device. Returns the device path."""
-        import subprocess
-
-        # If a loop device was pre-created outside the sandbox, use it directly.
-        pre_created = os.environ.get("BOOTC_VIRTUAL_DISK", "")
-        if pre_created.startswith("/dev/"):
-            logger.info(f"Using pre-created virtual disk: {pre_created}")
-            return pre_created
-
-        img = self._virtual_disk_img()
-        os.makedirs(os.path.dirname(img), exist_ok=True)
-        # Commands that need root must break out of the Flatpak sandbox via flatpak-spawn
-        def host_run(cmd, **kw):
-            return subprocess.run(["flatpak-spawn", "--host"] + cmd, **kw)
-
-        def host_output(cmd, **kw):
-            return subprocess.check_output(["flatpak-spawn", "--host"] + cmd, **kw)
-
-        try:
-            logger.info(f"Creating virtual disk image: {img} ({self._VIRTUAL_DISK_SIZE})")
-            subprocess.run(["truncate", "-s", self._VIRTUAL_DISK_SIZE, img], check=True)
-            host_run(["pkexec", "losetup", "-fP", img], check=True)
-            out = host_output(
-                ["losetup", "--list", "--output", "NAME,BACK-FILE", "--noheadings"],
-                text=True,
-            )
-            for line in out.splitlines():
-                parts = line.split()
-                if len(parts) >= 2 and parts[1] == img:
-                    logger.info(f"Loop device: {parts[0]}")
-                    return parts[0]
-            logger.error("Could not find loop device after setup")
-            return None
-        except Exception as e:
-            logger.error(f"Failed to set up loop device: {e}")
-            return None
+        return disk_host.setup_loop_device(self._virtual_disk_img(), self._VIRTUAL_DISK_SIZE)
 
     def get_finals(self):
         fs = self.__get_selected_filesystem()
@@ -632,19 +586,15 @@ class BootcDefaultDisk(Adw.Bin):
             self.group_var_disk_existing.set_visible(False)
 
     def __check_var_disk_existing(self, disk):
-        """Detect existing filesystem on disk and show the keep/format toggle."""
-        import subprocess
-        try:
-            out = subprocess.check_output(
-                ["flatpak-spawn", "--host", "lsblk", "-no", "FSTYPE", disk.disk],
-                text=True, stderr=subprocess.DEVNULL,
-            ).strip()
-            # If lsblk returns a non-empty fstype the disk has a filesystem
-            has_existing = bool(out)
-        except Exception:
-            has_existing = False
-        if has_existing:
-            logger.info("Existing filesystem detected on /var disk %s", disk.disk)
+        """Detect existing filesystem on disk and show the keep/format toggle.
+
+        When lsblk cannot tell, the toggle is shown with "keep" on, so the
+        disk is not formatted unless the user says so.
+        """
+        existing = disk_host.has_existing_filesystem(disk.disk)
+        if disk_host.offer_keep(existing):
+            if existing:
+                logger.info("Existing filesystem detected on /var disk %s", disk.disk)
             self.group_var_disk_existing.set_visible(True)
             self.var_disk_keep_switch.set_active(True)
         else:

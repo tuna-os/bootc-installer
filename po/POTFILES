@@ -43,6 +43,7 @@ bootc_installer/core/timezones.py
 bootc_installer/defaults/__init__.py
 bootc_installer/defaults/conn_check.py
 bootc_installer/defaults/disk.py
+bootc_installer/defaults/disk_host.py
 bootc_installer/defaults/disk_plan.py
 bootc_installer/defaults/encryption.py
 bootc_installer/defaults/image.py
@@ -63,6 +64,7 @@ bootc_installer/utils/field_check.py
 bootc_installer/utils/finals.py
 bootc_installer/utils/fisherman_runner.py
 bootc_installer/utils/fisherman_session.py
+bootc_installer/utils/host.py
 bootc_installer/utils/i18n.py
 bootc_installer/utils/icons.py
 bootc_installer/utils/image_finals.py
