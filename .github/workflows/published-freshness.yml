@@ -54,9 +54,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       # Full history: the check diffs the served commits against prod.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@v4.4.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Compare the index with prod
         id: check

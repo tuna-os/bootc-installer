@@ -13,7 +13,7 @@ name: Walkthrough
 # matrix says so.
 
 on:
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers] the job runs only for same-repo push or dispatch runs, see its if
     workflows:
       - Screenshots (gnome)
       - Screenshots (kde)
@@ -38,8 +38,13 @@ jobs:
   aggregate:
     name: Aggregate walkthroughs
     runs-on: ubuntu-24.04
+    # A fork pull request from a branch named dev also matches branches: [dev].
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch'))
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@v4.4.0 # zizmor: ignore[artipacked] the push-to-dev step later commits and pushes from this checkout
         with:
           fetch-depth: 0
           ref: dev
@@ -74,13 +79,13 @@ jobs:
             --repo "$GITHUB_REPOSITORY"
           cat docs/walkthrough/README.md | head -60
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@v4.6.2
         with:
           name: walkthrough
           path: docs/walkthrough/
 
       - name: Commit
-        uses: ./.github/actions/push-to-dev
+        uses: ./.github/actions/push-to-dev # zizmor: ignore[self-repository] job runs the action from its checkout of dev, not the workflow commit
         with:
           paths: docs/walkthrough
           message: "docs: refresh cross-frontend walkthrough [skip ci]"

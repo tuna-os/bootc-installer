@@ -164,11 +164,16 @@ in `promote.yml` in the same commit.
 
 ## Action pinning
 
-Every third-party `uses:` in `.github/workflows/` is pinned to a full commit
-SHA (or image digest) with the version as a trailing comment, and Renovate
-(`helpers:pinGitHubActionDigests`) keeps the pins current. The org's own
-`tuna-os/*` reusable workflows and actions are first-party and intentionally
-stay on `@main`; Renovate is told not to pin them.
+Every action `uses:` in `.github/workflows/` names an exact release tag, or
+a branch for `dtolnay/rust-toolchain@stable` and the org's own `tuna-os/*`
+actions. `.github/workflows/actions.lock` records the commit that each one
+runs. `actions-security.yml` runs `gh actions-lock --verify`, which fails
+when the lockfile and the workflows do not agree, and zizmor. To change an
+action, edit its `uses:` line, then run `gh actions-lock`. Renovate waits 7
+days before it takes a new action release. Container images stay pinned by
+digest. The lockfile does not cover a reusable workflow in another
+repository, so `tuna-os/*` reusable workflows are pinned to a full commit
+SHA with `# main` as a trailing comment. Renovate updates that SHA.
 
 ## Things the flow does not do
 
