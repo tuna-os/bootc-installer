@@ -230,6 +230,41 @@ impl Recipe {
         self.experimental = experimental_for(&self.filesystem);
     }
 
+    /// The disk page's filesystem pick (`Message::FilesystemChanged`):
+    /// btrfs gets its subvolumes, the others none.
+    pub fn choose_filesystem(&mut self, filesystem: &str) {
+        self.btrfs_subvolumes = filesystem == "btrfs";
+        self.filesystem = filesystem.to_string();
+    }
+
+    /// The encryption page's pick (`Message::EncryptionChanged`). A type
+    /// that takes no passphrase drops the one typed before, so that a stale
+    /// value cannot reach the recipe; the return value says it did.
+    pub fn choose_encryption(&mut self, enc_type: &str) -> bool {
+        self.encryption.enc_type = enc_type.to_string();
+        if crate::validate::needs_passphrase(enc_type) {
+            return false;
+        }
+        self.encryption.passphrase.clear();
+        true
+    }
+
+    /// The keyboard page's pick (`Message::SelectKeymap`): an XKB layout.
+    pub fn choose_keyboard(&mut self, layout: &str) {
+        self.keyboard = Some(Keyboard {
+            layout: layout.to_string(),
+            ..Keyboard::default()
+        });
+    }
+
+    /// The recipe as fisherman gets it, before the install source of the
+    /// confirm page: with `experimental` for the filesystem.
+    pub fn for_fisherman(&self) -> serde_json::Value {
+        let mut recipe = self.clone();
+        recipe.accept_experimental();
+        serde_json::to_value(&recipe).unwrap_or_default()
+    }
+
     /// An image that is not in the catalog (a custom reference, or the
     /// branding default with no catalog): the image is its own update
     /// target, and every leaf field goes back to its default.

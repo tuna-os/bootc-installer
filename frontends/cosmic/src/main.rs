@@ -25,6 +25,8 @@ mod hardware;
 mod preflight;
 mod tour;
 mod i18n;
+#[cfg(test)]
+mod recipe_compliance;
 
 use cosmic::app::{Core, Settings, Task};
 use cosmic::iced::{Length, Size};
@@ -1077,9 +1079,7 @@ impl TunaInstaller {
     /// The recipe that fisherman gets: the wizard's, with the install
     /// source of the confirm page.
     pub fn install_recipe(&self) -> serde_json::Value {
-        let mut recipe = self.recipe.clone();
-        recipe.accept_experimental();
-        let value = serde_json::to_value(&recipe).unwrap_or_default();
+        let value = self.recipe.for_fisherman();
         match self.reuse_source.as_ref().filter(|_| self.reuse_selected) {
             Some(source) => source_check::apply_reuse(&value, source),
             None => value,
@@ -1474,10 +1474,7 @@ impl cosmic::Application for TunaInstaller {
                 {
                     self.selected_keymap = Some(idx);
                     let keymap = self.keymaps[idx].clone();
-                    self.recipe.keyboard = Some(model::Keyboard {
-                        layout: keymap.clone(),
-                        ..model::Keyboard::default()
-                    });
+                    self.recipe.choose_keyboard(&keymap);
                     if !self.capturing() {
                         preflight::apply_best_effort(&preflight::apply_keymap_command(&keymap));
                     }
@@ -1601,9 +1598,8 @@ impl cosmic::Application for TunaInstaller {
             Message::FilesystemChanged(idx) => {
                 // A position in the list the page drew: the active leaf's
                 // choices (`filesystem_choices`).
-                if let Some(fs) = self.filesystem_choices().get(idx) {
-                    self.recipe.btrfs_subvolumes = fs == "btrfs";
-                    self.recipe.filesystem.clone_from(fs);
+                if let Some(fs) = self.filesystem_choices().get(idx).cloned() {
+                    self.recipe.choose_filesystem(&fs);
                 }
                 self.check_fields()
             }
@@ -1613,12 +1609,11 @@ impl cosmic::Application for TunaInstaller {
                 // to the same choice the user actually saw and clicked.
                 let choices = available_encryption_choices(self.has_tpm);
                 if let Some(choice) = choices.get(idx) {
-                    self.recipe.encryption.enc_type = choice.to_string();
                     // Only a needs_passphrase choice carries a passphrase;
-                    // clear it for the others so a stale value from a
-                    // previous choice can't linger into the recipe.
-                    if !validate::needs_passphrase(choice) {
-                        self.recipe.encryption.passphrase.clear();
+                    // the others clear it, and its confirmation, so a stale
+                    // value from a previous choice can't linger into the
+                    // recipe.
+                    if self.recipe.choose_encryption(choice) {
                         self.passphrase_confirm.clear();
                     }
                 }
