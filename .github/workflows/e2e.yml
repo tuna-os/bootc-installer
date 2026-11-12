@@ -123,7 +123,10 @@ jobs:
           submodules: recursive
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: fisherman/fisherman/go.mod
+          go-version-file: frontends/niri/installer/go.mod
+          # The job builds the Niri backend (go 1.24) and fisherman (go
+          # 1.22). setup-go v6+ sets GOTOOLCHAIN=local, so the newer go.mod
+          # chooses the toolchain.
           cache-dependency-path: fisherman/fisherman/go.sum
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
