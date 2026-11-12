@@ -253,7 +253,8 @@ def merge(syft_doc, frontend, row, repo_url, commit, root=ROOT, subs=None):
         doc["documentDescribes"] = [app["SPDXID"]]
     packages.insert(0, app)
 
-    taken = {p.get("SPDXID") for p in packages}
+    taken = {e.get("SPDXID") for key in ("packages", "files", "snippets")
+             for e in doc.get(key) or [] if isinstance(e, dict)}
     manifest_path = os.path.join(root, row["manifest-path"])
     for pkg, relation in manifest_packages(manifest_path, repo_url, commit, root, subs):
         base, n = pkg["SPDXID"], 2
@@ -290,9 +291,13 @@ def check(doc, frontend, row, commit=None):
         if not doc.get(key):
             problems.append(f"no {key}")
     packages = doc.get("packages") or []
-    ids = [p.get("SPDXID") for p in packages if isinstance(p, dict)]
-    if len(ids) != len(packages):
-        problems.append("a package is not an object")
+    # Syft writes a File element for each file that is evidence of a
+    # package (a Cargo.lock), and an OTHER relationship from the package to
+    # it; those, and any snippet, are elements of the document too.
+    others = [e for key in ("files", "snippets") for e in doc.get(key) or []]
+    ids = [e.get("SPDXID") for e in packages + others if isinstance(e, dict)]
+    if len(ids) != len(packages) + len(others):
+        problems.append("a package, file or snippet is not an object")
     for dup in sorted({i for i in ids if ids.count(i) > 1}, key=str):
         problems.append(f"SPDXID {dup} is used more than once")
     for spdxid in ids:

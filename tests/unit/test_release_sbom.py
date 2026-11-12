@@ -395,3 +395,73 @@ def test_check_cli_fails_on_a_missing_file():
             json.dump(fs.merge(SYFT, "kde", TABLE["kde"], REPO_URL, COMMIT), stream)
         assert fs.main(["check", "--commit", COMMIT, good]) == 0
         assert fs.main(["check", "--commit", COMMIT, good, os.path.join(d, "xfce.spdx.json")]) == 1
+
+
+# The shape Syft v1.54.0 writes for a directory with a Cargo.lock: the crate
+# packages, a File element for the lock file, and an OTHER ("evident by")
+# relationship from each crate to that file. The first dry run of
+# `SBOM (cosmic)` failed `check` on it: the File element was in the document,
+# but `check` counted only packages as elements.
+SYFT_CARGO = {
+    "spdxVersion": "SPDX-2.3", "dataLicense": "CC0-1.0", "SPDXID": "SPDXRef-DOCUMENT",
+    "name": "sbom-src/cosmic",
+    "documentNamespace": "https://anchore.com/syft/dir/sbom-src/cosmic-0",
+    "creationInfo": {"creators": ["Organization: Anchore, Inc", "Tool: syft-1.54.0"],
+                     "created": "2026-11-12T00:00:00Z"},
+    "packages": [
+        {"SPDXID": "SPDXRef-Package-rust-crate-serde-1a2b", "name": "serde",
+         "versionInfo": "1.0.228", "downloadLocation": "NOASSERTION",
+         "externalRefs": [{"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl",
+                           "referenceLocator": "pkg:cargo/serde@1.0.228"}]},
+        {"SPDXID": "SPDXRef-Package-rust-crate-libc-3c4d", "name": "libc",
+         "versionInfo": "0.2.177", "downloadLocation": "NOASSERTION"},
+        {"SPDXID": "SPDXRef-DocumentRoot-Directory-sbom-src-cosmic", "name": "sbom-src/cosmic",
+         "downloadLocation": "NOASSERTION", "primaryPackagePurpose": "FILE"},
+    ],
+    "files": [
+        {"fileName": "frontends/cosmic/Cargo.lock",
+         "SPDXID": "SPDXRef-File-frontends-cosmic-Cargo.lock-afca095b6ecaa6bf",
+         "checksums": [{"algorithm": "SHA1",
+                        "checksumValue": "0000000000000000000000000000000000000000"}],
+         "licenseConcluded": "NOASSERTION", "copyrightText": ""},
+    ],
+    "relationships": [
+        {"spdxElementId": "SPDXRef-DocumentRoot-Directory-sbom-src-cosmic",
+         "relationshipType": "CONTAINS",
+         "relatedSpdxElement": "SPDXRef-Package-rust-crate-serde-1a2b"},
+        {"spdxElementId": "SPDXRef-DocumentRoot-Directory-sbom-src-cosmic",
+         "relationshipType": "CONTAINS",
+         "relatedSpdxElement": "SPDXRef-Package-rust-crate-libc-3c4d"},
+        {"spdxElementId": "SPDXRef-Package-rust-crate-serde-1a2b", "relationshipType": "OTHER",
+         "relatedSpdxElement": "SPDXRef-File-frontends-cosmic-Cargo.lock-afca095b6ecaa6bf",
+         "comment": "evident-by: indicates the package's existence is evident by the given file"},
+        {"spdxElementId": "SPDXRef-Package-rust-crate-libc-3c4d", "relationshipType": "OTHER",
+         "relatedSpdxElement": "SPDXRef-File-frontends-cosmic-Cargo.lock-afca095b6ecaa6bf",
+         "comment": "evident-by: indicates the package's existence is evident by the given file"},
+        {"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES",
+         "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-sbom-src-cosmic"},
+    ],
+}
+
+
+def test_check_accepts_syft_cargo_evidence_files():
+    doc = fs.merge(SYFT_CARGO, "cosmic", TABLE["cosmic"], REPO_URL, COMMIT)
+    # merge keeps Syft's File elements, so the evident-by links resolve.
+    assert doc["files"] == SYFT_CARGO["files"]
+    assert fs.check(doc, "cosmic", TABLE["cosmic"], COMMIT) == []
+    names = {p["name"] for p in doc["packages"]}
+    assert {"serde", "libc"} <= names
+
+
+def test_check_still_refuses_a_dangling_file_reference():
+    doc = fs.merge(SYFT_CARGO, "cosmic", TABLE["cosmic"], REPO_URL, COMMIT)
+    del doc["files"]
+    problems = fs.check(doc, "cosmic", TABLE["cosmic"], COMMIT)
+    assert any("OTHER names unknown 'SPDXRef-File-frontends-cosmic-Cargo.lock" in p
+               for p in problems), problems
+
+
+def test_check_refuses_a_file_id_that_a_package_also_uses():
+    doc = fs.merge(SYFT_CARGO, "cosmic", TABLE["cosmic"], REPO_URL, COMMIT)
+    doc["files"][0]["SPDXID"] = "SPDXRef-Package-rust-crate-libc-3c4d"
+    assert any("more than once" in p for p in fs.check(doc, "cosmic", TABLE["cosmic"], COMMIT))
