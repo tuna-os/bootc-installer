@@ -1,0 +1,75 @@
+{
+  "$comment": "The canonical build and test commands of the Niri frontend: the Go backend in installer/, the QML progress parser and the translations module. shared/ci/frontend_tests.py runs these; tests/unit/test_ci_frontend_meta.py holds each command to the workflow step that it names.",
+  "frontend": "niri",
+  "build": [
+    {
+      "id": "backend",
+      "run": "go build ./...",
+      "cwd": "frontends/niri/installer",
+      "workflow": "ci-niri.yml",
+      "job": "backend",
+      "requires": ["go"]
+    },
+    {
+      "id": "translations-configure",
+      "run": "cmake -S translations -B build -G Ninja -DBUILD_TESTING=ON",
+      "cwd": "frontends/niri",
+      "workflow": "ci-niri.yml",
+      "job": "translations",
+      "requires": ["cmake", "ninja", "c++", "pkg-config:Qt6Qml"]
+    },
+    {
+      "id": "translations-compile",
+      "run": "cmake --build build",
+      "cwd": "frontends/niri",
+      "workflow": "ci-niri.yml",
+      "job": "translations",
+      "requires": ["cmake", "ninja"]
+    }
+  ],
+  "test": [
+    {
+      "id": "vet",
+      "run": "go vet ./...",
+      "cwd": "frontends/niri/installer",
+      "workflow": "ci-niri.yml",
+      "job": "backend",
+      "requires": ["go"]
+    },
+    {
+      "id": "backend",
+      "run": "go test ./...",
+      "cwd": "frontends/niri/installer",
+      "workflow": "ci-niri.yml",
+      "job": "backend",
+      "requires": ["go", "node"]
+    },
+    {
+      "id": "progress",
+      "run": "node tests/progress-fraction-test.mjs",
+      "cwd": "frontends/niri",
+      "workflow": "screenshots-niri.yml",
+      "job": "capture",
+      "requires": ["node"]
+    },
+    {
+      "id": "translations",
+      "run": "ctest --test-dir build --output-on-failure",
+      "cwd": "frontends/niri",
+      "workflow": "ci-niri.yml",
+      "job": "translations",
+      "requires": ["ctest"],
+      "needs": ["translations-configure", "translations-compile"]
+    }
+  ],
+  "compliance": [
+    {
+      "id": "recipe",
+      "run": "go test -v -run 'RecipeCompliance' ./...",
+      "cwd": "frontends/niri/installer",
+      "workflow": "recipe-compliance.yml",
+      "job": "niri",
+      "requires": ["go", "node"]
+    }
+  ]
+}

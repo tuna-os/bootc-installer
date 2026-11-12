@@ -1,0 +1,69 @@
+{
+  "$comment": "The canonical build and test commands of the GNOME frontend (the repository root). shared/ci/frontend_tests.py runs them; tests/unit/test_ci_frontend_meta.py holds each command to the workflow step that it names. Other frontends: frontends/<name>/frontend.json.",
+  "frontend": "gnome",
+  "build": [
+    {
+      "id": "configure",
+      "run": "meson setup build -Dbuild-fisherman=false --prefix=/tmp/tuna-install",
+      "cwd": ".",
+      "workflow": "python-test.yml",
+      "job": "ui",
+      "requires": ["meson", "ninja", "blueprint-compiler", "glib-compile-resources"],
+      "unless_exists": "build/build.ninja"
+    },
+    {
+      "id": "compile",
+      "run": "ninja -C build",
+      "cwd": ".",
+      "workflow": "python-test.yml",
+      "job": "ui",
+      "requires": ["ninja"]
+    }
+  ],
+  "test": [
+    {
+      "id": "lint",
+      "run": "python3 -m ruff check bootc_installer/ tests/",
+      "cwd": ".",
+      "workflow": "python-test.yml",
+      "job": "unit",
+      "requires": ["python3", "python:ruff"]
+    },
+    {
+      "id": "unit",
+      "run": "pytest tests/unit/ -v --tb=short",
+      "cwd": ".",
+      "workflow": "python-test.yml",
+      "job": "unit",
+      "requires": ["pytest", "python:yaml"]
+    },
+    {
+      "id": "pot",
+      "run": "python3 po/update-pot.py --check",
+      "cwd": ".",
+      "workflow": "python-test.yml",
+      "job": "ui",
+      "requires": ["python3", "xgettext"]
+    },
+    {
+      "id": "ui",
+      "run": "xvfb-run -a python3 -m pytest tests/ui/ -v --tb=short -p no:cacheprovider",
+      "cwd": ".",
+      "workflow": "python-test.yml",
+      "job": "ui",
+      "requires": ["xvfb-run", "python3", "python:pytest", "python:gi"],
+      "env": {"GTK_A11Y": "none", "NO_AT_BRIDGE": "1"},
+      "needs": ["configure", "compile"]
+    }
+  ],
+  "compliance": [
+    {
+      "id": "recipe",
+      "run": "python3 -m pytest tests/unit/test_recipe_compliance.py -v -p no:cacheprovider",
+      "cwd": ".",
+      "workflow": "recipe-compliance.yml",
+      "job": "gnome",
+      "requires": ["python3", "python:pytest"]
+    }
+  ]
+}

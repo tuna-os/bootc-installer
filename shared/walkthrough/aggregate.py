@@ -20,7 +20,9 @@ The consumer does not take a report's word for it (#186). For a strict
 report it checks again, against the frames in the capture directory and
 its own copy of the contract: the report's contract digest must match; each
 required screen must show on a page whose frame is present, is a readable
-PNG, passed the pixel audit and is not a byte copy of another frame; else
+PNG, passed the pixel audit, is the file that the emitter audited (the
+page's `sha256`), is not a byte copy of another frame, and changed from the
+frame before it (`transition_pixels`); else
 the frontend's manifest must exempt the screen with a reason
 (`screen_exemptions`). A report that says `strict: true` and `failures: 0`
 fails here when that evidence is missing.
@@ -98,7 +100,8 @@ def verify(flavor, d, repo=None):
         detail = {s["id"]: detail.get(s["id"], {"on_pages": []})
                   for s in parity_report.SCREENS}
     evidence = parity_report.page_evidence(
-        r.get("pages") or [], resolve=lambda png: frame_path(d, png))
+        r.get("pages") or [], resolve=lambda png: frame_path(d, png),
+        transitions=r.get("transition_pixels"))
     outcomes, _reached, found = parity_report.evaluate(detail, evidence, exemptions)
     d["outcomes"] = outcomes
     for f in found:

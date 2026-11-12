@@ -18,6 +18,26 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-12: a stale frame is not evidence
+
+- Changed: `walkthrough/parity_report.py` writes the `sha256` of each
+  frame in `pages`. The consumer (`walkthrough/aggregate.py`) refuses a
+  page when the frame in the artifact has a different `sha256`: the frame
+  is not the frame that the emitter audited. A report without the key is
+  not checked (#186).
+- Changed: a page whose frame changed by `DIFF_PIXELS` (500) pixels or
+  fewer from the frame before it is a stale grab. It cannot be the
+  evidence for a screen. The emitter and the consumer read
+  `transition_pixels`. A transition that ImageMagick did not measure is
+  not checked.
+- Fixed: `changed_pixels()` gives `None` when `compare` fails (a missing
+  frame, two sizes). Before, an error was "0 pixels changed".
+- All five frontends use the change through `write_report`, and no
+  frontend changes. The committed captures in `docs/walkthrough/` pass.
+
+Contracts version: `1.4.0`
+Contracts sha256: `df4a8449bb41c7e8e3d8919ce685e5011daa0f31c9e18a8329b7e7d01e34feb1`
+
 ## 2026-11-12: a failure line for root_flags_failed
 
 - Added: `branding/copy-defaults.json` has `validate_root_flags_failed`,
