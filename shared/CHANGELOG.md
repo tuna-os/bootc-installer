@@ -18,6 +18,18 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-12: a failure line for root_flags_failed
+
+- Added: `branding/copy-defaults.json` has `validate_root_flags_failed`,
+  the failure-page line for fisherman's new runtime failure code
+  `root_flags_failed` (tuna-os/fisherman#450). The fisherman pin moves to
+  that change. `tests/unit/test_failure_code_copy.py` now fails when a
+  failure code in fisherman's `internal/progress/failure.go` has no
+  `validate_<code>` line.
+
+Contracts version: `1.3.0`
+Contracts sha256: `e8238a884458836593fe4c3b525d9bddadc698c4d93cb21eb127dcd05cdb8c39`
+
 ## 2026-11-12: one recipe for the same choices
 
 - Added: `recipe/fixtures/compliance.json`. Each case has the choices of a

@@ -197,6 +197,7 @@
   "validate_user_failed": "The user account could not be created.",
   "validate_luks_boot_args_failed": "The start-up settings for the encrypted disk could not be written.",
   "validate_finalize_failed": "The installer could not finish writing the disk.",
+  "validate_root_flags_failed": "The installer could not write the root mount options into the boot entries.",
   "validate_zfs_experimental": "ZFS is experimental. Accept that, or choose a different filesystem.",
   "validate_experimental_unsupported": "The installer asked for an experimental feature that this version does not know.",
   "validate_locale_invalid": "This language is not a valid locale name. Choose another language.",
