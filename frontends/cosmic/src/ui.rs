@@ -2346,4 +2346,29 @@ mod tests {
             assert!(bare_strings("x.rs", line, &names).is_empty(), "{line}");
         }
     }
+
+    /// The translation template (#300) is written by
+    /// `shared/i18n/templates.py`, which reads `mod copy` as text. These are
+    /// the values rustc compiles, one for each literal form the module uses:
+    /// a plain line, a `\u{..}` escape, and a `\` line continuation. A
+    /// parse that drifts from the compiler fails here; a stale template
+    /// fails the unit test that runs the script with `--check`.
+    #[test]
+    fn the_translation_template_holds_the_compiled_message_ids() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("i18n/template.json");
+        let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path:?}: {e}"));
+        let template: std::collections::HashMap<String, String> =
+            serde_json::from_str(&text).expect("i18n/template.json is a catalog");
+        use super::copy::{BACK, CANCEL_BODY, HEADER_STEP, TIMEZONE_SUBTITLE, WELCOME_CAPTION};
+        for msgid in [BACK, HEADER_STEP, WELCOME_CAPTION, TIMEZONE_SUBTITLE, CANCEL_BODY] {
+            assert_eq!(template.get(msgid).map(String::as_str), Some(""), "{msgid:?}");
+        }
+        // Every entry is one constant's value: no more entries than constants.
+        let names = copy_names(&production("ui.rs"));
+        assert!(template.len() > 90 && template.len() <= names.len(), "{}", template.len());
+        // The template is a catalog that translates nothing.
+        let catalog = crate::i18n::load_catalog(
+            &[path.parent().unwrap().to_str().unwrap()], "template");
+        assert_eq!(crate::i18n::translate(&catalog, BACK), BACK);
+    }
 }

@@ -113,6 +113,16 @@ in these files from `shared/flatpak/`, not from the manifest directory.
 `"../../../shared/flatpak/fisherman.json"` to its `modules`, and sets
 `checkout-submodules` in its `ci/frontends.json` row.
 
+## `i18n/`
+
+The translation templates of KDE, Niri, XFCE and COSMIC. Each frontend
+marks its text in the way of its own toolkit, and has a template in the
+format of that toolkit: a Qt `.ts` file, a gettext `.pot` file, or the JSON
+catalog of COSMIC. `templates.py` writes the templates from the sources, and
+`tests/unit/test_frontend_translation_templates.py` fails when one is out of
+date. A new frontend adds a target to `templates.py` and a lint that fails
+on a bare string. See [i18n/README.md](i18n/README.md).
+
 ## `network/`
 
 The network check before an install that downloads its image:

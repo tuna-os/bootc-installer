@@ -203,6 +203,21 @@ after any edit here, alongside the other copies.
 the GNOME frontend used to hardcode; its README says how a live ISO ships
 it.
 
+## Languages
+
+The frontends translate their own text through the catalog of their
+toolkit (see [../i18n/README.md](../i18n/README.md)). Branding copy is not
+in those catalogs. This is the decision for #311:
+
+- A product owns its copy lines. A product that ships in one language
+  writes its `copy` in that language.
+- `copy-defaults.json` holds the neutral lines in English. No catalog
+  translates them, because a frontend shows a default only when the product
+  sets no line, and a translation of the default would hide that gap.
+- `confirm_quotes` is the one field that has a line for each language.
+  A field for each language in `copy` is a contract change: it needs an
+  entry in `../CHANGELOG.md` and a change to each resolver.
+
 ## Pinning branding for screenshots
 
 A capture resolves branding exactly as the installer does, so an unpinned
