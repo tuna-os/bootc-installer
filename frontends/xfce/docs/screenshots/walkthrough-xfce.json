@@ -140,6 +140,7 @@
       "flat": 0.941937909549898,
       "ink": 0.013991835857772049,
       "stddev": 0.07979232250848825,
+      "sha256": "b413765eb8aad394b38c90f003413d32d3eaa2b0d16a53cb026d730e16ca020e",
       "text_excerpt": "Welcome to TunaOS This assistant installs TunaOS on this computer.\n\nYou'll choose what to install and where; nothing is written to any disk until you confirm on the final step. Capture Desktop The photographed system. Capture Minimal A smal"
     },
     {
@@ -150,6 +151,7 @@
       "flat": 0.8867762380491997,
       "ink": 0.01662369749704587,
       "stddev": 0.0838037574781888,
+      "sha256": "2b65603517740ad32c9161a6c3f7d6b49dae8744470cfa7ebe6de1043ea319dc",
       "text_excerpt": "What do you want to install? Capture Desktop \u203a Beta Capture Desktop \u203a Beta ghcr.io/example/os:beta Capture Desktop \u203a Edge Capture Desktop \u203a Edge ghcr.io/example/os:edge Capture Desktop \u203a Stable Capture Desktop \u203a Stable ghcr.io/example/os:st"
     },
     {
@@ -160,6 +162,7 @@
       "flat": 0.9379901170909872,
       "ink": 0.020786335804060585,
       "stddev": 0.09432690872936103,
+      "sha256": "bd21b57580a03b5679a0ee634d0cf2cac80587712032d34e1a6d14487201abce",
       "text_excerpt": "Where should TunaOS be installed? Samsung SSD 870 EVO 500GB    /dev/sda    465.8 GiB    SATA Samsung SSD 870 EVO 500GB    /dev/sda    465.8 GiB    SATA Extreme SSD    /dev/sdc    931.5 GiB    USB Extreme SSD    /dev/sdc    931.5 GiB    USB "
     },
     {
@@ -170,6 +173,7 @@
       "flat": 0.9158072832742508,
       "ink": 0.013293586851434096,
       "stddev": 0.07538015440699326,
+      "sha256": "ab2d7e4cbd22a94e01de041bcbc14b66a978b53d7cfe8a0a7b2dfca1b9f0061a",
       "text_excerpt": "Disk encryption No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at every boot. TPM TPM Unlocks automatically on this hardware. TPM + passphrase TPM + passphrase Automatic unlock, pa"
     },
     {
@@ -180,6 +184,7 @@
       "flat": 0.7891143286039417,
       "ink": 0.018546317369618905,
       "stddev": 0.0998357754944275,
+      "sha256": "a89a3201b516998949ed386ffc8c69c3425b93ef78578511402ae3ea1efa9a71",
       "text_excerpt": "Name this computer Hostname Confirm password Password Full name Username Your account Time zone Keyboard Language Language, keyboard and time zone"
     },
     {
@@ -190,6 +195,7 @@
       "flat": 0.9473391119074137,
       "ink": 0.023582393104450147,
       "stddev": 0.09604817932438017,
+      "sha256": "070cf9c6628baca04c8d5c792b119e8bd4d7e06f36a71cdd0f1013a799397283",
       "text_excerpt": "Confirm installation Target disk: /dev/sda\nFilesystem:  btrfs\nEncryption:  No encryption\nHostname:    example\nImage:       ghcr.io/example/os:stable\nUser:        jo\nLanguage:    en_US.UTF-8\nKeyboard:    za\nTime zone:   Zulu Checking the sel"
     },
     {
@@ -200,6 +206,7 @@
       "flat": 0.5218875599244589,
       "ink": 0.014478717737639825,
       "stddev": 0.09201753514381247,
+      "sha256": "f155d2918155cc5666c17cbed302def60885cdc40427d0e8109feddab9b05b72",
       "text_excerpt": "Installing TunaOS\u2026  Do not power off the computer. [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pulling image: layer 47/"
     },
     {
@@ -210,6 +217,7 @@
       "flat": 0.9394218197665972,
       "ink": 0.021766500411602344,
       "stddev": 0.08918238152499076,
+      "sha256": "39a63cc6255c4f2872c8823795dcdfe1edca28dc43882fa66d1e70ce3bea34ee",
       "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer.\n\nThe new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation. Close Close Power off Power"
     },
     {
@@ -220,6 +228,7 @@
       "flat": 0.8556728487724565,
       "ink": 0.02670572853614837,
       "stddev": 0.10700472185177018,
+      "sha256": "065ba6d360af50e8472ca35c281aac25c3a32ac648893bf23dc2b3ef2ea26a4e",
       "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer.\n\nThe new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation. Save your recovery key If y"
     },
     {
@@ -230,6 +239,7 @@
       "flat": 0.9409713815311607,
       "ink": 0.00961212532080771,
       "stddev": 0.06601080158337323,
+      "sha256": "035f56185a096dca7ebd0fd5e914f113d224cc4c817a0625358fcca6baa86816",
       "text_excerpt": "Installation cancelled You stopped the installation. The target disk holds an incomplete system: start the installer again to use it.\n\nFull log: /home/runner/.local/state/tuna-installer/install.log Close Close View install log View install "
     }
   ],
