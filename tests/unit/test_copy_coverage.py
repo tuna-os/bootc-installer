@@ -72,7 +72,6 @@ KNOWN_GAPS = {
         "welcome_install": "modules/welcome hardcodes its two body sentences",
         "welcome_install_subtitle": "modules/welcome hardcodes its two body sentences",
         "filesystem_zfs_label": "the disk step offers no ZFS (src/recipe.cpp has no zfs choice)",
-        "confirm_plan_*": "no install plan on the confirm page yet (tuna-os/fisherman#371)",
     },
     "cosmic": {
         "welcome_install": "the welcome page has no install row to label",

@@ -7,6 +7,7 @@
 #include "readiness.h"
 #include "recipe.h"
 #include "installercontroller.h"
+#include "plan.h"
 #include "probe.h"
 #include "diskmodel.h"
 #include "validate.h"
@@ -123,6 +124,15 @@ private slots:
     void wrapperLeadsItsOwnProcessGroup();
     void validateAnswersBecomeCopyLines();
     void validateSendsAPartialRecipeOnStdin();
+    // `fisherman plan --json -` (tuna-os/fisherman#371): fisherman's golden
+    // plans give the lines and the binding of tests/unit/test_shared_plan.py.
+    void planEveryGoldenParses();
+    void planBindingCopiesWhatTheDiskReports();
+    void planTargetRowsMarkUnknownValues();
+    void planEachDestroyedDeviceHasALine();
+    void planUnreadableAnswersAreErrors();
+    void planRecipeGoesOnStdinNeverArgv();
+    void planBindsTheInstallRecipe();
     void liveMediaComesFromTheProbe();
 
     // The image catalog (fisherman's images.json, resolved like the GNOME and
@@ -3291,6 +3301,275 @@ void BackendTest::shippedCatalogLoadsAndTranslates()
     for (const QString &dir : translations::directories())
         QVERIFY2(dir.endsWith(QStringLiteral("/tuna-installer-kde/translations")), qPrintable(dir));
 #endif
+}
+
+// ── fisherman plan (tuna-os/fisherman#371) ──────────────────────────────────
+
+static const char *PLAN_SECRET = "correct-horse-battery-staple";
+
+// A golden plan of the pinned fisherman, with the fixture directory as /dev;
+// empty when the submodule is not checked out.
+static QByteArray planGolden(const QString &name)
+{
+#ifdef PLAN_GOLDENS_DIR
+    QFile f(QStringLiteral(PLAN_GOLDENS_DIR) + QLatin1Char('/') + name + QStringLiteral(".golden"));
+    if (!f.open(QIODevice::ReadOnly))
+        return {};
+    return f.readAll().replace("@DIR@", "/dev");
+#else
+    Q_UNUSED(name);
+    return {};
+#endif
+}
+
+static QJsonObject planOf(const QString &name)
+{
+    return plan::parse(planGolden(name)).plan;
+}
+
+// The neutral copy, as test_shared_plan.py reads COPY_DEFAULTS.
+static branding::Branding planCopy()
+{
+    return branding::fromSources(QJsonObject(), QString());
+}
+
+static QJsonObject planTestRecipe(const QString &disk = QStringLiteral("/dev/sda"))
+{
+    return QJsonObject{
+        {QStringLiteral("disk"), disk},
+        {QStringLiteral("image"), QStringLiteral("ghcr.io/example/os:stable")},
+        {QStringLiteral("encryption"), QJsonObject{{QStringLiteral("type"), QStringLiteral("luks-passphrase")},
+                                                   {QStringLiteral("passphrase"), QLatin1String(PLAN_SECRET)}}},
+    };
+}
+
+#define REQUIRE_PLAN_GOLDENS()                                              \
+    if (planGolden(QStringLiteral("grub2-plain")).isEmpty())                \
+        QSKIP("the fisherman submodule is not checked out");
+
+void BackendTest::planEveryGoldenParses()
+{
+    REQUIRE_PLAN_GOLDENS();
+    QCOMPARE(plan::arguments(), (QStringList{QStringLiteral("plan"), QStringLiteral("--json"), QStringLiteral("-")}));
+    const QDir dir(QStringLiteral(PLAN_GOLDENS_DIR));
+    const QStringList goldens = dir.entryList({QStringLiteral("*.golden")}, QDir::Files);
+    QVERIFY(goldens.size() > 10);
+    const branding::Branding copy = planCopy();
+    for (const QString &file : goldens) {
+        const plan::Result r = plan::parse(planGolden(QFileInfo(file).completeBaseName()));
+        QVERIFY2(r.ok, qPrintable(file + QStringLiteral(": ") + r.error));
+        QCOMPARE(r.plan.isEmpty(), !r.valid);
+        for (const auto &[title, detail] : plan::rows(r.plan, copy)) {
+            QVERIFY2(!title.isEmpty(), qPrintable(file));
+            QVERIFY2(!title.contains(QLatin1Char('{')) && !detail.contains(QLatin1Char('{')), qPrintable(title));
+        }
+        // Every effect fisherman has has a line of its own.
+        for (const auto &[device, effect] : plan::destroys(r.plan)) {
+            Q_UNUSED(device);
+            QVERIFY2(QStringList({QStringLiteral("wipe_disk"), QStringLiteral("format"), QStringLiteral("mkswap")})
+                         .contains(effect),
+                     qPrintable(effect));
+            QVERIFY(!copy.text(QStringLiteral("confirm_plan_") + effect).isEmpty());
+        }
+    }
+    const plan::Result invalid = plan::parse(planGolden(QStringLiteral("identity-serial-changed")));
+    QVERIFY(invalid.ok);
+    QVERIFY(!invalid.valid);
+    QVERIFY(invalid.plan.isEmpty());
+    QCOMPARE(invalid.errorCodes.value(0), QStringLiteral("disk_identity_mismatch"));
+}
+
+void BackendTest::planBindingCopiesWhatTheDiskReports()
+{
+    REQUIRE_PLAN_GOLDENS();
+    const QJsonObject grub = planOf(QStringLiteral("grub2-plain"));
+    const QJsonObject expected{{QStringLiteral("serial"), QStringLiteral("FIXTURE-SDA-SERIAL")},
+                               {QStringLiteral("wwn"), QStringLiteral("0x5000c500a1b2c3d4")},
+                               {QStringLiteral("sizeBytes"), 500107862016.0}};
+    QCOMPARE(plan::diskIdentity(grub), expected);
+    const QJsonObject bound = plan::bind(planTestRecipe(), grub);
+    QCOMPARE(bound.value(QStringLiteral("diskIdentity")).toObject(), expected);
+    QCOMPARE(bound.value(QStringLiteral("diskIdentity")).toObject().value(QStringLiteral("sizeBytes")).toInteger(),
+             Q_INT64_C(500107862016));
+    QVERIFY(!planTestRecipe().contains(QStringLiteral("diskIdentity")));
+
+    // An unknown value is left out of the binding.
+    const QJsonObject loop = planOf(QStringLiteral("loop-image"));
+    const QJsonObject sizeOnly{{QStringLiteral("sizeBytes"), 8589934592.0}};
+    QCOMPARE(plan::diskIdentity(loop), sizeOnly);
+    QCOMPARE(plan::bind(planTestRecipe(QStringLiteral("/dev/loop0")), loop)
+                 .value(QStringLiteral("diskIdentity")).toObject(),
+             sizeOnly);
+
+    // No binding without a plan for this disk, or for a manual layout.
+    for (const QString &disk : {QStringLiteral("/dev/sdb"), QString()})
+        QCOMPARE(plan::bind(planTestRecipe(disk), grub), planTestRecipe(disk));
+    QCOMPARE(plan::bind(planTestRecipe(), QJsonObject()), planTestRecipe());
+    const QJsonObject manual = planOf(QStringLiteral("manual"));
+    QVERIFY(plan::diskIdentity(manual).isEmpty());
+    QVERIFY(!plan::bind(planTestRecipe(), manual).contains(QStringLiteral("diskIdentity")));
+}
+
+void BackendTest::planTargetRowsMarkUnknownValues()
+{
+    REQUIRE_PLAN_GOLDENS();
+    const branding::Branding copy = planCopy();
+    const plan::Rows grub = plan::targetRows(planOf(QStringLiteral("grub2-plain")), copy);
+    QCOMPARE(grub.size(), 2);
+    QCOMPARE(grub.at(0), (QPair<QString, QString>{QStringLiteral("Installs to Fixture Disk"),
+                                                  QStringLiteral("/dev/sda, 465.8 GiB, serial number FIXTURE-SDA-SERIAL")}));
+    QCOMPARE(grub.at(1).first, copy.text(QStringLiteral("confirm_plan_bound")));
+    const plan::Rows loop = plan::targetRows(planOf(QStringLiteral("loop-image")), copy);
+    QCOMPARE(loop.at(0), (QPair<QString, QString>{QStringLiteral("Installs to unknown"),
+                                                  QStringLiteral("/dev/loop0, 8 GiB, serial number unknown")}));
+    QCOMPARE(loop.at(1).first, copy.text(QStringLiteral("confirm_plan_unbound")));
+    QVERIFY(plan::targetRows(planOf(QStringLiteral("manual")), copy).isEmpty());
+
+    // A line the branding hides ("") is left out.
+    branding::Branding hidden = copy;
+    hidden.copy.insert(QStringLiteral("confirm_plan_bound"), QString());
+    QCOMPARE(plan::targetRows(planOf(QStringLiteral("grub2-plain")), hidden).size(), 1);
+    QCOMPARE(plan::formatSize(512), QStringLiteral("512 B"));
+}
+
+void BackendTest::planEachDestroyedDeviceHasALine()
+{
+    REQUIRE_PLAN_GOLDENS();
+    const branding::Branding copy = planCopy();
+    QCOMPARE(plan::destroyRows(planOf(QStringLiteral("grub2-plain")), copy),
+             (plan::Rows{{QStringLiteral("Everything on /dev/sda is erased."), QString()}}));
+    QCOMPARE(plan::destroyRows(planOf(QStringLiteral("manual")), copy),
+             (plan::Rows{{QStringLiteral("/dev/sda3 is formatted. Its data is erased."), QString()},
+                         {QStringLiteral("/dev/sda4 becomes swap space. Its data is erased."), QString()},
+                         {QStringLiteral("/dev/sda2 is formatted. Its data is erased."), QString()}}));
+    // An effect this build has no line for still says the data is lost.
+    const QJsonObject trim{{QStringLiteral("destroys"),
+                            QJsonArray{QJsonObject{{QStringLiteral("device"), QStringLiteral("/dev/sdz")},
+                                                   {QStringLiteral("effect"), QStringLiteral("trim")}}}}};
+    QCOMPARE(plan::destroyRows(trim, copy),
+             (plan::Rows{{QStringLiteral("/dev/sdz is formatted. Its data is erased."), QString()}}));
+    // Target first, then what is erased.
+    const plan::Rows all = plan::rows(planOf(QStringLiteral("grub2-plain")), copy);
+    QCOMPARE(all.size(), 3);
+    QCOMPARE(all.last().first, QStringLiteral("Everything on /dev/sda is erased."));
+}
+
+void BackendTest::planUnreadableAnswersAreErrors()
+{
+    // An older fisherman: no plan command, a usage line, exit 2.
+    QVERIFY(!plan::fromExit(true, 2, QByteArray(), "unknown command plan").ok);
+    QVERIFY(plan::fromExit(true, 2, QByteArray(), "unknown command plan").error.contains(QStringLiteral("exit 2")));
+    // An older fisherman that took "plan" for a recipe path.
+    QVERIFY(!plan::fromExit(true, 1, R"({"type":"error","message":"open plan: no such file"})", {}).ok);
+    QVERIFY(!plan::fromExit(true, 1, QByteArray(), QByteArray()).ok);
+    QVERIFY(!plan::fromExit(true, 0, R"({"protocol_version":2,"valid":true,"errors":[],"plan":{}})", {}).ok);
+    QVERIFY(!plan::fromExit(true, 0, R"({"protocol_version":1,"valid":true,"errors":[],"plan":null})", {}).ok);
+    QVERIFY(!plan::fromExit(false, 0, R"({"protocol_version":1,"valid":true,"errors":[],"plan":{}})", {}).ok);
+    const plan::Result invalid = plan::fromExit(true, 1, R"({"protocol_version":1,"valid":false,"errors":[{"code":"image_required"}],"plan":null})", {});
+    QVERIFY(invalid.ok);
+    QVERIFY(!invalid.valid);
+    QCOMPARE(invalid.errorCodes, QStringList{QStringLiteral("image_required")});
+}
+
+void BackendTest::planRecipeGoesOnStdinNeverArgv()
+{
+    REQUIRE_PLAN_GOLDENS();
+    QTemporaryDir tmp;
+    QVERIFY(tmp.isValid());
+    const QString got = tmp.filePath(QStringLiteral("stdin.json"));
+    const QString answer = tmp.filePath(QStringLiteral("answer.json"));
+    {
+        QFile f(answer);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(planGolden(QStringLiteral("grub2-plain")));
+    }
+    // A stand-in fisherman: keeps its stdin and prints a golden plan.
+    const QStringList argv{QStringLiteral("sh"), QStringLiteral("-c"), QStringLiteral(R"(cat > "$1"; cat "$2"; exit "$3")"),
+                           QStringLiteral("sh"), got, answer, QStringLiteral("0")};
+    const QByteArray recipe = QJsonDocument(planTestRecipe()).toJson(QJsonDocument::Compact);
+    const plan::Result r = plan::run(argv, recipe);
+    QVERIFY2(r.ok, qPrintable(r.error));
+    QVERIFY(r.valid);
+    QVERIFY(!argv.join(QLatin1Char(' ')).contains(QLatin1String(PLAN_SECRET)));
+    QFile f(got);
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    QCOMPARE(QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("encryption")).toObject()
+                 .value(QStringLiteral("passphrase")).toString(),
+             QLatin1String(PLAN_SECRET));
+
+    // Exit 1 is an invalid recipe; another exit, a missing binary or no
+    // answer in time is an error that names no part of the recipe.
+    QStringList one = argv;
+    one.last() = QStringLiteral("1");
+    QVERIFY(plan::run(one, recipe).ok);
+    QStringList two = argv;
+    two.last() = QStringLiteral("2");
+    for (const plan::Result &bad :
+         {plan::run(two, recipe), plan::run({QStringLiteral("/nonexistent/fisherman")}, recipe),
+          plan::run({QStringLiteral("sh"), QStringLiteral("-c"), QStringLiteral("cat >/dev/null; sleep 5")}, recipe, 200)}) {
+        QVERIFY(!bad.ok);
+        QVERIFY(!bad.error.isEmpty());
+        QVERIFY(!bad.error.contains(QLatin1String(PLAN_SECRET)));
+    }
+}
+
+void BackendTest::planBindsTheInstallRecipe()
+{
+    REQUIRE_PLAN_GOLDENS();
+    InstallerController c;
+    c.setDisk(QStringLiteral("/dev/sda"));
+    c.setEncryptionType(QStringLiteral("luks-passphrase"));
+    c.setPassphrase(QLatin1String(PLAN_SECRET));
+    // No plan: the install recipe is as before.
+    QVERIFY(c.planRows().isEmpty());
+    QVERIFY(c.planDiskIdentity().isEmpty());
+    QCOMPARE(c.confirmedRecipe(), c.installRecipe());
+    // The plan is asked about the recipe the install writes, image included.
+    QVERIFY(c.planRecipe().value(QStringLiteral("disk")).toString() == QStringLiteral("/dev/sda"));
+
+    // A reply for another request is dropped. (requestPlan() itself is not
+    // called here: it would start fisherman.)
+    const plan::Result grub = plan::parse(planGolden(QStringLiteral("grub2-plain")));
+    c.applyPlanReply(c.planGeneration() + 1, grub);
+    QVERIFY(c.planRows().isEmpty());
+    QSignalSpy changed(&c, &InstallerController::planChanged);
+    c.applyPlanReply(c.planGeneration(), grub);
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(c.planRows().size(), 3);
+    QCOMPARE(c.planRows().first().toMap().value(QStringLiteral("title")).toString(),
+             QStringLiteral("Installs to Fixture Disk"));
+    QCOMPARE(c.planDiskIdentity().value(QStringLiteral("serial")).toString(), QStringLiteral("FIXTURE-SDA-SERIAL"));
+    const QJsonObject bound = c.confirmedRecipe();
+    QCOMPARE(bound.value(QStringLiteral("diskIdentity")).toObject(), plan::diskIdentity(grub.plan));
+    QJsonObject unbound = bound;
+    unbound.remove(QStringLiteral("diskIdentity"));
+    QCOMPARE(unbound, c.installRecipe());
+    // The recipe stays on stdin: the bound one still carries the passphrase
+    // only inside its JSON.
+    QCOMPARE(bound.value(QStringLiteral("encryption")).toObject().value(QStringLiteral("passphrase")).toString(),
+             QLatin1String(PLAN_SECRET));
+
+    // Another disk since: nothing is bound.
+    c.setDisk(QStringLiteral("/dev/sdb"));
+    QVERIFY(!c.confirmedRecipe().contains(QStringLiteral("diskIdentity")));
+
+    // An invalid recipe or no answer: no rows, nothing bound.
+    for (const plan::Result &none : {plan::parse(planGolden(QStringLiteral("identity-serial-changed"))),
+                                     plan::failed(QStringLiteral("no plan"))}) {
+        InstallerController d;
+        d.setDisk(QStringLiteral("/dev/sda"));
+        d.applyPlanReply(d.planGeneration(), none);
+        QVERIFY(d.planRows().isEmpty());
+        QCOMPARE(d.confirmedRecipe(), d.installRecipe());
+    }
+
+    // A manual layout shows what it erases and binds nothing.
+    InstallerController m;
+    m.setDisk(QStringLiteral("/dev/sda"));
+    m.applyPlanReply(m.planGeneration(), plan::parse(planGolden(QStringLiteral("manual"))));
+    QCOMPARE(m.planRows().size(), 3);
+    QVERIFY(m.planDiskIdentity().isEmpty());
+    QCOMPARE(m.confirmedRecipe(), m.installRecipe());
 }
 
 QTEST_APPLESS_MAIN(BackendTest)

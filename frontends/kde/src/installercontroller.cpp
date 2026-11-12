@@ -254,6 +254,112 @@ QJsonObject InstallerController::installRecipe() const
     return reuseSelected() ? sourcecheck::applyReuse(recipe, m_reuseSource) : recipe;
 }
 
+QJsonObject InstallerController::planRecipe() const
+{
+    // The image startInstall() fills in when none was chosen, so the plan
+    // is of the recipe that Install writes.
+    Recipe recipe = m_recipe;
+    if (recipe.image.isEmpty() && !recipe.liveMode)
+        recipe.image = m_branding.defaultImage;
+    if (recipe.targetImgref.isEmpty())
+        recipe.targetImgref = recipe.image;
+    const QJsonObject json = recipe.toJson();
+    return reuseSelected() ? sourcecheck::applyReuse(json, m_reuseSource) : json;
+}
+
+QJsonObject InstallerController::confirmedRecipe() const
+{
+    // plan::bind() leaves the recipe as it is without a plan, for a manual
+    // layout, or for a plan of another disk.
+    return plan::bind(installRecipe(), m_plan);
+}
+
+void InstallerController::requestPlan()
+{
+    const int generation = ++m_planGeneration;
+    if (!m_plan.isEmpty()) {
+        m_plan = QJsonObject();
+        Q_EMIT planChanged();
+    }
+#if QT_CONFIG(process)
+    if (m_planProcess) {
+        // The answer of an earlier request binds nothing.
+        m_planProcess->disconnect(this);
+        m_planProcess->kill();
+        m_planProcess->deleteLater();
+        m_planProcess = nullptr;
+    }
+    // The staged fisherman in a Flatpak; without it there is no plan.
+    if (!fisherman::staged().ok)
+        return;
+    QStringList argv = fisherman::commands(m_recipe.liveMode).unprivileged + plan::arguments();
+    auto *process = new QProcess(this);
+    m_planProcess = process;
+    process->setProgram(argv.takeFirst());
+    process->setArguments(argv);
+    auto *timer = new QTimer(process);
+    timer->setSingleShot(true);
+    connect(timer, &QTimer::timeout, process, [process]() {
+        process->setProperty("timedOut", true);
+        process->kill();
+    });
+    auto done = [this, process, generation](const plan::Result &result) {
+        if (process != m_planProcess)
+            return;
+        m_planProcess = nullptr;
+        process->deleteLater();
+        applyPlanReply(generation, result);
+    };
+    connect(process, &QProcess::finished, this, [process, done](int code, QProcess::ExitStatus status) {
+        if (process->property("timedOut").toBool()) {
+            done(plan::failed(QStringLiteral("fisherman plan gave no answer in %1 s").arg(plan::TIMEOUT_MS / 1000)));
+            return;
+        }
+        done(plan::fromExit(status == QProcess::NormalExit, code, process->readAllStandardOutput(),
+                            process->readAllStandardError()));
+    });
+    connect(process, &QProcess::errorOccurred, this, [process, done](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart)
+            done(plan::failed(QStringLiteral("cannot run %1").arg(process->program())));
+    });
+    process->start();
+    timer->start(plan::TIMEOUT_MS);
+    // The recipe on stdin, never argv: it can hold the passphrase.
+    process->write(QJsonDocument(planRecipe()).toJson(QJsonDocument::Compact));
+    process->closeWriteChannel();
+#else
+    Q_UNUSED(generation);
+#endif
+}
+
+void InstallerController::applyPlanReply(int generation, const plan::Result &result)
+{
+    if (generation != m_planGeneration)
+        return;
+    if (!result.ok) {
+        // An older fisherman has no plan; the step works as before.
+        qCInfo(logInstaller) << "no install plan:" << result.error;
+        return;
+    }
+    if (!result.valid) {
+        // The field checks name the problem; the install refuses it.
+        qCInfo(logInstaller) << "fisherman plan refused the recipe:" << result.errorCodes.join(QStringLiteral(", "));
+        return;
+    }
+    m_plan = result.plan;
+    qCInfo(logInstaller) << "install plan:" << plan::destroys(m_plan).size() << "device(s) destroyed, disk identity"
+                         << plan::diskIdentity(m_plan).keys();
+    Q_EMIT planChanged();
+}
+
+QVariantList InstallerController::planRows() const
+{
+    QVariantList rows;
+    for (const auto &[title, subtitle] : plan::rows(m_plan, m_branding))
+        rows << QVariantMap{{QStringLiteral("title"), title}, {QStringLiteral("subtitle"), subtitle}};
+    return rows;
+}
+
 void InstallerController::refreshReuse()
 {
     const QJsonObject recipe = m_recipe.toJson();
@@ -1203,7 +1309,10 @@ void InstallerController::startInstall()
     // The recipe can hold a LUKS passphrase. It goes to fisherman's stdin
     // (`fisherman -`, tuna-os/fisherman#276) and never to a file: this used
     // to be a 0600 file in a QTemporaryDir, handed to root by path.
-    const QByteArray recipeJson = QJsonDocument(installRecipe()).toJson(QJsonDocument::Compact);
+    // Bound to the disk of the confirm step's plan (`diskIdentity`): fisherman
+    // refuses the install if another device is now at that path
+    // (disk_identity_mismatch, tuna-os/fisherman#371).
+    const QByteArray recipeJson = QJsonDocument(confirmedRecipe()).toJson(QJsonDocument::Compact);
 
     // In a Flatpak fisherman is the staged copy the host verified
     // (fisherman.h). Without it nothing may run as root.
