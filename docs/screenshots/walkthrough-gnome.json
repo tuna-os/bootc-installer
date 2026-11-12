@@ -139,6 +139,7 @@
       "flat": 0.8552569169960474,
       "ink": 0.014901185770750988,
       "stddev": 0.08069689134825862,
+      "sha256": "bfe7bb9bf1cbc84ec117f522bb3ff33c6ae790520a75c42b3bb3121a713b989a",
       "text_excerpt": "Welcome to TunaOS Install TunaOS Installs to your internal disk. Install TunaOS Installs to your internal disk. Power Off Power Off Press Super+Alt+S to enable the screen reader Credits Credits"
     },
     {
@@ -149,6 +150,7 @@
       "flat": 0.6472595520421608,
       "ink": 0.01635046113306983,
       "stddev": 0.09586593590764148,
+      "sha256": "ea182b431d9a884e4813609426eb041e5366e97be847d885ccd12d83a8afbb92",
       "text_excerpt": "Language Select your language Search languages aa_DJ.UTF-8 aa_DJ.UTF-8 aa_DJ.UTF-8 ab_GE.UTF-8 ab_GE.UTF-8 ab_GE.UTF-8 af_ZA.UTF-8 af_ZA.UTF-8 af_ZA.UTF-8 ak_GH.UTF-8 ak_GH.UTF-8 ak_GH.UTF-8 am_ET.UTF-8 am_ET.UTF-8 am_ET.UTF-8 an_ES.UTF-8 a"
     },
     {
@@ -159,6 +161,7 @@
       "flat": 0.6416337285902504,
       "ink": 0.02080368906455863,
       "stddev": 0.10691894029226014,
+      "sha256": "2247e6ce148af473ecc5e7c3e6355e2a95aa584b495e4f36ffcd12388d7ca4fd",
       "text_excerpt": "Keyboard Layout Select your preferred keyboard layout Search keyboard layouts Abkhazian (Russia) Abkhazian Abkhazian (Russia) Abkhazian ru+ab Akan Akan Akan Akan gh+akan Albanian Albanian Albanian Albanian al Albanian (Plisi) Albanian Alban"
     },
     {
@@ -169,6 +172,7 @@
       "flat": 0.6811725955204216,
       "ink": 0.01868247694334651,
       "stddev": 0.09417301509967085,
+      "sha256": "e6801b0f49ee3a3d74be6db22c820b391abb1cdde0d54cdbae49ff8420996c8b",
       "text_excerpt": "Date & Time Select your preferred timezone Search timezones Afghanistan Afghanistan Asia Afghanistan Asia Kabul Kabul Asia/Kabul Albania Albania Europe Albania Europe Tirane Tirane Europe/Tirane Algeria Algeria Africa Algeria Africa Algiers"
     },
     {
@@ -179,6 +183,7 @@
       "flat": 0.6631093544137022,
       "ink": 0.0233596837944664,
       "stddev": 0.1031880715640515,
+      "sha256": "9585ca063184e49eab9b7c8bb2e568e548ccac68f2b73e5258450f6efd74f651",
       "text_excerpt": "Choose an Image Select a BootcOS image to install, or enter a custom bootc-compatible image URL. Search images\u2026 Capture Desktop Capture Desktop Capture Desktop Stable ghcr.io/example/os:stable Stable ghcr.io/example/os:stable Beta ghcr.io/e"
     },
     {
@@ -186,9 +191,10 @@
       "png": "docs/screenshots/06-qr_companion.png",
       "rendered": true,
       "colours": 290,
-      "flat": 0.8548484848484849,
-      "ink": 0.03310935441370224,
-      "stddev": 0.14986049096941859,
+      "flat": 0.8548616600790514,
+      "ink": 0.03313570487483531,
+      "stddev": 0.14987286444668058,
+      "sha256": "f2c8896fe42120202e0e50498659a83ba52d9cb920e349e32263a62119128680",
       "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
     },
     {
@@ -199,6 +205,7 @@
       "flat": 0.7446376811594203,
       "ink": 0.020276679841897235,
       "stddev": 0.1083466745460652,
+      "sha256": "972a0a82ac9415f1854102e84e072c69eb4657ec04eaef7e34e32fe652844bb8",
       "text_excerpt": "Computer is not plugged in \u2014 connect power before installing Install Location Select the disk where you want to install. All data on the selected disk will be permanently erased. Samsung SSD 870 EVO 500GB /dev/sda \u00b7 465.8 GiB \u00b7 SATA Samsung"
     },
     {
@@ -209,6 +216,7 @@
       "flat": 0.7030698287220026,
       "ink": 0.021752305665349143,
       "stddev": 0.10577376363828922,
+      "sha256": "0e326e699b0b52e37c75f1c1dc543c3e51e362f62132fa8488393e05af56b54c",
       "text_excerpt": "Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You'll type it at every boot. Encrypt this disk You'll type it at every boot. Password Password Password Confirm Password Confirm Password Confirm Password Use h"
     },
     {
@@ -217,18 +225,20 @@
       "rendered": true,
       "colours": 327,
       "flat": 0.7092094861660079,
-      "ink": 0.008945981554677207,
-      "stddev": 0.06378189950845857,
+      "ink": 0.01160737812911726,
+      "stddev": 0.06751091000285021,
+      "sha256": "b9871fa743b8778ba6a25ba8bc5177e5ddd5b56cca7c7734e4f642ed1ded6dcf",
       "text_excerpt": "Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Confirm Password Confirm Password"
     },
     {
       "name": "confirm",
       "png": "docs/screenshots/10-confirm.png",
       "rendered": true,
-      "colours": 355,
-      "flat": 0.5575625823451911,
+      "colours": 356,
+      "flat": 0.557536231884058,
       "ink": 0.010355731225296443,
-      "stddev": 0.06958953523591468,
+      "stddev": 0.06959854720998926,
+      "sha256": "3046166e2de72d78af378777601565633e3b1007212c54520ec6044d7da52822",
       "text_excerpt": "Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be undone. Summary Summary Target disk Samsung SSD 870 EVO 500GB (/dev/sda, 465.8 GiB) Target disk Samsung"
     },
     {
@@ -239,6 +249,7 @@
       "flat": 0.9525955204216073,
       "ink": 0.007075098814229249,
       "stddev": 0.057473853805099374,
+      "sha256": "5455022a39fb7dc910b1b0b8451a3909ab5f916bae484a4e2150aacec5625ce1",
       "text_excerpt": "Installing TunaOS\u2026 Downloading\u2026 (47 of 71 parts) 0:00 elapsed 35% Do not power off the computer. Cancel Cancel"
     },
     {
@@ -249,6 +260,7 @@
       "flat": 0.8902371541501977,
       "ink": 0.01785243741765481,
       "stddev": 0.09072446218336834,
+      "sha256": "e4520add90beed299bda89d261eef6a0092d7e07d9d4444e826f6032542d1147",
       "text_excerpt": "Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf I have saved "
     },
     {
@@ -259,6 +271,7 @@
       "flat": 0.9379183135704875,
       "ink": 0.020500658761528328,
       "stddev": 0.09067004659900722,
+      "sha256": "1e3e178c45dcb25d6731b54d735208f90e78f806652f4b86ae76fece2a23ca49",
       "text_excerpt": "Capture Desktop is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation. Show Log Show Log R"
     }
   ],
@@ -267,12 +280,12 @@
     27739,
     29291,
     27037,
-    70839,
-    68062,
+    70840,
+    68059,
     51793,
-    43790,
-    42493,
-    37397,
+    43786,
+    42523,
+    37427,
     38578,
     44391
   ],
