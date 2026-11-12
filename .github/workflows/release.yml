@@ -14,6 +14,10 @@ name: Release
 #     is retried by the next run), all into the one package
 #     ghcr.io/tuna-os/bootc-installer:{gnome,kde,cosmic,niri,xfce}
 #     (publish-oci.yml)
+#   - <frontend>.spdx.json for each of the five frontends: an SPDX SBOM of
+#     the Flatpak that this commit builds (`sbom` job, shared/ci/flatpak_sbom.py)
+#   - a GitHub build-provenance attestation for each .flatpak bundle and each
+#     SBOM (keyless, Sigstore; `gh attestation verify`, docs/RELEASE.md)
 #
 # Downstreams fetch /releases/latest/download/<asset>, so `--latest` is set
 # here and nowhere else. The tag is date + short sha: monotonic, unique, and
@@ -108,9 +112,60 @@ jobs:
     uses: ./.github/workflows/flatpak.yml
     secrets: inherit
 
+  # One SPDX SBOM per frontend (#151): Syft (anchore/sbom-action) reads the
+  # lock files that the Flatpak builds from, and flatpak_sbom.py adds the
+  # app, its runtime and the manifest's modules, which Syft cannot read. It
+  # publishes nothing: the `release` job attaches the files.
+  sbom:
+    name: SBOM (${{ matrix.frontend }})
+    needs: guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # The rows of shared/ci/frontends.json (tests/unit/test_release_sbom.py).
+        frontend: [gnome, kde, cosmic, niri, xfce]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+
+      - name: Stage the lock files
+        env:
+          FRONTEND: ${{ matrix.frontend }}
+        run: python3 shared/ci/flatpak_sbom.py stage --frontend "$FRONTEND" --into "sbom-src/$FRONTEND"
+
+      - uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: sbom-src/${{ matrix.frontend }}
+          format: spdx-json
+          output-file: ${{ matrix.frontend }}.syft.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Add the Flatpak manifest
+        env:
+          FRONTEND: ${{ matrix.frontend }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python3 shared/ci/flatpak_sbom.py merge --frontend "$FRONTEND" \
+            --syft "$FRONTEND.syft.spdx.json" --out "$FRONTEND.spdx.json" \
+            --repo-url "https://github.com/$GITHUB_REPOSITORY" --commit "$SHA"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom-${{ matrix.frontend }}
+          path: ${{ matrix.frontend }}.spdx.json
+          if-no-files-found: error
+          retention-days: 7
+
   release:
     name: Cut release
-    needs: [guard, build]
+    needs: [guard, build, sbom]
     # `build` is the whole flatpak.yml, aarch64 leg included, so its result is
     # red whenever that leg is red. The release must not become contingent on
     # a newer arch (tests/unit/test_release_bundle_is_multi_arch.py): run
@@ -118,6 +173,13 @@ jobs:
     # the job if those bundles are what is missing.
     if: ${{ !cancelled() && needs.guard.result == 'success' }}
     runs-on: ubuntu-24.04
+    # contents: write cuts the release. id-token: write and attestations:
+    # write let attest-build-provenance sign with the run's OIDC identity
+    # (keyless) and store the attestation; no other job gets them.
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -135,6 +197,27 @@ jobs:
         with:
           name: org.bootcinstaller.Installer-aarch64.flatpak
 
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: sbom-*
+          merge-multiple: true
+
+      # A release without its five SBOMs is not cut: a missing one means an
+      # `sbom` leg failed.
+      - name: Check the SBOMs
+        run: |
+          set -euo pipefail
+          for frontend in gnome kde cosmic niri xfce; do
+            [ -s "$frontend.spdx.json" ] || { echo "::error::no SBOM for $frontend"; exit 1; }
+            python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["spdxVersion"].startswith("SPDX-"), sys.argv[1]' "$frontend.spdx.json"
+          done
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            *.flatpak
+            *.spdx.json
+
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -145,6 +228,11 @@ jobs:
           assets=(
             org.bootcinstaller.Installer.flatpak
             org.bootcinstaller.Installer.Devel.flatpak
+            gnome.spdx.json
+            kde.spdx.json
+            cosmic.spdx.json
+            niri.spdx.json
+            xfce.spdx.json
           )
           if [ -f org.bootcinstaller.Installer-aarch64.flatpak ]; then
             assets+=(org.bootcinstaller.Installer-aarch64.flatpak)

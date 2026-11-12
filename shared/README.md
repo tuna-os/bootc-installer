@@ -66,10 +66,14 @@ switches. `publish-flatpak.yml` publishes each frontend from its row, and
 `frontend_table.py` reads the row. `fisherman_pins.py` moves the fisherman
 submodule pin, the one pin. `flatpak_manifest.py` reads a Flatpak manifest
 with its module includes, as flatpak-builder does, and checks its local
-sources. `published_freshness.py` compares the served Flatpaks with `prod`. `tests/unit/test_ci_frontend_table.py`,
-`tests/unit/test_ci_fisherman_pins.py` and
-`tests/unit/test_ci_published_freshness.py` cover them. A new frontend adds
-one row to `frontends.json`, and one `Publish (<name>)` job to `release.yml`.
+sources. `published_freshness.py` compares the served Flatpaks with `prod`.
+`flatpak_sbom.py` makes the SPDX SBOM of each frontend's Flatpak for the
+release. `tests/unit/test_ci_frontend_table.py`,
+`tests/unit/test_ci_fisherman_pins.py`,
+`tests/unit/test_ci_published_freshness.py` and
+`tests/unit/test_release_sbom.py` cover them. A new frontend adds one row to
+`frontends.json`, one `Publish (<name>)` job to `release.yml`, one entry to
+the `sbom` matrix there, and one lock file list to `flatpak_sbom.py`.
 
 ## `completion/`
 
