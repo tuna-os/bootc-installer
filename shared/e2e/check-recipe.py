@@ -25,6 +25,15 @@ Independent verdicts, all required:
     shim has no catalog, as a fisherman that a Flatpak stages has none, so
     a frontend that drops the object installs a system without the steps.
 The recipe is then copied to e2e-recipe-<frontend>.json for the VM job.
+
+    check-recipe.py --vm <e2e-recipe-<frontend>.json> <loop device> <out.json>
+
+The VM job's mode (vm-install.sh). It writes the recipe that the VM job
+installs, and proves that it is the frontend's recipe: the same bytes, with
+at most one substitution, the value of `disk`. The disk is the only value
+the frontend cannot know: it is the loop device of another runner. When
+that device path is the same here (vm-install.sh attaches the disk there
+when it is free), the copy is byte for byte. Any other difference fails.
 """
 import importlib.util
 import json
@@ -149,8 +158,84 @@ def shared_catalog_failures(catalog, explicit=None):
     return []
 
 
-def main():
-    args = sys.argv[1:]
+_ABSENT = object()
+
+
+def vm_recipe(frontend_bytes, loopdev):
+    """The recipe the VM job installs: `frontend_bytes`, with the JSON
+    string of the old `disk` value replaced by `loopdev`. Raises ValueError
+    when that string is not in the bytes exactly once."""
+    recipe = json.loads(frontend_bytes)
+    old = recipe.get("disk")
+    if not isinstance(old, str) or not old:
+        raise ValueError(f"disk: the frontend's recipe has no disk: {old!r}")
+    if old == loopdev:
+        return frontend_bytes
+    old_token = json.dumps(old).encode()
+    if frontend_bytes.count(old_token) != 1:
+        raise ValueError(f"disk: {old!r} is in the recipe {frontend_bytes.count(old_token)} "
+                         "times, so the one substitution is not safe")
+    return frontend_bytes.replace(old_token, json.dumps(loopdev).encode())
+
+
+def vm_recipe_failures(frontend_bytes, vm_bytes, loopdev):
+    """Problems with the VM job's recipe against the frontend's: [] when it
+    is the frontend's bytes with only `disk` set to `loopdev`."""
+    try:
+        frontend = json.loads(frontend_bytes)
+        vm = json.loads(vm_bytes)
+    except ValueError as error:
+        return [f"vm recipe: not JSON: {error}"]
+    failures = []
+    if vm.get("disk") != loopdev:
+        failures.append(f"vm recipe: disk is {vm.get('disk')!r}, not the loop device {loopdev!r}")
+    changed = sorted(key for key in set(frontend) | set(vm)
+                     if key != "disk" and frontend.get(key, _ABSENT) != vm.get(key, _ABSENT))
+    if changed:
+        failures.append(f"vm recipe: the VM job changed {', '.join(changed)}: only disk may differ")
+    try:
+        expected = vm_recipe(frontend_bytes, loopdev)
+    except ValueError as error:
+        failures.append(f"vm recipe: {error}")
+    else:
+        if vm_bytes != expected:
+            failures.append("vm recipe: the bytes differ from the frontend's in more than the disk value")
+    return failures
+
+
+def vm_main(args):
+    """`--vm <frontend recipe> <loop device> <out>`: see the module doc."""
+    if len(args) != 3:
+        sys.exit(__doc__)
+    source, loopdev, out = args
+    with open(source, "rb") as fh:
+        frontend_bytes = fh.read()
+    try:
+        vm_bytes = vm_recipe(frontend_bytes, loopdev)
+    except ValueError as error:
+        print(f"FAIL: {error}", file=sys.stderr)
+        return 1
+    with open(out, "wb") as fh:
+        fh.write(vm_bytes)
+    with open(out, "rb") as fh:
+        written = fh.read()
+    failures = vm_recipe_failures(frontend_bytes, written, loopdev)
+    for failure in failures:
+        print(f"FAIL: {failure}", file=sys.stderr)
+    if failures:
+        return 1
+    old = json.loads(frontend_bytes).get("disk")
+    if written == frontend_bytes:
+        print(f"vm recipe: byte for byte the frontend's recipe (disk {old} is free here too)")
+    else:
+        print(f"vm recipe: the frontend's recipe, byte for byte, except disk {old} -> {loopdev}")
+    return 0
+
+
+def main(argv=None):
+    args = list(sys.argv[1:] if argv is None else argv)
+    if args[:1] == ["--vm"]:
+        return vm_main(args[1:])
     catalog_path = None
     if "--catalog" in args:
         at = args.index("--catalog")

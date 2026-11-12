@@ -14,8 +14,12 @@ name: End to end
 #  2. The recipes those five frontends produced are then installed FOR REAL
 #     by fisherman onto a loop disk, and the result is booted in QEMU and
 #     verified over SSH, with the same scripts fisherman's own bootcrew VM
-#     matrix uses. Only `disk` and `image` are rewritten (the loop device;
-#     the ssh-enabled canary matching the recipe's boot stack).
+#     matrix uses. The recipe is installed as the frontend wrote it: the
+#     E2E catalog names the SSH-enabled canary (#322). Only `disk` can
+#     change, when the loop device path of the first runner is taken here;
+#     check-recipe.py --vm proves that nothing else did. The KDE recipe
+#     has a German locale and keyboard, a time zone and LUKS, and the
+#     booted guest is checked for all of them (#325).
 #
 # Every job here is listed in promote.yml's REQUIRED_CHECKS, so nothing
 # reaches prod without all five frontends having installed something that
@@ -207,7 +211,7 @@ jobs:
         working-directory: /
         run: |
           dnf -y install --setopt=install_weak_deps=False \
-            git tar findutils which sudo golang python3 python3-jsonschema util-linux \
+            git tar findutils which sudo golang python3 python3-jsonschema util-linux tzdata \
             cmake ninja-build gcc-c++ \
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg \
             qt6-qttools-devel qt6-linguist \
