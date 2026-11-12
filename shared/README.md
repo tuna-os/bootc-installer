@@ -76,7 +76,8 @@ one row to `frontends.json`, and one `Publish (<name>)` job to `release.yml`.
 How the done page tells an installed system from a verified start (#269),
 and the reader of a `fisherman verify --json` result. The done page says
 "installed, restart required" and never "verified": only the new system
-can check its own start. Each frontend renders `done_verification`.
+can check its own start. Each frontend renders `done_verification`, then
+the line for fisherman's `receipt` event (`progress/receipt-cases.json`).
 `bootc_shared.completion` is the Python reader, and
 `tests/unit/test_shared_source_check.py` holds the case file to it. The
 KDE, COSMIC and Niri readers read the same `verification-cases.json`. A
@@ -133,7 +134,9 @@ a fixture with `BOOTC_INSTALLER_FAKE_PROBE`. The same command with
 `--source` gives the check of the selected image (`capabilities`, #266) and
 the images in this computer's bootc storage (`bootc_store`, #267);
 `bootc_shared.source_check` reads them, and each frontend runs its reader
-against `capabilities-cases.json` and `bootc-store-cases.json`. See
+against `capabilities-cases.json` and `bootc-store-cases.json`. The
+system that this computer runs can be the install source (`sourceReuse`):
+each frontend runs its reader against `source-reuse-cases.json`. See
 [probe/README.md](probe/README.md).
 
 ## `progress/`

@@ -42,6 +42,7 @@ Result parse(const QByteArray &json)
 
     Result r;
     r.ok = true;
+    r.raw = json;
     const QJsonArray disks = root.value(QLatin1String("disks")).toArray();
     for (const QJsonValue &value : disks) {
         const QJsonObject d = value.toObject();

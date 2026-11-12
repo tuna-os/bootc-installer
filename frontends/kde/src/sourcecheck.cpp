@@ -113,10 +113,23 @@ QJsonObject defaultLine(const QString &key, const QString &value)
 
 }
 
+QString plainRef(const QString &ref)
+{
+    const QString trimmed = ref.trimmed();
+    static const QString transport = QStringLiteral("docker://");
+    return trimmed.startsWith(transport) ? trimmed.mid(transport.size()) : trimmed;
+}
+
 Request fromRecipe(const QJsonObject &recipe, bool isLive)
 {
     Request r;
     r.source = str(recipe.value(QLatin1String("image")));
+    if (recipe.value(QLatin1String("sourceReuse")).isObject()) {
+        // A copy of this computer's system: reuseSource() offers only the
+        // item whose ref is the update reference, so the probe asks about it.
+        r.source = plainRef(str(recipe.value(QLatin1String("targetImgref"))));
+        isLive = false;
+    }
     r.liveRoot = r.source.isEmpty() && isLive;
     r.target = str(recipe.value(QLatin1String("targetImgref")));
     if (isTrue(recipe.value(QLatin1String("unifiedStorage"))))
@@ -317,6 +330,144 @@ QJsonObject verification(const QByteArray &data, const QString &expectedInstallI
         }
     }
     return view(state, reason);
+}
+
+// The receipt event (#269): bootc_shared.progress.receipt_of().
+QJsonObject receiptOf(const QJsonObject &event)
+{
+    auto view = [](const QString &state, const QString &installId = QString(), const QString &reason = QString()) {
+        return QJsonObject{{QStringLiteral("state"), state}, {QStringLiteral("install_id"), installId},
+                           {QStringLiteral("reason"), reason}};
+    };
+    qint64 version = 0;
+    if (!integer(event.value(QLatin1String("version")), &version) || version != 1)
+        return view(QStringLiteral("unreadable"));
+    const QJsonValue written = event.value(QLatin1String("written"));
+    if (!written.isBool())
+        return view(QStringLiteral("unreadable"));
+    static const QRegularExpression code(QStringLiteral("^[a-z0-9_]{1,64}$"));
+    static const QRegularExpression id(QStringLiteral("^[0-9a-f]{32}$"));
+    QString reason = str(event.value(QLatin1String("reason")));
+    if (!code.match(reason).hasMatch())
+        reason.clear();
+    if (!written.toBool())
+        return view(QStringLiteral("not_written"), QString(), reason);
+    const QString installId = str(event.value(QLatin1String("install_id")));
+    if (!id.match(installId).hasMatch())
+        return view(QStringLiteral("unreadable"));
+    if (isTrue(event.value(QLatin1String("first_boot_check"))))
+        return view(QStringLiteral("check_set_up"), installId);
+    return view(QStringLiteral("written_no_check"), installId, reason);
+}
+
+// bootc_shared.completion.receipt_lines(): the done page's copy keys.
+QList<QPair<QString, QString>> receiptLines(const QJsonValue &receipt)
+{
+    QList<QPair<QString, QString>> lines{{QStringLiteral("done_verification"), QString()}};
+    if (!receipt.isObject()) {
+        lines.append({QStringLiteral("done_receipt_none"), QString()});
+        return lines;
+    }
+    const QJsonObject r = receipt.toObject();
+    const QString state = str(r.value(QLatin1String("state")));
+    if (state != QLatin1String("check_set_up") && state != QLatin1String("written_no_check")
+        && state != QLatin1String("not_written")) {
+        lines.append({QStringLiteral("done_receipt_unreadable"), QString()});
+        return lines;
+    }
+    lines.append({QStringLiteral("done_receipt_") + state, str(r.value(QLatin1String("install_id")))});
+    if (state != QLatin1String("check_set_up")) {
+        const QString reason = str(r.value(QLatin1String("reason")));
+        const QString key = QStringLiteral("done_receipt_reason_") + (reason.isEmpty() ? QStringLiteral("unknown") : reason);
+        lines.append({branding::copyDefaults().contains(key) ? key : QStringLiteral("done_receipt_reason_unknown"), QString()});
+    }
+    return lines;
+}
+
+// The install source (#267): bootc_shared.source_check.reuse_source().
+QJsonObject reuseSource(bool ok, const QByteArray &probeOutput, const QString &updateRef)
+{
+    QJsonObject root;
+    if (!parseObject(ok, probeOutput, &root))
+        return {};
+    const QJsonValue live = root.value(QLatin1String("live"));
+    if (!live.isObject() || live.toObject().value(QLatin1String("is_live")) != QJsonValue(false))
+        return {};
+    const QJsonValue storeValue = root.value(QLatin1String("bootc_store"));
+    if (!storeValue.isObject())
+        return {};
+    const QJsonObject store = storeValue.toObject();
+    qint64 version = 0;
+    if (!integer(store.value(QLatin1String("version")), &version) || version != 1
+        || !isTrue(store.value(QLatin1String("available"))) || !store.value(QLatin1String("items")).isArray())
+        return {};
+    const QString want = plainRef(updateRef);
+    if (want.isEmpty())
+        return {};
+    const QJsonArray items = store.value(QLatin1String("items")).toArray();
+    auto roles = [](const QJsonObject &item) {
+        QStringList out;
+        for (const QJsonValue &r : item.value(QLatin1String("roles")).toArray())
+            if (r.isString())
+                out << r.toString();
+        return out;
+    };
+    for (const QJsonValue &v : items) {
+        const QJsonObject item = v.toObject();
+        if (str(item.value(QLatin1String("ref"))) == want && roles(item).contains(QLatin1String("staged")))
+            return {};
+    }
+    static const QRegularExpression digestRe(QStringLiteral("^sha256:[0-9a-f]{64}$"));
+    static const QRegularExpression platformRe(QStringLiteral("^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$"));
+    for (const QJsonValue &v : items) {
+        const QJsonObject item = v.toObject();
+        const QString digest = str(item.value(QLatin1String("digest")));
+        const QString platform = str(item.value(QLatin1String("platform")));
+        if (str(item.value(QLatin1String("ref"))) == want && roles(item).contains(QLatin1String("booted"))
+            && str(item.value(QLatin1String("owner"))) == QLatin1String("bootc")
+            && str(item.value(QLatin1String("context"))) == QLatin1String("live-host")
+            && str(item.value(QLatin1String("storage"))) == QLatin1String("ostree")
+            && str(item.value(QLatin1String("availability"))) == QLatin1String("deployed")
+            && isTrue(item.value(QLatin1String("matches_machine")))
+            && digestRe.match(digest).hasMatch() && platformRe.match(platform).hasMatch())
+            return QJsonObject{{QStringLiteral("ref"), want}, {QStringLiteral("digest"), digest},
+                               {QStringLiteral("platform"), platform}};
+    }
+    return {};
+}
+
+QJsonObject applyReuse(const QJsonObject &recipe, const QJsonObject &source)
+{
+    QJsonObject out = recipe;
+    if (source.isEmpty())
+        return out;
+    QString target = str(recipe.value(QLatin1String("targetImgref")));
+    if (target.isEmpty())
+        target = str(recipe.value(QLatin1String("image")));
+    out.insert(QStringLiteral("targetImgref"), target);
+    out.insert(QStringLiteral("image"), QString());
+    out.insert(QStringLiteral("sourceReuse"), QJsonObject{
+        {QStringLiteral("store"), QStringLiteral("bootc")},
+        {QStringLiteral("digest"), source.value(QLatin1String("digest"))},
+        {QStringLiteral("platform"), source.value(QLatin1String("platform"))},
+    });
+    QJsonArray experimental;
+    for (const QJsonValue &e : recipe.value(QLatin1String("experimental")).toArray())
+        if (e.isString())
+            experimental.append(e);
+    if (!experimental.contains(QJsonValue(QStringLiteral("bootc_store_reuse"))))
+        experimental.append(QStringLiteral("bootc_store_reuse"));
+    out.insert(QStringLiteral("experimental"), experimental);
+    return out;
+}
+
+QJsonObject reuseFragment(const QJsonObject &recipe)
+{
+    QJsonObject out;
+    for (const char *key : {"image", "targetImgref", "experimental", "sourceReuse", "composeFsBackend", "filesystem"})
+        if (recipe.contains(QLatin1String(key)))
+            out.insert(QLatin1String(key), recipe.value(QLatin1String(key)));
+    return out;
 }
 
 }

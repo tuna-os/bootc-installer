@@ -55,7 +55,7 @@ _FISHERMAN_CACHE_DIR = fisherman_runner.default_cache_dir()
 _FISHERMAN_HOST_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman")
 _FISHERMAN_LOG_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman-output.log")
 
-from bootc_shared.progress import apply_progress_event, new_progress_state, render_event, set_product_name, set_install_label, set_step_label_resolver, _RE_LAYER_PROGRESS  # noqa: E402
+from bootc_shared.progress import apply_progress_event, install_outcome, new_progress_state, render_event, set_product_name, set_install_label, set_step_label_resolver, _RE_LAYER_PROGRESS  # noqa: E402
 from bootc_installer.utils.codec_check import check_codecs_present  # noqa: E402
 
 
@@ -704,7 +704,10 @@ class BootcProgress(Gtk.Box):
         # The install is over: the log poller, the pulse and the process
         # poller all stop on this, and a new start() is accepted again.
         self.__pulse_active = False
-        cancelled = self.__cancel_requested and ret != 0
+        # The exit code decides, never a `complete` event (subprocess gives
+        # a negative code for a signal): shared/progress/outcome-cases.json.
+        outcome = install_outcome(ret if ret >= 0 else None, self.__cancel_requested)
+        cancelled = outcome == "cancelled"
         self.__set_running(False)
         if ret != 0:
             # The failure page offers the log. A key for a disk that the
@@ -712,9 +715,10 @@ class BootcProgress(Gtk.Box):
             session.scrub_log(self.__recovery_key)
             self.__log_failure(ret)
         self.__window.set_installation_result(
-            ret == 0, None, self.__boot_id, self.__recovery_key, elapsed_secs,
+            outcome == "succeeded", None, self.__boot_id, self.__recovery_key, elapsed_secs,
             exit_code=ret, cancelled=cancelled,
             error=self.__last_error if ret != 0 else None,
+            receipt=self.__progress_state.get("receipt"),
         )
         return False
 
@@ -847,7 +851,8 @@ class BootcProgress(Gtk.Box):
                 return False  # cancelled, or another replay has started
             self.__set_running(False)
             # No boot_id: the transcript's is a placeholder.
-            self.__window.set_installation_result(True, None, "")
+            self.__window.set_installation_result(
+                True, None, "", receipt=self.__progress_state.get("receipt"))
             return False
 
         def _finish():

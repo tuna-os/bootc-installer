@@ -14,7 +14,9 @@ when no store URL is configured.
 """
 
 import importlib.util
+import os
 import pathlib
+from unittest.mock import patch
 
 import gi
 
@@ -26,10 +28,17 @@ REPO = pathlib.Path(__file__).resolve().parents[2]
 
 
 def _harness():
+    # Loading the harness runs its module code, which points
+    # BOOTC_INSTALLER_FAKE_PROBE at an installed laptop and sets the gate
+    # overrides for a capture. Keep that out of the rest of the run: a later
+    # test in this process would otherwise see an installed bootc computer
+    # that can install itself from its bootc storage, and the wizard drops
+    # its connection check (#267).
     spec = importlib.util.spec_from_file_location(
         "capture_harness_under_test", REPO / "tests" / "gui" / "capture-screens.py")
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    with patch.dict(os.environ):
+        spec.loader.exec_module(mod)
     return mod
 
 

@@ -13,6 +13,15 @@ REPO = pathlib.Path(__file__).resolve().parents[2]
 SHARED = REPO / "shared" / "recipe" / "fisherman-recipe.schema.json"
 
 
+def _recipe_package_source():
+    """The Go source of fisherman's recipe package: its structs and
+    constants are spread over recipe.go and its siblings (SourceReuse and
+    bootc_store_reuse are in reuse.go)."""
+    pkg = REPO / "fisherman" / "fisherman" / "internal" / "recipe"
+    return "\n".join(p.read_text() for p in sorted(pkg.glob("*.go"))
+                     if not p.name.endswith("_test.go"))
+
+
 class SharedRecipeSchemaTests(unittest.TestCase):
     def test_shared_schema_is_valid_json_schema(self):
         doc = json.loads(SHARED.read_text())
@@ -134,7 +143,7 @@ class SharedRecipeSchemaTests(unittest.TestCase):
         recipe_go = REPO / "fisherman" / "fisherman" / "internal" / "recipe" / "recipe.go"
         if not recipe_go.exists():
             self.skipTest("fisherman submodule not checked out")
-        src = recipe_go.read_text()
+        src = _recipe_package_source()
         props = json.loads(SHARED.read_text())["properties"]
         cases = {
             "Recipe": props,
@@ -146,6 +155,7 @@ class SharedRecipeSchemaTests(unittest.TestCase):
             "Encryption": props["encryption"]["properties"],
             "SlurpSpec": props["slurp"]["properties"],
             "SlurpUserSpec": props["slurp"]["properties"]["users"]["items"]["properties"],
+            "SourceReuse": props["sourceReuse"]["properties"],
         }
         for struct, schema_props in cases.items():
             with self.subTest(struct=struct):
@@ -201,9 +211,9 @@ class SharedRecipeSchemaTests(unittest.TestCase):
         recipe_go = REPO / "fisherman" / "fisherman" / "internal" / "recipe" / "recipe.go"
         if not recipe_go.exists():
             self.skipTest("fisherman submodule not checked out")
-        src = recipe_go.read_text()
+        src = _recipe_package_source()
         props = json.loads(SHARED.read_text())["properties"]
-        consts = dict(re.findall(r'^\s*(\w+)\s*=\s*"([^"]+)"', src, re.M))
+        consts = dict(re.findall(r'^\s*(?:const\s+)?(\w+)\s*=\s*"([^"]+)"', src, re.M))
         for field, var in (("override", "Overrides"), ("experimental", "Experimentals")):
             with self.subTest(field=field):
                 names = re.search(rf"var {var} = \[\]string\{{([^}}]*)\}}", src).group(1)
@@ -220,6 +230,30 @@ class SharedRecipeSchemaTests(unittest.TestCase):
         self.assertTrue(list(validator.iter_errors(base)))
         self.assertFalse(list(validator.iter_errors({**base, "experimental": ["zfs"]})))
         self.assertFalse(list(validator.iter_errors({**base, "filesystem": "xfs"})))
+
+    def test_source_reuse_needs_the_opt_in_an_empty_image_and_a_target(self):
+        """fisherman's static sourceReuse rules (docs/SOURCE-REUSE.md):
+        source_reuse_experimental, source_reuse_image_conflict and
+        source_reuse_target_imgref_required, in the schema."""
+        try:
+            import jsonschema
+        except ImportError:
+            self.skipTest("python3-jsonschema is not installed")
+        validator = jsonschema.Draft7Validator(json.loads(SHARED.read_text()))
+        reuse = {"store": "bootc", "digest": "sha256:" + "1" * 64, "platform": "x86_64"}
+        good = {"disk": "/dev/sda", "hostname": "a", "image": "",
+                "targetImgref": "ghcr.io/example/os:stable",
+                "experimental": ["bootc_store_reuse"], "sourceReuse": reuse}
+        self.assertFalse(list(validator.iter_errors(good)))
+        for bad in ({**good, "experimental": []},
+                    {k: v for k, v in good.items() if k != "experimental"},
+                    {**good, "image": "ghcr.io/example/os:stable"},
+                    {k: v for k, v in good.items() if k != "targetImgref"},
+                    {**good, "sourceReuse": {**reuse, "store": "podman"}},
+                    {**good, "sourceReuse": {**reuse, "digest": "stable"}},
+                    {**good, "sourceReuse": {**reuse, "extra": 1}}):
+            with self.subTest(recipe=bad):
+                self.assertTrue(list(validator.iter_errors(bad)))
 
     def test_no_frontend_keeps_a_second_copy(self):
         copies = [p.relative_to(REPO).as_posix()

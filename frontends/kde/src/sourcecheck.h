@@ -15,6 +15,8 @@
 
 #include <QByteArray>
 #include <QJsonObject>
+#include <QList>
+#include <QPair>
 #include <QString>
 #include <QStringList>
 
@@ -41,5 +43,26 @@ QJsonObject verification(const QByteArray &result, const QString &expectedInstal
 
 // Only a blocked source holds Install.
 bool blocksInstall(const QJsonObject &checkView);
+
+// A registry reference without its docker:// transport.
+QString plainRef(const QString &ref);
+
+// fisherman's `receipt` progress event as {state, install_id, reason}
+// (shared/progress/receipt-cases.json), and the done page's copy keys for
+// it, with the {value} of each (bootc_shared.completion.receipt_lines).
+// A null receipt means that no event came.
+QJsonObject receiptOf(const QJsonObject &event);
+QList<QPair<QString, QString>> receiptLines(const QJsonValue &receipt);
+
+// The install source (#267, shared/probe/source-reuse-cases.json): the item
+// of this computer's bootc storage that the install may copy, as {ref,
+// digest, platform}, or an empty object. `probeOutput` is the plain probe;
+// `updateRef` the recipe's targetImgref. Never on live media.
+QJsonObject reuseSource(bool ok, const QByteArray &probeOutput, const QString &updateRef);
+// The recipe with that item as its source: an empty image, the update
+// reference kept, sourceReuse and the bootc_store_reuse opt-in.
+QJsonObject applyReuse(const QJsonObject &recipe, const QJsonObject &source);
+// The keys of `validate --json --partial` that check it.
+QJsonObject reuseFragment(const QJsonObject &recipe);
 
 }

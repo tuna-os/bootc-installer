@@ -179,10 +179,17 @@ The confirm page also asks fisherman about the selected image (#266):
 `check_source` runs `fisherman probe --json --source` off the UI thread,
 and `src/source_check.rs` reads its `capabilities` and `bootc_store`
 (#267). Only a blocked source holds Install. A reply for an older visit,
-or for another source, is dropped. Never offer an image of this computer's
-bootc storage as a source. The done page says "installed, restart
-required" and never "verified" (`done_verification`, #269). `cargo test
-source_check` reads the shared case files. The capture does not run the
+or for another source, is dropped.
+
+The confirm page offers the system that this computer runs as a second
+install source (#267). `refresh_reuse` reads the plain probe through
+`source_check::reuse_source`. It offers nothing on live media, and the
+download stays the default. `install_recipe()` is what the install and the
+source check get. fisherman checks the pick (`reuse_problem`). The wizard
+skips the network page when this computer can copy its own system. The done page says
+"installed, restart required" and never "verified": `receipt_lines()` is
+`done_verification` and the line for fisherman's `receipt` event (#269).
+`cargo test source_check` reads the shared case files. The capture does not run the
 check, so the section is not in the screenshots.
 
 ## Sibling contract

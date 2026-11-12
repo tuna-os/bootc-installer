@@ -14,18 +14,29 @@ tuna-os/fisherman#385):
 ## The done page
 
 After an install that exits 0, each frontend shows `done_title`,
-`done_subtitle` and `done_verification`. The last line says that nothing
-checked the new system yet, where the new system records its first start
-(`/var/lib/fisherman/boot-receipt/`), and that `fisherman verify --json`
-on that system compares the record with the receipt. The check covers the
-identity of the image only.
+`done_subtitle` and `done_verification`: the new system has not started,
+so nothing checked it. Then it shows the line for fisherman's `receipt`
+progress event (tuna-os/fisherman#441,
+[`../progress/README.md`](../progress/README.md), "The receipt event"):
+
+| Receipt | Line |
+|---|---|
+| written, first-boot check set up | `done_receipt_check_set_up`, with the install ID: at its first start, the new system records which image it started, and `fisherman verify --json` on that system compares the record with the receipt. The check covers the identity of the image only |
+| written, no first-boot check | `done_receipt_written_no_check`, with the install ID, then `done_receipt_reason_<reason>` (`transient_etc`, `collector_failed`) |
+| not written | `done_receipt_not_written`, then `done_receipt_reason_<reason>` (`resolve_failed`, `build_failed`, `write_failed`) |
+| no event | `done_receipt_none` (a fisherman older than #441) |
+| version other than 1, or malformed | `done_receipt_unreadable` |
+
+A reason code that the copy does not know gets
+`done_receipt_reason_unknown`, never the raw code.
 
 - A done page never says "verified". The live installer cannot see the
   start of the new system: its own `bootc status` describes the live
   system, not the target.
-- A failed or cancelled install does not show the line.
+- A failed or cancelled install shows neither line. The receipt does not
+  change the outcome: the exit code decides it.
 - The installer runs no `bootc` command and reads no file of the new
-  system. Nothing is uploaded.
+  system. Nothing goes to the network.
 
 The installed system does not have this installer. A first-boot viewer of
 the result does not exist yet. On the installed system, run
@@ -73,9 +84,5 @@ system.
 
 ## What is not here yet
 
-- fisherman reports the receipt in its install log as a line of text, not
-  as an event. So the done page cannot say that this install wrote a
-  receipt, or show its install id. A `receipt` progress event would let it
-  do that.
 - No frontend runs on the installed system, so no frontend shows a
-  verification result.
+  verification result. The readers above are ready for a viewer there.

@@ -29,6 +29,8 @@ class QProcess;
 #include "sourcecheck.h"
 #include "validate.h"
 
+#include <QJsonValue>
+
 class InstallerController : public QObject
 {
     Q_OBJECT
@@ -219,6 +221,24 @@ class InstallerController : public QObject
     Q_PROPERTY(QVariantList sourceRows READ sourceRows NOTIFY sourceCheckChanged)
     Q_PROPERTY(bool sourceVisible READ sourceVisible NOTIFY sourceCheckChanged)
     Q_PROPERTY(bool sourceBlocked READ sourceBlocked NOTIFY sourceCheckChanged)
+    // The install source (#267): this computer's system, copied from its
+    // bootc storage, as a second choice beside the download. The confirm
+    // step calls refreshReuse() and shows the choice when reuseOffered. The
+    // download is the default; reuseSelected is the user's pick.
+    // reuseProblem is fisherman's problem with the pick
+    // (validate_source_reuse_<code>), and holds Install.
+    Q_PROPERTY(bool reuseOffered READ reuseOffered NOTIFY reuseChanged)
+    Q_PROPERTY(bool reuseSelected READ reuseSelected WRITE setReuseSelected NOTIFY reuseChanged)
+    Q_PROPERTY(QString reuseRef READ reuseRef NOTIFY reuseChanged)
+    // source_reuse_download_detail and source_reuse_install_from with the
+    // reference filled in.
+    Q_PROPERTY(QString reuseDownloadDetail READ reuseDownloadDetail NOTIFY reuseChanged)
+    Q_PROPERTY(QString reuseInstallFrom READ reuseInstallFrom NOTIFY reuseChanged)
+    Q_PROPERTY(QString reuseProblem READ reuseProblem NOTIFY problemsChanged)
+    // The done page's lines after an install that exited 0 (#269): that
+    // nothing checked the new system, and what fisherman's `receipt` event
+    // says it set up for the first-boot check.
+    Q_PROPERTY(QStringList receiptLines READ receiptLines NOTIFY receiptChanged)
 
 public:
     explicit InstallerController(QObject *parent = nullptr);
@@ -377,6 +397,31 @@ public:
     QVariantList sourceRows() const;
     bool sourceVisible() const { return m_sourceVisible; }
     bool sourceBlocked() const { return sourcecheck::blocksInstall(m_sourceCheck); }
+    Q_INVOKABLE void refreshReuse();
+    bool reuseOffered() const { return !m_reuseSource.isEmpty(); }
+    bool reuseSelected() const { return m_reuseSelected && reuseOffered(); }
+    void setReuseSelected(bool selected);
+    QString reuseRef() const { return m_reuseSource.value(QLatin1String("ref")).toString(); }
+    QString reuseProblem() const;
+    QString reuseDownloadDetail() const
+    {
+        return m_branding.text(QStringLiteral("source_reuse_download_detail"), {{QStringLiteral("value"), reuseRef()}});
+    }
+    QString reuseInstallFrom() const
+    {
+        return m_branding.text(QStringLiteral("source_reuse_install_from"), {{QStringLiteral("value"), reuseRef()}});
+    }
+    QStringList receiptLines() const;
+    QJsonValue receipt() const { return m_receipt; }
+    // The recipe that the install gets: the wizard's, with the install
+    // source of the confirm step. Public for tests.
+    QJsonObject installRecipe() const;
+    // How an install ended: "succeeded", "cancelled" or "failed"
+    // (shared/progress/outcome-cases.json). The exit code decides, never a
+    // `complete` event; `crashed` is a wrapper that a signal ended.
+    static QString outcomeOf(int exitCode, bool crashed, bool cancelRequested);
+    // Sets the plain probe's output that refreshReuse() reads. Public for tests.
+    void setProbeOutput(const QByteArray &out) { m_probeOutput = out; }
     // Takes in a probe reply for the request of generation `generation`.
     // Public for tests.
     void applySourceReply(int generation, const sourcecheck::Request &req, bool ok,
@@ -430,6 +475,8 @@ Q_SIGNALS:
     void problemsChanged();
     void installCompleted(int exitCode);
     void sourceCheckChanged();
+    void reuseChanged();
+    void receiptChanged();
 
 private:
     void appendLine(const QString &line, bool parse = true);
@@ -456,6 +503,14 @@ private:
     // the count of requests (a reply of an older one is dropped).
     QJsonObject m_sourceCheck;
     QJsonObject m_bootcStore;
+    // The plain probe's output, the item it offers as the install source,
+    // and whether the user picked it.
+    QByteArray m_probeOutput;
+    QJsonObject m_reuseSource;
+    bool m_reuseSelected = false;
+    // The last `receipt` event as sourcecheck::receiptOf() reads it; null
+    // before one.
+    QJsonValue m_receipt;
     bool m_sourceVisible = false;
     int m_sourceGeneration = 0;
     bool m_diskRemovable = false;

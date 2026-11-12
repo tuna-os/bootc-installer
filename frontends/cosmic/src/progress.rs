@@ -42,6 +42,10 @@ pub struct Progress {
     /// fisherman's reason for the failure: the last `error` event, `None`
     /// before one arrives (shared/progress/error-cases.json).
     pub error: Option<InstallError>,
+    /// What the install did with the installation receipt: the last
+    /// `receipt` event as `source_check::receipt_of` reads it, `None`
+    /// before one (#269, shared/progress/receipt-cases.json).
+    pub receipt: Option<Value>,
     cumulative_pct: f32,
     weight_pct: f32,
     /// How far through the current step the bar is, 0-1. Never decreases
@@ -111,6 +115,7 @@ impl Progress {
             step_id: String::new(),
             recovery_key: String::new(),
             error: None,
+            receipt: None,
             cumulative_pct: 0.0,
             weight_pct: 0.0,
             step_frac: 0.0,
@@ -238,6 +243,14 @@ impl Progress {
                 });
                 Some(format!("ERROR: {}", str_field("message")))
             }
+            "receipt" => {
+                // It moves no bar and decides no outcome; the done page
+                // reads it.
+                let view = crate::source_check::receipt_of(&event);
+                let line = format!("Installation receipt: {}", str_of_value(&view, "state"));
+                self.receipt = Some(view);
+                Some(line)
+            }
             // Kept in the log as well as on the done page: the log is what
             // gets pasted into a bug report, and a key that only ever
             // existed on a screen the user already dismissed is no better
@@ -251,6 +264,10 @@ impl Progress {
             _ => None,
         }
     }
+}
+
+fn str_of_value<'a>(v: &'a Value, key: &str) -> &'a str {
+    v.get(key).and_then(Value::as_str).unwrap_or("")
 }
 
 /// Whether the done page must hold its Restart button (#129).

@@ -46,6 +46,9 @@ struct Result {
     // offline.images: refs in the host's offline stores. The stores are
     // fisherman's: a recipe without additionalImageStores gets them.
     QStringList offlineImages;
+    // The probe's own output, for readers of the objects that this struct
+    // does not hold (bootc_store for the install source, #267).
+    QByteArray raw;
 };
 
 // Parses probe output. A failure is a Result with ok == false and an error.

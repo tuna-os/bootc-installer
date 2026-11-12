@@ -120,3 +120,14 @@ validation: for example, composefs plus XFS remains invalid. Sealed images may
 use ext4 with either bootc storage backend, as specified by the image producer.
 `local_imgref` changes the install source only (including an `oci:/...` source);
 `targetImgref` continues to identify the selected update-tracking image.
+
+## Install from the bootc storage of this computer
+
+`sourceReuse` (`store` `bootc`, `digest`, `platform`) tells fisherman to
+copy an image that the bootc of this computer keeps, instead of a download
+(fisherman `docs/SOURCE-REUSE.md`). It is experimental. A recipe with it
+has `bootc_store_reuse` in `experimental`, an empty `image`, and the
+catalog's update reference as `targetImgref`, as the schema says. A frontend writes it only when the user picks this computer's
+system on the confirm page. It is never the default, and never on live
+media. `../probe/README.md` ("Install from the bootc storage of this
+computer") says which item qualifies.

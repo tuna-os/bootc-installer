@@ -40,7 +40,98 @@ var PHASE_MILESTONES = [
 
 function newState() {
     return { step: 0, cumulativePct: 0, weightPct: 0, stepFrac: 0, postPullBase: -1, fraction: 0,
-             error: null }
+             error: null, receipt: null }
+}
+
+// fisherman's `receipt` event (#269) as {state, install_id, reason}:
+// bootc_shared.progress.receipt_of (shared/progress/receipt-cases.json).
+function receiptOf(event) {
+    function view(state, installId, reason) {
+        return { state: state, install_id: installId || "", reason: reason || "" }
+    }
+    if (typeof event.version !== "number" || event.version !== 1)
+        return view("unreadable")
+    if (typeof event.written !== "boolean")
+        return view("unreadable")
+    var reason = typeof event.reason === "string" && /^[a-z0-9_]{1,64}$/.test(event.reason)
+        ? event.reason : ""
+    if (!event.written)
+        return view("not_written", "", reason)
+    var id = event.install_id
+    if (typeof id !== "string" || !/^[0-9a-f]{32}$/.test(id))
+        return view("unreadable")
+    if (event.first_boot_check === true)
+        return view("check_set_up", id)
+    return view("written_no_check", id, reason)
+}
+
+// The done page's copy keys after an install that exited 0, with the
+// {value} of each: bootc_shared.completion.receipt_lines. `hasKey(key)`
+// says whether the copy has a line for a key; null receipt: no event came.
+function receiptLines(receipt, hasKey) {
+    var lines = [{ key: "done_verification", value: "" }]
+    var states = ["check_set_up", "written_no_check", "not_written"]
+    if (!receipt) {
+        lines.push({ key: "done_receipt_none", value: "" })
+        return lines
+    }
+    if (states.indexOf(receipt.state) < 0) {
+        lines.push({ key: "done_receipt_unreadable", value: "" })
+        return lines
+    }
+    lines.push({ key: "done_receipt_" + receipt.state, value: receipt.install_id || "" })
+    if (receipt.state !== "check_set_up") {
+        var key = "done_receipt_reason_" + (receipt.reason || "unknown")
+        lines.push({ key: hasKey(key) ? key : "done_receipt_reason_unknown", value: "" })
+    }
+    return lines
+}
+
+// The recipe with this computer's system as its install source (#267):
+// bootc_shared.source_check.apply_reuse. `source` is {ref, digest,
+// platform} from the backend's `detect`.
+function applyReuse(recipe, source) {
+    var out = {}
+    for (var k in recipe)
+        out[k] = recipe[k]
+    if (!source)
+        return out
+    out.targetImgref = recipe.targetImgref || recipe.image || ""
+    out.image = ""
+    out.sourceReuse = { store: "bootc", digest: source.digest, platform: source.platform }
+    var experimental = (recipe.experimental || []).filter(function (e) { return typeof e === "string" })
+    if (experimental.indexOf("bootc_store_reuse") < 0)
+        experimental.push("bootc_store_reuse")
+    out.experimental = experimental
+    return out
+}
+
+// The `validate --json --partial` fragment for it: no passphrase, no account.
+function reuseFragment(recipe) {
+    var out = {}
+    var keys = ["image", "targetImgref", "experimental", "sourceReuse", "composeFsBackend", "filesystem"]
+    for (var i = 0; i < keys.length; i++)
+        if (keys[i] in recipe)
+            out[keys[i]] = recipe[keys[i]]
+    return out
+}
+
+// How an install ended: "succeeded", "cancelled" or "failed"
+// (shared/progress/outcome-cases.json). `code` is the backend's exit code
+// (128 + n for a signal), or null. The exit code decides, never a
+// `complete` event.
+function installOutcome(code, cancelRequested) {
+    if (code === 0)
+        return "succeeded"
+    if (code === 130 || cancelRequested)
+        return "cancelled"
+    return "failed"
+}
+
+// A registry reference without its docker:// transport.
+function plainRef(ref) {
+    ref = (ref || "").trim()
+    return ref.indexOf("docker://") === 0 ? ref.slice("docker://".length) : ref
 }
 
 // The parts of an `error` event: {message, code, field}, "" for a part that
@@ -87,6 +178,9 @@ function advance(state, event) {
     // not move the bar.
     if (event.type === "error")
         state.error = errorOf(event)
+    // What the install did with the receipt; it moves no bar.
+    if (event.type === "receipt")
+        state.receipt = receiptOf(event)
     derive(state, event)
     var overall = overallFraction(event)
     if (overall >= 0 && (event.type === "step" || event.type === "substep"))

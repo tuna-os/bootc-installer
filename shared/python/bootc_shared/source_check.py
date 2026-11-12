@@ -230,10 +230,9 @@ def bootc_store(result):
     state: "listed" (items to show), "empty", "unavailable" or
     "unsupported". Each item is an image that the live host's bootc keeps:
     it describes the machine that runs the installer, never the target.
-    `installable` is false for each item: no fisherman install path reads
-    bootc-owned storage yet (fisherman/docs/PROBE.md, "Reuse is not
-    implemented"), so a frontend shows the items and offers none of them
-    as a source, and never as available offline.
+    `installable` is false for each item: the list is a view of this
+    computer, never a source and never an offline copy. The one item that
+    a frontend may offer as a source comes from reuse_source() (#267).
     """
     def view(state, reason):
         return {"state": state, "reason": reason, "items": [], "hidden": 0}
@@ -290,16 +289,23 @@ def recipe_request(recipe, is_live):
     recipe = recipe if isinstance(recipe, dict) else {}
     image = _str(recipe.get("image"))
     features = ["unified_storage"] if recipe.get("unifiedStorage") is True else []
+    if isinstance(recipe.get("sourceReuse"), dict):
+        # An install from this computer's bootc storage: reuse_source()
+        # offers only the item whose ref is the update reference, so the
+        # probe asks about that reference.
+        image = _plain_ref(recipe.get("targetImgref"))
+        is_live = False
     return request(source=image, live_root=(not image and bool(is_live)),
                    target=_str(recipe.get("targetImgref")), features=features)
 
 
-def rows(view, store, text):
+def rows(view, store, text, reuse=False):
     """The rows a Python frontend shows for the source check: a list of
     (title, subtitle). `view` is source_check() (None while checking),
     `store` is bootc_store() (None to leave it out), `text(key)` is the
     frontend's copy resolver. A stale view shows as checking: the reply
-    that it was is dropped."""
+    that it was is dropped. `reuse` is true when the recipe installs from
+    this computer's bootc storage: the source line then says so."""
     out = []
     if view is None or view.get("state") == "stale":
         return [(text(TITLE_PREFIX + "checking"), "")]
@@ -308,7 +314,8 @@ def rows(view, store, text):
         if value:
             out.append((text(key).replace("{value}", value), ""))
 
-    value_line("source_install_from", view.get("install_from", ""))
+    value_line("source_reuse_install_from" if reuse else "source_install_from",
+               view.get("install_from", ""))
     value_line("source_update_ref", view.get("update_ref", ""))
     value_line("source_live_host", view.get("live_host_image", ""))
     out.append((text(TITLE_PREFIX + view["state"]), text(view["reason_key"])))
@@ -319,3 +326,135 @@ def rows(view, store, text):
         for item in store["items"]:
             out.append((item["ref"], text(KIND_PREFIX + item["kind"])))
     return out
+
+
+# Installs from this computer's bootc storage (#267, tuna-os/fisherman#384
+# phase 2, docs/SOURCE-REUSE.md). fisherman installs from an item of
+# `bootc_store` when the recipe names it in `sourceReuse`. That is an
+# experimental opt-in, never a default, and never on live media.
+REUSE_EXPERIMENT = "bootc_store_reuse"
+REUSE_STORE = "bootc"
+_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
+_PLATFORM = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
+_TRANSPORT = "docker://"
+
+
+def _plain_ref(ref):
+    """A registry reference without its `docker://` transport: the form of
+    bootc_store.items[].ref."""
+    return _str(ref).strip().removeprefix(_TRANSPORT)
+
+
+def reuse_source(result, update_ref):
+    """The item of this computer's bootc storage that the install may copy
+    instead of a download, or None. `result` is the parsed plain probe
+    (`fisherman probe --json`), `update_ref` the recipe's `targetImgref`:
+    the reference the new system follows for updates.
+
+    An item qualifies when all of these hold (fisherman's PROBE.md,
+    "Reuse"; the frontend adds the last three):
+    - the probe says this computer is not live media (`live.is_live` is
+      false) and its bootc storage is available (`bootc_store` version 1);
+    - the item is the live host's bootc's, with `storage` "ostree",
+      `availability` "deployed", `matches_machine` true, a sha256 digest
+      and a platform;
+    - the item is the deployment that runs now (role `booted`);
+    - its `ref` is the update reference, so the new system follows the
+      image that it starts from;
+    - no staged deployment has that ref: a staged update moves the ostree
+      ref, and fisherman then refuses the copy (source_reuse_source_moved).
+
+    Returns {"ref", "digest", "platform"}. The frontend offers it as a
+    second choice; the download stays the default."""
+    if not isinstance(result, dict):
+        return None
+    live = result.get("live")
+    if not isinstance(live, dict) or live.get("is_live") is not False:
+        return None
+    store = result.get("bootc_store")
+    if (not isinstance(store, dict) or _int(store.get("version")) != BOOTC_STORE_VERSION
+            or not _true(store.get("available")) or not isinstance(store.get("items"), list)):
+        return None
+    want = _plain_ref(update_ref)
+    if not want:
+        return None
+    items = [_obj(i) for i in store["items"]]
+
+    def roles(item):
+        raw = item.get("roles")
+        return [r for r in raw if isinstance(r, str)] if isinstance(raw, list) else []
+
+    if any(_str(i.get("ref")) == want and "staged" in roles(i) for i in items):
+        return None
+    for item in items:
+        digest, platform = _str(item.get("digest")), _str(item.get("platform"))
+        if (_str(item.get("ref")) == want and "booted" in roles(item)
+                and _str(item.get("owner")) == "bootc"
+                and _str(item.get("context")) == "live-host"
+                and _str(item.get("storage")) == "ostree"
+                and _str(item.get("availability")) == "deployed"
+                and _true(item.get("matches_machine"))
+                and _DIGEST.match(digest) and _PLATFORM.match(platform)):
+            return {"ref": want, "digest": digest, "platform": platform}
+    return None
+
+
+def offers_reuse(result):
+    """Whether the probe has an item that reuse_source() would offer for
+    its own reference: the system that this computer runs. A frontend
+    whose network check comes before the image is selected uses it, so
+    that a computer without a network can still reach the choice."""
+    store = _obj(_obj(result).get("bootc_store"))
+    items = store.get("items") if isinstance(store.get("items"), list) else []
+    for item in items:
+        item = _obj(item)
+        roles = item.get("roles") if isinstance(item.get("roles"), list) else []
+        if "booted" in roles and reuse_source(result, _str(item.get("ref"))):
+            return True
+    return False
+
+
+def apply_reuse(recipe, source):
+    """`recipe` with its source taken from `source` (reuse_source()): a
+    copy with an empty `image`, `targetImgref` kept (the catalog's update
+    reference), `sourceReuse` and the `bootc_store_reuse` opt-in. `recipe`
+    itself is not changed. With `source` None, the copy is unchanged."""
+    out = dict(recipe)
+    if not source:
+        return out
+    out["targetImgref"] = _str(recipe.get("targetImgref")) or _str(recipe.get("image"))
+    out["image"] = ""
+    out["sourceReuse"] = {"store": REUSE_STORE, "digest": source["digest"],
+                          "platform": source["platform"]}
+    experimental = [e for e in recipe.get("experimental") or [] if isinstance(e, str)]
+    if REUSE_EXPERIMENT not in experimental:
+        experimental.append(REUSE_EXPERIMENT)
+    out["experimental"] = experimental
+    return out
+
+
+# The recipe keys that fisherman's static sourceReuse rules read in
+# `validate --json --partial` (VALIDATE.md, "Partial mode").
+REUSE_FRAGMENT_KEYS = ("image", "targetImgref", "experimental", "sourceReuse",
+                       "composeFsBackend", "filesystem")
+
+
+def reuse_fragment(recipe):
+    """The `validate --json --partial` fragment that checks a recipe with
+    `sourceReuse`: no passphrase, no account."""
+    return {k: recipe[k] for k in REUSE_FRAGMENT_KEYS if k in recipe}
+
+
+def reuse_rows(source, update_ref, text):
+    """The rows of the install-source choice, as (key, title, detail): the
+    download first (the default), then the item. [] when there is no
+    item to offer."""
+    if not source:
+        return []
+    ref = _plain_ref(update_ref)
+    return [
+        ("download", text("source_reuse_download"),
+         text("source_reuse_download_detail").replace("{value}", ref)),
+        ("local", text("source_reuse_local"),
+         text("source_reuse_local_detail")),
+    ]

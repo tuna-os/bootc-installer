@@ -47,6 +47,14 @@ template $BootcConfirm: Adw.Bin {
         title: _("Summary");
       }
 
+      // The install source (#267): download the image (the default), or
+      // copy the system that this computer runs from its bootc storage.
+      // views/confirm.py shows it only when fisherman's probe has an item
+      // that qualifies; never on live media.
+      Adw.PreferencesGroup group_reuse {
+        visible: false;
+      }
+
       Adw.PreferencesGroup {
         Box {
           orientation: vertical;

@@ -322,6 +322,9 @@ pub enum Message {
     /// `.0` (#266, #267): the request and the probe's stdout, or None when
     /// it failed. An answer for an older check is dropped.
     SourceChecked(u64, source_check::Request, Option<String>),
+    /// The confirm page's install source: true is this computer's system
+    /// from its bootc storage, false the download (#267).
+    ReuseSelected(bool),
     HostnameChanged(String),
     FilesystemChanged(usize),
     EncryptionChanged(usize),
@@ -431,6 +434,12 @@ pub struct TunaInstaller {
     source_seq: u64,
     source_view: Option<serde_json::Value>,
     store_view: Option<serde_json::Value>,
+    /// The plain probe's output; the item of this computer's bootc storage
+    /// that it offers as the install source (#267), and the user's pick.
+    /// The download is the default.
+    probe_output: Option<String>,
+    reuse_source: Option<serde_json::Value>,
+    reuse_selected: bool,
     source_visible: bool,
     recipe: Recipe,
     disks: Vec<DiskInfo>,
@@ -762,7 +771,11 @@ impl TunaInstaller {
                 self.live_image.is_none()
                     && (self.catalog.leaves.len() > 1 || !self.image_preselected)
             }
-            Page::Network => self.live_image.is_none(),
+            // An installed bootc computer can copy its own system (#267):
+            // the network check must not stop it before that choice.
+            Page::Network => {
+                self.live_image.is_none() && !source_check::offers_reuse(self.probe_output.as_deref())
+            }
             Page::Account => self.account_required(),
             Page::Tour => !self.tour_slides().is_empty(),
             _ => true,
@@ -785,6 +798,7 @@ impl TunaInstaller {
                 // /proc/cmdline, read inside the Flatpak sandbox.
                 self.live_image = facts.is_live.then_some(facts.live_image);
                 self.offline_images = facts.offline_images;
+                self.probe_output = Some(facts.raw);
                 // The image fields depend on live media and on the offline
                 // stores. Build them again when those changed, and only
                 // then: a later probe (the disk page runs one) must not
@@ -862,7 +876,15 @@ impl TunaInstaller {
         }
         self.validate_seq += 1;
         let seq = self.validate_seq;
-        let partial = partial_recipe(&self.recipe);
+        let mut partial = partial_recipe(&self.recipe);
+        if self.reuse_selected() {
+            // fisherman's static sourceReuse rules, before Install (#267).
+            if let (Some(map), serde_json::Value::Object(fragment)) =
+                (partial.as_object_mut(), source_check::reuse_fragment(&self.install_recipe()))
+            {
+                map.extend(fragment);
+            }
+        }
         Task::perform(
             async move {
                 tokio::time::sleep(std::time::Duration::from_millis(300)).await;
@@ -964,7 +986,8 @@ impl TunaInstaller {
         self.source_seq += 1;
         self.source_view = None;
         self.store_view = None;
-        let recipe = serde_json::to_value(&self.recipe).unwrap_or_default();
+        self.refresh_reuse();
+        let recipe = self.install_recipe();
         let req = source_check::Request::from_recipe(&recipe, self.live_image.is_some());
         let args = req.probe_args();
         self.source_visible = !args.is_empty();
@@ -1001,12 +1024,68 @@ impl TunaInstaller {
         if !self.source_visible {
             return Vec::new();
         }
-        source_check::rows(self.source_view.as_ref(), self.store_view.as_ref())
+        source_check::rows(self.source_view.as_ref(), self.store_view.as_ref(), self.reuse_selected())
+    }
+
+    /// Offers this computer's system as a second install source when the
+    /// probe has an item that qualifies (#267). A different item, or none,
+    /// drops the pick: the download stays the default.
+    pub fn refresh_reuse(&mut self) {
+        let update_ref = if self.recipe.target_imgref.is_empty() {
+            self.recipe.image.clone()
+        } else {
+            self.recipe.target_imgref.clone()
+        };
+        let source = source_check::reuse_source(self.probe_output.as_deref(), &update_ref);
+        if source.as_ref().map(|s| &s["digest"]) != self.reuse_source.as_ref().map(|s| &s["digest"]) {
+            self.reuse_selected = false;
+        }
+        self.reuse_source = source;
+    }
+
+    /// The done page's lines after an install that exited 0 (#269): that
+    /// nothing checked the new system, and what the `receipt` event says.
+    pub fn receipt_lines(&self) -> Vec<String> {
+        source_check::receipt_lines(self.progress.receipt.as_ref())
+            .into_iter()
+            .map(|(key, value)| branding::get().text_with(&key, &[("value", &value)]))
+            .filter(|line| !line.is_empty())
+            .collect()
+    }
+
+    /// The item that may be copied, as {ref, digest, platform}.
+    pub fn reuse_source(&self) -> Option<&serde_json::Value> {
+        self.reuse_source.as_ref()
+    }
+
+    /// The user picked this computer's system.
+    pub fn reuse_selected(&self) -> bool {
+        self.reuse_selected && self.reuse_source.is_some()
+    }
+
+    /// The recipe that fisherman gets: the wizard's, with the install
+    /// source of the confirm page.
+    pub fn install_recipe(&self) -> serde_json::Value {
+        let mut recipe = self.recipe.clone();
+        recipe.accept_experimental();
+        let value = serde_json::to_value(&recipe).unwrap_or_default();
+        match self.reuse_source.as_ref().filter(|_| self.reuse_selected) {
+            Some(source) => source_check::apply_reuse(&value, source),
+            None => value,
+        }
+    }
+
+    /// fisherman's problem with the pick (`validate_source_reuse_<code>`).
+    pub fn reuse_problem(&self) -> Option<&validate::Problem> {
+        if !self.reuse_selected() {
+            return None;
+        }
+        self.problems.iter().find(|p| p.code.starts_with("source_reuse_"))
     }
 
     /// Only a blocked source holds Install.
     pub fn source_blocked(&self) -> bool {
-        self.source_view.as_ref().is_some_and(source_check::blocks_install)
+        self.source_view.as_ref().is_some_and(source_check::blocks_install) || self.reuse_problem().is_some()
     }
 
     fn advance(&mut self) -> (Option<Page>, Task<Message>) {
@@ -1092,6 +1171,9 @@ impl cosmic::Application for TunaInstaller {
             source_seq: 0,
             source_view: None,
             store_view: None,
+            probe_output: None,
+            reuse_source: None,
+            reuse_selected: false,
             source_visible: false,
             recipe,
             selected_disk: None,
@@ -1485,6 +1567,12 @@ impl cosmic::Application for TunaInstaller {
                 self.apply_source_reply(seq, &req, out.as_deref());
                 Task::none()
             }
+            Message::ReuseSelected(selected) => {
+                self.reuse_selected = selected && self.reuse_source.is_some();
+                // fisherman checks the pick, and the source check asks
+                // about the new source.
+                Task::batch([self.check_fields(), self.check_source()])
+            }
             Message::Validated(seq, result) => {
                 if seq == self.validate_seq {
                     self.problems = result.unwrap_or_else(|e| {
@@ -1592,7 +1680,7 @@ impl cosmic::Application for TunaInstaller {
                 self.cancel_confirmed = false;
                 self.show_cancel_dialog = false;
                 self.progress.reset();
-                let recipe = self.recipe.clone();
+                let recipe = self.install_recipe();
                 let pid_slot = self.install_pid.clone();
                 let live = self.live_image.is_some();
                 Task::stream(Self::stream_fisherman(recipe, pid_slot, live).map(cosmic::action::app))
@@ -1695,13 +1783,12 @@ impl TunaInstaller {
     /// into the same stream line by line (see `merged_lines`), which the
     /// parser passes through untouched.
     fn stream_fisherman(
-        recipe: Recipe,
+        recipe: serde_json::Value,
         pid_slot: std::sync::Arc<std::sync::Mutex<Option<u32>>>,
         live: bool,
     ) -> impl Stream<Item = Message> {
         cosmic::iced::stream::channel(64, async move |mut output| {
-            let mut recipe = recipe;
-            recipe.accept_experimental();
+            // `install_recipe()`: the experimental opt-ins are in it.
             let json = match serde_json::to_string_pretty(&recipe) {
                 Ok(json) => json,
                 Err(e) => {
@@ -2121,8 +2208,10 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let (code, log, fraction) = rt.block_on(async {
             use cosmic::iced::futures::StreamExt;
+            let mut recipe = recipe;
+            recipe.accept_experimental();
             let mut stream = Box::pin(TunaInstaller::stream_fisherman(
-                recipe,
+                serde_json::to_value(&recipe).unwrap(),
                 Default::default(),
                 false,
             ));
@@ -2317,6 +2406,27 @@ mod tests {
         assert_eq!(install_outcome(Some(1), false), Outcome::Failed);
         assert_eq!(install_outcome(Some(1), true), Outcome::Failed);
         assert_eq!(install_outcome(Some(126), true), Outcome::Failed);
+    }
+
+    /// shared/progress/outcome-cases.json: the exit code decides, never a
+    /// `complete` event (#269).
+    #[test]
+    fn the_shared_outcome_cases() {
+        use super::{install_outcome, Outcome};
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/progress/outcome-cases.json");
+        let doc: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        let cases = doc["cases"].as_array().unwrap();
+        assert!(cases.len() >= 10);
+        for case in cases {
+            let code = case["exit_code"].as_i64().map(|c| c as i32);
+            let want = match case["outcome"].as_str().unwrap() {
+                "succeeded" => Outcome::Succeeded,
+                "cancelled" => Outcome::Cancelled,
+                _ => Outcome::Failed,
+            };
+            let cancel = case["cancel_requested"] == serde_json::Value::Bool(true);
+            assert_eq!(install_outcome(code, cancel), want, "{}", case["name"]);
+        }
     }
 
     /// The cancel's whole path short of the UI: the wrapper's group is

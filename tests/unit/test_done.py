@@ -8,6 +8,7 @@ import types
 import unittest
 from unittest.mock import MagicMock, patch, sentinel
 
+
 def _build_gi_stubs():
     gi_mod = types.ModuleType("gi")
     repo_mod = types.ModuleType("gi.repository")
@@ -237,6 +238,7 @@ class TestRegistryWarmup(unittest.TestCase):
 
     def test_warmup_handles_timeout(self):
         import subprocess as _sp
+
         import bootc_installer.views.done as done_mod
         with patch.object(done_mod.subprocess, "run",
                           side_effect=_sp.TimeoutExpired(cmd="skopeo", timeout=60)):
@@ -395,10 +397,37 @@ class TestCompletionIsNotVerification(unittest.TestCase):
         obj = MagicMock()
         obj._BootcDone__window = self._window()
         BootcDone.set_result(obj, True, None)
-        obj.lbl_verification.set_label.assert_called_once_with(COPY_DEFAULTS["done_verification"])
+        obj.lbl_verification.set_label.assert_called_once_with(
+            COPY_DEFAULTS["done_verification"] + "\n\n" + COPY_DEFAULTS["done_receipt_none"])
         obj.group_verification.set_visible.assert_called_with(True)
         self.assertNotIn("verified", obj.page_header.title.lower())
         self.assertNotIn("verified", obj.page_header.subtitle.lower())
+
+    def test_the_receipt_cases_reach_the_page(self):
+        """Each case of shared/progress/receipt-cases.json: the lines that
+        the case names, with the install id, in order (#269)."""
+        import json
+        import os
+
+        from bootc_shared import progress as pp
+        from bootc_shared.branding import COPY_DEFAULTS
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "shared", "progress",
+                            "receipt-cases.json")
+        with open(path, encoding="utf-8") as fh:
+            cases = json.load(fh)["cases"]
+        for case in cases:
+            state = pp.new_progress_state()
+            for event in case["events"]:
+                pp.apply_progress_event(json.dumps(event), state)
+            obj = MagicMock()
+            obj._BootcDone__window = self._window()
+            BootcDone.set_result(obj, True, None, receipt=state["receipt"])
+            want = "\n\n".join(COPY_DEFAULTS[line["key"]].replace("{value}", line["value"])
+                                for line in case["done_lines"])
+            with self.subTest(case=case["name"]):
+                obj.lbl_verification.set_label.assert_called_once_with(want)
+                if case["receipt"] and case["receipt"]["install_id"]:
+                    self.assertIn(case["receipt"]["install_id"], want)
 
     def test_failure_and_cancel_hide_it(self):
         for kwargs in ({"exit_code": 1}, {"cancelled": True}):

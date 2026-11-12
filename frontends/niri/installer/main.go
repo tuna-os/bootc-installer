@@ -22,6 +22,14 @@ import (
 	"syscall"
 )
 
+// SourceReuse is the recipe's sourceReuse: the item of this computer's
+// bootc storage, by its digest and platform.
+type SourceReuse struct {
+	Store    string `json:"store"`
+	Digest   string `json:"digest"`
+	Platform string `json:"platform"`
+}
+
 // Recipe is the fisherman install recipe: every property of
 // shared/recipe/fisherman-recipe.schema.json, and nothing else.
 //
@@ -73,6 +81,11 @@ type Recipe struct {
 	// Experimental names the experimental features the user accepted
 	// ("zfs"): fisherman refuses filesystem zfs without it.
 	Experimental []string `json:"experimental,omitempty"`
+	// SourceReuse takes the install source from an image that this
+	// computer's bootc keeps (#267, fisherman docs/SOURCE-REUSE.md): the
+	// confirm page's second choice. With it, image is empty, targetImgref
+	// is the update reference and experimental has bootc_store_reuse.
+	SourceReuse *SourceReuse `json:"sourceReuse,omitempty"`
 	// Locale, Keyboard and Timezone are written into the installed system.
 	// Left out, the image's own values stay.
 	Locale   string    `json:"locale,omitempty"`
@@ -266,6 +279,11 @@ func detectEnvironment() {
 		// The persistent install log dialog_output.py shows: the QML
 		// names it next to its Copy button ("log-path" prints the same).
 		"logPath": installLogDisplayPath(),
+		// This computer's system as a second install source (#267): the
+		// item of its bootc storage that fisherman can copy, or null. Never
+		// on live media; the confirm page offers it only for the image whose
+		// update reference is its ref.
+		"reuse": bootedReuse(facts.Raw),
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")

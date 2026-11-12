@@ -164,10 +164,20 @@ The confirm step also asks fisherman about the selected image (#266):
 off the UI thread, and `src/sourcecheck.{h,cpp}` reads its `capabilities`
 and `bootc_store` (#267). The step shows `sourceRows`. Only a blocked source
 holds Install. A reply for an older visit, or for another source, is
-dropped. Never offer an image of this computer's bootc storage as a source.
-The done step says "installed, restart required" and never "verified"
-(`done_verification`, #269). `test_backend` (`sourceCheckCases`,
-`bootcStoreCases`, `verificationCases`) reads the shared case files.
+dropped.
+
+The confirm step offers the system that this computer runs as a second
+install source (#267): `refreshReuse()` reads the plain probe through
+`sourcecheck::reuseSource()`, never on live media and never as the
+default. `installRecipe()` is what the install and the source check get:
+the wizard's recipe, with `sourceReuse` when the user picked the copy.
+fisherman checks the pick (`reuseProblem`, `validate_source_reuse_<code>`),
+and a copy needs no network. The done step says "installed, restart
+required" and never "verified": `receiptLines` is `done_verification` and
+the line for fisherman's `receipt` event (#269). `test_backend`
+(`sourceCheckCases`, `bootcStoreCases`, `verificationCases`,
+`sourceReuseCases`, `progressReproducesTheSharedReceiptCases`) reads the
+shared case files.
 
 ## Visual verification
 

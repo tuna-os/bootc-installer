@@ -153,6 +153,7 @@ class BootcConfirm(Adw.Bin):
     row_warning = Gtk.Template.Child()
     group_changes = Gtk.Template.Child()
     group_source = Gtk.Template.Child()
+    group_reuse = Gtk.Template.Child()
     btn_confirm = Gtk.Template.Child()
     lbl_body = Gtk.Template.Child()
     page_header = Gtk.Template.Child()
@@ -164,6 +165,14 @@ class BootcConfirm(Adw.Bin):
     _source_generation = 0
     _source_rows = ()
     _source_blocked = False
+    # The install source (#267): the item of this computer's bootc storage
+    # that may replace the download (None when there is none), whether the
+    # user chose it, and fisherman's problems with that choice.
+    _reuse_source = None
+    _reuse_selected = False
+    _reuse_widgets = ()
+    _reuse_problems = ()
+    _reuse_check = None
 
     def __init__(self, window, **kwargs):
         super().__init__(**kwargs)
@@ -468,6 +477,8 @@ class BootcConfirm(Adw.Bin):
             from bootc_installer.core.system import Systeminfo
             recipe = Processor.gen_install_recipe(
                 "", getattr(window, "finals", []) or [], getattr(window, "recipe", {}) or {})
+            self.__update_reuse(Systeminfo.probe(), recipe)
+            recipe = self.apply_source(recipe)
             req = source_check.recipe_request(recipe, Systeminfo.is_live())
             del recipe
         except Exception as exc:  # noqa: BLE001 - the install refuses it with its own message
@@ -494,7 +505,8 @@ class BootcConfirm(Adw.Bin):
             return False
         self._source_blocked = source_check.blocks_install(view)
         self.__show_source_rows(source_check.rows(
-            view, source_check.bootc_store(result), self.__text))
+            view, source_check.bootc_store(result), self.__text,
+            reuse=self.reuse_selected))
         self.__update_confirm_button()
         return False
 
@@ -516,10 +528,112 @@ class BootcConfirm(Adw.Bin):
             self._source_rows.append(row)
         self.group_source.set_visible(bool(rows))
 
+    @property
+    def reuse_selected(self):
+        """The user chose to copy this computer's system (#267)."""
+        return bool(self._reuse_selected and self._reuse_source)
+
+    def apply_source(self, recipe):
+        """`recipe` with the install source that this page selected: the
+        same recipe for the download, or one with `sourceReuse`, the
+        `bootc_store_reuse` opt-in, an empty `image` and the catalog's
+        update reference as `targetImgref`."""
+        if not self.reuse_selected:
+            return recipe
+        return source_check.apply_reuse(recipe, self._reuse_source)
+
+    def __update_reuse(self, probe, recipe):
+        """Offer this computer's system as a second install source when
+        fisherman's probe has an item that qualifies. The download stays
+        selected until the user picks the item; a different item, or none,
+        drops the choice."""
+        update_ref = recipe.get("targetImgref") or recipe.get("image") or ""
+        source = source_check.reuse_source(probe, update_ref)
+        if not source or (self._reuse_source or {}).get("digest") != source["digest"]:
+            self._reuse_selected = False
+            self._reuse_problems = ()
+        self._reuse_source = source
+        self.__show_reuse_rows(update_ref)
+        if self.reuse_selected:
+            self.__check_reuse(recipe)
+
+    def __show_reuse_rows(self, update_ref):
+        for widget in self._reuse_widgets:
+            self.group_reuse.remove(widget)
+        self._reuse_widgets = []
+        rows = source_check.reuse_rows(self._reuse_source, update_ref, self.__text)
+        self.group_reuse.set_title(self.__text("source_reuse_title") if rows else "")
+        group = None
+        for key, title, detail in rows:
+            row = Adw.ActionRow()
+            row.set_use_markup(False)
+            row.set_title_lines(0)
+            row.set_subtitle_lines(0)
+            row.set_title(title)
+            row.set_subtitle(detail)
+            check = Gtk.CheckButton()
+            check.set_valign(Gtk.Align.CENTER)
+            if group is None:
+                group = check
+            else:
+                check.set_group(group)
+            check.set_active((key == "local") == self.reuse_selected)
+            check.connect("toggled", self.__on_reuse_toggled, key)
+            row.add_prefix(check)
+            row.set_activatable_widget(check)
+            self.group_reuse.add(row)
+            self._reuse_widgets.append(row)
+        for problem in self._reuse_problems:
+            row = Adw.ActionRow()
+            row.set_use_markup(False)
+            row.set_title_lines(0)
+            row.add_css_class("error")
+            row.set_title(problem)
+            self.group_reuse.add(row)
+            self._reuse_widgets.append(row)
+        self.group_reuse.set_visible(bool(rows))
+
+    def __on_reuse_toggled(self, check, key):
+        if not check.get_active() or (key == "local") == self.reuse_selected:
+            return
+        self._reuse_selected = key == "local"
+        self._reuse_problems = ()
+        self.__update_confirm_button()
+        # After the signal: the check runs again and rebuilds these rows.
+        GLib.idle_add(self.__restart_source_check)
+
+    def __restart_source_check(self):
+        self.__start_source_check()
+        self.__update_confirm_button()
+        return False
+
+    def __check_reuse(self, recipe):
+        """`fisherman validate --json --partial -` for the reuse fields;
+        each problem shows in the words of `validate_<code>`, and holds
+        Install."""
+        if self._reuse_check is None:
+            from bootc_installer.utils.field_check import _glib_live_check
+            self._reuse_check = _glib_live_check(self.__on_reuse_checked)
+        self._reuse_check.submit(source_check.reuse_fragment(
+            source_check.apply_reuse(recipe, self._reuse_source)))
+
+    def __on_reuse_checked(self, problems, error):
+        if error is not None:
+            logger.warning("fisherman validate could not run: %s", error)
+            problems = []
+        if not self.reuse_selected:
+            return
+        from bootc_shared import validate as fisherman_validate
+        self._reuse_problems = tuple(
+            fisherman_validate.render(p, self.__text) for p in problems or [])
+        self.__show_reuse_rows(self._reuse_source["ref"])
+        self.__update_confirm_button()
+
     def __update_confirm_button(self):
         self.btn_confirm.set_sensitive(
             (self._hostname_check is None or self._hostname_check.ok)
-            and not self._source_blocked)
+            and not self._source_blocked
+            and not (self.reuse_selected and self._reuse_problems))
 
     def test_auto_advance(self):
         self.btn_confirm.emit("clicked")

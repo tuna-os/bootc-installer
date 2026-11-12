@@ -37,7 +37,14 @@ pub struct Request {
 impl Request {
     /// The request for a recipe as this frontend sends it.
     pub fn from_recipe(recipe: &Value, is_live: bool) -> Self {
-        let source = str_of(recipe.get("image")).to_string();
+        let mut source = str_of(recipe.get("image")).to_string();
+        let mut is_live = is_live;
+        if recipe.get("sourceReuse").is_some_and(Value::is_object) {
+            // A copy of this computer's system: reuse_source() offers only
+            // the item whose ref is the update reference.
+            source = plain_ref(str_of(recipe.get("targetImgref")));
+            is_live = false;
+        }
         Request {
             live_root: source.is_empty() && is_live,
             source,
@@ -335,7 +342,7 @@ pub fn verification(text: &str, expected_install_id: &str) -> Value {
 
 /// The rows of the confirm page's Selected image section: (title,
 /// subtitle). `check` None means the reply has not come yet.
-pub fn rows(check: Option<&Value>, store: Option<&Value>) -> Vec<(String, String)> {
+pub fn rows(check: Option<&Value>, store: Option<&Value>, reuse: bool) -> Vec<(String, String)> {
     let text = crate::branding::text;
     let value_line = |key: &str, value: &str| crate::branding::get().text_with(key, &[("value", value)]);
     let mut out = Vec::new();
@@ -343,8 +350,9 @@ pub fn rows(check: Option<&Value>, store: Option<&Value>) -> Vec<(String, String
         out.push((text(&format!("{}{}", "source_check_", "checking")), String::new()));
         return out;
     };
+    let install_from = if reuse { "source_reuse_install_from" } else { "source_install_from" };
     for (key, field) in [
-        ("source_install_from", "install_from"),
+        (install_from, "install_from"),
         ("source_update_ref", "update_ref"),
         ("source_live_host", "live_host_image"),
     ] {
@@ -370,6 +378,173 @@ pub fn rows(check: Option<&Value>, store: Option<&Value>) -> Vec<(String, String
         }
     }
     out
+}
+
+/// A registry reference without its `docker://` transport.
+pub fn plain_ref(reference: &str) -> String {
+    let r = reference.trim();
+    r.strip_prefix("docker://").unwrap_or(r).to_string()
+}
+
+fn matches(s: &str, ok: impl Fn(u8) -> bool, max: usize) -> bool {
+    !s.is_empty() && s.len() <= max && s.bytes().all(ok)
+}
+
+/// fisherman's `receipt` progress event (#269) as {state, install_id,
+/// reason}: `bootc_shared.progress.receipt_of()`.
+pub fn receipt_of(event: &Value) -> Value {
+    let view = |state: &str, id: &str, reason: &str| json!({"state": state, "install_id": id, "reason": reason});
+    if event.get("version").and_then(Value::as_i64) != Some(1) || event.get("version").is_some_and(Value::is_f64) {
+        return view("unreadable", "", "");
+    }
+    let Some(written) = event.get("written").and_then(Value::as_bool) else {
+        return view("unreadable", "", "");
+    };
+    let raw = str_of(event.get("reason"));
+    let reason = if matches(raw, |b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_', 64) { raw } else { "" };
+    if !written {
+        return view("not_written", "", reason);
+    }
+    let id = str_of(event.get("install_id"));
+    if !(id.len() == 32 && id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))) {
+        return view("unreadable", "", "");
+    }
+    if is_true(event.get("first_boot_check")) {
+        return view("check_set_up", id, "");
+    }
+    view("written_no_check", id, reason)
+}
+
+/// The done page's copy keys, with the `{value}` of each:
+/// `bootc_shared.completion.receipt_lines()`. `receipt` None means no
+/// event came.
+pub fn receipt_lines(receipt: Option<&Value>) -> Vec<(String, String)> {
+    let mut lines = vec![("done_verification".to_string(), String::new())];
+    let Some(r) = receipt.filter(|r| r.is_object()) else {
+        lines.push(("done_receipt_none".to_string(), String::new()));
+        return lines;
+    };
+    let state = str_of(r.get("state"));
+    if !matches!(state, "check_set_up" | "written_no_check" | "not_written") {
+        lines.push(("done_receipt_unreadable".to_string(), String::new()));
+        return lines;
+    }
+    lines.push((format!("{}{}", "done_receipt_", state), str_of(r.get("install_id")).to_string()));
+    if state != "check_set_up" {
+        let reason = str_of(r.get("reason"));
+        let key = format!("{}{}", "done_receipt_reason_", if reason.is_empty() { "unknown" } else { reason });
+        let key = if crate::branding::is_contract_key(&key) { key } else { "done_receipt_reason_unknown".to_string() };
+        lines.push((key, String::new()));
+    }
+    lines
+}
+
+/// The item of this computer's bootc storage that the install may copy
+/// instead of a download (#267): `bootc_shared.source_check.reuse_source()`.
+/// `output` is the plain probe's stdout, `update_ref` the recipe's
+/// targetImgref. Never on live media.
+pub fn reuse_source(output: Option<&str>, update_ref: &str) -> Option<Value> {
+    let root = parse_object(output)?;
+    if obj(root.get("live")).get("is_live") != Some(&Value::Bool(false)) {
+        return None;
+    }
+    let store = root.get("bootc_store")?.as_object()?;
+    if store.get("version").and_then(Value::as_i64) != Some(1) || !is_true(store.get("available")) {
+        return None;
+    }
+    let items = store.get("items")?.as_array()?;
+    let want = plain_ref(update_ref);
+    if want.is_empty() {
+        return None;
+    }
+    let roles = |item: &Value| -> Vec<String> {
+        item.get("roles")
+            .and_then(Value::as_array)
+            .map(|r| r.iter().filter_map(Value::as_str).map(String::from).collect())
+            .unwrap_or_default()
+    };
+    if items.iter().any(|i| str_of(i.get("ref")) == want && roles(i).iter().any(|r| r == "staged")) {
+        return None;
+    }
+    items.iter().find_map(|item| {
+        let digest = str_of(item.get("digest"));
+        let platform = str_of(item.get("platform"));
+        let digest_ok = digest.len() == 71
+            && digest.starts_with("sha256:")
+            && digest[7..].bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
+        let platform_ok = platform.len() <= 32
+            && platform.bytes().next().is_some_and(|b| b.is_ascii_alphanumeric())
+            && platform.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'_' || b == b'-');
+        (str_of(item.get("ref")) == want
+            && roles(item).iter().any(|r| r == "booted")
+            && str_of(item.get("owner")) == "bootc"
+            && str_of(item.get("context")) == "live-host"
+            && str_of(item.get("storage")) == "ostree"
+            && str_of(item.get("availability")) == "deployed"
+            && is_true(item.get("matches_machine"))
+            && digest_ok
+            && platform_ok)
+            .then(|| json!({"ref": want, "digest": digest, "platform": platform}))
+    })
+}
+
+/// Whether the probe offers the system that this computer runs for its own
+/// reference (`bootc_shared.source_check.offers_reuse`): the network page,
+/// which comes before the image is chosen, then lets a computer without a
+/// network go on to that choice.
+pub fn offers_reuse(output: Option<&str>) -> bool {
+    let Some(root) = parse_object(output) else {
+        return false;
+    };
+    let items = obj(root.get("bootc_store")).get("items").and_then(Value::as_array).cloned().unwrap_or_default();
+    items.iter().any(|item| {
+        item.get("roles")
+            .and_then(Value::as_array)
+            .is_some_and(|r| r.iter().any(|x| x == "booted"))
+            && reuse_source(output, str_of(item.get("ref"))).is_some()
+    })
+}
+
+/// `recipe` with `source` as its install source: an empty `image`, the
+/// update reference kept as `targetImgref`, `sourceReuse` and the
+/// `bootc_store_reuse` opt-in.
+pub fn apply_reuse(recipe: &Value, source: &Value) -> Value {
+    let mut out = recipe.clone();
+    let Some(map) = out.as_object_mut() else {
+        return out;
+    };
+    let mut target = str_of(recipe.get("targetImgref")).to_string();
+    if target.is_empty() {
+        target = str_of(recipe.get("image")).to_string();
+    }
+    map.insert("targetImgref".into(), Value::String(target));
+    map.insert("image".into(), Value::String(String::new()));
+    map.insert(
+        "sourceReuse".into(),
+        json!({"store": "bootc", "digest": source["digest"], "platform": source["platform"]}),
+    );
+    let mut experimental: Vec<Value> = recipe
+        .get("experimental")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter(|e| e.is_string()).cloned().collect())
+        .unwrap_or_default();
+    if !experimental.iter().any(|e| e == "bootc_store_reuse") {
+        experimental.push(Value::String("bootc_store_reuse".into()));
+    }
+    map.insert("experimental".into(), Value::Array(experimental));
+    out
+}
+
+/// The `validate --json --partial` fragment that checks a recipe with
+/// `sourceReuse`: no passphrase, no account.
+pub fn reuse_fragment(recipe: &Value) -> Value {
+    let mut out = Map::new();
+    for key in ["image", "targetImgref", "experimental", "sourceReuse", "composeFsBackend", "filesystem"] {
+        if let Some(v) = recipe.get(key) {
+            out.insert(key.into(), v.clone());
+        }
+    }
+    Value::Object(out)
 }
 
 #[cfg(test)]
@@ -427,6 +602,65 @@ mod tests {
         }
     }
 
+    /// shared/probe/source-reuse-cases.json (#267).
+    #[test]
+    fn the_shared_source_reuse_cases() {
+        let all = cases(shared().join("probe/source-reuse-cases.json"));
+        assert!(all.len() >= 20);
+        for case in all {
+            let name = case["name"].as_str().unwrap();
+            let input = if case["probe_failed"] == Value::Bool(true) {
+                None
+            } else {
+                let mut probe = json!({"protocol_version": 1});
+                if let Some(fixture) = case["fixture"].as_str() {
+                    let text = std::fs::read_to_string(shared().join("probe/fixtures/bootc-store").join(fixture)).unwrap();
+                    probe["bootc_store"] = serde_json::from_str(&text).unwrap();
+                }
+                if !case["live"].is_null() {
+                    probe["live"] = json!({"is_live": case["live"]});
+                }
+                Some(probe.to_string())
+            };
+            let source = reuse_source(input.as_deref(), case["update_ref"].as_str().unwrap());
+            assert_eq!(source.clone().unwrap_or(Value::Null), case["expected"], "{name}");
+            let Some(source) = source else { continue };
+            let reference = case["update_ref"].as_str().unwrap();
+            let base = json!({
+                "disk": "/dev/vda", "filesystem": "xfs",
+                "encryption": {"type": "none", "passphrase": ""},
+                "image": reference, "targetImgref": reference,
+                "composeFsBackend": false, "hostname": "workstation",
+            });
+            let recipe = apply_reuse(&base, &source);
+            assert_eq!(recipe, case["recipe"], "{name}");
+            assert_eq!(reuse_fragment(&recipe), case["fragment"], "{name}");
+            assert_eq!(json!(Request::from_recipe(&recipe, false).probe_args()), case["probe_args"], "{name}");
+        }
+    }
+
+    /// shared/progress/receipt-cases.json (#269): the receipt and the done
+    /// page's keys, through the progress parser.
+    #[test]
+    fn the_shared_receipt_cases() {
+        let all = cases(shared().join("progress/receipt-cases.json"));
+        assert!(all.len() >= 15);
+        for case in all {
+            let name = case["name"].as_str().unwrap();
+            let mut p = crate::progress::Progress::new("ExampleOS");
+            for (i, (event, want)) in case["events"].as_array().unwrap().iter().zip(case["bar"].as_array().unwrap()).enumerate() {
+                p.consume(&event.to_string());
+                assert!((p.fraction - want.as_f64().unwrap() as f32).abs() < 1e-5, "{name} event {i}");
+            }
+            assert_eq!(p.receipt.clone().unwrap_or(Value::Null), case["receipt"], "{name}");
+            let lines: Vec<Value> = receipt_lines(p.receipt.as_ref())
+                .into_iter()
+                .map(|(key, value)| json!({"key": key, "value": value}))
+                .collect();
+            assert_eq!(Value::Array(lines), case["done_lines"], "{name}");
+        }
+    }
+
     #[test]
     fn the_shared_bootc_store_cases() {
         for case in cases(shared().join("probe/bootc-store-cases.json")) {
@@ -448,7 +682,7 @@ mod tests {
     #[test]
     fn a_failed_probe_is_not_a_green_check() {
         let req = Request { source: "registry.example/os:1".into(), ..Default::default() };
-        let rows = rows(Some(&check(None, &req)), None);
+        let rows = rows(Some(&check(None, &req)), None, false);
         let titles: Vec<&str> = rows.iter().map(|(t, _)| t.as_str()).collect();
         assert!(titles.contains(&crate::branding::text("source_check_unavailable").as_str()));
         assert!(!titles.contains(&crate::branding::text("source_check_ready").as_str()));

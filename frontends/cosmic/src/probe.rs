@@ -40,6 +40,9 @@ pub struct Facts {
     /// are fisherman's: a recipe that leaves additionalImageStores out gets
     /// them.
     pub offline_images: Vec<String>,
+    /// The probe's own output, for the objects that this struct does not
+    /// hold (`bootc_store`, which offers the install source of #267).
+    pub raw: String,
 }
 
 /// Parses probe output.
@@ -110,6 +113,7 @@ pub fn parse(json: &str) -> Result<Facts, String> {
         is_live,
         live_image,
         offline_images,
+        raw: json.to_string(),
     })
 }
 

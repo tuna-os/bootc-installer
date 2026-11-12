@@ -120,10 +120,18 @@ it. `go test -run TestProbe` renders the shared fixtures, and
 `features`) on stdin, runs `fisherman probe --json --source`, and prints
 the views of `installer/sourcecheck.go` (#266, #267). The confirm page
 calls it on each visit and drops a reply for an older visit. Only a
-blocked source holds Install. Never offer an image of this computer's
-bootc storage as a source. The done page says "installed, restart
-required" and never "verified" (`done_verification`, #269).
-`sourcecheck_test.go` reads the shared case files. The QML stub answers
+blocked source holds Install.
+
+`detect` also sends `reuse`: the item of this computer's bootc storage that
+fisherman can copy (`bootedReuse`, #267), never on live media. The confirm
+page offers it as a second install source for the image whose update
+reference is its ref, never as the default. `buildRecipe()` then applies
+`applyReuse()` of `ui/progress.js`, fisherman checks the pick
+(`reuseProblem`), and a copy needs no network. The done page says
+"installed, restart required" and never "verified": `done_verification`
+and the line for fisherman's `receipt` event (`receiptLines()`, #269).
+`sourcecheck_test.go` and `tests/progress-fraction-test.mjs` read the
+shared case files. The QML stub answers
 `source-check` for the capture.
 
 ## The recipe, live media and validation
