@@ -41,14 +41,15 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+          persist-credentials: false
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: fisherman/fisherman/go.mod
           cache-dependency-path: fisherman/fisherman/go.sum
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.12"
       - name: build fisherman from the submodule
@@ -72,7 +73,9 @@ jobs:
       run:
         working-directory: frontends/xfce
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       # The test builds the real SetupPage, so GTK3 needs a display.
       - name: install GTK3 + Xvfb
         run: |
@@ -99,7 +102,9 @@ jobs:
           dnf -y install --setopt=install_weak_deps=False \
             git tar findutils cmake ninja-build gcc-c++ \
             qt6-qtbase-devel qt6-qtdeclarative-devel
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - name: build the backend tests
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DTUNA_TRANSLATIONS=OFF
@@ -117,7 +122,9 @@ jobs:
       run:
         working-directory: frontends/cosmic
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       # The crate links libcosmic, so the test build needs its headers
       # (the same list as Cargo Tests (cosmic)).
       - name: install build dependencies
@@ -128,8 +135,8 @@ jobs:
             libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev \
             libfontconfig-dev libfreetype-dev \
             libinput-dev libudev-dev libgbm-dev libegl1-mesa-dev libssl-dev
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2.9.3
         with:
           workspaces: frontends/cosmic
       - name: the page setters' recipe
@@ -143,8 +150,10 @@ jobs:
       run:
         working-directory: frontends/niri/installer
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: frontends/niri/installer/go.mod
           # No go.sum: the backend is standard-library only.
