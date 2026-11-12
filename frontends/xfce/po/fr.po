@@ -132,7 +132,7 @@ msgid "Choose an image to continue."
 msgstr ""
 
 msgid "Advanced"
-msgstr "Avancé"
+msgstr ""
 
 msgid "Create btrfs subvolumes (@, @home, @snapshots)"
 msgstr ""

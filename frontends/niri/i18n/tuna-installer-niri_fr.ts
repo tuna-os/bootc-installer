@@ -248,7 +248,7 @@
     </message>
     <message>
         <source>Advanced</source>
-        <translation>Avancé</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Filesystem (the choices of the selected image)</source>
