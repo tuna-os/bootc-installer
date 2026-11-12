@@ -114,11 +114,11 @@
       "name": "image",
       "png": "docs/screenshots/03-image.png",
       "rendered": true,
-      "colours": 208,
+      "colours": 210,
       "flat": 0.5158273197195353,
-      "ink": 0.9908900148421107,
-      "stddev": 0.07321703346102636,
-      "text_excerpt": "Choose a system What to install onto the disk. Search systems  Capture Desktop \u203a Stable The photographed system. Capture Desktop \u203a Beta registry.example/os/capture-desktop:beta Capture Minimal registry.example/os/capture-minimal:stable Cust"
+      "ink": 0.9894058037770612,
+      "stddev": 0.07781534906523323,
+      "text_excerpt": "Choose a system What to install onto the disk. Search systems  Capture Desktop \u203a Stable The photographed system. Everything is where you left it. Capture Desktop \u203a Beta The next release, before it is stable. It makes its own first user. Cap"
     },
     {
       "name": "language",
@@ -176,9 +176,9 @@
       "rendered": true,
       "colours": 216,
       "flat": 0.6261707354521726,
-      "ink": 0.9893034443932648,
-      "stddev": 0.07620087741771482,
-      "text_excerpt": "Options Sensible defaults are already chosen. Change them only if you need to. System Computer name tunaos Filesystem btrfs Encryption Disk encryption Passphrase You'll type it at every boot. Passphrase Required to unlock at boot Confirm pa"
+      "ink": 0.9892906494702902,
+      "stddev": 0.07631856786581548,
+      "text_excerpt": "Options Sensible defaults are already chosen. Change them only if you need to. System Computer name example Filesystem btrfs Encryption Disk encryption Passphrase You'll type it at every boot. Passphrase Required to unlock at boot Confirm p"
     },
     {
       "name": "account",
@@ -206,9 +206,9 @@
       "rendered": true,
       "colours": 303,
       "flat": 0.49199037821792313,
-      "ink": 0.9907876554583142,
-      "stddev": 0.0749444153716106,
-      "text_excerpt": "Confirm installation The last screen before anything is written. Everything on /dev/sda will be erased. This cannot be undone.  Summary Target disk /dev/sda Filesystem btrfs Encryption Passphrase Computer name tunaos Username alex System Ca"
+      "ink": 0.990851630073187,
+      "stddev": 0.07484609909372761,
+      "text_excerpt": "Confirm installation The last screen before anything is written. Everything on /dev/sda will be erased. This cannot be undone.  Summary Target disk /dev/sda Filesystem btrfs Encryption Passphrase Computer name example Username alex System C"
     },
     {
       "name": "installing",
@@ -273,17 +273,17 @@
   ],
   "transition_pixels": [
     26280,
-    296731,
-    120008,
+    296744,
+    123177,
     4111,
     67945,
     344298,
     386145,
-    165758,
-    158969,
+    165804,
+    159011,
     191247,
     340548,
-    149342,
+    149406,
     320666,
     31623,
     35734,

@@ -42,7 +42,7 @@ GTK4 / libadwaita (Python). Source: `bootc_installer/`.
 | <img src="gnome/03-keyboard.png" width="360"> | **keyboard** The keyboard layout, for this session and the installed system. <br><sub>Keyboard Layout Select your preferred keyboard layout Search keyboard layouts Abkhazian (Russia) Abkhazian Abkhazian (Russia) Abkhazian ru+a</sub> |
 | <img src="gnome/04-timezone.png" width="360"> | **timezone** The time zone of the installed system. <br><sub>Date & Time Select your preferred timezone Search timezones Afghanistan Afghanistan Asia Afghanistan Asia Kabul Kabul Asia/Kabul Albania Alb</sub> |
 | <img src="gnome/05-conn-check.png" width="360"> | **conn check** A check that the image registry can be reached. <br><sub>Checking Connection Please wait until the connection check is done</sub> |
-| <img src="gnome/06-image.png" width="360"> | **image** Choose the image to install from the catalog. <br><sub>Choose an Image Select a BootcOS image to install, or enter a custom bootc-compatible image URL. Search images… Aurora Aurora Aurora Aurora </sub> |
+| <img src="gnome/06-image.png" width="360"> | **image** Choose the image to install from the catalog. <br><sub>Choose an Image Select a BootcOS image to install, or enter a custom bootc-compatible image URL. Search images… Capture Desktop Capture Desk</sub> |
 | <img src="gnome/07-qr_companion.png" width="360"> | **qr companion** Optional: scan a QR code and type your account details on your phone. <br><sub>Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR </sub> |
 | <img src="gnome/08-disk.png" width="360"> | **disk** Choose the disk. Nothing is written yet. <br><sub>Computer is not plugged in — connect power before installing Install Location Select the disk where you want to install. All data on the sel</sub> |
 | <img src="gnome/09-encryption.png" width="360"> | **encryption** Full-disk encryption, with or without TPM2. <br><sub>Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You'll type it at every boot. Encrypt this disk You'll type i</sub> |
@@ -50,7 +50,7 @@ GTK4 / libadwaita (Python). Source: `bootc_installer/`.
 | <img src="gnome/11-confirm.png" width="360"> | **confirm** The last screen before anything is written. <br><sub>Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be und</sub> |
 | <img src="gnome/12-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installing TunaOS… Downloading… (47 of 71 parts) 0:00 elapsed 35% Do not power off the computer. Cancel Cancel</sub> |
 | <img src="gnome/13-recovery-key.png" width="360"> | **recovery key** The LUKS recovery key, shown once after an encrypted install. <br><sub>Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere sa</sub> |
-| <img src="gnome/14-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>Aurora DX is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now</sub> |
+| <img src="gnome/14-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>Capture Desktop is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now</sub> |
 
 ## KDE Plasma
 
@@ -117,13 +117,13 @@ libcosmic / iced (Rust). Source: `frontends/cosmic/`.
 |---|---|
 | <img src="cosmic/01-requirements.png" width="360"> | **requirements**  <br><sub>Requirements met Firmware setup Power off Continue</sub> |
 | <img src="cosmic/02-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to TunaOS Welcome. This assistant will guide you through installing TunaOS onto this computer. You will choose a target disk and a f</sub> |
-| <img src="cosmic/03-image.png" width="360"> | **image**  <br><sub>Choose a system What to install onto the disk. Search systems  Capture Desktop › Stable The photographed system. Capture Desktop › Beta regi</sub> |
+| <img src="cosmic/03-image.png" width="360"> | **image**  <br><sub>Choose a system What to install onto the disk. Search systems  Capture Desktop › Stable The photographed system. Everything is where you lef</sub> |
 | <img src="cosmic/04-language.png" width="360"> | **language**  <br><sub>Language Changes this session and the installed system. en_US.UTF-8 en_GB.UTF-8 fr_FR.UTF-8 de_DE.UTF-8 es_ES.UTF-8 it_IT.UTF-8 pt_BR.UTF-8 </sub> |
 | <img src="cosmic/05-keyboard.png" width="360"> | **keyboard**  <br><sub>Keyboard Changes this session and the installed system. us gb fr de es it br jp ru cn Back Continue</sub> |
 | <img src="cosmic/06-timezone.png" width="360"> | **timezone**  <br><sub>Time zone Search, then pick where you are. Changes this session and the installed system. Search time zones  Europe/Berlin Europe/Paris Euro</sub> |
 | <img src="cosmic/07-network.png" width="360"> | **network**  <br><sub>Network The installer needs the network to fetch images. Connected. Recheck Back Continue</sub> |
 | <img src="cosmic/08-disk.png" width="360"> | **disk**  <br><sub>Select a disk Everything on the disk you pick will be erased. Samsung SSD 870 EVO 500GB /dev/sda · 465.8 GiB · SATA Extreme SSD /dev/sdc · 9</sub> |
-| <img src="cosmic/09-options.png" width="360"> | **options**  <br><sub>Options Sensible defaults are already chosen. Change them only if you need to. System Computer name tunaos Filesystem btrfs Encryption Disk </sub> |
+| <img src="cosmic/09-options.png" width="360"> | **options**  <br><sub>Options Sensible defaults are already chosen. Change them only if you need to. System Computer name example Filesystem btrfs Encryption Disk</sub> |
 | <img src="cosmic/10-account.png" width="360"> | **account**  <br><sub>Create your account You will sign in with this account. It can administer the computer. Account Username alex Full name Alex Example Passwor</sub> |
 | <img src="cosmic/11-tour.png" width="360"> | **tour**  <br><sub>Tour Capture at a glance Everything is where you left it. Back Continue</sub> |
 | <img src="cosmic/12-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation The last screen before anything is written. Everything on /dev/sda will be erased. This cannot be undone.  Summary Targ</sub> |
@@ -146,7 +146,7 @@ Quickshell QML + Go backend. Source: `frontends/niri/`.
 |---|---|
 | <img src="niri/01-welcome.png" width="360"> | **welcome**  <br><sub>Step 1 of 9 · Welcome ⬢ Welcome to TunaOS This wizard will guide you through installing TunaOS onto your computer. Get started Get started E</sub> |
 | <img src="niri/02-session.png" width="360"> | **session**  <br><sub>Step 2 of 9 · Session Session Keyboard, language and time zone for the installed system. This computer keeps its own. Keyboard and language </sub> |
-| <img src="niri/03-source.png" width="360"> | **source**  <br><sub>Step 3 of 9 · Source What do you want to install? Search images Example OS › Stable ghcr.io/example/os:stable  ·  available offline Example </sub> |
+| <img src="niri/03-source.png" width="360"> | **source**  <br><sub>Step 3 of 9 · Source What do you want to install? Search images Capture Desktop › Stable ghcr.io/example/os:stable  ·  available offline Cap</sub> |
 | <img src="niri/04-disk.png" width="360"> | **disk**  <br><sub>Step 4 of 9 · Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  ·  465.8 Gi</sub> |
 | <img src="niri/05-encryption.png" width="360"> | **encryption**  <br><sub>Step 5 of 9 · Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without </sub> |
 | <img src="niri/06-account.png" width="360"> | **account**  <br><sub>Step 6 of 9 · Account Your account The account you sign in with. It can administer this computer. Account Username alex Full name Alex Examp</sub> |
@@ -154,14 +154,14 @@ Quickshell QML + Go backend. Source: `frontends/niri/`.
 | <img src="niri/08-progress.png" width="360"> | **progress**  <br><sub>Step 8 of 9 · Installing Installing TunaOS… Step 5 of 8 — Installing OS [1/8] Partitioning disk
 [2/8] Formatting EFI partition
 [3/8] Formatt</sub> |
-| <img src="niri/09-done.png" width="360"> | **done**  <br><sub>Step 9 of 9 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Close Close Power off Power off Restart now</sub> |
+| <img src="niri/09-done.png" width="360"> | **done**  <br><sub>Step 9 of 9 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Take a tour Take a tour Close Close Power o</sub> |
 | <img src="niri/10-recovery.png" width="360"> | **recovery**  <br><sub>Step 9 of 9 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails t</sub> |
-| <img src="niri/11-tour.png" width="360"> | **tour**  <br><sub>Step 8 of 8 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails t</sub> |
-| <img src="niri/12-cancel-confirm.png" width="360"> | **cancel confirm**  <br><sub>Step 7 of 8 · Installing Installing TunaOS… Step 5 of 8 — Installing OS [1/8] Partitioning disk
+| <img src="niri/11-tour.png" width="360"> | **tour**  <br><sub>Step 9 of 9 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails t</sub> |
+| <img src="niri/12-cancel-confirm.png" width="360"> | **cancel confirm**  <br><sub>Step 8 of 9 · Installing Installing TunaOS… Step 5 of 8 — Installing OS [1/8] Partitioning disk
 [2/8] Formatting EFI partition
 [3/8] Formatt</sub> |
-| <img src="niri/13-cancelled.png" width="360"> | **cancelled**  <br><sub>Step 8 of 8 · Done – Installation cancelled You stopped the installer. The disk can be in an incomplete state: start the installer again bef</sub> |
-| <img src="niri/14-offline.png" width="360"> | **offline**  <br><sub>Step 3 of 9 · Source What do you want to install? Search images Example OS › Stable ghcr.io/example/os:stable  ·  available offline Example </sub> |
+| <img src="niri/13-cancelled.png" width="360"> | **cancelled**  <br><sub>Step 9 of 9 · Done – Installation cancelled You stopped the installer. The disk can be in an incomplete state: start the installer again bef</sub> |
+| <img src="niri/14-offline.png" width="360"> | **offline**  <br><sub>Step 3 of 9 · Source What do you want to install? Search images Capture Desktop › Stable ghcr.io/example/os:stable  ·  available offline Cap</sub> |
 
 ## XFCE
 
@@ -174,15 +174,15 @@ GTK3 / PyGObject. Source: `frontends/xfce/`.
 | <img src="xfce/01-welcome.png" width="360"> | **welcome**  <br><sub>Welcome to TunaOS This assistant installs TunaOS on this computer.
 
 You'll choose what to install and where; nothing is written to any disk </sub> |
-| <img src="xfce/02-source.png" width="360"> | **source**  <br><sub>What do you want to install? Bluefin › Bluefin Bluefin › Bluefin ghcr.io/ublue-os/bluefin:latest TunaOS › GNOME TunaOS › GNOME ghcr.io/tuna-</sub> |
+| <img src="xfce/02-source.png" width="360"> | **source**  <br><sub>What do you want to install? Capture Desktop › Beta Capture Desktop › Beta ghcr.io/example/os:beta Capture Desktop › Edge Capture Desktop › </sub> |
 | <img src="xfce/03-destination.png" width="360"> | **destination**  <br><sub>Where should TunaOS be installed? Samsung SSD 870 EVO 500GB    /dev/sda    465.8 GiB    SATA Samsung SSD 870 EVO 500GB    /dev/sda    465.8 </sub> |
 | <img src="xfce/04-setup.png" width="360"> | **setup**  <br><sub>Disk encryption No encryption No encryption Anyone with the disk can read your files. Passphrase Passphrase You'll type it at every boot. TP</sub> |
 | <img src="xfce/05-identity.png" width="360"> | **identity**  <br><sub>Name this computer Hostname Confirm password Password Full name Username Your account Time zone Keyboard Language Language, keyboard and tim</sub> |
 | <img src="xfce/06-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation Target disk: /dev/sda
 Filesystem:  btrfs
 Encryption:  No encryption
-Hostname:    tunaos
-Image:       ghcr.io/tuna-os/bo</sub> |
+Hostname:    example
+Image:       ghcr.io/example/o</sub> |
 | <img src="xfce/07-progress.png" width="360"> | **progress**  <br><sub>Installing TunaOS…  Do not power off the computer. [1/8] Partitioning disk
 [2/8] Formatting EFI partition
 [3/8] Formatting root filesystem

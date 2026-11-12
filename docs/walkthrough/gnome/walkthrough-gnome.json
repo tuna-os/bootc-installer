@@ -141,20 +141,20 @@
       "name": "image",
       "png": "docs/screenshots/06-image.png",
       "rendered": true,
-      "colours": 415,
-      "flat": 0.6631357048748353,
+      "colours": 255,
+      "flat": 0.6630434782608695,
       "ink": 0.023372859025032937,
-      "stddev": 0.10417843883395171,
-      "text_excerpt": "Choose an Image Select a BootcOS image to install, or enter a custom bootc-compatible image URL. Search images\u2026 Aurora Aurora Aurora Aurora DX Aurora DX ghcr.io/ublue-os/aurora-dx Aurora DX ghcr.io/ublue-os/aurora-dx Beta ghcr.io/ublue-os/a"
+      "stddev": 0.10320782307054757,
+      "text_excerpt": "Choose an Image Select a BootcOS image to install, or enter a custom bootc-compatible image URL. Search images\u2026 Capture Desktop Capture Desktop Capture Desktop Stable ghcr.io/example/os:stable Stable ghcr.io/example/os:stable Beta ghcr.io/e"
     },
     {
       "name": "qr_companion",
       "png": "docs/screenshots/07-qr_companion.png",
       "rendered": true,
       "colours": 290,
-      "flat": 0.8547826086956521,
+      "flat": 0.8548221343873518,
       "ink": 0.03313570487483531,
-      "stddev": 0.14987888643382183,
+      "stddev": 0.14989194271398715,
       "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
     },
     {
@@ -181,20 +181,20 @@
       "name": "user",
       "png": "docs/screenshots/10-user.png",
       "rendered": true,
-      "colours": 326,
+      "colours": 328,
       "flat": 0.7091172595520422,
-      "ink": 0.006666666666666667,
-      "stddev": 0.06253474486921604,
+      "ink": 0.01971014492753623,
+      "stddev": 0.07700246235517307,
       "text_excerpt": "Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Confirm Password Confirm Password"
     },
     {
       "name": "confirm",
       "png": "docs/screenshots/11-confirm.png",
       "rendered": true,
-      "colours": 354,
-      "flat": 0.5575230566534914,
-      "ink": 0.010434782608695653,
-      "stddev": 0.06994801457819096,
+      "colours": 355,
+      "flat": 0.557536231884058,
+      "ink": 0.010329380764163372,
+      "stddev": 0.06957559728188155,
       "text_excerpt": "Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be undone. Summary Summary Target disk Samsung SSD 870 EVO 500GB (/dev/sda, 465.8 GiB) Target disk Samsung"
     },
     {
@@ -221,11 +221,11 @@
       "name": "done",
       "png": "docs/screenshots/14-done.png",
       "rendered": true,
-      "colours": 428,
-      "flat": 0.9351383399209486,
-      "ink": 0.01704874835309618,
-      "stddev": 0.07713911845322649,
-      "text_excerpt": "Aurora DX is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now"
+      "colours": 250,
+      "flat": 0.94566534914361,
+      "ink": 0.019762845849802372,
+      "stddev": 0.08879743328873832,
+      "text_excerpt": "Capture Desktop is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now"
     }
   ],
   "transition_pixels": [
@@ -233,15 +233,15 @@
     27739,
     29291,
     43276,
-    45377,
-    70270,
-    68062,
-    51797,
-    43783,
-    42743,
-    37625,
+    47646,
+    70834,
+    68065,
+    51796,
+    43788,
+    42570,
+    37442,
     38578,
-    39294
+    39881
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."

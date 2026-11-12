@@ -24,8 +24,7 @@
       "required": true,
       "reached": true,
       "on_pages": [
-        "01-welcome",
-        "11-tour"
+        "01-welcome"
       ],
       "matched_keywords": [
         "get started",
@@ -105,7 +104,7 @@
       "name": "02-session",
       "png": "docs/screenshots/02-session.png",
       "rendered": true,
-      "colours": 409,
+      "colours": 410,
       "flat": 0.6247,
       "ink": 0.026266666666666667,
       "stddev": 0.09779041921278185,
@@ -115,11 +114,11 @@
       "name": "03-source",
       "png": "docs/screenshots/03-source.png",
       "rendered": true,
-      "colours": 432,
-      "flat": 0.6474,
-      "ink": 0.10933333333333334,
-      "stddev": 0.10751722337607074,
-      "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Example OS \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Example OS \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Example OS \u203a Edge ghcr.io/example/os:edge  \u00b7"
+      "colours": 497,
+      "flat": 0.5597333333333333,
+      "ink": 0.1155,
+      "stddev": 0.11528884652927622,
+      "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Capture Desktop \u203a Edge ghcr.io/exa"
     },
     {
       "name": "04-disk",
@@ -128,7 +127,7 @@
       "colours": 484,
       "flat": 0.6199333333333333,
       "ink": 0.11003333333333333,
-      "stddev": 0.10556755838076784,
+      "stddev": 0.10557607011149404,
       "text_excerpt": "Step 4 of 9 \u00b7 Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  \u00b7  465.8 GiB  \u00b7  SATA Extreme SSD /dev/sdc  \u00b7  931.5 GiB  \u00b7  USB Cruzer Blade /dev/sdd  \u00b7  59.6 GiB  \u00b7  USB WD_"
     },
     {
@@ -138,7 +137,7 @@
       "colours": 521,
       "flat": 0.4215333333333333,
       "ink": 0.2012,
-      "stddev": 0.11963561917385698,
+      "stddev": 0.11962846478068354,
       "text_excerpt": "Step 5 of 9 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
@@ -148,18 +147,18 @@
       "colours": 346,
       "flat": 0.5258333333333334,
       "ink": 0.030633333333333332,
-      "stddev": 0.10059300974972753,
+      "stddev": 0.10060174578702649,
       "text_excerpt": "Step 6 of 9 \u00b7 Account Your account The account you sign in with. It can administer this computer. Account Username alex Full name Alex Example Password capture Password again capture Show passwords Show passwords Back Back Continue Continue"
     },
     {
       "name": "07-confirm",
       "png": "docs/screenshots/07-confirm.png",
       "rendered": true,
-      "colours": 437,
+      "colours": 435,
       "flat": 0.5433,
-      "ink": 0.028833333333333332,
-      "stddev": 0.10026364574939527,
-      "text_excerpt": "Step 7 of 9 \u00b7 Confirm Confirm installation \u26a0  Everything on /dev/sda will be erased. This cannot be undone. Summary Target disk /dev/sda Image Example OS Stable  (ghcr.io/example/os:stable) Filesystem btrfs Encryption No encryption Username"
+      "ink": 0.028566666666666667,
+      "stddev": 0.0998621935854714,
+      "text_excerpt": "Step 7 of 9 \u00b7 Confirm Confirm installation \u26a0  Everything on /dev/sda will be erased. This cannot be undone. Summary Target disk /dev/sda Image Capture Desktop Stable  (ghcr.io/example/os:stable) Filesystem btrfs Encryption No encryption Use"
     },
     {
       "name": "08-progress",
@@ -175,77 +174,77 @@
       "name": "09-done",
       "png": "docs/screenshots/09-done.png",
       "rendered": true,
-      "colours": 220,
-      "flat": 0.9523333333333334,
-      "ink": 0.018433333333333333,
-      "stddev": 0.09001467563821647,
-      "text_excerpt": "Step 9 of 9 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. Close Close Power off Power off Restart now Restart now"
+      "colours": 232,
+      "flat": 0.9438666666666666,
+      "ink": 0.018866666666666667,
+      "stddev": 0.09109722247984887,
+      "text_excerpt": "Step 9 of 9 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. Take a tour Take a tour Close Close Power off Power off Restart now Restart now"
     },
     {
       "name": "10-recovery",
       "png": "docs/screenshots/10-recovery.png",
       "rendered": true,
-      "colours": 400,
-      "flat": 0.9029,
-      "ink": 0.026966666666666667,
-      "stddev": 0.09657174550386777,
+      "colours": 406,
+      "flat": 0.8944333333333333,
+      "ink": 0.027566666666666666,
+      "stddev": 0.097746631003553,
       "text_excerpt": "Step 9 of 9 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe,"
     },
     {
       "name": "11-tour",
       "png": "docs/screenshots/11-tour.png",
       "rendered": true,
-      "colours": 162,
-      "flat": 0.7233666666666667,
-      "ink": 0.010033333333333333,
-      "stddev": 0.044519467149479824,
-      "text_excerpt": "Step 8 of 8 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe,"
+      "colours": 195,
+      "flat": 0.7232666666666666,
+      "ink": 0.011333333333333334,
+      "stddev": 0.047670919265522624,
+      "text_excerpt": "Step 9 of 9 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe,"
     },
     {
       "name": "12-cancel-confirm",
       "png": "docs/screenshots/12-cancel-confirm.png",
       "rendered": true,
-      "colours": 374,
+      "colours": 375,
       "flat": 0.422,
-      "ink": 0.039466666666666664,
-      "stddev": 0.1096128556662883,
-      "text_excerpt": "Step 7 of 8 \u00b7 Installing Installing TunaOS\u2026 Step 5 of 8 \u2014 Installing OS [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pul"
+      "ink": 0.0396,
+      "stddev": 0.10962146762859741,
+      "text_excerpt": "Step 8 of 9 \u00b7 Installing Installing TunaOS\u2026 Step 5 of 8 \u2014 Installing OS [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pul"
     },
     {
       "name": "13-cancelled",
       "png": "docs/screenshots/13-cancelled.png",
       "rendered": true,
-      "colours": 202,
-      "flat": 0.9649,
-      "ink": 0.012466666666666666,
-      "stddev": 0.06868034168734334,
-      "text_excerpt": "Step 8 of 8 \u00b7 Done \u2013 Installation cancelled You stopped the installer. The disk can be in an incomplete state: start the installer again before you use it. Close Close"
+      "colours": 203,
+      "flat": 0.9648333333333333,
+      "ink": 0.0125,
+      "stddev": 0.06889365344625271,
+      "text_excerpt": "Step 9 of 9 \u00b7 Done \u2013 Installation cancelled You stopped the installer. The disk can be in an incomplete state: start the installer again before you use it. Close Close"
     },
     {
       "name": "14-offline",
       "png": "docs/screenshots/14-offline.png",
       "rendered": true,
-      "colours": 582,
-      "flat": 0.5474333333333333,
-      "ink": 0.1109,
-      "stddev": 0.09908987853376068,
-      "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Example OS \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Example OS \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Example OS \u203a Edge ghcr.io/example/os:edge  \u00b7"
+      "colours": 640,
+      "flat": 0.45976666666666666,
+      "ink": 0.1171,
+      "stddev": 0.10711879164913583,
+      "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Capture Desktop \u203a Edge ghcr.io/exa"
     }
   ],
   "transition_pixels": [
     143775,
-    172257,
-    71351,
+    173911,
+    74298,
     99802,
     241992,
-    79443,
-    149171,
-    270910,
-    59290,
-    130400,
-    57528,
-    86110,
-    150122
+    79575,
+    149303,
+    267176,
+    62396,
+    131710,
+    58292,
+    86158,
+    152439
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
