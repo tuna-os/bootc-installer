@@ -18,6 +18,21 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-12: a recipe can bind the install to the planned disk
+
+- Added: `recipe/fisherman-recipe.schema.json` has `diskIdentity`
+  (`serial`, `wwn`, `sizeBytes`), the identity that `fisherman plan --json -`
+  reports for `disk` (tuna-os/fisherman#468). When it is set, fisherman
+  refuses the recipe if the device has changed. The fisherman pin moves to
+  that change.
+- Added: `branding/copy-defaults.json` has `validate_disk_identity_mismatch`
+  and `validate_disk_identity_invalid`, the failure-page lines for the two
+  new codes.
+
+Contracts version: `1.5.0`
+Contracts sha256: `31494d7cf2ef1d47420dbd7150d3b8d3bee50bb66a14e0cf5c1215d5a8387b54`
+Recipe schema sha256: `98a5890a1fb70f19fe967ff4b0f8edc2e4f3298beaa89060f8f3841224ca17fc`
+
 ## 2026-11-12: a stale frame is not evidence
 
 - Changed: `walkthrough/parity_report.py` writes the `sha256` of each

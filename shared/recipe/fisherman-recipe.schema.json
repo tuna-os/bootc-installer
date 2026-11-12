@@ -204,6 +204,24 @@
         }
       }
     },
+    "diskIdentity": {
+      "type": "object",
+      "description": "Binds the install to the device the frontend planned on: the serial, WWN and size that `fisherman plan --json -` reported for `disk`. When set, validate and the install refuse the recipe (disk_identity_mismatch) if the device now reports another value for a field that is set.",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "serial": {
+          "type": "string"
+        },
+        "wwn": {
+          "type": "string"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
     "slurpWallpapers": {
       "type": "boolean",
       "default": false,

@@ -224,6 +224,8 @@ ApplicationWindow {
             validate_composefs_requires_fsverity: "This system image needs ext4 or Btrfs, not XFS.",
             validate_disk_required: "Choose a disk to install to.",
             validate_disk_not_found: "The selected disk is no longer connected.",
+            validate_disk_identity_mismatch: "The selected disk is not the disk that was checked. Choose the disk again.",
+            validate_disk_identity_invalid: "The installer could not identify the selected disk. Choose the disk again.",
             validate_custom_mount_partition_required: "Choose a partition for each mount point.",
             validate_custom_mount_partition_not_found: "A selected partition is no longer present.",
             validate_custom_mount_fstype_unsupported: "A selected partition format is not supported.",

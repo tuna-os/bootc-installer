@@ -67,8 +67,11 @@ type Recipe struct {
 	// schema's "empty skips" rule, so it never reaches fisherman half-filled.
 	User *User `json:"user,omitempty"`
 	// The wizard writes none of these; they pass through as they came.
-	CustomMounts    json.RawMessage `json:"customMounts,omitempty"`
-	VarDisk         json.RawMessage `json:"varDisk,omitempty"`
+	CustomMounts json.RawMessage `json:"customMounts,omitempty"`
+	VarDisk      json.RawMessage `json:"varDisk,omitempty"`
+	// DiskIdentity binds the install to the planned disk (fisherman
+	// `plan --json -`); fisherman refuses a changed device.
+	DiskIdentity    json.RawMessage `json:"diskIdentity,omitempty"`
 	SlurpWallpapers bool            `json:"slurpWallpapers,omitempty"`
 	Slurp           json.RawMessage `json:"slurp,omitempty"`
 	TargetMount     string          `json:"targetMount,omitempty"`
