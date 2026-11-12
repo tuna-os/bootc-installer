@@ -55,7 +55,7 @@ _FISHERMAN_CACHE_DIR = fisherman_runner.default_cache_dir()
 _FISHERMAN_HOST_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman")
 _FISHERMAN_LOG_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman-output.log")
 
-from bootc_shared.progress import apply_progress_event, install_outcome, new_progress_state, render_event, set_product_name, set_install_label, set_step_label_resolver, _RE_LAYER_PROGRESS  # noqa: E402
+from bootc_shared.progress import apply_progress_event, copy_cancel, install_outcome, source_reuse_text, new_progress_state, render_event, set_product_name, set_install_label, set_step_label_resolver, _RE_LAYER_PROGRESS  # noqa: E402
 from bootc_installer.utils.codec_check import check_codecs_present  # noqa: E402
 
 
@@ -215,6 +215,7 @@ class BootcProgress(Gtk.Box):
     progress_elapsed = Gtk.Template.Child()
     progress_eta = Gtk.Template.Child()
     progress_substep = Gtk.Template.Child()
+    progress_reuse = Gtk.Template.Child()
     progress_note = Gtk.Template.Child()
     console_button = Gtk.Template.Child()
     media_button = Gtk.Template.Child()
@@ -294,6 +295,18 @@ class BootcProgress(Gtk.Box):
     @property
     def cancel_requested(self) -> bool:
         return self.__cancel_requested
+
+    @property
+    def copy_cancel(self) -> bool:
+        """Whether a cancel now only stops the copy of this computer's
+        system: the disk does not change yet (#267)."""
+        return copy_cancel(self.__progress_state)
+
+    def __show_source_reuse(self):
+        lines = source_reuse_text(self.__progress_state.get("source_reuse"),
+                                  lambda key: copy_text.text(self.__window, key))
+        self.progress_reuse.set_label("\n".join(lines))
+        self.progress_reuse.set_visible(bool(lines))
 
     def cancel(self) -> bool:
         """Stop the running install on the user's confirmed request.
@@ -769,6 +782,10 @@ class BootcProgress(Gtk.Box):
             logger.info("Fisherman reported recovery key")
         if update is None:
             return
+        if "source_reuse" in update:
+            # The copy moves no bar: the bar pulses until the first step.
+            self.__show_source_reuse()
+            return
 
         if update["fraction"] is not None:
             self.__set_progress_fraction(update["fraction"])
@@ -834,6 +851,7 @@ class BootcProgress(Gtk.Box):
         self.progressbar_text.set_label(
             copy_text.text(self.__window, "progress_title") or _("Installing"))
         self.progress_substep.set_label("")
+        self.__show_source_reuse()
         self.__hide_video_fallback()
         self.__show_media_view()
         if not self._video_configured:
@@ -910,6 +928,7 @@ class BootcProgress(Gtk.Box):
         self.progressbar_text.set_label(
             copy_text.text(self.__window, "progress_title") or _("Installing"))
         self.progress_substep.set_label("")
+        self.__show_source_reuse()
         self.__hide_video_fallback()
         self.__show_media_view()
         if not self._video_configured:

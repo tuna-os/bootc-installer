@@ -25,6 +25,7 @@ from bootc_shared import source_check
 from gi.repository import Adw, GLib, Gtk
 
 from bootc_installer.core.system import Systeminfo
+from bootc_installer.utils import copy as copy_text
 from bootc_installer.utils.builder import Builder
 from bootc_installer.utils.finals import _extract_icon_and_name
 from bootc_installer.utils.processor import Processor
@@ -664,10 +665,14 @@ class BootcWindow(Adw.ApplicationWindow):
         install and show the cancelled page (#299)."""
         if not self.install_running() or self.__view_progress.cancel_requested:
             return
+        # During the copy of this computer's system the disk has not
+        # changed yet (#267): say so, not that it can be left unusable.
+        body = (copy_text.text(self, "progress_reuse_cancel")
+                if self.__view_progress.copy_cancel else "")
         dialog = Adw.AlertDialog(
             heading=_("Cancel the installation?"),
-            body=_("The installer stops the work on the disk. "
-                   "The disk can be left without a system that starts."),
+            body=body or _("The installer stops the work on the disk. "
+                           "The disk can be left without a system that starts."),
         )
         dialog.add_response("continue", _("Continue Installation"))
         dialog.add_response("stop", _("Cancel Installation"))
