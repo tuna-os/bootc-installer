@@ -11,6 +11,7 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, GLib, Gtk, Pango
 
 from bootc_shared import completion  # noqa: E402
+from bootc_shared import plan as install_plan  # noqa: E402
 from bootc_shared import progress as progress_parser  # noqa: E402
 from bootc_shared import redact  # noqa: E402
 from bootc_shared import source_check  # noqa: E402
@@ -685,6 +686,17 @@ class ConfirmPage(Page):
         self.summary = Gtk.Label(xalign=0)
         self.summary.set_line_wrap(True)
         self.pack_start(self.summary, False, False, 0)
+        # The install plan (tuna-os/fisherman#371): the disk that fisherman
+        # will write to, what it reports about itself, and each device whose
+        # data the install destroys, from `fisherman plan --json -`. Hidden
+        # until fisherman answers with a valid plan.
+        self.plan = None
+        self.plan_generation = 0
+        self.plan_label = Gtk.Label(xalign=0)
+        self.plan_label.set_line_wrap(True)
+        self.plan_label.set_selectable(True)
+        self.plan_label.set_no_show_all(True)
+        self.pack_start(self.plan_label, False, False, 0)
         # The install source (#267): download the image (the default), or
         # copy the system that this computer runs from its bootc storage.
         # Shown only when fisherman's probe has an item that qualifies;
@@ -810,8 +822,62 @@ class ConfirmPage(Page):
             else "confirm_warning"
         )
         self.warn_text.set_text(core.BRANDING.text(warn_key, disk=disk))
+        self._start_plan(r)
         self._check_source(r)
         self._check_network()
+
+    # How a plan is asked and where it runs; tests replace both.
+    plan_request = staticmethod(lambda recipe: core.request_plan(recipe))
+    plan_start = staticmethod(lambda fn: threading.Thread(target=fn, daemon=True).start())
+
+    def _start_plan(self, recipe):
+        """Ask `fisherman plan --json -` about the recipe that Next would
+        install, off the UI thread, and forget the plan of an earlier
+        visit. The recipe goes to fisherman on stdin; the worker drops it
+        with its answer. A dry run (the capture) has no fisherman to ask."""
+        self.plan_generation += 1
+        self.plan = None
+        self._show_plan([])
+        if core.dry_run():
+            return
+        generation = self.plan_generation
+        request = self.plan_request
+
+        def work():
+            answer = request(recipe)
+            GLib.idle_add(self._on_plan, generation, answer)
+
+        self.plan_start(work)
+
+    def _on_plan(self, generation, answer):
+        """Show a valid plan of this visit. No plan (an older fisherman, a
+        timeout, an invalid recipe) leaves the page as it was: the field
+        checks name a problem, and the install runs its own checks."""
+        if generation != self.plan_generation:
+            return False
+        result, error = answer
+        if error is not None or not result or not result.get("valid"):
+            return False
+        self.plan = result["plan"]
+        self._show_plan(install_plan.rows(self.plan, core.BRANDING.text))
+        return False
+
+    def _show_plan(self, rows):
+        lines = [title + ("\n    " + detail if detail else "") for title, detail in rows]
+        if lines:
+            lines.insert(0, core.BRANDING.text("confirm_plan_title"))
+        self.plan_label.set_text("\n".join(lines))
+        self.plan_label.set_visible(bool(lines))
+
+    def bind_disk(self, recipe):
+        """`recipe` bound to the disk that this page's plan showed: with
+        `diskIdentity`, so that fisherman refuses the install if another
+        device is now at that path (`disk_identity_mismatch`). `recipe`
+        unchanged with no plan, a manual layout, a plan for another disk,
+        or a disk that reports nothing to bind to."""
+        if self.plan is None:
+            return recipe
+        return install_plan.bind(recipe, self.plan)
 
     def apply_source(self, recipe):
         """`recipe` with the install source that this page selected."""

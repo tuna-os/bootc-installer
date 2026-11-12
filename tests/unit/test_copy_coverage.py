@@ -80,9 +80,7 @@ KNOWN_GAPS = {
         "confirm_plan_*": "no install plan on the confirm page yet (tuna-os/fisherman#371)",
     },
     "niri": {},
-    "xfce": {
-        "confirm_plan_*": "no install plan on the confirm page yet (tuna-os/fisherman#371)",
-    },
+    "xfce": {},
 }
 
 
