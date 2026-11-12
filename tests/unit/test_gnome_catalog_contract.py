@@ -133,7 +133,8 @@ def test_the_account_flag_on_live_media_is_that_of_the_installed_image(entry):
         assert user_step.user_step_shows(window, {}) is want
 
 
-@pytest.mark.parametrize("case", EXPECTED["live_image"], ids=lambda case: case["live_image"] or "empty")
+@pytest.mark.parametrize("case", EXPECTED["live_image"],
+                         ids=lambda case: case["live_image"] or "empty")
 def test_the_live_image_cases_are_the_shared_ones(case):
     """expected.json `live_image`: the recipe loader puts the probe's
     live.live_image in the system recipe's `imgref`. The NVIDIA image of a

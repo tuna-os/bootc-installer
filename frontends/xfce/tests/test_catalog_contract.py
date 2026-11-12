@@ -101,7 +101,8 @@ def test_an_image_the_catalog_does_not_have_needs_an_account():
     assert _catalog().needs_user_creation(unknown["imgref"]) is unknown["needs_user_creation"]
 
 
-@pytest.mark.parametrize("case", EXPECTED["live_image"], ids=lambda case: case["live_image"] or "empty")
+@pytest.mark.parametrize("case", EXPECTED["live_image"],
+                         ids=lambda case: case["live_image"] or "empty")
 def test_the_live_image_cases_are_the_shared_ones(case):
     """expected.json `live_image`: "install this system" on live media takes
     the account flag of the leaf of the probe's live.live_image
