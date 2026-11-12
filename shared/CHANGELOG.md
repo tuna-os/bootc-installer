@@ -28,6 +28,17 @@ schema only.
 - Changed: `catalog/README.md` replaces the old list of the changes that
   each frontend had to make with the test of each frontend.
 
+## 2026-11-12: a translation template for each frontend
+
+- Added: `i18n/templates.py` and `i18n/README.md`. The script writes the
+  translation templates of KDE and Niri (Qt `.ts`), XFCE (gettext `.pot`)
+  and COSMIC (its JSON catalog) from the sources. `--check` fails when a
+  template is out of date, and
+  `tests/unit/test_frontend_translation_templates.py` runs it (#300).
+- Added: "Languages" in `branding/README.md`. Branding copy is not in a
+  translation catalog; a product writes its copy in its own language
+  (#311).
+
 ## 2026-11-12: the progress of the copy of this computer's system, and one outcome rule
 
 - Added: `progress/source-reuse-cases.json`, written by

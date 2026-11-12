@@ -125,7 +125,9 @@ Every user-facing line is a branding copy key (`branding::text`) or a
 message id in `ui::copy` that goes through `i18n::tr`.
 `ui::tests::no_widget_takes_a_bare_string` fails on a string literal in a
 text, label or title call, and on a `copy` constant that does not go
-through `tr`. `i18n.rs` says why this is a shim and not `fl!`.
+through `tr`. `i18n.rs` says why this is a shim and not `fl!`. The
+template is `i18n/template.json`. After you change a `copy` constant, run
+`python3 ../../shared/i18n/templates.py cosmic` and commit the template.
 
 ## The recipe, live media and validation
 

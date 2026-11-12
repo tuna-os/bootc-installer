@@ -131,7 +131,10 @@ ISO builder replaces the list with `user.groups` in
 
 Each line of text is in `qsTr()`, or comes from a copy key of
 `branding.json` through `root.text()`. `installer/i18n_test.go` fails on a string in `ui/*.qml` that
-is in neither. No translation file ships yet.
+is in neither. The template is `i18n/tuna-installer-niri.ts`. After you
+change a marked string, run `python3 ../../shared/i18n/templates.py niri`
+and commit the template. No translation ships yet, and no code loads one
+(see `../../shared/i18n/README.md`).
 
 ## Parity notes
 

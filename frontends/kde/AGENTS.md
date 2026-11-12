@@ -95,7 +95,10 @@ after a cancel is a failure.
 
 Put each string that a person reads in `qsTr()` (QML) or `tr()` (C++).
 `test_backend` (`qmlStringsGoThroughQsTr`) fails on a bare literal in a
-text, label or title property. No translation catalog ships yet.
+text, label or title property. The template is `i18n/tuna-installer-kde.ts`.
+After you change a marked string, run
+`python3 ../../shared/i18n/templates.py kde` from this directory and commit
+the template. No translation ships yet. See `../../shared/i18n/README.md`.
 
 ### QML gotchas already paid for
 
