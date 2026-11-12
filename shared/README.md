@@ -296,6 +296,8 @@ The `CHANGELOG.md` entry of the change has two more lines, which
 `python3 shared/ci/contract_version.py` prints:
 `Contracts version:` with the new version, and `Contracts sha256:` with the
 digest of the contract files. `tests/unit/test_shared_contract_docs.py`
-fails when a contract file changes with no new entry, when the version in
-the entry is not `VERSION`, and when the version is not greater than the
-version on `dev`.
+fails when a contract file changes with no new entry, and when the version
+in the entry is not `VERSION`. The `Shared contract version` job of
+`python-test.yml` runs `ci/contract_version.py --check` with the full
+history. It fails when the version is not greater than the version of the
+base, and when the change edits an old entry.

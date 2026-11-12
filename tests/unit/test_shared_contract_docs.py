@@ -18,9 +18,11 @@ refuse a hash that appears twice, which is what a copied entry looks like.
 
 - shared/VERSION is the version of the contracts. A change to a contract
   file needs a new CHANGELOG.md entry with the new version and the digest
-  of the contract files. Against the merge base with origin/dev, the
-  version must increase and the entry must be new, so an edit of an old
-  entry fails too (shared/ci/contract_version.py).
+  of the contract files. Against the base, the version must increase and
+  the entry must be new, so an edit of an old entry fails too
+  (shared/ci/contract_version.py). That check needs history: the tests
+  here run it on throwaway repositories, and the "Shared contract version"
+  job of python-test.yml runs it on the real one.
 """
 
 import hashlib
@@ -146,19 +148,17 @@ def test_contract_change_has_a_versioned_changelog_entry():
     assert not problems, "\n".join(problems)
 
 
-def test_contract_change_bumps_the_version_against_dev():
-    """The history check: a changed contract file needs a new entry and a bump.
-
-    Python Tests checks out with fetch-depth 0, so origin/dev exists in CI.
-    Without the base ref, the test fails in CI and skips elsewhere.
-    """
-    rev = cv.base_revision(REPO)
-    if rev is None:
-        if os.environ.get("CI"):
-            pytest.fail(f"no merge base with {cv.DEFAULT_BASE}; check out with fetch-depth 0")
-        pytest.skip(f"no {cv.DEFAULT_BASE} in this checkout")
-    problems = cv.check_against(REPO, rev)
-    assert not problems, "\n".join(problems)
+def test_ci_runs_the_history_check():
+    """The check against the base needs history, so it is not a unit test
+    (the suite runs in shallow, fork and packaged checkouts). One job runs
+    it: python-test.yml "Shared contract version", with the full history."""
+    wf = (REPO / ".github" / "workflows" / "python-test.yml").read_text(encoding="utf-8")
+    job = wf[wf.index("  contracts:"):]
+    job = job[:job.index("\n  # ──") if "\n  # ──" in job else len(job)]
+    assert "name: Shared contract version" in job
+    assert "fetch-depth: 0" in job
+    assert "shared/ci/contract_version.py --check --base" in job
+    assert "if:" not in job.split("steps:")[0], "the job must run on every event"
 
 
 # The same checks against a throwaway repository: each way to get it wrong.
@@ -273,3 +273,37 @@ def test_new_contract_file_needs_a_bump(repo):
     (repo / "shared" / "recipe" / "new.json").write_text("{}\n")
     problems = _problems(repo)
     assert any("shared/recipe/new.json" in p for p in problems), problems
+
+
+# The command the CI job runs, against the throwaway repository.
+
+def _cli(repo, *args):
+    return subprocess.run([sys.executable, str(SHARED / "ci" / "contract_version.py"),
+                           "--repo", str(repo), "--check", *args],
+                          capture_output=True, text=True)
+
+
+def test_cli_check_passes_a_clean_change(repo):
+    (repo / "shared" / "recipe" / "schema.json").write_text('{"a": 2}\n')
+    _write_entry(repo, "2026-11-02", "second", "1.1.0")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "change")
+    r = _cli(repo, "--base", "base")
+    assert r.returncode == 0, r.stderr
+    assert "shared/recipe/schema.json" in r.stdout
+
+
+def test_cli_check_fails_a_change_with_no_bump(repo):
+    (repo / "shared" / "recipe" / "schema.json").write_text('{"a": 2}\n')
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "change")
+    r = _cli(repo, "--base", "base")
+    assert r.returncode == 1
+    assert "not greater than 1.0.0" in r.stderr
+
+
+def test_cli_check_fails_without_a_base(repo):
+    """No base is an error, never a silent pass of the history check."""
+    r = _cli(repo, "--base", "no-such-ref")
+    assert r.returncode == 1
+    assert "no merge base of HEAD and no-such-ref" in r.stderr

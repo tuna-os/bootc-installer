@@ -18,7 +18,10 @@ Run it to print the two lines for a new CHANGELOG.md entry:
 
     python3 shared/ci/contract_version.py            # lines for the entry
     python3 shared/ci/contract_version.py --changed  # files changed from origin/dev
-    python3 shared/ci/contract_version.py --check    # what the unit test checks
+    python3 shared/ci/contract_version.py --check [--base REF]
+        # the whole check, history included; the "Shared contract version"
+        # job of python-test.yml runs it against the PR base or the commit
+        # before the push
 """
 
 import argparse
@@ -209,26 +212,38 @@ def main(argv=None):
     ap.add_argument("--check", action="store_true",
                     help="exit 1 when VERSION, CHANGELOG.md and the base disagree")
     ap.add_argument("--base", help=f"base ref (default ${{SHARED_CONTRACT_BASE}} or {DEFAULT_BASE})")
+    ap.add_argument("--repo", default=str(REPO), help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
+    repo = pathlib.Path(args.repo)
     if args.changed:
-        rev = base_revision(REPO, args.base)
+        rev = base_revision(repo, args.base)
         if rev is None:
             print("no base revision", file=sys.stderr)
             return 2
-        for f in changed_contract_files(REPO, rev):
+        for f in changed_contract_files(repo, rev):
             print(f)
         return 0
     if args.check:
-        problems = check_changelog(REPO)
-        rev = base_revision(REPO, args.base)
-        if rev is not None:
-            problems += check_against(REPO, rev)
+        problems = check_changelog(repo)
+        ref = args.base or os.environ.get("SHARED_CONTRACT_BASE", DEFAULT_BASE)
+        rev = base_revision(repo, ref)
+        if rev is None:
+            # The history check is the point of --check: no base is an error,
+            # never a silent pass. The CI job fetches the base first.
+            problems.append(f"no merge base of HEAD and {ref}: fetch it "
+                            "(fetch-depth 0) or name another --base")
+        else:
+            print(f"base: {ref} (merge base {rev[:12]})")
+            changed = changed_contract_files(repo, rev)
+            print("changed contract files: " + (", ".join(changed) or "none"))
+            problems += check_against(repo, rev)
         for p in problems:
-            print(p, file=sys.stderr)
+            print(f"::error::{p}" if os.environ.get("GITHUB_ACTIONS") else p,
+                  file=sys.stderr)
         return 1 if problems else 0
-    version = fmt(read_version())
+    version = fmt(read_version(repo))
     print(f"Contracts version: `{version}`")
-    print(f"Contracts sha256: `{digest()}`")
+    print(f"Contracts sha256: `{digest(repo)}`")
     return 0
 
 
