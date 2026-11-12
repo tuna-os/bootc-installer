@@ -224,21 +224,21 @@
       "name": "done",
       "png": "docs/screenshots/14-done.png",
       "rendered": true,
-      "colours": 367,
-      "flat": 0.9570218537284405,
-      "ink": 0.9914401965300169,
-      "stddev": 0.06413627130321932,
-      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Restart now Copy log Close"
+      "colours": 400,
+      "flat": 0.9469906341163826,
+      "ink": 0.9894697783919341,
+      "stddev": 0.07402298899930676,
+      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it. At its first start, it records which image it started, in /var/lib/fisherman/boot-receipt/. On that s"
     },
     {
       "name": "recovery",
       "png": "docs/screenshots/15-recovery.png",
       "rendered": true,
-      "colours": 395,
-      "flat": 0.9363708480474947,
-      "ink": 0.9901223194636368,
-      "stddev": 0.07571415768585109,
-      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password mana"
+      "colours": 405,
+      "flat": 0.9250473412150059,
+      "ink": 0.9876401044065715,
+      "stddev": 0.08493960549956026,
+      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it. At its first start, it records which image it started, in /var/lib/fisherman/boot-receipt/. On that s"
     },
     {
       "name": "cancel",
@@ -284,9 +284,9 @@
     191247,
     340548,
     149406,
-    320666,
-    31623,
-    35734,
+    320365,
+    43854,
+    42403,
     22434,
     26471
   ],

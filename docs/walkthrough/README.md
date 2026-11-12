@@ -50,7 +50,7 @@ GTK4 / libadwaita (Python). Source: `bootc_installer/`.
 | <img src="gnome/11-confirm.png" width="360"> | **confirm** The last screen before anything is written. <br><sub>Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be und</sub> |
 | <img src="gnome/12-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installing TunaOS… Downloading… (47 of 71 parts) 0:00 elapsed 35% Do not power off the computer. Cancel Cancel</sub> |
 | <img src="gnome/13-recovery-key.png" width="360"> | **recovery key** The LUKS recovery key, shown once after an encrypted install. <br><sub>Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere sa</sub> |
-| <img src="gnome/14-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>Capture Desktop is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now</sub> |
+| <img src="gnome/14-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>Capture Desktop is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has chec</sub> |
 
 ## KDE Plasma
 
@@ -89,15 +89,11 @@ Step 5 of 8 — Installing TunaOS…
 | <img src="kde/07-done.png" width="360"> | **done**  <br><sub>Step 7 of 7 · Finished
 TunaOS is installed
 Remove the installation media and restart the computer.
-Restart now
-&Restart now
-Close
-&Close</sub> |
+The new system has not started yet, so no</sub> |
 | <img src="kde/08-recovery.png" width="360"> | **recovery**  <br><sub>Step 7 of 7 · Finished
 TunaOS is installed
 Remove the installation media and restart the computer.
-Save your recovery key
-Save your recovery</sub> |
+The new system has not started yet, so no</sub> |
 | <img src="kde/09-cancel-confirm.png" width="360"> | **cancel confirm**  <br><sub>Step 6 of 7 · Installing
 Installing
 Installing TunaOS… /dev/nvme0n1. Do not power off the computer.
@@ -130,8 +126,8 @@ libcosmic / iced (Rust). Source: `frontends/cosmic/`.
 | <img src="cosmic/13-installing.png" width="360"> | **installing**  <br><sub>Installing TunaOS… fisherman is writing the image to disk. [1/8] Partitioning disk
 [2/8] Formatting EFI partition
 [3/8] Formatting root file</sub> |
-| <img src="cosmic/14-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Restart now Copy log Close</sub> |
-| <img src="cosmic/15-recovery.png" width="360"> | **recovery**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automaticall</sub> |
+| <img src="cosmic/14-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it. A</sub> |
+| <img src="cosmic/15-recovery.png" width="360"> | **recovery**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it. A</sub> |
 | <img src="cosmic/16-cancel.png" width="360"> | **cancel**  <br><sub>Stop the installation? The disk is already changed. If you stop now, it has no system that can start. You can run the installer again. Keep </sub> |
 | <img src="cosmic/17-cancelled.png" width="360"> | **cancelled**  <br><sub>Installation cancelled You stopped the installation. The disk has no system that can start. Run the installer again to finish. Copy log Clos</sub> |
 | <img src="cosmic/18-offline.png" width="360"> | **offline**  <br><sub>Network The installer needs the network to fetch images. No internet connection. The installer requires an active internet connection. Netwo</sub> |
@@ -154,9 +150,9 @@ Quickshell QML + Go backend. Source: `frontends/niri/`.
 | <img src="niri/08-progress.png" width="360"> | **progress**  <br><sub>Step 8 of 9 · Installing Installing TunaOS… Step 5 of 8 — Installing OS [1/8] Partitioning disk
 [2/8] Formatting EFI partition
 [3/8] Formatt</sub> |
-| <img src="niri/09-done.png" width="360"> | **done**  <br><sub>Step 9 of 9 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Take a tour Take a tour Close Close Power o</sub> |
-| <img src="niri/10-recovery.png" width="360"> | **recovery**  <br><sub>Step 9 of 9 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails t</sub> |
-| <img src="niri/11-tour.png" width="360"> | **tour**  <br><sub>Step 9 of 9 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails t</sub> |
+| <img src="niri/09-done.png" width="360"> | **done**  <br><sub>Step 9 of 9 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so noth</sub> |
+| <img src="niri/10-recovery.png" width="360"> | **recovery**  <br><sub>Step 9 of 9 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so noth</sub> |
+| <img src="niri/11-tour.png" width="360"> | **tour**  <br><sub>Step 9 of 9 · Done ✓ TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so noth</sub> |
 | <img src="niri/12-cancel-confirm.png" width="360"> | **cancel confirm**  <br><sub>Step 8 of 9 · Installing Installing TunaOS… Step 5 of 8 — Installing OS [1/8] Partitioning disk
 [2/8] Formatting EFI partition
 [3/8] Formatt</sub> |
@@ -187,8 +183,12 @@ Image:       ghcr.io/example/o</sub> |
 [2/8] Formatting EFI partition
 [3/8] Formatting root filesystem
 [</sub> |
-| <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Close Close Power off Power off Restart now Restart now</sub> |
-| <img src="xfce/09-recovery.png" width="360"> | **recovery**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automaticall</sub> |
+| <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer.
+
+The new system has not started yet, so nothing has checked it. </sub> |
+| <img src="xfce/09-recovery.png" width="360"> | **recovery**  <br><sub>TunaOS is installed Remove the installation media and restart the computer.
+
+The new system has not started yet, so nothing has checked it. </sub> |
 | <img src="xfce/10-cancelled.png" width="360"> | **cancelled**  <br><sub>Installation cancelled You stopped the installation. The target disk holds an incomplete system: start the installer again to use it.
 
 Full </sub> |
