@@ -35,6 +35,7 @@
     "progress_bar": "yes",
     "source_check": "confirm page, Selected image group; a blocked source holds Install",
     "bootc_store_view": "yes, on the confirm page; the system that this computer runs is a second install source there (experimental, never the default, never on live media)",
+    "source_reuse_progress": "yes: a caption under the step line; the bar pulses until the first step; the cancel question says that the disk does not change",
     "done_not_verified": "yes",
     "done_receipt": "yes: install ID and first-boot check, or the reason",
     "restart_from_done": "yes",

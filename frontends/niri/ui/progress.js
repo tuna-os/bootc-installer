@@ -40,7 +40,7 @@ var PHASE_MILESTONES = [
 
 function newState() {
     return { step: 0, cumulativePct: 0, weightPct: 0, stepFrac: 0, postPullBase: -1, fraction: 0,
-             error: null, receipt: null }
+             error: null, receipt: null, sourceReuse: null }
 }
 
 // fisherman's `receipt` event (#269) as {state, install_id, reason}:
@@ -119,13 +119,120 @@ function reuseFragment(recipe) {
 // How an install ended: "succeeded", "cancelled" or "failed"
 // (shared/progress/outcome-cases.json). `code` is the backend's exit code
 // (128 + n for a signal), or null. The exit code decides, never a
-// `complete` event.
+// `complete` event. After a confirmed cancel, 130 or a signal is the
+// cancel; another exit code is fisherman's own failure.
 function installOutcome(code, cancelRequested) {
     if (code === 0)
         return "succeeded"
-    if (code === 130 || cancelRequested)
+    if (code === 130)
+        return "cancelled"
+    if (cancelRequested && (code === null || code === undefined || code > 128))
         return "cancelled"
     return "failed"
+}
+
+// A byte count or a time in ms: a whole number >= 0, else null.
+function count(v) {
+    return typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : null
+}
+
+function gib(bytes) {
+    return (bytes / 1073741824).toFixed(1)
+}
+
+// fisherman's `source_reuse` events (#267): the copy of this computer's
+// system before the first step, as bootc_shared.progress.source_reuse_of
+// keeps it (shared/progress/source-reuse-cases.json). `view` is the one
+// before the event, or null.
+function sourceReuseOf(event, view) {
+    var out = {}
+    if (view) {
+        for (var k in view)
+            out[k] = view[k]
+    } else {
+        out = { phase: "", required_bytes: null, destination_digest: "", copy_ms: null,
+                used_bytes: null, code: "", released: "", destination: "" }
+    }
+    if (typeof event.version !== "number" || event.version !== 1) {
+        out.phase = "unreadable"
+        return out
+    }
+    var phase = event.phase
+    if (["planned", "copying", "verified", "failed", "released"].indexOf(phase) < 0)
+        return view
+    if (typeof event.destination === "string" && event.destination !== "")
+        out.destination = event.destination
+    if (phase === "released") {
+        out.released = event.reason === "removed" || event.reason === "remove_failed" ? event.reason : "unknown"
+        return out
+    }
+    out.phase = phase
+    var estimate = event.estimate !== null && typeof event.estimate === "object" ? event.estimate : {}
+    if ("required_bytes" in estimate)
+        out.required_bytes = count(estimate.required_bytes)
+    if (phase === "verified") {
+        var d = event.destination_digest
+        out.destination_digest = typeof d === "string" && /^sha256:[0-9a-f]{64}$/.test(d) ? d : ""
+        var measured = event.measured !== null && typeof event.measured === "object" ? event.measured : {}
+        out.copy_ms = count(measured.copy_ms)
+        var scratch = count(measured.scratch_peak_bytes)
+        var store = count(measured.store_peak_bytes)
+        if (scratch === null || store === null)
+            out.used_bytes = null
+        else
+            out.used_bytes = estimate.same_filesystem === false ? scratch + store : Math.max(scratch, store)
+    }
+    if (phase === "failed")
+        out.code = typeof event.code === "string" && /^[a-z0-9_]{1,64}$/.test(event.code) ? event.code : ""
+    return out
+}
+
+// The progress page's copy keys for the copy, with the {value} of each:
+// bootc_shared.progress.source_reuse_lines. `hasKey(key)` says whether the
+// copy has a line for a key.
+function sourceReuseLines(view, hasKey) {
+    var lines = []
+    if (!view)
+        return lines
+    var prefix = "progress_reuse_"
+    var space = view.required_bytes !== null ? { key: prefix + "planned", value: gib(view.required_bytes) } : null
+    if (view.phase === "unreadable") {
+        lines.push({ key: prefix + "unreadable", value: "" })
+    } else if (view.phase === "planned" || view.phase === "copying") {
+        lines.push(space || { key: prefix + "planned_unknown", value: "" })
+        if (view.phase === "copying")
+            lines.push({ key: prefix + "copying", value: "" })
+    } else if (view.phase === "verified") {
+        lines.push({ key: prefix + "verified", value: "" })
+        if (view.destination_digest)
+            lines.push({ key: prefix + "verified_digest", value: view.destination_digest })
+        if (view.copy_ms !== null)
+            lines.push({ key: prefix + "measured_time", value: String(Math.floor((view.copy_ms + 500) / 1000)) })
+        if (view.used_bytes !== null)
+            lines.push({ key: prefix + "measured_space", value: gib(view.used_bytes) })
+    } else if (view.phase === "failed") {
+        if (space)
+            lines.push(space)
+        var code = view.code || ""
+        var key = code.indexOf("source_reuse_") === 0 ? prefix + "failed_" + code.slice("source_reuse_".length) : ""
+        lines.push({ key: key && hasKey(key) ? key : prefix + "failed_unknown", value: "" })
+    }
+    if (view.released) {
+        var destination = view.destination || ""
+        if (destination.indexOf("containers-storage:") === 0)
+            destination = destination.slice("containers-storage:".length)
+        lines.push({ key: prefix + "released_" + view.released,
+                     value: view.released === "remove_failed" ? destination : "" })
+    }
+    return lines
+}
+
+// Whether a cancel now stops only the copy and leaves the disk as it was:
+// bootc_shared.progress.copy_cancel.
+function copyCancel(state) {
+    var view = state.sourceReuse
+    return !!view && ["planned", "copying", "verified"].indexOf(view.phase) >= 0
+        && !view.released && !(state.step > 0)
 }
 
 // A registry reference without its docker:// transport.
@@ -181,6 +288,9 @@ function advance(state, event) {
     // What the install did with the receipt; it moves no bar.
     if (event.type === "receipt")
         state.receipt = receiptOf(event)
+    // The copy before the first step; it moves no bar.
+    if (event.type === "source_reuse")
+        state.sourceReuse = sourceReuseOf(event, state.sourceReuse)
     derive(state, event)
     var overall = overallFraction(event)
     if (overall >= 0 && (event.type === "step" || event.type === "substep"))

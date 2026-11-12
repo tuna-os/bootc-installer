@@ -191,6 +191,12 @@ skips the network page when this computer can copy its own system. The done page
 `done_verification` and the line for fisherman's `receipt` event (#269).
 `cargo test source_check` reads the shared case files. The capture does not run the
 check, so the section is not in the screenshots.
+The progress page shows fisherman's `source_reuse` events for a copy of
+this computer's system (`ui::source_reuse_text`,
+`source_check::source_reuse_lines`, #267). The copy does not move the
+bar. During the copy the cancel question says `progress_reuse_cancel`
+(`source_check::copy_cancel`). `the_shared_source_reuse_progress_cases`
+reads `../../shared/progress/source-reuse-cases.json`.
 
 ## Sibling contract
 

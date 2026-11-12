@@ -54,6 +54,16 @@ QString plainRef(const QString &ref);
 QJsonObject receiptOf(const QJsonObject &event);
 QList<QPair<QString, QString>> receiptLines(const QJsonValue &receipt);
 
+// fisherman's `source_reuse` events (#267, shared/progress/source-reuse-cases.json):
+// the copy of this computer's system before the first step, as
+// bootc_shared.progress.source_reuse_of() keeps it. `view` is the one before
+// the event, or null. sourceReuseLines() are the progress page's copy keys
+// with the {value} of each; copyCancel() says whether a cancel now leaves
+// the disk as it was (no step has started, `step` is the current one).
+QJsonValue sourceReuseOf(const QJsonObject &event, const QJsonValue &view);
+QList<QPair<QString, QString>> sourceReuseLines(const QJsonValue &view);
+bool copyCancel(const QJsonValue &view, int step);
+
 // The install source (#267, shared/probe/source-reuse-cases.json): the item
 // of this computer's bootc storage that the install may copy, as {ref,
 // digest, platform}, or an empty object. `probeOutput` is the plain probe;

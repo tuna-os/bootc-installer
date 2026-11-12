@@ -273,7 +273,7 @@ class ConfirmCancelDialog(Gtk.Dialog):
     button stops fisherman. A stray click must not stop a disk write
     half-way, so the safe answer is the default."""
 
-    def __init__(self, parent):
+    def __init__(self, parent, body_text=""):
         super().__init__(title=_("Cancel the installation?"), transient_for=parent,
                          modal=True)
         self.set_default_size(400, 120)
@@ -285,8 +285,11 @@ class ConfirmCancelDialog(Gtk.Dialog):
         box.set_margin_end(12)
         body = Gtk.Label(xalign=0)
         body.set_line_wrap(True)
-        body.set_text(_("The installation stops and the disk is left "
-                        "incomplete. You can start again afterwards."))
+        # body_text: during the copy of this computer's system the disk has
+        # not changed yet, and the window passes progress_reuse_cancel (#267).
+        body.set_text(body_text or _("The installation stops and the disk is left "
+                                     "incomplete. You can start again afterwards."))
+        self.body = body
         box.pack_start(body, True, True, 0)
         row = Gtk.Box(spacing=8)
         row.set_halign(Gtk.Align.END)

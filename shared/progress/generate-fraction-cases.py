@@ -34,6 +34,7 @@ OVERALL_OUT = HERE / "overall-pct-cases.json"
 ERROR_OUT = HERE / "error-cases.json"
 RECEIPT_OUT = HERE / "receipt-cases.json"
 OUTCOME_OUT = HERE / "outcome-cases.json"
+REUSE_OUT = HERE / "source-reuse-cases.json"
 
 
 def step(n, total, name, cumulative, weight):
@@ -347,13 +348,362 @@ def build_receipts():
     }
 
 
+# The example line of fisherman docs/JSON-PROGRESS-FORMAT.md (`source_reuse`),
+# verbatim. tests/unit/test_shared_progress.py holds it to the pinned doc.
+REUSE_DOC_EXAMPLE = (
+    '{"destination":"containers-storage:localhost/fisherman-reuse:111111111111-01'
+    '23456789abcdef","digest":"sha256:1111111111111111111111111111111111111111111'
+    '111111111111111111111","elapsed_ms":61210,"estimate":{"estimate_ms":4210,"fi'
+    'les":51234,"required_bytes":8053063680,"same_filesystem":true,"scratch_bytes'
+    '":3221225472,"scratch_free_bytes":60129542144,"store_bytes":3758096384,"stor'
+    'e_free_bytes":60129542144},"phase":"planned","platform":"x86_64","source":"d'
+    'ocker://ghcr.io/example/os:stable","timestamp":"2026-11-11T10:05:30.123456Z"'
+    ',"type":"source_reuse","version":1}'
+)
+
+# fisherman's own lines: internal/reuse's fake host (reuse_test.go) driven
+# through each path and written as progress.write writes them, with
+# timestamp, elapsed_ms, estimate_ms, copy_ms and verify_ms frozen.
+# `cancelled` is TestAcquire_Cancelled: the teardown releases the copy
+# while bootc runs, then the killed copy fails.
+REUSE_LINES = {
+    "copied_and_verified": [
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","digest":"sha256:11111111111111111111111111111111111'
+            '11111111111111111111111111111","elapsed_ms":60000,"estimate":{"estimate_'
+            'ms":4210,"files":3,"required_bytes":1073811456,"same_filesystem":true,"s'
+            'cratch_bytes":16384,"scratch_free_bytes":107374182400,"store_bytes":5324'
+            '8,"store_free_bytes":107374182400},"phase":"planned","platform":"x86_64"'
+            ',"source":"docker://ghcr.io/example/os:stable","timestamp":"1970-01-01T0'
+            '0:00:00Z","type":"source_reuse","version":1}'
+        ),
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","digest":"sha256:11111111111111111111111111111111111'
+            '11111111111111111111111111111","elapsed_ms":61000,"estimate":{"estimate_'
+            'ms":4210,"files":3,"required_bytes":1073811456,"same_filesystem":true,"s'
+            'cratch_bytes":16384,"scratch_free_bytes":107374182400,"store_bytes":5324'
+            '8,"store_free_bytes":107374182400},"phase":"copying","platform":"x86_64"'
+            ',"source":"docker://ghcr.io/example/os:stable","timestamp":"1970-01-01T0'
+            '0:00:00Z","type":"source_reuse","version":1}'
+        ),
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","destination_digest":"sha256:ccccccccccccccccccccccc'
+            'ccccccccccccccccccccccccccccccccccccccccc","digest":"sha256:111111111111'
+            '1111111111111111111111111111111111111111111111111111","elapsed_ms":62000'
+            ',"estimate":{"estimate_ms":4210,"files":3,"required_bytes":1073811456,"s'
+            'ame_filesystem":true,"scratch_bytes":16384,"scratch_free_bytes":10737418'
+            '2400,"store_bytes":53248,"store_free_bytes":107374182400},"measured":{"c'
+            'opy_ms":61210,"scratch_peak_bytes":3221225472,"store_bytes":1073741824,"'
+            'store_peak_bytes":3221225472,"verify_ms":830},"phase":"verified","platfo'
+            'rm":"x86_64","source":"docker://ghcr.io/example/os:stable","timestamp":"'
+            '1970-01-01T00:00:00Z","type":"source_reuse","version":1}'
+        ),
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","digest":"sha256:11111111111111111111111111111111111'
+            '11111111111111111111111111111","elapsed_ms":63000,"phase":"released","pl'
+            'atform":"x86_64","reason":"removed","timestamp":"1970-01-01T00:00:00Z","'
+            'type":"source_reuse","version":1}'
+        ),
+    ],
+    "insufficient_space": [
+        (
+            '{"code":"source_reuse_insufficient_space","digest":"sha256:1111111111111'
+            '111111111111111111111111111111111111111111111111111","elapsed_ms":60000,'
+            '"estimate":{"estimate_ms":4210,"files":3,"required_bytes":1073811456,"sa'
+            'me_filesystem":true,"scratch_bytes":16384,"scratch_free_bytes":536870912'
+            ',"store_bytes":53248,"store_free_bytes":536870912},"phase":"failed","pla'
+            'tform":"x86_64","reason":"insufficient_space","source":"docker://ghcr.io'
+            '/example/os:stable","timestamp":"1970-01-01T00:00:00Z","type":"source_re'
+            'use","version":1}'
+        ),
+    ],
+    "source_moved": [
+        (
+            '{"code":"source_reuse_source_moved","digest":"sha256:1111111111111111111'
+            '111111111111111111111111111111111111111111111","elapsed_ms":60000,"phase'
+            '":"failed","platform":"x86_64","reason":"ref_moved","timestamp":"1970-01'
+            '-01T00:00:00Z","type":"source_reuse","version":1}'
+        ),
+    ],
+    "transfer_failed": [
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","digest":"sha256:11111111111111111111111111111111111'
+            '11111111111111111111111111111","elapsed_ms":60000,"estimate":{"estimate_'
+            'ms":4210,"files":3,"required_bytes":1073811456,"same_filesystem":true,"s'
+            'cratch_bytes":16384,"scratch_free_bytes":107374182400,"store_bytes":5324'
+            '8,"store_free_bytes":107374182400},"phase":"planned","platform":"x86_64"'
+            ',"source":"docker://ghcr.io/example/os:stable","timestamp":"1970-01-01T0'
+            '0:00:00Z","type":"source_reuse","version":1}'
+        ),
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","digest":"sha256:11111111111111111111111111111111111'
+            '11111111111111111111111111111","elapsed_ms":61000,"estimate":{"estimate_'
+            'ms":4210,"files":3,"required_bytes":1073811456,"same_filesystem":true,"s'
+            'cratch_bytes":16384,"scratch_free_bytes":107374182400,"store_bytes":5324'
+            '8,"store_free_bytes":107374182400},"phase":"copying","platform":"x86_64"'
+            ',"source":"docker://ghcr.io/example/os:stable","timestamp":"1970-01-01T0'
+            '0:00:00Z","type":"source_reuse","version":1}'
+        ),
+        (
+            '{"code":"source_reuse_transfer_failed","destination":"containers-storage'
+            ':localhost/fisherman-reuse:111111111111-0123456789abcdef","digest":"sha2'
+            '56:1111111111111111111111111111111111111111111111111111111111111111","el'
+            'apsed_ms":62000,"estimate":{"estimate_ms":4210,"files":3,"required_bytes'
+            '":1073811456,"same_filesystem":true,"scratch_bytes":16384,"scratch_free_'
+            'bytes":107374182400,"store_bytes":53248,"store_free_bytes":107374182400}'
+            ',"phase":"failed","platform":"x86_64","reason":"command_failed","source"'
+            ':"docker://ghcr.io/example/os:stable","timestamp":"1970-01-01T00:00:00Z"'
+            ',"type":"source_reuse","version":1}'
+        ),
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","digest":"sha256:11111111111111111111111111111111111'
+            '11111111111111111111111111111","elapsed_ms":63000,"phase":"released","pl'
+            'atform":"x86_64","reason":"removed","timestamp":"1970-01-01T00:00:00Z","'
+            'type":"source_reuse","version":1}'
+        ),
+    ],
+    "disk_exhausted": [
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","digest":"sha256:11111111111111111111111111111111111'
+            '11111111111111111111111111111","elapsed_ms":60000,"estimate":{"estimate_'
+            'ms":4210,"files":3,"required_bytes":1073811456,"same_filesystem":true,"s'
+            'cratch_bytes":16384,"scratch_free_bytes":107374182400,"store_bytes":5324'
+            '8,"store_free_bytes":107374182400},"phase":"planned","platform":"x86_64"'
+            ',"source":"docker://ghcr.io/example/os:stable","timestamp":"1970-01-01T0'
+            '0:00:00Z","type":"source_reuse","version":1}'
+        ),
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","digest":"sha256:11111111111111111111111111111111111'
+            '11111111111111111111111111111","elapsed_ms":61000,"estimate":{"estimate_'
+            'ms":4210,"files":3,"required_bytes":1073811456,"same_filesystem":true,"s'
+            'cratch_bytes":16384,"scratch_free_bytes":107374182400,"store_bytes":5324'
+            '8,"store_free_bytes":107374182400},"phase":"copying","platform":"x86_64"'
+            ',"source":"docker://ghcr.io/example/os:stable","timestamp":"1970-01-01T0'
+            '0:00:00Z","type":"source_reuse","version":1}'
+        ),
+        (
+            '{"code":"source_reuse_disk_exhausted","destination":"containers-storage:'
+            'localhost/fisherman-reuse:111111111111-0123456789abcdef","digest":"sha25'
+            '6:1111111111111111111111111111111111111111111111111111111111111111","ela'
+            'psed_ms":62000,"estimate":{"estimate_ms":4210,"files":3,"required_bytes"'
+            ':1073811456,"same_filesystem":true,"scratch_bytes":16384,"scratch_free_b'
+            'ytes":107374182400,"store_bytes":53248,"store_free_bytes":107374182400},'
+            '"phase":"failed","platform":"x86_64","reason":"disk_exhausted","source":'
+            '"docker://ghcr.io/example/os:stable","timestamp":"1970-01-01T00:00:00Z",'
+            '"type":"source_reuse","version":1}'
+        ),
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","digest":"sha256:11111111111111111111111111111111111'
+            '11111111111111111111111111111","elapsed_ms":63000,"phase":"released","pl'
+            'atform":"x86_64","reason":"removed","timestamp":"1970-01-01T00:00:00Z","'
+            'type":"source_reuse","version":1}'
+        ),
+    ],
+    "remove_failed": [
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","digest":"sha256:11111111111111111111111111111111111'
+            '11111111111111111111111111111","elapsed_ms":60000,"estimate":{"estimate_'
+            'ms":4210,"files":3,"required_bytes":1073811456,"same_filesystem":true,"s'
+            'cratch_bytes":16384,"scratch_free_bytes":107374182400,"store_bytes":5324'
+            '8,"store_free_bytes":107374182400},"phase":"planned","platform":"x86_64"'
+            ',"source":"docker://ghcr.io/example/os:stable","timestamp":"1970-01-01T0'
+            '0:00:00Z","type":"source_reuse","version":1}'
+        ),
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","digest":"sha256:11111111111111111111111111111111111'
+            '11111111111111111111111111111","elapsed_ms":61000,"estimate":{"estimate_'
+            'ms":4210,"files":3,"required_bytes":1073811456,"same_filesystem":true,"s'
+            'cratch_bytes":16384,"scratch_free_bytes":107374182400,"store_bytes":5324'
+            '8,"store_free_bytes":107374182400},"phase":"copying","platform":"x86_64"'
+            ',"source":"docker://ghcr.io/example/os:stable","timestamp":"1970-01-01T0'
+            '0:00:00Z","type":"source_reuse","version":1}'
+        ),
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","destination_digest":"sha256:ccccccccccccccccccccccc'
+            'ccccccccccccccccccccccccccccccccccccccccc","digest":"sha256:111111111111'
+            '1111111111111111111111111111111111111111111111111111","elapsed_ms":62000'
+            ',"estimate":{"estimate_ms":4210,"files":3,"required_bytes":1073811456,"s'
+            'ame_filesystem":true,"scratch_bytes":16384,"scratch_free_bytes":10737418'
+            '2400,"store_bytes":53248,"store_free_bytes":107374182400},"measured":{"c'
+            'opy_ms":61210,"scratch_peak_bytes":3221225472,"store_bytes":1073741824,"'
+            'store_peak_bytes":3221225472,"verify_ms":830},"phase":"verified","platfo'
+            'rm":"x86_64","source":"docker://ghcr.io/example/os:stable","timestamp":"'
+            '1970-01-01T00:00:00Z","type":"source_reuse","version":1}'
+        ),
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","digest":"sha256:11111111111111111111111111111111111'
+            '11111111111111111111111111111","elapsed_ms":63000,"phase":"released","pl'
+            'atform":"x86_64","reason":"remove_failed","timestamp":"1970-01-01T00:00:'
+            '00Z","type":"source_reuse","version":1}'
+        ),
+    ],
+    "cancelled": [
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","digest":"sha256:11111111111111111111111111111111111'
+            '11111111111111111111111111111","elapsed_ms":60000,"estimate":{"estimate_'
+            'ms":4210,"files":3,"required_bytes":1073811456,"same_filesystem":true,"s'
+            'cratch_bytes":16384,"scratch_free_bytes":107374182400,"store_bytes":5324'
+            '8,"store_free_bytes":107374182400},"phase":"planned","platform":"x86_64"'
+            ',"source":"docker://ghcr.io/example/os:stable","timestamp":"1970-01-01T0'
+            '0:00:00Z","type":"source_reuse","version":1}'
+        ),
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","digest":"sha256:11111111111111111111111111111111111'
+            '11111111111111111111111111111","elapsed_ms":61000,"estimate":{"estimate_'
+            'ms":4210,"files":3,"required_bytes":1073811456,"same_filesystem":true,"s'
+            'cratch_bytes":16384,"scratch_free_bytes":107374182400,"store_bytes":5324'
+            '8,"store_free_bytes":107374182400},"phase":"copying","platform":"x86_64"'
+            ',"source":"docker://ghcr.io/example/os:stable","timestamp":"1970-01-01T0'
+            '0:00:00Z","type":"source_reuse","version":1}'
+        ),
+        (
+            '{"destination":"containers-storage:localhost/fisherman-reuse:11111111111'
+            '1-0123456789abcdef","digest":"sha256:11111111111111111111111111111111111'
+            '11111111111111111111111111111","elapsed_ms":62000,"phase":"released","pl'
+            'atform":"x86_64","reason":"removed","timestamp":"1970-01-01T00:00:00Z","'
+            'type":"source_reuse","version":1}'
+        ),
+        (
+            '{"code":"source_reuse_transfer_failed","destination":"containers-storage'
+            ':localhost/fisherman-reuse:111111111111-0123456789abcdef","digest":"sha2'
+            '56:1111111111111111111111111111111111111111111111111111111111111111","el'
+            'apsed_ms":63000,"estimate":{"estimate_ms":4210,"files":3,"required_bytes'
+            '":1073811456,"same_filesystem":true,"scratch_bytes":16384,"scratch_free_'
+            'bytes":107374182400,"store_bytes":53248,"store_free_bytes":107374182400}'
+            ',"phase":"failed","platform":"x86_64","reason":"command_failed","source"'
+            ':"docker://ghcr.io/example/os:stable","timestamp":"1970-01-01T00:00:00Z"'
+            ',"type":"source_reuse","version":1}'
+        ),
+    ],
+}
+
+
+def reuse(line):
+    return json.loads(line)
+
+
+CANCELLED = err("installation cancelled (SIGTERM)")
+
+# The copy of this computer's system before the first step (#267,
+# fisherman docs/SOURCE-REUSE.md). Each case ends as fisherman ends it.
+REUSE_CASES = {
+    "the_documented_planned_event": [reuse(REUSE_DOC_EXAMPLE)],
+    "copied_verified_then_installed": [
+        *map(reuse, REUSE_LINES["copied_and_verified"][:3]),
+        at(step(1, 8, "Preparing disk", 0, 0), 0, "prepare"),
+        at(step(5, 8, "Installing OS", 1, 87), 1, "install_os"),
+        at(sub("Pulling image: layer 2/4"), 50),
+        reuse(REUSE_LINES["copied_and_verified"][3]),
+        {"type": "complete", "message": "Installation complete!", "overall_pct": 100},
+    ],
+    "insufficient_space": [*map(reuse, REUSE_LINES["insufficient_space"]),
+                           err("source reuse: not enough space", "source_reuse_insufficient_space",
+                               "sourceReuse")],
+    "source_moved": [*map(reuse, REUSE_LINES["source_moved"]),
+                     err("source reuse: the ref moved", "source_reuse_source_moved", "sourceReuse")],
+    "transfer_failed": [*map(reuse, REUSE_LINES["transfer_failed"]),
+                        err("source reuse: copy failed", "source_reuse_transfer_failed", "sourceReuse")],
+    "disk_exhausted": [*map(reuse, REUSE_LINES["disk_exhausted"]),
+                       err("source reuse: disk full", "source_reuse_disk_exhausted", "sourceReuse")],
+    "the_copy_could_not_be_removed": list(map(reuse, REUSE_LINES["remove_failed"])),
+    "cancelled_copy": [*map(reuse, REUSE_LINES["cancelled"]), CANCELLED],
+    # While the copy runs, the cancel question says the disk does not change.
+    "the_cancel_question_during_the_copy": list(map(reuse, REUSE_LINES["cancelled"][:2])),
+    "a_new_failure_code_falls_back": [
+        {**reuse(REUSE_LINES["source_moved"][0]), "code": "source_reuse_new_code"},
+    ],
+    "a_failure_code_from_another_family_falls_back": [
+        {**reuse(REUSE_LINES["source_moved"][0]), "code": "pull_failed"},
+    ],
+    "planned_without_an_estimate": [
+        {k: v for k, v in reuse(REUSE_LINES["copied_and_verified"][0]).items() if k != "estimate"},
+    ],
+    "counts_that_are_not_whole_numbers_are_dropped": [
+        {**reuse(REUSE_LINES["copied_and_verified"][2]),
+         "measured": {"copy_ms": "61210", "scratch_peak_bytes": -1, "store_peak_bytes": 1}},
+    ],
+    "two_filesystems_add_their_peaks": [
+        {**reuse(REUSE_LINES["copied_and_verified"][2]),
+         "estimate": {**reuse(REUSE_LINES["copied_and_verified"][2])["estimate"], "same_filesystem": False}},
+    ],
+    "a_verified_copy_without_a_digest": [
+        {k: v for k, v in reuse(REUSE_LINES["copied_and_verified"][2]).items()
+         if k != "destination_digest"},
+    ],
+    "an_unknown_phase_is_ignored": [
+        reuse(REUSE_LINES["copied_and_verified"][0]),
+        {**reuse(REUSE_LINES["copied_and_verified"][1]), "phase": "paused"},
+    ],
+    "an_unknown_release_reason": [
+        {**reuse(REUSE_LINES["transfer_failed"][3]), "reason": "kept"},
+    ],
+    "version_2_is_unreadable": [
+        {**reuse(REUSE_LINES["copied_and_verified"][0]), "version": 2},
+    ],
+    "no_source_reuse_event": [
+        at(step(1, 8, "Preparing disk", 0, 0), 0, "prepare"),
+        {"type": "complete", "message": "Installation complete!", "overall_pct": 100},
+    ],
+}
+
+
+def run_reuse(events):
+    """(bar after each event, the view, the progress page's lines, whether
+    the cancel question is the copy's) per the canonical parser."""
+    state = pp.new_progress_state()
+    bar, bars = 0.0, []
+    for event in events:
+        update = pp.apply_progress_event(json.dumps(event), state)
+        if update and update.get("fraction") is not None:
+            bar = update["fraction"]
+        bars.append(round(bar, 6))
+    lines = [{"key": k, "value": v} for k, v in pp.source_reuse_lines(state["source_reuse"])]
+    return bars, state["source_reuse"], lines, pp.copy_cancel(state)
+
+
+def build_reuse():
+    cases = []
+    for name, events in REUSE_CASES.items():
+        bars, view, lines, cancel = run_reuse(events)
+        cases.append({"name": name, "events": events, "bar": bars, "source_reuse": view,
+                      "lines": lines, "copy_cancel": cancel})
+    return {
+        "_comment": (
+            "Generated by generate-fraction-cases.py from bootc_shared.progress. "
+            "Do not edit by hand. The copy of this computer's system before the "
+            "first step (#267): fisherman's `source_reuse` events, most of them "
+            "fisherman's own lines. `source_reuse` is what the parser keeps after "
+            "the events, or null with no such event. `lines` are the progress "
+            "page's copy keys, in order, with the value of {value}. `copy_cancel` "
+            "says whether the cancel question is `progress_reuse_cancel` after "
+            "the events. `bar` is the fraction after each event: a source_reuse "
+            "event does not move it. Every frontend's parser must reproduce all four."
+        ),
+        "cases": cases,
+    }
+
+
 COMPLETE = {"type": "complete", "message": "Installation complete!"}
 
 # How an install ended: the exit code decides, never the `complete` event.
-# exit_code None is a wrapper that a signal ended. Not here: an exit code
-# other than 0, 130 or a signal's after a confirmed cancel. GNOME, KDE, Niri
-# and XFCE call it cancelled, COSMIC failed (src/main.rs install_outcome);
-# the five do not agree yet (shared/progress/README.md).
+# exit_code None is a wrapper that a signal ended. After a confirmed cancel,
+# 130 or a signal is the cancel; another exit code is a failure.
 OUTCOME_CASES = {
     "complete_then_exit_0": ([COMPLETE], 0, False),
     "complete_then_a_non_zero_exit": ([COMPLETE], 1, False),
@@ -369,12 +719,20 @@ OUTCOME_CASES = {
     "a_receipt_then_a_non_zero_exit": (
         [rcpt(written=True, install_id=INSTALL_ID, path=RECEIPT_PATH, first_boot_check=True)],
         1, False),
+    # fisherman failed before the cancel reached it: a failure, cancel or not.
+    "exit_1_after_a_confirmed_cancel": ([err("pull failed", "pull_failed", "")], 1, True),
+    # The cancel question during the copy of this computer's system (#267):
+    # fisherman removes the copy, reports the killed copy and exits 130.
+    "a_cancelled_copy": (None, 130, True),
+    "a_failed_copy_after_a_confirmed_cancel": (None, 1, True),
 }
 
 
 def build_outcomes():
     cases = []
     for name, (events, code, cancel) in OUTCOME_CASES.items():
+        if events is None:
+            events = REUSE_CASES["cancelled_copy" if code == 130 else "transfer_failed"]
         cases.append({"name": name, "events": events, "exit_code": code,
                       "cancel_requested": cancel,
                       "outcome": pp.install_outcome(code, cancel)})
@@ -434,3 +792,5 @@ if __name__ == "__main__":
     OUTCOME_OUT.write_text(json.dumps(build_outcomes(), indent=2) + "\n")
     print(f"wrote {len(OUTCOME_CASES)} cases to {OUTCOME_OUT.relative_to(HERE.parents[1])}")
     print(f"wrote {len(RECEIPT_CASES)} cases to {RECEIPT_OUT.relative_to(HERE.parents[1])}")
+    REUSE_OUT.write_text(json.dumps(build_reuse(), indent=2) + "\n")
+    print(f"wrote {len(REUSE_CASES)} cases to {REUSE_OUT.relative_to(HERE.parents[1])}")

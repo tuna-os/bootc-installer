@@ -80,6 +80,7 @@ private slots:
     // #269: the receipt event and the done page's lines.
     void progressReproducesTheSharedReceiptCases();
     void outcomeFollowsTheSharedCases();
+    void progressReproducesTheSharedSourceReuseCases();
     void sourceReplyOfAnOlderRequestIsDropped();
     void probeFakeEnvReachesTheController();
     void probeFailureOffersNothingAndSaysWhy();
@@ -1494,6 +1495,46 @@ void BackendTest::progressReproducesTheSharedReceiptCases()
     }
 }
 
+// shared/progress/source-reuse-cases.json (#267): the copy of this
+// computer's system, its lines on the progress step, the cancel question,
+// and a bar that the copy does not move.
+void BackendTest::progressReproducesTheSharedSourceReuseCases()
+{
+    replayProgressCases(QStringLiteral("source-reuse-cases.json"), 15);
+    QFile f(QStringLiteral(PROGRESS_FIXTURES_DIR "/source-reuse-cases.json"));
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const QJsonArray cases = QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("cases")).toArray();
+    for (const QJsonValue &cv : cases) {
+        const QJsonObject kase = cv.toObject();
+        const QString name = kase.value(QStringLiteral("name")).toString();
+        QStringList lines;
+        for (const QJsonValue &event : kase.value(QStringLiteral("events")).toArray())
+            lines << QString::fromUtf8(QJsonDocument(event.toObject()).toJson(QJsonDocument::Compact));
+        InstallerController c;
+        feed(c, lines);
+        const QJsonValue want = kase.value(QStringLiteral("source_reuse"));
+        if (want.isNull())
+            QVERIFY2(c.sourceReuse().isNull() || c.sourceReuse().isUndefined(), qPrintable(name));
+        else
+            QVERIFY2(QJsonDocument(c.sourceReuse().toObject()).toJson(QJsonDocument::Compact)
+                         == QJsonDocument(want.toObject()).toJson(QJsonDocument::Compact),
+                     qPrintable(name + QStringLiteral(": ")
+                                + QString::fromUtf8(QJsonDocument(c.sourceReuse().toObject()).toJson(QJsonDocument::Compact))));
+        const auto got = sourcecheck::sourceReuseLines(c.sourceReuse());
+        const QJsonArray wantLines = kase.value(QStringLiteral("lines")).toArray();
+        QVERIFY2(got.size() == wantLines.size(), qPrintable(name));
+        QStringList shown;
+        for (int i = 0; i < got.size(); ++i) {
+            const QJsonObject w = wantLines.at(i).toObject();
+            QCOMPARE(got.at(i).first, w.value(QStringLiteral("key")).toString());
+            QCOMPARE(got.at(i).second, w.value(QStringLiteral("value")).toString());
+            shown << c.text(got.at(i).first).replace(QStringLiteral("{value}"), got.at(i).second);
+        }
+        QCOMPARE(c.reuseLines(), shown);
+        QVERIFY2(c.copyCancel() == kase.value(QStringLiteral("copy_cancel")).toBool(), qPrintable(name));
+    }
+}
+
 // shared/progress/outcome-cases.json: the exit code decides, never a
 // `complete` event.
 void BackendTest::outcomeFollowsTheSharedCases()
@@ -2695,8 +2736,9 @@ void BackendTest::cancelSignalsTheGroupAndIsNotACrash()
     QVERIFY2(state == 0 || state == 'Z', "the wrapper's child survived the cancel");
     // This test's own group was not signalled, or it would not be here.
 
-    // A wrapper that ends with its own exit code after the cancel is
-    // cancelled too.
+    // A wrapper that ends with its own exit code (not 130, not a signal)
+    // after the cancel failed before the cancel reached it: the decided
+    // rule of shared/progress/outcome-cases.json.
     InstallerController second;
     second.launch({QStringLiteral("bash"), QStringLiteral("-c"),
                    QStringLiteral("trap 'exit 3' TERM; echo trap-is-\"\"set; sleep 300 & wait")}, QByteArray("{}"));
@@ -2706,8 +2748,9 @@ void BackendTest::cancelSignalsTheGroupAndIsNotACrash()
         QVERIFY(!second.waitForInstall(100));
     second.cancelInstall();
     QVERIFY(second.waitForInstall(5000));
-    QVERIFY(second.cancelled());
-    QCOMPARE(second.exitCode(), 130);
+    QVERIFY(!second.cancelled());
+    QVERIFY(!second.succeeded());
+    QCOMPARE(second.exitCode(), 3);
 #endif
 }
 

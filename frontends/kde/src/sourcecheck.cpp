@@ -384,6 +384,143 @@ QList<QPair<QString, QString>> receiptLines(const QJsonValue &receipt)
     return lines;
 }
 
+namespace {
+
+// A byte count or a time in ms: a whole number >= 0, else null.
+QJsonValue count(const QJsonValue &v)
+{
+    qint64 n = 0;
+    if (!integer(v, &n) || n < 0)
+        return QJsonValue(QJsonValue::Null);
+    return QJsonValue(n);
+}
+
+QString gib(qint64 bytes)
+{
+    return QString::number(static_cast<double>(bytes) / (1LL << 30), 'f', 1);
+}
+
+}
+
+// bootc_shared.progress.source_reuse_of().
+QJsonValue sourceReuseOf(const QJsonObject &event, const QJsonValue &view)
+{
+    static const QRegularExpression code(QStringLiteral("^[a-z0-9_]{1,64}$"));
+    static const QRegularExpression digest(QStringLiteral("^sha256:[0-9a-f]{64}$"));
+    QJsonObject out = view.isObject() ? view.toObject()
+                                      : QJsonObject{{QStringLiteral("phase"), QString()},
+                                                    {QStringLiteral("required_bytes"), QJsonValue::Null},
+                                                    {QStringLiteral("destination_digest"), QString()},
+                                                    {QStringLiteral("copy_ms"), QJsonValue::Null},
+                                                    {QStringLiteral("used_bytes"), QJsonValue::Null},
+                                                    {QStringLiteral("code"), QString()},
+                                                    {QStringLiteral("released"), QString()},
+                                                    {QStringLiteral("destination"), QString()}};
+    qint64 version = 0;
+    if (!integer(event.value(QLatin1String("version")), &version) || version != 1) {
+        out[QStringLiteral("phase")] = QStringLiteral("unreadable");
+        return out;
+    }
+    const QString phase = str(event.value(QLatin1String("phase")));
+    static const QStringList phases{QStringLiteral("planned"), QStringLiteral("copying"),
+                                    QStringLiteral("verified"), QStringLiteral("failed"),
+                                    QStringLiteral("released")};
+    if (!phases.contains(phase))
+        return view;
+    const QString destination = str(event.value(QLatin1String("destination")));
+    if (!destination.isEmpty())
+        out[QStringLiteral("destination")] = destination;
+    if (phase == QLatin1String("released")) {
+        const QString reason = str(event.value(QLatin1String("reason")));
+        out[QStringLiteral("released")] =
+            (reason == QLatin1String("removed") || reason == QLatin1String("remove_failed")) ? reason
+                                                                                              : QStringLiteral("unknown");
+        return out;
+    }
+    out[QStringLiteral("phase")] = phase;
+    const QJsonObject estimate = event.value(QLatin1String("estimate")).toObject();
+    if (estimate.contains(QLatin1String("required_bytes")))
+        out[QStringLiteral("required_bytes")] = count(estimate.value(QLatin1String("required_bytes")));
+    if (phase == QLatin1String("verified")) {
+        const QString d = str(event.value(QLatin1String("destination_digest")));
+        out[QStringLiteral("destination_digest")] = digest.match(d).hasMatch() ? d : QString();
+        const QJsonObject measured = event.value(QLatin1String("measured")).toObject();
+        out[QStringLiteral("copy_ms")] = count(measured.value(QLatin1String("copy_ms")));
+        const QJsonValue scratch = count(measured.value(QLatin1String("scratch_peak_bytes")));
+        const QJsonValue store = count(measured.value(QLatin1String("store_peak_bytes")));
+        if (scratch.isNull() || store.isNull())
+            out[QStringLiteral("used_bytes")] = QJsonValue::Null;
+        else if (estimate.value(QLatin1String("same_filesystem")) == QJsonValue(false))
+            out[QStringLiteral("used_bytes")] = QJsonValue(scratch.toInteger() + store.toInteger());
+        else
+            out[QStringLiteral("used_bytes")] = QJsonValue(qMax(scratch.toInteger(), store.toInteger()));
+    }
+    if (phase == QLatin1String("failed")) {
+        const QString c = str(event.value(QLatin1String("code")));
+        out[QStringLiteral("code")] = code.match(c).hasMatch() ? c : QString();
+    }
+    return out;
+}
+
+// bootc_shared.progress.source_reuse_lines().
+QList<QPair<QString, QString>> sourceReuseLines(const QJsonValue &view)
+{
+    QList<QPair<QString, QString>> lines;
+    if (!view.isObject())
+        return lines;
+    const QJsonObject v = view.toObject();
+    const QString prefix = QStringLiteral("progress_reuse_");
+    const QString phase = str(v.value(QLatin1String("phase")));
+    const QJsonValue required = v.value(QLatin1String("required_bytes"));
+    const bool hasSpace = required.isDouble();
+    const QPair<QString, QString> space{prefix + QStringLiteral("planned"), hasSpace ? gib(required.toInteger()) : QString()};
+    if (phase == QLatin1String("unreadable")) {
+        lines.append({prefix + QStringLiteral("unreadable"), QString()});
+    } else if (phase == QLatin1String("planned") || phase == QLatin1String("copying")) {
+        lines.append(hasSpace ? space : qMakePair(prefix + QStringLiteral("planned_unknown"), QString()));
+        if (phase == QLatin1String("copying"))
+            lines.append({prefix + QStringLiteral("copying"), QString()});
+    } else if (phase == QLatin1String("verified")) {
+        lines.append({prefix + QStringLiteral("verified"), QString()});
+        const QString digest = str(v.value(QLatin1String("destination_digest")));
+        if (!digest.isEmpty())
+            lines.append({prefix + QStringLiteral("verified_digest"), digest});
+        if (v.value(QLatin1String("copy_ms")).isDouble())
+            lines.append({prefix + QStringLiteral("measured_time"),
+                          QString::number((v.value(QLatin1String("copy_ms")).toInteger() + 500) / 1000)});
+        if (v.value(QLatin1String("used_bytes")).isDouble())
+            lines.append({prefix + QStringLiteral("measured_space"), gib(v.value(QLatin1String("used_bytes")).toInteger())});
+    } else if (phase == QLatin1String("failed")) {
+        if (hasSpace)
+            lines.append(space);
+        const QString c = str(v.value(QLatin1String("code")));
+        const QString family = QStringLiteral("source_reuse_");
+        const QString key = c.startsWith(family) ? prefix + QStringLiteral("failed_") + c.mid(family.size()) : QString();
+        lines.append({!key.isEmpty() && branding::copyDefaults().contains(key) ? key : prefix + QStringLiteral("failed_unknown"),
+                      QString()});
+    }
+    const QString released = str(v.value(QLatin1String("released")));
+    if (!released.isEmpty()) {
+        QString destination = str(v.value(QLatin1String("destination")));
+        if (destination.startsWith(QLatin1String("containers-storage:")))
+            destination = destination.mid(int(qstrlen("containers-storage:")));
+        lines.append({prefix + QStringLiteral("released_") + released,
+                      released == QLatin1String("remove_failed") ? destination : QString()});
+    }
+    return lines;
+}
+
+// bootc_shared.progress.copy_cancel().
+bool copyCancel(const QJsonValue &view, int step)
+{
+    if (!view.isObject() || step > 0)
+        return false;
+    const QJsonObject v = view.toObject();
+    const QString phase = str(v.value(QLatin1String("phase")));
+    return (phase == QLatin1String("planned") || phase == QLatin1String("copying") || phase == QLatin1String("verified"))
+        && str(v.value(QLatin1String("released"))).isEmpty();
+}
+
 // The install source (#267): bootc_shared.source_check.reuse_source().
 QJsonObject reuseSource(bool ok, const QByteArray &probeOutput, const QString &updateRef)
 {

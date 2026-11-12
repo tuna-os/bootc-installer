@@ -206,6 +206,22 @@ template $BootcProgress: Box {
         ]
       }
 
+      // The copy of this computer's system before the first step (#267):
+      // fisherman's source_reuse events. Hidden on every other install.
+      Label progress_reuse {
+        visible: false;
+        wrap: true;
+        wrap-mode: word_char;
+        justify: center;
+        selectable: true;
+        label: "";
+
+        styles [
+          "caption",
+          "dim-label",
+        ]
+      }
+
       ProgressBar progressbar {
         show-text: false;
         margin-top: 18;

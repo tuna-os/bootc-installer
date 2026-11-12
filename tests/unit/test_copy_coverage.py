@@ -229,7 +229,7 @@ def rendered_validate_keys(text, keys):
     return set()
 
 
-SOURCE_FAMILIES = ("source_check_", "bootc_store_kind_", "done_receipt_")
+SOURCE_FAMILIES = ("source_check_", "bootc_store_kind_", "done_receipt_", "progress_reuse_")
 # The shared Python reader's rows(): it builds every source_check_*,
 # bootc_store_* and source_* line, so a Python frontend that calls it
 # renders all of them.
@@ -239,6 +239,11 @@ SOURCE_RENDER = "source_check.rows("
 # install-source choice (#267).
 RECEIPT_RENDER = "completion.receipt_text("
 REUSE_RENDER = "source_check.reuse_rows("
+# The progress page's lines for the copy of this computer's system (#267):
+# bootc_shared.progress.source_reuse_text() names every progress_reuse_*
+# line but the cancel question, which a frontend names itself.
+COPY_PROGRESS_RENDER = "source_reuse_text("
+COPY_CANCEL_KEY = "progress_reuse_cancel"
 
 
 def rendered_source_keys(text, keys):
@@ -258,9 +263,11 @@ def rendered_source_keys(text, keys):
         found |= {k for k in keys if k.startswith("done_receipt_") or k == "done_verification"}
     if REUSE_RENDER in text:
         found |= {k for k in keys if k.startswith("source_reuse_")}
+    if COPY_PROGRESS_RENDER in text:
+        found |= {k for k in keys if k.startswith("progress_reuse_") and k != COPY_CANCEL_KEY}
     for prefix in SOURCE_FAMILIES:
         if f'"{prefix}"' in text or f"'{prefix}'" in text:
-            found |= {k for k in keys if k.startswith(prefix)}
+            found |= {k for k in keys if k.startswith(prefix) and k != COPY_CANCEL_KEY}
     return found
 
 

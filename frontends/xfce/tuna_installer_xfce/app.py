@@ -324,10 +324,17 @@ class InstallerWindow(Gtk.ApplicationWindow):
         return True
 
     def _confirm_cancel(self):
-        dialog = gates.ConfirmCancelDialog(self)
+        dialog = gates.ConfirmCancelDialog(self, self.cancel_question_body())
         response = dialog.run()
         dialog.destroy()
         return response == Gtk.ResponseType.OK
+
+    def cancel_question_body(self):
+        """The cancel question's body during the copy of this computer's
+        system (#267), when the disk has not changed yet; "" otherwise."""
+        if progress_parser.copy_cancel(self.pages["progress"].progress_state()):
+            return core.BRANDING.text("progress_reuse_cancel")
+        return ""
 
     def cancel_install(self):
         """Stop the install after a confirmed cancel: SIGTERM the wrapper's

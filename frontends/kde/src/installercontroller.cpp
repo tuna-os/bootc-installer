@@ -238,7 +238,12 @@ QString InstallerController::outcomeOf(int exitCode, bool crashed, bool cancelRe
 {
     if (!crashed && exitCode == 0)
         return QStringLiteral("succeeded");
-    if ((!crashed && exitCode == 130) || cancelRequested)
+    if (!crashed && exitCode == 130)
+        return QStringLiteral("cancelled");
+    // After a confirmed cancel a signal is the cancel too: this installer
+    // signalled the wrapper's group. Another exit code is fisherman's own
+    // failure, which came before the cancel reached it.
+    if (cancelRequested && (crashed || exitCode > 128))
         return QStringLiteral("cancelled");
     return QStringLiteral("failed");
 }
@@ -276,6 +281,17 @@ void InstallerController::setReuseSelected(bool selected)
     Q_EMIT problemsChanged();
     // The confirm step asks checkSource() again after the pick.
     checkFields();
+}
+
+QStringList InstallerController::reuseLines() const
+{
+    QStringList out;
+    for (const auto &line : sourcecheck::sourceReuseLines(m_sourceReuse)) {
+        const QString shown = m_branding.text(line.first, {{QStringLiteral("value"), line.second}});
+        if (!shown.isEmpty())
+            out << shown;
+    }
+    return out;
 }
 
 QStringList InstallerController::receiptLines() const
@@ -855,6 +871,8 @@ void InstallerController::resetProgress()
     m_installError.clear();
     m_receipt = QJsonValue();
     Q_EMIT receiptChanged();
+    m_sourceReuse = QJsonValue();
+    Q_EMIT sourceReuseChanged();
     m_recoveryAck = false;
     Q_EMIT recoveryChanged();
     m_cumulativePct = 0;
@@ -965,6 +983,9 @@ QString InstallerController::consumeProgress(const QString &line)
         applyOverallPct(event, before, m_fraction);
         m_stepName = stepLabel(event.value(QStringLiteral("step_id")).toString(), name);
         Q_EMIT progressChanged();
+        // copyCancel: once a step has started, the disk changes.
+        if (!m_sourceReuse.isNull())
+            Q_EMIT sourceReuseChanged();
         return QStringLiteral("[%1/%2] %3").arg(m_step).arg(m_totalSteps).arg(name);
     }
     if (type == QLatin1String("substep") || type == QLatin1String("info")) {
@@ -1017,6 +1038,15 @@ QString InstallerController::consumeProgress(const QString &line)
             {QStringLiteral("field"), event.value(QStringLiteral("field")).toString()},
         };
         return tr("ERROR: %1").arg(event.value(QStringLiteral("message")).toString());
+    }
+    if (type == QLatin1String("source_reuse")) {
+        // The copy of this computer's system before the first step (#267).
+        // It moves no bar: the bar stays indeterminate until the first step.
+        m_sourceReuse = sourcecheck::sourceReuseOf(event, m_sourceReuse);
+        Q_EMIT sourceReuseChanged();
+        const QString code = event.value(QStringLiteral("code")).toString();
+        return tr("Source reuse: %1").arg(event.value(QStringLiteral("phase")).toString())
+            + (code.isEmpty() ? QString() : QStringLiteral(" (%1)").arg(code));
     }
     if (type == QLatin1String("receipt")) {
         // What the install did with the installation receipt (#269). It

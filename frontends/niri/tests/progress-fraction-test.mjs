@@ -152,6 +152,44 @@ failures += replay("overall-pct-cases.json", 3);
   console.log(`ok: ${fixture.cases.length} cases against shared/progress/outcome-cases.json`);
 }
 
+// shared/progress/source-reuse-cases.json (#267): the copy of this
+// computer's system before the first step, its lines, the cancel question,
+// and a bar that the copy does not move.
+{
+  const fixture = JSON.parse(
+    readFileSync(join(here, "..", "..", "..", "shared", "progress", "source-reuse-cases.json"), "utf8"),
+  );
+  const copyKeys = JSON.parse(
+    readFileSync(join(here, "..", "..", "..", "shared", "branding", "copy-defaults.json"), "utf8"),
+  );
+  if (fixture.cases.length < 15) throw new Error("source-reuse-cases.json has too few cases");
+  const sorted = (v) => JSON.stringify(v, v && typeof v === "object" ? Object.keys(v).sort() : undefined);
+  for (const c of fixture.cases) {
+    const state = lib.newState();
+    c.events.forEach((event, i) => {
+      const bar = lib.advance(state, event);
+      if (Math.abs(bar - c.bar[i]) > 1e-6) {
+        console.error(`FAIL source-reuse-cases ${c.name} event ${i}: bar ${bar} want ${c.bar[i]}`);
+        failures++;
+      }
+    });
+    if (sorted(state.sourceReuse) !== sorted(c.source_reuse)) {
+      console.error(`FAIL source-reuse-cases ${c.name}: ${JSON.stringify(state.sourceReuse)} want ${JSON.stringify(c.source_reuse)}`);
+      failures++;
+    }
+    const lines = lib.sourceReuseLines(state.sourceReuse, (k) => k in copyKeys);
+    if (JSON.stringify(lines) !== JSON.stringify(c.lines)) {
+      console.error(`FAIL source-reuse-cases ${c.name} lines: ${JSON.stringify(lines)} want ${JSON.stringify(c.lines)}`);
+      failures++;
+    }
+    if (lib.copyCancel(state) !== c.copy_cancel) {
+      console.error(`FAIL source-reuse-cases ${c.name} copy_cancel`);
+      failures++;
+    }
+  }
+  console.log(`ok: ${fixture.cases.length} cases against shared/progress/source-reuse-cases.json`);
+}
+
 // Step labels: the copy key step_<step_id>, else fisherman's step_name.
 const copy = { step_flatpaks: "Installing your apps…" };
 const lookup = (id) => copy["step_" + id] || "";

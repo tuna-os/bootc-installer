@@ -60,6 +60,7 @@
         "progress_bar",
         "source_check",
         "bootc_store_view",
+        "source_reuse_progress",
         "done_not_verified",
         "done_receipt",
         "restart_from_done",
@@ -266,6 +267,12 @@
           "minLength": 1,
           "pattern": "^[^|\\n]+$",
           "description": "Images in this computer's bootc storage (`bootc_store`), and this computer's system as the install source (`sourceReuse`, #267)"
+        },
+        "source_reuse_progress": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Progress of the copy of this computer's system (`source_reuse` events: space, copy, check, failure, removal; #267)"
         },
         "done_not_verified": {
           "type": "string",

@@ -1003,6 +1003,13 @@ class ProgressPage(Page):
         self.note.get_style_context().add_class("dim-label")
         self.note.set_no_show_all(not self.note.get_text())
         self.pack_start(self.note, False, False, 0)
+        # The copy of this computer's system before the first step (#267):
+        # fisherman's source_reuse events. Hidden on every other install.
+        self.reuselabel = Gtk.Label(xalign=0, selectable=True)
+        self.reuselabel.set_line_wrap(True)
+        self.reuselabel.get_style_context().add_class("dim-label")
+        self.reuselabel.set_no_show_all(True)
+        self.pack_start(self.reuselabel, False, False, 0)
         # Multi-line parser context (current step, weight, seen substeps).
         self._progress = progress_parser.new_progress_state()
         # The one step label that names the product ("Installing {product}…")
@@ -1079,6 +1086,10 @@ class ProgressPage(Page):
             update = progress_parser.apply_progress_event(line, self._progress)
             if update is None:
                 continue
+            if "source_reuse" in update:
+                # The copy moves no bar: it holds until fisherman's first step.
+                self.show_source_reuse()
+                continue
             if update["label"] is not None:
                 # The step label sits directly under the page title, and for
                 # the install step the branding's "progress_title" and the
@@ -1092,6 +1103,16 @@ class ProgressPage(Page):
                 frac = update["fraction"]
                 self.bar.set_fraction(frac)
                 self.win.trawl.set_fill(frac)
+
+    def show_source_reuse(self):
+        lines = progress_parser.source_reuse_text(self._progress.get("source_reuse"),
+                                                  core.BRANDING.text)
+        self.reuselabel.set_text("\n".join(lines))
+        self.reuselabel.set_visible(bool(lines))
+
+    def progress_state(self):
+        """The parser's state, for the cancel question (copy_cancel)."""
+        return self._progress
 
     def recovery_key(self):
         """The key fisherman emitted, or "" for a non-TPM install.

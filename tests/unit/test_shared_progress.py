@@ -411,3 +411,139 @@ class OutcomeCasesTest(unittest.TestCase):
                      "frontends/xfce/tuna_installer_xfce/app.py"):
             with open(os.path.join(REPO, path), encoding="utf-8") as fh:
                 self.assertIn("install_outcome(", fh.read(), path)
+
+    def test_after_a_confirmed_cancel_only_130_or_a_signal_is_the_cancel(self):
+        # The decided rule (#267): fisherman failed before the cancel
+        # reached it, so its own exit code stands.
+        with open(OUTCOME_CASES, encoding="utf-8") as fh:
+            cases = {c["name"]: c for c in json.load(fh)["cases"]}
+        self.assertEqual(cases["exit_1_after_a_confirmed_cancel"]["outcome"], "failed")
+        self.assertEqual(cases["a_failed_copy_after_a_confirmed_cancel"]["outcome"], "failed")
+        self.assertEqual(cases["a_cancelled_copy"]["outcome"], "cancelled")
+        self.assertEqual(cases["a_signal_after_a_confirmed_cancel"]["outcome"], "cancelled")
+
+
+REUSE_CASES = os.path.join(REPO, "shared", "progress", "source-reuse-cases.json")
+FISHERMAN_DOC = os.path.join(REPO, "fisherman", "docs", "JSON-PROGRESS-FORMAT.md")
+FISHERMAN_REUSE_GO = os.path.join(REPO, "fisherman", "fisherman", "internal", "progress", "reuse.go")
+FISHERMAN_REUSE_IMPL = os.path.join(REPO, "fisherman", "fisherman", "internal", "reuse", "reuse.go")
+FISHERMAN_RECIPE_DIR = os.path.join(REPO, "fisherman", "fisherman", "internal", "recipe")
+COPY_DEFAULTS = os.path.join(REPO, "shared", "branding", "copy-defaults.json")
+
+
+class SourceReuseCasesTest(unittest.TestCase):
+    """shared/progress/source-reuse-cases.json pins what a parser keeps of
+    fisherman's `source_reuse` events (#267) and the progress page's lines.
+    KDE, COSMIC and Niri test their own parsers against it."""
+
+    def setUp(self):
+        with open(REUSE_CASES, encoding="utf-8") as fh:
+            self.cases = json.load(fh)["cases"]
+
+    def test_fixture_is_what_the_canonical_parser_produces(self):
+        gen = _load(GENERATOR, "_fraction_gen_reuse")
+        with open(REUSE_CASES, encoding="utf-8") as fh:
+            committed = json.load(fh)
+        self.assertEqual(committed, json.loads(json.dumps(gen.build_reuse())),
+                         "source-reuse-cases.json is stale; run "
+                         "python3 shared/progress/generate-fraction-cases.py")
+
+    def test_the_documented_line_is_the_pinned_fisherman_doc(self):
+        if not os.path.exists(FISHERMAN_DOC):
+            self.skipTest("fisherman submodule not checked out")
+        gen = _load(GENERATOR, "_fraction_gen_reuse_doc")
+        with open(FISHERMAN_DOC, encoding="utf-8") as fh:
+            self.assertIn(gen.REUSE_DOC_EXAMPLE + "\n", fh.read())
+        self.assertEqual(self.cases[0]["events"], [json.loads(gen.REUSE_DOC_EXAMPLE)])
+
+    def test_every_field_is_one_that_fisherman_writes(self):
+        # The lines come from fisherman's fake host; a renamed Go field
+        # would leave them behind. Only the edge cases add a bad value.
+        if not os.path.exists(FISHERMAN_REUSE_GO):
+            self.skipTest("fisherman submodule not checked out")
+        import re
+        with open(FISHERMAN_REUSE_GO, encoding="utf-8") as fh:
+            tags = set(re.findall(r'json:"([a-z_]+)', fh.read()))
+        tags |= {"timestamp", "elapsed_ms"}
+        gen = _load(GENERATOR, "_fraction_gen_reuse_tags")
+        for name, lines in gen.REUSE_LINES.items():
+            for line in lines:
+                event = json.loads(line)
+                for key, value in event.items():
+                    self.assertIn(key, tags, name)
+                    if isinstance(value, dict):
+                        self.assertLessEqual(set(value), tags, name)
+
+    def test_every_failure_code_of_the_copy_has_a_line(self):
+        # The codes that internal/reuse puts on a `failed` event, by the
+        # name of their Go constant in internal/recipe.
+        if not os.path.exists(FISHERMAN_REUSE_IMPL):
+            self.skipTest("fisherman submodule not checked out")
+        import glob
+        import re
+        consts = {}
+        for path in glob.glob(os.path.join(FISHERMAN_RECIPE_DIR, "*.go")):
+            with open(path, encoding="utf-8") as fh:
+                consts.update(re.findall(r'(CodeSourceReuse\w+)\s*=\s*"(source_reuse_\w+)"', fh.read()))
+        with open(FISHERMAN_REUSE_IMPL, encoding="utf-8") as fh:
+            used = set(re.findall(r"fail\(recipe\.(CodeSourceReuse\w+)", fh.read()))
+        self.assertGreaterEqual(len(used), 10)
+        with open(COPY_DEFAULTS, encoding="utf-8") as fh:
+            copy = json.load(fh)
+        for const in used:
+            code = consts[const]
+            self.assertIn("progress_reuse_failed_" + code[len("source_reuse_"):], copy, code)
+        self.assertIn("progress_reuse_failed_unknown", copy)
+
+    def test_the_python_parser_reproduces_the_fixture(self):
+        self.assertGreaterEqual(len(self.cases), 15)
+        pp = _load(CANONICAL, "_pp_reuse")
+        for case in self.cases:
+            state, bar = pp.new_progress_state(), 0.0
+            for i, (event, want) in enumerate(zip(case["events"], case["bar"])):
+                update = pp.apply_progress_event(json.dumps(event), state)
+                if update and update.get("fraction") is not None:
+                    bar = update["fraction"]
+                with self.subTest(case=case["name"], event=i):
+                    self.assertAlmostEqual(bar, want, places=6)
+            self.assertEqual(state["source_reuse"], case["source_reuse"], case["name"])
+            self.assertEqual([{"key": k, "value": v} for k, v in
+                              pp.source_reuse_lines(state["source_reuse"])],
+                             case["lines"], case["name"])
+            self.assertEqual(pp.copy_cancel(state), case["copy_cancel"], case["name"])
+
+    def test_the_bar_does_not_move_during_the_copy(self):
+        for case in self.cases:
+            before = 0.0
+            for event, bar in zip(case["events"], case["bar"]):
+                if event.get("type") == "source_reuse":
+                    with self.subTest(case=case["name"]):
+                        self.assertEqual(bar, before)
+                before = bar
+
+    def test_every_line_key_is_in_the_copy(self):
+        with open(COPY_DEFAULTS, encoding="utf-8") as fh:
+            copy = json.load(fh)
+        for case in self.cases:
+            for line in case["lines"]:
+                self.assertIn(line["key"], copy, case["name"])
+                if line["value"]:
+                    self.assertIn("{value}", copy[line["key"]], line["key"])
+
+    def test_the_cases_cover_every_phase_and_a_cancelled_copy(self):
+        phases = {e.get("phase") for c in self.cases for e in c["events"]
+                  if e.get("type") == "source_reuse"}
+        self.assertLessEqual({"planned", "copying", "verified", "failed", "released"}, phases)
+        cancelled = {c["name"]: c for c in self.cases}["cancelled_copy"]
+        self.assertEqual(cancelled["events"][-1]["message"], "installation cancelled (SIGTERM)")
+
+    def test_the_python_frontends_render_the_lines(self):
+        for paths in (("bootc_installer/views/progress.py",),
+                      ("frontends/xfce/tuna_installer_xfce/pages.py",
+                       "frontends/xfce/tuna_installer_xfce/app.py")):
+            text = ""
+            for path in paths:
+                with open(os.path.join(REPO, path), encoding="utf-8") as fh:
+                    text += fh.read()
+            self.assertIn("source_reuse_text(", text, paths[0])
+            self.assertIn("copy_cancel(", text, paths[0])
