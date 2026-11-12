@@ -61,6 +61,8 @@ jobs:
         run: |
           pip install pytest
           python3 -m pytest tests/unit/test_recipe_compliance.py -v -p no:cacheprovider
+          # The disk page offers a /var disk where fisherman accepts one (#252).
+          python3 -m pytest tests/unit/test_var_disk_offer.py -v -p no:cacheprovider
 
   xfce:
     name: Recipe compliance (xfce)
