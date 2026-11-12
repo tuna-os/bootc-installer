@@ -40,6 +40,7 @@ on the actual `dev` commit, never the PR's.
 | `cargo-test-cosmic.yml` | COSMIC frontend `cargo test` | when the COSMIC sources changed |
 | `browser-walkthrough.yml`, `wasm-kde.yml` | GNOME, XFCE and Niri advance in a browser; the KDE frontend compiles for WebAssembly | when that frontend changed |
 | `actionlint.yml` | the workflow files pass actionlint | when a workflow changed |
+| `sbom.yml` | each frontend's SPDX SBOM builds and passes the release check (dry run: a run artifact only) | when an SBOM input changed |
 | `ste.yml` | the Markdown prose stays in the `.ste-budget` | when a Markdown file changed |
 | `walkthrough.yml` | cross-frontend parity page regenerates | after any screenshot job |
 
@@ -115,7 +116,10 @@ The release also carries supply-chain evidence (#151).
   run signs it with its OIDC identity through Sigstore, and GitHub keeps it.
   Only the `release` job has `id-token: write` and `attestations: write`.
 
-A release with no SBOM for a frontend fails before `gh release create`.
+The `sbom` job calls `sbom.yml`. A pull request and a push to `dev` run the
+same workflow as a dry run when an input of the SBOM changes. The dry run
+uploads a run artifact only, with no attestation and no release. A release
+with no SBOM for a frontend fails before `gh release create`.
 
 The date + sha tag is deliberate: it is monotonic, unique per promotion, and
 never a rolling name an immutable-release ruleset can permanently ban (see

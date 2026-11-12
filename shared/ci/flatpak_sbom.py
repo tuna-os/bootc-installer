@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """An SPDX SBOM for each frontend's Flatpak, for the GitHub release (#151).
 
-release.yml runs this once per row of frontends.json, in two steps around
-anchore/sbom-action (Syft):
+.github/workflows/sbom.yml runs this once per row of frontends.json, in two
+steps around anchore/sbom-action (Syft), then checks the result. release.yml
+calls sbom.yml for the release; pull requests and dev run the same workflow
+as a dry run:
 
     python3 shared/ci/flatpak_sbom.py stage --frontend kde --into sbom-src/kde
     # anchore/sbom-action scans sbom-src/kde and writes kde.syft.spdx.json
     python3 shared/ci/flatpak_sbom.py merge --frontend kde \\
         --syft kde.syft.spdx.json --out kde.spdx.json \\
         --repo-url https://github.com/tuna-os/bootc-installer --commit "$GITHUB_SHA"
+    python3 shared/ci/flatpak_sbom.py check --commit "$GITHUB_SHA" kde.spdx.json
 
 `stage` copies the lock files that the frontend's Flatpak builds from
 (LOCKFILES) into a directory of their own, at their repository paths. Syft
@@ -269,6 +272,54 @@ def merge(syft_doc, frontend, row, repo_url, commit, root=ROOT, subs=None):
     return doc
 
 
+def check(doc, frontend, row, commit=None):
+    """Problems with an SBOM that merge() wrote; [] when it is sound.
+
+    Both the dry run on pull requests and dev (sbom.yml) and the release
+    job's "Check the SBOMs" step run this, so a pull request proves the
+    check that a release applies.
+    """
+    problems = []
+    if not isinstance(doc, dict):
+        return ["not a JSON object"]
+    if not str(doc.get("spdxVersion", "")).startswith("SPDX-2."):
+        problems.append(f"spdxVersion is {doc.get('spdxVersion')!r}, not SPDX-2.x")
+    if doc.get("SPDXID") != DOCUMENT:
+        problems.append(f"document SPDXID is {doc.get('SPDXID')!r}")
+    for key in ("dataLicense", "documentNamespace", "creationInfo", "name"):
+        if not doc.get(key):
+            problems.append(f"no {key}")
+    packages = doc.get("packages") or []
+    ids = [p.get("SPDXID") for p in packages if isinstance(p, dict)]
+    if len(ids) != len(packages):
+        problems.append("a package is not an object")
+    for dup in sorted({i for i in ids if ids.count(i) > 1}, key=str):
+        problems.append(f"SPDXID {dup} is used more than once")
+    for spdxid in ids:
+        if not re.fullmatch(r"SPDXRef-[A-Za-z0-9.-]+", str(spdxid)):
+            problems.append(f"SPDXID {spdxid!r} is not valid")
+    known = set(ids) | {DOCUMENT}
+    for rel in doc.get("relationships") or []:
+        for end in ("spdxElementId", "relatedSpdxElement"):
+            if rel.get(end) not in known:
+                problems.append(f"relationship {rel.get('relationshipType')} names unknown {rel.get(end)!r}")
+    by_id = {p.get("SPDXID"): p for p in packages if isinstance(p, dict)}
+    described = [r.get("relatedSpdxElement") for r in doc.get("relationships") or []
+                 if r.get("spdxElementId") == DOCUMENT and r.get("relationshipType") == "DESCRIBES"]
+    if len(described) != 1:
+        problems.append(f"the document DESCRIBES {len(described)} elements, not 1")
+    else:
+        app = by_id.get(described[0], {})
+        if app.get("name") != row["app-id"]:
+            problems.append(f"the document describes {app.get('name')!r}, not {row['app-id']!r} "
+                            f"({frontend})")
+        if commit and app.get("versionInfo") != commit:
+            problems.append(f"the app is at {app.get('versionInfo')!r}, not {commit}")
+    if len(packages) < 3:
+        problems.append(f"only {len(packages)} packages: no runtime or modules")
+    return problems
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -281,8 +332,28 @@ def main(argv=None):
     m.add_argument("--out", required=True)
     m.add_argument("--repo-url", required=True)
     m.add_argument("--commit", required=True)
+    c = sub.add_parser("check", help="check SBOMs that merge wrote")
+    c.add_argument("--commit", help="the commit the app must be at")
+    c.add_argument("files", nargs="+", metavar="<frontend>.spdx.json")
     args = parser.parse_args(argv)
     try:
+        if args.command == "check":
+            table = frontend_table.load()
+            failed = False
+            for path in args.files:
+                frontend = os.path.basename(path).split(".", 1)[0]
+                if not os.path.isfile(path) or os.path.getsize(path) == 0:
+                    problems = ["missing or empty"]
+                else:
+                    with open(path, encoding="utf-8") as stream:
+                        problems = check(json.load(stream), frontend,
+                                         frontend_table.row_for(frontend, table), args.commit)
+                for problem in problems:
+                    print(f"::error::{path}: {problem}")
+                failed = failed or bool(problems)
+                if not problems:
+                    print(f"{path}: ok")
+            return 1 if failed else 0
         if args.command == "stage":
             for rel in stage(args.frontend, args.into):
                 print(f"staged {rel}")

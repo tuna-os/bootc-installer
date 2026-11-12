@@ -73,7 +73,7 @@ release. `tests/unit/test_ci_frontend_table.py`,
 `tests/unit/test_ci_published_freshness.py` and
 `tests/unit/test_release_sbom.py` cover them. A new frontend adds one row to
 `frontends.json`, one `Publish (<name>)` job to `release.yml`, one entry to
-the `sbom` matrix there, and one lock file list to `flatpak_sbom.py`.
+the matrix of `sbom.yml`, and one lock file list to `flatpak_sbom.py`.
 
 ## `completion/`
 

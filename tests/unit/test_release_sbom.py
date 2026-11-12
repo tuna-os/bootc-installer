@@ -29,6 +29,7 @@ import flatpak_sbom as fs  # noqa: E402
 import frontend_table  # noqa: E402
 
 RELEASE = os.path.join(REPO, ".github", "workflows", "release.yml")
+SBOM = os.path.join(REPO, ".github", "workflows", "sbom.yml")
 RELEASE_DOC = os.path.join(REPO, "docs", "RELEASE.md")
 TABLE = frontend_table.load()
 FRONTENDS = list(TABLE)
@@ -40,8 +41,8 @@ ATTEST_ACTION = "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1e
 SPDX_ID = re.compile(r"^SPDXRef-[A-Za-z0-9.-]+$")
 
 
-def _text():
-    with open(RELEASE, encoding="utf-8") as stream:
+def _text(path=RELEASE):
+    with open(path, encoding="utf-8") as stream:
         return stream.read()
 
 
@@ -53,6 +54,18 @@ def workflow():
 @pytest.fixture(scope="module")
 def jobs(workflow):
     return workflow["jobs"]
+
+
+@pytest.fixture(scope="module")
+def sbom_wf():
+    return yaml.safe_load(_text(SBOM))
+
+
+@pytest.fixture(scope="module")
+def leg(sbom_wf):
+    """The one job of sbom.yml: the release legs and the dry run are this."""
+    (job,) = sbom_wf["jobs"].values()
+    return job
 
 
 def _uses(job, prefix):
@@ -86,11 +99,11 @@ def test_sbom_and_release_wait_for_the_guard(jobs):
 # ------------------------------------------------------------ permissions
 
 
-def test_only_the_release_job_can_sign(workflow, jobs):
+def test_only_the_release_job_can_sign(workflow, jobs, sbom_wf, leg):
     assert jobs["release"]["permissions"] == {
         "contents": "write", "id-token": "write", "attestations": "write"}
-    assert "id-token" not in workflow["permissions"]
-    assert "attestations" not in workflow["permissions"]
+    for perms in (workflow["permissions"], sbom_wf["permissions"], leg["permissions"]):
+        assert "id-token" not in perms and "attestations" not in perms
     for name, job in jobs.items():
         if name == "release":
             continue
@@ -98,33 +111,89 @@ def test_only_the_release_job_can_sign(workflow, jobs):
         assert "id-token" not in perms and "attestations" not in perms, name
 
 
-def test_the_sbom_job_reads_only(jobs):
+def test_the_sbom_path_reads_only(jobs, sbom_wf, leg):
     assert jobs["sbom"]["permissions"] == {"contents": "read"}
+    assert sbom_wf["permissions"] == {"contents": "read"}
+    assert leg["permissions"] == {"contents": "read"}
 
 
-# ------------------------------------------------------------ the sbom job
+# ------------------------------------------------------------ one definition
 
 
-def test_one_sbom_leg_per_frontend(jobs):
-    assert jobs["sbom"]["strategy"]["matrix"]["frontend"] == FRONTENDS
-    assert jobs["sbom"]["strategy"]["fail-fast"] is False
-
-
-def test_the_sbom_job_uses_syft_in_spdx_and_publishes_nothing(jobs):
+def test_the_release_calls_sbom_yml(jobs):
+    """The release legs are sbom.yml itself, not a copy of its steps."""
     job = jobs["sbom"]
-    checkout = _uses(job, "actions/checkout@")[0]
+    assert job["uses"] == "./.github/workflows/sbom.yml"
+    assert "with" not in job
+    assert "steps" not in job
+
+
+def test_no_other_workflow_copies_the_sbom_steps():
+    workflows = os.path.join(REPO, ".github", "workflows")
+    for name in os.listdir(workflows):
+        if name == "sbom.yml":
+            continue
+        text = _text(os.path.join(workflows, name))
+        assert "anchore/sbom-action" not in text, name
+        assert "flatpak_sbom.py stage" not in text and "flatpak_sbom.py merge" not in text, name
+
+
+def test_the_dry_run_runs_on_pull_requests_and_dev(sbom_wf):
+    on = sbom_wf.get("on", sbom_wf.get(True))
+    assert set(on) == {"workflow_call", "pull_request", "push", "workflow_dispatch"}
+    assert on["push"]["branches"] == ["dev"]
+    assert on["push"]["paths"] == on["pull_request"]["paths"]
+    paths = on["pull_request"]["paths"]
+    for needed in ("shared/ci/flatpak_sbom.py", "shared/ci/frontends.json", "shared/flatpak/**",
+                   "flatpak/*.json", "frontends/*/flatpak/*.json", "fisherman",
+                   ".github/workflows/sbom.yml", ".github/workflows/release.yml"):
+        assert needed in paths
+    for lock in {f for files in fs.LOCKFILES.values() for f in files}:
+        if not lock.startswith("fisherman/"):
+            assert lock in paths, lock
+    assert not (on["workflow_call"] or {}).get("inputs")
+
+
+def test_the_leg_name_has_only_the_matrix_in_it(leg):
+    """Release run: "SBOM / SBOM (<frontend>)"; dry run: "SBOM (<frontend>)"."""
+    assert leg["name"] == "SBOM (${{ matrix.frontend }})"
+
+
+def test_the_promotion_gate_waits_for_the_dry_run():
+    promote = yaml.safe_load(_text(os.path.join(REPO, ".github", "workflows", "promote.yml")))
+    on = promote.get("on", promote.get(True))
+    assert "SBOM" in on["workflow_run"]["workflows"]
+
+
+# ------------------------------------------------------------ the sbom legs
+
+
+def test_one_sbom_leg_per_frontend(leg):
+    assert leg["strategy"]["matrix"]["frontend"] == FRONTENDS
+    assert leg["strategy"]["fail-fast"] is False
+
+
+def test_the_sbom_leg_uses_syft_in_spdx_and_publishes_nothing(leg):
+    checkout = _uses(leg, "actions/checkout@")[0]
     assert checkout["with"]["submodules"] is True  # fisherman's go.mod
-    (syft,) = _uses(job, "anchore/sbom-action@")
+    (syft,) = _uses(leg, "anchore/sbom-action@")
     assert syft["with"]["format"] == "spdx-json"
     assert syft["with"]["upload-release-assets"] is False
     assert syft["with"]["upload-artifact"] is False
     assert syft["with"]["path"] == "sbom-src/${{ matrix.frontend }}"
-    runs = "\n".join(s.get("run", "") for s in job["steps"])
+    runs = "\n".join(s.get("run", "") for s in leg["steps"])
     assert "flatpak_sbom.py stage" in runs and "flatpak_sbom.py merge" in runs
-    assert "gh release" not in runs
-    (upload,) = _uses(job, "actions/upload-artifact@")
+    assert 'flatpak_sbom.py check --commit "$SHA"' in runs
+    for forbidden in ("gh release", "gh attestation", "skopeo", "cosign", "git push"):
+        assert forbidden not in runs
+    uses = [str(s.get("uses", "")).split("@")[0] for s in leg["steps"] if s.get("uses")]
+    assert uses == ["actions/checkout", "anchore/sbom-action", "actions/upload-artifact"]
+    (upload,) = _uses(leg, "actions/upload-artifact@")
     assert upload["with"]["name"] == "sbom-${{ matrix.frontend }}"
     assert upload["with"]["if-no-files-found"] == "error"
+    order = [s.get("name") or s["uses"].split("@")[0] for s in leg["steps"]]
+    assert order.index("Add the Flatpak manifest") < order.index("Check the SBOM") \
+        < order.index("actions/upload-artifact")
 
 
 # ------------------------------------------------------------ the release job
@@ -145,7 +214,10 @@ def test_the_release_attests_before_it_publishes(jobs):
 def test_the_release_checks_and_attaches_five_sboms(jobs):
     job = jobs["release"]
     check = next(s for s in job["steps"] if s.get("name") == "Check the SBOMs")["run"]
-    assert f"for frontend in {' '.join(FRONTENDS)}; do" in check
+    # The same check as each sbom.yml leg, on all five downloaded files.
+    assert 'flatpak_sbom.py check --commit "$SHA"' in check
+    assert check.split("check --commit \"$SHA\"", 1)[1].split() == [
+        "\\"] + [f"{f}.spdx.json" for f in FRONTENDS]
     create = next(s for s in job["steps"] if s.get("name") == "Create the release")["run"]
     assets = create.split("assets=(", 1)[1].split(")", 1)[0].split()
     for frontend in FRONTENDS:
@@ -153,8 +225,9 @@ def test_the_release_checks_and_attaches_five_sboms(jobs):
     assert "org.bootcinstaller.Installer.flatpak" in assets
 
 
-def test_every_action_is_pinned_by_sha():
-    for line in _text().splitlines():
+@pytest.mark.parametrize("path", [RELEASE, SBOM])
+def test_every_action_is_pinned_by_sha(path):
+    for line in _text(path).splitlines():
         match = re.match(r"\s*-?\s*uses:\s*(\S+)(.*)$", line)
         if not match or match.group(1).startswith("./"):
             continue
@@ -164,9 +237,8 @@ def test_every_action_is_pinned_by_sha():
 
 
 def test_the_new_actions_are_the_node24_pins():
-    text = _text()
-    assert f"uses: {SBOM_ACTION}" in text
-    assert f"uses: {ATTEST_ACTION}" in text
+    assert f"uses: {SBOM_ACTION}" in _text(SBOM)
+    assert f"uses: {ATTEST_ACTION}" in _text(RELEASE)
 
 
 def test_release_doc_says_how_to_verify():
@@ -290,3 +362,36 @@ def test_merge_does_not_change_its_input():
 def test_merge_refuses_a_document_that_is_not_spdx():
     with pytest.raises(fs.SbomError):
         fs.merge({"bomFormat": "CycloneDX"}, "kde", TABLE["kde"], REPO_URL, COMMIT)
+
+
+@pytest.mark.parametrize("frontend", FRONTENDS)
+def test_check_accepts_what_merge_writes(frontend):
+    doc = fs.merge(SYFT, frontend, TABLE[frontend], REPO_URL, COMMIT)
+    assert fs.check(doc, frontend, TABLE[frontend], COMMIT) == []
+
+
+def test_check_refuses_a_broken_sbom():
+    row = TABLE["kde"]
+    good = fs.merge(SYFT, "kde", row, REPO_URL, COMMIT)
+    assert fs.check(good, "cosmic", TABLE["cosmic"], COMMIT)      # another app
+    assert fs.check(good, "kde", row, "b" * 40)                   # another commit
+    assert fs.check(dict(good, spdxVersion="SPDX-3.0"), "kde", row)
+    bad = json.loads(json.dumps(good))
+    bad["packages"].append(dict(bad["packages"][1]))
+    assert any("more than once" in p for p in fs.check(bad, "kde", row))
+    bad = json.loads(json.dumps(good))
+    bad["relationships"].append({"spdxElementId": "SPDXRef-DOCUMENT",
+                                 "relationshipType": "DESCRIBES",
+                                 "relatedSpdxElement": "SPDXRef-nope"})
+    problems = fs.check(bad, "kde", row)
+    assert any("unknown" in p for p in problems) and any("DESCRIBES 2" in p for p in problems)
+    assert fs.check(SYFT, "kde", row)                             # Syft alone is not enough
+
+
+def test_check_cli_fails_on_a_missing_file():
+    with tempfile.TemporaryDirectory() as d:
+        good = os.path.join(d, "kde.spdx.json")
+        with open(good, "w", encoding="utf-8") as stream:
+            json.dump(fs.merge(SYFT, "kde", TABLE["kde"], REPO_URL, COMMIT), stream)
+        assert fs.main(["check", "--commit", COMMIT, good]) == 0
+        assert fs.main(["check", "--commit", COMMIT, good, os.path.join(d, "xfce.spdx.json")]) == 1
