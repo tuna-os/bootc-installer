@@ -18,6 +18,23 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-12: one recipe for the same choices
+
+- Added: `recipe/fixtures/compliance.json`. Each case has the choices of a
+  person (an image leaf of `catalog/fixtures/catalog.json`, the disk, the
+  filesystem, LUKS, the account, the language, the keyboard layout, the
+  time zone and the hostname) and the one recipe that every frontend must
+  write for them. Its `normalise` table says which forms fisherman reads
+  as absent (#226, #186).
+- Added: `recipe/compliance.py`, the reference normaliser.
+- All five frontends use the fixture: GNOME and XFCE in pytest, KDE in
+  `test_backend`, COSMIC in `cargo test`, Niri in `go test`. The new
+  `Recipe compliance` workflow runs the five tests, and `promote.yml`
+  requires its last job.
+
+Contracts version: `1.2.0`
+Contracts sha256: `0da239e00a66d9720cdfc44dd2dc9f8d0c03815ce0206264def2ed5398171c4d`
+
 ## 2026-11-12: a strict walkthrough report has a meaning
 
 - Changed: `walkthrough/parity_report.py` computes `strict` and `failures`.

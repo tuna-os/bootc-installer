@@ -17,6 +17,7 @@ import Quickshell
 import Quickshell.Io
 import "."
 import "progress.js" as BarMath
+import "recipe.js" as RecipeJs
 import "i18n.js" as I18n
 
 ApplicationWindow {
@@ -537,14 +538,7 @@ ApplicationWindow {
     }
     // The recipe keys of the Session step's picks (#292). None without a
     // pick: the installed system keeps the image's values.
-    function regionRecipe() {
-        const keys = {}
-        const picked = root.installRegion || {}
-        if (picked.locale) keys.locale = picked.locale
-        if (picked.keyboard) keys.keyboard = { layout: picked.keyboard }
-        if (picked.timezone) keys.timezone = picked.timezone
-        return keys
-    }
+    function regionRecipe() { return RecipeJs.regionKeys(root.installRegion) }
     readonly property string regionProblem: problemText("locale") || problemText("keyboard.layout")
         || problemText("keyboard.variant") || problemText("keyboard.model") || problemText("timezone")
     function checkFields() { validateTimer.restart() }
@@ -628,8 +622,7 @@ ApplicationWindow {
             keys = Object.assign({}, root.liveLeaf ? (root.liveLeaf.recipe || {}) : {})
             keys.image = ""
         } else if (root.selectedLeaf) {
-            keys = Object.assign({ image: root.selectedLeaf.imgref, targetImgref: root.selectedLeaf.imgref },
-                root.selectedLeaf.recipe || {})
+            keys = RecipeJs.leafKeys(root.selectedLeaf)
         } else if (root.selectedFallback && root.defaultImage !== "") {
             keys = { image: root.defaultImage, targetImgref: root.defaultImage }
         }
@@ -1182,44 +1175,25 @@ ApplicationWindow {
 
     // The recipe the wizard hands to the backend's `install`. Its image
     // keys are the backend's own (imageRecipe, from `catalog`); the rest is
-    // what the user chose on the pages.
+    // what the user chose on the pages. ui/recipe.js builds it, so that
+    // installer/compliance_test.go can hold it to the shared fixture.
     function buildRecipe() {
-        const recipe = {
+        const recipe = RecipeJs.build({
             disk: selectedDisk.path,
             filesystem: root.filesystem,
-            // Subvolumes only on btrfs, whatever the row says.
-            btrfsSubvolumes: root.filesystem === "btrfs" && root.btrfsSubvolumes,
-            encryption: root.needsPassphrase(root.encType)
-                ? { type: root.encType, passphrase: root.passphrase }
-                : { type: root.encType },
+            btrfsSubvolumes: root.btrfsSubvolumes,
+            encType: root.encType,
+            passphraseNeeded: root.needsPassphrase(root.encType),
+            passphrase: root.passphrase,
             hostname: hostname,
             distroID: root.branding.id || "linux",
-            // true makes bootc boot the installed system with selinux=0.
-            selinuxDisabled: false
-            // No additionalImageStores: fisherman exposes the host's stores.
-        }
-        // image, targetImgref, bootloader, composeFsBackend, and flatpaks,
-        // flatpakVarPath and imageType when the leaf gives them. A key that
-        // is not there stays out: an absent `flatpaks` lets fisherman apply
-        // its default, and that is not the same as an empty list. An empty
-        // image installs the running system, which fisherman accepts only
-        // on live media (probe's live.is_live).
-        Object.assign(recipe, root.imageRecipe || {})
-        // ZFS is experimental in fisherman (no VM test boots it): the
-        // user picked it, and the recipe says that it accepts that.
-        if (root.filesystem === "zfs")
-            recipe.experimental = ["zfs"]
-        // The Session step's picks: locale, keyboard, timezone (#292).
-        Object.assign(recipe, root.regionRecipe())
-        // The account: left out when the image makes its own first user,
-        // and with no username (the schema's "empty skips"). No groups
-        // here: the backend writes the shared list or the operator's.
-        if (root.needsUserCreation && root.username !== "")
-            recipe.user = {
-                username: root.username,
-                fullname: root.fullname,
-                password: root.userPassword
-            }
+            imageKeys: root.imageRecipe,
+            region: root.installRegion,
+            needsUserCreation: root.needsUserCreation,
+            username: root.username,
+            fullname: root.fullname,
+            password: root.userPassword
+        })
         // The install source of the confirm page (#267).
         return root.reuseActive ? BarMath.applyReuse(recipe, root.reuseSource) : recipe
     }
