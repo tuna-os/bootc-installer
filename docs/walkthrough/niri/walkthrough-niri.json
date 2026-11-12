@@ -117,7 +117,7 @@
       "colours": 497,
       "flat": 0.5597333333333333,
       "ink": 0.1155,
-      "stddev": 0.1152965279548122,
+      "stddev": 0.11528884652927622,
       "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Capture Desktop \u203a Edge ghcr.io/exa"
     },
     {
@@ -127,7 +127,7 @@
       "colours": 484,
       "flat": 0.6199333333333333,
       "ink": 0.11003333333333333,
-      "stddev": 0.10556755838076784,
+      "stddev": 0.10557607011149404,
       "text_excerpt": "Step 4 of 9 \u00b7 Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  \u00b7  465.8 GiB  \u00b7  SATA Extreme SSD /dev/sdc  \u00b7  931.5 GiB  \u00b7  USB Cruzer Blade /dev/sdd  \u00b7  59.6 GiB  \u00b7  USB WD_"
     },
     {
@@ -137,7 +137,7 @@
       "colours": 521,
       "flat": 0.4215333333333333,
       "ink": 0.2012,
-      "stddev": 0.11963561917385698,
+      "stddev": 0.11962846478068354,
       "text_excerpt": "Step 5 of 9 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
@@ -177,7 +177,7 @@
       "colours": 308,
       "flat": 0.9346666666666666,
       "ink": 0.0248,
-      "stddev": 0.09608996349971945,
+      "stddev": 0.09609967421521785,
       "text_excerpt": "Step 9 of 9 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation. Take a "
     },
     {
