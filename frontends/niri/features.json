@@ -31,7 +31,7 @@
     "locale_installed": "yes, after a change: `locale`, `keyboard.layout`, `timezone`",
     "cancel_install": "Cancel button and window close: each asks first; a cancelled page follows",
     "autoinstall": "no",
-    "translatable": "strings marked with qsTr, no translations shipped (#300)",
+    "translatable": "strings marked with qsTr; template `i18n/tuna-installer-niri.ts`, kept current by a check; no translation ships and nothing loads one (#300)",
     "progress_bar": "yes",
     "source_check": "confirm page, Selected image card; a blocked source holds Install",
     "bootc_store_view": "yes, on the confirm page; the system that this computer runs is a second install source there (experimental, never the default, never on live media)",

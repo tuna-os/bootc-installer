@@ -123,6 +123,9 @@ fails when the two differ.
 - Each user-facing literal goes through `_()` from
   `tuna_installer_xfce/i18n.py`. `tests/test_i18n.py` fails on a bare
   literal. Do not use `_` as a parameter or variable name in those modules.
+  The template is `po/tuna-installer-xfce.pot`. After you change a marked
+  string, run `python3 ../../shared/i18n/templates.py xfce` and commit the
+  template.
 - The keyboard combo applies to the live session only. The recipe has no
   locale field yet, so do not add a control that only stores a value.
 
