@@ -17,8 +17,10 @@ import unittest
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 WORKFLOWS = os.path.join(REPO, ".github", "workflows")
 ACTION = os.path.join(REPO, ".github", "actions", "push-to-dev", "action.yml")
+# The screenshot workflows use the same-repository `$/` form. walkthrough.yml
+# keeps `./`, because it runs the action from its checkout of dev.
 USE = re.compile(
-    r"        uses: \./\.github/actions/push-to-dev\n"
+    r"        uses: (?:\./|\$/)\.github/actions/push-to-dev(?: # zizmor: .+)?\n"
     r"        with:\n"
     r"(?:          working-directory: (?P<wd>\S+)\n)?"
     r"          paths: (?P<paths>.+)\n"
@@ -61,7 +63,8 @@ class PushToDevTest(unittest.TestCase):
 
     def test_each_caller_commits_its_own_paths_with_skip_ci(self):
         using = sorted(name for name in os.listdir(WORKFLOWS)
-                       if "actions/push-to-dev" in read(os.path.join(WORKFLOWS, name)).split("\njobs:")[1])
+                       if name.endswith(".yml")
+                       and "actions/push-to-dev" in read(os.path.join(WORKFLOWS, name)).split("\njobs:")[1])
         self.assertEqual(using, sorted(CALLERS))
         for name, expected in CALLERS.items():
             with self.subTest(workflow=name):
@@ -80,7 +83,7 @@ class PushToDevTest(unittest.TestCase):
             with self.subTest(workflow=name):
                 self.assertIn(
                     "        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'\n"
-                    "        uses: ./.github/actions/push-to-dev\n", read(os.path.join(WORKFLOWS, name)))
+                    "        uses: $/.github/actions/push-to-dev\n", read(os.path.join(WORKFLOWS, name)))
 
 
 if __name__ == "__main__":

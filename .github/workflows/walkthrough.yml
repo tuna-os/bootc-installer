@@ -13,7 +13,7 @@ name: Walkthrough
 # matrix says so.
 
 on:
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers] the job runs only for same-repo push or dispatch runs, see its if
     workflows:
       - Screenshots (gnome)
       - Screenshots (kde)
@@ -38,8 +38,13 @@ jobs:
   aggregate:
     name: Aggregate walkthroughs
     runs-on: ubuntu-24.04
+    # A fork pull request from a branch named dev also matches branches: [dev].
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch'))
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] the push-to-dev step later commits and pushes from this checkout
         with:
           fetch-depth: 0
           ref: dev
@@ -52,8 +57,12 @@ jobs:
           mkdir -p captures
           for n in gnome kde cosmic niri xfce; do
             wf="screenshots-$n.yml"
+            # Only push and workflow_dispatch runs. A fork pull request from a
+            # branch named dev also has head branch dev, but its event is
+            # pull_request, so its captures are never committed to dev.
             run_id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "$wf" --branch dev \
-                       --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty' || true)
+                       --status success --limit 50 --json databaseId,event \
+                       --jq '[.[] | select(.event == "push" or .event == "workflow_dispatch")][0].databaseId // empty' || true)
             if [ -z "$run_id" ]; then
               echo "::warning::no successful $wf run on dev yet; $n will read as pending"
               continue
@@ -86,13 +95,13 @@ jobs:
       - name: Audit what the artifact and the commit publish
         run: python3 shared/e2e/publish.py audit docs/walkthrough
 
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: walkthrough
           path: docs/walkthrough/
 
       - name: Commit
-        uses: ./.github/actions/push-to-dev
+        uses: ./.github/actions/push-to-dev # zizmor: ignore[self-repository] job runs the action from its checkout of dev, not the workflow commit
         with:
           paths: docs/walkthrough
           message: "docs: refresh cross-frontend walkthrough [skip ci]"

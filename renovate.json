@@ -1,8 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended",
-    "helpers:pinGitHubActionDigests"
+    "config:recommended"
   ],
   "automerge": false,
   "forkProcessing": "enabled",
@@ -36,7 +35,7 @@
       "enabled": false
     },
     {
-      "description": "tuna-os/* reusable workflows and actions are first-party and intentionally track @main; do not pin them (docs/RELEASE.md, Action pinning).",
+      "description": "tuna-os/* actions stay on @main in uses: lines, and .github/workflows/actions.lock holds the commit that runs. Do not add digests to them. tuna-os/* reusable workflows are pinned by hand to a full SHA with a # main comment; Renovate updates that SHA (docs/RELEASE.md, Action pinning).",
       "matchManagers": [
         "github-actions"
       ],
@@ -44,6 +43,13 @@
         "tuna-os/**"
       ],
       "pinDigests": false
+    },
+    {
+      "description": "Wait 7 days before taking a new action release (supply-chain cooldown).",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "minimumReleaseAge": "7 days"
     },
     {
       "description": "fisherman: the submodule gitlink is the only pin; every Flatpak builds fisherman from the submodule (shared/flatpak/fisherman.json, TestFishermanPin). It tracks fisherman's prod branch, which only advances after fisherman's promote gate (its E2E matrix green plus a soak), so only released fisherman commits are pinned. Merge on green.",
