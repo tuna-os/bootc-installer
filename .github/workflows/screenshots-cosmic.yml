@@ -51,7 +51,7 @@ jobs:
       run:
         working-directory: frontends/cosmic
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] the push-to-dev step later commits and pushes from this checkout
         with:
           fetch-depth: 0
 
@@ -70,9 +70,9 @@ jobs:
             adwaita-icon-theme \
             xvfb imagemagick python3-pil
 
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: dtolnay/rust-toolchain@stable
 
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: Swatinem/rust-cache@v2.9.3
         with:
           workspaces: frontends/cosmic
 
@@ -127,7 +127,7 @@ jobs:
           xvfb-run -a -s "-screen 0 1400x1000x24" ./target/release/tuna-installer-cosmic
           sudo rm -rf /run/host
 
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: gui-screenshots-cosmic-variant
@@ -191,7 +191,7 @@ jobs:
           python3 ../../shared/walkthrough/report_from_pngs.py cosmic docs/screenshots \
             --harness "src/capture.rs (libcosmic on lavapipe under Xvfb)"
 
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: gui-screenshots-cosmic
@@ -200,7 +200,7 @@ jobs:
 
       - name: commit refreshed screenshots
         if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-        uses: ./.github/actions/push-to-dev
+        uses: $/.github/actions/push-to-dev
         with:
           working-directory: frontends/cosmic
           paths: docs/screenshots

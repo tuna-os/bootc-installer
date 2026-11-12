@@ -48,9 +48,7 @@ on:
         type: string
         default: '["x86_64", "aarch64"]'
 
-permissions:
-  contents: read
-  packages: write
+permissions: {}
 
 jobs:
   resolve:
@@ -66,9 +64,10 @@ jobs:
       checkout-submodules: ${{ steps.row.outputs.checkout-submodules }}
       also-latest: ${{ steps.row.outputs.also-latest }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           sparse-checkout: shared/ci
+          persist-credentials: false
 
       # An unknown frontend, or a row with a missing column, fails here, and
       # `publish` below then does not start.
@@ -82,7 +81,10 @@ jobs:
 
   publish:
     needs: resolve
-    uses: ./.github/workflows/publish-oci.yml
+    permissions:
+      contents: read
+      packages: write
+    uses: $/.github/workflows/publish-oci.yml
     with:
       frontend: ${{ inputs.frontend }}
       app-id: ${{ needs.resolve.outputs.app-id }}
@@ -96,4 +98,5 @@ jobs:
       checkout-submodules: ${{ needs.resolve.outputs.checkout-submodules == 'true' }}
       also-latest: ${{ needs.resolve.outputs.also-latest == 'true' }}
       publish: ${{ inputs.publish }}
-    secrets: inherit
+    secrets:
+      FLATPAK_INDEX_DEPLOY_KEY: ${{ secrets.FLATPAK_INDEX_DEPLOY_KEY }}

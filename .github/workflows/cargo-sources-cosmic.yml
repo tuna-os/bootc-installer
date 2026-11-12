@@ -31,10 +31,12 @@ jobs:
       run:
         working-directory: frontends/cosmic
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Just
-        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        uses: extractions/setup-just@v4.0.0 # zizmor: ignore[unpinned-tools] the job takes the latest just today; pinning a version would change the tool it runs
 
       - name: check flatpak/cargo-sources.json is in sync with Cargo.lock
         run: just check-cargo-sources

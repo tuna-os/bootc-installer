@@ -8,7 +8,7 @@ description: >-
 # One copy of the step that screenshots-<frontend>.yml (five) and
 # walkthrough.yml each carried. Use it after actions/checkout:
 #
-#   - uses: ./.github/actions/push-to-dev
+#   - uses: $/.github/actions/push-to-dev
 #     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
 #     with:
 #       working-directory: frontends/kde

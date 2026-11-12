@@ -35,9 +35,11 @@ TABLE = frontend_table.load()
 FRONTENDS = list(TABLE)
 
 # Node 24 releases, each SHA checked as the tag's commit with
-# `git ls-remote https://github.com/<repo> refs/tags/<tag>*`.
-SBOM_ACTION = "anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3"
-ATTEST_ACTION = "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2"
+# `git ls-remote https://github.com/<repo> refs/tags/<tag>*`. The workflows
+# name the exact tag; .github/workflows/actions.lock holds the commit.
+SBOM_ACTION = ("anchore/sbom-action", "v0.24.3", "66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c")
+ATTEST_ACTION = ("actions/attest-build-provenance", "v4.2.2", "4d101475d8b20a2381f78447822ac1eab6504dd8")
+ACTIONS_LOCK = os.path.join(REPO, ".github", "workflows", "actions.lock")
 SPDX_ID = re.compile(r"^SPDXRef-[A-Za-z0-9.-]+$")
 
 
@@ -123,7 +125,7 @@ def test_the_sbom_path_reads_only(jobs, sbom_wf, leg):
 def test_the_release_calls_sbom_yml(jobs):
     """The release legs are sbom.yml itself, not a copy of its steps."""
     job = jobs["sbom"]
-    assert job["uses"] == "./.github/workflows/sbom.yml"
+    assert job["uses"] == "$/.github/workflows/sbom.yml"
     assert "with" not in job
     assert "steps" not in job
 
@@ -131,7 +133,7 @@ def test_the_release_calls_sbom_yml(jobs):
 def test_no_other_workflow_copies_the_sbom_steps():
     workflows = os.path.join(REPO, ".github", "workflows")
     for name in os.listdir(workflows):
-        if name == "sbom.yml":
+        if name == "sbom.yml" or name == "actions.lock":
             continue
         text = _text(os.path.join(workflows, name))
         assert "anchore/sbom-action" not in text, name
@@ -225,20 +227,28 @@ def test_the_release_checks_and_attaches_five_sboms(jobs):
     assert "org.bootcinstaller.Installer.flatpak" in assets
 
 
+def _lock():
+    return yaml.safe_load(_text(ACTIONS_LOCK))
+
+
 @pytest.mark.parametrize("path", [RELEASE, SBOM])
-def test_every_action_is_pinned_by_sha(path):
+def test_every_action_is_an_exact_tag_in_the_lockfile(path):
+    lock = _lock()
+    locked = {entry.lower() for entry in lock["workflows"][os.path.relpath(path, REPO)]}
     for line in _text(path).splitlines():
-        match = re.match(r"\s*-?\s*uses:\s*(\S+)(.*)$", line)
-        if not match or match.group(1).startswith("./"):
+        match = re.match(r"\s*-?\s*uses:\s*(\S+)", line)
+        if not match or match.group(1).startswith(("./", "$/")):
             continue
         ref = match.group(1).split("@", 1)[1]
-        assert re.fullmatch(r"[0-9a-f]{40}", ref), line
-        assert re.match(r"\s*# v\d", match.group(2)), line
+        assert re.fullmatch(r"v\d+\.\d+\.\d+", ref), line
+        assert match.group(1).lower() in locked, line
 
 
 def test_the_new_actions_are_the_node24_pins():
-    assert f"uses: {SBOM_ACTION}" in _text(SBOM)
-    assert f"uses: {ATTEST_ACTION}" in _text(RELEASE)
+    lock = _lock()
+    for path, (action, tag, sha) in ((SBOM, SBOM_ACTION), (RELEASE, ATTEST_ACTION)):
+        assert f"uses: {action}@{tag}" in _text(path)
+        assert lock["dependencies"][f"{action}@{tag}"]["commit"] == f"sha1-{sha}"
 
 
 def test_release_doc_says_how_to_verify():
