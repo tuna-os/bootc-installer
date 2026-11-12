@@ -104,7 +104,11 @@ fisherman resolver, the staging and host commands), `image_catalog.rs` (the
 catalog reader), `model.rs` (the recipe, `Recipe::apply_leaf`, the account
 groups), `validate.rs` (`fisherman validate` and the encryption choices),
 `i18n.rs` (`tr`), `readiness.rs`, `branding.rs`, `capture.rs` (the
-screenshot harness entry point).
+screenshot harness entry point), `recipe_compliance.rs` (the test that holds
+the recipe to `shared/recipe/fixtures/compliance.json`). The update loop
+changes the recipe through the methods of `Recipe` (`apply_leaf`,
+`choose_filesystem`, `choose_encryption`, `choose_keyboard`), and the test
+calls the same methods.
 
 `build.rs` copies three data files from `../../shared/` into `OUT_DIR`:
 `branding/copy-defaults.json`, `recipe/encryption-choices.json` and

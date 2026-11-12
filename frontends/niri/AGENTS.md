@@ -63,6 +63,11 @@ contracts, so run them before you push:
   fails `install`. Add a new key to the struct when the schema gets one.
 - `offline_test.go` holds the one fisherman resolver (native, live media,
   Flatpak).
+- `compliance_test.go` sends the choices of
+  `../../shared/recipe/fixtures/compliance.json` through `ui/recipe.js`
+  (under node, `tests/recipe-build.mjs`) and then through `decodeRecipe` and
+  `normalizeRecipe`. The result must be the recipe of the fixture. The QML
+  builds the install recipe only through `ui/recipe.js`.
 - `user_test.go` holds `installer/groups.json` to
   `../../shared/account/groups.json`.
 - `redact_test.go` sends `../../shared/progress/recovery-key-transcript.ndjson`
