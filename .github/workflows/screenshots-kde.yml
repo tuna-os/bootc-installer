@@ -76,7 +76,7 @@ jobs:
                  kf6-qqc2-desktop-style kf6-breeze-icons
           test -f /usr/share/icons/breeze/index.theme
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] the push-to-dev step later commits and pushes from this checkout
         with:
           fetch-depth: 0
 
@@ -141,13 +141,13 @@ jobs:
           grep PRETTY_NAME /etc/os-release
           ls -l /tmp/branding-check
 
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: branding-check-kde
           path: /tmp/branding-check/
 
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: gui-screenshots-kde
@@ -155,7 +155,7 @@ jobs:
 
       - name: commit refreshed screenshots
         if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-        uses: ./.github/actions/push-to-dev
+        uses: $/.github/actions/push-to-dev
         with:
           working-directory: frontends/kde
           paths: docs/screenshots

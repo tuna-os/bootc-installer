@@ -71,16 +71,17 @@ jobs:
         # The rows of shared/ci/frontends.json (tests/unit/test_release_sbom.py).
         frontend: [gnome, kde, cosmic, niri, xfce]
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: true
+          persist-credentials: false
 
       - name: Stage the lock files
         env:
           FRONTEND: ${{ matrix.frontend }}
         run: python3 shared/ci/flatpak_sbom.py stage --frontend "$FRONTEND" --into "sbom-src/$FRONTEND"
 
-      - uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+      - uses: anchore/sbom-action@v0.24.3
         with:
           path: sbom-src/${{ matrix.frontend }}
           format: spdx-json
@@ -104,7 +105,7 @@ jobs:
           SHA: ${{ github.sha }}
         run: python3 shared/ci/flatpak_sbom.py check --commit "$SHA" "$FRONTEND.spdx.json"
 
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: sbom-${{ matrix.frontend }}
           path: ${{ matrix.frontend }}.spdx.json

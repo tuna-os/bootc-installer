@@ -49,12 +49,13 @@ jobs:
       run:
         working-directory: frontends/niri/installer
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
+          persist-credentials: false
           # plan_test.go reads fisherman's golden plans.
           submodules: true
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: frontends/niri/installer/go.mod
           # No go.sum: the backend is standard-library only.
@@ -98,7 +99,9 @@ jobs:
             git cmake ninja-build gcc-c++ \
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qttools-devel qt6-linguist
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
       - name: build
         run: |
