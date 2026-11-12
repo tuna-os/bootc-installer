@@ -116,6 +116,18 @@ function reuseFragment(recipe) {
     return out
 }
 
+// How an install ended: "succeeded", "cancelled" or "failed"
+// (shared/progress/outcome-cases.json). `code` is the backend's exit code
+// (128 + n for a signal), or null. The exit code decides, never a
+// `complete` event.
+function installOutcome(code, cancelRequested) {
+    if (code === 0)
+        return "succeeded"
+    if (code === 130 || cancelRequested)
+        return "cancelled"
+    return "failed"
+}
+
 // A registry reference without its docker:// transport.
 function plainRef(ref) {
     ref = (ref || "").trim()

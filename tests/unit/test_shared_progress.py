@@ -370,3 +370,44 @@ class ReceiptCasesTest(unittest.TestCase):
             self.assertEqual([{"key": k, "value": v} for k, v in
                               completion.receipt_lines(state["receipt"])],
                              case["done_lines"], case["name"])
+
+
+OUTCOME_CASES = os.path.join(REPO, "shared", "progress", "outcome-cases.json")
+
+
+class OutcomeCasesTest(unittest.TestCase):
+    """shared/progress/outcome-cases.json: the exit code decides how an
+    install ended, never a `complete` event (#269). GNOME and XFCE call
+    bootc_shared.progress.install_outcome; KDE, COSMIC and Niri test their
+    own rule against the same file."""
+
+    def test_fixture_is_what_the_canonical_rule_produces(self):
+        gen = _load(GENERATOR, "_fraction_gen_outcomes")
+        with open(OUTCOME_CASES, encoding="utf-8") as fh:
+            committed = json.load(fh)
+        self.assertEqual(committed, json.loads(json.dumps(gen.build_outcomes())),
+                         "outcome-cases.json is stale; run "
+                         "python3 shared/progress/generate-fraction-cases.py")
+
+    def test_the_python_rule_reproduces_the_fixture(self):
+        with open(OUTCOME_CASES, encoding="utf-8") as fh:
+            cases = json.load(fh)["cases"]
+        self.assertEqual({c["outcome"] for c in cases}, {"succeeded", "cancelled", "failed"})
+        pp = _load(CANONICAL, "_pp_outcomes")
+        for case in cases:
+            with self.subTest(case=case["name"]):
+                self.assertEqual(pp.install_outcome(case["exit_code"], case["cancel_requested"]),
+                                 case["outcome"])
+
+    def test_a_complete_event_never_decides(self):
+        with open(OUTCOME_CASES, encoding="utf-8") as fh:
+            cases = {c["name"]: c for c in json.load(fh)["cases"]}
+        self.assertEqual(cases["complete_then_a_non_zero_exit"]["outcome"], "failed")
+        self.assertEqual(cases["complete_then_a_signal"]["outcome"], "failed")
+        self.assertEqual(cases["exit_0_without_a_complete_event"]["outcome"], "succeeded")
+
+    def test_the_python_frontends_call_the_shared_rule(self):
+        for path in ("bootc_installer/views/progress.py",
+                     "frontends/xfce/tuna_installer_xfce/app.py"):
+            with open(os.path.join(REPO, path), encoding="utf-8") as fh:
+                self.assertIn("install_outcome(", fh.read(), path)

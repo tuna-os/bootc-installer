@@ -416,6 +416,10 @@ public:
     // The recipe that the install gets: the wizard's, with the install
     // source of the confirm step. Public for tests.
     QJsonObject installRecipe() const;
+    // How an install ended: "succeeded", "cancelled" or "failed"
+    // (shared/progress/outcome-cases.json). The exit code decides, never a
+    // `complete` event; `crashed` is a wrapper that a signal ended.
+    static QString outcomeOf(int exitCode, bool crashed, bool cancelRequested);
     // Sets the plain probe's output that refreshReuse() reads. Public for tests.
     void setProbeOutput(const QByteArray &out) { m_probeOutput = out; }
     // Takes in a probe reply for the request of generation `generation`.

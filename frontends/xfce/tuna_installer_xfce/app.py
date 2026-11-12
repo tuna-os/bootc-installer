@@ -11,6 +11,7 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
+from bootc_shared import progress as progress_parser  # noqa: E402
 from bootc_shared import readiness  # noqa: E402
 
 from . import core, gates
@@ -524,11 +525,13 @@ class InstallerWindow(Gtk.ApplicationWindow):
         for channel, page in channels:
             self._read_lines(channel, page)
         code = os.WEXITSTATUS(status) if os.WIFEXITED(status) else None
-        ok = code == 0
         # fisherman exits 130 when it is cancelled. After a cancel the
         # person confirmed, the wrapper dies by the signal this app sent;
-        # that is a cancel too, not a failure (#299).
-        cancelled = not ok and (code == EXIT_CANCELLED or self._cancel_requested)
+        # that is a cancel too, not a failure (#299). The shared rule:
+        # shared/progress/outcome-cases.json.
+        outcome = progress_parser.install_outcome(code, bool(self._cancel_requested))
+        ok = outcome == "succeeded"
+        cancelled = outcome == "cancelled"
         if self._install_log:
             outcome = "ok" if ok else (
                 "cancelled" if cancelled else f"failed (status {status})")

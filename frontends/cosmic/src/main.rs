@@ -2408,6 +2408,27 @@ mod tests {
         assert_eq!(install_outcome(Some(126), true), Outcome::Failed);
     }
 
+    /// shared/progress/outcome-cases.json: the exit code decides, never a
+    /// `complete` event (#269).
+    #[test]
+    fn the_shared_outcome_cases() {
+        use super::{install_outcome, Outcome};
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/progress/outcome-cases.json");
+        let doc: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        let cases = doc["cases"].as_array().unwrap();
+        assert!(cases.len() >= 10);
+        for case in cases {
+            let code = case["exit_code"].as_i64().map(|c| c as i32);
+            let want = match case["outcome"].as_str().unwrap() {
+                "succeeded" => Outcome::Succeeded,
+                "cancelled" => Outcome::Cancelled,
+                _ => Outcome::Failed,
+            };
+            let cancel = case["cancel_requested"] == serde_json::Value::Bool(true);
+            assert_eq!(install_outcome(code, cancel), want, "{}", case["name"]);
+        }
+    }
+
     /// The cancel's whole path short of the UI: the wrapper's group is
     /// signalled, the wrapper ends by that signal, and the outcome is
     /// "cancelled".

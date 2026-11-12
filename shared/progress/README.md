@@ -156,6 +156,29 @@ choice of lines. GNOME and XFCE call it. KDE (`sourcecheck::receiptLines`),
 COSMIC (`source_check::receipt_lines`) and Niri (`receiptLines` in
 `ui/progress.js`) port it.
 
+## How an install ended
+
+The exit code of the wrapper decides the outcome, never a `complete`
+event. fisherman can write `complete` and exit non-zero, for example when
+the teardown fails. The rule:
+
+| Exit | Outcome |
+|---|---|
+| 0 | succeeded, also after a cancel that came too late |
+| 130 | cancelled: fisherman's own code for a cancel |
+| another code, or a signal, after the user confirmed a cancel | cancelled |
+| another code, or a signal, without a cancel | failed |
+
+[`outcome-cases.json`](outcome-cases.json) pins the rule. GNOME and XFCE
+call `bootc_shared.progress.install_outcome()`. KDE
+(`InstallerController::outcomeOf`), COSMIC (`install_outcome`) and Niri
+(`installOutcome` in `ui/progress.js`) test their rule against the file.
+Only a succeeded install shows the receipt lines.
+
+One case is not in the file: an exit code such as 1 after a confirmed
+cancel. GNOME, KDE, Niri and XFCE call it a cancel. COSMIC calls it a
+failure. The five do not agree on that case yet.
+
 ## Recovery key in a log
 
 The `recovery_key` event holds the key that unlocks the disk. A frontend

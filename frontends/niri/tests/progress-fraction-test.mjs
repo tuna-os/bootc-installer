@@ -137,6 +137,21 @@ failures += replay("overall-pct-cases.json", 3);
   console.log(`ok: ${offered} offered items against shared/probe/source-reuse-cases.json`);
 }
 
+// shared/progress/outcome-cases.json: the exit code decides (#269).
+{
+  const fixture = JSON.parse(
+    readFileSync(join(here, "..", "..", "..", "shared", "progress", "outcome-cases.json"), "utf8"),
+  );
+  for (const c of fixture.cases) {
+    const got = lib.installOutcome(c.exit_code, c.cancel_requested);
+    if (got !== c.outcome) {
+      console.error(`FAIL outcome-cases ${c.name}: ${got} want ${c.outcome}`);
+      failures++;
+    }
+  }
+  console.log(`ok: ${fixture.cases.length} cases against shared/progress/outcome-cases.json`);
+}
+
 // Step labels: the copy key step_<step_id>, else fisherman's step_name.
 const copy = { step_flatpaks: "Installing your apps…" };
 const lookup = (id) => copy["step_" + id] || "";

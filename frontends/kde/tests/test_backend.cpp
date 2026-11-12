@@ -79,6 +79,7 @@ private slots:
     void sourceReuseIsNeverTheDefault();
     // #269: the receipt event and the done page's lines.
     void progressReproducesTheSharedReceiptCases();
+    void outcomeFollowsTheSharedCases();
     void sourceReplyOfAnOlderRequestIsDropped();
     void probeFakeEnvReachesTheController();
     void probeFailureOffersNothingAndSaysWhy();
@@ -1490,6 +1491,23 @@ void BackendTest::progressReproducesTheSharedReceiptCases()
             shown << c.text(got.at(i).first).replace(QStringLiteral("{value}"), got.at(i).second);
         }
         QCOMPARE(c.receiptLines(), shown);
+    }
+}
+
+// shared/progress/outcome-cases.json: the exit code decides, never a
+// `complete` event.
+void BackendTest::outcomeFollowsTheSharedCases()
+{
+    const QJsonArray cases = sharedCases(QStringLiteral(PROGRESS_FIXTURES_DIR "/outcome-cases.json"));
+    if (cases.isEmpty())
+        QSKIP("shared/progress is absent");
+    for (const QJsonValue &value : cases) {
+        const QJsonObject c = value.toObject();
+        const QJsonValue code = c.value(QStringLiteral("exit_code"));
+        const QString got = InstallerController::outcomeOf(code.isNull() ? 0 : code.toInt(), code.isNull(),
+                                                           c.value(QStringLiteral("cancel_requested")).toBool());
+        QVERIFY2(got == c.value(QStringLiteral("outcome")).toString(),
+                 qPrintable(c.value(QStringLiteral("name")).toString() + QStringLiteral(": ") + got));
     }
 }
 

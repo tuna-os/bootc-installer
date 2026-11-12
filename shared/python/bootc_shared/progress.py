@@ -378,6 +378,29 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
     return None
 
 
+EXIT_CANCELLED = 130
+
+
+def install_outcome(exit_code, cancel_requested: bool) -> str:
+    """How an install ended: "succeeded", "cancelled" or "failed"
+    (shared/progress/outcome-cases.json).
+
+    `exit_code` is the wrapper's exit code, or None when a signal ended
+    it. The exit code decides, never a `complete` event: fisherman can
+    write `complete` and still exit non-zero. 0 is success, even after a
+    cancel that came too late. 130 is fisherman's cancel, whoever asked.
+    Any other end after the user confirmed a cancel is a cancel: the
+    frontend signals the wrapper's group then. Everything else failed.
+    COSMIC calls a plain non-zero exit after a cancel a failure; the case
+    file leaves that one case out until the five agree.
+    """
+    if exit_code == 0:
+        return "succeeded"
+    if exit_code == EXIT_CANCELLED or cancel_requested:
+        return "cancelled"
+    return "failed"
+
+
 def render_event(line: str) -> str | None:
     """A fisherman event as a line a person would want to read.
 

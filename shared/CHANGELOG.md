@@ -24,6 +24,11 @@ schema only.
   `receipt` event (tuna-os/fisherman#441) and the lines of the done page.
   Its first six cases are fisherman's own events. Each parser reads it
   (#269).
+- Added: `progress/outcome-cases.json`. It pins how an install ended. The
+  exit code decides, never a `complete` event. GNOME and XFCE call the new
+  `bootc_shared.progress.install_outcome()`. KDE, COSMIC and Niri test
+  their rule against the file. One case is not in the file: exit code 1 after a
+  confirmed cancel. Four frontends call it a cancel, COSMIC a failure.
 - Added: `probe/source-reuse-cases.json` and two `frontend-reuse-*`
   inventories in `probe/fixtures/bootc-store/`.
   `probe/generate-source-check-cases.py` writes the case file. The cases

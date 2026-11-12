@@ -234,6 +234,15 @@ QString InstallerController::reuseProblem() const
     return {};
 }
 
+QString InstallerController::outcomeOf(int exitCode, bool crashed, bool cancelRequested)
+{
+    if (!crashed && exitCode == 0)
+        return QStringLiteral("succeeded");
+    if ((!crashed && exitCode == 130) || cancelRequested)
+        return QStringLiteral("cancelled");
+    return QStringLiteral("failed");
+}
+
 QJsonObject InstallerController::installRecipe() const
 {
     const QJsonObject recipe = m_recipe.toJson();
@@ -1225,7 +1234,8 @@ void InstallerController::launch(QStringList cmd, const QByteArray &recipeJson)
         // Cancelled: fisherman's own exit code for it (130), or any end but
         // success after the user asked to stop. Killing the wrapper's group
         // ends it with a signal, which is not a crash to report (#299).
-        if ((!crashed && exitCode == 130) || (m_cancelRequested && (crashed || exitCode != 0))) {
+        const QString outcome = outcomeOf(exitCode, crashed, m_cancelRequested);
+        if (outcome == QLatin1String("cancelled")) {
             m_cancelled = true;
             m_exitCode = 130;
             qCInfo(logInstaller) << "the install was cancelled";

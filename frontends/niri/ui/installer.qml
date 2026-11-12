@@ -365,8 +365,11 @@ ApplicationWindow {
         cancelProc.running = true
     }
     function installExited(code) {
-        root.installSuccess = (code === 0)
-        root.installCancelled = code !== 0 && (code === 130 || root.cancelRequested)
+        // The exit code decides, never a `complete` event
+        // (shared/progress/outcome-cases.json, BarMath.installOutcome).
+        const outcome = BarMath.installOutcome(code, root.cancelRequested)
+        root.installSuccess = outcome === "succeeded"
+        root.installCancelled = outcome === "cancelled"
         root.cancelOpen = false
         root.currentPage = 8
     }
