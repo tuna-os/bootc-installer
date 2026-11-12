@@ -280,13 +280,12 @@ class TestDiskStepFsToolCheck:
 
     def test_banner_shown_when_xfs_tool_missing(self):
         """fs_tool_error_banner becomes visible and row turns red when mkfs.xfs is missing."""
-        import subprocess
         from unittest.mock import patch
 
         widget = self._make_disk_widget()
 
-        missing = subprocess.CompletedProcess(args=[], returncode=1)
-        with patch("subprocess.run", return_value=missing):
+        with patch("bootc_installer.defaults.disk_host.fs_tool_available",
+                   return_value=False):
             widget._BootcDefaultDisk__check_fs_tool("xfs")
             _pump()
 
@@ -301,13 +300,12 @@ class TestDiskStepFsToolCheck:
 
     def test_banner_hidden_when_xfs_tool_present(self):
         """Banner hidden and row error class cleared when mkfs.xfs is available."""
-        import subprocess
         from unittest.mock import patch
 
         widget = self._make_disk_widget()
 
-        present = subprocess.CompletedProcess(args=[], returncode=0)
-        with patch("subprocess.run", return_value=present):
+        with patch("bootc_installer.defaults.disk_host.fs_tool_available",
+                   return_value=True):
             widget._BootcDefaultDisk__check_fs_tool("xfs")
             _pump()
 
@@ -321,13 +319,12 @@ class TestDiskStepFsToolCheck:
 
     def test_banner_shown_when_btrfs_tool_missing(self):
         """fs_tool_error_banner visible and row red when mkfs.btrfs is missing."""
-        import subprocess
         from unittest.mock import patch
 
         widget = self._make_disk_widget()
 
-        missing = subprocess.CompletedProcess(args=[], returncode=1)
-        with patch("subprocess.run", return_value=missing):
+        with patch("bootc_installer.defaults.disk_host.fs_tool_available",
+                   return_value=False):
             widget._BootcDefaultDisk__check_fs_tool("btrfs")
             _pump()
 
@@ -340,15 +337,14 @@ class TestDiskStepFsToolCheck:
 
     def test_btn_next_blocked_when_tool_missing(self):
         """btn_next must be insensitive when the required mkfs tool is missing."""
-        import subprocess
         from unittest.mock import patch
 
         widget = self._make_disk_widget()
         # Simulate a partition recipe being set (as if the user picked a disk)
         widget._BootcDefaultDisk__partition_recipe = {"disk": "/dev/sda"}
 
-        missing = subprocess.CompletedProcess(args=[], returncode=1)
-        with patch("subprocess.run", return_value=missing):
+        with patch("bootc_installer.defaults.disk_host.fs_tool_available",
+                   return_value=False):
             widget._BootcDefaultDisk__check_fs_tool("xfs")
             _pump()
 
@@ -358,20 +354,50 @@ class TestDiskStepFsToolCheck:
 
     def test_btn_next_unblocked_when_tool_present(self):
         """btn_next becomes sensitive when tool is present and a partition recipe exists."""
-        import subprocess
         from unittest.mock import patch
 
         widget = self._make_disk_widget()
         widget._BootcDefaultDisk__partition_recipe = {"disk": "/dev/sda"}
 
-        present = subprocess.CompletedProcess(args=[], returncode=0)
-        with patch("subprocess.run", return_value=present):
+        with patch("bootc_installer.defaults.disk_host.fs_tool_available",
+                   return_value=True):
             widget._BootcDefaultDisk__check_fs_tool("xfs")
             _pump()
 
         assert widget.btn_next.get_sensitive(), (
             "btn_next must be sensitive when mkfs.xfs is present and a partition recipe exists"
         )
+
+    def _toggle_var_disk(self, widget, existing):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+
+        toggle = MagicMock()
+        toggle.get_active.return_value = True
+        disk = SimpleNamespace(disk="/dev/vdb")
+        with patch("bootc_installer.defaults.disk_host.has_existing_filesystem",
+                   return_value=existing) as probe:
+            widget.on_var_disk_entry_toggled(toggle, disk)
+            _pump()
+        probe.assert_called_once_with("/dev/vdb")
+
+    def test_var_disk_with_a_filesystem_offers_keep(self):
+        widget = self._make_disk_widget()
+        self._toggle_var_disk(widget, True)
+        assert widget.group_var_disk_existing.get_visible()
+        assert widget.var_disk_keep_switch.get_active()
+
+    def test_blank_var_disk_hides_keep(self):
+        widget = self._make_disk_widget()
+        self._toggle_var_disk(widget, False)
+        assert not widget.group_var_disk_existing.get_visible()
+
+    def test_unknown_var_disk_offers_keep_switched_on(self):
+        """lsblk could not tell (#82): never format the disk without asking."""
+        widget = self._make_disk_widget()
+        self._toggle_var_disk(widget, None)
+        assert widget.group_var_disk_existing.get_visible()
+        assert widget.var_disk_keep_switch.get_active()
 
 
 
