@@ -166,6 +166,30 @@ class Redaction(unittest.TestCase):
         credentials = {"kde": {"encryption.passphrase": PASSPHRASE, "user.password": PASSWORD}}
         self.assertEqual(publish.restore_bytes(redacted, "kde", credentials), RECIPE)
 
+    def test_a_crypt_password_round_trips_from_the_test_password(self):
+        """GNOME sends a $6$ string with a random salt: the marker keeps the
+        salt, never the hash, and the VM job makes the same string again."""
+        crypt = publish._sha512_crypt("e2e-password", "$6$abcdefgh12345678$")
+        recipe = json.dumps({"disk": "/dev/vda", "user": {"username": "u", "password": crypt}}).encode()
+        redacted = publish.redact_bytes(recipe)
+        self.assertNotIn(crypt.encode(), redacted)
+        self.assertIn(b'"<redacted:user.password:$6$abcdefgh12345678$>"', redacted)
+        gnome = {"gnome": {"user.password": {"sha512_crypt": "e2e-password"}}}
+        self.assertEqual(publish.restore_bytes(redacted, "gnome", gnome), recipe)
+        wrong = {"gnome": {"user.password": {"sha512_crypt": "other"}}}
+        self.assertNotEqual(publish.restore_bytes(redacted, "gnome", wrong), recipe)
+        with self.assertRaises(ValueError):
+            publish.restore_bytes(redacted, "gnome", {"gnome": {"user.password": "e2e-password"}})
+        rounds = publish._sha512_crypt("e2e-password", "$6$rounds=6000$saltsalt$")
+        self.assertTrue(rounds.startswith("$6$rounds=6000$saltsalt$"))
+        recipe = json.dumps({"user": {"password": rounds}}).encode()
+        self.assertEqual(publish.restore_bytes(publish.redact_bytes(recipe), "gnome", gnome), recipe)
+
+    def test_a_plain_marker_with_crypt_credentials_is_refused(self):
+        redacted = publish.redact_bytes(json.dumps({"user": {"password": "e2e-password"}}).encode())
+        with self.assertRaises(ValueError):
+            publish.restore_bytes(redacted, "gnome", {"gnome": {"user.password": {"sha512_crypt": "x"}}})
+
     def test_a_secret_in_another_field_is_refused(self):
         leaky = RECIPE.replace(b'"e2e-host"', f'"{PASSWORD}-host"'.encode())
         with self.assertRaises(ValueError) as caught:
@@ -275,7 +299,7 @@ class SecretFieldsAreComplete(unittest.TestCase):
             with open(os.path.join(REPO, drivers[frontend]), encoding="utf-8") as stream:
                 source = stream.read()
             for field, value in fields.items():
-                self.assertIn(f'"{value}"', source, f"{frontend} {field}")
+                self.assertIn(f'"{publish.credential_text(value)}"', source, f"{frontend} {field}")
 
 
 class PublishedDirectories(unittest.TestCase):
