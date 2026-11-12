@@ -45,6 +45,7 @@ InstallerController::InstallerController(QObject *parent)
     // read inside the Flatpak sandbox.
     m_recipe.liveMode = facts.isLive;
     m_liveImage = facts.liveImage;
+    m_probeOutput = facts.raw;
     // Product identity per shared/branding/README.md: branding.json, then
     // os-release, then neutral. Nothing in this frontend names a product.
     m_branding = branding::resolve();
@@ -144,6 +145,13 @@ QByteArray InstallerController::partialRecipe() const
         if (recipe.contains(QLatin1String(key)))
             withRegion.insert(QLatin1String(key), recipe.value(QLatin1String(key)));
     }
+    // The install source of the confirm step (#267): fisherman's static
+    // sourceReuse rules, before Install.
+    if (reuseSelected()) {
+        const QJsonObject fragment = sourcecheck::reuseFragment(installRecipe());
+        for (auto it = fragment.begin(); it != fragment.end(); ++it)
+            withRegion.insert(it.key(), it.value());
+    }
     return QJsonDocument(withRegion).toJson(QJsonDocument::Compact);
 }
 
@@ -211,6 +219,65 @@ QString InstallerController::problemText(const QString &fieldPrefix) const
         return line.isEmpty() ? p.message : line;
     }
     return {};
+}
+
+QString InstallerController::reuseProblem() const
+{
+    if (!reuseSelected())
+        return {};
+    for (const validate::Problem &p : m_problems) {
+        if (!p.code.startsWith(QLatin1String("source_reuse_")))
+            continue;
+        const QString line = text(validate::copyKey(p));
+        return line.isEmpty() ? p.message : line;
+    }
+    return {};
+}
+
+QJsonObject InstallerController::installRecipe() const
+{
+    const QJsonObject recipe = m_recipe.toJson();
+    return reuseSelected() ? sourcecheck::applyReuse(recipe, m_reuseSource) : recipe;
+}
+
+void InstallerController::refreshReuse()
+{
+    const QJsonObject recipe = m_recipe.toJson();
+    QString updateRef = recipe.value(QLatin1String("targetImgref")).toString();
+    if (updateRef.isEmpty())
+        updateRef = recipe.value(QLatin1String("image")).toString();
+    const QJsonObject source = sourcecheck::reuseSource(!m_probeOutput.isEmpty(), m_probeOutput, updateRef);
+    // A different item, or none, drops the pick: the download stays the default.
+    if (source.isEmpty() || source.value(QLatin1String("digest")) != m_reuseSource.value(QLatin1String("digest")))
+        m_reuseSelected = false;
+    m_reuseSource = source;
+    Q_EMIT reuseChanged();
+    Q_EMIT catalogChanged();
+}
+
+void InstallerController::setReuseSelected(bool selected)
+{
+    selected = selected && reuseOffered();
+    if (selected == m_reuseSelected)
+        return;
+    m_reuseSelected = selected;
+    Q_EMIT reuseChanged();
+    // needsNetwork: a copy downloads nothing.
+    Q_EMIT catalogChanged();
+    Q_EMIT problemsChanged();
+    // The confirm step asks checkSource() again after the pick.
+    checkFields();
+}
+
+QStringList InstallerController::receiptLines() const
+{
+    QStringList out;
+    for (const auto &line : sourcecheck::receiptLines(m_receipt)) {
+        const QString shown = m_branding.text(line.first, {{QStringLiteral("value"), line.second}});
+        if (!shown.isEmpty())
+            out << shown;
+    }
+    return out;
 }
 
 QString InstallerController::regionProblem() const
@@ -453,7 +520,7 @@ bool InstallerController::needsNetwork() const
 {
     // Live media installs the running system; an image already in the host's
     // offline stores needs no download. Mirrors conn_check.py's skip.
-    return !m_recipe.liveMode && !m_offlineImages.contains(m_recipe.image);
+    return !m_recipe.liveMode && !m_offlineImages.contains(m_recipe.image) && !reuseSelected();
 }
 
 void InstallerController::checkConnectivity()
@@ -486,7 +553,7 @@ void InstallerController::checkConnectivity()
 void InstallerController::checkSource()
 {
     const int generation = ++m_sourceGeneration;
-    const sourcecheck::Request req = sourcecheck::fromRecipe(m_recipe.toJson(), m_recipe.liveMode);
+    const sourcecheck::Request req = sourcecheck::fromRecipe(installRecipe(), m_recipe.liveMode);
     const QStringList args = sourcecheck::probeArguments(req);
     m_sourceCheck = QJsonObject();
     m_bootcStore = QJsonObject();
@@ -532,8 +599,9 @@ QVariantList InstallerController::sourceRows() const
     }
     const QStringList identities{QStringLiteral("install_from"), QStringLiteral("update_ref"),
                                  QStringLiteral("live_host_image")};
-    const QStringList keys{QStringLiteral("source_install_from"), QStringLiteral("source_update_ref"),
-                           QStringLiteral("source_live_host")};
+    const QStringList keys{reuseSelected() ? QStringLiteral("source_reuse_install_from")
+                                           : QStringLiteral("source_install_from"),
+                           QStringLiteral("source_update_ref"), QStringLiteral("source_live_host")};
     for (int i = 0; i < identities.size(); ++i) {
         const QString value = m_sourceCheck.value(identities.at(i)).toString();
         if (!value.isEmpty())
@@ -776,6 +844,8 @@ void InstallerController::resetProgress()
     m_stepName.clear();
     m_recoveryKey.clear();
     m_installError.clear();
+    m_receipt = QJsonValue();
+    Q_EMIT receiptChanged();
     m_recoveryAck = false;
     Q_EMIT recoveryChanged();
     m_cumulativePct = 0;
@@ -939,6 +1009,14 @@ QString InstallerController::consumeProgress(const QString &line)
         };
         return tr("ERROR: %1").arg(event.value(QStringLiteral("message")).toString());
     }
+    if (type == QLatin1String("receipt")) {
+        // What the install did with the installation receipt (#269). It
+        // moves no bar and decides no outcome; the done page reads it.
+        m_receipt = sourcecheck::receiptOf(event);
+        Q_EMIT receiptChanged();
+        const QJsonObject r = m_receipt.toObject();
+        return tr("Installation receipt: %1").arg(r.value(QLatin1String("state")).toString());
+    }
     if (type == QLatin1String("recovery_key")) {
         // Kept in memory for the done page, which holds Restart until the
         // user says that the key is saved (#129). The log pane shows it to
@@ -1080,7 +1158,7 @@ void InstallerController::startInstall()
     // The recipe can hold a LUKS passphrase. It goes to fisherman's stdin
     // (`fisherman -`, tuna-os/fisherman#276) and never to a file: this used
     // to be a 0600 file in a QTemporaryDir, handed to root by path.
-    const QByteArray recipeJson = QJsonDocument(m_recipe.toJson()).toJson(QJsonDocument::Compact);
+    const QByteArray recipeJson = QJsonDocument(installRecipe()).toJson(QJsonDocument::Compact);
 
     // In a Flatpak fisherman is the staged copy the host verified
     // (fisherman.h). Without it nothing may run as root.

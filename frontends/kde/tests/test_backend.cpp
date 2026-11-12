@@ -74,6 +74,11 @@ private slots:
     void sourceCheckCases();
     void bootcStoreCases();
     void verificationCases();
+    // #267: this computer's system as a second install source.
+    void sourceReuseCases();
+    void sourceReuseIsNeverTheDefault();
+    // #269: the receipt event and the done page's lines.
+    void progressReproducesTheSharedReceiptCases();
     void sourceReplyOfAnOlderRequestIsDropped();
     void probeFakeEnvReachesTheController();
     void probeFailureOffersNothingAndSaysWhy();
@@ -1368,6 +1373,123 @@ void BackendTest::verificationCases()
         QVERIFY2(view == c.value(QStringLiteral("expected")).toObject(),
                  qPrintable(c.value(QStringLiteral("name")).toString() + QStringLiteral(": ")
                             + QString::fromUtf8(QJsonDocument(view).toJson(QJsonDocument::Compact))));
+    }
+}
+
+// shared/probe/source-reuse-cases.json: the item offered, the recipe after
+// the pick, the validate fragment and the source check of that recipe.
+void BackendTest::sourceReuseCases()
+{
+    const QJsonArray cases = sharedCases(QStringLiteral(SHARED_PROBE_DIR "/source-reuse-cases.json"));
+    if (cases.isEmpty())
+        QSKIP("shared/probe is absent; this tree is checked out alone");
+    QVERIFY(cases.size() >= 20);
+    for (const QJsonValue &value : cases) {
+        const QJsonObject c = value.toObject();
+        const QString name = c.value(QStringLiteral("name")).toString();
+        bool ok = !c.value(QStringLiteral("probe_failed")).toBool();
+        QJsonObject probe{{QStringLiteral("protocol_version"), 1}};
+        if (ok && !c.value(QStringLiteral("fixture")).isNull()) {
+            QFile f(QDir(QStringLiteral(SHARED_PROBE_DIR "/fixtures/bootc-store"))
+                        .filePath(c.value(QStringLiteral("fixture")).toString()));
+            QVERIFY(f.open(QIODevice::ReadOnly));
+            const QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+            probe.insert(QStringLiteral("bootc_store"), doc.isObject() ? QJsonValue(doc.object()) : QJsonValue(doc.array()));
+        }
+        if (!c.value(QStringLiteral("live")).isNull())
+            probe.insert(QStringLiteral("live"), QJsonObject{{QStringLiteral("is_live"), c.value(QStringLiteral("live"))}});
+        const QByteArray out = ok ? QJsonDocument(probe).toJson() : QByteArray();
+        const QJsonObject source = sourcecheck::reuseSource(ok, out, c.value(QStringLiteral("update_ref")).toString());
+        const QJsonValue expected = c.value(QStringLiteral("expected"));
+        QVERIFY2(expected.isNull() ? source.isEmpty() : source == expected.toObject(), qPrintable(name));
+        if (expected.isNull())
+            continue;
+        const QString ref = c.value(QStringLiteral("update_ref")).toString();
+        QJsonObject base{
+            {QStringLiteral("disk"), QStringLiteral("/dev/vda")}, {QStringLiteral("filesystem"), QStringLiteral("xfs")},
+            {QStringLiteral("encryption"), QJsonObject{{QStringLiteral("type"), QStringLiteral("none")}, {QStringLiteral("passphrase"), QString()}}},
+            {QStringLiteral("image"), ref}, {QStringLiteral("targetImgref"), ref},
+            {QStringLiteral("composeFsBackend"), false}, {QStringLiteral("hostname"), QStringLiteral("workstation")},
+        };
+        const QJsonObject recipe = sourcecheck::applyReuse(base, source);
+        QVERIFY2(recipe == c.value(QStringLiteral("recipe")).toObject(), qPrintable(name));
+        QVERIFY2(sourcecheck::reuseFragment(recipe) == c.value(QStringLiteral("fragment")).toObject(), qPrintable(name));
+        QStringList args;
+        for (const QJsonValue &a : c.value(QStringLiteral("probe_args")).toArray())
+            args << a.toString();
+        QCOMPARE(sourcecheck::probeArguments(sourcecheck::fromRecipe(recipe, false)), args);
+    }
+}
+
+void BackendTest::sourceReuseIsNeverTheDefault()
+{
+    QFile f(QStringLiteral(SHARED_PROBE_DIR "/fixtures/bootc-store/store-inaccessible.json"));
+    if (!f.open(QIODevice::ReadOnly))
+        QSKIP("shared/probe is absent");
+    const QByteArray store = f.readAll();
+    auto probe = [&](bool live) {
+        return QByteArrayLiteral("{\"protocol_version\": 1, \"live\": {\"is_live\": ")
+            + (live ? QByteArrayLiteral("true") : QByteArrayLiteral("false"))
+            + QByteArrayLiteral("}, \"bootc_store\": ") + store + QByteArrayLiteral("}");
+    };
+    InstallerController c;
+    c.setImage(QStringLiteral("ghcr.io/example/os:stable"));
+    c.setProbeOutput(probe(false));
+    c.refreshReuse();
+    QVERIFY(c.reuseOffered());
+    QVERIFY(!c.reuseSelected());
+    QCOMPARE(c.installRecipe().value(QStringLiteral("image")).toString(), QStringLiteral("ghcr.io/example/os:stable"));
+    QVERIFY(!c.installRecipe().contains(QStringLiteral("sourceReuse")));
+    c.setReuseSelected(true);
+    const QJsonObject recipe = c.installRecipe();
+    QCOMPARE(recipe.value(QStringLiteral("image")).toString(), QString());
+    QCOMPARE(recipe.value(QStringLiteral("targetImgref")).toString(), QStringLiteral("ghcr.io/example/os:stable"));
+    QCOMPARE(recipe.value(QStringLiteral("sourceReuse")).toObject().value(QStringLiteral("store")).toString(), QStringLiteral("bootc"));
+    QVERIFY(recipe.value(QStringLiteral("experimental")).toArray().contains(QJsonValue(QStringLiteral("bootc_store_reuse"))));
+    QVERIFY(!c.needsNetwork());
+    // The partial check gets the reuse fields; its code shows through the copy.
+    const QJsonObject partial = QJsonDocument::fromJson(c.partialRecipe()).object();
+    QCOMPARE(partial.value(QStringLiteral("sourceReuse")), recipe.value(QStringLiteral("sourceReuse")));
+    c.applyValidateAnswer(QByteArrayLiteral(
+        "{\"protocol_version\":1,\"valid\":false,\"errors\":[{\"field\":\"sourceReuse\","
+        "\"code\":\"source_reuse_backend_unsupported\",\"message\":\"x\"}]}"));
+    QCOMPARE(c.reuseProblem(), c.text(QStringLiteral("validate_source_reuse_backend_unsupported")));
+    // On live media: nothing is offered, and the pick is dropped.
+    c.setProbeOutput(probe(true));
+    c.refreshReuse();
+    QVERIFY(!c.reuseOffered());
+    QVERIFY(!c.installRecipe().contains(QStringLiteral("sourceReuse")));
+}
+
+// shared/progress/receipt-cases.json: the receipt kept, the bar unmoved, and
+// the done page's lines with the install id.
+void BackendTest::progressReproducesTheSharedReceiptCases()
+{
+    replayProgressCases(QStringLiteral("receipt-cases.json"), 15);
+    QFile f(QStringLiteral(PROGRESS_FIXTURES_DIR "/receipt-cases.json"));
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const QJsonArray cases = QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("cases")).toArray();
+    for (const QJsonValue &cv : cases) {
+        const QJsonObject kase = cv.toObject();
+        const QString name = kase.value(QStringLiteral("name")).toString();
+        QStringList lines;
+        for (const QJsonValue &event : kase.value(QStringLiteral("events")).toArray())
+            lines << QString::fromUtf8(QJsonDocument(event.toObject()).toJson(QJsonDocument::Compact));
+        InstallerController c;
+        feed(c, lines);
+        const QJsonValue want = kase.value(QStringLiteral("receipt"));
+        QVERIFY2(want.isNull() ? c.receipt().isNull() || c.receipt().isUndefined() : c.receipt() == want, qPrintable(name));
+        const auto got = sourcecheck::receiptLines(c.receipt());
+        const QJsonArray wantLines = kase.value(QStringLiteral("done_lines")).toArray();
+        QCOMPARE(got.size(), wantLines.size());
+        QStringList shown;
+        for (int i = 0; i < got.size(); ++i) {
+            const QJsonObject w = wantLines.at(i).toObject();
+            QCOMPARE(got.at(i).first, w.value(QStringLiteral("key")).toString());
+            QCOMPARE(got.at(i).second, w.value(QStringLiteral("value")).toString());
+            shown << c.text(got.at(i).first).replace(QStringLiteral("{value}"), got.at(i).second);
+        }
+        QCOMPARE(c.receiptLines(), shown);
     }
 }
 

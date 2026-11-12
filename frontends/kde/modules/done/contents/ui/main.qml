@@ -87,9 +87,11 @@ TunaComponents.SetupModule {
             // Installed, restart required: never "verified". Only the new
             // system can check its own start (#269,
             // shared/completion/README.md).
+            // The receipt line says what fisherman's `receipt` event set up
+            // for that check, and the install id.
             Label {
                 objectName: "doneVerification"
-                text: InstallerController.text("done_verification")
+                text: InstallerController.receiptLines.join("\n\n")
                 visible: InstallerController.succeeded && text.length > 0
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
