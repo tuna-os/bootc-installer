@@ -104,7 +104,7 @@
       "name": "02-session",
       "png": "docs/screenshots/02-session.png",
       "rendered": true,
-      "colours": 409,
+      "colours": 410,
       "flat": 0.6247,
       "ink": 0.026266666666666667,
       "stddev": 0.09779041921278185,
@@ -117,7 +117,7 @@
       "colours": 497,
       "flat": 0.5597333333333333,
       "ink": 0.1155,
-      "stddev": 0.1152965279548122,
+      "stddev": 0.11528884652927622,
       "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Capture Desktop \u203a Edge ghcr.io/exa"
     },
     {
@@ -137,7 +137,7 @@
       "colours": 521,
       "flat": 0.4215333333333333,
       "ink": 0.2012,
-      "stddev": 0.11962846478068354,
+      "stddev": 0.11963561917385698,
       "text_excerpt": "Step 5 of 9 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
