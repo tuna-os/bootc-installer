@@ -25,6 +25,7 @@ class QProcess;
 #include <QVariantList>
 #include <QVariantMap>
 #include "imagecatalog.h"
+#include "plan.h"
 #include "recipe.h"
 #include "sourcecheck.h"
 #include "validate.h"
@@ -227,6 +228,14 @@ class InstallerController : public QObject
     // download is the default; reuseSelected is the user's pick.
     // reuseProblem is fisherman's problem with the pick
     // (validate_source_reuse_<code>), and holds Install.
+    // The install plan (tuna-os/fisherman#371): `fisherman plan --json -`
+    // on the recipe the install will use. planRows are the confirm step's
+    // lines (target disk, then each device erased; {title, subtitle}), in
+    // the words of the confirm_plan_* copy keys; planDiskIdentity is what
+    // Install binds into the recipe as `diskIdentity`. Both empty without a
+    // plan: an older fisherman, a timeout, an invalid recipe.
+    Q_PROPERTY(QVariantList planRows READ planRows NOTIFY planChanged)
+    Q_PROPERTY(QVariantMap planDiskIdentity READ planDiskIdentity NOTIFY planChanged)
     Q_PROPERTY(bool reuseOffered READ reuseOffered NOTIFY reuseChanged)
     Q_PROPERTY(bool reuseSelected READ reuseSelected WRITE setReuseSelected NOTIFY reuseChanged)
     Q_PROPERTY(QString reuseRef READ reuseRef NOTIFY reuseChanged)
@@ -430,6 +439,23 @@ public:
     // The recipe that the install gets: the wizard's, with the install
     // source of the confirm step. Public for tests.
     QJsonObject installRecipe() const;
+    // Asks `fisherman plan --json -` about the recipe the install will use,
+    // unprivileged and asynchronous, the recipe on stdin, at most
+    // plan::TIMEOUT_MS. Forgets the plan of an earlier request first.
+    Q_INVOKABLE void requestPlan();
+    QVariantList planRows() const;
+    QVariantMap planDiskIdentity() const { return plan::diskIdentity(m_plan).toVariantMap(); }
+    // The recipe a plan is asked about: installRecipe() with the image that
+    // startInstall() fills in when none was chosen. Public for tests.
+    QJsonObject planRecipe() const;
+    // Takes in fisherman's answer for the request of generation
+    // `generation`; an older one is dropped. Public for tests.
+    void applyPlanReply(int generation, const plan::Result &result);
+    int planGeneration() const { return m_planGeneration; }
+    // What Install writes to fisherman: installRecipe(), bound to the disk of
+    // the plan with `diskIdentity` when the plan is for the recipe's disk;
+    // installRecipe() unchanged without one. Public for tests.
+    QJsonObject confirmedRecipe() const;
     // How an install ended: "succeeded", "cancelled" or "failed"
     // (shared/progress/outcome-cases.json). The exit code decides, never a
     // `complete` event; `crashed` is a wrapper that a signal ended.
@@ -492,6 +518,7 @@ Q_SIGNALS:
     void reuseChanged();
     void receiptChanged();
     void sourceReuseChanged();
+    void planChanged();
 
 private:
     void appendLine(const QString &line, bool parse = true);
@@ -529,6 +556,11 @@ private:
     // The `source_reuse` events as sourcecheck::sourceReuseOf() keeps them;
     // null before one.
     QJsonValue m_sourceReuse;
+    // The plan of the newest request when fisherman gave a valid one, else
+    // empty; the running request and the count of requests.
+    QJsonObject m_plan;
+    QProcess *m_planProcess = nullptr;
+    int m_planGeneration = 0;
     bool m_sourceVisible = false;
     int m_sourceGeneration = 0;
     bool m_diskRemovable = false;
