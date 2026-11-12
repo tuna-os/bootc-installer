@@ -190,8 +190,8 @@
       "colours": 521,
       "flat": 0.4215333333333333,
       "ink": 0.2012,
-      "stddev": 0.11963561917385698,
-      "sha256": "55a09312f3353721083d7d22cf240b2b35c01a656957598b3c65edd60703ee0a",
+      "stddev": 0.11962846478068354,
+      "sha256": "427d4845e87d359582fcbeb8ea473189dba1cb7d9249376f14b58c08630d9251",
       "text_excerpt": "Step 5 of 9 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
@@ -201,19 +201,19 @@
       "colours": 346,
       "flat": 0.5258333333333334,
       "ink": 0.030633333333333332,
-      "stddev": 0.10059300974972753,
-      "sha256": "14b64d27b11b5bfc6425dd9cde10d24ee37c118ce0c907c10e4423af4e611d34",
+      "stddev": 0.10060174578702649,
+      "sha256": "bcf282deb1a04a3fdcf4d731c53fb8abcaa54336c1693a1df266b4d11ba2d0b9",
       "text_excerpt": "Step 6 of 9 \u00b7 Account Your account The account you sign in with. It can administer this computer. Account Username alex Full name Alex Example Password capture Password again capture Show passwords Show passwords Back Back Continue Continue"
     },
     {
       "name": "07-confirm",
       "png": "docs/screenshots/07-confirm.png",
       "rendered": true,
-      "colours": 567,
+      "colours": 566,
       "flat": 0.4991333333333333,
       "ink": 0.042633333333333336,
-      "stddev": 0.1149018303329693,
-      "sha256": "dca9e788bc397093abc57acffed1f2a770ddf2dcd364b29ff9b12757320be256",
+      "stddev": 0.11490926253086496,
+      "sha256": "2132464119f6fa90346deeb3f121487c50570f32ddc4792b6a08c2eb3784d809",
       "text_excerpt": "Step 7 of 9 \u00b7 Confirm Confirm installation \u26a0  Everything on /dev/sda will be erased. This cannot be undone. Summary Target disk /dev/sda Image Capture Desktop Stable  (ghcr.io/example/os:stable) Filesystem btrfs Encryption No encryption Use"
     },
     {
@@ -279,7 +279,7 @@
       "flat": 0.9648333333333333,
       "ink": 0.0125,
       "stddev": 0.06889365344625271,
-      "sha256": "f36dd679be8eb325b635187634c8c58cd0140a7609a0a59afd8423729b3e4fdf",
+      "sha256": "4c4ca122ff95553bb70c2ed208c34174be8f106f8afcd815a222356352b62f89",
       "text_excerpt": "Step 9 of 9 \u00b7 Done \u2013 Installation cancelled You stopped the installer. The disk can be in an incomplete state: start the installer again before you use it. Close Close"
     },
     {
