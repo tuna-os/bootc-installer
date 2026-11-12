@@ -216,18 +216,23 @@ four frontends a catalog, gates, locale pages and a companion.
    enrolment. GNOME shows a page. The other four show a panel on the done
    screen. Each holds the restart button until the user acknowledges the
    key (#129).
-4. **User account**: all five have the step, and each shows it only when
-   the image needs an account. Three things are still open. The frontends
-   do not agree on the default when the catalog does not set
-   `needs_user_creation` (#288). Four of them put the account only in
-   `wheel` (#302). XFCE asks for the password once (#295).
+4. ~~**User account**~~ — closed. All five have the step, and each shows
+   it only when the image needs an account. All five create an account
+   when the catalog does not set `needs_user_creation` (#288). All five
+   use the groups of `shared/account/` (#302). All five ask for the
+   password two times, hold Next on a mismatch and have a reveal control
+   (#295).
+   The strength hint is not part of the contract. GNOME and KDE show
+   one. fisherman does not check the strength, and the hint stops no
+   install. A frontend can add one, but no frontend must.
 5. **Store and tour assets**: only worth it where the desktop has a place
    for artwork. Every resolver already resolves the keys, so this is view
    work only. KDE and COSMIC now show `welcome_image` and
    `complete_image` as the welcome and done artwork, ahead of `logo`.
-6. **Companion and locale steps**: no longer GNOME-only. XFCE
-   has a companion, over plain HTTP (#293). COSMIC had one and removed it.
-   All five have locale pages. Each one now sends the
+6. **Companion and locale steps**: only GNOME has a companion. It sends
+   the account over TLS on the LAN address, with a single-use token in a
+   header. XFCE and COSMIC had a companion over plain HTTP and removed it
+   (#293). All five have locale pages. Each one now sends the
    choice to the installed system in the recipe's `locale`, `keyboard` and
    `timezone` (#292, tuna-os/fisherman#405), and only a choice: without
    one the image keeps its own value. Windows data migration (slurp) is not
