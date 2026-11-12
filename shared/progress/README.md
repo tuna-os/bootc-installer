@@ -197,9 +197,10 @@ A null part adds no line. The page never says that the disk is not
 changed when fisherman did not say so. A cancelled install (exit 130)
 shows the cancelled page, not these lines. KDE
 (`InstallerController::failureLines`), COSMIC (`progress::failure_lines`)
-and Niri (`failureLines` in `ui/progress.js`) port the rule. The cases
-after `no_error` in `error-cases.json` are fisherman's own events
-(`internal/progress/testdata/error-events.json` in #449).
+and Niri (`failureLines` in `ui/progress.js`) port the rule. Six cases
+of `error-cases.json` are fisherman's own events
+(`internal/progress/testdata/error-events.json`), and a test holds the
+file to them.
 
 ## The copy of this computer's system
 

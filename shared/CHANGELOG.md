@@ -17,8 +17,8 @@ schema only.
 - Changed: `progress/error-cases.json`. A parser now keeps `step_id`,
   `disk_changed` and `cleanup` of the `error` event as well as `message`,
   `code` and `field` (tuna-os/fisherman#449). Each case has the failure
-  page's `lines`. Nine new cases come from fisherman's own events, plus
-  cases for parts of the wrong type. The Python, C++, Rust and JavaScript
+  page's `lines`. Six new cases are fisherman's own events, and three
+  have parts of the wrong type. The Python, C++, Rust and JavaScript
   parsers read the file.
 - Added: `bootc_shared.progress.failure_lines()`. The failure page says
   whether the disk changed, and when the cleanup failed or did not end in
@@ -26,6 +26,18 @@ schema only.
 - Added: four copy keys in `branding/copy-defaults.json`:
   `done_failed_disk_unchanged`, `done_failed_disk_changed`,
   `done_failed_cleanup_failed` and `done_failed_cleanup_timed_out`.
+
+## 2026-11-12: fisherman `b5b9250`, the image and runtime failure codes
+
+- Changed: the fisherman pin moves to `b5b9250`. Before the disk is touched,
+  it refuses an image that the registry does not have, refuses, or cannot
+  reach, one for another architecture, and an image that is not bootc
+  (tuna-os/fisherman#448). Every `error` event now has a `code`, one of 19
+  failure codes, plus `step_id`, `disk_changed` and `cleanup`
+  (tuna-os/fisherman#449). The parsers ignore the new fields.
+- Added: 27 `validate_<code>` lines in `branding/copy-defaults.json`: the
+  seven `image_*` codes, `selinux_workaround_unavailable` and the 19 failure
+  codes. The done page reads them through the same key as a validate code.
 
 ## 2026-11-12: each frontend ships a translation
 
