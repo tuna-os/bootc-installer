@@ -152,9 +152,9 @@
       "png": "docs/screenshots/07-qr_companion.png",
       "rendered": true,
       "colours": 290,
-      "flat": 0.8548221343873518,
+      "flat": 0.8547957839262187,
       "ink": 0.03313570487483531,
-      "stddev": 0.14989194271398715,
+      "stddev": 0.1498837000961566,
       "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
     },
     {
@@ -181,10 +181,10 @@
       "name": "user",
       "png": "docs/screenshots/10-user.png",
       "rendered": true,
-      "colours": 328,
+      "colours": 326,
       "flat": 0.7091172595520422,
-      "ink": 0.01971014492753623,
-      "stddev": 0.07700246235517307,
+      "ink": 0.013557312252964427,
+      "stddev": 0.0696356735689424,
       "text_excerpt": "Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Confirm Password Confirm Password"
     },
     {
@@ -193,8 +193,8 @@
       "rendered": true,
       "colours": 355,
       "flat": 0.557536231884058,
-      "ink": 0.010329380764163372,
-      "stddev": 0.06957559728188155,
+      "ink": 0.010355731225296443,
+      "stddev": 0.06965997693763512,
       "text_excerpt": "Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be undone. Summary Summary Target disk Samsung SSD 870 EVO 500GB (/dev/sda, 465.8 GiB) Target disk Samsung"
     },
     {
@@ -214,18 +214,18 @@
       "colours": 256,
       "flat": 0.8902371541501977,
       "ink": 0.01785243741765481,
-      "stddev": 0.09072438481569614,
+      "stddev": 0.09072446218336834,
       "text_excerpt": "Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf I have saved "
     },
     {
       "name": "done",
       "png": "docs/screenshots/14-done.png",
       "rendered": true,
-      "colours": 250,
-      "flat": 0.94566534914361,
-      "ink": 0.019762845849802372,
-      "stddev": 0.08879743328873832,
-      "text_excerpt": "Capture Desktop is installed Remove the installation media and restart the computer. Show Log Show Log Restart now Restart now"
+      "colours": 270,
+      "flat": 0.9257575757575758,
+      "ink": 0.021119894598155466,
+      "stddev": 0.09275921780533238,
+      "text_excerpt": "Capture Desktop is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it. At its first start, it records which image it started, in /var/lib/fisherman/boot-receipt/. "
     }
   ],
   "transition_pixels": [
@@ -234,14 +234,14 @@
     29291,
     43276,
     47646,
-    70834,
-    68065,
+    70838,
+    68060,
     51796,
-    43788,
-    42570,
-    37442,
+    43790,
+    42522,
+    37396,
     38578,
-    39881
+    48804
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
