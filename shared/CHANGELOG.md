@@ -12,6 +12,18 @@ sure that it does. Do not edit the hash of an old entry: add an entry.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-12: fisherman `b5b9250`, the image and runtime failure codes
+
+- Changed: the fisherman pin moves to `b5b9250`. Before the disk is touched,
+  it refuses an image that the registry does not have, refuses, or cannot
+  reach, one for another architecture, and an image that is not bootc
+  (tuna-os/fisherman#448). Every `error` event now has a `code`, one of 19
+  failure codes, plus `step_id`, `disk_changed` and `cleanup`
+  (tuna-os/fisherman#449). The parsers ignore the new fields.
+- Added: 27 `validate_<code>` lines in `branding/copy-defaults.json`: the
+  seven `image_*` codes, `selinux_workaround_unavailable` and the 19 failure
+  codes. The done page reads them through the same key as a validate code.
+
 ## 2026-11-12: each frontend ships a translation
 
 - Added: `i18n/catalogs.py`. The script writes the catalog of a language
