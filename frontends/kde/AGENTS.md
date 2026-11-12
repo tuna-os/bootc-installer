@@ -159,6 +159,16 @@ the probe fails, the disk step shows the reason. `test_backend`
 `../../shared/probe/README.md` is the contract. The capture sets
 `BOOTC_INSTALLER_FAKE_PROBE` to `shared/probe/fixtures/laptop.json`.
 
+The confirm step also asks fisherman about the selected image (#266):
+`InstallerController::checkSource()` runs `fisherman probe --json --source`
+off the UI thread, and `src/sourcecheck.{h,cpp}` reads its `capabilities`
+and `bootc_store` (#267). The step shows `sourceRows`. Only a blocked source
+holds Install. A reply for an older visit, or for another source, is
+dropped. Never offer an image of this computer's bootc storage as a source.
+The done step says "installed, restart required" and never "verified"
+(`done_verification`, #269). `test_backend` (`sourceCheckCases`,
+`bootcStoreCases`, `verificationCases`) reads the shared case files.
+
 ## Visual verification
 
 `screenshots.yml` builds the real QML modules with `tests/capture.cpp`, renders

@@ -382,6 +382,34 @@ class TestConfiguredLogo(unittest.TestCase):
         self.assertEqual(obj.page_header.icon_name, 'object-select-symbolic')
 
 
+class TestCompletionIsNotVerification(unittest.TestCase):
+    """#269: an install that exited 0 is "installed, restart required".
+    The done page says how the new system's first start is checked, and
+    never that it was verified."""
+
+    def _window(self):
+        return types.SimpleNamespace(recipe={}, pretty_name=None, selected_icon=None)
+
+    def test_success_explains_the_first_start_check(self):
+        from bootc_shared.branding import COPY_DEFAULTS
+        obj = MagicMock()
+        obj._BootcDone__window = self._window()
+        BootcDone.set_result(obj, True, None)
+        obj.lbl_verification.set_label.assert_called_once_with(COPY_DEFAULTS["done_verification"])
+        obj.group_verification.set_visible.assert_called_with(True)
+        self.assertNotIn("verified", obj.page_header.title.lower())
+        self.assertNotIn("verified", obj.page_header.subtitle.lower())
+
+    def test_failure_and_cancel_hide_it(self):
+        for kwargs in ({"exit_code": 1}, {"cancelled": True}):
+            obj = MagicMock()
+            obj._BootcDone__window = self._window()
+            with patch.object(BootcDone, "_BootcDone__extract_failure_hint", return_value="x",
+                              create=True):
+                BootcDone.set_result(obj, False, None, **kwargs)
+            obj.group_verification.set_visible.assert_called_with(False)
+
+
 class TestExitCodeHint(unittest.TestCase):
     """#307: the wrapper's exit code was discarded, so a closed password
     prompt read "The installer exited unexpectedly"."""

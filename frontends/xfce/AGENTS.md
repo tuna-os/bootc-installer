@@ -138,6 +138,15 @@ offers no disk. `tests/test_probe.py` renders the shared fixtures, and
 `../../shared/probe/README.md` is the contract. A capture sets
 `BOOTC_INSTALLER_FAKE_PROBE` to a fixture file.
 
+The confirm page also asks fisherman about the selected image (#266):
+`core.probe_source()` runs the probe with the `--source` arguments of
+`bootc_shared.source_check`, off the UI thread (on the UI thread in a dry
+run), and the page shows `source_check.rows()`. Only a blocked source holds
+Next. A reply for an older visit, or for another source, is dropped. Never
+offer an image of this computer's bootc storage (#267) as a source. The done
+page says "installed, restart required" and never "verified"
+(`done_verification`, #269). `tests/test_source_check.py` covers the page.
+
 ## Offline and live-ISO installs
 
 Live media and the offline images are fisherman's facts: `core.is_live()`,

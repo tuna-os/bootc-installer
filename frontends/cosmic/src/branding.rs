@@ -89,6 +89,13 @@ fn copy_defaults() -> HashMap<String, String> {
         .unwrap_or_default()
 }
 
+/// Whether the copy contract (copy-defaults.json) has `key`. The source
+/// check falls back to its unknown line for a reason code with no key.
+pub fn is_contract_key(key: &str) -> bool {
+    static KEYS: OnceLock<HashMap<String, String>> = OnceLock::new();
+    KEYS.get_or_init(copy_defaults).contains_key(key)
+}
+
 /// The portable logo source shared by every frontend. File values are host
 /// paths, not URLs; URL escaping belongs to the renderer, if it needs it.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "context": "live-host",
+  "available": true,
+  "reason": "observed",
+  "machine_platform": "x86_64",
+  "sources": {
+    "bootc_status": "observed",
+    "store_index": "observed",
+    "image_list": "observed"
+  },
+  "ignored_entries": 1,
+  "items": [
+    {
+      "ref": "ghcr.io/example/os:stable",
+      "owner": "bootc",
+      "context": "live-host",
+      "storage": "ostree",
+      "roles": [
+        "booted"
+      ],
+      "availability": "deployed",
+      "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "digest_from": "bootc_status",
+      "platform": "x86_64",
+      "matches_machine": true
+    },
+    {
+      "ref": "ghcr.io/example/os:stable",
+      "owner": "bootc",
+      "context": "live-host",
+      "storage": "ostree",
+      "roles": [
+        "future_role"
+      ],
+      "availability": "future",
+      "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "digest_from": "bootc_status",
+      "platform": "x86_64",
+      "matches_machine": true
+    },
+    {
+      "ref": "ghcr.io/example/os:stable",
+      "owner": "podman",
+      "context": "live-host",
+      "storage": "ostree",
+      "roles": [
+        "booted"
+      ],
+      "availability": "deployed",
+      "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "digest_from": "bootc_status",
+      "platform": "x86_64",
+      "matches_machine": true
+    },
+    {
+      "ref": "ghcr.io/example/os:stable",
+      "owner": "bootc",
+      "context": "target",
+      "storage": "ostree",
+      "roles": [
+        "booted"
+      ],
+      "availability": "deployed",
+      "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "digest_from": "bootc_status",
+      "platform": "x86_64",
+      "matches_machine": true
+    }
+  ],
+  "future_field": true
+}

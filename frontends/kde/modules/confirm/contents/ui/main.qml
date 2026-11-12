@@ -25,9 +25,13 @@ TunaComponents.SetupModule {
         && (!InstallerController.needsUserCreation
             || (InstallerController.username.length > 0 && InstallerController.usernameProblem === ""))
         && !networkGate.blocked
+        && !InstallerController.sourceBlocked
 
     function onPageActivated(): void {
         InstallerController.checkConnectivity();
+        // What fisherman says about the selected image (#266) and this
+        // computer's bootc storage (#267); asked again on each visit.
+        InstallerController.checkSource();
     }
 
     contentItem: ScrollView {
@@ -215,6 +219,37 @@ TunaComponents.SetupModule {
                     description: InstallerController.timezoneDisplay(InstallerController.timezone)
                 }
             }
+            // The source check: the source of the install, the update
+            // reference of the new system, what this computer runs, the
+            // check's state and reason, and this computer's bootc storage.
+            FormCard.FormHeader {
+                visible: InstallerController.sourceVisible
+                title: qsTr("Selected image")
+                maximumWidth: root.cardWidth
+
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+            FormCard.FormCard {
+                objectName: "confirmSourceCheck"
+                visible: InstallerController.sourceVisible
+                maximumWidth: root.cardWidth
+
+                Layout.alignment: Qt.AlignHCenter
+
+                Repeater {
+                    model: InstallerController.sourceRows
+
+                    FormCard.FormTextDelegate {
+                        required property var modelData
+
+                        text: modelData.title
+                        description: modelData.subtitle
+                        textItem.wrapMode: Text.Wrap
+                    }
+                }
+            }
+
             Label {
                 text: InstallerController.text("confirm_body")
                 visible: text.length > 0

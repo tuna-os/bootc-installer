@@ -147,6 +147,23 @@ class Systeminfo:
         return Systeminfo._probe
 
     @staticmethod
+    def probe_source(args):
+        """`fisherman probe --json` scoped to a selected source (#266):
+        `args` is bootc_shared.source_check.probe_args(). The result, or
+        None when the probe failed. Not cached: a reply belongs to one
+        selection. Runs as the desktop user, never through pkexec."""
+        from bootc_installer.utils import fisherman_runner
+
+        try:
+            if fisherman_runner.IN_FLATPAK and not os.environ.get(fisherman_probe.FAKE_ENV):
+                if not fisherman_runner.stage_on_host():
+                    raise fisherman_probe.ProbeError("could not stage fisherman on the host")
+            return fisherman_probe.run(fisherman_runner.probe_argv() + list(args))
+        except fisherman_probe.ProbeError as exc:
+            logger.warning("fisherman probe for the selected image failed: %s", exc)
+            return None
+
+    @staticmethod
     def probe_error() -> str | None:
         Systeminfo.probe()
         return Systeminfo._probe_error

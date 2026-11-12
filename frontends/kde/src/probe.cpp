@@ -72,6 +72,43 @@ Result parse(const QByteArray &json)
     return r;
 }
 
+bool runOutput(const QStringList &extraArgs, QByteArray *out)
+{
+    const QString fake = qEnvironmentVariable(FAKE_ENV);
+    if (!fake.isEmpty()) {
+        QFile f(fake);
+        if (!f.open(QIODevice::ReadOnly))
+            return false;
+        *out = f.readAll();
+        return true;
+    }
+#if QT_CONFIG(process)
+    const fisherman::Staging &staging = fisherman::staged();
+    if (!staging.ok)
+        return false;
+    const QStringList argv = fisherman::commands(false).unprivileged
+        + QStringList{QStringLiteral("probe"), QStringLiteral("--json")} + extraArgs;
+    QProcess p;
+    p.start(argv.first(), argv.mid(1));
+    if (!p.waitForStarted(5000))
+        return false;
+    if (!p.waitForFinished(30000)) {
+        p.kill();
+        p.waitForFinished(1000);
+        return false;
+    }
+    if (p.exitStatus() != QProcess::NormalExit || p.exitCode() != 0) {
+        qCWarning(logInstaller) << "fisherman probe for the selected image failed, exit" << p.exitCode();
+        return false;
+    }
+    *out = p.readAllStandardOutput();
+    return true;
+#else
+    Q_UNUSED(extraArgs);
+    return false;
+#endif
+}
+
 Result run()
 {
     const QString fake = qEnvironmentVariable(FAKE_ENV);

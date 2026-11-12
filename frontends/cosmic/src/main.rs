@@ -12,6 +12,7 @@
 mod capture;
 mod model;
 mod readiness;
+mod source_check;
 mod offline;
 mod probe;
 mod progress;
@@ -317,6 +318,10 @@ pub enum Message {
     /// `fisherman validate --json --partial` answered for check number `.0`
     /// (shared/recipe/README.md). An answer for an older check is dropped.
     Validated(u64, Result<Vec<validate::Problem>, String>),
+    /// `fisherman probe --json --source` answered for source check number
+    /// `.0` (#266, #267): the request and the probe's stdout, or None when
+    /// it failed. An answer for an older check is dropped.
+    SourceChecked(u64, source_check::Request, Option<String>),
     HostnameChanged(String),
     FilesystemChanged(usize),
     EncryptionChanged(usize),
@@ -420,6 +425,13 @@ pub struct TunaInstaller {
     /// (`validate --json --partial`), and the number of the latest check.
     problems: Vec<validate::Problem>,
     validate_seq: u64,
+    /// The source check (#266) and this computer's bootc storage (#267):
+    /// the number of the latest check, its views (None while it runs) and
+    /// whether the confirm page shows the section.
+    source_seq: u64,
+    source_view: Option<serde_json::Value>,
+    store_view: Option<serde_json::Value>,
+    source_visible: bool,
     recipe: Recipe,
     disks: Vec<DiskInfo>,
     selected_disk: Option<usize>,
@@ -941,8 +953,60 @@ impl TunaInstaller {
                 self.tour_index = 0;
                 Task::none()
             }
+            Page::Confirm => self.check_source(),
             _ => Task::none(),
         }
+    }
+
+    /// Asks fisherman about the selected source, off the UI thread. The
+    /// probe gets the image references only; the recipe stays here.
+    fn check_source(&mut self) -> Task<Message> {
+        self.source_seq += 1;
+        self.source_view = None;
+        self.store_view = None;
+        let recipe = serde_json::to_value(&self.recipe).unwrap_or_default();
+        let req = source_check::Request::from_recipe(&recipe, self.live_image.is_some());
+        let args = req.probe_args();
+        self.source_visible = !args.is_empty();
+        if args.is_empty() || self.capturing() {
+            return Task::none();
+        }
+        let seq = self.source_seq;
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || probe::run_output(&args).ok())
+                    .await
+                    .unwrap_or(None)
+            },
+            move |out| cosmic::action::app(Message::SourceChecked(seq, req.clone(), out)),
+        )
+    }
+
+    /// Takes in the reply of source check `seq`. Public to the tests.
+    pub fn apply_source_reply(&mut self, seq: u64, req: &source_check::Request, out: Option<&str>) {
+        if seq != self.source_seq {
+            return;
+        }
+        let view = source_check::check(out, req);
+        if view["state"] == "stale" {
+            return;
+        }
+        self.store_view = Some(source_check::bootc_store(out));
+        self.source_view = Some(view);
+    }
+
+    /// The rows of the confirm page's Selected image section; empty when
+    /// it is hidden.
+    pub fn source_rows(&self) -> Vec<(String, String)> {
+        if !self.source_visible {
+            return Vec::new();
+        }
+        source_check::rows(self.source_view.as_ref(), self.store_view.as_ref())
+    }
+
+    /// Only a blocked source holds Install.
+    pub fn source_blocked(&self) -> bool {
+        self.source_view.as_ref().is_some_and(source_check::blocks_install)
     }
 
     fn advance(&mut self) -> (Option<Page>, Task<Message>) {
@@ -1025,6 +1089,10 @@ impl cosmic::Application for TunaInstaller {
             live_image: None,
             problems: Vec::new(),
             validate_seq: 0,
+            source_seq: 0,
+            source_view: None,
+            store_view: None,
+            source_visible: false,
             recipe,
             selected_disk: None,
             disks: Vec::new(),
@@ -1411,6 +1479,10 @@ impl cosmic::Application for TunaInstaller {
             }
             Message::Probed(result) => {
                 self.apply_probe(result);
+                Task::none()
+            }
+            Message::SourceChecked(seq, req, out) => {
+                self.apply_source_reply(seq, &req, out.as_deref());
                 Task::none()
             }
             Message::Validated(seq, result) => {

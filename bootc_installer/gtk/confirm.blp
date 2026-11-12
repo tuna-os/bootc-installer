@@ -77,6 +77,15 @@ template $BootcConfirm: Adw.Bin {
           }
         }
       }
+
+      // The source check (#266) and this computer's bootc storage (#267),
+      // filled by views/confirm.py from fisherman's probe. Under Install,
+      // so that it does not push the button off the window; a blocked
+      // source makes the button insensitive.
+      Adw.PreferencesGroup group_source {
+        title: _("Selected image");
+        visible: false;
+      }
     }
   }
 }

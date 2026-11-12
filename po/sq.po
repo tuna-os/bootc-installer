@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: vanilla-installer\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 22:58+0000\n"
+"POT-Creation-Date: 2026-11-11 02:03+0000\n"
 "PO-Revision-Date: 2023-03-19 23:41+0000\n"
 "Last-Translator: Frederik Pjetri <rikpjetri@gmail.com>\n"
 "Language-Team: Albanian <https://hosted.weblate.org/projects/vanilla-os/"
@@ -20,7 +20,7 @@ msgstr ""
 
 #: data/org.bootcinstaller.Installer.appdata.xml.in:6
 #: data/org.bootcinstaller.Installer.desktop.in:3
-#: bootc_installer/gtk/window.blp:7 bootc_installer/windows/main_window.py:558
+#: bootc_installer/gtk/window.blp:7 bootc_installer/windows/main_window.py:601
 #, fuzzy
 msgid "bootc Installer"
 msgstr "Po instalohet..."
@@ -50,10 +50,14 @@ msgstr ""
 #: bootc_installer/gtk/confirm.blp:67 bootc_installer/gtk/default-nvidia.blp:40
 #: bootc_installer/gtk/default-vm.blp:40
 #: bootc_installer/gtk/default-welcome.blp:23
-#: bootc_installer/views/confirm.py:429
+#: bootc_installer/views/confirm.py:449
 #, fuzzy
 msgid "Install"
 msgstr "Po instalohet..."
+
+#: bootc_installer/gtk/confirm.blp:86
+msgid "Selected image"
+msgstr ""
 
 #: bootc_installer/gtk/default-conn-check.blp:19
 #: bootc_installer/defaults/conn_check.py:146
@@ -120,7 +124,7 @@ msgstr ""
 
 #: bootc_installer/gtk/default-disk.blp:115
 #: bootc_installer/utils/phone_companion.py:143
-#: bootc_installer/views/confirm.py:297
+#: bootc_installer/views/confirm.py:317
 msgid "Hostname"
 msgstr ""
 
@@ -202,7 +206,7 @@ msgid ""
 msgstr ""
 
 #: bootc_installer/gtk/default-hardware.blp:63
-#: bootc_installer/views/confirm.py:387
+#: bootc_installer/views/confirm.py:407
 msgid "Graphics"
 msgstr ""
 
@@ -279,7 +283,7 @@ msgstr ""
 
 #: bootc_installer/gtk/default-language.blp:37
 #: bootc_installer/gtk/widget-language.blp:13
-#: bootc_installer/views/confirm.py:192
+#: bootc_installer/views/confirm.py:211
 msgid "Language"
 msgstr ""
 
@@ -440,7 +444,7 @@ msgstr ""
 
 #: bootc_installer/gtk/dialog-disk-confirm.blp:17
 #: bootc_installer/gtk/progress.blp:312
-#: bootc_installer/windows/main_window.py:598
+#: bootc_installer/windows/main_window.py:641
 msgid "Cancel"
 msgstr ""
 
@@ -479,23 +483,23 @@ msgstr ""
 msgid "Restart your device to enjoy your new experience"
 msgstr "Rinisni pajisjen tuaj për të shijuar përvojën tuaj të {}."
 
-#: bootc_installer/gtk/done.blp:30
+#: bootc_installer/gtk/done.blp:47
 msgid "Show Log"
 msgstr ""
 
-#: bootc_installer/gtk/done.blp:39
+#: bootc_installer/gtk/done.blp:56
 msgid "Try Again"
 msgstr ""
 
-#: bootc_installer/gtk/done.blp:49
+#: bootc_installer/gtk/done.blp:66
 msgid "Reboot Now"
 msgstr ""
 
-#: bootc_installer/gtk/done.blp:59
+#: bootc_installer/gtk/done.blp:76
 msgid "Close"
 msgstr ""
 
-#: bootc_installer/gtk/done.blp:89 bootc_installer/gtk/progress.blp:109
+#: bootc_installer/gtk/done.blp:106 bootc_installer/gtk/progress.blp:109
 msgid "Visit the store"
 msgstr ""
 
@@ -574,59 +578,61 @@ msgstr ""
 msgid "Installer requires an active internet connection"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:110
+#: bootc_installer/defaults/disk.py:111
 msgid "Entire disk will be used."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:114
+#: bootc_installer/defaults/disk.py:115
 #, python-format
 msgid "LVM volume group: %s"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:115
+#: bootc_installer/defaults/disk.py:116
 msgid "Volume group will be removed."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:119
+#: bootc_installer/defaults/disk.py:120
 #, python-format
 msgid "LVM physical volume: %s"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:120
+#: bootc_installer/defaults/disk.py:121
 msgid "Physical volume will be removed."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:186
+#: bootc_installer/defaults/disk.py:187
 msgid "Could not detect disks"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:189
+#: bootc_installer/defaults/disk.py:190
 msgid "No disks detected"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:191
+#: bootc_installer/defaults/disk.py:192
 msgid ""
 "Connect a disk of at least 50 GiB to install to. Nothing can be installed "
 "until one is available."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:332
+#. ZFS is experimental in fisherman (no VM test boots it): the
+#. branding copy says so.
+#: bootc_installer/defaults/disk.py:335
 msgid "Btrfs (with subvolumes)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:373
+#: bootc_installer/defaults/disk.py:378
 msgid "Install the \"{}\" package on the host to use this filesystem"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:376
+#: bootc_installer/defaults/disk.py:381
 msgid "Missing host tool: \"{}\" — install the \"{}\" package"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:454
+#: bootc_installer/defaults/disk.py:459
 msgid "Virtual disk (for VMs / testing)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:456
+#: bootc_installer/defaults/disk.py:461
 #, python-format
 msgid "Creates a %s disk image and attaches it as a loop device"
 msgstr ""
@@ -776,7 +782,7 @@ msgstr ""
 msgid "Copied"
 msgstr ""
 
-#: bootc_installer/defaults/timezone.py:219
+#: bootc_installer/defaults/timezone.py:229
 #, python-format
 msgid "(at %s, %s)"
 msgstr ""
@@ -951,53 +957,53 @@ msgstr ""
 msgid "Step {step_key} is not a dictionary"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:84
+#: bootc_installer/views/confirm.py:95
 msgid "will be erased"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:84
+#: bootc_installer/views/confirm.py:95
 msgid "kept, its data is not erased"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:103
+#: bootc_installer/views/confirm.py:114
 #, python-brace-format
 msgid "{first} and {second}"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:200
+#: bootc_installer/views/confirm.py:219
 msgid "Keyboard"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:206
+#: bootc_installer/views/confirm.py:225
 msgid "Time zone"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:218
+#: bootc_installer/views/confirm.py:237
 msgid "Users"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:229
+#: bootc_installer/views/confirm.py:248
 msgid "/var disk"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:242 bootc_installer/views/confirm.py:269
+#: bootc_installer/views/confirm.py:261 bootc_installer/views/confirm.py:289
 msgid "Target disk"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:251
+#: bootc_installer/views/confirm.py:270
 msgid "Filesystem"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:290
+#: bootc_installer/views/confirm.py:310
 msgid "Encryption"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:318 bootc_installer/views/confirm.py:326
-#: bootc_installer/views/confirm.py:344 bootc_installer/views/confirm.py:362
+#: bootc_installer/views/confirm.py:338 bootc_installer/views/confirm.py:346
+#: bootc_installer/views/confirm.py:364 bootc_installer/views/confirm.py:382
 msgid "Image"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:370
+#: bootc_installer/views/confirm.py:390
 msgid "Updates follow"
 msgstr ""
 
@@ -1012,7 +1018,7 @@ msgstr ""
 #. A second disk for /var that is formatted is named too (#313): in
 #. the same sentence, or in a sentence of its own after the
 #. removable-drive line, which is about one disk.
-#: bootc_installer/views/confirm.py:404
+#: bootc_installer/views/confirm.py:424
 msgid "All data on this disk will be erased. This cannot be undone."
 msgstr ""
 
@@ -1034,80 +1040,80 @@ msgid ""
 "system that does not start."
 msgstr ""
 
-#: bootc_installer/views/done.py:143 bootc_installer/views/done.py:323
+#: bootc_installer/views/done.py:143 bootc_installer/views/done.py:332
 msgid "Error: {}"
 msgstr ""
 
-#: bootc_installer/views/done.py:217
+#: bootc_installer/views/done.py:219
 #, fuzzy, python-format
 msgid "Installed in %s. "
 msgstr "Po instalohet..."
 
-#: bootc_installer/views/done.py:219
+#: bootc_installer/views/done.py:226
 msgid "Restart now"
 msgstr ""
 
-#: bootc_installer/views/done.py:243
+#: bootc_installer/views/done.py:250
 #, fuzzy
 msgid "Installation cancelled"
 msgstr "Po instalohet..."
 
-#: bootc_installer/views/done.py:253
+#: bootc_installer/views/done.py:261
 #, fuzzy
 msgid "Installation failed"
 msgstr "Po instalohet..."
 
-#: bootc_installer/views/done.py:293
+#: bootc_installer/views/done.py:302
 msgid "Check the log for details. Click 'Show Log' below."
 msgstr ""
 
-#: bootc_installer/views/done.py:302
+#: bootc_installer/views/done.py:311
 msgid "The installer exited unexpectedly. Check the log for details."
 msgstr ""
 
-#: bootc_installer/views/done.py:307
+#: bootc_installer/views/done.py:316
 msgid ""
 "A required system tool is missing. Ensure you are running from the official "
 "live media."
 msgstr ""
 
-#: bootc_installer/views/done.py:309
+#: bootc_installer/views/done.py:318
 msgid ""
 "Network error during image download. Check your internet connection and try "
 "again."
 msgstr ""
 
-#: bootc_installer/views/done.py:311
+#: bootc_installer/views/done.py:320
 msgid "Not enough disk space. Select a larger disk or free up space."
 msgstr ""
 
-#: bootc_installer/views/done.py:313
+#: bootc_installer/views/done.py:322
 msgid "Permission denied. The installer needs administrator access to proceed."
 msgstr ""
 
-#: bootc_installer/views/done.py:315
+#: bootc_installer/views/done.py:324
 msgid ""
 "Disk encryption setup failed. Try disabling encryption or check your "
 "passphrase."
 msgstr ""
 
-#: bootc_installer/views/done.py:317
+#: bootc_installer/views/done.py:326
 msgid "Disk partitioning failed. The disk may be in use or damaged."
 msgstr ""
 
-#: bootc_installer/views/done.py:319
+#: bootc_installer/views/done.py:328
 msgid "Filesystem mount failed. The disk may be in use by another process."
 msgstr ""
 
-#: bootc_installer/views/done.py:336
+#: bootc_installer/views/done.py:345
 msgid "Could not reboot"
 msgstr ""
 
-#: bootc_installer/views/done.py:337
+#: bootc_installer/views/done.py:346
 msgid "Please reboot manually by running: systemctl reboot"
 msgstr ""
 
-#: bootc_installer/views/done.py:339
+#: bootc_installer/views/done.py:348
 msgid "OK"
 msgstr ""
 
@@ -1170,76 +1176,76 @@ msgstr ""
 msgid "Log not available."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:499
+#: bootc_installer/windows/main_window.py:542
 #, python-brace-format
 msgid "The recipe file {path} cannot be read: {error}"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:504
+#: bootc_installer/windows/main_window.py:547
 #, python-brace-format
 msgid "The recipe file {path} is not valid JSON: {error}"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:507
+#: bootc_installer/windows/main_window.py:550
 #, python-brace-format
 msgid "The recipe file {path} does not hold a JSON object."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:525
+#: bootc_installer/windows/main_window.py:568
 #, fuzzy
 msgid "The recipe names no installation disk."
 msgstr "Rregulloni instalimin e Vanilla OS."
 
-#: bootc_installer/windows/main_window.py:544
+#: bootc_installer/windows/main_window.py:587
 msgid "fisherman did not accept the recipe."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:593
+#: bootc_installer/windows/main_window.py:636
 #, fuzzy
 msgid "Exit Installer?"
 msgstr "Po instalohet..."
 
-#: bootc_installer/windows/main_window.py:594
+#: bootc_installer/windows/main_window.py:637
 msgid ""
 "An installation is in progress. If you exit now, the installer stops it, and "
 "the disk can be left without a system that starts."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:596
+#: bootc_installer/windows/main_window.py:639
 msgid "Any progress will be lost."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:599
+#: bootc_installer/windows/main_window.py:642
 msgid "Exit"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:618
+#: bootc_installer/windows/main_window.py:661
 #, fuzzy
 msgid "Cancel the installation?"
 msgstr "Po instalohet..."
 
-#: bootc_installer/windows/main_window.py:619
+#: bootc_installer/windows/main_window.py:662
 msgid ""
 "The installer stops the work on the disk. The disk can be left without a "
 "system that starts."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:622
+#: bootc_installer/windows/main_window.py:665
 #, fuzzy
 msgid "Continue Installation"
 msgstr "Po instalohet..."
 
-#: bootc_installer/windows/main_window.py:623
+#: bootc_installer/windows/main_window.py:666
 #, fuzzy
 msgid "Cancel Installation"
 msgstr "Po instalohet..."
 
-#: bootc_installer/windows/main_window.py:675
+#: bootc_installer/windows/main_window.py:718
 msgid ""
 "The installation storage configuration is invalid. Check the system recipe."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:684
+#: bootc_installer/windows/main_window.py:727
 msgid "No installation disk is selected. Go back and choose a disk."
 msgstr ""
 

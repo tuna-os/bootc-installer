@@ -63,6 +63,18 @@ QtObject {
             timezone: { current: "UTC", available: ["UTC", "Europe/Berlin"] },
             connected: true
         }),
+        // `source-check`: the answer for an image in a registry, which the
+        // probe does not contact (shared/probe/capabilities-cases.json,
+        // remote-source), and a host that is not bootc-booted.
+        "source-check": JSON.stringify({
+            check: { state: "unavailable", reason: "remote_metadata_unavailable",
+                     reason_key: "source_check_reason_remote_metadata_unavailable",
+                     install_from: "ghcr.io/example/os:stable",
+                     update_ref: "ghcr.io/example/os:stable", live_host_image: "",
+                     source_digest: "", defaults: [], blockers: [] },
+            store: { state: "unavailable", reason: "not_bootc_booted", items: [], hidden: 0 },
+            blocks_install: false
+        }),
         // `catalog`: no catalog file, as on a machine that ships none.
         "catalog": JSON.stringify({ path: "", skipped: [], default_image: "", selected: "", leaves: [],
             machine: { has_nvidia: false, is_live: false, offline_images: [] },

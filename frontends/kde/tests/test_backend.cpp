@@ -11,6 +11,7 @@
 #include "diskmodel.h"
 #include "validate.h"
 #include "redact.h"
+#include "sourcecheck.h"
 
 #include <QDir>
 #include <QFile>
@@ -70,6 +71,10 @@ private slots:
     // and expected renderings every frontend is tested against.
     void probeFixtures_data();
     void probeFixtures();
+    void sourceCheckCases();
+    void bootcStoreCases();
+    void verificationCases();
+    void sourceReplyOfAnOlderRequestIsDropped();
     void probeFakeEnvReachesTheController();
     void probeFailureOffersNothingAndSaysWhy();
     void probeCommandIsUnprivileged();
@@ -1268,6 +1273,140 @@ void BackendTest::probeFixtures()
     for (const QJsonValue &v : expected.value(QStringLiteral("unmet")).toArray())
         unmet << v.toString();
     QCOMPARE(result.unmet, unmet);
+}
+
+namespace {
+
+// The cases of a shared case file; empty (and the test skips) when this
+// tree is checked out without the monorepo around it.
+QJsonArray sharedCases(const QString &path)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return {};
+    return QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("cases")).toArray();
+}
+
+// The probe output a case describes: ok false when the probe failed,
+// {protocol_version: 1} for an older fisherman, else the fixture under key.
+QByteArray caseProbe(const QJsonObject &c, const QString &dir, const QString &key, bool *ok)
+{
+    *ok = !c.value(QStringLiteral("probe_failed")).toBool();
+    if (!*ok)
+        return {};
+    if (c.value(QStringLiteral("fixture")).isNull())
+        return QByteArrayLiteral("{\"protocol_version\": 1}");
+    QFile f(QDir(QStringLiteral(SHARED_PROBE_DIR "/fixtures/") + dir)
+                .filePath(c.value(QStringLiteral("fixture")).toString()));
+    if (!f.open(QIODevice::ReadOnly))
+        qFatal("missing fixture %s", qPrintable(f.fileName()));
+    return QByteArrayLiteral("{\"protocol_version\": 1, \"") + key.toUtf8() + QByteArrayLiteral("\": ")
+        + f.readAll() + QByteArrayLiteral("}");
+}
+
+sourcecheck::Request caseRequest(const QJsonObject &r)
+{
+    sourcecheck::Request req;
+    req.source = r.value(QStringLiteral("source")).toString();
+    req.liveRoot = r.value(QStringLiteral("live_root")).toBool();
+    req.target = r.value(QStringLiteral("target")).toString();
+    for (const QJsonValue &f : r.value(QStringLiteral("features")).toArray())
+        req.features << f.toString();
+    return req;
+}
+
+}
+
+void BackendTest::sourceCheckCases()
+{
+    const QJsonArray cases = sharedCases(QStringLiteral(SHARED_PROBE_DIR "/capabilities-cases.json"));
+    if (cases.isEmpty())
+        QSKIP("shared/probe is absent; this tree is checked out alone");
+    for (const QJsonValue &value : cases) {
+        const QJsonObject c = value.toObject();
+        const QString name = c.value(QStringLiteral("name")).toString();
+        bool ok = false;
+        const QByteArray input = caseProbe(c, QStringLiteral("capabilities"), QStringLiteral("capabilities"), &ok);
+        const sourcecheck::Request req = caseRequest(c.value(QStringLiteral("request")).toObject());
+        const QJsonObject view = sourcecheck::check(ok, input, req);
+        QVERIFY2(view == c.value(QStringLiteral("expected")).toObject(),
+                 qPrintable(name + QStringLiteral(": ") + QString::fromUtf8(QJsonDocument(view).toJson(QJsonDocument::Compact))));
+        QCOMPARE(sourcecheck::blocksInstall(view), c.value(QStringLiteral("blocks_install")).toBool());
+        QStringList args;
+        for (const QJsonValue &a : c.value(QStringLiteral("probe_args")).toArray())
+            args << a.toString();
+        QCOMPARE(sourcecheck::probeArguments(req), args);
+    }
+}
+
+void BackendTest::bootcStoreCases()
+{
+    const QJsonArray cases = sharedCases(QStringLiteral(SHARED_PROBE_DIR "/bootc-store-cases.json"));
+    if (cases.isEmpty())
+        QSKIP("shared/probe is absent; this tree is checked out alone");
+    for (const QJsonValue &value : cases) {
+        const QJsonObject c = value.toObject();
+        bool ok = false;
+        const QByteArray input = caseProbe(c, QStringLiteral("bootc-store"), QStringLiteral("bootc_store"), &ok);
+        const QJsonObject view = sourcecheck::bootcStore(ok, input);
+        QVERIFY2(view == c.value(QStringLiteral("expected")).toObject(),
+                 qPrintable(c.value(QStringLiteral("name")).toString() + QStringLiteral(": ")
+                            + QString::fromUtf8(QJsonDocument(view).toJson(QJsonDocument::Compact))));
+    }
+}
+
+void BackendTest::verificationCases()
+{
+    const QJsonArray cases = sharedCases(QStringLiteral(SHARED_COMPLETION_DIR "/verification-cases.json"));
+    if (cases.isEmpty())
+        QSKIP("shared/completion is absent; this tree is checked out alone");
+    for (const QJsonValue &value : cases) {
+        const QJsonObject c = value.toObject();
+        QFile f(QDir(QStringLiteral(SHARED_COMPLETION_DIR "/fixtures")).filePath(c.value(QStringLiteral("fixture")).toString()));
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        const QJsonObject view = sourcecheck::verification(f.readAll(), c.value(QStringLiteral("expected_install_id")).toString());
+        QVERIFY2(view == c.value(QStringLiteral("expected")).toObject(),
+                 qPrintable(c.value(QStringLiteral("name")).toString() + QStringLiteral(": ")
+                            + QString::fromUtf8(QJsonDocument(view).toJson(QJsonDocument::Compact))));
+    }
+}
+
+void BackendTest::sourceReplyOfAnOlderRequestIsDropped()
+{
+    QFile f(QStringLiteral(SHARED_PROBE_DIR "/fixtures/capabilities/caps-matching-ostree-current.json"));
+    if (!f.open(QIODevice::ReadOnly))
+        QSKIP("shared/probe is absent; this tree is checked out alone");
+    QJsonObject caps = QJsonDocument::fromJson(f.readAll()).object();
+    QJsonObject target = caps.value(QStringLiteral("target")).toObject();
+    target[QStringLiteral("update_ref_from")] = QStringLiteral("source");
+    caps[QStringLiteral("target")] = target;
+    const QByteArray reply = QJsonDocument(QJsonObject{{QStringLiteral("protocol_version"), 1},
+                                                      {QStringLiteral("capabilities"), caps}}).toJson();
+    sourcecheck::Request req;
+    req.source = caps.value(QStringLiteral("source")).toObject().value(QStringLiteral("ref")).toString();
+
+    InstallerController c;
+    // A blocked source holds Install; the rows say why.
+    sourcecheck::Request blocked = req;
+    blocked.features << QStringLiteral("unified_storage");
+    c.applySourceReply(c.sourceGeneration(), blocked, true, reply);
+    QVERIFY(c.sourceBlocked());
+    // A reply of an older request does not replace the newer one.
+    c.applySourceReply(c.sourceGeneration() - 1, req, true, reply);
+    QVERIFY(c.sourceBlocked());
+    c.applySourceReply(c.sourceGeneration(), req, true, reply);
+    QVERIFY(!c.sourceBlocked());
+    QStringList titles;
+    for (const QVariant &row : c.sourceRows())
+        titles << row.toMap().value(QStringLiteral("title")).toString();
+    QVERIFY(titles.contains(c.text(QStringLiteral("source_check_ready"))));
+    // A failed probe is never a green check.
+    c.applySourceReply(c.sourceGeneration(), req, false, QByteArray());
+    titles.clear();
+    for (const QVariant &row : c.sourceRows())
+        titles << row.toMap().value(QStringLiteral("title")).toString();
+    QVERIFY(titles.contains(c.text(QStringLiteral("source_check_unavailable"))));
+    QVERIFY(!titles.contains(c.text(QStringLiteral("source_check_ready"))));
 }
 
 void BackendTest::probeFakeEnvReachesTheController()

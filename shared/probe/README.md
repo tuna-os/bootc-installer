@@ -77,6 +77,84 @@ and must produce the same list.
   `IGNORE_RAM` and `IGNORE_CPU` still override it. The other four frontends
   show a warning on the welcome page and let the user continue.
 
+## Source check
+
+The source check is #266. A second probe asks what the bootc of the
+selected image can do: `fisherman probe --json --source <image>`, with
+`--target-imgref <targetImgref>` when the recipe has one. On live media
+with an empty `image`, the flag is `--live-root`. The answer is the
+`capabilities` object of tuna-os/fisherman#383, which
+[`fisherman/docs/PROBE.md`](../../fisherman/docs/PROBE.md) specifies.
+
+- The probe gets image references only, never the recipe: the recipe has
+  the passphrase. The probe pulls nothing, mounts nothing and needs no
+  root. No frontend runs `bootc` itself.
+- Each frontend probes again each time the confirm page opens, off the UI
+  thread. It drops a reply for an older visit. The reader also drops a
+  reply for another source or target (state `stale`).
+- The reader gives one of these states. `checking` is the state until a
+  reply comes.
+
+| State | When | Install |
+|---|---|---|
+| `ready` | the bootc of the source answered (`execution_root.established`), and nothing blocks | allowed |
+| `blocked` | the recipe asks for a feature that fisherman reports as `unsupported` (today `unifiedStorage`) | held |
+| `unsupported` | the probe has no `capabilities` (an older fisherman), or a `version` other than 1 | allowed |
+| `unavailable` | the probe failed or its output is malformed, or no root that the probe may run is the source's | allowed |
+| `stale` | the reply is for another source or target | dropped |
+
+`unavailable` and `unsupported` are never a green check. They do not hold
+Install: fisherman checks the recipe again before it touches a disk. The
+partial-field check (`fisherman validate --json --partial`) stays as it
+is.
+
+A frontend shows these lines:
+
+- `source_install_from`, `source_update_ref` and `source_live_host`, with
+  `{value}`: the source, the reference that the new system follows, and
+  the image that this computer runs. They are three different images.
+- `source_check_<state>`, and the reason line that the reader names
+  (`reason_key`). The reason is `execution_root.reason`, or
+  `source.digest_reason` when the digest of the source is not known. A
+  code with no copy key gets `source_check_reason_unknown`, never the raw
+  code.
+- With `ready` and `install_defaults.observed`: one
+  `source_check_default_<name>` line for each value that the bootc of the
+  image reports (root file system, disk setups, boot loader). The lines are
+  facts about the image. They do not change the recipe: the catalog and
+  fisherman's rules decide it.
+
+[`capabilities-cases.json`](capabilities-cases.json) holds each case:
+the fixture, the request, the arguments of the probe and the expected
+view. The fixtures in `fixtures/capabilities/` are fisherman's golden
+files (`caps-*.json`), and three files that this repository made
+(`frontend-*.json`). `generate-source-check-cases.py` writes the case file
+from `bootc_shared.source_check`. Run it after a change to the reader or
+a fixture.
+
+## bootc storage of this computer
+
+The bootc storage of this computer is #267. The same probe has the
+`bootc_store` object of tuna-os/fisherman#384: the images that the bootc
+of **this computer** keeps. They are not the target, and they are not the
+source.
+
+- Show the items only when the reader's state is `listed`: the
+  `bootc_store_listed` line, then each `ref` with
+  `bootc_store_kind_<kind>` (`booted`, `deployed`, `stored`, `listed`).
+- Do not offer an item as a source, and do not show it as available
+  offline. No fisherman install path reads bootc-owned storage yet
+  (fisherman's PROBE.md, "Reuse is not implemented"). The reader marks
+  each item `installable: false`.
+- Do not select or default to the image that this computer runs because
+  it is in the list.
+- The reader hides an item with no `ref` (fisherman removed a reference
+  that had credentials) and counts it in `hidden`.
+
+[`bootc-store-cases.json`](bootc-store-cases.json) holds the cases. The
+fixtures in `fixtures/bootc-store/` are fisherman's golden files
+(`store-*.json`) and three `frontend-*.json` files.
+
 ## When the probe fails
 
 The probe can fail. For example, an older fisherman that has no probe
@@ -103,6 +181,16 @@ would hide it.
 | COSMIC | `src/probe.rs` | `cargo test probe` |
 | Niri | `installer/probe.go`, sent to the QML by `discover-disks` and `detect` | `go test -run TestProbe` |
 
+The source check and the bootc storage have one reader in each language.
+Each test reads the two case files:
+
+| Frontend | Reader | Test |
+|---|---|---|
+| GNOME, XFCE | `bootc_shared.source_check` | `tests/unit/test_shared_source_check.py`, `tests/unit/test_confirm_view.py`, XFCE `tests/test_source_check.py` |
+| KDE | `src/sourcecheck.{h,cpp}` | `tests/test_backend.cpp` (`sourceCheckCases`, `bootcStoreCases`) |
+| COSMIC | `src/source_check.rs` | `cargo test source_check` |
+| Niri | `installer/sourcecheck.go`, sent to the QML by `source-check` | `go test -run 'SourceCheck|BootcStore'` |
+
 The Python frontends import one reader,
 `shared/python/bootc_shared/probe.py`, and `tests/unit/test_shared_probe.py`
 runs it against the fixtures. That test also checks the fixtures against
@@ -117,6 +205,7 @@ byte-identical to fisherman's own golden output.
 | `laptop.json` | fisherman's golden output (`internal/probe/testdata/golden/probe.json`): a laptop booted from a live USB, with every exclusion rule |
 | `container.json` | a real `fisherman probe --json` run in a CI container: no eligible disk, no TPM, BIOS boot |
 | `vm.json` | hand-built to the schema: a BIOS VM with one disk that has no model, and every requirement unmet |
+| `capabilities` and `bootc_store` in `container.json`, `vm.json`, `pure-live-oci.json` | added by hand from fisherman `ae82391`: a host without bootc (`container.json`), the laptop's objects (the two live fixtures) |
 | `*.expected.json` | what every frontend renders from the fixture of the same name |
 | `pci/` | PCI sysfs trees for the NVIDIA rule (see "NVIDIA GPU") |
 

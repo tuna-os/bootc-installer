@@ -463,5 +463,95 @@ class TestHostnameEditableRow(unittest.TestCase):
         assert result is None
 
 
+class TestSourceCheck(unittest.TestCase):
+    """The Selected image group (#266, #267): the shared reader's rows,
+    Install held only by a blocked source, and a late reply dropped."""
+
+    IMAGE = "registry.example/os:1"
+
+    def _make_obj(self):
+        obj = confirm_mod.BootcConfirm.__new__(confirm_mod.BootcConfirm)
+        obj.group_source = MagicMock()
+        obj.btn_confirm = MagicMock()
+        obj._hostname_check = None
+        _set_window(obj, {})
+        added = []
+        obj.group_source.add.side_effect = added.append
+        rows = []
+
+        class _Row:
+            def __init__(self):
+                self.title = self.subtitle = ""
+                rows.append(self)
+
+            def set_title(self, t):
+                self.title = t
+
+            def set_subtitle(self, t):
+                self.subtitle = t
+
+            def __getattr__(self, name):
+                return lambda *a, **kw: None
+
+        self._orig_row = confirm_mod.Adw.ActionRow
+        confirm_mod.Adw.ActionRow = _Row
+        self.addCleanup(setattr, confirm_mod.Adw, "ActionRow", self._orig_row)
+        return obj, rows
+
+    def _probe(self, **changes):
+        import json
+        import os
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "shared", "probe",
+                            "fixtures", "capabilities", "caps-matching-ostree-current.json")
+        with open(path, encoding="utf-8") as fh:
+            caps = json.load(fh)
+        caps["source"]["ref"] = self.IMAGE
+        caps["target"]["update_ref_from"] = "source"
+        caps.update(changes)
+        return {"protocol_version": 1, "capabilities": caps}
+
+    def _req(self, **kw):
+        from bootc_shared import source_check
+        return source_check.request(source=self.IMAGE, **kw)
+
+    def test_ready_reply_shows_rows_and_keeps_install(self):
+        obj, rows = self._make_obj()
+        obj._source_generation = 3
+        obj._BootcConfirm__on_source_reply(3, self._req(), self._probe())
+        titles = [r.title for r in rows]
+        self.assertIn(confirm_mod.copy_text.text(obj._BootcConfirm__window, "source_check_ready"), titles)
+        obj.btn_confirm.set_sensitive.assert_called_with(True)
+
+    def test_blocked_reply_holds_install(self):
+        obj, _rows = self._make_obj()
+        obj._source_generation = 1
+        obj._BootcConfirm__on_source_reply(1, self._req(features=["unified_storage"]), self._probe())
+        obj.btn_confirm.set_sensitive.assert_called_with(False)
+
+    def test_late_reply_is_dropped(self):
+        obj, rows = self._make_obj()
+        obj._source_generation = 5
+        obj._BootcConfirm__on_source_reply(4, self._req(), self._probe())
+        self.assertEqual(rows, [])
+        obj.btn_confirm.set_sensitive.assert_not_called()
+
+    def test_reply_for_another_source_is_dropped(self):
+        obj, rows = self._make_obj()
+        obj._source_generation = 1
+        obj._BootcConfirm__on_source_reply(1, self._req(), {"protocol_version": 1, "capabilities": dict(
+            self._probe()["capabilities"], source={"selected": True, "ref": "other/os:2"})})
+        self.assertEqual(rows, [])
+
+    def test_failed_probe_is_not_a_green_check(self):
+        obj, rows = self._make_obj()
+        obj._source_generation = 1
+        obj._BootcConfirm__on_source_reply(1, self._req(), None)
+        window = obj._BootcConfirm__window
+        titles = [r.title for r in rows]
+        self.assertIn(confirm_mod.copy_text.text(window, "source_check_unavailable"), titles)
+        self.assertNotIn(confirm_mod.copy_text.text(window, "source_check_ready"), titles)
+        obj.btn_confirm.set_sensitive.assert_called_with(True)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -118,6 +118,42 @@ ApplicationWindow {
             done_restart: "Restart now",
             done_failed_title: "Installation failed",
             done_cancelled_title: "Installation cancelled",
+            done_verification: "The new system has not started yet, so nothing has checked it. At its first start, it records which image it started, in /var/lib/fisherman/boot-receipt/. On that system, the command fisherman verify --json compares the record with the installation receipt. That check covers the image only, not the hardware, the disk unlock or the desktop.",
+            source_install_from: "Install from: {value}",
+            source_update_ref: "The installed system gets its updates from: {value}",
+            source_live_host: "This computer runs now: {value}",
+            source_check_checking: "Checking the selected image…",
+            source_check_ready: "The image's own bootc answered the check. Nothing blocks the installation.",
+            source_check_blocked: "These settings ask for a feature that the image cannot use. Change the settings to install.",
+            source_check_unsupported: "This version of fisherman cannot check the image before the installation.",
+            source_check_unavailable: "The image could not be checked before the installation. fisherman checks it again when the installation starts.",
+            source_check_reason_unknown: "No further details are available.",
+            source_check_reason_probe_failed: "The hardware check did not give a result.",
+            source_check_reason_backend_too_old: "This version of fisherman does not report image capabilities.",
+            source_check_reason_version_unsupported: "fisherman reports image capabilities in a newer format than this installer can read.",
+            source_check_reason_malformed: "The check gave a result that the installer cannot read.",
+            source_check_reason_no_source_selected: "No image is selected.",
+            source_check_reason_feature_unsupported: "fisherman does not support a feature that these settings ask for.",
+            source_check_reason_digest_match: "This computer runs the selected image, so its bootc answered for the image.",
+            source_check_reason_live_root: "The installation copies the system that this computer runs now.",
+            source_check_reason_host_not_bootc: "This computer does not run a bootc image, so no bootc here can answer for the image.",
+            source_check_reason_host_digest_unknown: "This computer does not report which image it runs.",
+            source_check_reason_source_digest_unknown: "The identity of the selected image is not known before the installation.",
+            source_check_reason_digest_mismatch: "This computer runs a different image, so its bootc cannot answer for the selected image.",
+            source_check_reason_remote_metadata_unavailable: "The image is in a registry. The check does not connect to the network, so fisherman checks the image when it downloads it.",
+            source_check_reason_not_found_locally: "The installer did not find the image on this computer. fisherman looks for it again when the installation starts.",
+            source_check_reason_ambiguous_local_copies: "This computer has different images with that name.",
+            source_check_reason_oci_layout_unreadable: "The image folder on the installation media cannot be read.",
+            source_check_reason_not_bootc_booted: "This computer does not run a bootc image.",
+            source_check_reason_digest_missing: "This computer does not report the identity of the image that it runs.",
+            source_check_default_filesystem: "Root file system that the image's bootc reports: {value}",
+            source_check_default_block_setups: "Disk setups that the image's bootc reports: {value}",
+            source_check_default_bootloader: "Boot loader that the image's bootc reports: {value}",
+            bootc_store_listed: "This computer (the system that runs the installer, not the new system) keeps these images in its bootc storage. The installer does not install from that storage, and it does not use them as offline copies:",
+            bootc_store_kind_booted: "running now",
+            bootc_store_kind_deployed: "installed on this computer",
+            bootc_store_kind_stored: "in bootc storage",
+            bootc_store_kind_listed: "named by bootc, identity unknown",
             store_label: "Visit the store",
             validate_hostname_required: "Enter a name for this computer.",
             validate_hostname_too_long: "Use 64 characters or fewer for the computer name.",
@@ -183,6 +219,9 @@ ApplicationWindow {
     // selected image makes its own first user (needs_user_creation), via
     // flowPages below — currentPage still names the StackLayout child.
     property int currentPage: 0
+    // The confirm page asks fisherman about the selected source (#266) on
+    // each visit; the done page reads nothing back from the new system.
+    onCurrentPageChanged: if (root.currentPage === 6) root.startSourceCheck()
     readonly property var pageNames: [qsTr("Welcome"), qsTr("Session"), qsTr("Source"), qsTr("Disk"),
         qsTr("Encryption"), qsTr("Account"), qsTr("Confirm"), qsTr("Installing"), qsTr("Done")]
 
@@ -714,6 +753,33 @@ ApplicationWindow {
     }
 
     Process {
+        id: sourceProc
+        command: [root.backendBin, "source-check"]
+        stdinEnabled: true
+        onStarted: sourceProc.write(root.sourceRequest + "\n")
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (root.sourceRunGen !== root.sourceGen)
+                    return
+                let answer = null
+                try { answer = JSON.parse(text) } catch (e) { answer = null }
+                if (!answer || !answer.check || answer.check.state === "stale")
+                    return
+                root.sourceView = answer.check
+                root.storeView = answer.store || null
+                root.sourceBlocked = answer.blocks_install === true
+            }
+        }
+        onExited: (code, status) => {
+            // A newer visit asked while this one ran: ask again for it.
+            if (root.sourceRunGen !== root.sourceGen && root.sourceVisible) {
+                root.sourceRunGen = root.sourceGen
+                sourceProc.running = true
+            }
+        }
+    }
+
+    Process {
         id: discoverProc
         command: [root.backendBin, "discover-disks"]
         stdout: StdioCollector {
@@ -1048,6 +1114,70 @@ ApplicationWindow {
     readonly property bool canInstall: root.selectedDisk.path !== undefined && root.sourceReady
         && root.hostnameProblem === "" && root.filesystemProblem === ""
         && (!root.needsUserCreation || root.accountReady) && !root.downloadBlocked
+        && !root.sourceBlocked
+
+    // ── The source check (#266) and this computer's bootc storage (#267) ──
+    // The backend's `source-check` runs `fisherman probe --json --source`
+    // (installer/sourcecheck.go) and answers with the shared views
+    // (shared/probe/README.md, "Source check"). A reply for an older visit
+    // is dropped: sourceGen counts the requests, sourceRunGen the one that
+    // runs. Only a blocked source holds Install.
+    property var sourceView: null
+    property var storeView: null
+    property bool sourceBlocked: false
+    property bool sourceVisible: false
+    property int sourceGen: 0
+    property int sourceRunGen: 0
+    property string sourceRequest: ""
+    function startSourceCheck() {
+        const r = root.buildRecipe()
+        const image = r.image || ""
+        const req = {
+            source: image,
+            live_root: image === "" && root.isLive,
+            target: r.targetImgref || "",
+            features: r.unifiedStorage === true ? ["unified_storage"] : []
+        }
+        root.sourceGen += 1
+        root.sourceView = null
+        root.storeView = null
+        root.sourceBlocked = false
+        root.sourceVisible = req.source !== "" || req.live_root
+        if (!root.sourceVisible)
+            return
+        root.sourceRequest = JSON.stringify(req)
+        if (!sourceProc.running) {
+            root.sourceRunGen = root.sourceGen
+            sourceProc.running = true
+        }
+    }
+    function sourceLine(key, value) {
+        return value ? root.text(key, { value: value }) : ""
+    }
+    // The rows of the "Selected image" card: [{title, subtitle}].
+    readonly property var sourceRows: {
+        const rows = []
+        const v = root.sourceView
+        if (!v) {
+            rows.push({ title: root.text("source_check_" + "checking"), subtitle: "" })
+            return rows
+        }
+        for (const pair of [["source_install_from", v.install_from], ["source_update_ref", v.update_ref],
+                            ["source_live_host", v.live_host_image]]) {
+            const line = root.sourceLine(pair[0], pair[1])
+            if (line !== "") rows.push({ title: line, subtitle: "" })
+        }
+        rows.push({ title: root.text("source_check_" + v.state), subtitle: root.text(v.reason_key) })
+        for (const d of v.defaults || [])
+            rows.push({ title: root.sourceLine(d.key, d.value), subtitle: "" })
+        const st = root.storeView
+        if (st && st.state === "listed") {
+            rows.push({ title: root.text("bootc_store_listed"), subtitle: "" })
+            for (const item of st.items)
+                rows.push({ title: item.ref, subtitle: root.text("bootc_store_kind_" + item.kind) })
+        }
+        return rows
+    }
     // ── Keyboard: Enter advances, Shift+Enter goes back (the hint bar says so) ──
     function advance() {
         switch (currentPage) {
@@ -1845,127 +1975,181 @@ ApplicationWindow {
                     font.italic: true
                     Layout.fillWidth: true
                 }
-                Rectangle {
+                // The warning, the summary, the source check and this
+                // computer's bootc storage are taller than a small window.
+                // They scroll, so Back and Install (and the hint bar) stay
+                // on the screen.
+                Flickable {
+                    id: confirmScroll
+                    objectName: "confirmScroll"
                     Layout.fillWidth: true
-                    radius: Theme.cornerRadiusM
-                    color: Theme.withAlpha(Theme.warning, 0.12)
-                    implicitHeight: warnText.implicitHeight + Theme.spacingM * 2
-                    StyledText {
-                        id: warnText
-                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: Theme.spacingM }
-                        text: "⚠  " + root.text(root.selectedDisk.removable ? "confirm_warning_removable" : "confirm_warning", { disk: root.selectedDisk.path ? root.selectedDisk.path : qsTr("the selected disk") })
-                        color: Theme.warning
-                    }
-                }
+                    Layout.fillHeight: true
+                    clip: true
+                    contentWidth: width
+                    contentHeight: confirmBody.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-                DankCard {
-                    Layout.fillWidth: true
-                    title: qsTr("Summary")
-                    GridLayout {
-                        width: parent.width
-                        columns: 2
-                        columnSpacing: Theme.spacingXL
-                        rowSpacing: Theme.spacingS
-                        StyledText { text: qsTr("Target disk"); color: Theme.surfaceVariantText }
-                        StyledText { text: root.selectedDisk.path ? root.selectedDisk.path : "—"; isMonospace: true }
-                        StyledText { text: qsTr("Image"); color: Theme.surfaceVariantText }
-                        StyledText {
-                            // The image that is installed (the NVIDIA image
-                            // on an NVIDIA machine), with the leaf's label.
-                            text: root.isLive && root.selectedLive
-                                ? qsTr("%1  (this system, no download)").arg(root.liveImage || qsTr("this system"))
-                                : (root.selectedLeaf
-                                    ? (root.selectedLeaf.label || root.selectedLeaf.name) + "  (" + root.selectedImage + ")"
-                                    : (root.selectedImage || "—"))
-                            isMonospace: true
-                            font.pixelSize: Theme.fontSizeSmall
-                            wrapMode: Text.WrapAnywhere
+                    ColumnLayout {
+                        id: confirmBody
+                        width: confirmScroll.width
+                        spacing: Theme.spacingM
+
+                        Rectangle {
                             Layout.fillWidth: true
-                        }
-                        // The image that updates follow, when it is not the
-                        // image that is installed (shared/catalog/README.md).
-                        StyledText {
-                            text: qsTr("Updates from")
-                            color: Theme.surfaceVariantText
-                            visible: confirmTarget.visible
-                        }
-                        StyledText {
-                            id: confirmTarget
-                            objectName: "confirmTargetImage"
-                            visible: root.targetImage !== "" && root.targetImage !== root.selectedImage
-                                && root.selectedImage !== ""
-                            text: root.targetImage
-                            isMonospace: true
-                            font.pixelSize: Theme.fontSizeSmall
-                            wrapMode: Text.WrapAnywhere
-                            Layout.fillWidth: true
-                        }
-                        StyledText { text: qsTr("Filesystem"); color: Theme.surfaceVariantText }
-                        StyledText {
-                            text: root.filesystem === "btrfs" && root.btrfsSubvolumes
-                                ? qsTr("%1  (subvolumes)").arg(root.filesystem)
-                                : root.filesystem === "zfs"
-                                    ? (root.text("filesystem_zfs_label") || root.filesystem)
-                                    : root.filesystem
-                            isMonospace: true
-                        }
-                        StyledText { text: qsTr("Encryption"); color: Theme.surfaceVariantText }
-                        StyledText { text: root.encryptionText(root.encType, "_label"); isMonospace: true }
-                        StyledText { text: qsTr("Username"); color: Theme.surfaceVariantText; visible: root.needsUserCreation }
-                        StyledText {
-                            objectName: "confirmUsername"
-                            visible: root.needsUserCreation
-                            text: root.username || "—"; isMonospace: true
-                        }
-                        // The Session step's picks that go into the recipe (#292).
-                        StyledText { text: qsTr("Language"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().locale }
-                        StyledText { objectName: "confirmLocale"; visible: !!root.regionRecipe().locale; text: root.regionRecipe().locale || ""; isMonospace: true }
-                        StyledText { text: qsTr("Keyboard"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().keyboard }
-                        StyledText { objectName: "confirmKeyboard"; visible: !!root.regionRecipe().keyboard; text: root.regionRecipe().keyboard ? root.regionRecipe().keyboard.layout : ""; isMonospace: true }
-                        StyledText { text: qsTr("Timezone"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().timezone }
-                        StyledText { objectName: "confirmTimezone"; visible: !!root.regionRecipe().timezone; text: root.regionRecipe().timezone || ""; isMonospace: true }
-                        StyledText { text: qsTr("Region"); color: Theme.surfaceVariantText; visible: root.regionProblem !== "" }
-                        StyledText { objectName: "regionProblem"; visible: root.regionProblem !== ""; text: root.regionProblem; color: Theme.error; wrapMode: Text.Wrap; Layout.fillWidth: true }
-                        StyledText { text: qsTr("Hostname"); color: Theme.surfaceVariantText }
-                        ColumnLayout {
-                            spacing: 2
-                            DankTextField {
-                                id: hostField
-                                text: root.hostname
-                                onTextEdited: { root.hostnameTouched = true; root.hostname = text }  // not onTextChanged: that fires at load and would pin the branding default
-                                font.family: Theme.monoFontFamily
-                                implicitWidth: 260
-                                isError: root.hostnameProblem !== ""
-                            }
-                            // fisherman's hostname rule, in the copy's words.
+                            radius: Theme.cornerRadiusM
+                            color: Theme.withAlpha(Theme.warning, 0.12)
+                            implicitHeight: warnText.implicitHeight + Theme.spacingM * 2
                             StyledText {
-                                text: root.hostnameProblem
-                                color: Theme.error
-                                visible: text !== ""
-                                font.pixelSize: Theme.fontSizeSmall
+                                id: warnText
+                                anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: Theme.spacingM }
+                                text: "⚠  " + root.text(root.selectedDisk.removable ? "confirm_warning_removable" : "confirm_warning", { disk: root.selectedDisk.path ? root.selectedDisk.path : qsTr("the selected disk") })
+                                color: Theme.warning
                             }
+                        }
+
+                        DankCard {
+                            Layout.fillWidth: true
+                            title: qsTr("Summary")
+                            GridLayout {
+                                width: parent.width
+                                columns: 2
+                                columnSpacing: Theme.spacingXL
+                                rowSpacing: Theme.spacingS
+                                StyledText { text: qsTr("Target disk"); color: Theme.surfaceVariantText }
+                                StyledText { text: root.selectedDisk.path ? root.selectedDisk.path : "—"; isMonospace: true }
+                                StyledText { text: qsTr("Image"); color: Theme.surfaceVariantText }
+                                StyledText {
+                                    // The image that is installed (the NVIDIA image
+                                    // on an NVIDIA machine), with the leaf's label.
+                                    text: root.isLive && root.selectedLive
+                                        ? qsTr("%1  (this system, no download)").arg(root.liveImage || qsTr("this system"))
+                                        : (root.selectedLeaf
+                                            ? (root.selectedLeaf.label || root.selectedLeaf.name) + "  (" + root.selectedImage + ")"
+                                            : (root.selectedImage || "—"))
+                                    isMonospace: true
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    wrapMode: Text.WrapAnywhere
+                                    Layout.fillWidth: true
+                                }
+                                // The image that updates follow, when it is not the
+                                // image that is installed (shared/catalog/README.md).
+                                StyledText {
+                                    text: qsTr("Updates from")
+                                    color: Theme.surfaceVariantText
+                                    visible: confirmTarget.visible
+                                }
+                                StyledText {
+                                    id: confirmTarget
+                                    objectName: "confirmTargetImage"
+                                    visible: root.targetImage !== "" && root.targetImage !== root.selectedImage
+                                        && root.selectedImage !== ""
+                                    text: root.targetImage
+                                    isMonospace: true
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    wrapMode: Text.WrapAnywhere
+                                    Layout.fillWidth: true
+                                }
+                                StyledText { text: qsTr("Filesystem"); color: Theme.surfaceVariantText }
+                                StyledText {
+                                    text: root.filesystem === "btrfs" && root.btrfsSubvolumes
+                                        ? qsTr("%1  (subvolumes)").arg(root.filesystem)
+                                        : root.filesystem === "zfs"
+                                            ? (root.text("filesystem_zfs_label") || root.filesystem)
+                                            : root.filesystem
+                                    isMonospace: true
+                                }
+                                StyledText { text: qsTr("Encryption"); color: Theme.surfaceVariantText }
+                                StyledText { text: root.encryptionText(root.encType, "_label"); isMonospace: true }
+                                StyledText { text: qsTr("Username"); color: Theme.surfaceVariantText; visible: root.needsUserCreation }
+                                StyledText {
+                                    objectName: "confirmUsername"
+                                    visible: root.needsUserCreation
+                                    text: root.username || "—"; isMonospace: true
+                                }
+                                // The Session step's picks that go into the recipe (#292).
+                                StyledText { text: qsTr("Language"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().locale }
+                                StyledText { objectName: "confirmLocale"; visible: !!root.regionRecipe().locale; text: root.regionRecipe().locale || ""; isMonospace: true }
+                                StyledText { text: qsTr("Keyboard"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().keyboard }
+                                StyledText { objectName: "confirmKeyboard"; visible: !!root.regionRecipe().keyboard; text: root.regionRecipe().keyboard ? root.regionRecipe().keyboard.layout : ""; isMonospace: true }
+                                StyledText { text: qsTr("Timezone"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().timezone }
+                                StyledText { objectName: "confirmTimezone"; visible: !!root.regionRecipe().timezone; text: root.regionRecipe().timezone || ""; isMonospace: true }
+                                StyledText { text: qsTr("Region"); color: Theme.surfaceVariantText; visible: root.regionProblem !== "" }
+                                StyledText { objectName: "regionProblem"; visible: root.regionProblem !== ""; text: root.regionProblem; color: Theme.error; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                                StyledText { text: qsTr("Hostname"); color: Theme.surfaceVariantText }
+                                ColumnLayout {
+                                    spacing: 2
+                                    DankTextField {
+                                        id: hostField
+                                        text: root.hostname
+                                        onTextEdited: { root.hostnameTouched = true; root.hostname = text }  // not onTextChanged: that fires at load and would pin the branding default
+                                        font.family: Theme.monoFontFamily
+                                        implicitWidth: 260
+                                        isError: root.hostnameProblem !== ""
+                                    }
+                                    // fisherman's hostname rule, in the copy's words.
+                                    StyledText {
+                                        text: root.hostnameProblem
+                                        color: Theme.error
+                                        visible: text !== ""
+                                        font.pixelSize: Theme.fontSizeSmall
+                                    }
+                                }
+                            }
+                        }
+
+                        // What fisherman says about the selected image: its source,
+                        // the update reference of the new system, what this
+                        // computer runs, and this computer's bootc storage.
+                        DankCard {
+                            objectName: "confirmSourceCheck"
+                            Layout.fillWidth: true
+                            visible: root.sourceVisible
+                            title: qsTr("Selected image")
+                            ColumnLayout {
+                                width: parent.width
+                                spacing: Theme.spacingXS
+                                Repeater {
+                                    model: root.sourceRows
+                                    ColumnLayout {
+                                        spacing: 0
+                                        Layout.fillWidth: true
+                                        StyledText {
+                                            text: modelData.title
+                                            wrapMode: Text.WrapAnywhere
+                                            Layout.fillWidth: true
+                                        }
+                                        StyledText {
+                                            text: modelData.subtitle
+                                            visible: text !== ""
+                                            color: Theme.surfaceVariantText
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            wrapMode: Text.Wrap
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        StyledText {
+                            text: root.text("confirm_body")
+                            visible: text !== ""
+                            color: Theme.surfaceVariantText
+                            horizontalAlignment: Text.AlignHCenter
+                            Layout.fillWidth: true
+                        }
+                        OfflineNotice {
+                            Layout.fillWidth: true
+                            visible: root.downloadBlocked
+                            checked: root.netChecked
+                            checking: netProc.running
+                            toolError: root.netToolError
+                            onRecheck: root.recheckNetwork()
+                            onOpenSettings: netToolProc.running = true
                         }
                     }
                 }
-
-                StyledText {
-                    text: root.text("confirm_body")
-                    visible: text !== ""
-                    color: Theme.surfaceVariantText
-                    horizontalAlignment: Text.AlignHCenter
-                    Layout.fillWidth: true
-                }
-                OfflineNotice {
-                    Layout.fillWidth: true
-                    visible: root.downloadBlocked
-                    checked: root.netChecked
-                    checking: netProc.running
-                    toolError: root.netToolError
-                    onRecheck: root.recheckNetwork()
-                    onOpenSettings: netToolProc.running = true
-                }
-
-                Item { Layout.fillHeight: true }
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -2130,6 +2314,18 @@ ApplicationWindow {
                                 ? qsTr("You stopped the installer. The disk can be in an incomplete state: start the installer again before you use it.")
                                 : qsTr("Check the installation log for details."))
                         color: Theme.surfaceVariantText
+                        wrapMode: Text.Wrap
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    // Installed, restart required: never "verified". Only
+                    // the new system can check its own start (#269).
+                    StyledText {
+                        objectName: "doneVerification"
+                        visible: root.installSuccess && text !== ""
+                        text: root.text("done_verification")
+                        color: Theme.surfaceVariantText
+                        font.pixelSize: Theme.fontSizeSmall
                         wrapMode: Text.Wrap
                         horizontalAlignment: Text.AlignHCenter
                         Layout.fillWidth: true

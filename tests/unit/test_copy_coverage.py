@@ -227,6 +227,32 @@ def rendered_validate_keys(text, keys):
     return set()
 
 
+SOURCE_FAMILIES = ("source_check_", "bootc_store_kind_")
+# The shared Python reader's rows(): it builds every source_check_*,
+# bootc_store_* and source_* line, so a Python frontend that calls it
+# renders all of them.
+SOURCE_RENDER = "source_check.rows("
+
+
+def rendered_source_keys(text, keys):
+    """Source-check keys a frontend builds at run time (#266, #267).
+
+    fisherman owns the states and reason codes; the shared readers turn
+    them into `source_check_<state>`, `source_check_reason_<code>` and
+    `source_check_default_<name>` (shared/probe/README.md, "Source
+    check"), and an item of the bootc storage into `bootc_store_kind_<kind>`.
+    A frontend that joins the prefix renders the family; a Python frontend
+    that calls the shared rows() renders every source and store key.
+    """
+    found = set()
+    if SOURCE_RENDER in text:
+        found |= {k for k in keys if k.startswith(("source_", "bootc_store_"))}
+    for prefix in SOURCE_FAMILIES:
+        if f'"{prefix}"' in text or f"'{prefix}'" in text:
+            found |= {k for k in keys if k.startswith(prefix)}
+    return found
+
+
 def rendered_keys(frontend, keys):
     """Keys named anywhere in this frontend's non-resolver, non-comment code.
 
@@ -246,7 +272,8 @@ def rendered_keys(frontend, keys):
     # method name is not a render.
     named = {k for k in keys if f'"{k}"' in joined or f"'{k}'" in joined}
     return (named | (rendered_encryption_keys(joined) & set(keys))
-            | rendered_step_keys(joined, keys) | rendered_validate_keys(joined, keys))
+            | rendered_step_keys(joined, keys) | rendered_validate_keys(joined, keys)
+            | rendered_source_keys(joined, keys))
 
 
 class NiriTableMatchesTheContract(unittest.TestCase):
@@ -366,6 +393,26 @@ class ValidateKeys(unittest.TestCase):
         keys = {"validate_a": "", "validate_b": "", "done_title": ""}
         self.assertEqual(expand(keys, ["validate_*", "done_title"]),
                          {"validate_a", "validate_b", "done_title"})
+
+
+class SourceKeys(unittest.TestCase):
+    def test_a_prefix_literal_renders_its_family(self):
+        keys = {"source_check_ready": "", "source_check_reason_live_root": "",
+                "bootc_store_kind_booted": "", "source_install_from": "", "done_title": ""}
+        self.assertEqual(rendered_source_keys('text("source_check_" + state)', keys),
+                         {"source_check_ready", "source_check_reason_live_root"})
+        self.assertEqual(rendered_source_keys('text("bootc_store_kind_" + kind)', keys),
+                         {"bootc_store_kind_booted"})
+
+    def test_the_shared_rows_render_every_source_key(self):
+        keys = {"source_check_ready": "", "bootc_store_listed": "",
+                "source_install_from": "", "done_title": ""}
+        self.assertEqual(rendered_source_keys("source_check.rows(view, store, text)", keys),
+                         {"source_check_ready", "bootc_store_listed", "source_install_from"})
+
+    def test_a_key_name_alone_is_not_the_prefix(self):
+        self.assertEqual(rendered_source_keys('"source_check_ready"',
+                                              {"source_check_ready": ""}), set())
 
 
 class CommentStripping(unittest.TestCase):
