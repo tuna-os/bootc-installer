@@ -295,6 +295,15 @@ def test_an_image_the_catalog_does_not_have_needs_an_account():
             entry["leaf"]["needs_user_creation"]
 
 
+@pytest.mark.parametrize("case", EXPECTED["live_image"], ids=lambda case: case["live_image"] or "empty")
+def test_the_live_image_names_its_leaf_and_its_account_flag(case):
+    """Live media: live.live_image of the probe. The NVIDIA image of a leaf
+    is that leaf."""
+    leaf = catalog.find(CATALOG, case["live_image"])
+    assert (leaf["imgref"] if leaf else None) == case["leaf"]
+    assert catalog.needs_user_creation(CATALOG, case["live_image"]) is case["needs_user_creation"]
+
+
 # ── NVIDIA detection ─────────────────────────────────────────────────────────
 
 def test_nvidia_detection_reads_pci_display_devices(tmp_path):

@@ -98,6 +98,58 @@
     "imgref": "registry.example/os/not-in-the-catalog:1",
     "needs_user_creation": true
   },
+  "live_image": [
+    {
+      "live_image": "registry.example/os/atlas:stable",
+      "leaf": "registry.example/os/atlas:stable",
+      "needs_user_creation": true
+    },
+    {
+      "live_image": "registry.example/os/atlas:beta",
+      "leaf": "registry.example/os/atlas:beta",
+      "needs_user_creation": false
+    },
+    {
+      "live_image": "registry.example/os/atlas-dx:latest",
+      "leaf": "registry.example/os/atlas-dx:latest",
+      "needs_user_creation": true
+    },
+    {
+      "live_image": "registry.example/os/boreal:latest",
+      "leaf": "registry.example/os/boreal:latest",
+      "needs_user_creation": false
+    },
+    {
+      "live_image": "registry.example/os/boreal-nvidia:latest",
+      "leaf": "registry.example/os/boreal:latest",
+      "needs_user_creation": false
+    },
+    {
+      "live_image": "registry.example/os/drift:edge",
+      "leaf": "registry.example/os/drift:edge",
+      "needs_user_creation": false
+    },
+    {
+      "live_image": "registry.example/os/drift:kiosk",
+      "leaf": "registry.example/os/drift:kiosk",
+      "needs_user_creation": true
+    },
+    {
+      "live_image": "registry.example/os/cirrus:1",
+      "leaf": "registry.example/os/cirrus:1",
+      "needs_user_creation": true
+    },
+    {
+      "live_image": "registry.example/os/not-in-the-catalog:1",
+      "leaf": null,
+      "needs_user_creation": true
+    },
+    {
+      "live_image": "",
+      "leaf": null,
+      "needs_user_creation": true
+    }
+  ],
   "leaves": [
     {
       "imgref": "registry.example/os/atlas:stable",

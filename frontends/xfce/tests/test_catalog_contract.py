@@ -101,6 +101,22 @@ def test_an_image_the_catalog_does_not_have_needs_an_account():
     assert _catalog().needs_user_creation(unknown["imgref"]) is unknown["needs_user_creation"]
 
 
+@pytest.mark.parametrize("case", EXPECTED["live_image"], ids=lambda case: case["live_image"] or "empty")
+def test_the_live_image_cases_are_the_shared_ones(case):
+    """expected.json `live_image`: "install this system" on live media takes
+    the account flag of the leaf of the probe's live.live_image
+    (app.InstallerWindow.needs_user_creation). The NVIDIA image of a leaf is
+    that leaf."""
+    from tuna_installer_xfce import app
+
+    leaf = _catalog().find(case["live_image"])
+    assert (leaf.imgref if leaf else None) == case["leaf"]
+    source = type("Source", (), {"catalog": _catalog(), "live_image": case["live_image"],
+                                 "selection": lambda self: {"live": True}})()
+    window = type("Window", (), {"pages": {"source": source}})()
+    assert app.InstallerWindow.needs_user_creation(window) is case["needs_user_creation"]
+
+
 def test_the_nvidia_variant_of_a_leaf_is_that_leaf():
     row = next(row for row in EXPECTED["leaves"] if row["leaf"]["nvidia_imgref"])
     leaf = _catalog().find(row["leaf"]["nvidia_imgref"])

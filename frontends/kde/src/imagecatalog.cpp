@@ -223,6 +223,13 @@ const Leaf *Catalog::find(const QString &imgref) const
         if (leaf.imgref == imgref)
             return &leaf;
     }
+    // The NVIDIA image of a leaf is that leaf: live media that holds only
+    // the NVIDIA image boots it, and its account flag and layout are the
+    // leaf's (shared/catalog/README.md, "The account").
+    for (const Leaf &leaf : leaves) {
+        if (!leaf.nvidiaImgref.isEmpty() && leaf.nvidiaImgref == imgref)
+            return &leaf;
+    }
     return nullptr;
 }
 
