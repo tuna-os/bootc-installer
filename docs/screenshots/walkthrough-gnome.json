@@ -16,6 +16,52 @@
   },
   "strict": true,
   "failures": 0,
+  "failure_reasons": [],
+  "screen_outcomes": {
+    "welcome": {
+      "required": true,
+      "evidence": [
+        "welcome"
+      ],
+      "outcome": "passed"
+    },
+    "disk": {
+      "required": true,
+      "evidence": [
+        "disk"
+      ],
+      "outcome": "passed"
+    },
+    "encryption": {
+      "required": false,
+      "evidence": [
+        "encryption"
+      ],
+      "outcome": "passed"
+    },
+    "summary": {
+      "required": true,
+      "evidence": [
+        "confirm"
+      ],
+      "outcome": "passed"
+    },
+    "install": {
+      "required": false,
+      "evidence": [
+        "progress"
+      ],
+      "outcome": "passed"
+    },
+    "done": {
+      "required": false,
+      "evidence": [
+        "done"
+      ],
+      "outcome": "passed"
+    }
+  },
+  "contract_digest": "ce5bcf532ef301196a6a740a9d29a1a88c963ad19b8911f538be482092b67dff",
   "source": "offscreen-capture",
   "harness": "tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb)",
   "text_source": "widget-tree",
@@ -141,8 +187,8 @@
       "rendered": true,
       "colours": 290,
       "flat": 0.8548616600790514,
-      "ink": 0.03313570487483531,
-      "stddev": 0.14987062690307285,
+      "ink": 0.033122529644268775,
+      "stddev": 0.14988172609910935,
       "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
     },
     {
@@ -171,8 +217,8 @@
       "rendered": true,
       "colours": 327,
       "flat": 0.7092094861660079,
-      "ink": 0.01160737812911726,
-      "stddev": 0.06751091000285021,
+      "ink": 0.019696969696969695,
+      "stddev": 0.0769888164761165,
       "text_excerpt": "Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Confirm Password Confirm Password"
     },
     {
@@ -180,9 +226,9 @@
       "png": "docs/screenshots/10-confirm.png",
       "rendered": true,
       "colours": 355,
-      "flat": 0.557536231884058,
-      "ink": 0.010329380764163372,
-      "stddev": 0.06957281608211632,
+      "flat": 0.5575494071146245,
+      "ink": 0.010368906455862978,
+      "stddev": 0.06961527505358468,
       "text_excerpt": "Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be undone. Summary Summary Target disk Samsung SSD 870 EVO 500GB (/dev/sda, 465.8 GiB) Target disk Samsung"
     },
     {
@@ -202,7 +248,7 @@
       "colours": 256,
       "flat": 0.8902371541501977,
       "ink": 0.01785243741765481,
-      "stddev": 0.09072446218336834,
+      "stddev": 0.09072438481569614,
       "text_excerpt": "Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf I have saved "
     },
     {
@@ -221,12 +267,12 @@
     27739,
     29291,
     27037,
-    70842,
+    70839,
     68060,
     51793,
-    43786,
-    42519,
-    37428,
+    43788,
+    42509,
+    37418,
     38578,
     44391
   ],
