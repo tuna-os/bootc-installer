@@ -209,6 +209,13 @@ with no new entry in [CHANGELOG.md](CHANGELOG.md). A new frontend builds
 the recipe in memory, sends it to `fisherman -` on stdin, and adds its
 recipe to the checks in `e2e/`. See [recipe/README.md](recipe/README.md).
 
+`recipe/fixtures/compliance.json` holds the choices of a person and the one
+recipe that each frontend must write for them. Each frontend has a test that
+makes the choices with its own recipe code and compares the result with that
+recipe. The `Recipe compliance` workflow runs the five tests, and fails when
+one recipe is different. A new frontend adds its test and a job to that
+workflow ("The compliance fixture" in [recipe/README.md](recipe/README.md)).
+
 ## `tpm/`
 
 How to decide whether to offer the TPM encryption types. fisherman makes

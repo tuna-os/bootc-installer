@@ -1,0 +1,185 @@
+name: Recipe compliance
+
+# One red check when the frontends stop writing the same recipe (#186, #226).
+#
+# shared/recipe/fixtures/compliance.json holds one set of choices per case
+# (image leaf, disk, filesystem, LUKS, account, language, keyboard, time
+# zone, hostname) and the one recipe that every frontend must write for
+# them. Each job below drives the choices through one frontend's own recipe
+# builder, in that frontend's own test framework, normalises the result
+# with the fixture's table and compares the bytes. The frontends' usual
+# jobs run the same tests (Python Tests, Screenshots (xfce), Screenshots
+# (kde), Cargo Tests (cosmic), CI (niri backend)); this workflow puts the
+# five side by side, and the last job fails when one of them differs.
+#
+# The GNOME job also sends each expected recipe to the real fisherman,
+# built from the submodule: `fisherman validate --json --partial -`. The
+# full check reads the disk and the firmware, so it is End to end's.
+#
+# No path filter on purpose: a change in one frontend, in shared/ or in
+# fisherman can each break the agreement, and promote.yml requires the
+# `Recipe compliance` job on every dev commit.
+
+on:
+  push:
+    branches: [prod, dev]
+  pull_request:
+    branches: [prod, dev]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recipe-compliance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  gnome:
+    name: Recipe compliance (gnome)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: fisherman/fisherman/go.mod
+          cache-dependency-path: fisherman/fisherman/go.sum
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: build fisherman from the submodule
+        working-directory: fisherman/fisherman
+        run: go build -o "$RUNNER_TEMP/fisherman" ./cmd/fisherman/
+      - name: the fixture, fisherman validate and the GNOME Processor
+        env:
+          FISHERMAN_BIN: ${{ runner.temp }}/fisherman
+          RECIPE_COMPLIANCE_REQUIRE_FISHERMAN: "1"
+        run: |
+          pip install pytest
+          python3 -m pytest tests/unit/test_recipe_compliance.py -v -p no:cacheprovider
+
+  xfce:
+    name: Recipe compliance (xfce)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontends/xfce
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The test builds the real SetupPage, so GTK3 needs a display.
+      - name: install GTK3 + Xvfb
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-gi python3-gi-cairo gir1.2-gtk-3.0 xvfb python3-pytest
+      - name: the XFCE window's recipe
+        run: xvfb-run -a python3 -m pytest tests/test_recipe_compliance.py -v -p no:cacheprovider
+
+  kde:
+    name: Recipe compliance (kde)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Qt 6.5 or later: Ubuntu 24.04 has 6.4 (Screenshots (kde) uses the same
+    # image).
+    container: quay.io/fedora/fedora:45
+    defaults:
+      run:
+        working-directory: frontends/kde
+    steps:
+      # Before checkout: the fedora image has no git.
+      - name: install Qt6
+        working-directory: /
+        run: |
+          dnf -y install --setopt=install_weak_deps=False \
+            git tar findutils cmake ninja-build gcc-c++ \
+            qt6-qtbase-devel qt6-qtdeclarative-devel
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: build the backend tests
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DTUNA_TRANSLATIONS=OFF
+          cmake --build build --target tuna-installer-backend-tests -j"$(nproc)"
+      - name: the InstallerController's recipe
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ./build/tuna-installer-backend-tests recipeCompliance recipeComplianceNormaliser
+
+  cosmic:
+    name: Recipe compliance (cosmic)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: frontends/cosmic
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The crate links libcosmic, so the test build needs its headers
+      # (the same list as Cargo Tests (cosmic)).
+      - name: install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            pkg-config cmake clang \
+            libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libfontconfig-dev libfreetype-dev \
+            libinput-dev libudev-dev libgbm-dev libegl1-mesa-dev libssl-dev
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: frontends/cosmic
+      - name: the page setters' recipe
+        run: cargo test --locked recipe_compliance -- --nocapture
+
+  niri:
+    name: Recipe compliance (niri)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontends/niri/installer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: frontends/niri/installer/go.mod
+          # No go.sum: the backend is standard-library only.
+          cache: false
+      # The runner image has node, which runs ui/recipe.js; with CI set the
+      # test fails rather than skip when node is missing.
+      - name: ui/recipe.js, then the Go backend
+        run: |
+          node --version
+          go test -v -run 'RecipeCompliance' ./...
+
+  gate:
+    name: Recipe compliance
+    needs: [gnome, xfce, kde, cosmic, niri]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: every frontend writes the expected recipe
+        env:
+          GNOME: ${{ needs.gnome.result }}
+          XFCE: ${{ needs.xfce.result }}
+          KDE: ${{ needs.kde.result }}
+          COSMIC: ${{ needs.cosmic.result }}
+          NIRI: ${{ needs.niri.result }}
+        run: |
+          failed=0
+          {
+            echo "| Frontend | Result |"
+            echo "|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for pair in "gnome=$GNOME" "xfce=$XFCE" "kde=$KDE" "cosmic=$COSMIC" "niri=$NIRI"; do
+            name=${pair%%=*}
+            result=${pair#*=}
+            echo "| $name | $result |" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$result" != "success" ]; then
+              echo "::error::Recipe compliance ($name): $result. Its recipe for shared/recipe/fixtures/compliance.json differs, or its test did not run."
+              failed=1
+            fi
+          done
+          exit "$failed"
