@@ -187,8 +187,8 @@
       "rendered": true,
       "colours": 290,
       "flat": 0.8548484848484849,
-      "ink": 0.03310935441370224,
-      "stddev": 0.14985938465146925,
+      "ink": 0.033122529644268775,
+      "stddev": 0.14987063556428606,
       "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
     },
     {
@@ -215,10 +215,10 @@
       "name": "user",
       "png": "docs/screenshots/09-user.png",
       "rendered": true,
-      "colours": 327,
+      "colours": 324,
       "flat": 0.7092094861660079,
-      "ink": 0.02067193675889328,
-      "stddev": 0.0813719711954672,
+      "ink": 0.020579710144927536,
+      "stddev": 0.07683406987267666,
       "text_excerpt": "Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Confirm Password Confirm Password"
     },
     {
@@ -227,8 +227,8 @@
       "rendered": true,
       "colours": 355,
       "flat": 0.5575494071146245,
-      "ink": 0.010329380764163372,
-      "stddev": 0.06956309402456487,
+      "ink": 0.010368906455862978,
+      "stddev": 0.06961013871713977,
       "text_excerpt": "Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be undone. Summary Summary Target disk Samsung SSD 870 EVO 500GB (/dev/sda, 465.8 GiB) Target disk Samsung"
     },
     {
@@ -248,7 +248,7 @@
       "colours": 256,
       "flat": 0.8902371541501977,
       "ink": 0.01785243741765481,
-      "stddev": 0.09072446218336834,
+      "stddev": 0.09072438481569614,
       "text_excerpt": "Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf I have saved "
     },
     {
@@ -267,12 +267,12 @@
     27739,
     29291,
     27037,
-    70835,
+    70838,
     68061,
     51793,
-    43790,
-    42543,
-    37437,
+    43781,
+    42513,
+    37428,
     38578,
     44391
   ],
