@@ -146,6 +146,7 @@
       "flat": 0.9588899124827268,
       "ink": 0.9900455499257894,
       "stddev": 0.06862379967381098,
+      "sha256": "1ca66e847e90eb8e0996d79f1c19a8964404c37ef6c1f417adce8447f4efcd30",
       "text_excerpt": "Requirements met Firmware setup Power off Continue"
     },
     {
@@ -156,6 +157,7 @@
       "flat": 0.957213777573059,
       "ink": 0.9895209580838323,
       "stddev": 0.07201007217777272,
+      "sha256": "c19268cc48fa4de9a3aa9b7b9f18a8b751faf37cf2934706fc4b40110cbb61bd",
       "text_excerpt": "Welcome to TunaOS Welcome. This assistant will guide you through installing TunaOS onto this computer. You will choose a target disk and a few options, and create your account. Nothing is written to any disk until you confirm on the last st"
     },
     {
@@ -166,6 +168,7 @@
       "flat": 0.5158273197195353,
       "ink": 0.9894058037770612,
       "stddev": 0.07781534906523323,
+      "sha256": "03a4bddc627e38b2abf5e5c578dac12d2bdc81e12f40c41ab6b9746fcc0f72bf",
       "text_excerpt": "Choose a system What to install onto the disk. Search systems  Capture Desktop \u203a Stable The photographed system. Everything is where you left it. Capture Desktop \u203a Beta The next release, before it is stable. It makes its own first user. Cap"
     },
     {
@@ -176,6 +179,7 @@
       "flat": 0.5238113516556631,
       "ink": 0.9931931009775321,
       "stddev": 0.06695109271539579,
+      "sha256": "4c8a19dbee0151864733b673a5e8462a28d0ff66c11b397064012d80ab26d967",
       "text_excerpt": "Language Changes this session and the installed system. en_US.UTF-8 en_GB.UTF-8 fr_FR.UTF-8 de_DE.UTF-8 es_ES.UTF-8 it_IT.UTF-8 pt_BR.UTF-8 nl_NL.UTF-8 ja_JP.UTF-8 zh_CN.UTF-8 Back Continue"
     },
     {
@@ -186,6 +190,7 @@
       "flat": 0.5271892113209479,
       "ink": 0.9940631557398024,
       "stddev": 0.06357153560128224,
+      "sha256": "ad16ffdb4fb76a1f6d8502a4f2d43445190371b03c185a993f8d4c9c5c4dd470",
       "text_excerpt": "Keyboard Changes this session and the installed system. us gb fr de es it br jp ru cn Back Continue"
     },
     {
@@ -196,6 +201,7 @@
       "flat": 0.46579917088899125,
       "ink": 0.9929372025180409,
       "stddev": 0.06640756397347561,
+      "sha256": "98beccdf0bb3457a87a36a6649baed57cdb2e5e10179d49947a34ea3cc4ab0c6",
       "text_excerpt": "Time zone Search, then pick where you are. Changes this session and the installed system. Search time zones  Europe/Berlin Europe/Paris Europe/Rome America/New_York Asia/Tokyo Back Continue"
     },
     {
@@ -206,6 +212,7 @@
       "flat": 0.9638031629049593,
       "ink": 0.994370233891192,
       "stddev": 0.053847990414386454,
+      "sha256": "8fa099d52480906a7e1856df895e6ad4423bb30d6ccf3e56f94d25d046bb827b",
       "text_excerpt": "Network The installer needs the network to fetch images. Connected. Recheck Back Continue"
     },
     {
@@ -216,6 +223,7 @@
       "flat": 0.5327677977378577,
       "ink": 0.9921055325246942,
       "stddev": 0.06823612759655628,
+      "sha256": "fc877134a57e94b9321c2a5236ba552d2eefaf269a521b7ac4e4d4a4f4a57915",
       "text_excerpt": "Select a disk Everything on the disk you pick will be erased. Samsung SSD 870 EVO 500GB /dev/sda \u00b7 465.8 GiB \u00b7 SATA Extreme SSD /dev/sdc \u00b7 931.5 GiB \u00b7 USB Cruzer Blade /dev/sdd \u00b7 59.6 GiB \u00b7 USB WD_BLACK SN850X 1000GB /dev/nvme0n1 \u00b7 953.9 Gi"
     },
     {
@@ -226,6 +234,7 @@
       "flat": 0.6261707354521726,
       "ink": 0.9892906494702902,
       "stddev": 0.07631856786581548,
+      "sha256": "536fac7826b285b3e4faea4ff9d34db733e00628628b48bf21ee95c54e77d971",
       "text_excerpt": "Options Sensible defaults are already chosen. Change them only if you need to. System Computer name example Filesystem btrfs Encryption Disk encryption Passphrase You'll type it at every boot. Passphrase Required to unlock at boot Confirm p"
     },
     {
@@ -236,6 +245,7 @@
       "flat": 0.7005092379343877,
       "ink": 0.9913506320691949,
       "stddev": 0.07131015654619403,
+      "sha256": "8223370c00ae428e02a755d77e6766bf9a8b3bd8031d759e8b485c0b896a39a4",
       "text_excerpt": "Create your account You will sign in with this account. It can administer the computer. Account Username alex Full name Alex Example Password Required Confirm password Type it again Back Continue"
     },
     {
@@ -246,6 +256,7 @@
       "flat": 0.9659655048876605,
       "ink": 0.9930267669788628,
       "stddev": 0.05814351247346675,
+      "sha256": "170fd16afff8662604f01cf66eee17e04e41307472b4a339faf182c0895b2394",
       "text_excerpt": "Tour Capture at a glance Everything is where you left it. Back Continue"
     },
     {
@@ -256,6 +267,7 @@
       "flat": 0.49199037821792313,
       "ink": 0.990851630073187,
       "stddev": 0.07484609909372761,
+      "sha256": "77600f3e25f760309e109922b959f2b6d601862bf2029f667813c56401f81e73",
       "text_excerpt": "Confirm installation The last screen before anything is written. Everything on /dev/sda will be erased. This cannot be undone.  Summary Target disk /dev/sda Filesystem btrfs Encryption Passphrase Computer name example Username alex System C"
     },
     {
@@ -266,6 +278,7 @@
       "flat": 0.525397922104509,
       "ink": 0.9876912840984697,
       "stddev": 0.08043434830176,
+      "sha256": "07336decea5748a0dc32286ad74fcae788447462b35e9830f80c309adb62330d",
       "text_excerpt": "Installing TunaOS\u2026 fisherman is writing the image to disk. [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pulling image: l"
     },
     {
@@ -276,6 +289,7 @@
       "flat": 0.9532729412968934,
       "ink": 0.990762065612365,
       "stddev": 0.0674338069175812,
+      "sha256": "5221167362da4cd4cde02ac61a810fc62afe45a4ba7e63401f841fbe39e22b44",
       "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it. fisherman did not report an installation receipt for this installation. Restart now Copy log Close"
     },
     {
@@ -286,6 +300,7 @@
       "flat": 0.9326603203848712,
       "ink": 0.9895081631608578,
       "stddev": 0.078356096552725,
+      "sha256": "2eed660ca9caef3a744172635b7acbbb68d0fa45f1e9e829c434fb091dbd9fab",
       "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it. fisherman did not report an installation receipt for this installation. Save your recovery key If you"
     },
     {
@@ -296,6 +311,7 @@
       "flat": 0.9590050667894979,
       "ink": 0.9898152413122473,
       "stddev": 0.07066275817659837,
+      "sha256": "76ec19cd0fa3a473e9b565d7d0804ead9cc29d3b27a2b46e02f1cd635ad2bf01",
       "text_excerpt": "Stop the installation? The disk is already changed. If you stop now, it has no system that can start. You can run the installer again. Keep going Stop the installation"
     },
     {
@@ -306,6 +322,7 @@
       "flat": 0.9670530733404985,
       "ink": 0.9924509954450074,
       "stddev": 0.060404241334318404,
+      "sha256": "d78be503b3f029c989289749ee926f92b48b5de4003306c3760649cbe61e594d",
       "text_excerpt": "Installation cancelled You stopped the installation. The disk has no system that can start. Run the installer again to finish. Copy log Close"
     },
     {
@@ -316,6 +333,7 @@
       "flat": 0.958621219100261,
       "ink": 0.9920799426787451,
       "stddev": 0.06205842708014058,
+      "sha256": "98912ee8f2ee3e433dab2f95ea8a3e687ff925e9a6593486f053677b2200bef3",
       "text_excerpt": "Network The installer needs the network to fetch images. No internet connection. The installer requires an active internet connection. Network settings Recheck Back"
     }
   ],
