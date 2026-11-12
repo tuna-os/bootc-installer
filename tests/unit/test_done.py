@@ -285,6 +285,20 @@ class TestErrorEventHint(unittest.TestCase):
             lambda key: COPY_DEFAULTS.get(key, ""))
         self.assertEqual(hint, COPY_DEFAULTS["validate_disk_identity_mismatch"])
 
+    def test_a_changed_plan_shows_the_plan_stale_line(self):
+        """A recipe bound with `planBinding` and a machine that no longer
+        gives that plan: the refusal reads as the branding line."""
+        from bootc_shared.branding import COPY_DEFAULTS
+
+        from bootc_installer.views.done import error_event_hint
+        for code in ("plan_stale", "plan_binding_invalid"):
+            with self.subTest(code=code):
+                hint = error_event_hint(
+                    {"message": "this machine no longer matches the plan",
+                     "code": code, "field": "planBinding.digest"},
+                    lambda key: COPY_DEFAULTS.get(key, ""))
+                self.assertEqual(hint, COPY_DEFAULTS["validate_" + code])
+
     def test_a_code_without_copy_falls_back_to_the_message(self):
         from bootc_installer.views.done import error_event_hint
         hint = error_event_hint(

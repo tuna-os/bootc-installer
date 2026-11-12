@@ -728,9 +728,10 @@ class BootcWindow(Adw.ApplicationWindow):
             # The install source of the confirm page: the download, or this
             # computer's system from its bootc storage (#267).
             recipe = self.__view_confirm.apply_source(recipe)
-            # Bound to the disk that the confirm page's plan showed: fisherman
+            # Bound to the plan that the confirm page showed: fisherman
             # refuses the install if another device is now at that path
-            # (disk_identity_mismatch, tuna-os/fisherman#371).
+            # (disk_identity_mismatch) or the plan changed (plan_stale,
+            # tuna-os/fisherman#371).
             recipe = self.__view_confirm.bind_disk(recipe)
         except ValueError as error:
             logger.error("Refusing invalid installation recipe: %s", error)

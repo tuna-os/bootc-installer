@@ -674,7 +674,8 @@ class TestInstallPlan(unittest.TestCase):
         if not os.path.exists(path):
             self.skipTest("no fisherman submodule")
         with open(path, encoding="utf-8") as fh:
-            return install_plan.parse(fh.read().replace("@DIR@", "/dev"))
+            return install_plan.parse(fh.read().replace("@DIR@", "/dev").replace(
+                "@PLAN_DIGEST@", "sha256:" + "ab" * 32))
 
     def _recipe(self, disk="/dev/sda"):
         return {"disk": disk, "image": "ghcr.io/example/os:stable", "hostname": "host",
@@ -741,6 +742,30 @@ class TestInstallPlan(unittest.TestCase):
         # Another disk than the plan's is not bound.
         self.assertNotIn("diskIdentity", obj.bind_disk(self._recipe("/dev/sdb")))
 
+    def test_confirmation_copies_the_plan_binding(self):
+        """A fisherman with `plan.binding` (tuna-os/fisherman#472): the
+        recipe carries it as `planBinding`, beside `diskIdentity`."""
+        digest = "sha256:" + "cd" * 32
+        answer = self._golden("grub2-plain")
+        answer["plan"]["binding"] = {"digest": digest, "read_image": False}
+        obj, _rows = self._make_obj()
+        self._answer(obj, (answer, None))
+        obj._BootcConfirm__start_plan(self._recipe())
+        bound = obj.bind_disk(self._recipe())
+        self.assertEqual(bound["planBinding"], {"digest": digest, "readImage": False})
+        self.assertIn("diskIdentity", bound)
+        self.assertNotIn("planBinding", obj.bind_disk(self._recipe("/dev/sdb")))
+
+    def test_a_plan_without_a_binding_leaves_plan_binding_out(self):
+        answer = self._golden("grub2-plain")
+        answer["plan"].pop("binding", None)
+        obj, _rows = self._make_obj()
+        self._answer(obj, (answer, None))
+        obj._BootcConfirm__start_plan(self._recipe())
+        bound = obj.bind_disk(self._recipe())
+        self.assertNotIn("planBinding", bound)
+        self.assertIn("diskIdentity", bound)
+
     def test_a_disk_without_serial_binds_its_size_and_says_so(self):
         obj, rows = self._make_obj()
         self._answer(obj, (self._golden("loop-image"), None))
@@ -764,6 +789,7 @@ class TestInstallPlan(unittest.TestCase):
                 obj.group_plan.set_visible.assert_called_with(False)
                 self.assertIsNone(obj.install_plan)
                 self.assertEqual(obj.bind_disk(self._recipe()), self._recipe())
+                self.assertNotIn("planBinding", obj.bind_disk(self._recipe()))
                 self.assertNotIn(self.SECRET, "\n".join(logs.output))
 
     def test_a_late_reply_is_dropped(self):

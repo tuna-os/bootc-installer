@@ -24,9 +24,22 @@ if not GOLDEN.is_dir():
     pytest.skip("no fisherman submodule", allow_module_level=True)
 
 
+DIGEST = "sha256:" + "ab" * 32
+
+
 def golden(name):
-    """A golden plan, with the fixture directory as /dev."""
-    return (GOLDEN / f"{name}.golden").read_text(encoding="utf-8").replace("@DIR@", "/dev")
+    """A golden plan, with the fixture directory as /dev and a fixed
+    digest for the one a fisherman with `plan.binding` writes."""
+    return ((GOLDEN / f"{name}.golden").read_text(encoding="utf-8")
+            .replace("@DIR@", "/dev").replace("@PLAN_DIGEST@", DIGEST))
+
+
+def with_binding(plan, **binding):
+    """`plan` as a fisherman with `plan.binding` (tuna-os/fisherman#472)
+    prints it."""
+    out = dict(plan)
+    out["binding"] = binding or {"digest": DIGEST, "read_image": False}
+    return out
 
 
 def result(name):
@@ -155,6 +168,73 @@ def test_no_binding_without_a_plan_for_this_disk():
     manual = result("manual")["plan"]
     assert install_plan.disk_identity(manual) == {}
     assert "diskIdentity" not in install_plan.bind(recipe(), manual)
+
+
+def test_the_plan_binding_is_copied_as_plan_binding():
+    plan = with_binding(result("grub2-plain")["plan"], digest=DIGEST, read_image=True)
+    assert install_plan.plan_binding(plan) == {"digest": DIGEST, "readImage": True}
+    bound = install_plan.bind(recipe(), plan)
+    assert bound["planBinding"] == {"digest": DIGEST, "readImage": True}
+    assert bound["diskIdentity"] == install_plan.disk_identity(plan)
+    assert "planBinding" not in recipe()
+
+
+def test_the_goldens_binding_is_copied():
+    """The pinned fisherman's own `plan.binding`, with and without
+    `--read-image`."""
+    for name, read_image in (("grub2-plain", False), ("read-image-registry", True)):
+        plan = result(name)["plan"]
+        if "binding" not in plan:
+            pytest.skip("the pinned fisherman has no plan.binding")
+        assert install_plan.bind(recipe(), plan)["planBinding"] == {
+            "digest": DIGEST, "readImage": read_image}
+
+
+def test_a_plan_without_a_binding_binds_the_disk_only():
+    """An older fisherman prints no `plan.binding`: no `planBinding`."""
+    plan = result("grub2-plain")["plan"]
+    plan.pop("binding", None)
+    assert install_plan.plan_binding(plan) == {}
+    bound = install_plan.bind(recipe(), plan)
+    assert "planBinding" not in bound
+    assert "diskIdentity" in bound
+
+
+@pytest.mark.parametrize("binding", [
+    None, "sha256:" + "ab" * 32, {}, {"digest": ""}, {"digest": "sha256:ABC"},
+    {"digest": "sha256:" + "AB" * 32}, {"digest": "md5:" + "ab" * 16},
+    {"digest": "sha256:" + "ab" * 32 + "\n"}, {"digest": 7}, {"read_image": True},
+])
+def test_a_malformed_binding_is_not_copied(binding):
+    plan = dict(result("grub2-plain")["plan"])
+    plan["binding"] = binding
+    assert install_plan.plan_binding(plan) == {}
+    assert "planBinding" not in install_plan.bind(recipe(), plan)
+
+
+def test_read_image_is_copied_only_as_a_boolean():
+    plan = with_binding({}, digest=DIGEST, read_image="yes")
+    assert install_plan.plan_binding(plan) == {"digest": DIGEST}
+
+
+def test_no_plan_binding_for_another_disk():
+    plan = with_binding(result("grub2-plain")["plan"])
+    for case in (recipe(disk="/dev/sdb"), recipe(disk="")):
+        assert install_plan.bind(case, plan) is case
+
+
+def test_a_manual_layout_is_bound_to_its_plan_not_a_disk():
+    manual = with_binding(result("manual")["plan"])
+    bound = install_plan.bind(recipe(), manual)
+    assert bound["planBinding"] == {"digest": DIGEST, "readImage": False}
+    assert "diskIdentity" not in bound
+
+
+def test_every_plan_error_code_has_a_copy_key():
+    for code in ("plan_stale", "plan_binding_invalid",
+                 "disk_identity_mismatch", "disk_identity_invalid"):
+        line = COPY_DEFAULTS["validate_" + code]
+        assert line and "{" not in line
 
 
 def test_the_target_rows_mark_unknown_values():

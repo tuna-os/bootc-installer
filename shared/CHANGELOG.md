@@ -18,6 +18,29 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-12: a recipe can bind the install to the confirmed plan
+
+- Added: `recipe/fisherman-recipe.schema.json` has `planBinding`
+  (`digest`, `readImage`), the `plan.binding` that
+  `fisherman plan --json -` reports (tuna-os/fisherman#472). When it is
+  set, fisherman plans the recipe again and refuses it (`plan_stale`) if
+  the machine no longer gives that plan, and refuses a malformed digest
+  (`plan_binding_invalid`). The fisherman pin moves to that change.
+- Added: `python/bootc_shared/plan.py` copies `plan.binding` into the
+  recipe as `planBinding` (`plan_binding`, `bind`), only when the plan has
+  one: a fisherman without it gets no `planBinding`. GNOME uses it; KDE,
+  COSMIC, Niri and XFCE do not yet. Niri's `Recipe` struct passes it
+  through.
+- Added: `branding/copy-defaults.json` has `validate_plan_stale` and
+  `validate_plan_binding_invalid`, the failure-page lines for the two
+  codes.
+- Changed: `walkthrough/features-gnome.json` says that GNOME binds the
+  recipe to the plan too.
+
+Contracts version: `1.7.0`
+Contracts sha256: `fc67e38f0a6dada53dff9bc07f9760945f990276e05a7e5b50ee0e3196d611c5`
+Recipe schema sha256: `16f2dde2b1ad6601c254bd406988540ba2fea97774490f7ba434980785392ee5`
+
 ## 2026-11-12: the confirm page shows fisherman's install plan
 
 - Added: `python/bootc_shared/plan.py`, the reader for

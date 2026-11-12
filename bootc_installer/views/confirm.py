@@ -709,9 +709,10 @@ class BootcConfirm(Adw.Bin):
             self._plan_invalid = True
             return False
         self._plan = result["plan"]
-        logger.info("install plan: %d device(s) destroyed, disk identity %s",
+        logger.info("install plan: %d device(s) destroyed, disk identity %s, plan binding %s",
                     len(install_plan.destroys(self._plan)),
-                    sorted(install_plan.disk_identity(self._plan)) or "unknown")
+                    sorted(install_plan.disk_identity(self._plan)) or "unknown",
+                    "yes" if install_plan.plan_binding(self._plan) else "none")
         self.__show_plan_rows(install_plan.rows(self._plan, self.__plan_text))
         return False
 
@@ -754,12 +755,14 @@ class BootcConfirm(Adw.Bin):
         return self._plan
 
     def bind_disk(self, recipe):
-        """`recipe` bound to the disk that the plan on this page showed:
-        with `diskIdentity` (the serial, WWN and size that fisherman
-        reported), so that fisherman refuses the install if another device
-        is at that path (`disk_identity_mismatch`). `recipe` unchanged when
-        there is no plan, when the plan is for another disk, or when the
-        disk reports nothing to bind to."""
+        """`recipe` bound to the plan on this page: with `diskIdentity`
+        (the serial, WWN and size that fisherman reported), so that
+        fisherman refuses the install if another device is at that path
+        (`disk_identity_mismatch`), and with `planBinding` (the plan's
+        digest), so that it refuses a machine that no longer gives the plan
+        the user confirmed (`plan_stale`). Each only when the plan has it:
+        a fisherman without `plan.binding` gets no `planBinding`. `recipe`
+        unchanged when there is no plan or the plan is for another disk."""
         if self._plan is None:
             return recipe
         return install_plan.bind(recipe, self._plan)
