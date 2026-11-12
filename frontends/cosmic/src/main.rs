@@ -2163,10 +2163,32 @@ mod tests {
     /// image needs one".
     const E2E_CATALOG: &str =
         include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/e2e/catalog.json"));
-    /// The leaf this frontend installs: the canary image with no account.
-    /// GNOME, XFCE, KDE and Niri install the leaf with an account, so the
-    /// VM job boots both cases.
-    const E2E_IMAGE: &str = "quay.io/centos-bootc/centos-bootc:stream10";
+    /// The leaf this frontend installs, picked through the catalog: the
+    /// leaf of the default image's product that needs no account. GNOME,
+    /// XFCE, KDE and Niri install the default image, which needs one, so the
+    /// VM job boots both cases. The VM job installs the recipe with the
+    /// leaf's image as it is (#322).
+    fn e2e_leaf(catalog: &image_catalog::Catalog) -> &image_catalog::ImageLeaf {
+        let default = &catalog.leaves[catalog.find(&catalog.default_image).expect("default_image")];
+        catalog
+            .leaves
+            .iter()
+            .find(|leaf| leaf.product == default.product && !leaf.needs_user_creation)
+            .expect("the e2e catalog has a leaf of the default product with no account")
+    }
+
+    /// The leaf the end-to-end test installs needs no account, is not the
+    /// default image (the other four frontends install that one), and is
+    /// an image the VM job can boot as the recipe names it.
+    #[test]
+    fn e2e_leaf_is_the_canary_with_no_account() {
+        let catalog = image_catalog::parse_manifest(E2E_CATALOG).unwrap();
+        let leaf = e2e_leaf(&catalog);
+        assert!(!leaf.needs_user_creation);
+        assert_ne!(leaf.imgref, catalog.default_image);
+        assert!(!leaf.composefs);
+        assert_eq!(leaf.bootloader, "grub2");
+    }
 
     /// End to end: the Install button's code path against the real backend.
     ///
@@ -2190,7 +2212,8 @@ mod tests {
         let catalog = image_catalog::parse_manifest(E2E_CATALOG).unwrap();
         std::fs::write(format!("{e2e_dir}/catalog.json"), E2E_CATALOG)
             .expect("the e2e directory is writable");
-        let leaf = &catalog.leaves[catalog.find(E2E_IMAGE).unwrap()];
+        let leaf = e2e_leaf(&catalog);
+        let e2e_image = leaf.imgref.clone();
 
         let mut recipe = Recipe::default();
         recipe.disk = disk;
@@ -2255,7 +2278,7 @@ mod tests {
             .expect("the shim recorded no recipe");
         let recorded: serde_json::Value = serde_json::from_str(&recorded).unwrap();
         assert!(recorded.get("user").is_none(), "an account for an image that needs none: {recorded}");
-        assert_eq!(recorded["image"], E2E_IMAGE);
+        assert_eq!(recorded["image"], e2e_image.as_str());
         assert_eq!(recorded["targetImgref"], recorded["image"]);
         assert_eq!(recorded["filesystem"], "xfs");
         // No list in the catalog for this leaf: no key, never `[]`, never
