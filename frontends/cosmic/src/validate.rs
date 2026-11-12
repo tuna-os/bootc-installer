@@ -79,42 +79,71 @@ pub fn check(partial: &serde_json::Value) -> Result<Vec<Problem>, String> {
 
 /// `check` with the command given (tests).
 pub fn check_with(argv: &[String], partial: &serde_json::Value) -> Result<Vec<Problem>, String> {
+    let (code, text, _) = run_on_stdin(
+        argv,
+        partial.to_string().as_bytes(),
+        TIMEOUT,
+        "fisherman validate",
+    )?;
+    match code {
+        Some(0) | Some(1) => parse(&text),
+        code => Err(format!("fisherman validate failed (exit {code:?})")),
+    }
+}
+
+/// Runs `argv` with `input` written to its stdin and closed, and returns
+/// its exit code, stdout and stderr. A command that has not finished
+/// within `timeout` is killed and is an error. `what` names the command
+/// in an error; no error holds the input. For `validate` and `plan`
+/// (plan.rs), which both get a recipe that can hold a passphrase.
+pub fn run_on_stdin(
+    argv: &[String],
+    input: &[u8],
+    timeout: Duration,
+    what: &str,
+) -> Result<(Option<i32>, String, String), String> {
     let mut child = Command::new(&argv[0])
         .args(&argv[1..])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("cannot run {}: {e}", argv[0]))?;
     {
         // Written and closed: fisherman reads to EOF.
         let mut stdin = child.stdin.take().expect("piped");
-        let _ = stdin.write_all(partial.to_string().as_bytes());
+        let _ = stdin.write_all(input);
     }
-    let mut stdout = child.stdout.take().expect("piped");
-    let out = std::thread::spawn(move || {
-        let mut s = String::new();
-        let _ = stdout.read_to_string(&mut s);
-        s
-    });
+    let read = |mut pipe: Box<dyn Read + Send>| {
+        std::thread::spawn(move || {
+            let mut s = String::new();
+            let _ = pipe.read_to_string(&mut s);
+            s
+        })
+    };
+    let out = read(Box::new(child.stdout.take().expect("piped")));
+    let err = read(Box::new(child.stderr.take().expect("piped")));
     let start = Instant::now();
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break status,
-            Ok(None) if start.elapsed() < TIMEOUT => std::thread::sleep(Duration::from_millis(10)),
+            Ok(None) if start.elapsed() < timeout => std::thread::sleep(Duration::from_millis(10)),
             Ok(None) => {
                 let _ = child.kill();
                 let _ = child.wait();
-                return Err(format!("fisherman validate did not finish within {}s", TIMEOUT.as_secs()));
+                return Err(format!(
+                    "{what} did not finish within {}s",
+                    timeout.as_secs_f32()
+                ));
             }
-            Err(e) => return Err(format!("fisherman validate: {e}")),
+            Err(e) => return Err(format!("{what}: {e}")),
         }
     };
-    let text = out.join().unwrap_or_default();
-    match status.code() {
-        Some(0) | Some(1) => parse(&text),
-        code => Err(format!("fisherman validate failed (exit {code:?})")),
-    }
+    Ok((
+        status.code(),
+        out.join().unwrap_or_default(),
+        err.join().unwrap_or_default(),
+    ))
 }
 
 /// One encryption type, from fisherman's data/encryption-choices.json.
