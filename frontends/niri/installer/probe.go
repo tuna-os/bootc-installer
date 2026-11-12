@@ -59,6 +59,9 @@ type ProbeFacts struct {
 	// (offline.images). The stores themselves are fisherman's: a recipe that
 	// leaves additionalImageStores out gets them.
 	OfflineImages []string
+	// Raw is the probe's own output, for the objects this struct does not
+	// hold (bootc_store, which offers the install source of #267).
+	Raw []byte
 }
 
 // parseProbe reads probe output.
@@ -98,7 +101,7 @@ func parseProbe(data []byte) (ProbeFacts, error) {
 		return ProbeFacts{}, fmt.Errorf("fisherman probe protocol_version %s is not %d", v, probeProtocolVersion)
 	}
 	facts := ProbeFacts{Disks: []ProbeDisk{}, TPMUsable: raw.TPM.Usable, Unmet: []string{},
-		IsLive: raw.Live.IsLive, OfflineImages: []string{}}
+		IsLive: raw.Live.IsLive, OfflineImages: []string{}, Raw: data}
 	if raw.Live.IsLive {
 		facts.LiveImage = raw.Live.LiveImage
 	}
