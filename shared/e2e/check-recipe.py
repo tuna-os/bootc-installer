@@ -68,11 +68,8 @@ def account_required(frontend, recipe, catalog):
     resolver = _catalog_resolver()
     refs = [ref for ref in (recipe.get("targetImgref"), recipe.get("image")) if ref]
     for ref in refs:
+        # The NVIDIA variant of a leaf is that leaf (resolver.find).
         leaf = resolver.find(catalog, ref)
-        if leaf is None:
-            # The NVIDIA variant of a leaf is that leaf.
-            leaf = next((candidate for candidate in resolver.leaves(catalog)
-                         if candidate["nvidia_imgref"] == ref), None)
         if leaf is not None:
             return leaf["needs_user_creation"]
     return True

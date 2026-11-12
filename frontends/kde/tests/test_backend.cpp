@@ -2450,6 +2450,29 @@ void BackendTest::catalogLiveMediaReadsTheLeafOfTheLiveImage()
 {
     if (sharedCatalog().isEmpty())
         QSKIP("shared/catalog/fixtures is absent");
+    // expected.json `live_image`: the probe's live.live_image -> the leaf
+    // and its account flag. The NVIDIA image of a leaf is that leaf: live
+    // media that holds only the NVIDIA image boots it.
+    const imagecatalog::Catalog catalog = imagecatalog::parse(sharedCatalog());
+    const QJsonArray cases = sharedExpected().value(QStringLiteral("live_image")).toArray();
+    QVERIFY(cases.size() >= 4);
+    for (const QJsonValue &v : cases) {
+        const QJsonObject row = v.toObject();
+        const QString live = row.value(QStringLiteral("live_image")).toString();
+        const bool want = row.value(QStringLiteral("needs_user_creation")).toBool();
+        const imagecatalog::Leaf *leaf = catalog.find(live);
+        if (row.value(QStringLiteral("leaf")).isNull())
+            QVERIFY2(!leaf, qPrintable(live));
+        else
+            QVERIFY2(leaf && leaf->imgref == row.value(QStringLiteral("leaf")).toString(), qPrintable(live));
+        QVERIFY2(catalog.needsUserCreation(live) == want, qPrintable(live));
+        Machine machine(sharedCatalog(), true, live, {live}, false);
+        InstallerController c;
+        QVERIFY2(c.needsUserCreation() == want, qPrintable(live));
+        // The layout is that leaf's too (#287).
+        QCOMPARE(c.filesystemChoices(), leaf && !leaf->filesystems.isEmpty()
+                     ? leaf->filesystems : InstallerController::ownFilesystems());
+    }
     // The live image is a leaf that needs no account. It is not the first
     // leaf of the catalog, whose flag the old code read (#288).
     {

@@ -135,6 +135,27 @@ class FixtureCoversTheContract(unittest.TestCase):
         self.assertFalse(kiosk["composefs"])
         self.assertEqual((edge["filesystem"], kiosk["filesystem"]), ("ext4", "xfs"))
 
+    def test_the_nvidia_image_of_a_leaf_is_that_leaf(self):
+        # Live media that holds only the NVIDIA image boots it: the account
+        # flag and the layout are those of its leaf.
+        leaf = resolve.find(_fixture(), "registry.example/os/boreal-nvidia:latest")
+        self.assertEqual(leaf["imgref"], "registry.example/os/boreal:latest")
+        self.assertIs(resolve.needs_user_creation(
+            _fixture(), "registry.example/os/boreal-nvidia:latest"), False)
+        self.assertIsNone(resolve.find(_fixture(), ""))
+        # A leaf's own reference wins over another leaf's NVIDIA image.
+        catalog = {"images": [
+            {"name": "A", "imgref": "r.example/a:1", "nvidia_imgref": "r.example/b:1"},
+            {"name": "B", "imgref": "r.example/b:1", "needs_user_creation": False}]}
+        self.assertEqual(resolve.find(catalog, "r.example/b:1")["name"], "B")
+
+    def test_the_fixture_has_a_live_case_for_each_kind_of_reference(self):
+        cases = resolve.expected(_fixture())["live_image"]
+        kinds = {("nvidia" if case["leaf"] and case["leaf"] != case["live_image"]
+                  else "leaf" if case["leaf"] else "none") for case in cases}
+        self.assertEqual(kinds, {"leaf", "nvidia", "none"})
+        self.assertIn("", [case["live_image"] for case in cases])
+
     def test_needs_user_creation_defaults_to_true_and_inherits(self):
         want = {
             "registry.example/os/atlas:stable": True,    # unset anywhere
