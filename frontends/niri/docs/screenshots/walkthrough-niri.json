@@ -168,8 +168,8 @@
       "colours": 497,
       "flat": 0.5597333333333333,
       "ink": 0.1155,
-      "stddev": 0.11528884652927622,
-      "sha256": "248804118c975c63723f325557ccf534b0f0d80e273302b3fa8b111119a7a06c",
+      "stddev": 0.1152965279548122,
+      "sha256": "067d72578d5fc3f1d8d3ee13c1cc8ea32758e80b8afd305449dafae7cf96716a",
       "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Capture Desktop \u203a Edge ghcr.io/exa"
     },
     {
@@ -179,8 +179,8 @@
       "colours": 484,
       "flat": 0.6199333333333333,
       "ink": 0.11003333333333333,
-      "stddev": 0.10557607011149404,
-      "sha256": "da8e4ee577e2fb8859e8b44607083a81bba39cf9741584ad8160d74c0560dae0",
+      "stddev": 0.10556755838076784,
+      "sha256": "58c7ddd783c2527679e02bf86b0fbfc659ed9bb247ee0b7974e30777eb8dfa58",
       "text_excerpt": "Step 4 of 9 \u00b7 Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  \u00b7  465.8 GiB  \u00b7  SATA Extreme SSD /dev/sdc  \u00b7  931.5 GiB  \u00b7  USB Cruzer Blade /dev/sdd  \u00b7  59.6 GiB  \u00b7  USB WD_"
     },
     {
@@ -190,8 +190,8 @@
       "colours": 521,
       "flat": 0.4215333333333333,
       "ink": 0.2012,
-      "stddev": 0.11962846478068354,
-      "sha256": "427d4845e87d359582fcbeb8ea473189dba1cb7d9249376f14b58c08630d9251",
+      "stddev": 0.11963561917385698,
+      "sha256": "55a09312f3353721083d7d22cf240b2b35c01a656957598b3c65edd60703ee0a",
       "text_excerpt": "Step 5 of 9 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
@@ -212,8 +212,8 @@
       "colours": 528,
       "flat": 0.49853333333333333,
       "ink": 0.0434,
-      "stddev": 0.11600864622662221,
-      "sha256": "f7cef4f71c1b1b44feb237b9e5c743a9f0ff6c781bf8cfb8a248aad337e834e8",
+      "stddev": 0.11601600351490633,
+      "sha256": "3cc471c85e32cf5e0a70483cc26e02ad1b0d115f664da69039d285d5e01061b3",
       "text_excerpt": "Step 7 of 9 \u00b7 Confirm Confirm installation \u26a0  Everything on /dev/sda will be erased. This cannot be undone. Summary Target disk /dev/sda Image Capture Desktop Stable  (ghcr.io/example/os:stable) Filesystem btrfs Encryption No encryption Use"
     },
     {
