@@ -97,6 +97,29 @@ ApplicationWindow {
             confirm_button: "Install",
             progress_title: "Installing {name}…",
             progress_note: "Do not power off the computer.",
+            progress_reuse_planned: "The copy of this computer's system needs {value} GiB of free space.",
+            progress_reuse_planned_unknown: "fisherman did not report how much space the copy needs.",
+            progress_reuse_copying: "The installer copies this computer's system. The disk does not change until the copy is complete.",
+            progress_reuse_verified: "The installer copied this computer's system and checked the copy.",
+            progress_reuse_verified_digest: "Digest of the copy: {value}",
+            progress_reuse_measured_time: "The copy took {value} seconds.",
+            progress_reuse_measured_space: "The copy used up to {value} GiB of free space.",
+            progress_reuse_failed_command_unsupported: "The bootc of this computer cannot copy its system.",
+            progress_reuse_failed_source_unavailable: "The installer cannot read the system of this computer.",
+            progress_reuse_failed_source_moved: "An update changed the system of this computer, so the installer did not copy it.",
+            progress_reuse_failed_estimate_failed: "The installer could not calculate the space for the copy.",
+            progress_reuse_failed_insufficient_space: "This computer does not have enough free space for the copy.",
+            progress_reuse_failed_destination_exists: "An earlier copy is still on this computer.",
+            progress_reuse_failed_transfer_failed: "The copy of this computer's system stopped before the end.",
+            progress_reuse_failed_disk_exhausted: "The disk of this computer became full during the copy.",
+            progress_reuse_failed_verify_failed: "The installer could not check the copy.",
+            progress_reuse_failed_identity_mismatch: "The system of this computer changed during the copy.",
+            progress_reuse_failed_unknown: "The copy of this computer's system failed.",
+            progress_reuse_released_removed: "The installer removed the copy.",
+            progress_reuse_released_remove_failed: "The installer could not remove the copy. To remove it, run: podman rmi {value}",
+            progress_reuse_released_unknown: "The installer released the copy.",
+            progress_reuse_unreadable: "fisherman reported the copy in a format that this installer cannot read.",
+            progress_reuse_cancel: "The installer stops the copy of this computer's system and removes the copy. The disk does not change.",
             step_prepare_disk: "Checking your drive…",
             step_partition: "Setting up your drive…",
             step_format_efi: "Preparing the boot system…",
@@ -351,9 +374,10 @@ ApplicationWindow {
     property bool showPassphrase: false
     property bool installSuccess: false
     // Cancel (#299). The progress page's Cancel and the window's close both
-    // ASK first (cancelOpen). After a confirmed cancel, fisherman's exit
-    // code 130, or any failure, is a cancelled install and not a failed one:
-    // the done page then reads done_cancelled_title.
+    // ASK first (cancelOpen). fisherman's exit code 130, or a signal after
+    // a confirmed cancel, is a cancelled install and not a failed one: the
+    // done page then reads done_cancelled_title. Another exit code after a
+    // cancel is a failure (shared/progress/outcome-cases.json).
     property bool cancelOpen: false
     property bool cancelRequested: false
     property bool installCancelled: false
@@ -407,6 +431,11 @@ ApplicationWindow {
     property var barState: BarMath.newState()
     // What fisherman's `receipt` event said (#269); null before one.
     property var installReceipt: null
+    // The copy of this computer's system before the first step (#267): the
+    // parser's view of fisherman's source_reuse events, and whether a
+    // cancel now leaves the disk as it was (ui/progress.js copyCancel).
+    property var installSourceReuse: null
+    property bool copyCancel: false
     // Whether the copy has a line for `key` (the done page's reason lines).
     function copyHas(key) { return root.text(key) !== "" }
     // Recipe JSON awaiting the backend child's stdin channel (fed on
@@ -1092,7 +1121,10 @@ ApplicationWindow {
         } else if (event.type === "receipt") {
             // The parser's view of it (ui/progress.js), for the done page.
             installReceipt = barState.receipt
+        } else if (event.type === "source_reuse") {
+            installSourceReuse = barState.sourceReuse
         }
+        copyCancel = BarMath.copyCancel(barState)
     }
 
     // Restart from the done page: the backend runs `systemctl reboot` on the
@@ -1155,6 +1187,8 @@ ApplicationWindow {
         installStepName = ""
         barState = BarMath.newState()
         installReceipt = null
+        installSourceReuse = null
+        copyCancel = false
         root.cancelRequested = false
         root.installCancelled = false
         root.cancelOpen = false
@@ -2313,6 +2347,19 @@ ApplicationWindow {
                         : qsTr("Starting…")
                     color: Theme.surfaceVariantText
                 }
+                // The copy of this computer's system before the first step
+                // (#267): fisherman's source_reuse events. Hidden otherwise.
+                StyledText {
+                    objectName: "installReuseLines"
+                    text: BarMath.sourceReuseLines(root.installSourceReuse, k => root.copyHas(k))
+                        .map(l => root.text(l.key).replace("{value}", l.value))
+                        .filter(l => l !== "").join("\n")
+                    visible: text !== ""
+                    color: Theme.surfaceVariantText
+                    font.pixelSize: Theme.fontSizeSmall
+                    wrapMode: Text.WrapAnywhere
+                    Layout.fillWidth: true
+                }
                 Rectangle {
                     Layout.fillWidth: true
                     height: 8; radius: 4
@@ -2726,7 +2773,11 @@ ApplicationWindow {
                 width: parent.width
                 spacing: Theme.spacingM
                 StyledText {
-                    text: qsTr("The disk is already changed. If you stop now, this computer cannot start from it until you run the installer again.")
+                    // During the copy of this computer's system the disk has
+                    // not changed yet (#267).
+                    text: root.copyCancel && root.text("progress_reuse_cancel") !== ""
+                        ? root.text("progress_reuse_cancel")
+                        : qsTr("The disk is already changed. If you stop now, this computer cannot start from it until you run the installer again.")
                     color: Theme.warning
                     wrapMode: Text.Wrap
                     width: parent.width

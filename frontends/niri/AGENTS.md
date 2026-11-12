@@ -133,6 +133,11 @@ and the line for fisherman's `receipt` event (`receiptLines()`, #269).
 `sourcecheck_test.go` and `tests/progress-fraction-test.mjs` read the
 shared case files. The QML stub answers
 `source-check` for the capture.
+The progress page shows fisherman's `source_reuse` events for a copy of
+this computer's system (`sourceReuseLines()`, #267), and the copy does not
+move the bar. During the copy the cancel card says `progress_reuse_cancel`
+(`copyCancel()`). After a confirmed cancel, only exit code 130 or a
+signal is a cancel (`installOutcome()`).
 
 ## The recipe, live media and validation
 
