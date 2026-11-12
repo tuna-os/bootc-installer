@@ -16,6 +16,55 @@
   },
   "strict": true,
   "failures": 0,
+  "failure_reasons": [],
+  "screen_outcomes": {
+    "welcome": {
+      "required": true,
+      "evidence": [
+        "01-welcome"
+      ],
+      "outcome": "passed"
+    },
+    "disk": {
+      "required": true,
+      "evidence": [
+        "04-disk"
+      ],
+      "outcome": "passed"
+    },
+    "encryption": {
+      "required": false,
+      "evidence": [
+        "05-encryption"
+      ],
+      "outcome": "passed"
+    },
+    "summary": {
+      "required": true,
+      "evidence": [
+        "07-confirm"
+      ],
+      "outcome": "passed"
+    },
+    "install": {
+      "required": false,
+      "evidence": [
+        "08-progress",
+        "12-cancel-confirm"
+      ],
+      "outcome": "passed"
+    },
+    "done": {
+      "required": false,
+      "evidence": [
+        "09-done",
+        "10-recovery",
+        "11-tour"
+      ],
+      "outcome": "passed"
+    }
+  },
+  "contract_digest": "ce5bcf532ef301196a6a740a9d29a1a88c963ad19b8911f538be482092b67dff",
   "source": "offscreen-capture",
   "harness": "tests/gui/capture-screens.py (QML via PyQt6, offscreen)",
   "text_source": "widget-tree",
@@ -104,10 +153,10 @@
       "name": "02-session",
       "png": "docs/screenshots/02-session.png",
       "rendered": true,
-      "colours": 410,
-      "flat": 0.6247,
-      "ink": 0.026266666666666667,
-      "stddev": 0.09779041921278185,
+      "colours": 407,
+      "flat": 0.6247666666666667,
+      "ink": 0.026233333333333334,
+      "stddev": 0.09781479077080661,
       "text_excerpt": "Step 2 of 9 \u00b7 Session Session Keyboard, language and time zone for the installed system. This computer keeps its own. Keyboard and language Keyboard us Language en_US.UTF-8 Timezone Europe/Berlin Network Connected \u2014 downloads will work. Rec"
     },
     {
@@ -117,37 +166,37 @@
       "colours": 497,
       "flat": 0.5597333333333333,
       "ink": 0.1155,
-      "stddev": 0.1152965279548122,
+      "stddev": 0.11528884652927622,
       "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Capture Desktop \u203a Edge ghcr.io/exa"
     },
     {
       "name": "04-disk",
       "png": "docs/screenshots/04-disk.png",
       "rendered": true,
-      "colours": 484,
-      "flat": 0.6199333333333333,
-      "ink": 0.11003333333333333,
-      "stddev": 0.10557607011149404,
+      "colours": 481,
+      "flat": 0.62,
+      "ink": 0.11,
+      "stddev": 0.10559852017409473,
       "text_excerpt": "Step 4 of 9 \u00b7 Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  \u00b7  465.8 GiB  \u00b7  SATA Extreme SSD /dev/sdc  \u00b7  931.5 GiB  \u00b7  USB Cruzer Blade /dev/sdd  \u00b7  59.6 GiB  \u00b7  USB WD_"
     },
     {
       "name": "05-encryption",
       "png": "docs/screenshots/05-encryption.png",
       "rendered": true,
-      "colours": 521,
-      "flat": 0.4215333333333333,
-      "ink": 0.2012,
-      "stddev": 0.11963561917385698,
+      "colours": 518,
+      "flat": 0.4216,
+      "ink": 0.20116666666666666,
+      "stddev": 0.11965789715750128,
       "text_excerpt": "Step 5 of 9 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
       "name": "06-account",
       "png": "docs/screenshots/06-account.png",
       "rendered": true,
-      "colours": 346,
-      "flat": 0.5258333333333334,
-      "ink": 0.030633333333333332,
-      "stddev": 0.10060174578702649,
+      "colours": 343,
+      "flat": 0.5259,
+      "ink": 0.0306,
+      "stddev": 0.10062666352517599,
       "text_excerpt": "Step 6 of 9 \u00b7 Account Your account The account you sign in with. It can administer this computer. Account Username alex Full name Alex Example Password capture Password again capture Show passwords Show passwords Back Back Continue Continue"
     },
     {
@@ -177,7 +226,7 @@
       "colours": 308,
       "flat": 0.9346666666666666,
       "ink": 0.0248,
-      "stddev": 0.09609967421521785,
+      "stddev": 0.09608996349971945,
       "text_excerpt": "Step 9 of 9 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation. Take a "
     },
     {
@@ -214,10 +263,10 @@
       "name": "13-cancelled",
       "png": "docs/screenshots/13-cancelled.png",
       "rendered": true,
-      "colours": 203,
-      "flat": 0.9648333333333333,
-      "ink": 0.0125,
-      "stddev": 0.06889365344625271,
+      "colours": 200,
+      "flat": 0.9649,
+      "ink": 0.012466666666666666,
+      "stddev": 0.06892338031392593,
       "text_excerpt": "Step 9 of 9 \u00b7 Done \u2013 Installation cancelled You stopped the installer. The disk can be in an incomplete state: start the installer again before you use it. Close Close"
     },
     {
@@ -233,18 +282,18 @@
   ],
   "transition_pixels": [
     143775,
-    173911,
-    74298,
-    99802,
-    241992,
-    132379,
+    173889,
+    74304,
+    99790,
+    241980,
+    132357,
     86043,
     266722,
     69018,
     133012,
     59132,
     86158,
-    152439
+    152431
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
