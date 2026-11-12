@@ -439,6 +439,138 @@ pub fn receipt_lines(receipt: Option<&Value>) -> Vec<(String, String)> {
     lines
 }
 
+/// A byte count or a time in ms: a whole number >= 0, else null.
+fn count(v: Option<&Value>) -> Value {
+    v.and_then(Value::as_u64).map_or(Value::Null, Value::from)
+}
+
+fn gib(bytes: u64) -> String {
+    format!("{:.1}", bytes as f64 / (1u64 << 30) as f64)
+}
+
+fn is_code(s: &str) -> bool {
+    matches(s, |b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_', 64)
+}
+
+/// fisherman's `source_reuse` events (#267): the copy of this computer's
+/// system before the first step, as `bootc_shared.progress.source_reuse_of()`
+/// keeps it. `view` is the one before this event, None before the first.
+pub fn source_reuse_of(event: &Value, view: Option<&Value>) -> Option<Value> {
+    let mut out = match view {
+        Some(v) if v.is_object() => v.clone(),
+        _ => json!({"phase": "", "required_bytes": null, "destination_digest": "", "copy_ms": null,
+                    "used_bytes": null, "code": "", "released": "", "destination": ""}),
+    };
+    if event.get("version").and_then(Value::as_i64) != Some(1) || event.get("version").is_some_and(Value::is_f64) {
+        out["phase"] = json!("unreadable");
+        return Some(out);
+    }
+    let phase = str_of(event.get("phase"));
+    if !matches!(phase, "planned" | "copying" | "verified" | "failed" | "released") {
+        return view.cloned();
+    }
+    let destination = str_of(event.get("destination"));
+    if !destination.is_empty() {
+        out["destination"] = json!(destination);
+    }
+    if phase == "released" {
+        let reason = str_of(event.get("reason"));
+        out["released"] = json!(if matches!(reason, "removed" | "remove_failed") { reason } else { "unknown" });
+        return Some(out);
+    }
+    out["phase"] = json!(phase);
+    let estimate = obj(event.get("estimate"));
+    if estimate.contains_key("required_bytes") {
+        out["required_bytes"] = count(estimate.get("required_bytes"));
+    }
+    if phase == "verified" {
+        let digest = str_of(event.get("destination_digest"));
+        let ok = digest.strip_prefix("sha256:").is_some_and(|h| {
+            h.len() == 64 && h.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        });
+        out["destination_digest"] = json!(if ok { digest } else { "" });
+        let measured = obj(event.get("measured"));
+        out["copy_ms"] = count(measured.get("copy_ms"));
+        let scratch = measured.get("scratch_peak_bytes").and_then(Value::as_u64);
+        let store = measured.get("store_peak_bytes").and_then(Value::as_u64);
+        out["used_bytes"] = match (scratch, store) {
+            (Some(a), Some(b)) if estimate.get("same_filesystem") == Some(&Value::Bool(false)) => json!(a + b),
+            (Some(a), Some(b)) => json!(a.max(b)),
+            _ => Value::Null,
+        };
+    }
+    if phase == "failed" {
+        let code = str_of(event.get("code"));
+        out["code"] = json!(if is_code(code) { code } else { "" });
+    }
+    Some(out)
+}
+
+/// The progress page's copy keys for the copy, with the `{value}` of each:
+/// `bootc_shared.progress.source_reuse_lines()`.
+pub fn source_reuse_lines(view: Option<&Value>) -> Vec<(String, String)> {
+    let mut lines = Vec::new();
+    let Some(v) = view.filter(|v| v.is_object()) else {
+        return lines;
+    };
+    let key = |k: &str| format!("{}{k}", "progress_reuse_");
+    let phase = str_of(v.get("phase"));
+    let space = v.get("required_bytes").and_then(Value::as_u64).map(|b| (key("planned"), gib(b)));
+    match phase {
+        "unreadable" => lines.push((key("unreadable"), String::new())),
+        "planned" | "copying" => {
+            lines.push(space.clone().unwrap_or((key("planned_unknown"), String::new())));
+            if phase == "copying" {
+                lines.push((key("copying"), String::new()));
+            }
+        }
+        "verified" => {
+            lines.push((key("verified"), String::new()));
+            let digest = str_of(v.get("destination_digest"));
+            if !digest.is_empty() {
+                lines.push((key("verified_digest"), digest.to_string()));
+            }
+            if let Some(ms) = v.get("copy_ms").and_then(Value::as_u64) {
+                lines.push((key("measured_time"), ((ms + 500) / 1000).to_string()));
+            }
+            if let Some(b) = v.get("used_bytes").and_then(Value::as_u64) {
+                lines.push((key("measured_space"), gib(b)));
+            }
+        }
+        "failed" => {
+            if let Some(space) = space {
+                lines.push(space);
+            }
+            let failed = str_of(v.get("code"))
+                .strip_prefix("source_reuse_")
+                .map(|c| key(&format!("failed_{c}")))
+                .filter(|k| crate::branding::is_contract_key(k));
+            lines.push((failed.unwrap_or_else(|| key("failed_unknown")), String::new()));
+        }
+        _ => {}
+    }
+    let released = str_of(v.get("released"));
+    if !released.is_empty() {
+        let destination = str_of(v.get("destination"));
+        let destination = destination.strip_prefix("containers-storage:").unwrap_or(destination);
+        let value = if released == "remove_failed" { destination.to_string() } else { String::new() };
+        lines.push((key(&format!("released_{released}")), value));
+    }
+    lines
+}
+
+/// Whether a cancel now stops only the copy and leaves the disk as it was:
+/// `bootc_shared.progress.copy_cancel()`. `step` is the current step, 0
+/// before the first.
+pub fn copy_cancel(view: Option<&Value>, step: u64) -> bool {
+    let Some(v) = view.filter(|v| v.is_object()) else {
+        return false;
+    };
+    step == 0
+        && matches!(str_of(v.get("phase")), "planned" | "copying" | "verified")
+        && str_of(v.get("released")).is_empty()
+}
+
 /// The item of this computer's bootc storage that the install may copy
 /// instead of a download (#267): `bootc_shared.source_check.reuse_source()`.
 /// `output` is the plain probe's stdout, `update_ref` the recipe's
@@ -658,6 +790,30 @@ mod tests {
                 .map(|(key, value)| json!({"key": key, "value": value}))
                 .collect();
             assert_eq!(Value::Array(lines), case["done_lines"], "{name}");
+        }
+    }
+
+    /// shared/progress/source-reuse-cases.json (#267): the copy before the
+    /// first step, its lines and the cancel question, through the progress
+    /// parser. The copy never moves the bar.
+    #[test]
+    fn the_shared_source_reuse_progress_cases() {
+        let all = cases(shared().join("progress/source-reuse-cases.json"));
+        assert!(all.len() >= 15);
+        for case in all {
+            let name = case["name"].as_str().unwrap();
+            let mut p = crate::progress::Progress::new("ExampleOS");
+            for (i, (event, want)) in case["events"].as_array().unwrap().iter().zip(case["bar"].as_array().unwrap()).enumerate() {
+                p.consume(&event.to_string());
+                assert!((p.fraction - want.as_f64().unwrap() as f32).abs() < 1e-5, "{name} event {i}");
+            }
+            assert_eq!(p.source_reuse.clone().unwrap_or(Value::Null), case["source_reuse"], "{name}");
+            let lines: Vec<Value> = source_reuse_lines(p.source_reuse.as_ref())
+                .into_iter()
+                .map(|(key, value)| json!({"key": key, "value": value}))
+                .collect();
+            assert_eq!(Value::Array(lines), case["lines"], "{name}");
+            assert_eq!(copy_cancel(p.source_reuse.as_ref(), p.step), case["copy_cancel"].as_bool().unwrap(), "{name}");
         }
     }
 

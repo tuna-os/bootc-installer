@@ -1392,13 +1392,37 @@ pub fn exit_confirm(app: &TunaInstaller) -> Element<'_, Message> {
 
 /// The progress page's Cancel asks first (#299): a stray click must not
 /// stop a disk write half-way. The safe button is the plain one.
-pub fn cancel_confirm(_app: &TunaInstaller) -> Element<'_, Message> {
+pub fn cancel_confirm(app: &TunaInstaller) -> Element<'_, Message> {
     question(
         tr(CANCEL_TITLE),
-        tr(CANCEL_BODY),
+        cancel_body(app),
         (tr(CANCEL_KEEP), Message::DismissCancelInstall),
         (tr(CANCEL_CONFIRM), Message::ConfirmCancelInstall),
     )
+}
+
+/// The cancel question's body. During the copy of this computer's system
+/// the disk has not changed yet (#267): `progress_reuse_cancel` says so.
+fn cancel_body(app: &TunaInstaller) -> String {
+    let progress = app.progress();
+    if crate::source_check::copy_cancel(progress.source_reuse.as_ref(), progress.step) {
+        let line = t_line("progress_reuse_cancel");
+        if !line.is_empty() {
+            return line;
+        }
+    }
+    tr(CANCEL_BODY)
+}
+
+/// The progress page's lines for the copy of this computer's system before
+/// the first step (#267): fisherman's `source_reuse` events, through the
+/// copy keys. Empty on every other install.
+pub fn source_reuse_text(progress: &crate::progress::Progress) -> Vec<String> {
+    crate::source_check::source_reuse_lines(progress.source_reuse.as_ref())
+        .into_iter()
+        .map(|(key, value)| t_line(&key).replace("{value}", &value))
+        .filter(|line| !line.is_empty())
+        .collect()
 }
 
 fn welcome(app: &TunaInstaller) -> Element<'_, Message> {
@@ -1916,6 +1940,11 @@ fn installing(app: &TunaInstaller) -> Element<'_, Message> {
             ))
             .into(),
         );
+    }
+
+    let reuse = source_reuse_text(progress);
+    if !reuse.is_empty() {
+        children.push(widget::text::caption(reuse.join("\n")).into());
     }
 
     let body = widget::column::with_children({

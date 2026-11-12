@@ -46,6 +46,10 @@ pub struct Progress {
     /// `receipt` event as `source_check::receipt_of` reads it, `None`
     /// before one (#269, shared/progress/receipt-cases.json).
     pub receipt: Option<Value>,
+    /// The copy of this computer's system before the first step: the
+    /// `source_reuse` events as `source_check::source_reuse_of` keeps them,
+    /// `None` before one (#267, shared/progress/source-reuse-cases.json).
+    pub source_reuse: Option<Value>,
     cumulative_pct: f32,
     weight_pct: f32,
     /// How far through the current step the bar is, 0-1. Never decreases
@@ -116,6 +120,7 @@ impl Progress {
             recovery_key: String::new(),
             error: None,
             receipt: None,
+            source_reuse: None,
             cumulative_pct: 0.0,
             weight_pct: 0.0,
             step_frac: 0.0,
@@ -242,6 +247,17 @@ impl Progress {
                     field: str_field("field").to_string(),
                 });
                 Some(format!("ERROR: {}", str_field("message")))
+            }
+            "source_reuse" => {
+                // The copy before the first step. It moves no bar: the bar
+                // means nothing until fisherman's first step.
+                self.source_reuse = crate::source_check::source_reuse_of(&event, self.source_reuse.as_ref());
+                let code = str_field("code");
+                Some(if code.is_empty() {
+                    format!("Source reuse: {}", str_field("phase"))
+                } else {
+                    format!("Source reuse: {} ({code})", str_field("phase"))
+                })
             }
             "receipt" => {
                 // It moves no bar and decides no outcome; the done page
