@@ -14,12 +14,16 @@ on:
     paths:
       - "frontends/niri/installer/**"
       - "frontends/niri/ui/**"
+      - "frontends/niri/i18n/**"
+      - "frontends/niri/translations/**"
       - "shared/**"
       - ".github/workflows/ci-niri.yml"
   pull_request:
     paths:
       - "frontends/niri/installer/**"
       - "frontends/niri/ui/**"
+      - "frontends/niri/i18n/**"
+      - "frontends/niri/translations/**"
       - "shared/**"
       - ".github/workflows/ci-niri.yml"
   workflow_dispatch:
@@ -64,3 +68,33 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+  # The catalog Quickshell cannot load by itself (#300): the .qm files and
+  # the TunaInstaller.Translations QML module of translations/, and the test
+  # that the shipped French catalog loads and translates a qsTr() binding.
+  translations:
+    name: Translations (niri)
+    runs-on: ubuntu-24.04
+    container: quay.io/fedora/fedora:45
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontends/niri
+    steps:
+      - name: install Qt6 and Qt Linguist
+        working-directory: /
+        run: |
+          dnf -y install --setopt=install_weak_deps=False \
+            git cmake ninja-build gcc-c++ \
+            qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qttools-devel qt6-linguist
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: build
+        run: |
+          cmake -S translations -B build -G Ninja -DBUILD_TESTING=ON
+          cmake --build build
+
+      - name: test
+        run: ctest --test-dir build --output-on-failure

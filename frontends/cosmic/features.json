@@ -31,7 +31,7 @@
     "locale_installed": "yes, after a pick: `locale`, `keyboard.layout`, `timezone`",
     "cancel_install": "Cancel button, asks first; cancelled page",
     "autoinstall": "no",
-    "translatable": "one tr() shim and a lint; template `i18n/template.json`, kept current by a check; no translation ships (#300)",
+    "translatable": "one tr() shim and a lint; template `i18n/template.json`; ships `i18n/fr.json`, loaded for the locale; catalogs kept current by a check (#300)",
     "progress_bar": "yes",
     "source_check": "confirm page, Selected image section; a blocked source holds Install",
     "bootc_store_view": "yes, on the confirm page; the system that this computer runs is a second install source there (experimental, never the default, never on live media)",

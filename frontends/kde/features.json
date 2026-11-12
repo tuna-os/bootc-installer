@@ -31,7 +31,7 @@
     "locale_installed": "yes: `locale`, `keyboard.layout`, `timezone` in the recipe",
     "cancel_install": "Cancel button, asks first; cancelled page",
     "autoinstall": "no",
-    "translatable": "strings marked (qsTr, tr); template `i18n/tuna-installer-kde.ts`, kept current by a check; no translation ships (#300)",
+    "translatable": "strings marked (qsTr, tr); template `i18n/tuna-installer-kde.ts`; CMake compiles `i18n/tuna-installer-kde_fr.ts` to a `.qm` that loads for the locale; catalogs kept current by a check (#300)",
     "progress_bar": "yes",
     "source_check": "confirm step, Selected image card; a blocked source holds Install",
     "bootc_store_view": "yes, on the confirm step; the system that this computer runs is a second install source there (experimental, never the default, never on live media)",

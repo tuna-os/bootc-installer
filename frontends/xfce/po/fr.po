@@ -1,0 +1,257 @@
+# fr translation of the tuna-installer-xfce gettext domain.
+# Written by shared/i18n/catalogs.py; a translator may edit the msgstr lines.
+# The first translations came from the GNOME frontend's po/fr.po;
+# its translators are credited there.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: tuna-installer-xfce\n"
+"PO-Revision-Date: 2024-01-09 21:09+0000\n"
+"Last-Translator: none\n"
+"Language-Team: none\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n > 1;\n"
+
+msgid "Back"
+msgstr "Retour"
+
+msgid "Next"
+msgstr "Suivant"
+
+#, python-brace-format
+msgid "{product} Installer"
+msgstr ""
+
+msgid "The recipe names no installation disk."
+msgstr ""
+
+msgid "fisherman did not accept the recipe."
+msgstr ""
+
+msgid "Not enough memory"
+msgstr ""
+
+msgid "Not enough processing power"
+msgstr ""
+
+msgid "Unsupported firmware"
+msgstr ""
+
+msgid "Continue anyway"
+msgstr ""
+
+msgid "Close"
+msgstr "Fermer"
+
+msgid "Power off"
+msgstr ""
+
+msgid "Copied"
+msgstr ""
+
+msgid "Any progress will be lost."
+msgstr ""
+
+msgid "Restart"
+msgstr "Redémarrer"
+
+msgid "Firmware setup"
+msgstr ""
+
+msgid "Install log"
+msgstr ""
+
+msgid "Log not available."
+msgstr ""
+
+msgid "Copy"
+msgstr ""
+
+msgid "Exit Installer?"
+msgstr ""
+
+msgid "Cancel"
+msgstr "Annuler"
+
+msgid "Exit"
+msgstr ""
+
+msgid "Cancel the installation?"
+msgstr ""
+
+msgid "The installation stops and the disk is left incomplete. You can start again afterwards."
+msgstr ""
+
+msgid "Continue installing"
+msgstr ""
+
+msgid "Cancel installation"
+msgstr ""
+
+msgid "What do you want to install?"
+msgstr ""
+
+msgid "Disk encryption"
+msgstr ""
+
+msgid "Name this computer"
+msgstr ""
+
+msgid "Keep the image's setting"
+msgstr ""
+
+msgid "No network connection. The selected image must be downloaded. Open Network settings to connect, then press Recheck; or go back and choose an image marked [available offline]."
+msgstr ""
+
+msgid "No network settings tool was found on this system. Connect with the network icon of the panel, then press Recheck."
+msgstr ""
+
+msgid "Show"
+msgstr ""
+
+msgid "Hide"
+msgstr ""
+
+msgid "Search images"
+msgstr ""
+
+#, python-brace-format
+msgid "Where should {product} be installed?"
+msgstr ""
+
+msgid "The passwords do not match."
+msgstr ""
+
+msgid "Checking network connection…"
+msgstr ""
+
+msgid "Choose an image to continue."
+msgstr ""
+
+msgid "Advanced"
+msgstr "Avancé"
+
+msgid "Create btrfs subvolumes (@, @home, @snapshots)"
+msgstr ""
+
+msgid "Your account"
+msgstr ""
+
+msgid "Language, keyboard and time zone"
+msgstr ""
+
+msgid "Network settings"
+msgstr ""
+
+msgid "Recheck"
+msgstr ""
+
+msgid "this live system"
+msgstr ""
+
+msgid "Target disk"
+msgstr ""
+
+msgid "Filesystem"
+msgstr ""
+
+msgid "Encryption"
+msgstr ""
+
+msgid "Hostname"
+msgstr ""
+
+msgid "Image"
+msgstr ""
+
+msgid "View install log"
+msgstr ""
+
+#, python-brace-format
+msgid ""
+"This assistant installs {product} on this computer.\n"
+"\n"
+"You'll choose what to install and where; nothing is written to any disk until you confirm on the final step."
+msgstr ""
+
+msgid "(this system)"
+msgstr ""
+
+msgid "No image catalog found and this is not a live system. Check that fisherman's images.json is installed."
+msgstr ""
+
+msgid "Passphrase"
+msgstr ""
+
+msgid "Confirm"
+msgstr ""
+
+msgid "Username"
+msgstr "Nom d'utilisateur"
+
+msgid "Full name"
+msgstr ""
+
+msgid "Password"
+msgstr "Mot de passe"
+
+msgid "Confirm password"
+msgstr ""
+
+msgid "Language"
+msgstr "Langue"
+
+msgid "Keyboard"
+msgstr "Clavier"
+
+msgid "Time zone"
+msgstr ""
+
+msgid "the selected disk"
+msgstr ""
+
+msgid "Updates from"
+msgstr ""
+
+msgid "User"
+msgstr ""
+
+msgid "Restart now"
+msgstr ""
+
+msgid "No disk of at least 50 GiB was found. Connect one to install to."
+msgstr ""
+
+#, python-brace-format
+msgid "Everything on {title} ({path}) will be erased."
+msgstr ""
+
+#, python-brace-format
+msgid ""
+"You stopped the installation. The target disk holds an incomplete system: start the installer again to use it.\n"
+"\n"
+"Full log: {path}"
+msgstr ""
+
+#, python-brace-format
+msgid ""
+"The last lines of the install log:\n"
+"\n"
+"{log}\n"
+"\n"
+"Full log: {path}"
+msgstr ""
+
+msgid "[available offline]"
+msgstr ""
+
+#, python-brace-format
+msgid "Could not detect disks: {error}"
+msgstr ""
+
+#, python-brace-format
+msgid "{current} of {total}"
+msgstr ""

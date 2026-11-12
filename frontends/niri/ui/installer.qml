@@ -17,6 +17,7 @@ import Quickshell
 import Quickshell.Io
 import "."
 import "progress.js" as BarMath
+import "i18n.js" as I18n
 
 ApplicationWindow {
     id: root
@@ -237,6 +238,33 @@ ApplicationWindow {
             validate_custom_mount_not_persistable: "The installed system cannot mount this partition there. Use a folder below /var, or /home.",
             validate_image_invalid: "The image name has a space, a line break or another hidden character, or starts with a dash. Choose the image again.",
             validate_target_imgref_invalid: "The image that updates come from has a space, a line break or another hidden character, or starts with a dash. Choose the image again.",
+            validate_image_not_found: "The registry does not have this image or this tag. Check the name and the tag, or choose another image.",
+            validate_image_source_unauthorized: "The registry refused access to the image. Log in on this computer, or check the name.",
+            validate_image_source_unreachable: "The registry did not answer. Connect to the network, or choose an image that is on this computer.",
+            validate_image_inspect_failed: "The installer could not read the image's details. The install log has the reason.",
+            validate_image_inspect_malformed: "The registry gave an answer the installer cannot use. The install log has the details.",
+            validate_image_platform_mismatch: "This image is not built for this computer's processor. Choose the image built for it.",
+            validate_image_not_bootc: "This image is not a bootable system image. Choose another image.",
+            validate_selinux_workaround_unavailable: "This install needs a C compiler on this computer, and there is none. Install one, or install from a computer without SELinux.",
+            validate_unknown: "The installation stopped. The install log has the reason.",
+            validate_cancelled: "The installation was cancelled.",
+            validate_lock_failed: "The installer could not make sure that it is the only install running. Restart the computer and try again.",
+            validate_local_source_unavailable: "The installer could not read the system image on this computer.",
+            validate_manual_layout_failed: "A partition of your layout could not be formatted or mounted.",
+            validate_partition_failed: "The disk could not be partitioned.",
+            validate_format_failed: "A filesystem could not be made on the disk.",
+            validate_luks_failed: "The disk encryption could not be set up.",
+            validate_zfs_failed: "The ZFS pool could not be created or mounted.",
+            validate_mount_failed: "A filesystem on the new disk could not be mounted.",
+            validate_scratch_failed: "The installer could not prepare its working space on the disk.",
+            validate_pull_failed: "The system image could not be downloaded. Check the network connection and try again.",
+            validate_bootc_install_failed: "The system could not be written to the disk.",
+            validate_retag_failed: "The new system's partition could not be marked for start-up.",
+            validate_persistent_mounts_failed: "The new system's mount settings could not be written.",
+            validate_hostname_failed: "The computer name could not be written to the new system.",
+            validate_user_failed: "The user account could not be created.",
+            validate_luks_boot_args_failed: "The start-up settings for the encrypted disk could not be written.",
+            validate_finalize_failed: "The installer could not finish writing the disk.",
             validate_zfs_experimental: "ZFS is experimental. Accept that, or choose a different filesystem.",
             validate_experimental_unsupported: "The installer asked for an experimental feature that this version does not know.",
             validate_locale_invalid: "This language is not a valid locale name. Choose another language.",
@@ -757,7 +785,13 @@ ApplicationWindow {
     // logPath, named on the progress page next to its Copy button.
     property string logPath: ""
 
-    Component.onCompleted: detectProc.running = true
+    // The Qt catalog for the locale, or null where none loads (i18n.js).
+    property QtObject catalog: null
+
+    Component.onCompleted: {
+        root.catalog = I18n.createCatalog(root, Qt.resolvedUrl("installer.qml"))
+        detectProc.running = true
+    }
 
     // Readiness stamp — see ../installer/readiness.go.
     //

@@ -121,7 +121,10 @@ format of that toolkit: a Qt `.ts` file, a gettext `.pot` file, or the JSON
 catalog of COSMIC. `templates.py` writes the templates from the sources, and
 `tests/unit/test_frontend_translation_templates.py` fails when one is out of
 date. A new frontend adds a target to `templates.py` and a lint that fails
-on a bare string. See [i18n/README.md](i18n/README.md).
+on a bare string. `catalogs.py` writes the catalog of a language for each
+frontend from its template and from `po/` of GNOME, and
+`tests/unit/test_frontend_translation_catalogs.py` fails when a catalog is
+out of date. Each frontend ships French. See [i18n/README.md](i18n/README.md).
 
 ## `network/`
 

@@ -32,7 +32,6 @@ The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 | #295 | The account password has no reveal toggle |
 | #298 | The Flatpak cannot see a host catalog in `/etc/bootc-installer` |
 | #290 | The Flatpak builds fisherman, but does not stage it or verify its SHA256 |
-| #300 | The frontend has no translatable strings |
 | #301 | The connectivity check does not block, and it probes a different host |
 | #299 | Cancel does not ask first, and the result page reports a cancel as a failure |
 | #288 | The default for `needs_user_creation` is not the same in every frontend |
