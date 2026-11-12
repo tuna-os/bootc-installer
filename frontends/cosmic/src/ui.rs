@@ -515,6 +515,16 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             if let Some(problem) = app.region_problem() {
                 t.push(problem.render());
             }
+            let plan = app.plan_rows();
+            if !plan.is_empty() {
+                t.push(t_line("confirm_plan_title"));
+                for (title, detail) in plan {
+                    t.push(title);
+                    if !detail.is_empty() {
+                        t.push(detail);
+                    }
+                }
+            }
             for (title, detail) in reuse_choice(app) {
                 t.push(title);
                 t.push(detail);
@@ -1824,6 +1834,13 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
                 .into(),
         );
     }
+    // fisherman's plan (tuna-os/fisherman#371): the disk the install
+    // writes to, as the disk reports itself, and each device it erases.
+    // Nothing without a plan (an older fisherman, a timeout).
+    let plan = app.plan_rows();
+    if !plan.is_empty() {
+        parts.push(rows_section(t_line("confirm_plan_title"), plan));
+    }
     // The install source (#267): download the image (the default), or copy
     // the system that this computer runs from its bootc storage. Only when
     // the probe has an item that qualifies; never on live media.
@@ -1861,15 +1878,7 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
     // check's state and reason, and this computer's bootc storage (#267).
     let rows = app.source_rows();
     if !rows.is_empty() {
-        let mut section = widget::settings::section().title(tr(CONFIRM_SELECTED_IMAGE));
-        for (title, subtitle) in rows {
-            let mut item = widget::column::with_children(vec![widget::text::body(title).into()]);
-            if !subtitle.is_empty() {
-                item = item.push(widget::text::caption(subtitle));
-            }
-            section = section.add(widget::settings::item_row(vec![item.into()]));
-        }
-        parts.push(section.into());
+        parts.push(rows_section(tr(CONFIRM_SELECTED_IMAGE), rows));
     }
     let tagline = t_line("confirm_body");
     if !tagline.is_empty() {
@@ -1889,6 +1898,20 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
             (!app.source_blocked()).then(|| (t_line("confirm_button"), Message::StartInstall, true)),
         ),
     )
+}
+
+/// A settings section of `(title, subtitle)` rows; a row with no subtitle
+/// has one line.
+fn rows_section<'a>(title: String, rows: Vec<(String, String)>) -> Element<'a, Message> {
+    let mut section = widget::settings::section().title(title);
+    for (title, subtitle) in rows {
+        let mut item = widget::column::with_children(vec![widget::text::body(title).into()]);
+        if !subtitle.is_empty() {
+            item = item.push(widget::text::caption(subtitle));
+        }
+        section = section.add(widget::settings::item_row(vec![item.into()]));
+    }
+    section.into()
 }
 
 fn installing(app: &TunaInstaller) -> Element<'_, Message> {

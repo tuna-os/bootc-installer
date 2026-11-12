@@ -13,6 +13,7 @@ mod capture;
 mod model;
 mod readiness;
 mod source_check;
+mod plan;
 mod offline;
 mod probe;
 mod progress;
@@ -341,6 +342,9 @@ pub enum Message {
     /// `.0` (#266, #267): the request and the probe's stdout, or None when
     /// it failed. An answer for an older check is dropped.
     SourceChecked(u64, source_check::Request, Option<String>),
+    /// `fisherman plan --json -` answered for plan number `.0`
+    /// (tuna-os/fisherman#371). An answer for an older plan is dropped.
+    Planned(u64, Result<plan::Answer, String>),
     /// The confirm page's install source: true is this computer's system
     /// from its bootc storage, false the download (#267).
     ReuseSelected(bool),
@@ -460,6 +464,11 @@ pub struct TunaInstaller {
     reuse_source: Option<serde_json::Value>,
     reuse_selected: bool,
     source_visible: bool,
+    /// The install plan (tuna-os/fisherman#371): the number of the latest
+    /// request, and fisherman's plan for it when it gave a valid one. With
+    /// no plan the confirm page is as before and the install is not bound.
+    plan_seq: u64,
+    plan: Option<serde_json::Value>,
     recipe: Recipe,
     disks: Vec<DiskInfo>,
     selected_disk: Option<usize>,
@@ -994,7 +1003,7 @@ impl TunaInstaller {
                 self.tour_index = 0;
                 Task::none()
             }
-            Page::Confirm => self.check_source(),
+            Page::Confirm => Task::batch([self.check_source(), self.check_plan()]),
             _ => Task::none(),
         }
     }
@@ -1022,6 +1031,62 @@ impl TunaInstaller {
             },
             move |out| cosmic::action::app(Message::SourceChecked(seq, req.clone(), out)),
         )
+    }
+
+    /// Asks fisherman for the plan of the recipe the install will use, off
+    /// the UI thread. The recipe goes to fisherman on stdin (plan.rs). No
+    /// plan of an earlier visit or source can bind the install.
+    fn check_plan(&mut self) -> Task<Message> {
+        self.plan_seq += 1;
+        self.plan = None;
+        if self.capturing() {
+            return Task::none();
+        }
+        let recipe = self.install_recipe();
+        let seq = self.plan_seq;
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || plan::request(&recipe))
+                    .await
+                    .unwrap_or_else(|e| Err(format!("fisherman plan: {e}")))
+            },
+            move |answer| cosmic::action::app(Message::Planned(seq, answer)),
+        )
+    }
+
+    /// Takes in the answer of plan `seq`. Public to the tests.
+    pub fn apply_plan_reply(&mut self, seq: u64, answer: Result<plan::Answer, String>) {
+        if seq != self.plan_seq {
+            return;
+        }
+        match answer {
+            // An older fisherman has no plan; the page works as before.
+            Err(e) => tracing::info!("no install plan: {e}"),
+            // The field checks name the problem; the install refuses it.
+            Ok(answer) if !answer.valid => {
+                tracing::info!(
+                    "fisherman plan refused the recipe: {}",
+                    answer.codes.join(", ")
+                )
+            }
+            Ok(answer) => self.plan = answer.plan,
+        }
+    }
+
+    /// The rows of the confirm page's install plan section; empty without
+    /// a plan.
+    pub fn plan_rows(&self) -> Vec<(String, String)> {
+        plan::rows(self.plan.as_ref(), &|key, values| {
+            branding::get().text_with(key, values)
+        })
+    }
+
+    /// The recipe that the install gets: `install_recipe()`, bound to the
+    /// disk of the plan on the confirm page (`diskIdentity`), so that
+    /// fisherman refuses another device at that path. Unchanged with no
+    /// plan, a manual layout, or a plan for another disk.
+    pub fn bound_install_recipe(&self) -> serde_json::Value {
+        plan::bind(&self.install_recipe(), self.plan.as_ref())
     }
 
     /// Takes in the reply of source check `seq`. Public to the tests.
@@ -1203,6 +1268,8 @@ impl cosmic::Application for TunaInstaller {
             reuse_source: None,
             reuse_selected: false,
             source_visible: false,
+            plan_seq: 0,
+            plan: None,
             recipe,
             selected_disk: None,
             disks: Vec::new(),
@@ -1592,11 +1659,15 @@ impl cosmic::Application for TunaInstaller {
                 self.apply_source_reply(seq, &req, out.as_deref());
                 Task::none()
             }
+            Message::Planned(seq, answer) => {
+                self.apply_plan_reply(seq, answer);
+                Task::none()
+            }
             Message::ReuseSelected(selected) => {
                 self.reuse_selected = selected && self.reuse_source.is_some();
-                // fisherman checks the pick, and the source check asks
-                // about the new source.
-                Task::batch([self.check_fields(), self.check_source()])
+                // fisherman checks the pick, and the source check and the
+                // plan ask about the new source.
+                Task::batch([self.check_fields(), self.check_source(), self.check_plan()])
             }
             Message::Validated(seq, result) => {
                 if seq == self.validate_seq {
@@ -1703,7 +1774,7 @@ impl cosmic::Application for TunaInstaller {
                 self.cancel_confirmed = false;
                 self.show_cancel_dialog = false;
                 self.progress.reset();
-                let recipe = self.install_recipe();
+                let recipe = self.bound_install_recipe();
                 let pid_slot = self.install_pid.clone();
                 let live = self.live_image.is_some();
                 Task::stream(Self::stream_fisherman(recipe, pid_slot, live).map(cosmic::action::app))
