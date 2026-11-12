@@ -220,7 +220,9 @@ tuna-os/fisherman#371): unprivileged, through the one resolver
 20 s. The page shows the target disk and each device erased through the
 `confirm_plan_*` copy keys. Install sends `bound_install_recipe()`: the
 recipe with the plan's `diskIdentity`, only when the plan is for the
-recipe's disk. Without a plan the page and the recipe are as before.
+recipe's disk, and `planBinding` (the plan's `binding`, `plan::bind`)
+unless the plan is for another disk. Without a plan the page and the
+recipe are as before.
 `cargo test plan` reads fisherman's golden plans.
 
 The confirm page offers the system that this computer runs as a second

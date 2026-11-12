@@ -12,12 +12,15 @@
 //!
 //! A plan is not a permission. The install checks the device again. To make
 //! it refuse a disk that is not the one the user confirmed, the install
-//! recipe gets the plan's identity as `diskIdentity` ([`bind`]). Without a
-//! plan (an older fisherman, a timeout, an invalid recipe) the confirm page
-//! and the recipe are as before.
+//! recipe gets the plan's identity as `diskIdentity` ([`bind`]), and the
+//! plan's `binding` as `planBinding`, so that fisherman refuses an install
+//! whose plan is no longer the one confirmed (`plan_stale`). Without a plan
+//! (an older fisherman, a timeout, an invalid recipe) the confirm page and
+//! the recipe are as before.
 
 use std::time::Duration;
 
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 /// The schema version this reader understands (PLAN.md, "Output").
@@ -168,24 +171,65 @@ pub fn disk_identity(plan: Option<&Value>) -> Map<String, Value> {
     out
 }
 
-/// `recipe` with `diskIdentity` from `plan`, or `recipe` unchanged when the
-/// plan cannot bind it: no plan, a manual layout, no known identity, or a
-/// plan for another disk than the recipe's `disk`.
+/// The recipe's `planBinding` (shared/recipe/fisherman-recipe.schema.json):
+/// `plan.binding.digest`, and `read_image` spelt `readImage` when it is a
+/// boolean (PLAN.md, "plan.binding").
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlanBinding {
+    pub digest: String,
+    #[serde(default, rename = "readImage", skip_serializing_if = "Option::is_none")]
+    pub read_image: Option<bool>,
+}
+
+/// `digest` is `sha256:` and 64 lowercase hex digits, the whole string: the
+/// only digest fisherman accepts back (VALIDATE.md, `plan_binding_invalid`).
+fn is_plan_digest(digest: &str) -> bool {
+    digest.strip_prefix("sha256:").is_some_and(|hex| {
+        hex.len() == 64 && hex.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+    })
+}
+
+/// The recipe's `planBinding` for `plan`, or `None` when the plan has no
+/// binding (a fisherman before it) or its digest is malformed.
+pub fn plan_binding(plan: Option<&Value>) -> Option<PlanBinding> {
+    let binding = plan?.get("binding")?.as_object()?;
+    let digest = binding
+        .get("digest")
+        .and_then(Value::as_str)
+        .filter(|d| is_plan_digest(d))?;
+    Some(PlanBinding {
+        digest: digest.to_string(),
+        read_image: binding.get("read_image").and_then(Value::as_bool),
+    })
+}
+
+/// `recipe` bound to `plan`, or `recipe` unchanged when the plan cannot
+/// bind it. `diskIdentity` is set when the plan knows an identity of the
+/// recipe's `disk` (not for a manual layout, an unknown identity or a plan
+/// for another disk). `planBinding` is set when the plan has a binding and
+/// is not for another disk than the recipe's `disk`.
 pub fn bind(recipe: &Value, plan: Option<&Value>) -> Value {
-    let binding = disk_identity(plan);
+    let mut bound = recipe.clone();
+    if plan.is_none() {
+        return bound;
+    }
     let disk = target(plan)
         .and_then(|t| t.get("disk"))
         .and_then(Value::as_str)
         .unwrap_or("");
-    let mut bound = recipe.clone();
-    if binding.is_empty()
-        || disk.is_empty()
-        || recipe.get("disk").and_then(Value::as_str) != Some(disk)
-    {
+    let recipe_disk = recipe.get("disk").and_then(Value::as_str);
+    let Some(obj) = bound.as_object_mut() else {
         return bound;
+    };
+    let identity_of_disk = disk_identity(plan);
+    if !identity_of_disk.is_empty() && !disk.is_empty() && recipe_disk == Some(disk) {
+        obj.insert("diskIdentity".to_string(), Value::Object(identity_of_disk));
     }
-    if let Some(obj) = bound.as_object_mut() {
-        obj.insert("diskIdentity".to_string(), Value::Object(binding));
+    if let Some(saved) = plan_binding(plan) {
+        if disk.is_empty() || recipe_disk == Some(disk) {
+            let saved = serde_json::to_value(saved).expect("a PlanBinding serializes");
+            obj.insert("planBinding".to_string(), saved);
+        }
     }
     bound
 }
@@ -303,17 +347,22 @@ mod tests {
     use std::path::PathBuf;
 
     const SECRET: &str = "correct-horse-battery-staple";
+    const DIGEST: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
     fn goldens() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../fisherman/fisherman/cmd/fisherman/testdata/plan")
     }
 
-    /// A golden plan, with the fixture directory as /dev; None without the
-    /// fisherman submodule.
+    /// A golden plan, with the fixture directory as /dev and [`DIGEST`]
+    /// where fisherman writes its digest; None without the fisherman
+    /// submodule.
     fn golden(name: &str) -> Option<String> {
         let text = std::fs::read_to_string(goldens().join(format!("{name}.golden"))).ok()?;
-        Some(text.replace("@DIR@", "/dev"))
+        Some(
+            text.replace("@DIR@", "/dev")
+                .replace("@PLAN_DIGEST@", DIGEST),
+        )
     }
 
     fn plan_of(name: &str) -> Option<Value> {
@@ -487,8 +536,16 @@ mod tests {
             if path.extension().and_then(|e| e.to_str()) != Some("golden") {
                 continue;
             }
-            let out = parse(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            let raw = std::fs::read_to_string(&path).unwrap();
+            let out = parse(&raw.replace("@PLAN_DIGEST@", DIGEST)).unwrap();
             assert_eq!(out.plan.is_none(), !out.valid, "{}", path.display());
+            // Every plan fisherman makes has a binding this reader copies.
+            assert_eq!(
+                plan_binding(out.plan.as_ref()).is_some(),
+                out.valid,
+                "{}",
+                path.display()
+            );
             for (title, detail) in rows(out.plan.as_ref(), &text) {
                 assert!(
                     !title.is_empty() && !title.contains('{') && !detail.contains('{'),
@@ -546,6 +603,202 @@ mod tests {
         assert!(bind(&recipe("/dev/sda"), Some(&manual))
             .get("diskIdentity")
             .is_none());
+    }
+
+    /// A plan for `disk` ("" for a manual layout) with `binding`.
+    fn bound_plan(disk: &str, binding: Value) -> Value {
+        let target = if disk.is_empty() {
+            serde_json::json!({})
+        } else {
+            serde_json::json!({"disk": disk, "identity": {"serial": "S1", "size_bytes": 1024}})
+        };
+        serde_json::json!({"target": target, "destroys": [], "binding": binding})
+    }
+
+    #[test]
+    fn the_plan_binding_is_copied_with_read_image_spelt_readimage() {
+        let plan = bound_plan(
+            "/dev/sda",
+            serde_json::json!({"digest": DIGEST, "read_image": true}),
+        );
+        let bound = bind(&recipe("/dev/sda"), Some(&plan));
+        assert_eq!(
+            bound["planBinding"],
+            serde_json::json!({"digest": DIGEST, "readImage": true})
+        );
+        assert_eq!(
+            bound["diskIdentity"],
+            serde_json::json!({"serial": "S1", "sizeBytes": 1024})
+        );
+        let off = bound_plan(
+            "/dev/sda",
+            serde_json::json!({"digest": DIGEST, "read_image": false}),
+        );
+        assert_eq!(
+            bind(&recipe("/dev/sda"), Some(&off))["planBinding"],
+            serde_json::json!({"digest": DIGEST, "readImage": false})
+        );
+    }
+
+    #[test]
+    fn every_golden_binding_is_copied() {
+        let Some(plan) = plan_of("grub2-plain") else {
+            return;
+        };
+        let bound = bind(&recipe("/dev/sda"), Some(&plan));
+        assert_eq!(
+            bound["planBinding"],
+            serde_json::json!({"digest": DIGEST, "readImage": false})
+        );
+    }
+
+    #[test]
+    fn no_plan_binding_when_it_is_absent() {
+        let plan =
+            serde_json::json!({"target": {"disk": "/dev/sda", "identity": {"serial": "S1"}}});
+        let bound = bind(&recipe("/dev/sda"), Some(&plan));
+        assert!(bound.get("planBinding").is_none());
+        // An older fisherman: the disk binding is as before.
+        assert_eq!(bound["diskIdentity"], serde_json::json!({"serial": "S1"}));
+        assert_eq!(plan_binding(None), None);
+        assert_eq!(bind(&recipe("/dev/sda"), None), recipe("/dev/sda"));
+    }
+
+    #[test]
+    fn no_plan_binding_when_it_is_malformed() {
+        let upper = DIGEST.to_uppercase().replace("SHA256", "sha256");
+        let long = format!("{DIGEST}0");
+        let short = &DIGEST[..DIGEST.len() - 1];
+        let padded = format!(" {DIGEST}");
+        for binding in [
+            serde_json::json!(null),
+            serde_json::json!("sha256"),
+            serde_json::json!([DIGEST]),
+            serde_json::json!({}),
+            serde_json::json!({"digest": 7}),
+            serde_json::json!({"digest": ""}),
+            serde_json::json!({"digest": upper}),
+            serde_json::json!({"digest": long}),
+            serde_json::json!({"digest": short}),
+            serde_json::json!({"digest": padded}),
+            serde_json::json!({"digest": DIGEST.replace("sha256:", "sha512:")}),
+            serde_json::json!({"digest": DIGEST.replace("sha256:", "")}),
+        ] {
+            let plan = bound_plan("/dev/sda", binding.clone());
+            assert_eq!(plan_binding(Some(&plan)), None, "{binding}");
+            assert!(
+                bind(&recipe("/dev/sda"), Some(&plan))
+                    .get("planBinding")
+                    .is_none(),
+                "{binding}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_read_image_that_is_not_a_bool_is_left_out() {
+        for read_image in [
+            serde_json::json!("true"),
+            serde_json::json!(1),
+            serde_json::json!(null),
+            serde_json::json!({}),
+        ] {
+            let plan = bound_plan(
+                "/dev/sda",
+                serde_json::json!({"digest": DIGEST, "read_image": read_image}),
+            );
+            assert_eq!(
+                bind(&recipe("/dev/sda"), Some(&plan))["planBinding"],
+                serde_json::json!({"digest": DIGEST}),
+                "{read_image}"
+            );
+        }
+    }
+
+    #[test]
+    fn no_plan_binding_for_a_plan_of_another_disk() {
+        let plan = bound_plan(
+            "/dev/sda",
+            serde_json::json!({"digest": DIGEST, "read_image": true}),
+        );
+        for case in [recipe("/dev/sdb"), recipe("")] {
+            assert_eq!(bind(&case, Some(&plan)), case);
+        }
+    }
+
+    #[test]
+    fn a_manual_layout_gets_the_plan_binding_but_no_disk_identity() {
+        let plan = bound_plan("", serde_json::json!({"digest": DIGEST}));
+        let bound = bind(&recipe(""), Some(&plan));
+        assert_eq!(bound["planBinding"], serde_json::json!({"digest": DIGEST}));
+        assert!(bound.get("diskIdentity").is_none());
+        if let Some(manual) = plan_of("manual") {
+            let bound = bind(&recipe(""), Some(&manual));
+            assert!(bound.get("diskIdentity").is_none());
+            assert_eq!(
+                bound["planBinding"],
+                serde_json::json!({"digest": DIGEST, "readImage": false})
+            );
+        }
+    }
+
+    #[test]
+    fn a_plan_binding_round_trips_through_serde() {
+        for binding in [
+            PlanBinding {
+                digest: DIGEST.to_string(),
+                read_image: Some(true),
+            },
+            PlanBinding {
+                digest: DIGEST.to_string(),
+                read_image: Some(false),
+            },
+            PlanBinding {
+                digest: DIGEST.to_string(),
+                read_image: None,
+            },
+        ] {
+            let text = serde_json::to_string(&binding).unwrap();
+            assert!(!text.contains("read_image"), "{text}");
+            assert_eq!(
+                text.contains("readImage"),
+                binding.read_image.is_some(),
+                "{text}"
+            );
+            assert_eq!(serde_json::from_str::<PlanBinding>(&text).unwrap(), binding);
+        }
+        // The recipe keeps the binding as the schema spells it.
+        let plan = bound_plan(
+            "/dev/sda",
+            serde_json::json!({"digest": DIGEST, "read_image": true}),
+        );
+        let bound = bind(&recipe("/dev/sda"), Some(&plan));
+        let back: PlanBinding = serde_json::from_value(bound["planBinding"].clone()).unwrap();
+        assert_eq!(
+            back,
+            PlanBinding {
+                digest: DIGEST.to_string(),
+                read_image: Some(true)
+            }
+        );
+    }
+
+    #[test]
+    fn the_plan_refusals_have_copy() {
+        for code in ["plan_stale", "plan_binding_invalid"] {
+            let problem = crate::validate::Problem {
+                field: "planBinding.digest".into(),
+                code: code.into(),
+                message: "fisherman's message".into(),
+            };
+            let line = text(&format!("{}{code}", crate::validate::COPY_PREFIX), &[]);
+            assert!(!line.is_empty(), "{code}");
+            assert_eq!(
+                crate::branding::get().text(&format!("{}{code}", crate::validate::COPY_PREFIX)),
+                line
+            );
+            assert_eq!(problem.render(), line, "{code}");
+        }
     }
 
     #[test]
