@@ -156,6 +156,10 @@ The done page says "installed, restart required" and never
 "verified": `done_verification`, then the line for fisherman's `receipt`
 event (`completion.receipt_text()`, #269). `tests/test_source_check.py` and
 `tests/test_navigation.py` cover the pages.
+The progress page shows fisherman's `source_reuse` events for a copy of
+this computer's system (`progress.source_reuse_text()`, #267). The copy
+does not move the bar. During the copy the cancel dialog says
+`progress_reuse_cancel` (`InstallerWindow.cancel_question_body()`).
 
 ## Offline and live-ISO installs
 
