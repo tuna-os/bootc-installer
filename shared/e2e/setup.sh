@@ -148,6 +148,9 @@ if [ -n "${GITHUB_ACTIONS:-}" ]; then
   python3 -c 'import json,sys
 for fields in json.load(open(sys.argv[1]))["frontends"].values():
     for value in fields.values():
+        # A {"sha512_crypt": ...} entry: mask the password it is made from.
+        if isinstance(value, dict):
+            value = value["sha512_crypt"]
         print("::add-mask::" + value)' "$HERE/test-credentials.json"
 fi
 

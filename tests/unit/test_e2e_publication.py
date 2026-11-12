@@ -325,6 +325,23 @@ class PublishedDirectories(unittest.TestCase):
                 self.assertNotIn(sentinel, failure)
 
 
+class SetupMasksTheCredentials(unittest.TestCase):
+    def test_every_credential_is_masked(self):
+        """setup.sh masks each driver value in the job log, a crypt entry
+        by the password it is made from."""
+        with open(os.path.join(REPO, "shared", "e2e", "setup.sh"), encoding="utf-8") as stream:
+            script = stream.read()
+        found = re.search(r"python3 -c '(import json,sys\n.*?)' \"\$HERE/test-credentials.json\"",
+                          script, re.S)
+        self.assertIsNotNone(found)
+        result = subprocess.run([sys.executable, "-c", found.group(1), publish.CREDENTIALS],
+                                capture_output=True, text=True, check=True)
+        masked = {line.removeprefix("::add-mask::") for line in result.stdout.splitlines()}
+        for fields in publish.load_credentials(publish.CREDENTIALS).values():
+            for value in fields.values():
+                self.assertIn(publish.credential_text(value), masked)
+
+
 class WorkflowsUploadOnlyStagedFiles(unittest.TestCase):
     def test_e2e_uploads(self):
         with open(os.path.join(REPO, ".github", "workflows", "e2e.yml")) as stream:
