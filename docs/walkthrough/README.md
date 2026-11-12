@@ -23,7 +23,7 @@ harness does not read its widget text yet) · ⏳ no capture on record.
 
 | Frontend | Pages | Rendered | Transitions | Harness |
 |---|---|---|---|---|
-| GNOME | 14 | 14 | 13 | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
+| GNOME | 13 | 13 | 12 | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
 | KDE Plasma | 10 | 10 | 9 | tests/capture.cpp (Kirigami/QML, offscreen) |
 | COSMIC | 18 | 18 | 17 | src/capture.rs (libcosmic on lavapipe under Xvfb) |
 | Niri | 14 | 14 | 13 | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
@@ -41,16 +41,15 @@ GTK4 / libadwaita (Python). Source: `bootc_installer/`.
 | <img src="gnome/02-language.png" width="360"> | **language** The language of the installed system. <br><sub>Language Select your language Search languages aa_DJ.UTF-8 aa_DJ.UTF-8 aa_DJ.UTF-8 ab_GE.UTF-8 ab_GE.UTF-8 ab_GE.UTF-8 af_ZA.UTF-8 af_ZA.UTF</sub> |
 | <img src="gnome/03-keyboard.png" width="360"> | **keyboard** The keyboard layout, for this session and the installed system. <br><sub>Keyboard Layout Select your preferred keyboard layout Search keyboard layouts Abkhazian (Russia) Abkhazian Abkhazian (Russia) Abkhazian ru+a</sub> |
 | <img src="gnome/04-timezone.png" width="360"> | **timezone** The time zone of the installed system. <br><sub>Date & Time Select your preferred timezone Search timezones Afghanistan Afghanistan Asia Afghanistan Asia Kabul Kabul Asia/Kabul Albania Alb</sub> |
-| <img src="gnome/05-conn-check.png" width="360"> | **conn check** A check that the image registry can be reached. <br><sub>Checking Connection Please wait until the connection check is done</sub> |
-| <img src="gnome/06-image.png" width="360"> | **image** Choose the image to install from the catalog. <br><sub>Choose an Image Select a BootcOS image to install, or enter a custom bootc-compatible image URL. Search images… Capture Desktop Capture Desk</sub> |
-| <img src="gnome/07-qr_companion.png" width="360"> | **qr companion** Optional: scan a QR code and type your account details on your phone. <br><sub>Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR </sub> |
-| <img src="gnome/08-disk.png" width="360"> | **disk** Choose the disk. Nothing is written yet. <br><sub>Computer is not plugged in — connect power before installing Install Location Select the disk where you want to install. All data on the sel</sub> |
-| <img src="gnome/09-encryption.png" width="360"> | **encryption** Full-disk encryption, with or without TPM2. <br><sub>Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You'll type it at every boot. Encrypt this disk You'll type i</sub> |
-| <img src="gnome/10-user.png" width="360"> | **user** Your account and password. <br><sub>Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Conf</sub> |
-| <img src="gnome/11-confirm.png" width="360"> | **confirm** The last screen before anything is written. <br><sub>Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be und</sub> |
-| <img src="gnome/12-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installing TunaOS… Downloading… (47 of 71 parts) 0:00 elapsed 35% Do not power off the computer. Cancel Cancel</sub> |
-| <img src="gnome/13-recovery-key.png" width="360"> | **recovery key** The LUKS recovery key, shown once after an encrypted install. <br><sub>Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere sa</sub> |
-| <img src="gnome/14-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>Capture Desktop is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has chec</sub> |
+| <img src="gnome/05-image.png" width="360"> | **image** Choose the image to install from the catalog. <br><sub>Choose an Image Select a BootcOS image to install, or enter a custom bootc-compatible image URL. Search images… Capture Desktop Capture Desk</sub> |
+| <img src="gnome/06-qr_companion.png" width="360"> | **qr companion** Optional: scan a QR code and type your account details on your phone. <br><sub>Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR </sub> |
+| <img src="gnome/07-disk.png" width="360"> | **disk** Choose the disk. Nothing is written yet. <br><sub>Computer is not plugged in — connect power before installing Install Location Select the disk where you want to install. All data on the sel</sub> |
+| <img src="gnome/08-encryption.png" width="360"> | **encryption** Full-disk encryption, with or without TPM2. <br><sub>Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You'll type it at every boot. Encrypt this disk You'll type i</sub> |
+| <img src="gnome/09-user.png" width="360"> | **user** Your account and password. <br><sub>Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Conf</sub> |
+| <img src="gnome/10-confirm.png" width="360"> | **confirm** The last screen before anything is written. <br><sub>Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be und</sub> |
+| <img src="gnome/11-progress.png" width="360"> | **progress** The install, step by step. <br><sub>Installing TunaOS… Downloading… (47 of 71 parts) 0:00 elapsed 35% Do not power off the computer. Cancel Cancel</sub> |
+| <img src="gnome/12-recovery-key.png" width="360"> | **recovery key** The LUKS recovery key, shown once after an encrypted install. <br><sub>Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere sa</sub> |
+| <img src="gnome/13-done.png" width="360"> | **done** Finished. Restart into the new system. <br><sub>Capture Desktop is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has chec</sub> |
 
 ## KDE Plasma
 
@@ -185,10 +184,12 @@ Image:       ghcr.io/example/o</sub> |
 [</sub> |
 | <img src="xfce/08-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer.
 
-The new system has not started yet, so nothing has checked it. </sub> |
+The new system has not started yet, so nothing has checked it.
+</sub> |
 | <img src="xfce/09-recovery.png" width="360"> | **recovery**  <br><sub>TunaOS is installed Remove the installation media and restart the computer.
 
-The new system has not started yet, so nothing has checked it. </sub> |
+The new system has not started yet, so nothing has checked it.
+</sub> |
 | <img src="xfce/10-cancelled.png" width="360"> | **cancelled**  <br><sub>Installation cancelled You stopped the installation. The target disk holds an incomplete system: start the installer again to use it.
 
 Full </sub> |

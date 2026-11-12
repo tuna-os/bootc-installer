@@ -1,9 +1,9 @@
 {
   "flavor": "gnome",
-  "frames": 14,
-  "rendered_frames": 14,
-  "advanced_transitions": 13,
-  "visual_states": 14,
+  "frames": 13,
+  "rendered_frames": 13,
+  "advanced_transitions": 12,
+  "visual_states": 13,
   "activation_key": null,
   "ocr": false,
   "screens": {
@@ -66,12 +66,10 @@
       "required": false,
       "reached": true,
       "on_pages": [
-        "conn-check",
         "progress"
       ],
       "matched_keywords": [
-        "do not power off",
-        "please wait"
+        "do not power off"
       ]
     },
     "done": {
@@ -102,9 +100,9 @@
       "png": "docs/screenshots/02-language.png",
       "rendered": true,
       "colours": 222,
-      "flat": 0.6471805006587615,
-      "ink": 0.016337285902503294,
-      "stddev": 0.09588317855923513,
+      "flat": 0.6472595520421608,
+      "ink": 0.01635046113306983,
+      "stddev": 0.09586593590764148,
       "text_excerpt": "Language Select your language Search languages aa_DJ.UTF-8 aa_DJ.UTF-8 aa_DJ.UTF-8 ab_GE.UTF-8 ab_GE.UTF-8 ab_GE.UTF-8 af_ZA.UTF-8 af_ZA.UTF-8 af_ZA.UTF-8 ak_GH.UTF-8 ak_GH.UTF-8 ak_GH.UTF-8 am_ET.UTF-8 am_ET.UTF-8 am_ET.UTF-8 an_ES.UTF-8 a"
     },
     {
@@ -112,9 +110,9 @@
       "png": "docs/screenshots/03-keyboard.png",
       "rendered": true,
       "colours": 231,
-      "flat": 0.6415546772068511,
-      "ink": 0.020790513833992094,
-      "stddev": 0.10693807030741888,
+      "flat": 0.6416337285902504,
+      "ink": 0.02080368906455863,
+      "stddev": 0.10691894029226014,
       "text_excerpt": "Keyboard Layout Select your preferred keyboard layout Search keyboard layouts Abkhazian (Russia) Abkhazian Abkhazian (Russia) Abkhazian ru+ab Akan Akan Akan Akan gh+akan Albanian Albanian Albanian Albanian al Albanian (Plisi) Albanian Alban"
     },
     {
@@ -122,84 +120,74 @@
       "png": "docs/screenshots/04-timezone.png",
       "rendered": true,
       "colours": 234,
-      "flat": 0.6811067193675889,
+      "flat": 0.6811725955204216,
       "ink": 0.01868247694334651,
-      "stddev": 0.09419814727010475,
+      "stddev": 0.09417301509967085,
       "text_excerpt": "Date & Time Select your preferred timezone Search timezones Afghanistan Afghanistan Asia Afghanistan Asia Kabul Kabul Asia/Kabul Albania Albania Europe Albania Europe Tirane Tirane Europe/Tirane Algeria Algeria Africa Algeria Africa Algiers"
     },
     {
-      "name": "conn-check",
-      "png": "docs/screenshots/05-conn-check.png",
-      "rendered": true,
-      "colours": 183,
-      "flat": 0.9636890645586298,
-      "ink": 0.009631093544137022,
-      "stddev": 0.0703090780565034,
-      "text_excerpt": "Checking Connection Please wait until the connection check is done"
-    },
-    {
       "name": "image",
-      "png": "docs/screenshots/06-image.png",
+      "png": "docs/screenshots/05-image.png",
       "rendered": true,
       "colours": 255,
-      "flat": 0.6630434782608695,
-      "ink": 0.023372859025032937,
-      "stddev": 0.10320782307054757,
+      "flat": 0.6631093544137022,
+      "ink": 0.0233596837944664,
+      "stddev": 0.1031880715640515,
       "text_excerpt": "Choose an Image Select a BootcOS image to install, or enter a custom bootc-compatible image URL. Search images\u2026 Capture Desktop Capture Desktop Capture Desktop Stable ghcr.io/example/os:stable Stable ghcr.io/example/os:stable Beta ghcr.io/e"
     },
     {
       "name": "qr_companion",
-      "png": "docs/screenshots/07-qr_companion.png",
+      "png": "docs/screenshots/06-qr_companion.png",
       "rendered": true,
       "colours": 290,
-      "flat": 0.8547957839262187,
-      "ink": 0.03313570487483531,
-      "stddev": 0.1498837000961566,
+      "flat": 0.8548616600790514,
+      "ink": 0.033122529644268775,
+      "stddev": 0.14987975999036274,
       "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
     },
     {
       "name": "disk",
-      "png": "docs/screenshots/08-disk.png",
+      "png": "docs/screenshots/07-disk.png",
       "rendered": true,
       "colours": 277,
-      "flat": 0.744558629776021,
-      "ink": 0.020303030303030302,
-      "stddev": 0.10836220879753289,
+      "flat": 0.7446376811594203,
+      "ink": 0.020276679841897235,
+      "stddev": 0.1083466745460652,
       "text_excerpt": "Computer is not plugged in \u2014 connect power before installing Install Location Select the disk where you want to install. All data on the selected disk will be permanently erased. Samsung SSD 870 EVO 500GB /dev/sda \u00b7 465.8 GiB \u00b7 SATA Samsung"
     },
     {
       "name": "encryption",
-      "png": "docs/screenshots/09-encryption.png",
+      "png": "docs/screenshots/08-encryption.png",
       "rendered": true,
       "colours": 281,
-      "flat": 0.7029907773386034,
-      "ink": 0.021778656126482214,
-      "stddev": 0.10578581047688368,
+      "flat": 0.7030698287220026,
+      "ink": 0.021752305665349143,
+      "stddev": 0.10577376363828922,
       "text_excerpt": "Disk Encryption Choose how to protect the data on your disk. Encrypt this disk You'll type it at every boot. Encrypt this disk You'll type it at every boot. Password Password Password Confirm Password Confirm Password Confirm Password Use h"
     },
     {
       "name": "user",
-      "png": "docs/screenshots/10-user.png",
+      "png": "docs/screenshots/09-user.png",
       "rendered": true,
-      "colours": 326,
-      "flat": 0.7091172595520422,
-      "ink": 0.013557312252964427,
-      "stddev": 0.0696356735689424,
+      "colours": 327,
+      "flat": 0.7092094861660079,
+      "ink": 0.0049934123847167325,
+      "stddev": 0.06024159663014559,
       "text_excerpt": "Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Confirm Password Confirm Password"
     },
     {
       "name": "confirm",
-      "png": "docs/screenshots/11-confirm.png",
+      "png": "docs/screenshots/10-confirm.png",
       "rendered": true,
       "colours": 355,
-      "flat": 0.557536231884058,
-      "ink": 0.010355731225296443,
-      "stddev": 0.06965997693763512,
+      "flat": 0.5575494071146245,
+      "ink": 0.010368906455862978,
+      "stddev": 0.06962068338793455,
       "text_excerpt": "Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be undone. Summary Summary Target disk Samsung SSD 870 EVO 500GB (/dev/sda, 465.8 GiB) Target disk Samsung"
     },
     {
       "name": "progress",
-      "png": "docs/screenshots/12-progress.png",
+      "png": "docs/screenshots/11-progress.png",
       "rendered": true,
       "colours": 174,
       "flat": 0.9525955204216073,
@@ -209,7 +197,7 @@
     },
     {
       "name": "recovery-key",
-      "png": "docs/screenshots/13-recovery-key.png",
+      "png": "docs/screenshots/12-recovery-key.png",
       "rendered": true,
       "colours": 256,
       "flat": 0.8902371541501977,
@@ -219,29 +207,28 @@
     },
     {
       "name": "done",
-      "png": "docs/screenshots/14-done.png",
+      "png": "docs/screenshots/13-done.png",
       "rendered": true,
-      "colours": 270,
-      "flat": 0.9257575757575758,
-      "ink": 0.021119894598155466,
-      "stddev": 0.09275921780533238,
-      "text_excerpt": "Capture Desktop is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it. At its first start, it records which image it started, in /var/lib/fisherman/boot-receipt/. "
+      "colours": 251,
+      "flat": 0.9379183135704875,
+      "ink": 0.020500658761528328,
+      "stddev": 0.09067004659900722,
+      "text_excerpt": "Capture Desktop is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation. Show Log Show Log R"
     }
   ],
   "transition_pixels": [
-    49861,
+    49831,
     27739,
     29291,
-    43276,
-    47646,
-    70838,
-    68060,
-    51796,
-    43790,
-    42522,
-    37396,
+    27037,
+    70837,
+    68061,
+    51793,
+    43789,
+    42532,
+    37438,
     38578,
-    48804
+    44391
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
