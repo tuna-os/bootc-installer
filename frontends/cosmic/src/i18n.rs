@@ -6,16 +6,25 @@
 //! `ui::tests::no_widget_takes_a_bare_string` fails on a literal or a
 //! `copy` constant that goes to a widget any other way.
 //!
-//! This is a shim, not Fluent. libcosmic applications use `fl!` with
-//! `i18n-embed` and `rust-embed`; that needs two more direct dependencies,
-//! a build-time asset directory and a new `cargo-sources.json`, for a
-//! frontend that ships no translation yet. The shim keeps the property the
-//! issue asks for (one function between a message and the screen) and can
-//! be replaced by `fl!` in one place when the first catalog ships.
+//! This is a shim, not Fluent, and it stays one now that a catalog ships.
+//! libcosmic applications use `fl!` with `i18n-embed` and `rust-embed`.
+//! Fluent would add two direct dependencies, a new `cargo-sources.json`
+//! and a build-time asset directory, and its message ids are keys, not the
+//! English text: every `ui::copy` constant and every catalog would need a
+//! second name. The JSON catalog keys on the English text, the same as
+//! gettext and Qt, so `shared/i18n/catalogs.py` fills it from the GNOME
+//! frontend's `po/<lang>.po` for each identical string. The strings of this
+//! frontend have no plural forms and only named `{placeholders}`, which is
+//! all the shim does. Change to `fl!` here, in one place, when a string
+//! needs Fluent's plurals or selectors.
 //!
 //! A catalog is one JSON object per language, message id to translation:
 //! `<dir>/<lang>.json`, with `<lang>` as in `LANG` ("de_DE", then "de").
-//! No catalog ships. A message with no translation is its own text.
+//! The catalogs are `i18n/<lang>.json` (written by
+//! `shared/i18n/catalogs.py`); the Flatpak installs them in
+//! `/app/share/tuna-installer-cosmic/locale`. An operator can put one in
+//! `/etc/bootc-installer/locale` to override it. A message with no
+//! translation is its own text.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -128,6 +137,61 @@ mod tests {
         assert!(load_catalog(&[path], "fr_FR.UTF-8").is_empty());
         std::fs::write(dir.path().join("fr.json"), "[]").unwrap();
         assert!(load_catalog(&[path], "fr_FR.UTF-8").is_empty());
+    }
+
+    /// `i18n/` of this frontend: the catalogs the Flatpak ships.
+    const SHIPPED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/i18n");
+
+    #[test]
+    fn the_shipped_french_catalog_loads_and_translates() {
+        let catalog = load_catalog(&[SHIPPED], "fr_FR.UTF-8");
+        assert!(!catalog.is_empty(), "{SHIPPED}/fr.json did not load");
+        // A known string, from the GNOME frontend's po/fr.po.
+        assert_eq!(translate(&catalog, crate::ui::copy::BACK), "Retour");
+        // A string with no French yet is the English text.
+        assert_eq!(
+            translate(&catalog, crate::ui::copy::DISK_TITLE),
+            crate::ui::copy::DISK_TITLE
+        );
+        // Every message id of the catalog is one of the template.
+        let template: HashMap<String, String> = serde_json::from_str(
+            &std::fs::read_to_string(format!("{SHIPPED}/template.json")).unwrap(),
+        )
+        .unwrap();
+        for msgid in catalog.keys() {
+            assert!(
+                template.contains_key(msgid),
+                "{msgid:?} is not in template.json"
+            );
+        }
+    }
+
+    #[test]
+    fn the_flatpak_installs_each_catalog_where_tr_looks() {
+        let manifest: serde_json::Value =
+            serde_json::from_str(include_str!("../flatpak/org.tunaos.InstallerCosmic.json"))
+                .unwrap();
+        let module = manifest["modules"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["name"] == "tuna-installer-cosmic")
+            .unwrap();
+        let commands: Vec<&str> = module["build-commands"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c.as_str().unwrap())
+            .collect();
+        let install = commands
+            .iter()
+            .find(|c| c.contains("i18n/"))
+            .expect("a build command that installs i18n/<lang>.json");
+        assert!(install.contains(CATALOG_DIRS[2]), "{install}");
+        assert!(
+            install.contains("template.json"),
+            "the template is no catalog: {install}"
+        );
     }
 
     #[test]

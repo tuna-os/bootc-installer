@@ -2,10 +2,10 @@
 #include <QQmlApplicationEngine>
 #include <QLocale>
 #include <QQuickStyle>
-#include <QStandardPaths>
 #include <QTranslator>
 
 #include "readiness.h"
+#include "translations.h"
 
 using namespace Qt::StringLiterals;
 
@@ -25,16 +25,12 @@ int main(int argc, char *argv[])
     if (qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE"))
         QQuickStyle::setStyle(u"org.kde.desktop"_s);
 
-    // Every user-facing string goes through qsTr() or tr() (#300). No
-    // catalog ships yet; one installed as
-    // share/tuna-installer-kde/translations/tuna-installer-kde_<locale>.qm
-    // is loaded here, before the QML is.
+    // Every user-facing string goes through qsTr() or tr() (#300). The
+    // catalog for the locale (share/tuna-installer-kde/translations/
+    // tuna-installer-kde_<lang>.qm, see translations.h) is loaded here,
+    // before the QML is.
     QTranslator translator;
-    const QString translations = QStandardPaths::locate(
-        QStandardPaths::GenericDataLocation, u"tuna-installer-kde/translations"_s,
-        QStandardPaths::LocateDirectory);
-    if (!translations.isEmpty()
-        && translator.load(QLocale(), u"tuna-installer-kde"_s, u"_"_s, translations))
+    if (translations::load(translator, QLocale(), translations::directories()))
         app.installTranslator(&translator);
 
     QQmlApplicationEngine engine;

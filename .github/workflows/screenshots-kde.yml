@@ -20,6 +20,7 @@ on:
       - "frontends/kde/modules/**"
       - "frontends/kde/tests/**"
       - "frontends/kde/CMakeLists.txt"
+      - "frontends/kde/i18n/**"
       - "frontends/kde/*.json"
       - "shared/**"
       - ".github/actions/push-to-dev/**"
@@ -30,6 +31,7 @@ on:
       - "frontends/kde/modules/**"
       - "frontends/kde/tests/**"
       - "frontends/kde/CMakeLists.txt"
+      - "frontends/kde/i18n/**"
       - "frontends/kde/*.json"
       - "shared/**"
       - ".github/actions/push-to-dev/**"
@@ -63,6 +65,7 @@ jobs:
             git openssh-clients tar findutils which \
             cmake ninja-build gcc-c++ \
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg \
+            qt6-qttools-devel qt6-linguist \
             kf6-kirigami kf6-kirigami-addons kf6-qqc2-desktop-style \
             kf6-breeze-icons dejavu-sans-fonts dejavu-sans-mono-fonts \
             ImageMagick python3

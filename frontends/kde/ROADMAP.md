@@ -30,7 +30,6 @@ The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 | #287 | The catalog filesystem does not reach the recipe, so a composefs image gives a recipe that fisherman rejects |
 | #290 | The Flatpak builds fisherman, but does not stage it or verify its SHA256 |
 | #299 | Cancel does not ask first, and the result page reports a cancel as a failure |
-| #300 | The frontend has no translatable strings |
 | #301 | An offline user gets no help to connect |
 | #288 | The default for `needs_user_creation` is not the same in every frontend |
 | #296 | The catalog's Flatpak list for an image does not reach the recipe |
