@@ -130,8 +130,8 @@ libcosmic / iced (Rust). Source: `frontends/cosmic/`.
 | <img src="cosmic/13-installing.png" width="360"> | **installing**  <br><sub>Installing TunaOS… fisherman is writing the image to disk. [1/8] Partitioning disk
 [2/8] Formatting EFI partition
 [3/8] Formatting root file</sub> |
-| <img src="cosmic/14-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Restart now Copy log Close</sub> |
-| <img src="cosmic/15-recovery.png" width="360"> | **recovery**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automaticall</sub> |
+| <img src="cosmic/14-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it. A</sub> |
+| <img src="cosmic/15-recovery.png" width="360"> | **recovery**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it. A</sub> |
 | <img src="cosmic/16-cancel.png" width="360"> | **cancel**  <br><sub>Stop the installation? The disk is already changed. If you stop now, it has no system that can start. You can run the installer again. Keep </sub> |
 | <img src="cosmic/17-cancelled.png" width="360"> | **cancelled**  <br><sub>Installation cancelled You stopped the installation. The disk has no system that can start. Run the installer again to finish. Copy log Clos</sub> |
 | <img src="cosmic/18-offline.png" width="360"> | **offline**  <br><sub>Network The installer needs the network to fetch images. No internet connection. The installer requires an active internet connection. Netwo</sub> |
