@@ -33,7 +33,8 @@ BACKEND = os.environ.get("TUNA_BACKEND", os.path.join(REPO, "installer", "tuna-i
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 # The branding the backend and the QML resolve from (shared/branding): its
 # default_image names the leaf of the catalog below that the wizard starts
-# on; on a runner that is the canary shared/e2e later rewrites.
+# on: the SSH canary, which the VM job installs and boots as the recipe
+# names it (shared/e2e/README.md).
 os.environ.setdefault("BOOTC_INSTALLER_BRANDING", os.path.join(REPO, "tests", "e2e", "branding.json"))
 # The catalog the backend reads (installer/catalog.go, FISHERMAN_IMAGES_PATH):
 # shared/e2e/catalog.json, the one every E2E driver reads.
