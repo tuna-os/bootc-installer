@@ -55,6 +55,8 @@ set(BACKEND_SOURCES
     src/diskmodel.h
     src/installercontroller.cpp
     src/installercontroller.h
+    src/plan.cpp
+    src/plan.h
     src/probe.cpp
     src/probe.h
     src/readiness.cpp
@@ -217,6 +219,7 @@ if(BUILD_TESTING)
         src/account.cpp
         src/readiness.cpp
         src/redact.cpp
+        src/plan.cpp
         src/probe.cpp
         src/sourcecheck.cpp
         src/validate.cpp
@@ -243,7 +246,8 @@ if(BUILD_TESTING)
         SHARED_GROUPS_FILE="${TUNA_SHARED_DIR}/account/groups.json"
         # The QML the strings lint reads (tests/test_backend.cpp, #300).
         KDE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
-        VALIDATE_GOLDENS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../fisherman/fisherman/cmd/fisherman/testdata/validate")
+        VALIDATE_GOLDENS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../fisherman/fisherman/cmd/fisherman/testdata/validate"
+        PLAN_GOLDENS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../fisherman/fisherman/cmd/fisherman/testdata/plan")
     # Qt6::Quick is needed to compile readiness.cpp: armStamp() takes a
     # QQuickWindow, so the type must be complete even though the tests below
     # only exercise writeStamp(), which has no Quick dependency of its own.

@@ -188,6 +188,14 @@ the line for fisherman's `receipt` event (#269). `test_backend`
 `sourceReuseCases`, `progressReproducesTheSharedReceiptCases`) reads the
 shared case files.
 
+The confirm step also shows fisherman's install plan (tuna-os/fisherman#371):
+`requestPlan()` runs `fisherman plan --json -` without privileges, the
+recipe on stdin, with a timeout. `src/plan.{h,cpp}` is a port of
+`../../shared/python/bootc_shared/plan.py`: `planRows` in the
+`confirm_plan_*` copy keys, and `confirmedRecipe()` (what Install writes)
+binds `diskIdentity` only when the plan is for the recipe's disk. No plan,
+no binding. `test_backend` (`plan*`) reads fisherman's golden plans.
+
 The progress step shows fisherman's `source_reuse` events for a copy of
 this computer's system (`reuseLines`, `sourcecheck::sourceReuseLines`,
 #267). The copy does not move the bar. While `copyCancel` is true, the
