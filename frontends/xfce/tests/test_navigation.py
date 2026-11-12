@@ -113,3 +113,26 @@ def test_confirm_summary_rows_and_erase_warning_name_the_disk():
     assert "/dev/vdz" in text and "registry.example/os:1" in text
     assert confirm.warn_text.get_text() == core.BRANDING.text(
         "confirm_warning", disk="/dev/vdz")
+
+
+def test_done_page_shows_the_receipt_cases():
+    """shared/progress/receipt-cases.json: the lines of each case on the
+    done page, the install id with them (#269)."""
+    import json as _json
+
+    from bootc_shared import progress as pp
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..",
+                        "shared", "progress", "receipt-cases.json")
+    with open(path, encoding="utf-8") as fh:
+        cases = _json.load(fh)["cases"]
+    for case in cases:
+        state = pp.new_progress_state()
+        for event in case["events"]:
+            pp.apply_progress_event(_json.dumps(event), state)
+        done = pages.DonePage(_Win())
+        done.set_result(True, "", receipt=state["receipt"])
+        body = done.body.get_text()
+        for line in case["done_lines"]:
+            assert core.BRANDING.text(line["key"]).replace("{value}", line["value"]) in body, \
+                case["name"]
+        assert "verified" not in body.lower()

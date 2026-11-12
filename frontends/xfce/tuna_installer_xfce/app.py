@@ -244,6 +244,15 @@ class InstallerWindow(Gtk.ApplicationWindow):
                                       bool(source.live), core.offline_images())
 
     def build_recipe(self):
+        """The recipe of the wizard, with the install source of the confirm
+        page: the download, or this computer's system from its bootc
+        storage (#267)."""
+        recipe = InstallerWindow.wizard_recipe(self)
+        confirm = self.pages.get("confirm") if isinstance(self.pages, dict) else None
+        apply = getattr(confirm, "apply_source", None)
+        return apply(recipe) if callable(apply) else recipe
+
+    def wizard_recipe(self):
         """Read page widgets and adapt their values to the core recipe API."""
         setup = self.pages["setup"]
         leaf = self.selected_leaf()
@@ -337,7 +346,8 @@ class InstallerWindow(Gtk.ApplicationWindow):
         """Fill the done page and show it."""
         log_tail = "".join(self._log_tail) if message is None else message
         self.pages["done"].set_result(
-            ok, log_tail, self.pages["progress"].recovery_key(), cancelled=cancelled)
+            ok, log_tail, self.pages["progress"].recovery_key(), cancelled=cancelled,
+            receipt=self.pages["progress"].receipt())
         self._enter(PAGE_ORDER.index("done"))
 
     def _on_delete(self, *_args):
@@ -370,8 +380,11 @@ class InstallerWindow(Gtk.ApplicationWindow):
         sel = self.pages["source"].selection() or {}
         # The image the install reads: the NVIDIA one on an NVIDIA machine.
         image = self.source_and_target()[0]
-        offline = bool(sel.get("live")) or (bool(image)
-                                            and image in core.offline_images())
+        # A copy of this computer's system downloads nothing (#267).
+        confirm = self.pages.get("confirm") if isinstance(self.pages, dict) else None
+        reuse = bool(getattr(confirm, "reuse_selected", False))
+        offline = reuse or bool(sel.get("live")) or (bool(image)
+                                                     and image in core.offline_images())
         return (locale_checks.needs_network(offline), offline)
 
     @staticmethod

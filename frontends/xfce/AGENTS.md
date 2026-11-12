@@ -142,10 +142,20 @@ The confirm page also asks fisherman about the selected image (#266):
 `core.probe_source()` runs the probe with the `--source` arguments of
 `bootc_shared.source_check`, off the UI thread (on the UI thread in a dry
 run), and the page shows `source_check.rows()`. Only a blocked source holds
-Next. A reply for an older visit, or for another source, is dropped. Never
-offer an image of this computer's bootc storage (#267) as a source. The done
-page says "installed, restart required" and never "verified"
-(`done_verification`, #269). `tests/test_source_check.py` covers the page.
+Next. A reply for an older visit, or for another source, is dropped.
+
+The confirm page offers the system that this computer runs as a second
+install source (#267). `source_check.reuse_source()` finds the item in the
+plain probe. It offers nothing on live media, and the download stays the
+default. The pick goes into the recipe through
+`ConfirmPage.apply_source()`, which `InstallerWindow.build_recipe()`
+calls, and fisherman checks it (`validate --partial`,
+`validate_source_reuse_<code>`). A copy needs no network.
+
+The done page says "installed, restart required" and never
+"verified": `done_verification`, then the line for fisherman's `receipt`
+event (`completion.receipt_text()`, #269). `tests/test_source_check.py` and
+`tests/test_navigation.py` cover the pages.
 
 ## Offline and live-ISO installs
 
