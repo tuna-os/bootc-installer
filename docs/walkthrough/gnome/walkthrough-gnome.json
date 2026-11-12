@@ -140,9 +140,9 @@
       "png": "docs/screenshots/06-qr_companion.png",
       "rendered": true,
       "colours": 290,
-      "flat": 0.8548616600790514,
+      "flat": 0.8548748353096179,
       "ink": 0.03310935441370224,
-      "stddev": 0.14985773621822698,
+      "stddev": 0.14985474837071192,
       "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
     },
     {
@@ -171,8 +171,8 @@
       "rendered": true,
       "colours": 326,
       "flat": 0.7092094861660079,
-      "ink": 0.02059288537549407,
-      "stddev": 0.07839364672606343,
+      "ink": 0.013570487483530961,
+      "stddev": 0.070266240745752,
       "text_excerpt": "Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Confirm Password Confirm Password"
     },
     {
@@ -180,9 +180,9 @@
       "png": "docs/screenshots/10-confirm.png",
       "rendered": true,
       "colours": 355,
-      "flat": 0.5575494071146245,
-      "ink": 0.010355731225296443,
-      "stddev": 0.06955696013198695,
+      "flat": 0.557536231884058,
+      "ink": 0.010329380764163372,
+      "stddev": 0.06956117228511881,
       "text_excerpt": "Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be undone. Summary Summary Target disk Samsung SSD 870 EVO 500GB (/dev/sda, 465.8 GiB) Target disk Samsung"
     },
     {
@@ -202,7 +202,7 @@
       "colours": 256,
       "flat": 0.8902371541501977,
       "ink": 0.01785243741765481,
-      "stddev": 0.09072438481569614,
+      "stddev": 0.09072446218336834,
       "text_excerpt": "Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf I have saved "
     },
     {
@@ -221,12 +221,12 @@
     27739,
     29291,
     27037,
-    70837,
-    68058,
+    70835,
+    68056,
     51793,
-    43786,
-    42547,
-    37453,
+    43788,
+    42496,
+    37393,
     38578,
     44391
   ],
