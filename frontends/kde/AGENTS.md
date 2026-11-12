@@ -87,8 +87,9 @@ the copy only when the two hashes are equal. Do not use `HOME/.cache`.
 
 The progress step has a Cancel button. It asks first. A confirmed cancel
 sends SIGTERM to the process group of the wrapper, then SIGKILL after five
-seconds. Exit code 130, or an unsuccessful end after a cancel, shows the
-cancelled page (`done_cancelled_title`), not the failure page.
+seconds. Exit code 130, or a signal after a cancel, shows the cancelled
+page (`done_cancelled_title`), not the failure page. Another exit code
+after a cancel is a failure.
 
 ## Strings
 
@@ -178,6 +179,14 @@ the line for fisherman's `receipt` event (#269). `test_backend`
 (`sourceCheckCases`, `bootcStoreCases`, `verificationCases`,
 `sourceReuseCases`, `progressReproducesTheSharedReceiptCases`) reads the
 shared case files.
+
+The progress step shows fisherman's `source_reuse` events for a copy of
+this computer's system (`reuseLines`, `sourcecheck::sourceReuseLines`,
+#267). The copy does not move the bar. While `copyCancel` is true, the
+cancel dialog says `progress_reuse_cancel`: the disk does not change.
+`test_backend` reads `../../shared/progress/source-reuse-cases.json`.
+After a confirmed cancel, only exit code 130 or a signal is a cancel
+(`outcomeOf`).
 
 ## Visual verification
 

@@ -239,6 +239,12 @@ class InstallerController : public QObject
     // nothing checked the new system, and what fisherman's `receipt` event
     // says it set up for the first-boot check.
     Q_PROPERTY(QStringList receiptLines READ receiptLines NOTIFY receiptChanged)
+    // The progress step's lines for the copy of this computer's system
+    // before the first step (#267): fisherman's `source_reuse` events.
+    Q_PROPERTY(QStringList reuseLines READ reuseLines NOTIFY sourceReuseChanged)
+    // A cancel now stops only that copy: the disk does not change yet, and
+    // the cancel question says so (progress_reuse_cancel).
+    Q_PROPERTY(bool copyCancel READ copyCancel NOTIFY sourceReuseChanged)
 
 public:
     explicit InstallerController(QObject *parent = nullptr);
@@ -413,6 +419,9 @@ public:
     }
     QStringList receiptLines() const;
     QJsonValue receipt() const { return m_receipt; }
+    QStringList reuseLines() const;
+    QJsonValue sourceReuse() const { return m_sourceReuse; }
+    bool copyCancel() const { return sourcecheck::copyCancel(m_sourceReuse, m_step); }
     // The recipe that the install gets: the wizard's, with the install
     // source of the confirm step. Public for tests.
     QJsonObject installRecipe() const;
@@ -477,6 +486,7 @@ Q_SIGNALS:
     void sourceCheckChanged();
     void reuseChanged();
     void receiptChanged();
+    void sourceReuseChanged();
 
 private:
     void appendLine(const QString &line, bool parse = true);
@@ -511,6 +521,9 @@ private:
     // The last `receipt` event as sourcecheck::receiptOf() reads it; null
     // before one.
     QJsonValue m_receipt;
+    // The `source_reuse` events as sourcecheck::sourceReuseOf() keeps them;
+    // null before one.
+    QJsonValue m_sourceReuse;
     bool m_sourceVisible = false;
     int m_sourceGeneration = 0;
     bool m_diskRemovable = false;
