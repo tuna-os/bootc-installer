@@ -49,6 +49,7 @@ def _cases(path):
 CAPS = os.path.join(PROBE, "capabilities-cases.json")
 STORE = os.path.join(PROBE, "bootc-store-cases.json")
 VERIFY = os.path.join(COMPLETION, "verification-cases.json")
+REUSE = os.path.join(PROBE, "source-reuse-cases.json")
 
 
 class GeneratedFilesTest(unittest.TestCase):
@@ -200,6 +201,88 @@ class BootcStoreRulesTest(unittest.TestCase):
         for case in _cases(STORE):
             for item in case["expected"]["items"]:
                 self.assertIn("bootc_store_kind_" + item["kind"], copy, case["name"])
+
+
+class SourceReuseRulesTest(unittest.TestCase):
+    """#267: an item of this computer's bootc storage is a second install
+    source only where fisherman can install from it (SOURCE-REUSE.md,
+    "Which items qualify"), and never on live media."""
+
+    def setUp(self):
+        from bootc_shared import source_check
+        self.sc = source_check
+        self.cases = {c["name"]: c for c in _cases(REUSE)}
+
+    def test_every_golden_inventory_has_a_case(self):
+        fixtures = {c["fixture"] for c in self.cases.values()}
+        for name in os.listdir(os.path.join(PROBE, "fixtures", "bootc-store")):
+            if name.startswith("store-"):
+                self.assertIn(name, fixtures)
+
+    def test_an_offered_item_is_one_that_fisherman_takes(self):
+        offered = [c for c in self.cases.values() if c["expected"]]
+        self.assertGreaterEqual(len(offered), 3)
+        for case in offered:
+            with open(os.path.join(PROBE, "fixtures", "bootc-store", case["fixture"]),
+                      encoding="utf-8") as fh:
+                store = json.load(fh)
+            item = next(i for i in store["items"] if i.get("digest") == case["expected"]["digest"])
+            with self.subTest(case=case["name"]):
+                self.assertIs(case["live"], False)
+                self.assertTrue(store["available"])
+                self.assertEqual((item["storage"], item["availability"]), ("ostree", "deployed"))
+                self.assertIs(item["matches_machine"], True)
+                self.assertIn("booted", item["roles"])
+
+    def test_never_on_live_media_or_without_live_facts(self):
+        for name in ("live-media", "store-live-media", "no-live-facts", "probe-failed",
+                     "old-backend", "version-2", "staged-update-moves-the-ref",
+                     "other-update-ref", "no-update-ref", "untrusted-items",
+                     "store-composefs", "store-wrong-arch-machine", "store-credentials"):
+            self.assertIsNone(self.cases[name]["expected"], name)
+
+    def test_the_recipe_keeps_the_update_reference_and_leaves_image_empty(self):
+        for case in self.cases.values():
+            if not case["expected"]:
+                continue
+            recipe = case["recipe"]
+            with self.subTest(case=case["name"]):
+                self.assertEqual(recipe["image"], "")
+                self.assertEqual(recipe["targetImgref"], case["update_ref"])
+                self.assertIn("bootc_store_reuse", recipe["experimental"])
+                self.assertEqual(recipe["sourceReuse"], {
+                    "store": "bootc", "digest": case["expected"]["digest"],
+                    "platform": case["expected"]["platform"]})
+                self.assertNotIn("passphrase", json.dumps(case["fragment"]))
+                self.assertNotIn("hostname", case["fragment"])
+
+    def test_the_recipe_is_valid_for_the_schema(self):
+        try:
+            import jsonschema
+        except ImportError:
+            self.skipTest("python3-jsonschema is not installed")
+        with open(os.path.join(SHARED, "recipe", "fisherman-recipe.schema.json"),
+                  encoding="utf-8") as fh:
+            validator = jsonschema.Draft7Validator(json.load(fh))
+        for case in self.cases.values():
+            if case["expected"]:
+                self.assertEqual(list(validator.iter_errors(case["recipe"])), [], case["name"])
+
+    def test_no_item_means_the_recipe_is_unchanged(self):
+        recipe = {"image": "a", "targetImgref": "a"}
+        self.assertEqual(self.sc.apply_reuse(recipe, None), recipe)
+
+    def test_every_source_reuse_code_has_a_copy_line(self):
+        reuse_go = os.path.join(FISHERMAN, "recipe", "reuse.go")
+        if not os.path.exists(reuse_go):
+            self.skipTest("fisherman submodule not checked out")
+        with open(reuse_go, encoding="utf-8") as fh:
+            codes = set(re.findall(r'=\s*"(source_reuse_[a-z_]+)"', fh.read()))
+        self.assertEqual(len(codes), 26)
+        with open(os.path.join(SHARED, "branding", "copy-defaults.json"), encoding="utf-8") as fh:
+            copy = json.load(fh)
+        have = {k[len("validate_"):] for k in copy if k.startswith("validate_source_reuse_")}
+        self.assertEqual(have, codes)
 
 
 class VerificationRulesTest(unittest.TestCase):

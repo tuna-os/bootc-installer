@@ -50,7 +50,9 @@ SOURCES = {
     "kde": [("frontends/kde/src", ("*.cpp", "*.h", "*.qml")),
             ("frontends/kde/modules", ("*.qml",))],
     "cosmic": [("frontends/cosmic/src", ("*.rs",))],
-    "niri": [("frontends/niri/ui", ("*.qml",))],
+    # progress.js is the QML's JavaScript library: the receipt lines (#269)
+    # are joined there.
+    "niri": [("frontends/niri/ui", ("*.qml", "*.js"))],
     "xfce": [("frontends/xfce/tuna_installer_xfce", ("*.py",))],
 }
 
@@ -148,7 +150,7 @@ def strip_comments(text, marker):
     return "\n".join(out)
 
 
-COMMENT_MARKERS = {".py": "#", ".qml": "//", ".rs": "//", ".cpp": "//",
+COMMENT_MARKERS = {".py": "#", ".qml": "//", ".js": "//", ".rs": "//", ".cpp": "//",
                    ".h": "//", ".blp": "//"}
 
 
@@ -227,11 +229,16 @@ def rendered_validate_keys(text, keys):
     return set()
 
 
-SOURCE_FAMILIES = ("source_check_", "bootc_store_kind_")
+SOURCE_FAMILIES = ("source_check_", "bootc_store_kind_", "done_receipt_")
 # The shared Python reader's rows(): it builds every source_check_*,
 # bootc_store_* and source_* line, so a Python frontend that calls it
 # renders all of them.
 SOURCE_RENDER = "source_check.rows("
+# The shared Python done-page lines (#269): receipt_text() names
+# done_verification and every done_receipt_* line; reuse_rows() the
+# install-source choice (#267).
+RECEIPT_RENDER = "completion.receipt_text("
+REUSE_RENDER = "source_check.reuse_rows("
 
 
 def rendered_source_keys(text, keys):
@@ -247,6 +254,10 @@ def rendered_source_keys(text, keys):
     found = set()
     if SOURCE_RENDER in text:
         found |= {k for k in keys if k.startswith(("source_", "bootc_store_"))}
+    if RECEIPT_RENDER in text:
+        found |= {k for k in keys if k.startswith("done_receipt_") or k == "done_verification"}
+    if REUSE_RENDER in text:
+        found |= {k for k in keys if k.startswith("source_reuse_")}
     for prefix in SOURCE_FAMILIES:
         if f'"{prefix}"' in text or f"'{prefix}'" in text:
             found |= {k for k in keys if k.startswith(prefix)}

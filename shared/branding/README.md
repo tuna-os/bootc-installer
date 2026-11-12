@@ -107,10 +107,12 @@ line names.
 | `recovery_key_title`, `recovery_key_body`, `recovery_key_copy`, `recovery_key_ack` | the recovery-key panel after a TPM enrolment |
 | `done_title`, `done_subtitle`, `done_restart`, `done_failed_title`, `done_cancelled_title` | the done page: installed, failed, or stopped by the user (fisherman exit code 130) |
 | `store_label` | the store link on the done page, shown only when `store_url` is set |
-| `done_verification` | the done page after an install: the new system is not checked yet, and how its first start is checked (`shared/completion/README.md`) |
+| `done_verification` | the done page after an install: the new system is not checked yet (`shared/completion/README.md`) |
+| `done_receipt_<state>`, `done_receipt_reason_<reason>` | the done page after an install: what fisherman's `receipt` event says, with the install ID as `{value}` (`shared/progress/README.md`, "The receipt event") |
 | `source_install_from`, `source_update_ref`, `source_live_host` | the confirm page: the source of the install, the update reference of the new system, and the image that this computer runs |
 | `source_check_<state>`, `source_check_reason_<reason>`, `source_check_default_<name>` | the confirm page: the check of the selected image (`shared/probe/README.md`, "Source check") |
 | `bootc_store_listed`, `bootc_store_kind_<kind>` | the confirm page: the images in this computer's bootc storage |
+| `source_reuse_title`, `source_reuse_download`, `source_reuse_download_detail`, `source_reuse_local`, `source_reuse_local_detail`, `source_reuse_install_from` | the confirm page: the install source, the download or this computer's system (`shared/probe/README.md`, "Install from the bootc storage of this computer") |
 
 ### Encryption choices
 

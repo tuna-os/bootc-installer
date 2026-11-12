@@ -204,7 +204,53 @@ def new_progress_state() -> dict:
         "boot_id": "",
         "recovery_key": "",
         "error": None,
+        "receipt": None,
     }
+
+
+RECEIPT_VERSION = 1
+_RECEIPT_REASON = re.compile(r"^[a-z0-9_]{1,64}$")
+_INSTALL_ID = re.compile(r"^[0-9a-f]{32}$")
+
+
+def receipt_of(event: dict) -> dict:
+    """What a frontend keeps of fisherman's `receipt` event (#269,
+    tuna-os/fisherman#441): {"state", "install_id", "reason"}.
+
+    state:
+      check_set_up      `written` and `first_boot_check`: the receipt is on
+                        the new system and its first start is recorded
+      written_no_check  `written`, but the first-boot check is not staged
+      not_written       no receipt is on the new system
+      unreadable        a `version` other than 1, or a `written` that is
+                        not a boolean, or a written receipt without a
+                        32-hex install id
+
+    `install_id` is set only when the receipt is written. `reason` is
+    fisherman's code ("" when absent or not a code); a code that the copy
+    does not know falls back to the unknown line, never the raw code.
+    No state says that the new system started: only `fisherman verify` on
+    that system can say so.
+    """
+    def view(state, install_id="", reason=""):
+        return {"state": state, "install_id": install_id, "reason": reason}
+
+    version = event.get("version")
+    if isinstance(version, bool) or not isinstance(version, int) or version != RECEIPT_VERSION:
+        return view("unreadable")
+    written = event.get("written")
+    if not isinstance(written, bool):
+        return view("unreadable")
+    reason = event.get("reason")
+    reason = reason if isinstance(reason, str) and _RECEIPT_REASON.match(reason) else ""
+    if not written:
+        return view("not_written", reason=reason)
+    install_id = event.get("install_id")
+    if not isinstance(install_id, str) or not _INSTALL_ID.match(install_id):
+        return view("unreadable")
+    if event.get("first_boot_check") is True:
+        return view("check_set_up", install_id)
+    return view("written_no_check", install_id, reason)
 
 
 def _error_of(event: dict) -> dict:
@@ -307,6 +353,12 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
         state["recovery_key"] = event.get("key", "")
         return None
 
+    if event_type == "receipt":
+        # What the install did with the installation receipt. It moves no
+        # bar and fails nothing: the done page reads it from the state.
+        state["receipt"] = receipt_of(event)
+        return None
+
     if event_type == "complete":
         state["pulse_active"] = False
         state["fraction"] = 1.0
@@ -360,6 +412,14 @@ def render_event(line: str) -> str | None:
         return event.get("message", "Installation complete")
     if kind == "error":
         return f"ERROR: {event.get('message', '')}"
+    if kind == "receipt":
+        written = event.get("written") is True
+        line = "Installation receipt: " + ("written" if written else "not written")
+        if written and isinstance(event.get("install_id"), str):
+            line += f", install id {event['install_id']}"
+        if isinstance(event.get("reason"), str) and event["reason"]:
+            line += f" ({event['reason']})"
+        return line
     if kind == "recovery_key":
         # Shown, not hidden. A frontend with no recovery-key screen (see
         # docs/PARITY.md) leaves this as the only place the user can read a

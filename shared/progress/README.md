@@ -35,6 +35,11 @@ through its own computation of `overall_pct`.
 is missing or is not a string is `""`. The event does not move the bar.
 The same script writes the file, and the same five test suites read it.
 
+[`receipt-cases.json`](receipt-cases.json) pins what a parser keeps of the
+`receipt` event, and the lines of the done page. See "The receipt event"
+below. The same script writes the file, and the same five test suites read
+it.
+
 ## Events
 
 Every event carries `type`, plus `timestamp` (RFC 3339) and `elapsed_ms`.
@@ -47,6 +52,7 @@ them.
 | `substep` | `message`, `overall_pct` | Progress within the current step |
 | `info` | `message` | Informational line |
 | `recovery_key` | `key` | LUKS recovery passphrase, for `tpm2-luks` |
+| `receipt` | `version`, `written`, `install_id`, `path`, `first_boot_check`, `reason` | What the install did with the installation receipt (tuna-os/fisherman#441) |
 | `complete` | `message`, `boot_id` (optional), `overall_pct` | Install finished |
 | `error` | `message`, `code` (optional), `field` (optional) | Terminal failure. `code` and `field` are those of `fisherman validate` (`fisherman/docs/VALIDATE.md`), when the failure has one |
 
@@ -114,6 +120,41 @@ The parser's own step-name table is that fallback for a fisherman without
 the product (`Installing {product}…`): frontends call `set_product_name()`
 with the resolved branding name. The default is a neutral `"the OS"`, never
 a distro.
+
+## The receipt event
+
+fisherman sends one `receipt` event inside the `Configuring installed
+system` step ([`fisherman/docs/RECEIPT.md`](../../fisherman/docs/RECEIPT.md)).
+The event does not move the bar, and it does not decide the outcome: the
+exit code does. A parser keeps the last one as `{state, install_id,
+reason}`:
+
+| `state` | When |
+|---|---|
+| `check_set_up` | `written` and `first_boot_check` are true |
+| `written_no_check` | `written` is true and `first_boot_check` is not |
+| `not_written` | `written` is false |
+| `unreadable` | a `version` other than the number 1, a `written` that is not a boolean, or a written receipt without an install ID of 32 lowercase hex digits |
+
+`install_id` is set only for a written receipt. `reason` is fisherman's
+code, or `""` when the event has none or the value is not a code.
+
+After an install that exits 0, the done page shows `done_verification`,
+then the line for the receipt: `done_receipt_<state>`, with the install ID
+as `{value}`. Without a `receipt` event, the line is `done_receipt_none`.
+When fisherman did not write the receipt or did not set up the first-boot
+check, a reason line follows: `done_receipt_reason_<reason>`. A code that
+the copy does not know gets `done_receipt_reason_unknown`. No
+line says that the new system started: only `fisherman verify --json` on
+that system can say so. A failed or cancelled install shows no receipt
+line.
+
+The first six cases of `receipt-cases.json` are fisherman's own events
+(`internal/progress/testdata/receipt-events.ndjson`), and a test holds the
+file to them. `bootc_shared.completion.receipt_lines()` is the canonical
+choice of lines. GNOME and XFCE call it. KDE (`sourcecheck::receiptLines`),
+COSMIC (`source_check::receipt_lines`) and Niri (`receiptLines` in
+`ui/progress.js`) port it.
 
 ## Recovery key in a log
 

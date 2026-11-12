@@ -313,3 +313,60 @@ class ErrorCasesTest(unittest.TestCase):
                 with self.subTest(case=case["name"], event=i):
                     self.assertAlmostEqual(bar, want, places=6)
             self.assertEqual(state["error"], case["error"], case["name"])
+
+
+RECEIPT_CASES = os.path.join(REPO, "shared", "progress", "receipt-cases.json")
+FISHERMAN_RECEIPTS = os.path.join(REPO, "fisherman", "fisherman", "internal", "progress",
+                                  "testdata", "receipt-events.ndjson")
+
+
+class ReceiptCasesTest(unittest.TestCase):
+    """shared/progress/receipt-cases.json pins what a parser keeps of the
+    `receipt` event (#269, tuna-os/fisherman#441) and the done page's
+    lines. COSMIC, KDE and Niri test their own parsers against it."""
+
+    def test_fixture_is_what_the_canonical_parser_produces(self):
+        gen = _load(GENERATOR, "_fraction_gen_receipts")
+        with open(RECEIPT_CASES, encoding="utf-8") as fh:
+            committed = json.load(fh)
+        self.assertEqual(
+            committed, json.loads(json.dumps(gen.build_receipts())),
+            "receipt-cases.json is stale; run "
+            "python3 shared/progress/generate-fraction-cases.py")
+
+    def test_every_fisherman_line_is_a_case(self):
+        if not os.path.exists(FISHERMAN_RECEIPTS):
+            self.skipTest("fisherman submodule not checked out")
+        with open(RECEIPT_CASES, encoding="utf-8") as fh:
+            events = [e for c in json.load(fh)["cases"] for e in c["events"]]
+        with open(FISHERMAN_RECEIPTS, encoding="utf-8") as fh:
+            for line in fh:
+                if line.strip():
+                    self.assertIn(json.loads(line), events)
+
+    def test_no_line_says_the_system_started(self):
+        with open(os.path.join(REPO, "shared", "branding", "copy-defaults.json"),
+                  encoding="utf-8") as fh:
+            copy = json.load(fh)
+        for key, line in copy.items():
+            if key.startswith("done_receipt_") or key == "done_verification":
+                self.assertNotRegex(line.lower(), r"\bverified\b|\bbooted\b", key)
+
+    def test_the_python_parser_reproduces_the_fixture(self):
+        with open(RECEIPT_CASES, encoding="utf-8") as fh:
+            cases = json.load(fh)["cases"]
+        self.assertGreaterEqual(len(cases), 15)
+        pp = _load(CANONICAL, "_pp_receipts")
+        from bootc_shared import completion
+        for case in cases:
+            state, bar = pp.new_progress_state(), 0.0
+            for i, (event, want) in enumerate(zip(case["events"], case["bar"])):
+                update = pp.apply_progress_event(json.dumps(event), state)
+                if update and update.get("fraction") is not None:
+                    bar = update["fraction"]
+                with self.subTest(case=case["name"], event=i):
+                    self.assertAlmostEqual(bar, want, places=6)
+            self.assertEqual(state["receipt"], case["receipt"], case["name"])
+            self.assertEqual([{"key": k, "value": v} for k, v in
+                              completion.receipt_lines(state["receipt"])],
+                             case["done_lines"], case["name"])

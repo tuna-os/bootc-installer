@@ -142,10 +142,10 @@ source.
 - Show the items only when the reader's state is `listed`: the
   `bootc_store_listed` line, then each `ref` with
   `bootc_store_kind_<kind>` (`booted`, `deployed`, `stored`, `listed`).
-- Do not offer an item as a source, and do not show it as available
-  offline. No fisherman install path reads bootc-owned storage yet
-  (fisherman's PROBE.md, "Reuse is not implemented"). The reader marks
-  each item `installable: false`.
+- Do not show an item of the list as available offline. The reader marks
+  each item `installable: false`: the list is a view of this computer. The
+  one item that a frontend can offer as a source comes from the reader of
+  the next section.
 - Do not select or default to the image that this computer runs because
   it is in the list.
 - The reader hides an item with no `ref` (fisherman removed a reference
@@ -154,6 +154,61 @@ source.
 [`bootc-store-cases.json`](bootc-store-cases.json) holds the cases. The
 fixtures in `fixtures/bootc-store/` are fisherman's golden files
 (`store-*.json`) and three `frontend-*.json` files.
+
+## Install from the bootc storage of this computer
+
+fisherman can install from an image that the bootc of this computer keeps,
+and copy it instead of a download (`sourceReuse`, tuna-os/fisherman#384
+phase 2, [`fisherman/docs/SOURCE-REUSE.md`](../../fisherman/docs/SOURCE-REUSE.md)).
+This is #267. The reader `reuse_source(probe, update_ref)` takes the plain
+probe and the recipe's `targetImgref`. It gives `{ref, digest, platform}`
+or nothing. An item qualifies when all of these are true:
+
+- the probe has `live.is_live` false: never on live media;
+- `bootc_store` is version 1 and `available`;
+- the item has `owner` `bootc`, `context` `live-host`, `storage`
+  `ostree`, `availability` `deployed`, `matches_machine` true, a sha256
+  digest and a platform;
+- the item has the role `booted`: it is the system that this computer runs;
+- its `ref` is the update reference, without a `docker://` transport. The
+  new system then follows the image that it starts from;
+- no `staged` item has that ref. A staged update moves the ostree ref, and
+  fisherman then refuses the copy (`source_reuse_source_moved`).
+
+A frontend shows the item on the confirm page as a second choice under
+`source_reuse_title`. The first choice is the download
+(`source_reuse_download`), and it is the default. The second is
+`source_reuse_local` and `source_reuse_local_detail`: this computer's
+installed system, works offline, and the first update downloads the full
+image. When the user picks it, the recipe gets `sourceReuse` (`store`
+`bootc`, the digest and the platform), `bootc_store_reuse` in
+`experimental`, an empty `image` and the catalog's update reference as
+`targetImgref` (`apply_reuse`). The confirm page names the source with
+`source_reuse_install_from` and the update reference on a separate row.
+The source check then asks about the item's ref.
+
+`validate --json --partial` gets the fragment of `reuse_fragment` (the
+image keys, `experimental`, `sourceReuse`, `composeFsBackend` and
+`filesystem`). Each problem shows in the words of
+`validate_source_reuse_<code>`, and holds Install. fisherman checks the
+host again when the install starts.
+
+A pick that no longer qualifies (another item, or none) goes back to the
+download. A network check that runs before the confirm page lets a
+computer go on when it can copy its own system (`offers_reuse`).
+
+[`source-reuse-cases.json`](source-reuse-cases.json) holds the cases. They
+cover the golden inventories, live media, a staged update and a rollback
+with the same ref. They also cover an update reference with a transport or
+of another image, and items that the reader must not trust. Each case with
+an item has the recipe and the fragment after the pick.
+
+| Frontend | Reader | Test |
+|---|---|---|
+| GNOME, XFCE | `bootc_shared.source_check` | `tests/unit/test_shared_source_check.py`, `tests/unit/test_confirm_view.py`, XFCE `tests/test_source_check.py` |
+| KDE | `sourcecheck::reuseSource` | `tests/test_backend.cpp` (`sourceReuseCases`) |
+| COSMIC | `source_check::reuse_source` | `cargo test source_reuse` |
+| Niri | `readReuseSource` (`installer/sourcecheck.go`, sent by `detect`); the recipe in `ui/progress.js` | `go test -run Reuse`, `tests/progress-fraction-test.mjs` |
 
 ## When the probe fails
 

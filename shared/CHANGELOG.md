@@ -19,6 +19,23 @@ schema only.
   (tuna-os/fisherman#384, #443). With `sourceReuse`, the recipe must also
   have `bootc_store_reuse` in `experimental`, an empty `image` and a
   `targetImgref`.
+- Added: `progress/receipt-cases.json`, written by
+  `progress/generate-fraction-cases.py`. It pins what a parser keeps of the
+  `receipt` event (tuna-os/fisherman#441) and the lines of the done page.
+  Its first six cases are fisherman's own events. Each parser reads it
+  (#269).
+- Added: `probe/source-reuse-cases.json` and two `frontend-reuse-*`
+  inventories in `probe/fixtures/bootc-store/`.
+  `probe/generate-source-check-cases.py` writes the case file. The cases
+  pin the item that a frontend offers as a second install source. They also
+  pin the recipe after the pick. Each frontend reads them (#267).
+- Added: copy keys `done_receipt_<state>`, `done_receipt_reason_<reason>`,
+  `source_reuse_title`, `source_reuse_download`,
+  `source_reuse_download_detail`, `source_reuse_local`,
+  `source_reuse_local_detail`, `source_reuse_install_from`, and the 26
+  `validate_source_reuse_<code>` lines. Each frontend renders them.
+- Changed: `done_verification` says only that nothing checked the new
+  system. The receipt line says what the install set up for the check.
 - The fisherman pin moved to `cddfa7b` (tuna-os/fisherman#441, #443).
 
 Recipe schema sha256: `da4ed42217d25a9ab9e6402d9ac82827e5fee8d5d5e2eef84940111d8574826a`

@@ -61,6 +61,7 @@
         "source_check",
         "bootc_store_view",
         "done_not_verified",
+        "done_receipt",
         "restart_from_done",
         "log_after_failure",
         "recovery_key_not_in_log",
@@ -264,13 +265,19 @@
           "type": "string",
           "minLength": 1,
           "pattern": "^[^|\\n]+$",
-          "description": "Images in this computer's bootc storage (`bootc_store`, #267)"
+          "description": "Images in this computer's bootc storage (`bootc_store`), and this computer's system as the install source (`sourceReuse`, #267)"
         },
         "done_not_verified": {
           "type": "string",
           "minLength": 1,
           "pattern": "^[^|\\n]+$",
           "description": "Done page: installed, restart required, start not verified (#269)"
+        },
+        "done_receipt": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Done page: the `receipt` event (install ID, first-boot check) (#269)"
         },
         "restart_from_done": {
           "type": "string",
