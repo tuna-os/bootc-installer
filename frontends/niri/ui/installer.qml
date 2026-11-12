@@ -235,6 +235,8 @@ ApplicationWindow {
             validate_custom_mount_target_duplicate: "Two partitions have the same mount point. Give each partition its own mount point.",
             validate_custom_mount_partition_duplicate: "The same partition is used twice. Give each mount point its own partition.",
             validate_custom_mount_not_persistable: "The installed system cannot mount this partition there. Use a folder below /var, or /home.",
+            validate_image_invalid: "The image name has a space, a line break or another hidden character, or starts with a dash. Choose the image again.",
+            validate_target_imgref_invalid: "The image that updates come from has a space, a line break or another hidden character, or starts with a dash. Choose the image again.",
             validate_zfs_experimental: "ZFS is experimental. Accept that, or choose a different filesystem.",
             validate_experimental_unsupported: "The installer asked for an experimental feature that this version does not know.",
             validate_locale_invalid: "This language is not a valid locale name. Choose another language.",

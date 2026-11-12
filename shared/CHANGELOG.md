@@ -12,6 +12,16 @@ sure that it does. Do not edit the hash of an old entry: add an entry.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-12: fisherman `0c370b6`, two validate codes, one account default
+
+- Changed: the fisherman pin moves to `0c370b6`. It refuses a bad `image`
+  or `targetImgref` before the disk is wiped, with the codes `image_invalid`
+  and `target_imgref_invalid` (tuna-os/fisherman#445), and its catalog
+  resolver defaults `needs_user_creation` to true, as this contract does
+  (tuna-os/fisherman#446, #288).
+- Added: `validate_image_invalid` and `validate_target_imgref_invalid`
+  lines in `branding/copy-defaults.json`.
+
 ## 2026-11-12: the leaf of the live image
 
 - Added: `catalog/fixtures/expected.json` has `live_image`. Each case is a
