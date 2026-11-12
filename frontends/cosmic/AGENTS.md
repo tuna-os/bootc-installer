@@ -214,6 +214,15 @@ and `src/source_check.rs` reads its `capabilities` and `bootc_store`
 (#267). Only a blocked source holds Install. A reply for an older visit,
 or for another source, is dropped.
 
+The confirm page also asks `fisherman plan --json -` (`src/plan.rs`,
+tuna-os/fisherman#371): unprivileged, through the one resolver
+(`Use::Plan`), with the recipe on stdin, off the UI thread, for at most
+20 s. The page shows the target disk and each device erased through the
+`confirm_plan_*` copy keys. Install sends `bound_install_recipe()`: the
+recipe with the plan's `diskIdentity`, only when the plan is for the
+recipe's disk. Without a plan the page and the recipe are as before.
+`cargo test plan` reads fisherman's golden plans.
+
 The confirm page offers the system that this computer runs as a second
 install source (#267). `refresh_reuse` reads the plain probe through
 `source_check::reuse_source`. It offers nothing on live media, and the

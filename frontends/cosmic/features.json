@@ -34,7 +34,7 @@
     "translatable": "one tr() shim and a lint; template `i18n/template.json`; ships `i18n/fr.json`, loaded for the locale; catalogs kept current by a check (#300)",
     "progress_bar": "yes",
     "source_check": "confirm page, Selected image section; a blocked source holds Install",
-    "install_plan": "no (tuna-os/fisherman#371)",
+    "install_plan": "yes: a section of the confirm page shows the target disk (model, size, serial; unknown when the disk does not report it) and each device erased; Install binds the recipe to that disk with `diskIdentity`; without a plan (an older fisherman) the page is as before",
     "bootc_store_view": "yes, on the confirm page; the system that this computer runs is a second install source there (experimental, never the default, never on live media)",
     "source_reuse_progress": "yes: a caption under the bar; the bar is indeterminate until the first step; the cancel question says that the disk does not change",
     "done_not_verified": "yes",

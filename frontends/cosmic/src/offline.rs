@@ -35,6 +35,8 @@ pub enum Use {
     Probe,
     /// `validate --json --partial -`, as the desktop user.
     Validate,
+    /// `plan --json -` (the recipe on stdin), as the desktop user.
+    Plan,
     /// `-` (the recipe on stdin), as root. The wasm build never installs.
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     Install,
@@ -77,6 +79,10 @@ pub fn fisherman_argv(what: Use, flatpak: bool, live: bool, staged: &str) -> Vec
         Use::Validate => {
             argv.push(binary.to_string());
             argv.extend(["validate", "--json", "--partial", "-"].map(String::from));
+        }
+        Use::Plan => {
+            argv.push(binary.to_string());
+            argv.extend(["plan", "--json", "-"].map(String::from));
         }
         Use::Install => {
             let escalate = if !flatpak && live { "sudo -n" } else { "pkexec" };
@@ -323,6 +329,10 @@ mod tests {
             ["/usr/local/bin/fisherman", "validate", "--json", "--partial", "-"]
         );
         assert_eq!(
+            fisherman_argv(Use::Plan, false, true, ""),
+            ["/usr/local/bin/fisherman", "plan", "--json", "-"]
+        );
+        assert_eq!(
             fisherman_argv(Use::Install, false, false, ""),
             ["bash", "-c", "pkexec /usr/local/bin/fisherman -; exit $?"]
         );
@@ -345,6 +355,10 @@ mod tests {
         assert_eq!(
             fisherman_argv(Use::Validate, true, false, STAGED),
             ["flatpak-spawn", "--host", STAGED, "validate", "--json", "--partial", "-"]
+        );
+        assert_eq!(
+            fisherman_argv(Use::Plan, true, true, STAGED),
+            ["flatpak-spawn", "--host", STAGED, "plan", "--json", "-"]
         );
         // Not `flatpak-spawn --host pkexec`: fisherman's parent would be
         // the host's session helper, and it could never be cancelled.
