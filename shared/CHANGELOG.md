@@ -35,8 +35,20 @@ schema only.
 - All five frontends use the change through `write_report`, and no
   frontend changes. The committed captures in `docs/walkthrough/` pass.
 
+Contracts version: `1.4.0`
+Contracts sha256: `df4a8449bb41c7e8e3d8919ce685e5011daa0f31c9e18a8329b7e7d01e34feb1`
+
+## 2026-11-12: a failure line for root_flags_failed
+
+- Added: `branding/copy-defaults.json` has `validate_root_flags_failed`,
+  the failure-page line for fisherman's new runtime failure code
+  `root_flags_failed` (tuna-os/fisherman#450). The fisherman pin moves to
+  that change. `tests/unit/test_failure_code_copy.py` now fails when a
+  failure code in fisherman's `internal/progress/failure.go` has no
+  `validate_<code>` line.
+
 Contracts version: `1.3.0`
-Contracts sha256: `024221abf0ef00e4a97010ffb04faedb43e565113728bd8ba223f7e346181e27`
+Contracts sha256: `e8238a884458836593fe4c3b525d9bddadc698c4d93cb21eb127dcd05cdb8c39`
 
 ## 2026-11-12: one recipe for the same choices
 
