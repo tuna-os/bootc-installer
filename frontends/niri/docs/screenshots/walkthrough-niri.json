@@ -154,11 +154,11 @@
       "name": "02-session",
       "png": "docs/screenshots/02-session.png",
       "rendered": true,
-      "colours": 409,
+      "colours": 410,
       "flat": 0.6247,
       "ink": 0.026266666666666667,
       "stddev": 0.09779041921278185,
-      "sha256": "9efae789ea88c32d4ad49c6ac18b2908ae4e9acd6dce97a97ce5a22d8f591d39",
+      "sha256": "65744320755a56e4b92f5b39539d1e5dd731c8641a459533ae0487b72069f9cc",
       "text_excerpt": "Step 2 of 9 \u00b7 Session Session Keyboard, language and time zone for the installed system. This computer keeps its own. Keyboard and language Keyboard us Language en_US.UTF-8 Timezone Europe/Berlin Network Connected \u2014 downloads will work. Rec"
     },
     {
@@ -168,8 +168,8 @@
       "colours": 497,
       "flat": 0.5597333333333333,
       "ink": 0.1155,
-      "stddev": 0.11528884652927622,
-      "sha256": "248804118c975c63723f325557ccf534b0f0d80e273302b3fa8b111119a7a06c",
+      "stddev": 0.1152965279548122,
+      "sha256": "4c22d447dc55c42c83948dd9e99a7e309a63abb729e21d9d9cb33843e4600d63",
       "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Capture Desktop \u203a Edge ghcr.io/exa"
     },
     {
@@ -179,8 +179,8 @@
       "colours": 484,
       "flat": 0.6199333333333333,
       "ink": 0.11003333333333333,
-      "stddev": 0.10557607011149404,
-      "sha256": "da8e4ee577e2fb8859e8b44607083a81bba39cf9741584ad8160d74c0560dae0",
+      "stddev": 0.10556755838076784,
+      "sha256": "58c7ddd783c2527679e02bf86b0fbfc659ed9bb247ee0b7974e30777eb8dfa58",
       "text_excerpt": "Step 4 of 9 \u00b7 Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  \u00b7  465.8 GiB  \u00b7  SATA Extreme SSD /dev/sdc  \u00b7  931.5 GiB  \u00b7  USB Cruzer Blade /dev/sdd  \u00b7  59.6 GiB  \u00b7  USB WD_"
     },
     {
@@ -190,8 +190,8 @@
       "colours": 521,
       "flat": 0.4215333333333333,
       "ink": 0.2012,
-      "stddev": 0.11962846478068354,
-      "sha256": "427d4845e87d359582fcbeb8ea473189dba1cb7d9249376f14b58c08630d9251",
+      "stddev": 0.11963561917385698,
+      "sha256": "55a09312f3353721083d7d22cf240b2b35c01a656957598b3c65edd60703ee0a",
       "text_excerpt": "Step 5 of 9 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
@@ -268,7 +268,7 @@
       "flat": 0.422,
       "ink": 0.0396,
       "stddev": 0.10962146762859741,
-      "sha256": "8796eacc9b9d3534ed580ae116a6c017348c590b54dad0a18ca1988bd1044395",
+      "sha256": "148bc8b40fd3aed96b52033804dae30f2eac8f29ac7e8e2ac275e1d48683debe",
       "text_excerpt": "Step 8 of 9 \u00b7 Installing Installing TunaOS\u2026 Step 5 of 8 \u2014 Installing OS [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pul"
     },
     {

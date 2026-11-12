@@ -176,18 +176,22 @@ class WorkflowsTest(unittest.TestCase):
                     f"    name: Publish ({name})\n"
                     f"    needs: [guard, release]\n"
                     f"    if: needs.guard.outputs.{name} == 'true'\n"
-                    f"    uses: ./.github/workflows/publish-flatpak.yml\n"
+                    f"    permissions:\n"
+                    f"      contents: write\n"
+                    f"      packages: write\n"
+                    f"    uses: $/.github/workflows/publish-flatpak.yml\n"
                     f"    with:\n"
                     f"      frontend: {name}\n"
-                    f"    secrets: inherit\n", text)
-        self.assertEqual(text.count("uses: ./.github/workflows/publish-flatpak.yml"), len(self.names))
+                    f"    secrets:\n"
+                    f"      FLATPAK_INDEX_DEPLOY_KEY: ${{{{ secrets.FLATPAK_INDEX_DEPLOY_KEY }}}}\n", text)
+        self.assertEqual(text.count("uses: $/.github/workflows/publish-flatpak.yml"), len(self.names))
         defaults = workflow("publish-flatpak.yml").split("  workflow_dispatch:")[0]
         self.assertRegex(defaults, r"      publish:\n(?:.*\n){3}        default: true\n")
         self.assertIn("        default: '[\"x86_64\", \"aarch64\"]'\n", defaults)
 
     def test_the_pull_request_build_never_publishes(self):
         text = workflow("flatpak-frontends.yml")
-        calls = re.findall(r"    uses: \./\.github/workflows/publish-flatpak\.yml\n"
+        calls = re.findall(r"    uses: \$/\.github/workflows/publish-flatpak\.yml\n"
                            r"    with:\n      frontend: (\w+)\n      publish: (\w+)\n", text)
         self.assertEqual(calls, [(n, "false") for n in self.names if n != "gnome"])
         self.assertEqual(text.count("publish-flatpak.yml\n"), len(calls))

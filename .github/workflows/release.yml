@@ -33,10 +33,7 @@ on:
   push:
     tags: ["v*"]
 
-permissions:
-  contents: write
-  packages: write
-  actions: read
+permissions: {}
 
 concurrency:
   group: release
@@ -46,6 +43,9 @@ jobs:
   guard:
     name: Guard
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
       gnome: ${{ steps.changes.outputs.gnome }}
@@ -70,9 +70,10 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Pick the tag
         id: tag
@@ -109,8 +110,9 @@ jobs:
   build:
     name: Build GNOME bundles
     needs: guard
-    uses: ./.github/workflows/flatpak.yml
-    secrets: inherit
+    permissions:
+      contents: write
+    uses: $/.github/workflows/flatpak.yml
 
   # One SPDX SBOM per frontend (#151), from sbom.yml: the one definition,
   # which pull requests and dev also run as a dry run. It publishes nothing:
@@ -120,7 +122,7 @@ jobs:
     needs: guard
     permissions:
       contents: read
-    uses: ./.github/workflows/sbom.yml
+    uses: $/.github/workflows/sbom.yml
 
   release:
     name: Cut release
@@ -140,23 +142,25 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - uses: actions/download-artifact@v8.0.2
         with:
           name: org.bootcinstaller.Installer.flatpak
 
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - uses: actions/download-artifact@v8.0.2
         with:
           name: org.bootcinstaller.Installer.Devel.flatpak
 
       # Optional: releasing x86_64 alone must stay possible.
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - uses: actions/download-artifact@v8.0.2
         continue-on-error: true
         with:
           name: org.bootcinstaller.Installer-aarch64.flatpak
 
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - uses: actions/download-artifact@v8.0.2
         with:
           pattern: sbom-*
           merge-multiple: true
@@ -171,7 +175,7 @@ jobs:
           python3 shared/ci/flatpak_sbom.py check --commit "$SHA" \
             gnome.spdx.json kde.spdx.json cosmic.spdx.json niri.spdx.json xfce.spdx.json
 
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+      - uses: actions/attest-build-provenance@v4.2.2
         with:
           subject-path: |
             *.flatpak
@@ -240,43 +244,63 @@ jobs:
     name: Publish (gnome)
     needs: [guard, release]
     if: needs.guard.outputs.gnome == 'true'
-    uses: ./.github/workflows/publish-flatpak.yml
+    permissions:
+      contents: write
+      packages: write
+    uses: $/.github/workflows/publish-flatpak.yml
     with:
       frontend: gnome
-    secrets: inherit
+    secrets:
+      FLATPAK_INDEX_DEPLOY_KEY: ${{ secrets.FLATPAK_INDEX_DEPLOY_KEY }}
 
   publish-kde:
     name: Publish (kde)
     needs: [guard, release]
     if: needs.guard.outputs.kde == 'true'
-    uses: ./.github/workflows/publish-flatpak.yml
+    permissions:
+      contents: write
+      packages: write
+    uses: $/.github/workflows/publish-flatpak.yml
     with:
       frontend: kde
-    secrets: inherit
+    secrets:
+      FLATPAK_INDEX_DEPLOY_KEY: ${{ secrets.FLATPAK_INDEX_DEPLOY_KEY }}
 
   publish-cosmic:
     name: Publish (cosmic)
     needs: [guard, release]
     if: needs.guard.outputs.cosmic == 'true'
-    uses: ./.github/workflows/publish-flatpak.yml
+    permissions:
+      contents: write
+      packages: write
+    uses: $/.github/workflows/publish-flatpak.yml
     with:
       frontend: cosmic
-    secrets: inherit
+    secrets:
+      FLATPAK_INDEX_DEPLOY_KEY: ${{ secrets.FLATPAK_INDEX_DEPLOY_KEY }}
 
   publish-niri:
     name: Publish (niri)
     needs: [guard, release]
     if: needs.guard.outputs.niri == 'true'
-    uses: ./.github/workflows/publish-flatpak.yml
+    permissions:
+      contents: write
+      packages: write
+    uses: $/.github/workflows/publish-flatpak.yml
     with:
       frontend: niri
-    secrets: inherit
+    secrets:
+      FLATPAK_INDEX_DEPLOY_KEY: ${{ secrets.FLATPAK_INDEX_DEPLOY_KEY }}
 
   publish-xfce:
     name: Publish (xfce)
     needs: [guard, release]
     if: needs.guard.outputs.xfce == 'true'
-    uses: ./.github/workflows/publish-flatpak.yml
+    permissions:
+      contents: write
+      packages: write
+    uses: $/.github/workflows/publish-flatpak.yml
     with:
       frontend: xfce
-    secrets: inherit
+    secrets:
+      FLATPAK_INDEX_DEPLOY_KEY: ${{ secrets.FLATPAK_INDEX_DEPLOY_KEY }}

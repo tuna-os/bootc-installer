@@ -21,12 +21,10 @@ on:
 
 # A called reusable workflow may only narrow the permissions its caller
 # passes, never widen them, and publish-flatpak.yml declares
-# contents/packages write for its publishing path. Granting less here is a
-# startup failure of the whole workflow (run 35254136098), not a skipped
-# publish. The build-only path never uses the write scopes.
-permissions:
-  contents: write
-  packages: write
+# contents/packages write for its publishing path. Granting less to a
+# calling job is a startup failure of the whole workflow (run 35254136098),
+# not a skipped publish. The build-only path never uses the write scopes.
+permissions: {}
 
 concurrency:
   group: flatpak-frontends-${{ github.event.pull_request.number || github.ref }}
@@ -36,15 +34,18 @@ jobs:
   changes:
     name: Detect changed frontends
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     outputs:
       kde: ${{ steps.filter.outputs.kde }}
       cosmic: ${{ steps.filter.outputs.cosmic }}
       niri: ${{ steps.filter.outputs.niri }}
       xfce: ${{ steps.filter.outputs.xfce }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - id: filter
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -78,39 +79,55 @@ jobs:
   kde:
     needs: changes
     if: needs.changes.outputs.kde == 'true'
-    uses: ./.github/workflows/publish-flatpak.yml
+    permissions:
+      contents: write
+      packages: write
+    uses: $/.github/workflows/publish-flatpak.yml
     with:
       frontend: kde
       publish: false
       archs: '["x86_64"]'
-    secrets: inherit
+    secrets:
+      FLATPAK_INDEX_DEPLOY_KEY: ${{ secrets.FLATPAK_INDEX_DEPLOY_KEY }}
 
   cosmic:
     needs: changes
     if: needs.changes.outputs.cosmic == 'true'
-    uses: ./.github/workflows/publish-flatpak.yml
+    permissions:
+      contents: write
+      packages: write
+    uses: $/.github/workflows/publish-flatpak.yml
     with:
       frontend: cosmic
       publish: false
       archs: '["x86_64"]'
-    secrets: inherit
+    secrets:
+      FLATPAK_INDEX_DEPLOY_KEY: ${{ secrets.FLATPAK_INDEX_DEPLOY_KEY }}
 
   niri:
     needs: changes
     if: needs.changes.outputs.niri == 'true'
-    uses: ./.github/workflows/publish-flatpak.yml
+    permissions:
+      contents: write
+      packages: write
+    uses: $/.github/workflows/publish-flatpak.yml
     with:
       frontend: niri
       publish: false
       archs: '["x86_64"]'
-    secrets: inherit
+    secrets:
+      FLATPAK_INDEX_DEPLOY_KEY: ${{ secrets.FLATPAK_INDEX_DEPLOY_KEY }}
 
   xfce:
     needs: changes
     if: needs.changes.outputs.xfce == 'true'
-    uses: ./.github/workflows/publish-flatpak.yml
+    permissions:
+      contents: write
+      packages: write
+    uses: $/.github/workflows/publish-flatpak.yml
     with:
       frontend: xfce
       publish: false
       archs: '["x86_64"]'
-    secrets: inherit
+    secrets:
+      FLATPAK_INDEX_DEPLOY_KEY: ${{ secrets.FLATPAK_INDEX_DEPLOY_KEY }}
