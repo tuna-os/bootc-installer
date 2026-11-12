@@ -147,16 +147,18 @@
       "flat": 0.8248,
       "ink": 0.034666666666666665,
       "stddev": 0.09195645179113664,
+      "sha256": "a450f6db2fb835888b833b622973a2f606cb3097a45200135f21d48660a1ebfe",
       "text_excerpt": "Step 1 of 9 \u00b7 Welcome \u2b22 Welcome to TunaOS This wizard will guide you through installing TunaOS onto your computer. Get started Get started Enter Continue Tab Next field This computer does not meet the minimum requirements It has less than 4"
     },
     {
       "name": "02-session",
       "png": "docs/screenshots/02-session.png",
       "rendered": true,
-      "colours": 409,
-      "flat": 0.6247,
-      "ink": 0.026266666666666667,
-      "stddev": 0.09779041921278185,
+      "colours": 407,
+      "flat": 0.6247666666666667,
+      "ink": 0.026233333333333334,
+      "stddev": 0.09781479077080661,
+      "sha256": "48b2d413528440d4fed13324a19084c2670de56188b6aee94e773928eca11c06",
       "text_excerpt": "Step 2 of 9 \u00b7 Session Session Keyboard, language and time zone for the installed system. This computer keeps its own. Keyboard and language Keyboard us Language en_US.UTF-8 Timezone Europe/Berlin Network Connected \u2014 downloads will work. Rec"
     },
     {
@@ -167,36 +169,40 @@
       "flat": 0.5597333333333333,
       "ink": 0.1155,
       "stddev": 0.11528884652927622,
+      "sha256": "248804118c975c63723f325557ccf534b0f0d80e273302b3fa8b111119a7a06c",
       "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Capture Desktop \u203a Edge ghcr.io/exa"
     },
     {
       "name": "04-disk",
       "png": "docs/screenshots/04-disk.png",
       "rendered": true,
-      "colours": 484,
-      "flat": 0.6199333333333333,
-      "ink": 0.11003333333333333,
-      "stddev": 0.10556755838076784,
+      "colours": 481,
+      "flat": 0.62,
+      "ink": 0.11,
+      "stddev": 0.10559852017409473,
+      "sha256": "9dc4a525f5cdc2337d884566ede07a0f88929aeb0990fec75fa2a3cebc4f91b8",
       "text_excerpt": "Step 4 of 9 \u00b7 Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  \u00b7  465.8 GiB  \u00b7  SATA Extreme SSD /dev/sdc  \u00b7  931.5 GiB  \u00b7  USB Cruzer Blade /dev/sdd  \u00b7  59.6 GiB  \u00b7  USB WD_"
     },
     {
       "name": "05-encryption",
       "png": "docs/screenshots/05-encryption.png",
       "rendered": true,
-      "colours": 521,
-      "flat": 0.4215333333333333,
-      "ink": 0.2012,
-      "stddev": 0.11963561917385698,
+      "colours": 518,
+      "flat": 0.4216,
+      "ink": 0.20116666666666666,
+      "stddev": 0.11965789715750128,
+      "sha256": "425995d1bb87614fee28012fcd810f1f0255b687a9675c8cbeec9e29475a2d55",
       "text_excerpt": "Step 5 of 9 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
       "name": "06-account",
       "png": "docs/screenshots/06-account.png",
       "rendered": true,
-      "colours": 346,
-      "flat": 0.5258333333333334,
-      "ink": 0.030633333333333332,
-      "stddev": 0.10059300974972753,
+      "colours": 343,
+      "flat": 0.5259,
+      "ink": 0.0306,
+      "stddev": 0.10062666352517599,
+      "sha256": "407365f9bf71a53def13b0e40df8c355bd714b4cd075205498cfe871e6a0a730",
       "text_excerpt": "Step 6 of 9 \u00b7 Account Your account The account you sign in with. It can administer this computer. Account Username alex Full name Alex Example Password capture Password again capture Show passwords Show passwords Back Back Continue Continue"
     },
     {
@@ -206,7 +212,8 @@
       "colours": 528,
       "flat": 0.49853333333333333,
       "ink": 0.0434,
-      "stddev": 0.11601600351490633,
+      "stddev": 0.11600864622662221,
+      "sha256": "f7cef4f71c1b1b44feb237b9e5c743a9f0ff6c781bf8cfb8a248aad337e834e8",
       "text_excerpt": "Step 7 of 9 \u00b7 Confirm Confirm installation \u26a0  Everything on /dev/sda will be erased. This cannot be undone. Summary Target disk /dev/sda Image Capture Desktop Stable  (ghcr.io/example/os:stable) Filesystem btrfs Encryption No encryption Use"
     },
     {
@@ -217,6 +224,7 @@
       "flat": 0.5598333333333333,
       "ink": 0.021266666666666666,
       "stddev": 0.08930399419939161,
+      "sha256": "8c36f19faed5da82df7aa37b87e49d38e580f7cfd180240d87356b32bd6ff23f",
       "text_excerpt": "Step 8 of 9 \u00b7 Installing Installing TunaOS\u2026 Step 5 of 8 \u2014 Installing OS [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pul"
     },
     {
@@ -226,7 +234,8 @@
       "colours": 308,
       "flat": 0.9346666666666666,
       "ink": 0.0248,
-      "stddev": 0.09609967421521785,
+      "stddev": 0.09608996349971945,
+      "sha256": "f3a93702452e7a7ec77c40ea98e7566204377ff46a8d7a816b6c9d72b8c7a2f8",
       "text_excerpt": "Step 9 of 9 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation. Take a "
     },
     {
@@ -237,6 +246,7 @@
       "flat": 0.8905333333333333,
       "ink": 0.03,
       "stddev": 0.09913306458009426,
+      "sha256": "139e8b87081594836802505acbeb43437b1d57cc458d2a53150a9af091991446",
       "text_excerpt": "Step 9 of 9 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation. Save yo"
     },
     {
@@ -247,6 +257,7 @@
       "flat": 0.7204666666666667,
       "ink": 0.011333333333333334,
       "stddev": 0.04765841039617274,
+      "sha256": "f44ed7fa891eb365643d062a6a86b478ea3215d054f5317e9e1fe063b9ee5d22",
       "text_excerpt": "Step 9 of 9 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation. Save yo"
     },
     {
@@ -257,16 +268,18 @@
       "flat": 0.422,
       "ink": 0.0396,
       "stddev": 0.10962146762859741,
+      "sha256": "8796eacc9b9d3534ed580ae116a6c017348c590b54dad0a18ca1988bd1044395",
       "text_excerpt": "Step 8 of 9 \u00b7 Installing Installing TunaOS\u2026 Step 5 of 8 \u2014 Installing OS [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pul"
     },
     {
       "name": "13-cancelled",
       "png": "docs/screenshots/13-cancelled.png",
       "rendered": true,
-      "colours": 203,
-      "flat": 0.9648333333333333,
-      "ink": 0.0125,
-      "stddev": 0.06889365344625271,
+      "colours": 200,
+      "flat": 0.9649,
+      "ink": 0.012466666666666666,
+      "stddev": 0.06892338031392593,
+      "sha256": "2745b5f24c71014652248a54758a3aa38444155991c4e7411992b1b7d696b1e1",
       "text_excerpt": "Step 9 of 9 \u00b7 Done \u2013 Installation cancelled You stopped the installer. The disk can be in an incomplete state: start the installer again before you use it. Close Close"
     },
     {
@@ -277,23 +290,24 @@
       "flat": 0.45976666666666666,
       "ink": 0.1171,
       "stddev": 0.10711879164913583,
+      "sha256": "6680fc65e0c0d06f6fcc363a13ba09bd9602d76994257985b0b9df8e897cc05e",
       "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Capture Desktop \u203a Edge ghcr.io/exa"
     }
   ],
   "transition_pixels": [
     143775,
-    173911,
-    74298,
-    99802,
-    241992,
-    132379,
+    173889,
+    74304,
+    99790,
+    241980,
+    132357,
     86043,
     266722,
     69018,
     133012,
     59132,
     86158,
-    152439
+    152431
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
