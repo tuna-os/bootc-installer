@@ -134,7 +134,6 @@ from bootc_installer.defaults.image import (  # noqa: E402
     _count_leaves,
     _find_icon_for_imgref,
     _imgref_to_pretty_name,
-    _load_manifest,
     _make_icon,
     _resolve_aliases,
 )

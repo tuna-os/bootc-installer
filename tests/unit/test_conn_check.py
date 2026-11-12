@@ -190,7 +190,7 @@ class TestConnCheckAsyncLogic(unittest.TestCase):
             return MagicMock()
 
         with patch.object(mod, "RunAsync", _SyncRunAsync), patch.dict(
-            mod.os.environ, {}, clear=True
+            os.environ, {}, clear=True
         ), patch.object(mod.socket, "create_connection", side_effect=connect):
             self._show(step, 2)
 
@@ -212,7 +212,7 @@ class TestConnCheckAsyncLogic(unittest.TestCase):
             if answer is not None:
                 step._BootcDefaultConnCheck__window.image_to_download = answer
             with patch.object(mod, "RunAsync", _SyncRunAsync), patch.dict(
-                mod.os.environ, {}, clear=True
+                os.environ, {}, clear=True
             ), patch.object(mod.socket, "create_connection", side_effect=connect):
                 self._show(step, 2)
             self.assertEqual(tried, [("ghcr.io", 443), ("8.8.8.8", 53)])
@@ -221,7 +221,7 @@ class TestConnCheckAsyncLogic(unittest.TestCase):
         mod = _import_conn_check_fresh()
         step = self._step(mod)
         with patch.object(mod, "RunAsync", _SyncRunAsync), patch.dict(
-            mod.os.environ, {"VANILLA_SKIP_CONN_CHECK": ""}, clear=True
+            os.environ, {"VANILLA_SKIP_CONN_CHECK": ""}, clear=True
         ), patch.object(mod.socket, "create_connection",
                         return_value=MagicMock()) as create_conn:
             self._show(step, 2)
@@ -232,7 +232,7 @@ class TestConnCheckAsyncLogic(unittest.TestCase):
         step = self._step(mod)
 
         with patch.object(mod, "RunAsync", _SyncRunAsync), patch.dict(
-            mod.os.environ, {"VANILLA_SKIP_CONN_CHECK": "1"}, clear=False
+            os.environ, {"VANILLA_SKIP_CONN_CHECK": "1"}, clear=False
         ), patch.object(mod.socket, "create_connection") as create_conn:
             self._show(step, 2)
 
