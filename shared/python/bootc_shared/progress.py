@@ -205,6 +205,7 @@ def new_progress_state() -> dict:
         "recovery_key": "",
         "error": None,
         "receipt": None,
+        "source_reuse": None,
     }
 
 
@@ -251,6 +252,166 @@ def receipt_of(event: dict) -> dict:
     if event.get("first_boot_check") is True:
         return view("check_set_up", install_id)
     return view("written_no_check", install_id, reason)
+
+
+SOURCE_REUSE_VERSION = 1
+SOURCE_REUSE_PHASES = ("planned", "copying", "verified", "failed", "released")
+_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
+_GIB = 1 << 30
+
+
+def _count(value):
+    """A byte count or a time in ms: a whole number >= 0, else None."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return value
+
+
+def _code(value) -> str:
+    return value if isinstance(value, str) and _RECEIPT_REASON.match(value) else ""
+
+
+def source_reuse_of(event: dict, view: dict | None) -> dict | None:
+    """What a frontend keeps of fisherman's `source_reuse` events (#267,
+    fisherman docs/SOURCE-REUSE.md): the copy of this computer's system
+    before the first step. `view` is the one before this event, or None.
+
+    {"phase", "required_bytes", "destination_digest", "copy_ms",
+     "used_bytes", "code", "released", "destination"}
+
+    phase: planned, copying, verified or failed, the last of them; or
+    unreadable, for a `version` other than the number 1. `released` (the
+    teardown removed the copy, before or after `failed`) sets only
+    `released`: removed, remove_failed, or unknown for another reason.
+    A phase that this parser does not know leaves the view as it was.
+    Counts that are not whole numbers >= 0 are None. `used_bytes` is the
+    largest drop in free space during the copy: the larger peak on one
+    filesystem, the sum of both on two. shared/progress/source-reuse-cases.json.
+    """
+    out = dict(view) if view else {
+        "phase": "", "required_bytes": None, "destination_digest": "", "copy_ms": None,
+        "used_bytes": None, "code": "", "released": "", "destination": ""}
+    version = event.get("version")
+    if isinstance(version, bool) or not isinstance(version, int) or version != SOURCE_REUSE_VERSION:
+        out["phase"] = "unreadable"
+        return out
+    phase = event.get("phase")
+    if phase not in SOURCE_REUSE_PHASES:
+        return view
+    destination = event.get("destination")
+    if isinstance(destination, str) and destination:
+        out["destination"] = destination
+    if phase == "released":
+        reason = _code(event.get("reason"))
+        out["released"] = reason if reason in ("removed", "remove_failed") else "unknown"
+        return out
+    out["phase"] = phase
+    estimate = event.get("estimate")
+    estimate = estimate if isinstance(estimate, dict) else {}
+    if "required_bytes" in estimate:
+        out["required_bytes"] = _count(estimate.get("required_bytes"))
+    if phase == "verified":
+        digest = event.get("destination_digest")
+        out["destination_digest"] = digest if isinstance(digest, str) and _DIGEST.match(digest) else ""
+        measured = event.get("measured")
+        measured = measured if isinstance(measured, dict) else {}
+        out["copy_ms"] = _count(measured.get("copy_ms"))
+        scratch = _count(measured.get("scratch_peak_bytes"))
+        store = _count(measured.get("store_peak_bytes"))
+        if scratch is None or store is None:
+            out["used_bytes"] = None
+        elif estimate.get("same_filesystem") is False:
+            out["used_bytes"] = scratch + store
+        else:
+            out["used_bytes"] = max(scratch, store)
+    if phase == "failed":
+        out["code"] = _code(event.get("code"))
+    return out
+
+
+REUSE_PREFIX = "progress_reuse_"
+REUSE_FAILED_PREFIX = REUSE_PREFIX + "failed_"
+REUSE_FAILED_UNKNOWN = REUSE_FAILED_PREFIX + "unknown"
+
+
+def gib(count: int) -> str:
+    """Bytes as GiB with one decimal: the {value} of the space lines."""
+    return f"{count / _GIB:.1f}"
+
+
+def source_reuse_lines(view, has_copy=None):
+    """The progress page's copy lines for the copy of this computer's
+    system, in order: [(key, value)]; [] without a `source_reuse` event.
+
+    planned: the space the copy needs (`progress_reuse_planned`, GiB), or
+    `progress_reuse_planned_unknown`. copying: that line, then
+    `progress_reuse_copying`. verified: `progress_reuse_verified`, the copy's
+    digest, the time (whole seconds) and the space it used. failed: the
+    space line when the estimate is known, then
+    `progress_reuse_failed_<code without source_reuse_>`, or the unknown line
+    for a code that the copy does not know. Then the release line.
+    """
+    if has_copy is None:
+        from bootc_shared import _data
+        keys = frozenset(k for k in _data.load_json("branding/copy-defaults.json")
+                         if not k.startswith("_"))
+        has_copy = keys.__contains__
+    if not isinstance(view, dict):
+        return []
+    lines = []
+    phase = view.get("phase")
+    required = view.get("required_bytes")
+    space = (REUSE_PREFIX + "planned", gib(required)) if required is not None else None
+    if phase == "unreadable":
+        lines.append((REUSE_PREFIX + "unreadable", ""))
+    elif phase in ("planned", "copying"):
+        lines.append(space or (REUSE_PREFIX + "planned_unknown", ""))
+        if phase == "copying":
+            lines.append((REUSE_PREFIX + "copying", ""))
+    elif phase == "verified":
+        lines.append((REUSE_PREFIX + "verified", ""))
+        if view.get("destination_digest"):
+            lines.append((REUSE_PREFIX + "verified_digest", view["destination_digest"]))
+        if view.get("copy_ms") is not None:
+            lines.append((REUSE_PREFIX + "measured_time", str((view["copy_ms"] + 500) // 1000)))
+        if view.get("used_bytes") is not None:
+            lines.append((REUSE_PREFIX + "measured_space", gib(view["used_bytes"])))
+    elif phase == "failed":
+        if space:
+            lines.append(space)
+        code = view.get("code") or ""
+        key = REUSE_FAILED_PREFIX + code[len("source_reuse_"):] if code.startswith("source_reuse_") else ""
+        lines.append((key if key and has_copy(key) else REUSE_FAILED_UNKNOWN, ""))
+    released = view.get("released")
+    if released:
+        destination = view.get("destination") or ""
+        if destination.startswith("containers-storage:"):
+            destination = destination[len("containers-storage:"):]
+        lines.append((REUSE_PREFIX + "released_" + released,
+                      destination if released == "remove_failed" else ""))
+    return lines
+
+
+def source_reuse_text(view, text):
+    """source_reuse_lines() as the strings to show: `text(key)` is the
+    frontend's copy resolver. An empty line (a product hid it) is left
+    out."""
+    out = []
+    for key, value in source_reuse_lines(view):
+        line = text(key).replace("{value}", value)
+        if line:
+            out.append(line)
+    return out
+
+
+def copy_cancel(state: dict) -> bool:
+    """Whether a cancel now stops the copy of this computer's system and
+    leaves the disk as it was: a `source_reuse` event came, the copy has
+    not failed and is not released, and no step has started. The cancel question then says
+    `progress_reuse_cancel` instead of the warning about the disk."""
+    view = state.get("source_reuse")
+    return (isinstance(view, dict) and view.get("phase") in ("planned", "copying", "verified")
+            and not view.get("released") and not state.get("current_step"))
 
 
 def _error_of(event: dict) -> dict:
@@ -359,6 +520,13 @@ def apply_progress_event(line: str, state: dict) -> dict | None:
         state["receipt"] = receipt_of(event)
         return None
 
+    if event_type == "source_reuse":
+        # The copy of this computer's system, before the first step. It
+        # moves no bar: the bar pulses until fisherman's first step.
+        state["source_reuse"] = source_reuse_of(event, state["source_reuse"])
+        return {"fraction": None, "label": None, "pulse": state["pulse_active"],
+                "complete": False, "source_reuse": state["source_reuse"]}
+
     if event_type == "complete":
         state["pulse_active"] = False
         state["fraction"] = 1.0
@@ -389,14 +557,16 @@ def install_outcome(exit_code, cancel_requested: bool) -> str:
     it. The exit code decides, never a `complete` event: fisherman can
     write `complete` and still exit non-zero. 0 is success, even after a
     cancel that came too late. 130 is fisherman's cancel, whoever asked.
-    Any other end after the user confirmed a cancel is a cancel: the
-    frontend signals the wrapper's group then. Everything else failed.
-    COSMIC calls a plain non-zero exit after a cancel a failure; the case
-    file leaves that one case out until the five agree.
+    After the user confirmed a cancel, a signal (None, or a shell's
+    128 + n) is the cancel too: the frontend signalled the wrapper's
+    group. Any other exit code is a failure, cancel or not: fisherman
+    failed before the cancel reached it.
     """
     if exit_code == 0:
         return "succeeded"
-    if exit_code == EXIT_CANCELLED or cancel_requested:
+    if exit_code == EXIT_CANCELLED:
+        return "cancelled"
+    if cancel_requested and (exit_code is None or exit_code > 128):
         return "cancelled"
     return "failed"
 
@@ -442,6 +612,12 @@ def render_event(line: str) -> str | None:
             line += f", install id {event['install_id']}"
         if isinstance(event.get("reason"), str) and event["reason"]:
             line += f" ({event['reason']})"
+        return line
+    if kind == "source_reuse":
+        phase = event.get("phase", "")
+        line = f"Source reuse: {phase}" if isinstance(phase, str) else "Source reuse"
+        if isinstance(event.get("code"), str) and event["code"]:
+            line += f" ({event['code']})"
         return line
     if kind == "recovery_key":
         # Shown, not hidden. A frontend with no recovery-key screen (see

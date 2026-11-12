@@ -33,6 +33,7 @@
     {"id": "progress_bar", "label": "Progress bar from fisherman's protocol", "evidence": {"walkthrough_screen": "install"}},
     {"id": "source_check", "label": "Check of the selected image (`capabilities` of `fisherman probe --json`, #266)"},
     {"id": "bootc_store_view", "label": "Images in this computer's bootc storage (`bootc_store`), and this computer's system as the install source (`sourceReuse`, #267)"},
+    {"id": "source_reuse_progress", "label": "Progress of the copy of this computer's system (`source_reuse` events: space, copy, check, failure, removal; #267)"},
     {"id": "done_not_verified", "label": "Done page: installed, restart required, start not verified (#269)"},
     {"id": "done_receipt", "label": "Done page: the `receipt` event (install ID, first-boot check) (#269)"},
     {"id": "restart_from_done", "label": "Restart from the done page", "evidence": {"walkthrough_screen": "done"}},

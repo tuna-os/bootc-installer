@@ -131,6 +131,198 @@
       "exit_code": 1,
       "cancel_requested": false,
       "outcome": "failed"
+    },
+    {
+      "name": "exit_1_after_a_confirmed_cancel",
+      "events": [
+        {
+          "type": "error",
+          "message": "pull failed",
+          "code": "pull_failed",
+          "field": ""
+        }
+      ],
+      "exit_code": 1,
+      "cancel_requested": true,
+      "outcome": "failed"
+    },
+    {
+      "name": "a_cancelled_copy",
+      "events": [
+        {
+          "destination": "containers-storage:localhost/fisherman-reuse:111111111111-0123456789abcdef",
+          "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "elapsed_ms": 60000,
+          "estimate": {
+            "estimate_ms": 4210,
+            "files": 3,
+            "required_bytes": 1073811456,
+            "same_filesystem": true,
+            "scratch_bytes": 16384,
+            "scratch_free_bytes": 107374182400,
+            "store_bytes": 53248,
+            "store_free_bytes": 107374182400
+          },
+          "phase": "planned",
+          "platform": "x86_64",
+          "source": "docker://ghcr.io/example/os:stable",
+          "timestamp": "1970-01-01T00:00:00Z",
+          "type": "source_reuse",
+          "version": 1
+        },
+        {
+          "destination": "containers-storage:localhost/fisherman-reuse:111111111111-0123456789abcdef",
+          "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "elapsed_ms": 61000,
+          "estimate": {
+            "estimate_ms": 4210,
+            "files": 3,
+            "required_bytes": 1073811456,
+            "same_filesystem": true,
+            "scratch_bytes": 16384,
+            "scratch_free_bytes": 107374182400,
+            "store_bytes": 53248,
+            "store_free_bytes": 107374182400
+          },
+          "phase": "copying",
+          "platform": "x86_64",
+          "source": "docker://ghcr.io/example/os:stable",
+          "timestamp": "1970-01-01T00:00:00Z",
+          "type": "source_reuse",
+          "version": 1
+        },
+        {
+          "destination": "containers-storage:localhost/fisherman-reuse:111111111111-0123456789abcdef",
+          "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "elapsed_ms": 62000,
+          "phase": "released",
+          "platform": "x86_64",
+          "reason": "removed",
+          "timestamp": "1970-01-01T00:00:00Z",
+          "type": "source_reuse",
+          "version": 1
+        },
+        {
+          "code": "source_reuse_transfer_failed",
+          "destination": "containers-storage:localhost/fisherman-reuse:111111111111-0123456789abcdef",
+          "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "elapsed_ms": 63000,
+          "estimate": {
+            "estimate_ms": 4210,
+            "files": 3,
+            "required_bytes": 1073811456,
+            "same_filesystem": true,
+            "scratch_bytes": 16384,
+            "scratch_free_bytes": 107374182400,
+            "store_bytes": 53248,
+            "store_free_bytes": 107374182400
+          },
+          "phase": "failed",
+          "platform": "x86_64",
+          "reason": "command_failed",
+          "source": "docker://ghcr.io/example/os:stable",
+          "timestamp": "1970-01-01T00:00:00Z",
+          "type": "source_reuse",
+          "version": 1
+        },
+        {
+          "type": "error",
+          "message": "installation cancelled (SIGTERM)"
+        }
+      ],
+      "exit_code": 130,
+      "cancel_requested": true,
+      "outcome": "cancelled"
+    },
+    {
+      "name": "a_failed_copy_after_a_confirmed_cancel",
+      "events": [
+        {
+          "destination": "containers-storage:localhost/fisherman-reuse:111111111111-0123456789abcdef",
+          "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "elapsed_ms": 60000,
+          "estimate": {
+            "estimate_ms": 4210,
+            "files": 3,
+            "required_bytes": 1073811456,
+            "same_filesystem": true,
+            "scratch_bytes": 16384,
+            "scratch_free_bytes": 107374182400,
+            "store_bytes": 53248,
+            "store_free_bytes": 107374182400
+          },
+          "phase": "planned",
+          "platform": "x86_64",
+          "source": "docker://ghcr.io/example/os:stable",
+          "timestamp": "1970-01-01T00:00:00Z",
+          "type": "source_reuse",
+          "version": 1
+        },
+        {
+          "destination": "containers-storage:localhost/fisherman-reuse:111111111111-0123456789abcdef",
+          "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "elapsed_ms": 61000,
+          "estimate": {
+            "estimate_ms": 4210,
+            "files": 3,
+            "required_bytes": 1073811456,
+            "same_filesystem": true,
+            "scratch_bytes": 16384,
+            "scratch_free_bytes": 107374182400,
+            "store_bytes": 53248,
+            "store_free_bytes": 107374182400
+          },
+          "phase": "copying",
+          "platform": "x86_64",
+          "source": "docker://ghcr.io/example/os:stable",
+          "timestamp": "1970-01-01T00:00:00Z",
+          "type": "source_reuse",
+          "version": 1
+        },
+        {
+          "code": "source_reuse_transfer_failed",
+          "destination": "containers-storage:localhost/fisherman-reuse:111111111111-0123456789abcdef",
+          "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "elapsed_ms": 62000,
+          "estimate": {
+            "estimate_ms": 4210,
+            "files": 3,
+            "required_bytes": 1073811456,
+            "same_filesystem": true,
+            "scratch_bytes": 16384,
+            "scratch_free_bytes": 107374182400,
+            "store_bytes": 53248,
+            "store_free_bytes": 107374182400
+          },
+          "phase": "failed",
+          "platform": "x86_64",
+          "reason": "command_failed",
+          "source": "docker://ghcr.io/example/os:stable",
+          "timestamp": "1970-01-01T00:00:00Z",
+          "type": "source_reuse",
+          "version": 1
+        },
+        {
+          "destination": "containers-storage:localhost/fisherman-reuse:111111111111-0123456789abcdef",
+          "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "elapsed_ms": 63000,
+          "phase": "released",
+          "platform": "x86_64",
+          "reason": "removed",
+          "timestamp": "1970-01-01T00:00:00Z",
+          "type": "source_reuse",
+          "version": 1
+        },
+        {
+          "type": "error",
+          "message": "source reuse: copy failed",
+          "code": "source_reuse_transfer_failed",
+          "field": "sourceReuse"
+        }
+      ],
+      "exit_code": 1,
+      "cancel_requested": true,
+      "outcome": "failed"
     }
   ]
 }

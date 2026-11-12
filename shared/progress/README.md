@@ -40,6 +40,11 @@ The same script writes the file, and the same five test suites read it.
 below. The same script writes the file, and the same five test suites read
 it.
 
+[`source-reuse-cases.json`](source-reuse-cases.json) pins what a parser
+keeps of the `source_reuse` events, the lines of the progress page and the
+cancel question. See "The copy of this computer's system" below. The same
+script writes the file, and the same five test suites read it.
+
 ## Events
 
 Every event carries `type`, plus `timestamp` (RFC 3339) and `elapsed_ms`.
@@ -53,6 +58,7 @@ them.
 | `info` | `message` | Informational line |
 | `recovery_key` | `key` | LUKS recovery passphrase, for `tpm2-luks` |
 | `receipt` | `version`, `written`, `install_id`, `path`, `first_boot_check`, `reason` | What the install did with the installation receipt (tuna-os/fisherman#441) |
+| `source_reuse` | `version`, `phase`, `digest`, `platform`, `source`, `destination`, `destination_digest`, `estimate`, `measured`, `code`, `reason` | The copy of this computer's system before the first step (tuna-os/fisherman#384) |
 | `complete` | `message`, `boot_id` (optional), `overall_pct` | Install finished |
 | `error` | `message`, `code` (optional), `field` (optional) | Terminal failure. `code` and `field` are those of `fisherman validate` (`fisherman/docs/VALIDATE.md`), when the failure has one |
 
@@ -156,6 +162,44 @@ choice of lines. GNOME and XFCE call it. KDE (`sourcecheck::receiptLines`),
 COSMIC (`source_check::receipt_lines`) and Niri (`receiptLines` in
 `ui/progress.js`) port it.
 
+## The copy of this computer's system
+
+With `sourceReuse` in the recipe, fisherman copies this computer's system
+into containers-storage before the first step
+([`fisherman/docs/SOURCE-REUSE.md`](../../fisherman/docs/SOURCE-REUSE.md)).
+It reports the copy in `source_reuse` events. A parser keeps one view of
+them:
+
+| Field | From |
+|---|---|
+| `phase` | the last `planned`, `copying`, `verified` or `failed`; `unreadable` for a `version` other than the number 1 |
+| `required_bytes` | `estimate.required_bytes`: the free space that the copy needs |
+| `destination_digest` | `verified`: the digest of the copy, `sha256:` and 64 lowercase hex digits, else `""` |
+| `copy_ms`, `used_bytes` | `verified`: `measured.copy_ms`, and the larger of the two peaks of `measured` (the sum on two filesystems) |
+| `code` | `failed`: the `source_reuse_*` code |
+| `released` | `released`: `removed`, `remove_failed`, or `unknown` for another reason |
+| `destination` | the copy in containers-storage |
+
+A count that is not a whole number of 0 or more is null. A phase that the
+parser does not know changes nothing. `released` can come before `failed`:
+a cancel removes the copy while bootc still runs.
+
+The progress page shows the lines of
+`bootc_shared.progress.source_reuse_lines()`. The space line uses GiB with
+one decimal, and the time line whole seconds. A failed copy shows
+`progress_reuse_failed_<code without source_reuse_>`, or
+`progress_reuse_failed_unknown` for a code that the copy does not know.
+
+The events do not move the bar. fisherman sends no `overall_pct` for the
+copy, so the bar keeps its start state until the first step: it pulses,
+or it stays at 0.
+
+The copy runs before the first disk step. While no step has started and
+the copy did not fail, `copy_cancel()` is true, and the cancel question
+says `progress_reuse_cancel`: the installer stops the copy and removes it,
+and the disk does not change. fisherman then removes the copy, writes
+`released` and maybe `failed`, and exits 130.
+
 ## How an install ended
 
 The exit code of the wrapper decides the outcome, never a `complete`
@@ -166,7 +210,8 @@ the teardown fails. The rule:
 |---|---|
 | 0 | succeeded, also after a cancel that came too late |
 | 130 | cancelled: fisherman's own code for a cancel |
-| another code, or a signal, after the user confirmed a cancel | cancelled |
+| a signal (or a shell's 128 + n) after the user confirmed a cancel | cancelled: the frontend signalled the wrapper |
+| another code after the user confirmed a cancel | failed: fisherman failed before the cancel reached it |
 | another code, or a signal, without a cancel | failed |
 
 [`outcome-cases.json`](outcome-cases.json) pins the rule. GNOME and XFCE
@@ -175,9 +220,6 @@ call `bootc_shared.progress.install_outcome()`. KDE
 (`installOutcome` in `ui/progress.js`) test their rule against the file.
 Only a succeeded install shows the receipt lines.
 
-One case is not in the file: an exit code such as 1 after a confirmed
-cancel. GNOME, KDE, Niri and XFCE call it a cancel. COSMIC calls it a
-failure. The five do not agree on that case yet.
 
 ## Recovery key in a log
 

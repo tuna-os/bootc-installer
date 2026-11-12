@@ -12,6 +12,29 @@ sure that it does. Do not edit the hash of an old entry: add an entry.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-12: the progress of the copy of this computer's system, and one outcome rule
+
+- Added: `progress/source-reuse-cases.json`, written by
+  `progress/generate-fraction-cases.py`. It pins what a parser keeps of
+  fisherman's `source_reuse` events, the lines of the progress page and
+  the cancel question during the copy. Most events are fisherman's own
+  lines from its `internal/reuse` tests. The first case is the example of
+  `JSON-PROGRESS-FORMAT.md`, and a test holds it to the pinned document.
+  The case `cancelled_copy` is a cancel during the copy. Each parser reads
+  the file (#267).
+- Added: `bootc_shared.progress.source_reuse_of()`, `source_reuse_lines()`,
+  `source_reuse_text()` and `copy_cancel()`. GNOME and XFCE call them. KDE,
+  COSMIC and Niri port them.
+- Added: copy keys `progress_reuse_<phase>`, `progress_reuse_failed_<code>`
+  for each code of a failed copy, `progress_reuse_failed_unknown`,
+  `progress_reuse_released_<reason>`, `progress_reuse_unreadable` and
+  `progress_reuse_cancel`. Each frontend renders them.
+- Changed: `progress/outcome-cases.json` has the rule for an exit code
+  after a confirmed cancel. Only 130 or a signal is a cancel. Another
+  non-zero exit code is a failure. COSMIC had this rule. GNOME, KDE, Niri
+  and XFCE now follow it. New cases: `exit_1_after_a_confirmed_cancel`,
+  `a_cancelled_copy` and `a_failed_copy_after_a_confirmed_cancel`.
+
 ## 2026-11-12: the receipt event, and installs from the bootc storage of this computer
 
 - Added: the recipe field `sourceReuse` (`store`, `digest`, `platform`)
@@ -27,8 +50,7 @@ schema only.
 - Added: `progress/outcome-cases.json`. It pins how an install ended. The
   exit code decides, never a `complete` event. GNOME and XFCE call the new
   `bootc_shared.progress.install_outcome()`. KDE, COSMIC and Niri test
-  their rule against the file. One case is not in the file: exit code 1 after a
-  confirmed cancel. Four frontends call it a cancel, COSMIC a failure.
+  their rule against the file.
 - Added: `probe/source-reuse-cases.json` and two `frontend-reuse-*`
   inventories in `probe/fixtures/bootc-store/`.
   `probe/generate-source-check-cases.py` writes the case file. The cases
