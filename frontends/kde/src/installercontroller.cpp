@@ -305,6 +305,17 @@ QStringList InstallerController::receiptLines() const
     return out;
 }
 
+QStringList InstallerController::failureLines() const
+{
+    QStringList out;
+    for (const QString &key : sourcecheck::failureLines(QJsonObject::fromVariantMap(m_installError))) {
+        const QString shown = m_branding.text(key);
+        if (!shown.isEmpty())
+            out << shown;
+    }
+    return out;
+}
+
 QString InstallerController::regionProblem() const
 {
     for (const QString &field : {QStringLiteral("locale"), QStringLiteral("keyboard"), QStringLiteral("timezone")}) {
@@ -1030,13 +1041,8 @@ QString InstallerController::consumeProgress(const QString &line)
         return message.isEmpty() ? tr("Installation complete") : message;
     }
     if (type == QLatin1String("error")) {
-        // The last one is kept; it does not move the bar. toString() is ""
-        // for a part that is missing or is not a string.
-        m_installError = {
-            {QStringLiteral("message"), event.value(QStringLiteral("message")).toString()},
-            {QStringLiteral("code"), event.value(QStringLiteral("code")).toString()},
-            {QStringLiteral("field"), event.value(QStringLiteral("field")).toString()},
-        };
+        // The last one is kept; it does not move the bar.
+        m_installError = sourcecheck::errorOf(event).toVariantMap();
         return tr("ERROR: %1").arg(event.value(QStringLiteral("message")).toString());
     }
     if (type == QLatin1String("source_reuse")) {

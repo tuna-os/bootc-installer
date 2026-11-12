@@ -136,3 +136,46 @@ def test_done_page_shows_the_receipt_cases():
             assert core.BRANDING.text(line["key"]).replace("{value}", line["value"]) in body, \
                 case["name"]
         assert "verified" not in body.lower()
+
+
+def test_failed_page_says_whether_the_disk_changed_and_the_cleanup():
+    """shared/progress/error-cases.json (tuna-os/fisherman#449): the failure
+    page says whether the disk was changed, and when the cleanup failed or
+    timed out, above the log tail. An older fisherman's event adds no line."""
+    import json as _json
+
+    from bootc_shared import progress as pp
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..",
+                        "shared", "progress", "error-cases.json")
+    with open(path, encoding="utf-8") as fh:
+        cases = _json.load(fh)["cases"]
+    every = {"done_failed_disk_unchanged", "done_failed_disk_changed",
+             "done_failed_cleanup_failed", "done_failed_cleanup_timed_out"}
+    for case in cases:
+        state = pp.new_progress_state()
+        for event in case["events"]:
+            pp.apply_progress_event(_json.dumps(event), state)
+        done = pages.DonePage(_Win())
+        done.set_result(False, "the tail", error=state["error"])
+        body = done.body.get_text()
+        want = [core.BRANDING.text(key) for key in case["lines"]]
+        assert body.split("\n\n")[:len(want)] == want, case["name"]
+        for key in every - set(case["lines"]):
+            assert core.BRANDING.text(key) not in body, (case["name"], key)
+        assert "the tail" in body
+
+
+def test_the_progress_page_hands_its_error_to_the_done_page():
+    win = app.InstallerWindow.__new__(app.InstallerWindow)
+    error = {"message": "m", "code": "unknown", "field": "", "step_id": "",
+             "disk_changed": False, "cleanup": {"status": "ok", "message": ""}}
+    seen = {}
+    win._log_tail = ["tail\n"]
+    win.pages = {
+        "progress": types.SimpleNamespace(recovery_key=lambda: "", receipt=lambda: None,
+                                          error=lambda: error),
+        "done": types.SimpleNamespace(set_result=lambda *a, **kw: seen.update(kw)),
+    }
+    win._enter = lambda index: None
+    app.InstallerWindow._show_result(win, False)
+    assert seen["error"] is error

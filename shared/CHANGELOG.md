@@ -35,9 +35,26 @@ schema only.
   against its frames, and `--strict` exits 1 on a failure. A report with no
   `contract_digest` comes from an old emitter: the page labels it advisory.
   `walkthrough.yml` runs with `--strict`.
+- Version 1.1.0 also covers the entry below, which adds fields to the
+  `error` event (#370). One minor version covers both additions.
 
 Contracts version: `1.1.0`
-Contracts sha256: `cf51dcf38a85ec48372c24eb384829f3193eb651af63db2537fe8fa4c32b2d70`
+Contracts sha256: `57aa1fd377bd3b1d8f07f1b5c82f918ae8c3190eba91e8e68813f9ff8cecb15c`
+
+## 2026-11-12: the step, the disk and the cleanup of a failure
+
+- Changed: `progress/error-cases.json`. A parser now keeps `step_id`,
+  `disk_changed` and `cleanup` of the `error` event as well as `message`,
+  `code` and `field` (tuna-os/fisherman#449). Each case has the failure
+  page's `lines`. Six new cases are fisherman's own events, and three
+  have parts of the wrong type. The Python, C++, Rust and JavaScript
+  parsers read the file.
+- Added: `bootc_shared.progress.failure_lines()`. The failure page says
+  whether the disk changed, and when the cleanup failed or did not end in
+  time. A part that fisherman did not send adds no line.
+- Added: four copy keys in `branding/copy-defaults.json`:
+  `done_failed_disk_unchanged`, `done_failed_disk_changed`,
+  `done_failed_cleanup_failed` and `done_failed_cleanup_timed_out`.
 
 ## 2026-11-12: the contracts have a version
 

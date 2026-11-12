@@ -54,6 +54,15 @@ QString plainRef(const QString &ref);
 QJsonObject receiptOf(const QJsonObject &event);
 QList<QPair<QString, QString>> receiptLines(const QJsonValue &receipt);
 
+// fisherman's `error` progress event as bootc_shared.progress._error_of()
+// keeps it (shared/progress/error-cases.json): message, code, field and
+// step_id ("" when missing or not a string), disk_changed (the boolean, else
+// null) and cleanup ({status, message}, else null; a status other than ok,
+// failed or timed_out is ""). failureLines() are the failure page's copy
+// keys for it (bootc_shared.progress.failure_lines, tuna-os/fisherman#449).
+QJsonObject errorOf(const QJsonObject &event);
+QStringList failureLines(const QJsonObject &error);
+
 // fisherman's `source_reuse` events (#267, shared/progress/source-reuse-cases.json):
 // the copy of this computer's system before the first step, as
 // bootc_shared.progress.source_reuse_of() keeps it. `view` is the one before

@@ -22,14 +22,29 @@ template $BootcDefaultConnCheck: Adw.Bin {
       }
 
       Adw.PreferencesGroup {
-        Button btn_recheck {
-          label: "Check Again";
+        Box {
+          orientation: horizontal;
           halign: center;
-          visible: false;
+          spacing: 12;
 
-          styles [
-            "pill",
-          ]
+          Button btn_network_settings {
+            label: _("Network settings");
+            visible: false;
+
+            styles [
+              "pill",
+              "suggested-action",
+            ]
+          }
+
+          Button btn_recheck {
+            label: "Check Again";
+            visible: false;
+
+            styles [
+              "pill",
+            ]
+          }
         }
       }
     }

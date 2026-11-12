@@ -282,12 +282,66 @@ class StepIdCopyTest(unittest.TestCase):
 
 
 ERROR_CASES = os.path.join(REPO, "shared", "progress", "error-cases.json")
+FISHERMAN_ERRORS = os.path.join(REPO, "fisherman", "fisherman", "internal", "progress",
+                                "testdata", "error-events.json")
+FISHERMAN_PROGRESS_DOC = os.path.join(REPO, "fisherman", "docs", "JSON-PROGRESS-FORMAT.md")
+
+
+def _copy_defaults():
+    with open(os.path.join(REPO, "shared", "branding", "copy-defaults.json"), encoding="utf-8") as fh:
+        return json.load(fh)
 
 
 class ErrorCasesTest(unittest.TestCase):
     """shared/progress/error-cases.json pins what a parser keeps of the
-    `error` event (the last one, as {message, code, field}). COSMIC, KDE and
+    `error` event (the last one, as {message, code, field, step_id,
+    disk_changed, cleanup}) and the failure page's lines. COSMIC, KDE and
     Niri test their own parsers against it."""
+
+    def test_the_failure_page_lines(self):
+        pp = _load(CANONICAL, "_pp_failure_lines")
+        with open(ERROR_CASES, encoding="utf-8") as fh:
+            cases = {case["name"]: case for case in json.load(fh)["cases"]}
+        # Each line is in the fixture at least once, and an older
+        # fisherman's event says nothing about the disk.
+        seen = {key for case in cases.values() for key in case["lines"]}
+        self.assertEqual(seen, {"done_failed_disk_unchanged", "done_failed_disk_changed",
+                                "done_failed_cleanup_failed", "done_failed_cleanup_timed_out"})
+        self.assertEqual(cases["an_older_fisherman_sends_only_the_message"]["lines"], [])
+        self.assertEqual(cases["a_cleanup_failure_keeps_the_primary_code"]["lines"],
+                         ["done_failed_disk_changed", "done_failed_cleanup_failed"])
+        self.assertEqual(cases["a_cleanup_failure_keeps_the_primary_code"]["error"]["code"],
+                         "partition_failed")
+        for case in cases.values():
+            with self.subTest(case=case["name"]):
+                self.assertEqual(pp.failure_lines(case["error"]), case["lines"])
+        copy = _copy_defaults()
+        for key in seen:
+            self.assertTrue(copy.get(key), key)
+        # A product that hides a line hides it; the others stay.
+        error = cases["a_cleanup_that_timed_out"]["error"]
+        shown = pp.failure_text(error, lambda key: "" if key.startswith("done_failed_disk")
+                                else copy[key])
+        self.assertEqual(shown, [copy["done_failed_cleanup_timed_out"]])
+
+    def test_the_cases_hold_fishermans_own_error_events(self):
+        """fisherman's golden events (#449) are cases here, once the pin
+        has them. Before that the pinned fisherman documents none of the
+        new fields, so the fixture is ahead of the pin, not out of step."""
+        with open(ERROR_CASES, encoding="utf-8") as fh:
+            events = [event for case in json.load(fh)["cases"] for event in case["events"]]
+        if not os.path.exists(FISHERMAN_ERRORS):
+            with open(FISHERMAN_PROGRESS_DOC, encoding="utf-8") as fh:
+                self.assertNotIn("disk_changed", fh.read(),
+                                 "the pin documents disk_changed but has no error-events.json")
+            return
+        with open(FISHERMAN_ERRORS, encoding="utf-8") as fh:
+            golden = json.load(fh)
+        for case in golden["cases"]:
+            if case["name"] == "secrets_are_redacted":
+                continue  # fisherman's redaction, not a parser's concern
+            with self.subTest(case=case["name"]):
+                self.assertIn(case["event"], events)
 
     def test_fixture_is_what_the_canonical_parser_produces(self):
         gen = _load(GENERATOR, "_fraction_gen_errors")

@@ -1127,6 +1127,11 @@ class ProgressPage(Page):
         view of fisherman's `receipt` event, or None when none came (#269)."""
         return self._progress.get("receipt")
 
+    def error(self):
+        """fisherman's last `error` event as the parser keeps it, or None
+        when none came (shared/progress/error-cases.json)."""
+        return self._progress.get("error")
+
     def can_continue(self):
         return False  # navigation unlocked by install completion
 
@@ -1253,14 +1258,18 @@ class DonePage(Page):
         self.recovery_box.show_all()
         self.recovery_box.set_no_show_all(True)
 
-    def set_result(self, ok, log_tail, recovery_key="", cancelled=False, receipt=None):
+    def set_result(self, ok, log_tail, recovery_key="", cancelled=False, receipt=None,
+                   error=None):
         """Show how the install ended: installed, cancelled or failed.
 
         `cancelled` is a cancel the person confirmed, or fisherman's exit
         code 130. It is not a failure and has its own heading, the copy key
         done_cancelled_title (#299). `receipt` is the progress page's
         receipt(): the done page says what it set up for the first-boot
-        check, and never that the new system started."""
+        check, and never that the new system started. `error` is the
+        progress page's error(): a failure says whether the disk was
+        changed, and when the cleanup failed or timed out
+        (tuna-os/fisherman#449)."""
         # Only a finished install enrolled a TPM, so only it has a key.
         self.show_recovery_key(recovery_key if ok else "")
         self.logo.set_visible(ok and self.logo.get_pixbuf() is not None)
@@ -1290,9 +1299,10 @@ class DonePage(Page):
         else:
             self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
                 core.BRANDING.text("done_failed_title")) + "</b></big>")
-            self.body.set_text(_(
-                "The last lines of the install log:\n\n{log}"
-                "\n\nFull log: {path}").format(log=log_tail, path=core.install_log_path()))
+            self.body.set_text("\n\n".join(
+                progress_parser.failure_text(error, core.BRANDING.text) + [_(
+                    "The last lines of the install log:\n\n{log}"
+                    "\n\nFull log: {path}").format(log=log_tail, path=core.install_log_path())]))
 
 
 PAGE_ORDER = ["welcome", "source", "destination", "setup", "identity",

@@ -384,6 +384,45 @@ QList<QPair<QString, QString>> receiptLines(const QJsonValue &receipt)
     return lines;
 }
 
+QJsonObject errorOf(const QJsonObject &event)
+{
+    const QJsonValue changed = event.value(QLatin1String("disk_changed"));
+    QJsonValue cleanup(QJsonValue::Null);
+    if (event.value(QLatin1String("cleanup")).isObject()) {
+        const QJsonObject c = event.value(QLatin1String("cleanup")).toObject();
+        const QString status = str(c.value(QLatin1String("status")));
+        const bool known = status == QLatin1String("ok") || status == QLatin1String("failed")
+            || status == QLatin1String("timed_out");
+        cleanup = QJsonObject{
+            {QStringLiteral("status"), known ? status : QString()},
+            {QStringLiteral("message"), str(c.value(QLatin1String("message")))},
+        };
+    }
+    return QJsonObject{
+        {QStringLiteral("message"), str(event.value(QLatin1String("message")))},
+        {QStringLiteral("code"), str(event.value(QLatin1String("code")))},
+        {QStringLiteral("field"), str(event.value(QLatin1String("field")))},
+        {QStringLiteral("step_id"), str(event.value(QLatin1String("step_id")))},
+        {QStringLiteral("disk_changed"), changed.isBool() ? changed : QJsonValue(QJsonValue::Null)},
+        {QStringLiteral("cleanup"), cleanup},
+    };
+}
+
+QStringList failureLines(const QJsonObject &error)
+{
+    QStringList lines;
+    const QJsonValue changed = error.value(QLatin1String("disk_changed"));
+    if (changed.isBool())
+        lines << (changed.toBool() ? QStringLiteral("done_failed_disk_changed")
+                                   : QStringLiteral("done_failed_disk_unchanged"));
+    const QString status = str(error.value(QLatin1String("cleanup")).toObject().value(QLatin1String("status")));
+    if (status == QLatin1String("failed"))
+        lines << QStringLiteral("done_failed_cleanup_failed");
+    else if (status == QLatin1String("timed_out"))
+        lines << QStringLiteral("done_failed_cleanup_timed_out");
+    return lines;
+}
+
 namespace {
 
 // A byte count or a time in ms: a whole number >= 0, else null.
