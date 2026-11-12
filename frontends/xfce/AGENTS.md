@@ -159,6 +159,17 @@ default. The pick goes into the recipe through
 calls, and fisherman checks it (`validate --partial`,
 `validate_source_reuse_<code>`). A copy needs no network.
 
+The confirm page also shows fisherman's install plan (tuna-os/fisherman#371).
+`core.request_plan()` runs `fisherman plan --json -` without privileges,
+off the UI thread, with the recipe on stdin and the timeout of
+`bootc_shared.plan`. The page shows `install_plan.rows()`: the target
+disk, and each device that the install erases. Next installs
+`InstallerWindow.install_recipe()`, which adds `diskIdentity` through
+`ConfirmPage.bind_disk()`. A manual layout, a plan for another disk, or no
+plan (an older fisherman, a timeout, an invalid recipe) adds nothing, and
+the page is as before. A dry run asks for no plan.
+`tests/test_install_plan.py` covers the page.
+
 The done page says "installed, restart required" and never
 "verified": `done_verification`, then the line for fisherman's `receipt`
 event (`completion.receipt_text()`, #269). `tests/test_source_check.py` and
