@@ -144,6 +144,28 @@ The user fields are empty because Dakota has its own setup at first boot.
 | `user.password` | string | The password as plain text. fisherman makes a hash of it during the install. |
 | `user.groups` | array | More groups for the user, for example `["wheel", "docker"]`. |
 
+## Image source, storage backend and partial pulls
+
+There are three different things. They decide how the image gets to the disk and how the
+new OS keeps it. One of them does not set another one:
+
+- **The image source.** This is where fisherman gets the bytes of the
+  image. On live media, the image can already be in the container store of
+  the live system. fisherman finds that store itself. `sourceReuse`
+  copies an image that the bootc of this computer keeps (experimental). A
+  different source does not change the image: the new OS gets the same
+  image and tracks `targetImgref`.
+- **The storage backend.** This is how the new OS keeps its deployments:
+  ostree (the default) or composefs (`composeFsBackend`). The image decides
+  it. The source and the transport do not.
+- **Partial pulls.** A pull can fetch only the parts of an image that
+  changed. The transport, the registry and the image format decide that,
+  not a recipe field. Unified storage (`unifiedStorage`) is a different
+  feature of bootc. It is experimental, and fisherman refuses `true`.
+
+This guide makes no claim about disk space or speed for any of these
+choices.
+
 ## Autoinstall
 
 Give a full recipe with `--autoinstall`.
