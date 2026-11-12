@@ -139,11 +139,11 @@
       "name": "confirm",
       "png": "docs/screenshots/06-confirm.png",
       "rendered": true,
-      "colours": 298,
-      "flat": 0.9517941019805336,
-      "ink": 0.02072538860103627,
-      "stddev": 0.08956424912711937,
-      "text_excerpt": "Confirm installation Target disk: /dev/sda\nFilesystem:  btrfs\nEncryption:  No encryption\nHostname:    example\nImage:       ghcr.io/example/os:stable\nUser:        jo\nLanguage:    en_US.UTF-8\nKeyboard:    za\nTime zone:   Zulu Everything on /d"
+      "colours": 313,
+      "flat": 0.9473391119074137,
+      "ink": 0.023582393104450147,
+      "stddev": 0.09604817932438017,
+      "text_excerpt": "Confirm installation Target disk: /dev/sda\nFilesystem:  btrfs\nEncryption:  No encryption\nHostname:    example\nImage:       ghcr.io/example/os:stable\nUser:        jo\nLanguage:    en_US.UTF-8\nKeyboard:    za\nTime zone:   Zulu Checking the sel"
     },
     {
       "name": "progress",
@@ -159,21 +159,21 @@
       "name": "done",
       "png": "docs/screenshots/08-done.png",
       "rendered": true,
-      "colours": 257,
-      "flat": 0.950389811631398,
-      "ink": 0.015132439107065033,
-      "stddev": 0.07198641604722662,
-      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Close Close Power off Power off Restart now Restart now"
+      "colours": 332,
+      "flat": 0.9227398188949688,
+      "ink": 0.03181443997869353,
+      "stddev": 0.10861577556487234,
+      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer.\n\nThe new system has not started yet, so nothing has checked it. At its first start, it records which image it started, in /var/lib/fisherman/boot-receipt/. On that "
     },
     {
       "name": "recovery",
       "png": "docs/screenshots/09-recovery.png",
       "rendered": true,
-      "colours": 325,
-      "flat": 0.860733136409859,
-      "ink": 0.020991719529320614,
-      "stddev": 0.09346097195655902,
-      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password mana"
+      "colours": 351,
+      "flat": 0.8394024502445402,
+      "ink": 0.035760980097816086,
+      "stddev": 0.12167572262815912,
+      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer.\n\nThe new system has not started yet, so nothing has checked it. At its first start, it records which image it started, in /var/lib/fisherman/boot-receipt/. On that "
     },
     {
       "name": "cancelled",
@@ -191,11 +191,11 @@
     17086,
     15886,
     22025,
-    23325,
-    19082,
-    17199,
+    24347,
+    20004,
+    24585,
     13233,
-    18799
+    26559
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
