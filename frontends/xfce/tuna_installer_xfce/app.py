@@ -253,6 +253,15 @@ class InstallerWindow(Gtk.ApplicationWindow):
         apply = getattr(confirm, "apply_source", None)
         return apply(recipe) if callable(apply) else recipe
 
+    def install_recipe(self):
+        """The recipe that Next on the confirm page installs: build_recipe(),
+        bound to the disk of the confirm page's plan with `diskIdentity`
+        (tuna-os/fisherman#371); unbound when the page has no plan."""
+        recipe = self.build_recipe()
+        confirm = self.pages.get("confirm") if isinstance(self.pages, dict) else None
+        bind = getattr(confirm, "bind_disk", None)
+        return bind(recipe) if callable(bind) else recipe
+
     def wizard_recipe(self):
         """Read page widgets and adapt their values to the core recipe API."""
         setup = self.pages["setup"]
@@ -444,7 +453,7 @@ class InstallerWindow(Gtk.ApplicationWindow):
             recipe = self._autoinstall_pending
             self._autoinstall_pending = None
         if recipe is None:
-            recipe = self.build_recipe()
+            recipe = self.install_recipe()
         self._log_tail = []
         try:
             # In a Flatpak this stages the bundled fisherman and checks its
