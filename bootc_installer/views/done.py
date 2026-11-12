@@ -5,7 +5,7 @@ import threading
 import time
 from gettext import gettext as _
 
-from bootc_shared import completion
+from bootc_shared import completion, progress
 
 from gi.repository import Adw, Gio, GLib, Gtk
 
@@ -273,7 +273,13 @@ class BootcDone(Adw.Bin):
                     or error_event_hint(
                         error, lambda key: copy_text.text(self.__window, key))
                     or self.__extract_failure_hint())
-            self.page_header.subtitle = hint
+            # Then what fisherman's `error` event says about the disk and
+            # the cleanup (tuna-os/fisherman#449): whether the disk was
+            # changed, and a teardown that failed or timed out.
+            lines = progress.failure_text(
+                error, lambda key: copy_text.text(self.__window, key))
+            self.page_header.subtitle = ("\n\n".join(line for line in (hint, *lines) if line)
+                                         if lines else hint)
             self.group_verification.set_visible(False)
             self.store_group.set_visible(False)
             self.btn_reboot.set_visible(False)

@@ -98,6 +98,14 @@ def failure_report(exit_code, error, tail, recovery_key="") -> list:
         lines.append("fisherman error: %s (code=%s, field=%s)" % (
             clean(error.get("message", "")), error.get("code") or "-",
             error.get("field") or "-"))
+        cleanup = error.get("cleanup") if isinstance(error.get("cleanup"), dict) else {}
+        if error.get("disk_changed") is not None or cleanup:
+            # tuna-os/fisherman#449: the step that ran, whether the disk
+            # changed and what the teardown did.
+            changed = {True: "yes", False: "no"}.get(error.get("disk_changed"), "-")
+            detail = (": " + clean(cleanup["message"])) if cleanup.get("message") else ""
+            lines.append(f"fisherman error: step={error.get('step_id') or '-'}, "
+                         f"disk_changed={changed}, cleanup={cleanup.get('status') or '-'}{detail}")
     else:
         lines.append("fisherman sent no error event")
     tail = list(tail)[-FAILURE_LOG_LINES:]

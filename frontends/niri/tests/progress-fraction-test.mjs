@@ -44,7 +44,8 @@ let failures = replay("fraction-cases.json", 5);
 // fisherman's overall_pct is the bar; an event without it falls back.
 failures += replay("overall-pct-cases.json", 3);
 
-// The `error` event: the last one is kept as {message, code, field}.
+// The `error` event: the last one is kept as {message, code, field,
+// step_id, disk_changed, cleanup}, and the failure page's lines.
 {
   const fixture = JSON.parse(
     readFileSync(join(here, "..", "..", "..", "shared", "progress", "error-cases.json"), "utf8"),
@@ -61,6 +62,12 @@ failures += replay("overall-pct-cases.json", 3);
     });
     if (JSON.stringify(state.error) !== JSON.stringify(c.error)) {
       console.error(`FAIL error-cases ${c.name}: ${JSON.stringify(state.error)} want ${JSON.stringify(c.error)}`);
+      failures++;
+    }
+    // The failure page's copy keys (tuna-os/fisherman#449).
+    const lines = lib.failureLines(state.error);
+    if (JSON.stringify(lines) !== JSON.stringify(c.lines)) {
+      console.error(`FAIL error-cases ${c.name} lines: ${JSON.stringify(lines)} want ${JSON.stringify(c.lines)}`);
       failures++;
     }
   }

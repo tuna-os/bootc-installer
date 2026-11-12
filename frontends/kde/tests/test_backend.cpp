@@ -947,8 +947,9 @@ void BackendTest::progressReproducesTheSharedFractionCases()
 }
 
 // shared/progress/error-cases.json: the last `error` event is kept as
-// {message, code, field}, as the canonical parser keeps it, and it does not
-// move the bar.
+// {message, code, field, step_id, disk_changed, cleanup}, as the canonical
+// parser keeps it, and it does not move the bar. The failure page says
+// whether the disk was changed and when the cleanup failed or timed out.
 void BackendTest::progressReproducesTheSharedErrorCases()
 {
     replayProgressCases(QStringLiteral("error-cases.json"), 6);
@@ -965,6 +966,16 @@ void BackendTest::progressReproducesTheSharedErrorCases()
         const QJsonValue want = kase.value(QStringLiteral("error"));
         const QVariantMap expected = want.isNull() ? QVariantMap() : want.toObject().toVariantMap();
         QVERIFY2(c.installError() == expected, qPrintable(kase.value(QStringLiteral("name")).toString()));
+        // The failure page's lines (fisherman#449), as copy keys and as
+        // the text the page shows.
+        QStringList keys;
+        for (const QJsonValue &key : kase.value(QStringLiteral("lines")).toArray())
+            keys << key.toString();
+        QCOMPARE(sourcecheck::failureLines(QJsonObject::fromVariantMap(c.installError())), keys);
+        QStringList shown;
+        for (const QString &key : keys)
+            shown << c.text(key);
+        QCOMPARE(c.failureLines(), shown);
     }
 }
 

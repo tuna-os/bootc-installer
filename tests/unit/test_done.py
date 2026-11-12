@@ -518,3 +518,46 @@ class TestErrorEventHint(unittest.TestCase):
         self.assertNotIn("\n", hint)
         self.assertLessEqual(len(hint), len("Error: ") + 300)
         self.assertTrue(hint.endswith("…"))
+
+
+class TestFailureDiskAndCleanupLines(unittest.TestCase):
+    """tuna-os/fisherman#449: the failure page says whether the disk was
+    changed, and when the cleanup failed or timed out. Each case of
+    shared/progress/error-cases.json reaches the page."""
+
+    def test_the_error_cases_reach_the_failure_page(self):
+        import json
+        import os
+
+        from bootc_shared import progress as pp
+        from bootc_shared.branding import COPY_DEFAULTS
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "shared", "progress",
+                            "error-cases.json")
+        with open(path, encoding="utf-8") as fh:
+            cases = json.load(fh)["cases"]
+        for case in cases:
+            state = pp.new_progress_state()
+            for event in case["events"]:
+                pp.apply_progress_event(json.dumps(event), state)
+            obj = MagicMock()
+            obj._BootcDone__window = types.SimpleNamespace(
+                recipe={}, pretty_name=None, selected_icon=None)
+            obj._BootcDone__extract_failure_hint.return_value = "from the log"
+            BootcDone.set_result(obj, False, None, exit_code=1, error=state["error"])
+            parts = obj.page_header.subtitle.split("\n\n")
+            with self.subTest(case=case["name"]):
+                self.assertEqual(parts[1:], [COPY_DEFAULTS[key] for key in case["lines"]])
+                self.assertTrue(parts[0])
+
+    def test_the_disk_lines(self):
+        from bootc_shared.branding import COPY_DEFAULTS
+        obj = MagicMock()
+        obj._BootcDone__window = types.SimpleNamespace(
+            recipe={}, pretty_name=None, selected_icon=None)
+        BootcDone.set_result(obj, False, None, exit_code=1, error={
+            "message": "invalid recipe: disk /dev/vda is too small", "code": "x_unknown",
+            "field": "", "step_id": "", "disk_changed": False,
+            "cleanup": {"status": "ok", "message": ""}})
+        self.assertIn("Your disk was not changed", obj.page_header.subtitle)
+        self.assertTrue(obj.page_header.subtitle.endswith(
+            COPY_DEFAULTS["done_failed_disk_unchanged"]))

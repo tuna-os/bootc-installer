@@ -142,6 +142,10 @@ ApplicationWindow {
             done_restart: "Restart now",
             done_failed_title: "Installation failed",
             done_cancelled_title: "Installation cancelled",
+            done_failed_disk_unchanged: "Your disk was not changed. You can try again.",
+            done_failed_disk_changed: "The installer changed your disk before it stopped. The disk can hold an incomplete system that does not start. Install again to use it.",
+            done_failed_cleanup_failed: "The installer could not release the disk after the failure. The disk can still be mounted or unlocked: restart the computer before you try again.",
+            done_failed_cleanup_timed_out: "The installer did not release the disk in time after the failure. The disk can still be mounted or unlocked: restart the computer before you try again.",
             done_verification: "The new system has not started yet, so nothing has checked it.",
             done_receipt_check_set_up: "The installer wrote an installation receipt, install ID {value}. The first-boot check is set up: at its first start, the new system records which image it started. On that system, the command fisherman verify --json compares the record with the receipt. That check covers the image only, not the hardware, the disk unlock or the desktop.",
             done_receipt_written_no_check: "The installer wrote an installation receipt, install ID {value}. The first-boot check is not set up.",
@@ -434,6 +438,9 @@ ApplicationWindow {
     property var barState: BarMath.newState()
     // What fisherman's `receipt` event said (#269); null before one.
     property var installReceipt: null
+    // fisherman's last `error` event (ui/progress.js errorOf); null before
+    // one. The failure page reads its disk and cleanup lines (fisherman#449).
+    property var installError: null
     // The copy of this computer's system before the first step (#267): the
     // parser's view of fisherman's source_reuse events, and whether a
     // cancel now leaves the disk as it was (ui/progress.js copyCancel).
@@ -1127,6 +1134,8 @@ ApplicationWindow {
             installStepName = BarMath.stepLabel(event, id => root.text("step_" + id))
         } else if (event.type === "recovery_key") {
             recoveryKey = event.key || ""
+        } else if (event.type === "error") {
+            installError = barState.error
         } else if (event.type === "receipt") {
             // The parser's view of it (ui/progress.js), for the done page.
             installReceipt = barState.receipt
@@ -1196,6 +1205,7 @@ ApplicationWindow {
         installStepName = ""
         barState = BarMath.newState()
         installReceipt = null
+        installError = null
         installSourceReuse = null
         copyCancel = false
         root.cancelRequested = false
@@ -2499,6 +2509,18 @@ ApplicationWindow {
                             : (root.installCancelled
                                 ? qsTr("You stopped the installer. The disk can be in an incomplete state: start the installer again before you use it.")
                                 : qsTr("Check the installation log for details."))
+                        color: Theme.surfaceVariantText
+                        wrapMode: Text.Wrap
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    // A failure: whether fisherman changed the disk, and a
+                    // cleanup that failed or timed out (fisherman#449).
+                    StyledText {
+                        objectName: "doneFailureLines"
+                        visible: !root.installSuccess && !root.installCancelled && text !== ""
+                        text: BarMath.failureLines(root.installError)
+                            .map(k => root.text(k)).filter(t => t !== "").join("\n\n")
                         color: Theme.surfaceVariantText
                         wrapMode: Text.Wrap
                         horizontalAlignment: Text.AlignHCenter

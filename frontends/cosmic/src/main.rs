@@ -1043,6 +1043,17 @@ impl TunaInstaller {
         self.reuse_source = source;
     }
 
+    /// The failure page's lines for fisherman's last `error` event
+    /// (tuna-os/fisherman#449): whether the disk was changed, and a
+    /// cleanup that failed or timed out.
+    pub fn failure_lines(&self) -> Vec<String> {
+        progress::failure_lines(self.progress.error.as_ref())
+            .into_iter()
+            .map(|key| branding::get().text(key))
+            .filter(|line| !line.is_empty())
+            .collect()
+    }
+
     /// The done page's lines after an install that exited 0 (#269): that
     /// nothing checked the new system, and what the `receipt` event says.
     pub fn receipt_lines(&self) -> Vec<String> {

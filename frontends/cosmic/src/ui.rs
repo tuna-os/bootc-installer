@@ -553,6 +553,9 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
         Page::Done => {
             let (title, detail) = done_copy(app);
             let mut t = vec![title, detail];
+            if !app.install_ok() && !app.install_cancelled() {
+                t.extend(app.failure_lines());
+            }
             if app.install_ok() {
                 t.extend(app.receipt_lines());
                 // The recovery panel, when there is a key (#129). The key
@@ -2020,6 +2023,12 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
     if app.install_ok() {
         for line in app.receipt_lines() {
             hero = hero.push(widget::text::caption(line));
+        }
+    } else if !app.install_cancelled() {
+        // fisherman's `error` event (fisherman#449): whether the disk was
+        // changed, and a cleanup that failed or timed out.
+        for line in app.failure_lines() {
+            hero = hero.push(widget::text::body(line));
         }
     }
     // store_label -> store_url on every frontend when the branding sets a

@@ -39,7 +39,7 @@
     "done_not_verified": "yes",
     "done_receipt": "yes: install ID and first-boot check, or the reason",
     "restart_from_done": "yes",
-    "log_after_failure": "log path",
+    "log_after_failure": "log path; the failure page says whether the disk was changed, and when the cleanup failed or timed out",
     "recovery_key_not_in_log": "yes (log file and clipboard copy redacted)",
     "walkthrough": "yes",
     "e2e_gate": "yes"
