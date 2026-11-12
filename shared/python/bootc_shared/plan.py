@@ -13,13 +13,16 @@ world-readable in /proc. The plan itself holds no secret.
 
 A plan is not a permission. The install checks the device again. To make
 it refuse a disk that is not the one the user confirmed, a frontend copies
-the plan's identity into the recipe as `diskIdentity` (bind()). A frontend
-that cannot get a plan (an older fisherman, a timeout) installs as before,
-with no `diskIdentity`.
+the plan's identity into the recipe as `diskIdentity`; to make it refuse a
+machine that no longer gives the plan the user confirmed, it copies
+`plan.binding` as `planBinding` (bind()). A frontend that cannot get a plan
+(an older fisherman, a timeout) installs as before, with neither. A plan
+from a fisherman without `plan.binding` binds the disk only.
 """
 
 import copy
 import json
+import re
 import subprocess
 
 from .probe import format_size
@@ -33,6 +36,10 @@ TIMEOUT_SECONDS = 20
 
 # The value of a field that only the install can resolve.
 UNKNOWN = "unknown"
+
+# The shape of `plan.binding.digest` that fisherman accepts back in
+# `planBinding.digest` (VALIDATE.md, `plan_binding_invalid`).
+DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}")
 
 # The copy keys of the confirmation page (shared/branding/copy-defaults.json).
 COPY_PREFIX = "confirm_plan_"
@@ -131,16 +138,46 @@ def disk_identity(plan):
     return out
 
 
+def plan_binding(plan):
+    """The recipe's `planBinding` for `plan`: `plan.binding.digest`, and
+    `read_image` as `readImage` when it is a boolean (PLAN.md,
+    "plan.binding"). {} when the plan has no binding (a fisherman before
+    it) or its digest is not `sha256:` and 64 lowercase hex digits."""
+    binding = (plan or {}).get("binding")
+    if not isinstance(binding, dict):
+        return {}
+    digest = binding.get("digest")
+    if not isinstance(digest, str) or not DIGEST_PATTERN.fullmatch(digest):
+        return {}
+    out = {"digest": digest}
+    if isinstance(binding.get("read_image"), bool):
+        out["readImage"] = binding["read_image"]
+    return out
+
+
 def bind(recipe, plan):
-    """A copy of `recipe` with `diskIdentity` from `plan`, or `recipe`
-    itself when the plan cannot bind it: no plan, a manual layout, no known
-    identity, or a plan for another disk than the recipe's `disk`."""
-    binding = disk_identity(plan)
+    """A copy of `recipe` bound to `plan`, or `recipe` itself when the plan
+    cannot bind it.
+
+    `diskIdentity` is set when the plan knows an identity of the recipe's
+    `disk` (not for a manual layout, an unknown identity or a plan for
+    another disk). `planBinding` is set when the plan has a binding and
+    is not for another disk than the recipe's `disk`."""
+    if not plan:
+        return recipe
     disk = _target(plan).get("disk")
-    if not binding or not disk or disk != (recipe or {}).get("disk"):
+    recipe_disk = (recipe or {}).get("disk")
+    fields = {}
+    identity_of_disk = disk_identity(plan)
+    if identity_of_disk and disk and disk == recipe_disk:
+        fields["diskIdentity"] = identity_of_disk
+    saved = plan_binding(plan)
+    if saved and (not disk or disk == recipe_disk):
+        fields["planBinding"] = saved
+    if not fields:
         return recipe
     bound = copy.deepcopy(recipe)
-    bound["diskIdentity"] = binding
+    bound.update(fields)
     return bound
 
 

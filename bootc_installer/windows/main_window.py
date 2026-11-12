@@ -41,6 +41,10 @@ except ImportError:
 
 logger = logging.getLogger("Installer::Window")
 
+# fisherman refusals that mean the plan the confirm page showed no longer
+# matches the machine: another device at the disk path, or a changed plan.
+REPLAN_CODES = frozenset({"plan_stale", "disk_identity_mismatch"})
+
 
 # The app's own symbolic icons live in the gresource under this path.
 # GTK only searches "<resource base path>/icons" on its own, and that base
@@ -88,6 +92,9 @@ class BootcWindow(Adw.ApplicationWindow):
 
         self.__install_is_encrypted = False
         self.__install_recovery_key = ""
+        # The `code` of the last failed install's `error` event: Try Again
+        # plans again first when the plan that bound it is stale.
+        self.__last_failure_code = ""
         # The exit or cancel dialog that is open, so a second Ctrl+Q does
         # not stack another one.
         self.__open_dialog = None
@@ -728,9 +735,10 @@ class BootcWindow(Adw.ApplicationWindow):
             # The install source of the confirm page: the download, or this
             # computer's system from its bootc storage (#267).
             recipe = self.__view_confirm.apply_source(recipe)
-            # Bound to the disk that the confirm page's plan showed: fisherman
+            # Bound to the plan that the confirm page showed: fisherman
             # refuses the install if another device is now at that path
-            # (disk_identity_mismatch, tuna-os/fisherman#371).
+            # (disk_identity_mismatch) or the plan changed (plan_stale,
+            # tuna-os/fisherman#371).
             recipe = self.__view_confirm.bind_disk(recipe)
         except ValueError as error:
             logger.error("Refusing invalid installation recipe: %s", error)
@@ -760,6 +768,17 @@ class BootcWindow(Adw.ApplicationWindow):
         if self.__autoinstall_recipe:
             # No wizard ran, so there are no finals to build a recipe from.
             self._start_autoinstall()
+            return
+        if self.__last_failure_code in REPLAN_CODES:
+            # The recipe is bound to the plan the confirm page showed, and
+            # fisherman said the machine no longer matches it. The same
+            # recipe fails the same way, so plan again on the confirm page,
+            # which shows the new plan and waits for one more confirmation
+            # (tuna-os/fisherman#371).
+            logger.info("Try Again after %s: planning again", self.__last_failure_code)
+            self.__last_failure_code = ""
+            self.update_finals()
+            self.__go_to_page(self.__view_confirm)
             return
         self.on_installation_confirmed()
 
@@ -849,6 +868,7 @@ class BootcWindow(Adw.ApplicationWindow):
             logger.error("Installation failed! (exit code %s)", exit_code)
 
         self.__install_recovery_key = recovery_key or self.__install_recovery_key
+        self.__last_failure_code = "" if result else ((error or {}).get("code") or "")
 
         # Pass installed image ref to done screen so it can schedule a registry warmup.
         image_ref = None

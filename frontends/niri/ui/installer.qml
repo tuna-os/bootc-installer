@@ -236,6 +236,8 @@ ApplicationWindow {
             validate_disk_not_found: "The selected disk is no longer connected.",
             validate_disk_identity_mismatch: "The selected disk is not the disk that was checked. Choose the disk again.",
             validate_disk_identity_invalid: "The installer could not identify the selected disk. Choose the disk again.",
+            validate_plan_stale: "This computer changed after the install was checked. Go back and confirm the install again.",
+            validate_plan_binding_invalid: "The installer could not match the install to the checked plan. Go back and confirm the install again.",
             validate_custom_mount_partition_required: "Choose a partition for each mount point.",
             validate_custom_mount_partition_not_found: "A selected partition is no longer present.",
             validate_custom_mount_fstype_unsupported: "A selected partition format is not supported.",

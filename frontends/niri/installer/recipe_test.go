@@ -89,6 +89,7 @@ func TestRecipeRoundTripKeepsEveryKey(t *testing.T) {
 		"customMounts": [{"partition": "/dev/vda2", "target": "/", "fstype": "xfs"}],
 		"varDisk": {"disk": "/dev/vdb", "keepExisting": true},
 		"diskIdentity": {"serial": "S1", "wwn": "0x5000c500a1b2c3d4", "sizeBytes": 64424509440},
+		"planBinding": {"digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222", "readImage": true},
 		"slurpWallpapers": true,
 		"slurp": {"sourcePartition": "/dev/vda3", "users": ["jo"]},
 		"targetMount": "/mnt/t", "luksMapperName": "m", "brewTap": "owner/tap",

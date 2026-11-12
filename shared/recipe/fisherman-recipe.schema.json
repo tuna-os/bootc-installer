@@ -222,6 +222,21 @@
         }
       }
     },
+    "planBinding": {
+      "type": "object",
+      "description": "Binds the install to the plan the user confirmed: `plan.binding` of `fisherman plan --json -`, with `read_image` spelt `readImage`. When set, validate and the install plan the recipe again and refuse it (plan_stale) if the digest differs; a malformed digest is plan_binding_invalid.",
+      "additionalProperties": false,
+      "required": ["digest"],
+      "properties": {
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "readImage": {
+          "type": "boolean"
+        }
+      }
+    },
     "slurpWallpapers": {
       "type": "boolean",
       "default": false,

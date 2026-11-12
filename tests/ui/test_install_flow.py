@@ -325,6 +325,28 @@ class TestTryAgain:
         assert _wait(lambda: _current_page(flow.window) is flow.progress)
         assert flow.progress.btn_cancel.get_visible()
 
+    @pytest.mark.parametrize("code", ["plan_stale", "disk_identity_mismatch"])
+    def test_try_again_after_a_stale_plan_plans_again_first(self, flow, code):
+        """tuna-os/fisherman#371. The recipe is bound to the plan the
+        confirm page showed; after fisherman says the machine no longer
+        matches it, the same recipe fails the same way. Try Again goes back
+        to the confirm page, which plans again, and starts nothing."""
+        flow.visit_confirm()
+        flow.click_install()
+        flow.sessions[-1].pending_lines = [
+            '{"type":"error","message":"the plan changed","code":"%s","field":"planBinding.digest"}\n' % code,
+        ]
+        flow.finish(1)
+
+        flow.done.btn_retry.emit("clicked")
+        _pump()
+
+        assert len(flow.sessions) == 1
+        assert _wait(lambda: _current_page(flow.window) is flow.confirm)
+        # One more confirmation starts one new install.
+        flow.click_install()
+        assert len(flow.sessions) == 2
+
     def test_the_log_poller_stops_when_the_install_ends(self, flow):
         """Each run used to leave a 100 ms timer that read the log for ever."""
         flow.visit_confirm()

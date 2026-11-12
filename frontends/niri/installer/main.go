@@ -71,7 +71,10 @@ type Recipe struct {
 	VarDisk      json.RawMessage `json:"varDisk,omitempty"`
 	// DiskIdentity binds the install to the planned disk (fisherman
 	// `plan --json -`); fisherman refuses a changed device.
-	DiskIdentity    json.RawMessage `json:"diskIdentity,omitempty"`
+	DiskIdentity json.RawMessage `json:"diskIdentity,omitempty"`
+	// PlanBinding binds the install to the plan the user confirmed
+	// (`plan.binding`); fisherman refuses a changed plan (plan_stale).
+	PlanBinding     json.RawMessage `json:"planBinding,omitempty"`
 	SlurpWallpapers bool            `json:"slurpWallpapers,omitempty"`
 	Slurp           json.RawMessage `json:"slurp,omitempty"`
 	TargetMount     string          `json:"targetMount,omitempty"`
