@@ -34,6 +34,7 @@ go build -o tuna-installer-niri .
 ./tuna-installer-niri discover-disks        # renders `fisherman probe --json` disks
 ./tuna-installer-niri install < recipe.json # pipes the recipe on to `fisherman -`
 ./tuna-installer-niri validate < page.json  # `fisherman validate --json --partial -`
+./tuna-installer-niri plan < recipe.json    # `fisherman plan --json -`, the confirm page's plan
 quickshell ui/installer.qml                 # the frontend, needs Quickshell
 ```
 
@@ -165,6 +166,12 @@ signal is a cancel (`installOutcome()`).
   `fisherman validate --json --partial -`. The QML shows a problem through
   the copy key `validate_<code>` and holds Continue and Install on it.
   Branch on `needs_passphrase` / `needs_tpm2`, never on the type's name.
+- `plan` runs `fisherman plan --json -` the same way, with the install
+  recipe on stdin (`installer/plan.go`, a port of
+  `shared/python/bootc_shared/plan.py`). `ui/plan.js` makes the
+  `confirm_plan_*` lines and binds `diskIdentity` on Install. Without a
+  plan, nothing is shown or bound. `plan_test.go` reads fisherman's
+  golden plans.
 
 `../../shared/recipe/README.md` is the contract.
 

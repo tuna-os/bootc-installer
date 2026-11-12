@@ -15,18 +15,22 @@ on:
       - "frontends/niri/installer/**"
       - "frontends/niri/ui/**"
       - "frontends/niri/tests/recipe-build.mjs"
+      - "frontends/niri/tests/plan-rows.mjs"
       - "frontends/niri/i18n/**"
       - "frontends/niri/translations/**"
       - "shared/**"
+      - "fisherman"
       - ".github/workflows/ci-niri.yml"
   pull_request:
     paths:
       - "frontends/niri/installer/**"
       - "frontends/niri/ui/**"
       - "frontends/niri/tests/recipe-build.mjs"
+      - "frontends/niri/tests/plan-rows.mjs"
       - "frontends/niri/i18n/**"
       - "frontends/niri/translations/**"
       - "shared/**"
+      - "fisherman"
       - ".github/workflows/ci-niri.yml"
   workflow_dispatch:
 
@@ -46,6 +50,9 @@ jobs:
         working-directory: frontends/niri/installer
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # plan_test.go reads fisherman's golden plans.
+          submodules: true
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:

@@ -75,6 +75,19 @@ QtObject {
             store: { state: "unavailable", reason: "not_bootc_booted", items: [], hidden: 0 },
             blocks_install: false
         }),
+        // `plan`: the view of installer/plan.go for the disk that the
+        // capture selects (shared/probe/fixtures/laptop, /dev/sda), with
+        // the serial and size of fisherman's grub2-plain golden plan.
+        "plan": JSON.stringify({
+            valid: true, errors: [], disk: "/dev/sda",
+            rows: [
+                { kind: "target", values: { disk: "/dev/sda", model: "Samsung SSD 870 EVO 500GB",
+                                            size: "465.8 GiB", serial: "FIXTURE-SDA-SERIAL" } },
+                { kind: "bound", values: {} },
+                { kind: "wipe_disk", values: { disk: "/dev/sda" } }
+            ],
+            diskIdentity: { serial: "FIXTURE-SDA-SERIAL", sizeBytes: 500107862016 }
+        }),
         // `catalog`: no catalog file, as on a machine that ships none.
         "catalog": JSON.stringify({ path: "", skipped: [], default_image: "", selected: "", leaves: [],
             machine: { has_nvidia: false, is_live: false, offline_images: [] },
