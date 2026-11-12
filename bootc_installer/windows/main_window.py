@@ -21,6 +21,7 @@ import logging
 import os
 from gettext import gettext as _
 
+from bootc_shared import source_check
 from gi.repository import Adw, GLib, Gtk
 
 from bootc_installer.core.system import Systeminfo
@@ -217,7 +218,12 @@ class BootcWindow(Adw.ApplicationWindow):
         recipe = self.recipe if hasattr(self, "recipe") else {}
         if recipe.get("local_imgref"):
             return True
-        return Systeminfo.is_live()
+        if Systeminfo.is_live():
+            return True
+        # An installed bootc computer can install its own system from its
+        # bootc storage (#267, the confirm page offers it): the network
+        # check must not stop it before that choice.
+        return source_check.offers_reuse(Systeminfo.probe())
 
     def __step_context(self, current_widget=None):
         context = {
@@ -567,6 +573,7 @@ class BootcWindow(Adw.ApplicationWindow):
         if not Processor.recipe_names_disk(recipe):
             return _("The recipe names no installation disk.")
         from bootc_shared import validate as fisherman_validate
+
         from bootc_installer.utils import fisherman_runner
         try:
             if fisherman_runner.IN_FLATPAK and not fisherman_runner.stage_on_host():
@@ -713,6 +720,9 @@ class BootcWindow(Adw.ApplicationWindow):
                 self.finals,
                 self.recipe,
             )
+            # The install source of the confirm page: the download, or this
+            # computer's system from its bootc storage (#267).
+            recipe = self.__view_confirm.apply_source(recipe)
         except ValueError as error:
             logger.error("Refusing invalid installation recipe: %s", error)
             self.toast(_("The installation storage configuration is invalid. Check the system recipe."), timeout=6)
@@ -817,9 +827,11 @@ class BootcWindow(Adw.ApplicationWindow):
         self.toasts.add_toast(toast)
 
     def set_installation_result(self, result, terminal, boot_id="", recovery_key="", elapsed_secs=0,
-                                exit_code=None, cancelled=False, message=None, error=None):
+                                exit_code=None, cancelled=False, message=None, error=None,
+                                receipt=None):
         """`error` is fisherman's last `error` event ({"message", "code",
-        "field"}) when the install failed with one; the done page shows it."""
+        "field"}) when the install failed with one; the done page shows it.
+        `receipt` is the install's `receipt` event as the parser kept it."""
         if result:
             logger.info("Installation complete!")
         elif cancelled or exit_code == 130:
@@ -839,7 +851,8 @@ class BootcWindow(Adw.ApplicationWindow):
 
         self.__view_done.set_result(result, terminal, boot_id, elapsed_secs,
                                     image_ref=image_ref, exit_code=exit_code,
-                                    cancelled=cancelled, message=message, error=error)
+                                    cancelled=cancelled, message=message, error=error,
+                                    receipt=receipt)
 
         if result and self.__install_is_encrypted and self.__install_recovery_key:
             # Only show the recovery key screen when fisherman actually emitted a

@@ -715,6 +715,7 @@ class BootcProgress(Gtk.Box):
             ret == 0, None, self.__boot_id, self.__recovery_key, elapsed_secs,
             exit_code=ret, cancelled=cancelled,
             error=self.__last_error if ret != 0 else None,
+            receipt=self.__progress_state.get("receipt"),
         )
         return False
 
@@ -847,7 +848,8 @@ class BootcProgress(Gtk.Box):
                 return False  # cancelled, or another replay has started
             self.__set_running(False)
             # No boot_id: the transcript's is a placeholder.
-            self.__window.set_installation_result(True, None, "")
+            self.__window.set_installation_result(
+                True, None, "", receipt=self.__progress_state.get("receipt"))
             return False
 
         def _finish():

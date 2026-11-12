@@ -5,6 +5,8 @@ import threading
 import time
 from gettext import gettext as _
 
+from bootc_shared import completion
+
 from gi.repository import Adw, Gio, GLib, Gtk
 
 
@@ -191,7 +193,8 @@ class BootcDone(Adw.Bin):
         parent.prepend(self.store_qr)
 
     def set_result(self, result, terminal, boot_id="", elapsed_secs=0, image_ref=None,
-                   exit_code=None, cancelled=False, message=None, error=None):
+                   exit_code=None, cancelled=False, message=None, error=None,
+                   receipt=None):
         """Show the result of an install.
 
         `exit_code` is the wrapper's; 126, 127 and 130 have lines of their
@@ -201,6 +204,8 @@ class BootcDone(Adw.Bin):
         `boot_id` is not used: fisherman sets BootNext itself (#318).
         `error` is fisherman's last `error` event: its message is the
         reason for a failure, and the log is read only when there is none.
+        `receipt` is what the parser kept of fisherman's `receipt` event
+        (bootc_shared.progress.receipt_of), None when none came.
         """
         self.__terminal = terminal
         from bootc_installer.utils import copy as copy_text
@@ -220,7 +225,9 @@ class BootcDone(Adw.Bin):
             self.page_header.subtitle = subtitle
             # Installed, restart required: never "verified". Only the new
             # system can check its own start (shared/completion/README.md).
-            verification = copy_text.text(self.__window, "done_verification")
+            # The receipt line says what this install set up for that check.
+            verification = "\n\n".join(completion.receipt_text(
+                receipt, lambda key: copy_text.text(self.__window, key)))
             self.lbl_verification.set_label(verification)
             self.group_verification.set_visible(bool(verification))
             self.btn_reboot.set_label(copy_text.text(self.__window, "done_restart") or _("Restart now"))
