@@ -203,7 +203,7 @@ func TestQMLHoldsTheAccountStep(t *testing.T) {
 	qml := readQML(t)
 	for _, want := range []string{
 		`recipe.user = { username: root.username }`,
-		`root.needsUserCreation && root.username !== ""`,
+		`needsUserCreation: root.needsUserCreation`,
 		`if (root.needsUserCreation)`,
 		`problemText("user.username")`,
 		`qsTr("Account")`,
@@ -218,6 +218,20 @@ func TestQMLHoldsTheAccountStep(t *testing.T) {
 		if strings.Contains(qml, banned) {
 			t.Errorf("ui/installer.qml still names its own groups: %q", banned)
 		}
+	}
+	// The install recipe's block is ui/recipe.js's: there only when the
+	// image needs an account and a username was typed, and no groups.
+	// compliance_test.go runs that file against the shared fixture.
+	data, err := os.ReadFile(filepath.Join("..", "ui", "recipe.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(data)
+	if !strings.Contains(js, `if (c.needsUserCreation && c.username)`) {
+		t.Errorf("ui/recipe.js lacks the account rule")
+	}
+	if strings.Contains(js, "groups") && strings.Contains(js, `"wheel"`) {
+		t.Errorf("ui/recipe.js names its own groups")
 	}
 }
 

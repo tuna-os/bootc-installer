@@ -14,6 +14,7 @@ on:
     paths:
       - "frontends/niri/installer/**"
       - "frontends/niri/ui/**"
+      - "frontends/niri/tests/recipe-build.mjs"
       - "frontends/niri/i18n/**"
       - "frontends/niri/translations/**"
       - "shared/**"
@@ -22,6 +23,7 @@ on:
     paths:
       - "frontends/niri/installer/**"
       - "frontends/niri/ui/**"
+      - "frontends/niri/tests/recipe-build.mjs"
       - "frontends/niri/i18n/**"
       - "frontends/niri/translations/**"
       - "shared/**"

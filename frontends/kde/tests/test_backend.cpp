@@ -140,6 +140,11 @@ private slots:
     void catalogContractDefaultSelection();
     void catalogContractLeaves();
     void catalogContractRecipes();
+    // The cross-frontend recipe contract (shared/recipe/fixtures/compliance.json,
+    // #226 and #186): the choices of each case, made through the controller,
+    // give the one recipe that every frontend writes.
+    void recipeCompliance();
+    void recipeComplianceNormaliser();
     void catalogBrandingDefaultWinsInTheController();
     void catalogLoadSkipsAFileThatIsNoCatalog();
     void catalogLiveMediaReadsTheLeafOfTheLiveImage();
@@ -2402,6 +2407,135 @@ void BackendTest::catalogContractRecipes()
     }
     QVERIFY(controllerCases >= rows.size());
     QVERIFY2(liveCases > 0, "the fixture has no live-media row for the NVIDIA table");
+}
+
+static QJsonObject complianceFixture()
+{
+    return QJsonDocument::fromJson(readFixture(QStringLiteral(RECIPE_FIXTURES_DIR "/compliance.json"))).object();
+}
+
+// The fixture's two rules (shared/recipe/compliance.py is the reference):
+// a key whose value is the listed one is absent, and so is an object that
+// has no `needs` key. QJsonValue compares the type too, so 0 is not false.
+static QJsonObject complianceRemove(QJsonObject object, const QJsonArray &path, int depth,
+                                    const QJsonValue &value, const QString &needs)
+{
+    const QString key = path.at(depth).toString();
+    if (!object.contains(key))
+        return object;
+    if (depth + 1 < path.size()) {
+        if (object.value(key).isObject())
+            object.insert(key, complianceRemove(object.value(key).toObject(), path, depth + 1, value, needs));
+        return object;
+    }
+    const QJsonValue found = object.value(key);
+    if (needs.isEmpty() ? found == value : (found.isObject() && !found.toObject().contains(needs)))
+        object.remove(key);
+    return object;
+}
+
+static QByteArray complianceCanonical(const QJsonObject &table, QJsonObject recipe)
+{
+    for (const QJsonValue &rule : table.value(QStringLiteral("absent_equals")).toArray()) {
+        const QJsonObject r = rule.toObject();
+        recipe = complianceRemove(recipe, r.value(QStringLiteral("key")).toArray(), 0,
+                                  r.value(QStringLiteral("value")), QString());
+    }
+    for (const QJsonValue &rule : table.value(QStringLiteral("absent_without")).toArray()) {
+        const QJsonObject r = rule.toObject();
+        recipe = complianceRemove(recipe, r.value(QStringLiteral("key")).toArray(), 0, QJsonValue(),
+                                  r.value(QStringLiteral("needs")).toString());
+    }
+    // QJsonObject keeps its keys sorted: Compact is the byte form.
+    return QJsonDocument(recipe).toJson(QJsonDocument::Compact);
+}
+
+void BackendTest::recipeCompliance()
+{
+    const QJsonObject fx = complianceFixture();
+    const QJsonArray cases = fx.value(QStringLiteral("cases")).toArray();
+    if (cases.isEmpty())
+        QSKIP("shared/recipe/fixtures is absent");
+    QVERIFY(cases.size() >= 2);
+    QCOMPARE(fx.value(QStringLiteral("catalog")).toString(),
+             QStringLiteral("shared/catalog/fixtures/catalog.json"));
+    const QJsonObject table = fx.value(QStringLiteral("normalise")).toObject();
+    const QByteArray branding = QJsonDocument(fx.value(QStringLiteral("branding")).toObject()).toJson();
+    for (const QJsonValue &v : cases) {
+        const QJsonObject c = v.toObject();
+        const QByteArray name = c.value(QStringLiteral("name")).toString().toUtf8();
+        const QJsonObject choices = c.value(QStringLiteral("choices")).toObject();
+        const QJsonObject machine = choices.value(QStringLiteral("machine")).toObject();
+        Machine host(sharedCatalog(), machine.value(QStringLiteral("is_live")).toBool(), QString(),
+                     strings(machine.value(QStringLiteral("offline_images"))),
+                     machine.value(QStringLiteral("has_nvidia")).toBool(), branding);
+        InstallerController controller;
+
+        // The disk step: the image, the disk, the filesystem, the hostname.
+        const int index = controller.catalogImgrefs().indexOf(choices.value(QStringLiteral("image")).toString());
+        QVERIFY2(index >= 0, name);
+        controller.selectCatalogImage(index);
+        controller.setDisk(choices.value(QStringLiteral("disk")).toString());
+        const QString filesystem = choices.value(QStringLiteral("filesystem")).toString();
+        QVERIFY2(controller.filesystemChoices().isEmpty() || controller.filesystemChoices().contains(filesystem),
+                 name + ": the disk step does not offer " + filesystem.toUtf8());
+        controller.setFilesystem(filesystem);
+        controller.setHostname(choices.value(QStringLiteral("hostname")).toString());
+
+        // The encryption step.
+        const QJsonObject encryption = choices.value(QStringLiteral("encryption")).toObject();
+        controller.setEncryptionType(encryption.value(QStringLiteral("type")).toString());
+        if (Recipe::needsPassphrase(encryption.value(QStringLiteral("type")).toString()))
+            controller.setPassphrase(encryption.value(QStringLiteral("passphrase")).toString());
+
+        // The account step, which the wizard shows only when the image
+        // needs an account.
+        const QJsonObject account = choices.value(QStringLiteral("account")).toObject();
+        if (controller.needsUserCreation() && !account.isEmpty()) {
+            controller.setUsername(account.value(QStringLiteral("username")).toString());
+            controller.setFullname(account.value(QStringLiteral("fullname")).toString());
+            controller.setUserPassword(account.value(QStringLiteral("password")).toString());
+        }
+
+        // The welcome step's region pickers. The language picker lists
+        // languages: "de" is "de_DE.UTF-8".
+        const QString locale = choices.value(QStringLiteral("locale")).toString();
+        if (!locale.isEmpty()) {
+            const QString language = locale.section(QLatin1Char('_'), 0, 0);
+            QCOMPARE(region::localeName(language), locale);
+            controller.setLanguage(language);
+        }
+        const QJsonObject keyboard = choices.value(QStringLiteral("keyboard")).toObject();
+        if (!keyboard.isEmpty()) {
+            QVERIFY2(keyboard.size() == 1, name + ": the keyboard picker offers layouts only");
+            controller.setKeyboardLayout(keyboard.value(QStringLiteral("layout")).toString());
+        }
+        const QString timezone = choices.value(QStringLiteral("timezone")).toString();
+        if (!timezone.isEmpty())
+            controller.setTimezone(timezone);
+
+        const QByteArray got = complianceCanonical(table, controller.installRecipe());
+        const QByteArray want = complianceCanonical(table, c.value(QStringLiteral("recipe")).toObject());
+        QVERIFY2(got == want, name + ": the recipe differs from shared/recipe/fixtures/compliance.json\n got "
+                                  + got + "\nwant " + want);
+    }
+}
+
+void BackendTest::recipeComplianceNormaliser()
+{
+    const QJsonObject table = complianceFixture().value(QStringLiteral("normalise")).toObject();
+    if (table.isEmpty())
+        QSKIP("shared/recipe/fixtures is absent");
+    const QJsonObject recipe = QJsonDocument::fromJson(R"({"disk": "/dev/vda", "composeFsBackend": false,
+        "imageType": "bootc", "bootloader": "", "selinuxDisabled": false, "btrfsSubvolumes": false,
+        "encryption": {"type": "none", "passphrase": ""},
+        "user": {"username": "", "fullname": "", "password": "", "groups": []}})").object();
+    QCOMPARE(complianceCanonical(table, recipe), QByteArray(R"({"disk":"/dev/vda","encryption":{"type":"none"}})"));
+    // A value that is not the default stays, and so does one of another type.
+    const QJsonObject kept = QJsonDocument::fromJson(
+        R"({"composeFsBackend": true, "btrfsSubvolumes": 0, "bootloader": "grub2", "user": {"username": "jo"}})").object();
+    QCOMPARE(complianceCanonical(table, kept),
+             QByteArray(R"({"bootloader":"grub2","btrfsSubvolumes":0,"composeFsBackend":true,"user":{"username":"jo"}})"));
 }
 
 void BackendTest::catalogBrandingDefaultWinsInTheController()
