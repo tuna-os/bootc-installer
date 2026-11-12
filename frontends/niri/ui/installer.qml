@@ -18,6 +18,7 @@ import Quickshell.Io
 import "."
 import "progress.js" as BarMath
 import "recipe.js" as RecipeJs
+import "plan.js" as PlanJs
 import "i18n.js" as I18n
 
 ApplicationWindow {
@@ -556,7 +557,7 @@ ApplicationWindow {
     readonly property string regionProblem: problemText("locale") || problemText("keyboard.layout")
         || problemText("keyboard.variant") || problemText("keyboard.model") || problemText("timezone")
     function checkFields() { validateTimer.restart() }
-    onHostnameChanged: checkFields()
+    onHostnameChanged: { checkFields(); if (root.currentPage === 6) planTimer.restart() }
     onPassphraseChanged: checkFields()
     onEncTypeChanged: checkFields()
     onUsernameChanged: checkFields()
@@ -936,6 +937,38 @@ ApplicationWindow {
         }
     }
 
+    // A hostname edit on the confirm page asks for a new plan after a pause.
+    Timer {
+        id: planTimer
+        interval: 400
+        onTriggered: root.startPlan()
+    }
+    Process {
+        id: planProc
+        command: [root.backendBin, "plan"]
+        stdinEnabled: true
+        onStarted: {
+            // The recipe holds the passphrase: stdin only, then dropped.
+            planProc.write(root.pendingPlan)
+            root.pendingPlan = ""
+        }
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (root.planRunGen !== root.planGen)
+                    return
+                let answer = null
+                try { answer = JSON.parse(text) } catch (e) { answer = null }
+                // No answer (exit 2, an older fisherman): no plan.
+                root.planView = answer && answer.valid === true ? answer : null
+            }
+        }
+        onExited: (code, status) => {
+            // A newer request came while this one ran: ask again for it.
+            if (root.planRunGen !== root.planGen && root.currentPage === 6)
+                root.startPlan()
+        }
+    }
+
     Process {
         id: discoverProc
         command: [root.backendBin, "discover-disks"]
@@ -1228,7 +1261,10 @@ ApplicationWindow {
         root.cancelOpen = false
         currentPage = 7
         installProc.command = [root.backendBin, "install"]
-        root.pendingRecipe = JSON.stringify(root.buildRecipe())
+        // Bound to the disk that the plan on the confirm page showed:
+        // fisherman refuses the install if another device is now at that
+        // path (disk_identity_mismatch). No plan of this visit: unbound.
+        root.pendingRecipe = JSON.stringify(PlanJs.bind(root.buildRecipe(), root.planView))
         installProc.running = true
         // The recipe is fed over stdin on Process.started — never argv, so
         // the LUKS passphrase does not leak via /proc/PID/cmdline. See
@@ -1285,6 +1321,7 @@ ApplicationWindow {
     property int sourceRunGen: 0
     property string sourceRequest: ""
     function startSourceCheck() {
+        root.startPlan()
         const r = root.buildRecipe()
         // A copy of this computer's system: the probe asks about its ref.
         const image = r.sourceReuse ? BarMath.plainRef(r.targetImgref) : (r.image || "")
@@ -1335,6 +1372,31 @@ ApplicationWindow {
         }
         return rows
     }
+    // ── The install plan (tuna-os/fisherman#371) ──
+    // The backend's `plan` runs `fisherman plan --json -` unprivileged with
+    // the install recipe on stdin (installer/plan.go). Each visit, each
+    // change of the install source and each hostname edit on this page
+    // asks again; a reply for an older request is dropped (planGen counts
+    // the requests, planRunGen the one that runs). planView is the plan of
+    // the current request, or null: then the page is as it was before
+    // plans, and Install binds nothing (ui/plan.js).
+    property var planView: null
+    property int planGen: 0
+    property int planRunGen: 0
+    property string pendingPlan: ""
+    readonly property var planRows: PlanJs.rows(root.planView, root.text)
+    function startPlan() {
+        root.planGen += 1
+        root.planView = null
+        if (root.selectedDisk.path === undefined || !root.sourceReady)
+            return
+        if (!planProc.running) {
+            root.planRunGen = root.planGen
+            root.pendingPlan = JSON.stringify(root.buildRecipe())
+            planProc.running = true
+        }
+    }
+
     // ── Keyboard: Enter advances, Shift+Enter goes back (the hint bar says so) ──
     function advance() {
         switch (currentPage) {
@@ -2252,6 +2314,39 @@ ApplicationWindow {
                                         color: Theme.error
                                         visible: text !== ""
                                         font.pixelSize: Theme.fontSizeSmall
+                                    }
+                                }
+                            }
+                        }
+
+                        // fisherman's plan: the disk the install writes to and
+                        // each device whose data it destroys (#371).
+                        DankCard {
+                            objectName: "confirmPlan"
+                            Layout.fillWidth: true
+                            visible: root.planRows.length > 0
+                            title: root.text("confirm_plan_title")
+                            ColumnLayout {
+                                width: parent.width
+                                spacing: Theme.spacingXS
+                                Repeater {
+                                    model: root.planRows
+                                    ColumnLayout {
+                                        spacing: 0
+                                        Layout.fillWidth: true
+                                        StyledText {
+                                            text: modelData.title
+                                            wrapMode: Text.Wrap
+                                            Layout.fillWidth: true
+                                        }
+                                        StyledText {
+                                            text: modelData.subtitle
+                                            visible: text !== ""
+                                            color: Theme.surfaceVariantText
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            wrapMode: Text.WrapAnywhere
+                                            Layout.fillWidth: true
+                                        }
                                     }
                                 }
                             }

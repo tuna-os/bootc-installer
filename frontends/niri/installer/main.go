@@ -162,6 +162,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  cancel             Stop a running install (the progress page's Cancel, the window's close)")
 		fmt.Fprintln(os.Stderr, "  log-path           Print the persistent install log file dialog_output.py shows")
 		fmt.Fprintln(os.Stderr, "  validate           Check a partial recipe from stdin with fisherman validate --json --partial")
+		fmt.Fprintln(os.Stderr, "  plan               Report what an install of the recipe on stdin changes (fisherman plan --json -)")
 		fmt.Fprintln(os.Stderr, "  readiness [page]   Record that the UI window presented a frame")
 		fmt.Fprintln(os.Stderr, "  reboot             Restart the host (the done page's action)")
 		fmt.Fprintln(os.Stderr, "  poweroff           Power the host off (the requirements gate's action)")
@@ -210,6 +211,9 @@ func main() {
 	case "validate":
 		// A page's fields as a partial recipe, on stdin for the same reason.
 		validateMain()
+	case "plan":
+		// The whole recipe, on stdin for the same reason (plan.go).
+		planMain()
 	case "reboot":
 		// The done page's Restart. On the host through flatpak-spawn when
 		// sandboxed, like every other frontend's reboot path (power.go).

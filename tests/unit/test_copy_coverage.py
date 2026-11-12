@@ -78,9 +78,7 @@ KNOWN_GAPS = {
         "welcome_install_subtitle": "the welcome page has no install row to label",
         "confirm_plan_*": "no install plan on the confirm page yet (tuna-os/fisherman#371)",
     },
-    "niri": {
-        "confirm_plan_*": "no install plan on the confirm page yet (tuna-os/fisherman#371)",
-    },
+    "niri": {},
     "xfce": {},
 }
 
