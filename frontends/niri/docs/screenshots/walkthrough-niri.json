@@ -154,11 +154,11 @@
       "name": "02-session",
       "png": "docs/screenshots/02-session.png",
       "rendered": true,
-      "colours": 409,
+      "colours": 410,
       "flat": 0.6247,
       "ink": 0.026266666666666667,
       "stddev": 0.09779041921278185,
-      "sha256": "9efae789ea88c32d4ad49c6ac18b2908ae4e9acd6dce97a97ce5a22d8f591d39",
+      "sha256": "65744320755a56e4b92f5b39539d1e5dd731c8641a459533ae0487b72069f9cc",
       "text_excerpt": "Step 2 of 9 \u00b7 Session Session Keyboard, language and time zone for the installed system. This computer keeps its own. Keyboard and language Keyboard us Language en_US.UTF-8 Timezone Europe/Berlin Network Connected \u2014 downloads will work. Rec"
     },
     {
@@ -179,8 +179,8 @@
       "colours": 484,
       "flat": 0.6199333333333333,
       "ink": 0.11003333333333333,
-      "stddev": 0.10556755838076784,
-      "sha256": "58c7ddd783c2527679e02bf86b0fbfc659ed9bb247ee0b7974e30777eb8dfa58",
+      "stddev": 0.10557607011149404,
+      "sha256": "da8e4ee577e2fb8859e8b44607083a81bba39cf9741584ad8160d74c0560dae0",
       "text_excerpt": "Step 4 of 9 \u00b7 Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  \u00b7  465.8 GiB  \u00b7  SATA Extreme SSD /dev/sdc  \u00b7  931.5 GiB  \u00b7  USB Cruzer Blade /dev/sdd  \u00b7  59.6 GiB  \u00b7  USB WD_"
     },
     {
