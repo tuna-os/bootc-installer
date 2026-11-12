@@ -191,7 +191,7 @@ def _strip_comments(text):
 # ── Qt: QML and C++ to a .ts file ───────────────────────────────────────────
 
 class Message:
-    __slots__ = ("context", "source", "comment", "numerus")
+    __slots__ = ("comment", "context", "numerus", "source")
 
     def __init__(self, context, source, comment="", numerus=False):
         self.context, self.source = context, source
@@ -258,7 +258,7 @@ def extract_qml(path, text):
 
 _CPP_CALL = re.compile(
     r"(?:\b(\w+)::)?\b(tr|translate|QT_TR_NOOP|QT_TRANSLATE_NOOP|QT_TRANSLATE_NOOP3)\s*\(")
-_CPP_MEMBER = re.compile(r"^[A-Za-z_][\w:<>,*& ]*?\b(\w+)::~?\w+\s*\(", re.M)
+_CPP_MEMBER = re.compile(r"^[A-Za-z_][\w:<>,*& ]*?\b(\w+)::~?\w+\s*\(", re.MULTILINE)
 _CPP_CLASS = re.compile(r"\b(?:class|struct)\s+(\w+)[^;{]*\{")
 
 
