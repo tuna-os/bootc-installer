@@ -515,6 +515,13 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             if let Some(problem) = app.region_problem() {
                 t.push(problem.render());
             }
+            for (title, detail) in reuse_choice(app) {
+                t.push(title);
+                t.push(detail);
+            }
+            if let Some(problem) = app.reuse_problem() {
+                t.push(problem.render());
+            }
             let rows = app.source_rows();
             if !rows.is_empty() {
                 t.push(tr(CONFIRM_SELECTED_IMAGE));
@@ -547,7 +554,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             let (title, detail) = done_copy(app);
             let mut t = vec![title, detail];
             if app.install_ok() {
-                t.push(t_line("done_verification"));
+                t.extend(app.receipt_lines());
                 // The recovery panel, when there is a key (#129). The key
                 // itself goes in too: the capture asserts on it, and a
                 // panel drawn without it is the failure worth catching.
@@ -626,6 +633,12 @@ fn confirm_warn_key(app: &TunaInstaller) -> &'static str {
 
 
 fn confirm_image(app: &TunaInstaller) -> String {
+    // A copy of this computer's system (#267): named as such, apart from
+    // the update reference below.
+    if let Some(source) = app.reuse_source().filter(|_| app.reuse_selected()) {
+        let reference = source["ref"].as_str().unwrap_or_default();
+        return crate::branding::get().text_with("source_reuse_install_from", &[("value", reference)]);
+    }
     match (app.live_image(), app.recipe().image.is_empty()) {
         // Live media (fisherman's probe): the running system is installed.
         (Some(""), true) => tr_with(CONFIRM_LIVE, &[("image", &tr(CONFIRM_THIS_SYSTEM))]),
@@ -639,6 +652,9 @@ fn confirm_image(app: &TunaInstaller) -> String {
 /// two are different").
 fn confirm_target(app: &TunaInstaller) -> Option<String> {
     let recipe = app.recipe();
+    if app.reuse_selected() && !recipe.target_imgref.is_empty() {
+        return Some(recipe.target_imgref.clone());
+    }
     let installed = if recipe.image.is_empty() {
         app.live_image().unwrap_or("")
     } else {
@@ -696,6 +712,23 @@ fn exit_body(app: &TunaInstaller) -> String {
 
 /// The confirm subtitle: the product's own line (tr(CONFIRM_SUBTITLE) is the
 /// neutral explanation, used when the branding sets none).
+/// The two rows of the install-source choice (#267): (title, detail) of
+/// the download, then of this computer's system. Empty when the probe
+/// offers no item.
+fn reuse_choice(app: &TunaInstaller) -> Vec<(String, String)> {
+    let Some(source) = app.reuse_source() else {
+        return Vec::new();
+    };
+    let reference = source["ref"].as_str().unwrap_or_default();
+    vec![
+        (
+            t_line("source_reuse_download"),
+            crate::branding::get().text_with("source_reuse_download_detail", &[("value", reference)]),
+        ),
+        (t_line("source_reuse_local"), t_line("source_reuse_local_detail")),
+    ]
+}
+
 fn confirm_subtitle() -> String {
     let line = t_line("confirm_subtitle");
     if line.is_empty() {
@@ -1764,6 +1797,38 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
                 .into(),
         );
     }
+    // The install source (#267): download the image (the default), or copy
+    // the system that this computer runs from its bootc storage. Only when
+    // the probe has an item that qualifies; never on live media.
+    let choice = reuse_choice(app);
+    if !choice.is_empty() {
+        let mut section = widget::settings::section().title(t_line("source_reuse_title"));
+        for (i, (title, detail)) in choice.into_iter().enumerate() {
+            let local = i == 1;
+            let item = widget::column::with_children(vec![
+                widget::text::body(title).into(),
+                widget::text::caption(detail).into(),
+            ]);
+            section = section.add(widget::settings::item_row(vec![
+                widget::radio(
+                    widget::text::body(""),
+                    local,
+                    Some(app.reuse_selected()),
+                    Message::ReuseSelected,
+                )
+                .into(),
+                item.into(),
+            ]));
+        }
+        parts.push(section.into());
+        if let Some(problem) = app.reuse_problem() {
+            parts.push(
+                widget::text::body(problem.render())
+                    .class(cosmic::theme::Text::Color(theme.cosmic().warning_text_color().into()))
+                    .into(),
+            );
+        }
+    }
     // What fisherman says about the selected image (#266): the source, the
     // update reference of the new system, what this computer runs, the
     // check's state and reason, and this computer's bootc storage (#267).
@@ -1921,9 +1986,12 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
     ]);
     // Installed, restart required: never "verified". Only the new system
     // can check its own start (#269, shared/completion/README.md).
-    let verification = t_line("done_verification");
-    if app.install_ok() && !verification.is_empty() {
-        hero = hero.push(widget::text::caption(verification));
+    // The receipt line says what fisherman's `receipt` event set up for that
+    // check, and the install id.
+    if app.install_ok() {
+        for line in app.receipt_lines() {
+            hero = hero.push(widget::text::caption(line));
+        }
     }
     // store_label -> store_url on every frontend when the branding sets a
     // store (docs/PARITY.md).
