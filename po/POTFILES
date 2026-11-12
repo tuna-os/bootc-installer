@@ -65,6 +65,7 @@ bootc_installer/utils/finals.py
 bootc_installer/utils/fisherman_runner.py
 bootc_installer/utils/fisherman_session.py
 bootc_installer/utils/host.py
+bootc_installer/utils/host_actions.py
 bootc_installer/utils/i18n.py
 bootc_installer/utils/icons.py
 bootc_installer/utils/image_finals.py

@@ -180,11 +180,14 @@ class TestConnCheckAsyncLogic(unittest.TestCase):
         the other four frontends do."""
         mod = _import_conn_check_fresh()
         step = self._step(mod)
-        with patch.object(mod.subprocess, "Popen") as popen:
+        from tests.unit.fake_host import STARTED, FakeExecutor
+        ex = FakeExecutor([STARTED], in_flatpak=mod._IN_FLATPAK)
+        with patch.object(mod, "default_executor", return_value=ex):
             step._BootcDefaultConnCheck__on_btn_network_settings_clicked(MagicMock())
-        argv = popen.call_args.args[0]
+        kind, cmd, scope, timeout, argv = ex.calls[0]
+        self.assertEqual(kind, "spawn")
+        self.assertIs(scope, mod.Scope.HOST)
         self.assertEqual(argv, mod.network_settings_argv())
-        self.assertTrue(popen.call_args.kwargs["start_new_session"])
 
     def test_check_again_hides_network_settings_until_the_answer(self):
         mod = _import_conn_check_fresh()
@@ -332,12 +335,13 @@ class TestNetworkSettingsCommand(unittest.TestCase):
         self.assertTrue(script.endswith("else exit 127; fi"))
 
     def test_a_command_that_cannot_start_is_not_an_error(self):
+        from tests.unit.fake_host import MISSING, STARTED, FakeExecutor
         mod = _import_conn_check_fresh()
-        with patch.object(mod.subprocess, "Popen", side_effect=OSError("no flatpak-spawn")):
-            self.assertFalse(mod.open_network_settings(in_flatpak=True))
-        with patch.object(mod.subprocess, "Popen") as popen:
-            self.assertTrue(mod.open_network_settings(in_flatpak=True))
-        self.assertEqual(popen.call_args.args[0][:2], ["flatpak-spawn", "--host"])
+        self.assertFalse(mod.open_network_settings(FakeExecutor([MISSING])))
+        ex = FakeExecutor([STARTED], in_flatpak=True)
+        self.assertTrue(mod.open_network_settings(ex))
+        self.assertEqual(ex.calls[0][4][:4], ["flatpak-spawn", "--host", "sh", "-c"])
+        self.assertEqual(ex.calls[0][4][4], mod.NETWORK_SETTINGS_SCRIPT)
 
 
 if __name__ == "__main__":

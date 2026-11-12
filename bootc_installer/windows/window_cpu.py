@@ -15,8 +15,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
-import subprocess
 from gi.repository import Adw, Gtk
+from bootc_installer.utils.host_actions import restart_ignoring
 from bootc_installer.windows.requirements import requirements_text
 
 
@@ -37,5 +37,5 @@ class BootcCpuWindow(Adw.Window):
         self.btn_continue.connect("clicked", self.__continue)
 
     def __continue(self, btn):
-        subprocess.Popen("IGNORE_RAM=1 IGNORE_CPU=1 vanilla-installer", shell=True)
+        restart_ignoring("RAM", "CPU")
         sys.exit(0)

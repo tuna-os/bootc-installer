@@ -16,29 +16,17 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-import os
-import subprocess
-from bootc_installer.core.system import Systeminfo
 
 from gi.repository import Adw, Gtk
 
-logger = logging.getLogger("Installer::PoweroffDialog")
-
+from bootc_installer.core.system import Systeminfo
 # The flatpak sandbox has no systemctl, so a bare call raised
 # FileNotFoundError out of the signal handler and every row in this dialog
 # did nothing ("Uncaught exception ... __on_firmware_setup", seen on the
-# Dakota live ISO). Run it on the host, as welcome.py does for Bluetooth.
-_IN_FLATPAK = os.path.exists("/.flatpak-info")
+# Dakota live ISO). host_systemctl runs it on the host (Scope.HOST).
+from bootc_installer.utils.host_actions import host_systemctl as _host_systemctl
 
-
-def _host_systemctl(*args):
-    argv = ["systemctl", *args]
-    if _IN_FLATPAK:
-        argv = ["flatpak-spawn", "--host"] + argv
-    try:
-        subprocess.call(argv)
-    except OSError as e:
-        logger.error("%s failed: %s", argv, e)
+logger = logging.getLogger("Installer::PoweroffDialog")
 
 
 @Gtk.Template(resource_path="/org/bootcinstaller/Installer/gtk/dialog-poweroff.ui")

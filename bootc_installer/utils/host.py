@@ -14,9 +14,17 @@ Scopes:
 - `Scope.ELEVATED`: run on the host as root through `pkexec`, with
   `flatpak-spawn --host` in front in a Flatpak.
 
+`run` waits for the command; `spawn` starts it and returns at once, for a
+settings window or another app that keeps running.
+
 The command is always an argv list. The executor never builds a shell
 string. `command_exists` uses one constant `sh` script and gives the name as
 a positional argument, so a name cannot change the script.
+
+Timeouts in a Flatpak: on a timeout or a cancel, `run` kills the process
+it started. In a Flatpak that is `flatpak-spawn`, and the command on the
+host keeps running. So a command that must not stop halfway, or that ends
+the session (reboot, poweroff, firmware setup), gets `timeout=None`.
 
 This module does not import GTK. The fisherman launch path stays in
 `fisherman_runner.py` and `fisherman_session.py`.
@@ -54,9 +62,10 @@ class HostResult:
     """What a host command did.
 
     `returncode` is None when the command did not finish: it was not found,
-    it timed out or it was cancelled. `missing_command` is True when the
-    program to execute (the command, or `flatpak-spawn` in a Flatpak) does
-    not exist on this side of the sandbox.
+    it timed out or it was cancelled. It is also None after `spawn`, which
+    does not wait; then `started` says whether the process started.
+    `missing_command` is True when the program to execute (the command, or
+    `flatpak-spawn` in a Flatpak) does not exist on this side of the sandbox.
     """
 
     argv: tuple
@@ -66,6 +75,7 @@ class HostResult:
     timed_out: bool = False
     missing_command: bool = False
     cancelled: bool = False
+    started: bool = False
 
     @property
     def ok(self) -> bool:
@@ -79,6 +89,8 @@ class HostResult:
             return f"{' '.join(self.argv)}: timed out"
         if self.cancelled:
             return f"{' '.join(self.argv)}: cancelled"
+        if self.started:
+            return f"{' '.join(self.argv)}: started"
         detail = self.stderr.strip().splitlines()[-1:] or [""]
         return f"{' '.join(self.argv)}: exit {self.returncode} {detail[0]}".rstrip()
 
@@ -161,6 +173,30 @@ class HostExecutor:
             if deadline is not None and time.monotonic() >= deadline:
                 out, err = _kill(proc)
                 return HostResult(key, None, out, err, timed_out=True)
+
+    def spawn(self, cmd, *, scope: Scope = Scope.HOST) -> HostResult:
+        """Start `cmd` and do not wait for it.
+
+        The process gets no stdin, its output goes nowhere, and it leads its
+        own session, so it outlives a closed installer window. `started` is
+        True when it started. In a Flatpak this only says that
+        `flatpak-spawn` started: a command missing on the host is not seen.
+        """
+        argv = self.argv(cmd, scope)
+        key = tuple(argv)
+        try:
+            self._popen(
+                argv,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except FileNotFoundError:
+            return HostResult(key, None, missing_command=True)
+        except OSError as error:
+            return HostResult(key, None, stderr=str(error))
+        return HostResult(key, None, started=True)
 
     def command_exists(self, name: str, *, scope: Scope = Scope.HOST,
                        timeout: float | None = 3) -> HostResult:
