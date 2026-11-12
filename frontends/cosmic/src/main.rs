@@ -2386,6 +2386,33 @@ mod tests {
         assert!(account_required_for(&catalog, Some(""), "", Some(own)));
     }
 
+    /// `shared/catalog/fixtures/expected.json` `live_image`: on live media
+    /// the account flag and the layout are those of the leaf of the booted
+    /// image. The NVIDIA image of a leaf is that leaf.
+    #[test]
+    fn the_live_image_cases_are_the_shared_ones() {
+        use super::account_required_for;
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/catalog/fixtures");
+        let read = |name: &str| std::fs::read_to_string(format!("{dir}/{name}")).unwrap();
+        let catalog = image_catalog::parse_manifest(&read("catalog.json")).unwrap();
+        let expected: serde_json::Value = serde_json::from_str(&read("expected.json")).unwrap();
+        let cases = expected["live_image"].as_array().unwrap();
+        assert!(cases.len() >= 4);
+        for case in cases {
+            let live = case["live_image"].as_str().unwrap();
+            let leaf = catalog.find(live).map(|i| catalog.leaves[i].imgref.clone());
+            assert_eq!(leaf.as_deref(), case["leaf"].as_str(), "{live}: leaf");
+            // Whatever row is selected, the booted image decides.
+            for selected in [None, catalog.leaves.first(), catalog.leaves.last()] {
+                assert_eq!(
+                    account_required_for(&catalog, Some(live), "", selected),
+                    case["needs_user_creation"].as_bool().unwrap(),
+                    "{live}: needs_user_creation"
+                );
+            }
+        }
+    }
+
     /// fisherman exits 130 when cancelled; a signal ends the wrapper after
     /// this frontend signals its group. Neither is a failure (#299).
     #[test]

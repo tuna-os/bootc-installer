@@ -12,6 +12,22 @@ sure that it does. Do not edit the hash of an old entry: add an entry.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-12: the leaf of the live image
+
+- Added: `catalog/fixtures/expected.json` has `live_image`. Each case is a
+  `live.live_image` of the probe, the leaf that it names (or `null`) and
+  the account flag. The cases include each `nvidia_imgref` of the
+  fixture, an unknown image and an empty reference. The catalog test of
+  each of the five frontends reads them (#288).
+- Changed: `catalog/resolve.py` `find()` finds a leaf by its
+  `nvidia_imgref` when no leaf has the reference as `imgref`. The Python
+  reader, COSMIC and Niri did this already. KDE did not. Live media
+  can hold only the NVIDIA image. There, KDE asked for an account that
+  the image does not need, and lost the layout of the leaf. KDE now finds
+  the leaf.
+- Changed: `catalog/README.md` replaces the old list of the changes that
+  each frontend had to make with the test of each frontend.
+
 ## 2026-11-12: a translation template for each frontend
 
 - Added: `i18n/templates.py` and `i18n/README.md`. The script writes the

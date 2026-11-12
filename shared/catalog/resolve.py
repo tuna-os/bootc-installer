@@ -254,9 +254,21 @@ def leaves(catalog):
 
 
 def find(catalog, imgref):
-    """The leaf for `imgref`, or None."""
-    for leaf in leaves(catalog):
+    """The leaf for `imgref`, or None.
+
+    The NVIDIA image of a leaf is that leaf: a leaf whose own reference is
+    `imgref` wins, then the first leaf whose `nvidia_imgref` is `imgref`.
+    Live media that holds only the NVIDIA image boots that image, and the
+    account flag and the layout are the ones of its leaf.
+    """
+    if not imgref:
+        return None
+    all_leaves = leaves(catalog)
+    for leaf in all_leaves:
         if leaf["imgref"] == imgref:
+            return leaf
+    for leaf in all_leaves:
+        if leaf["nvidia_imgref"] == imgref:
             return leaf
     return None
 
@@ -374,6 +386,9 @@ def expected(catalog):
     brandings = ["", "registry.example/os/not-in-the-catalog:1"]
     brandings += [leaf["imgref"] for leaf in all_leaves if leaf["imgref"] != catalog_default][:1]
     without_default = {key: value for key, value in catalog.items() if key != "default_image"}
+    live_images = [reference for leaf in all_leaves
+                   for reference in (leaf["imgref"], leaf["nvidia_imgref"]) if reference]
+    live_images += ["registry.example/os/not-in-the-catalog:1", ""]
     selection = [
         {"branding_default_image": branding, "catalog_default_image": catalog_default,
          "selected": default_imgref(catalog, branding)}
@@ -408,6 +423,13 @@ def expected(catalog):
         "unknown_image": {"imgref": "registry.example/os/not-in-the-catalog:1",
                           "needs_user_creation": needs_user_creation(
                               catalog, "registry.example/os/not-in-the-catalog:1")},
+        # Live media: the probe's live.live_image -> the leaf and its flag.
+        "live_image": [
+            {"live_image": reference,
+             "leaf": (find(catalog, reference) or {}).get("imgref"),
+             "needs_user_creation": needs_user_creation(catalog, reference)}
+            for reference in live_images
+        ],
         "leaves": [
             {"imgref": leaf["imgref"], "leaf": leaf,
              "cases": [{"inputs": inputs, **recipe_fragment(leaf, **inputs)}

@@ -129,8 +129,8 @@ other four. Video and credits then leave the contract; nothing else gets
 them.
 
 All five render the identity keys (`name`, `id`, `default_hostname`, URLs);
-see `shared/branding/README.md`. Off live media, Niri and XFCE do
-not use `default_image` yet (#289).
+see `shared/branding/README.md`. Off live media, all five select the leaf
+of `default_image` at the start (`shared/catalog/README.md`).
 
 ## Features
 
@@ -218,10 +218,11 @@ four frontends a catalog, gates, locale pages and a companion.
    key (#129).
 4. ~~**User account**~~ — closed. All five have the step, and each shows
    it only when the image needs an account. All five create an account
-   when the catalog does not set `needs_user_creation` (#288). All five
-   use the groups of `shared/account/` (#302). All five ask for the
-   password two times, hold Next on a mismatch and have a reveal control
-   (#295).
+   when the catalog does not set `needs_user_creation` (#288). On live
+   media, all five read the flag from the leaf of `live.live_image`
+   (#288). All five use the groups of `shared/account/` (#302). All five
+   ask for the password two times, hold Next on a mismatch and have a
+   reveal control (#295).
    The strength hint is not part of the contract. GNOME and KDE show
    one. fisherman does not check the strength, and the hint stops no
    install. A frontend can add one, but no frontend must.
