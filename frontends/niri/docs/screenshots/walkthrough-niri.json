@@ -104,7 +104,7 @@
       "name": "02-session",
       "png": "docs/screenshots/02-session.png",
       "rendered": true,
-      "colours": 410,
+      "colours": 409,
       "flat": 0.6247,
       "ink": 0.026266666666666667,
       "stddev": 0.09779041921278185,
@@ -117,7 +117,7 @@
       "colours": 497,
       "flat": 0.5597333333333333,
       "ink": 0.1155,
-      "stddev": 0.11528884652927622,
+      "stddev": 0.1152965279548122,
       "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Capture Desktop \u203a Edge ghcr.io/exa"
     },
     {
@@ -147,7 +147,7 @@
       "colours": 346,
       "flat": 0.5258333333333334,
       "ink": 0.030633333333333332,
-      "stddev": 0.10060174578702649,
+      "stddev": 0.10059300974972753,
       "text_excerpt": "Step 6 of 9 \u00b7 Account Your account The account you sign in with. It can administer this computer. Account Username alex Full name Alex Example Password capture Password again capture Show passwords Show passwords Back Back Continue Continue"
     },
     {
@@ -177,7 +177,7 @@
       "colours": 308,
       "flat": 0.9346666666666666,
       "ink": 0.0248,
-      "stddev": 0.09609967421521785,
+      "stddev": 0.09608996349971945,
       "text_excerpt": "Step 9 of 9 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation. Take a "
     },
     {
