@@ -115,3 +115,70 @@ func TestSourceCheckNoSourceProbesNothing(t *testing.T) {
 		t.Fatalf("args = %v", got)
 	}
 }
+
+// shared/probe/source-reuse-cases.json (#267): the item offered as the
+// second install source, never on live media.
+func TestSourceReuseSharedCases(t *testing.T) {
+	cases := loadCases(t, filepath.Join(sharedProbe, "source-reuse-cases.json"))
+	if len(cases) < 20 {
+		t.Fatalf("only %d cases", len(cases))
+	}
+	for _, c := range cases {
+		var name, updateRef string
+		var failed bool
+		var fixture *string
+		var live *bool
+		_ = json.Unmarshal(c["name"], &name)
+		_ = json.Unmarshal(c["update_ref"], &updateRef)
+		_ = json.Unmarshal(c["probe_failed"], &failed)
+		_ = json.Unmarshal(c["fixture"], &fixture)
+		_ = json.Unmarshal(c["live"], &live)
+		var data []byte
+		if !failed {
+			probe := map[string]any{"protocol_version": 1}
+			if fixture != nil {
+				raw, err := os.ReadFile(filepath.Join(sharedProbe, "fixtures", "bootc-store", *fixture))
+				if err != nil {
+					t.Fatal(err)
+				}
+				probe["bootc_store"] = json.RawMessage(raw)
+			}
+			if live != nil {
+				probe["live"] = map[string]any{"is_live": *live}
+			}
+			data, _ = json.Marshal(probe)
+		}
+		got := readReuseSource(data, updateRef)
+		if got == nil {
+			if string(c["expected"]) != "null" {
+				t.Errorf("%s: no item, want %s", name, c["expected"])
+			}
+			continue
+		}
+		sameJSON(t, name, got, c["expected"])
+	}
+}
+
+// bootedReuse offers the system that this computer runs, and nothing on
+// live media.
+func TestBootedReuse(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(sharedProbe, "fixtures", "bootc-store", "store-inaccessible.json"))
+	if err != nil {
+		t.Skip("shared/probe is absent")
+	}
+	probe := func(live bool) []byte {
+		data, _ := json.Marshal(map[string]any{"protocol_version": 1, "live": map[string]any{"is_live": live},
+			"bootc_store": json.RawMessage(raw)})
+		return data
+	}
+	got := bootedReuse(probe(false))
+	if got == nil || got.Ref != "ghcr.io/example/os:stable" {
+		t.Fatalf("got %+v", got)
+	}
+	if bootedReuse(probe(true)) != nil {
+		t.Fatal("offered on live media")
+	}
+	if bootedReuse(nil) != nil {
+		t.Fatal("offered without a probe")
+	}
+}

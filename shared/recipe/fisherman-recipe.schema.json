@@ -65,6 +65,17 @@
       "type": "string",
       "description": "Override the installed image reference in the bootloader"
     },
+    "sourceReuse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["store", "digest", "platform"],
+      "properties": {
+        "store": {"type": "string", "enum": ["bootc"], "description": "The bootc-owned ostree storage of this computer."},
+        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "description": "bootc_store.items[].digest of fisherman probe --json: the identity of the item, never a name."},
+        "platform": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$", "description": "bootc_store.items[].platform (x86_64, aarch64)."}
+      },
+      "description": "Install from an image that the bootc of this computer keeps (fisherman docs/SOURCE-REUSE.md, tuna-os/fisherman#384). Experimental: it needs \"bootc_store_reuse\" in experimental, an empty image and a registry targetImgref. Leave it out for the ordinary source paths. Never a default, never on live media."
+    },
     "bootloader": {
       "type": "string",
       "enum": ["", "grub2", "systemd"],
@@ -293,9 +304,9 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["zfs"]
+        "enum": ["zfs", "bootc_store_reuse"]
       },
-      "description": "The experimental features that the caller accepts. A feature is experimental when no VM test covers it. filesystem \"zfs\" is refused (zfs_experimental) unless this list has \"zfs\"; send it in the same --partial fragment as filesystem. Any other entry is experimental_unsupported."
+      "description": "The experimental features that the caller accepts. A feature is experimental when no VM test covers it. filesystem \"zfs\" is refused (zfs_experimental) unless this list has \"zfs\"; send it in the same --partial fragment as filesystem. sourceReuse is refused (source_reuse_experimental) unless this list has \"bootc_store_reuse\". Any other entry is experimental_unsupported."
     },
     "setBootNext": {
       "type": "boolean",
@@ -351,6 +362,17 @@
       "then": {
         "required": ["experimental"],
         "properties": {"experimental": {"contains": {"const": "zfs"}}}
+      }
+    },
+    {
+      "if": {"required": ["sourceReuse"]},
+      "then": {
+        "required": ["experimental", "targetImgref"],
+        "properties": {
+          "experimental": {"contains": {"const": "bootc_store_reuse"}},
+          "image": {"const": ""},
+          "targetImgref": {"minLength": 1}
+        }
       }
     }
   ]

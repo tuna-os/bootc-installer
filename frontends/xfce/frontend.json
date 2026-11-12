@@ -1,0 +1,25 @@
+{
+  "$comment": "The canonical build and test commands of the XFCE frontend. Python: no build step; the Flatpak is built by flatpak-frontends.yml from shared/ci/frontends.json. shared/ci/frontend_tests.py runs these; tests/unit/test_ci_frontend_meta.py holds each command to the workflow step that it names.",
+  "frontend": "xfce",
+  "build": [],
+  "test": [
+    {
+      "id": "unit",
+      "run": "xvfb-run -a python3 -m pytest tests/ -q -p no:cacheprovider --ignore=tests/gui",
+      "cwd": "frontends/xfce",
+      "workflow": "screenshots-xfce.yml",
+      "job": "capture",
+      "requires": ["xvfb-run", "python3", "python:pytest", "python:gi"]
+    }
+  ],
+  "compliance": [
+    {
+      "id": "recipe",
+      "run": "xvfb-run -a python3 -m pytest tests/test_recipe_compliance.py -v -p no:cacheprovider",
+      "cwd": "frontends/xfce",
+      "workflow": "recipe-compliance.yml",
+      "job": "xfce",
+      "requires": ["xvfb-run", "python3", "python:pytest", "python:gi"]
+    }
+  ]
+}

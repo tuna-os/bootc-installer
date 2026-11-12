@@ -29,7 +29,8 @@ from bootc_installer.main import BootcInstaller
 from bootc_installer.views import progress as progress_mod
 from bootc_installer.windows.main_window import BootcWindow
 
-_RECIPE_PATH = Path(__file__).resolve().parents[2] / "recipe.json"
+_REPO = Path(__file__).resolve().parents[2]
+_RECIPE_PATH = _REPO / "recipe.json"
 
 
 def _pump():
@@ -216,6 +217,8 @@ def flow(tmp_path):
     patchers = [
         patch.dict(os.environ, env, clear=False),
         patch("bootc_installer.defaults.disk.DisksManager", return_value=_FakeDisksManager()),
+        # The host may lack mkfs.xfs; the probe fails closed (#85).
+        patch("bootc_installer.defaults.disk_host.fs_tool_available", return_value=True),
         patch("bootc_installer.defaults.qr_companion.CompanionServer"),
         # The connection-check page moves on by itself; these tests place
         # the carousel themselves.
@@ -568,6 +571,63 @@ class TestCancel:
 
         assert len(flow.sessions) == 2
         assert not flow.progress.cancel_requested
+        flow.finish(1)
+        assert flow.done.page_header.title == "Installation failed"
+
+
+    def _copy_lines(self, name, upto=None):
+        cases = json.loads((_REPO / "shared" / "progress" / "source-reuse-cases.json").read_text())
+        case = next(c for c in cases["cases"] if c["name"] == name)
+        return [json.dumps(e) for e in case["events"][:upto]], case
+
+    def test_during_the_copy_the_question_says_the_disk_does_not_change(self, flow):
+        """#267: fisherman copies this computer's system before the first
+        step. A cancel then stops the copy; the disk is as it was."""
+        flow.visit_confirm()
+        flow.click_install()
+        lines, case = self._copy_lines("the_cancel_question_during_the_copy")
+        for line in lines:
+            flow.progress.feed_line(line)
+        assert flow.progress.progress_reuse.get_visible()
+        assert "copies this computer's system" in flow.progress.progress_reuse.get_label()
+        assert flow.progress.progressbar.get_fraction() == 0.0
+
+        flow.progress.btn_cancel.emit("clicked")
+        _pump()
+        body = flow.dialog().get_body()
+        assert "The disk does not change" in body
+        assert "can be left without a system" not in body
+
+        flow.dialog().emit("response", "stop")
+        session = flow.sessions[0]
+        session.exit_code = None
+        for line in self._copy_lines("cancelled_copy")[0][2:]:
+            flow.progress.feed_line(line)
+        assert "removed the copy" in flow.progress.progress_reuse.get_label()
+        flow.finish(130)
+        assert flow.done.page_header.title == "Installation cancelled"
+
+    def test_after_the_first_step_the_question_warns_about_the_disk(self, flow):
+        flow.visit_confirm()
+        flow.click_install()
+        lines, _ = self._copy_lines("copied_verified_then_installed", upto=4)
+        for line in lines:
+            flow.progress.feed_line(line)
+        flow.progress.btn_cancel.emit("clicked")
+        _pump()
+        assert "can be left without a system" in flow.dialog().get_body()
+
+    def test_exit_1_after_a_confirmed_cancel_is_a_failure(self, flow):
+        """The decided rule (shared/progress/outcome-cases.json): after a
+        confirmed cancel only 130 or a signal is the cancel."""
+        flow.visit_confirm()
+        flow.click_install()
+        session = flow.sessions[0]
+        session.request_cancel = lambda: True
+        flow.progress.btn_cancel.emit("clicked")
+        _pump()
+        flow.dialog().emit("response", "stop")
+        _pump()
         flow.finish(1)
         assert flow.done.page_header.title == "Installation failed"
 

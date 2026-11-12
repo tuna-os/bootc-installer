@@ -17,6 +17,8 @@ import Quickshell
 import Quickshell.Io
 import "."
 import "progress.js" as BarMath
+import "recipe.js" as RecipeJs
+import "i18n.js" as I18n
 
 ApplicationWindow {
     id: root
@@ -97,6 +99,29 @@ ApplicationWindow {
             confirm_button: "Install",
             progress_title: "Installing {name}…",
             progress_note: "Do not power off the computer.",
+            progress_reuse_planned: "The copy of this computer's system needs {value} GiB of free space.",
+            progress_reuse_planned_unknown: "fisherman did not report how much space the copy needs.",
+            progress_reuse_copying: "The installer copies this computer's system. The disk does not change until the copy is complete.",
+            progress_reuse_verified: "The installer copied this computer's system and checked the copy.",
+            progress_reuse_verified_digest: "Digest of the copy: {value}",
+            progress_reuse_measured_time: "The copy took {value} seconds.",
+            progress_reuse_measured_space: "The copy used up to {value} GiB of free space.",
+            progress_reuse_failed_command_unsupported: "The bootc of this computer cannot copy its system.",
+            progress_reuse_failed_source_unavailable: "The installer cannot read the system of this computer.",
+            progress_reuse_failed_source_moved: "An update changed the system of this computer, so the installer did not copy it.",
+            progress_reuse_failed_estimate_failed: "The installer could not calculate the space for the copy.",
+            progress_reuse_failed_insufficient_space: "This computer does not have enough free space for the copy.",
+            progress_reuse_failed_destination_exists: "An earlier copy is still on this computer.",
+            progress_reuse_failed_transfer_failed: "The copy of this computer's system stopped before the end.",
+            progress_reuse_failed_disk_exhausted: "The disk of this computer became full during the copy.",
+            progress_reuse_failed_verify_failed: "The installer could not check the copy.",
+            progress_reuse_failed_identity_mismatch: "The system of this computer changed during the copy.",
+            progress_reuse_failed_unknown: "The copy of this computer's system failed.",
+            progress_reuse_released_removed: "The installer removed the copy.",
+            progress_reuse_released_remove_failed: "The installer could not remove the copy. To remove it, run: podman rmi {value}",
+            progress_reuse_released_unknown: "The installer released the copy.",
+            progress_reuse_unreadable: "fisherman reported the copy in a format that this installer cannot read.",
+            progress_reuse_cancel: "The installer stops the copy of this computer's system and removes the copy. The disk does not change.",
             step_prepare_disk: "Checking your drive…",
             step_partition: "Setting up your drive…",
             step_format_efi: "Preparing the boot system…",
@@ -118,7 +143,22 @@ ApplicationWindow {
             done_restart: "Restart now",
             done_failed_title: "Installation failed",
             done_cancelled_title: "Installation cancelled",
-            done_verification: "The new system has not started yet, so nothing has checked it. At its first start, it records which image it started, in /var/lib/fisherman/boot-receipt/. On that system, the command fisherman verify --json compares the record with the installation receipt. That check covers the image only, not the hardware, the disk unlock or the desktop.",
+            done_failed_disk_unchanged: "Your disk was not changed. You can try again.",
+            done_failed_disk_changed: "The installer changed your disk before it stopped. The disk can hold an incomplete system that does not start. Install again to use it.",
+            done_failed_cleanup_failed: "The installer could not release the disk after the failure. The disk can still be mounted or unlocked: restart the computer before you try again.",
+            done_failed_cleanup_timed_out: "The installer did not release the disk in time after the failure. The disk can still be mounted or unlocked: restart the computer before you try again.",
+            done_verification: "The new system has not started yet, so nothing has checked it.",
+            done_receipt_check_set_up: "The installer wrote an installation receipt, install ID {value}. The first-boot check is set up: at its first start, the new system records which image it started. On that system, the command fisherman verify --json compares the record with the receipt. That check covers the image only, not the hardware, the disk unlock or the desktop.",
+            done_receipt_written_no_check: "The installer wrote an installation receipt, install ID {value}. The first-boot check is not set up.",
+            done_receipt_not_written: "The installer did not write an installation receipt. Nothing can check later which image the new system started.",
+            done_receipt_none: "fisherman did not report an installation receipt for this installation.",
+            done_receipt_unreadable: "fisherman reported the installation receipt in a format that this installer cannot read.",
+            done_receipt_reason_transient_etc: "The image keeps /etc only in memory, so the check cannot stay there. On the new system, the command fisherman verify --json --live compares the running system with the receipt.",
+            done_receipt_reason_collector_failed: "The installer could not set up the check. On the new system, the command fisherman verify --json --live compares the running system with the receipt.",
+            done_receipt_reason_resolve_failed: "The installer did not find the installed system to write the receipt to.",
+            done_receipt_reason_build_failed: "The installer could not make the receipt.",
+            done_receipt_reason_write_failed: "The installer could not write the receipt file.",
+            done_receipt_reason_unknown: "No further details are available.",
             source_install_from: "Install from: {value}",
             source_update_ref: "The installed system gets its updates from: {value}",
             source_live_host: "This computer runs now: {value}",
@@ -149,11 +189,17 @@ ApplicationWindow {
             source_check_default_filesystem: "Root file system that the image's bootc reports: {value}",
             source_check_default_block_setups: "Disk setups that the image's bootc reports: {value}",
             source_check_default_bootloader: "Boot loader that the image's bootc reports: {value}",
-            bootc_store_listed: "This computer (the system that runs the installer, not the new system) keeps these images in its bootc storage. The installer does not install from that storage, and it does not use them as offline copies:",
+            bootc_store_listed: "This computer (the system that runs the installer, not the new system) keeps these images in its bootc storage. The list does not make them install sources or offline copies:",
             bootc_store_kind_booted: "running now",
             bootc_store_kind_deployed: "installed on this computer",
             bootc_store_kind_stored: "in bootc storage",
             bootc_store_kind_listed: "named by bootc, identity unknown",
+            source_reuse_title: "Install source",
+            source_reuse_download: "Download the image",
+            source_reuse_download_detail: "The installer downloads {value}.",
+            source_reuse_local: "This computer's installed system (experimental)",
+            source_reuse_local_detail: "Works offline. The first update downloads the full image.",
+            source_reuse_install_from: "Install from this computer's bootc storage: {value}",
             store_label: "Visit the store",
             validate_hostname_required: "Enter a name for this computer.",
             validate_hostname_too_long: "Use 64 characters or fewer for the computer name.",
@@ -195,6 +241,36 @@ ApplicationWindow {
             validate_custom_mount_target_duplicate: "Two partitions have the same mount point. Give each partition its own mount point.",
             validate_custom_mount_partition_duplicate: "The same partition is used twice. Give each mount point its own partition.",
             validate_custom_mount_not_persistable: "The installed system cannot mount this partition there. Use a folder below /var, or /home.",
+            validate_image_invalid: "The image name has a space, a line break or another hidden character, or starts with a dash. Choose the image again.",
+            validate_target_imgref_invalid: "The image that updates come from has a space, a line break or another hidden character, or starts with a dash. Choose the image again.",
+            validate_image_not_found: "The registry does not have this image or this tag. Check the name and the tag, or choose another image.",
+            validate_image_source_unauthorized: "The registry refused access to the image. Log in on this computer, or check the name.",
+            validate_image_source_unreachable: "The registry did not answer. Connect to the network, or choose an image that is on this computer.",
+            validate_image_inspect_failed: "The installer could not read the image's details. The install log has the reason.",
+            validate_image_inspect_malformed: "The registry gave an answer the installer cannot use. The install log has the details.",
+            validate_image_platform_mismatch: "This image is not built for this computer's processor. Choose the image built for it.",
+            validate_image_not_bootc: "This image is not a bootable system image. Choose another image.",
+            validate_selinux_workaround_unavailable: "This install needs a C compiler on this computer, and there is none. Install one, or install from a computer without SELinux.",
+            validate_unknown: "The installation stopped. The install log has the reason.",
+            validate_cancelled: "The installation was cancelled.",
+            validate_lock_failed: "The installer could not make sure that it is the only install running. Restart the computer and try again.",
+            validate_local_source_unavailable: "The installer could not read the system image on this computer.",
+            validate_manual_layout_failed: "A partition of your layout could not be formatted or mounted.",
+            validate_partition_failed: "The disk could not be partitioned.",
+            validate_format_failed: "A filesystem could not be made on the disk.",
+            validate_luks_failed: "The disk encryption could not be set up.",
+            validate_zfs_failed: "The ZFS pool could not be created or mounted.",
+            validate_mount_failed: "A filesystem on the new disk could not be mounted.",
+            validate_scratch_failed: "The installer could not prepare its working space on the disk.",
+            validate_pull_failed: "The system image could not be downloaded. Check the network connection and try again.",
+            validate_bootc_install_failed: "The system could not be written to the disk.",
+            validate_retag_failed: "The new system's partition could not be marked for start-up.",
+            validate_persistent_mounts_failed: "The new system's mount settings could not be written.",
+            validate_hostname_failed: "The computer name could not be written to the new system.",
+            validate_user_failed: "The user account could not be created.",
+            validate_luks_boot_args_failed: "The start-up settings for the encrypted disk could not be written.",
+            validate_finalize_failed: "The installer could not finish writing the disk.",
+            validate_root_flags_failed: "The installer could not write the root mount options into the boot entries.",
             validate_zfs_experimental: "ZFS is experimental. Accept that, or choose a different filesystem.",
             validate_experimental_unsupported: "The installer asked for an experimental feature that this version does not know.",
             validate_locale_invalid: "This language is not a valid locale name. Choose another language.",
@@ -203,7 +279,33 @@ ApplicationWindow {
             validate_keyboard_variant_invalid: "This keyboard variant is not valid. Choose another variant.",
             validate_keyboard_model_invalid: "This keyboard model is not valid. Choose another model.",
             validate_timezone_invalid: "This time zone is not valid. Choose another time zone.",
-            validate_kept_filesystem_unusable: "A partition that the installer keeps has no usable filesystem. Format it, or choose another partition."
+            validate_kept_filesystem_unusable: "A partition that the installer keeps has no usable filesystem. Format it, or choose another partition.",
+            validate_source_reuse_experimental: "The installer did not accept the experimental install from this computer's system. Choose to download the image.",
+            validate_source_reuse_store_unsupported: "The installer asked for a storage that fisherman cannot install from. Choose to download the image.",
+            validate_source_reuse_digest_invalid: "The identity of this computer's system is not valid. Choose to download the image.",
+            validate_source_reuse_platform_invalid: "The architecture of this computer's system is not valid. Choose to download the image.",
+            validate_source_reuse_image_conflict: "An install from this computer's system cannot also name an image. Choose to download the image.",
+            validate_source_reuse_target_imgref_required: "An install from this computer's system needs an image for updates. Choose to download the image.",
+            validate_source_reuse_target_imgref_invalid: "The image for updates must be in a registry. Choose to download the image.",
+            validate_source_reuse_backend_unsupported: "This system image cannot install from this computer's system. Choose to download the image.",
+            validate_source_reuse_host_not_bootc: "This computer does not run a bootc image. Choose to download the image.",
+            validate_source_reuse_live_media: "This computer runs from installation media. Choose to download the image.",
+            validate_source_reuse_backend_not_qualified: "The system that this computer runs cannot be copied. Choose to download the image.",
+            validate_source_reuse_item_not_found: "This computer no longer has that system. Choose to download the image.",
+            validate_source_reuse_item_unverified: "The installer cannot confirm which image this computer runs. Choose to download the image.",
+            validate_source_reuse_platform_mismatch: "The system of this computer is for a different architecture. Choose to download the image.",
+            validate_source_reuse_sandboxed: "fisherman must run on this computer, not in a sandbox, to copy its system. Choose to download the image.",
+            validate_source_reuse_command_unsupported: "The bootc of this computer cannot copy its system. Update bootc, or choose to download the image.",
+            validate_source_reuse_source_unavailable: "The installer cannot read the system of this computer. Choose to download the image.",
+            validate_source_reuse_source_moved: "An update changed the system of this computer. Restart the computer, or choose to download the image.",
+            validate_source_reuse_estimate_failed: "The installer could not calculate the space for the copy. Choose to download the image.",
+            validate_source_reuse_insufficient_space: "This computer does not have enough free space for the copy. Free space in /var, or choose to download the image.",
+            validate_source_reuse_destination_exists: "An earlier copy is still on this computer. Remove the localhost/fisherman-reuse image, or choose to download the image.",
+            validate_source_reuse_transfer_failed: "The copy of this computer's system failed. Choose to download the image.",
+            validate_source_reuse_disk_exhausted: "The disk of this computer became full during the copy. Free space in /var, or choose to download the image.",
+            validate_source_reuse_verify_failed: "The installer could not check the copy. Choose to download the image.",
+            validate_source_reuse_identity_mismatch: "The system of this computer changed during the copy. Try again when no update runs.",
+            validate_source_reuse_installed_digest_differs: "The installed system is not the copy that the installer checked. Report this problem."
         })
         // COPY-DEFAULTS-END
         let line = copy[key] !== undefined ? copy[key] : (defaults[key] || "")
@@ -308,9 +410,10 @@ ApplicationWindow {
     property bool showPassphrase: false
     property bool installSuccess: false
     // Cancel (#299). The progress page's Cancel and the window's close both
-    // ASK first (cancelOpen). After a confirmed cancel, fisherman's exit
-    // code 130, or any failure, is a cancelled install and not a failed one:
-    // the done page then reads done_cancelled_title.
+    // ASK first (cancelOpen). fisherman's exit code 130, or a signal after
+    // a confirmed cancel, is a cancelled install and not a failed one: the
+    // done page then reads done_cancelled_title. Another exit code after a
+    // cancel is a failure (shared/progress/outcome-cases.json).
     property bool cancelOpen: false
     property bool cancelRequested: false
     property bool installCancelled: false
@@ -322,8 +425,11 @@ ApplicationWindow {
         cancelProc.running = true
     }
     function installExited(code) {
-        root.installSuccess = (code === 0)
-        root.installCancelled = code !== 0 && (code === 130 || root.cancelRequested)
+        // The exit code decides, never a `complete` event
+        // (shared/progress/outcome-cases.json, BarMath.installOutcome).
+        const outcome = BarMath.installOutcome(code, root.cancelRequested)
+        root.installSuccess = outcome === "succeeded"
+        root.installCancelled = outcome === "cancelled"
         root.cancelOpen = false
         root.currentPage = 8
     }
@@ -359,6 +465,18 @@ ApplicationWindow {
     // Parser context carried across lines, for substep interpolation.
     // Parser state for the bar (ui/progress.js), carried across lines.
     property var barState: BarMath.newState()
+    // What fisherman's `receipt` event said (#269); null before one.
+    property var installReceipt: null
+    // fisherman's last `error` event (ui/progress.js errorOf); null before
+    // one. The failure page reads its disk and cleanup lines (fisherman#449).
+    property var installError: null
+    // The copy of this computer's system before the first step (#267): the
+    // parser's view of fisherman's source_reuse events, and whether a
+    // cancel now leaves the disk as it was (ui/progress.js copyCancel).
+    property var installSourceReuse: null
+    property bool copyCancel: false
+    // Whether the copy has a line for `key` (the done page's reason lines).
+    function copyHas(key) { return root.text(key) !== "" }
     // Recipe JSON awaiting the backend child's stdin channel (fed on
     // Process.started). Kept on the root so the passphrase-bearing recipe
     // never appears in the install command argv (see #22).
@@ -414,18 +532,14 @@ ApplicationWindow {
         Object.assign(recipe, root.regionRecipe())
         if (root.needsUserCreation)
             recipe.user = { username: root.username }
+        // fisherman's static sourceReuse rules, before Install (#267).
+        if (root.reuseActive)
+            Object.assign(recipe, BarMath.reuseFragment(BarMath.applyReuse(recipe, root.reuseSource)))
         return recipe
     }
     // The recipe keys of the Session step's picks (#292). None without a
     // pick: the installed system keeps the image's values.
-    function regionRecipe() {
-        const keys = {}
-        const picked = root.installRegion || {}
-        if (picked.locale) keys.locale = picked.locale
-        if (picked.keyboard) keys.keyboard = { layout: picked.keyboard }
-        if (picked.timezone) keys.timezone = picked.timezone
-        return keys
-    }
+    function regionRecipe() { return RecipeJs.regionKeys(root.installRegion) }
     readonly property string regionProblem: problemText("locale") || problemText("keyboard.layout")
         || problemText("keyboard.variant") || problemText("keyboard.model") || problemText("timezone")
     function checkFields() { validateTimer.restart() }
@@ -509,8 +623,7 @@ ApplicationWindow {
             keys = Object.assign({}, root.liveLeaf ? (root.liveLeaf.recipe || {}) : {})
             keys.image = ""
         } else if (root.selectedLeaf) {
-            keys = Object.assign({ image: root.selectedLeaf.imgref, targetImgref: root.selectedLeaf.imgref },
-                root.selectedLeaf.recipe || {})
+            keys = RecipeJs.leafKeys(root.selectedLeaf)
         } else if (root.selectedFallback && root.defaultImage !== "") {
             keys = { image: root.defaultImage, targetImgref: root.defaultImage }
         }
@@ -520,6 +633,30 @@ ApplicationWindow {
     }
     readonly property string selectedImage: root.imageRecipe ? (root.imageRecipe.image || "") : ""
     readonly property string targetImage: root.imageRecipe ? (root.imageRecipe.targetImgref || "") : ""
+
+    // The install source (#267): this computer's system, copied from its
+    // bootc storage, as a second choice beside the download. `detect` gives
+    // the item that fisherman can copy (installer/sourcecheck.go); it is
+    // offered only for the image whose update reference is its ref, and
+    // never on live media. The download is the default.
+    property var reuseSource: null
+    property bool reuseSelected: false
+    readonly property bool reuseOffered: !root.isLive && root.reuseSource !== null
+        && root.reuseSource.ref === BarMath.plainRef(root.targetImage || root.selectedImage)
+    readonly property bool reuseActive: root.reuseOffered && root.reuseSelected
+    onReuseOfferedChanged: if (!root.reuseOffered) root.reuseSelected = false
+    onReuseSelectedChanged: checkFields()
+    // fisherman's problem with the pick (validate_source_reuse_<code>).
+    readonly property string reuseProblem: {
+        if (!root.reuseActive)
+            return ""
+        for (const field in root.problems) {
+            const p = root.problems[field]
+            if (p && typeof p.code === "string" && p.code.indexOf("source_reuse_") === 0)
+                return root.problemText(field)
+        }
+        return ""
+    }
     readonly property bool sourceReady: root.imageRecipe !== null
     // A new selection takes the leaf's filesystem and hostname seed. The
     // filesystem of the leaf before it is not kept.
@@ -625,7 +762,7 @@ ApplicationWindow {
     property bool netChecked: false
     property string netToolError: ""
     readonly property bool needsDownload: root.sourceReady && root.selectedImage !== ""
-        && !root.isOffline(root.selectedImage)
+        && !root.isOffline(root.selectedImage) && !root.reuseActive
     readonly property bool downloadBlocked: root.needsDownload && !root.netConnected
     function recheckNetwork() { netTimer.restart() }
 
@@ -649,7 +786,13 @@ ApplicationWindow {
     // logPath, named on the progress page next to its Copy button.
     property string logPath: ""
 
-    Component.onCompleted: detectProc.running = true
+    // The Qt catalog for the locale, or null where none loads (i18n.js).
+    property QtObject catalog: null
+
+    Component.onCompleted: {
+        root.catalog = I18n.createCatalog(root, Qt.resolvedUrl("installer.qml"))
+        detectProc.running = true
+    }
 
     // Readiness stamp — see ../installer/readiness.go.
     //
@@ -709,6 +852,7 @@ ApplicationWindow {
                     if (facts.logPath !== undefined) root.logPath = facts.logPath
                     if (facts.encryptionChoices) root.encryptionChoices = facts.encryptionChoices
                     if (facts.branding) root.branding = facts.branding
+                    root.reuseSource = facts.reuse || null
                 } catch (e) { /* detect is best-effort */ }
             }
         }
@@ -1011,7 +1155,15 @@ ApplicationWindow {
             installStepName = BarMath.stepLabel(event, id => root.text("step_" + id))
         } else if (event.type === "recovery_key") {
             recoveryKey = event.key || ""
+        } else if (event.type === "error") {
+            installError = barState.error
+        } else if (event.type === "receipt") {
+            // The parser's view of it (ui/progress.js), for the done page.
+            installReceipt = barState.receipt
+        } else if (event.type === "source_reuse") {
+            installSourceReuse = barState.sourceReuse
         }
+        copyCancel = BarMath.copyCancel(barState)
     }
 
     // Restart from the done page: the backend runs `systemctl reboot` on the
@@ -1024,45 +1176,27 @@ ApplicationWindow {
 
     // The recipe the wizard hands to the backend's `install`. Its image
     // keys are the backend's own (imageRecipe, from `catalog`); the rest is
-    // what the user chose on the pages.
+    // what the user chose on the pages. ui/recipe.js builds it, so that
+    // installer/compliance_test.go can hold it to the shared fixture.
     function buildRecipe() {
-        const recipe = {
+        const recipe = RecipeJs.build({
             disk: selectedDisk.path,
             filesystem: root.filesystem,
-            // Subvolumes only on btrfs, whatever the row says.
-            btrfsSubvolumes: root.filesystem === "btrfs" && root.btrfsSubvolumes,
-            encryption: root.needsPassphrase(root.encType)
-                ? { type: root.encType, passphrase: root.passphrase }
-                : { type: root.encType },
+            btrfsSubvolumes: root.btrfsSubvolumes,
+            encType: root.encType,
+            passphraseNeeded: root.needsPassphrase(root.encType),
+            passphrase: root.passphrase,
             hostname: hostname,
             distroID: root.branding.id || "linux",
-            // true makes bootc boot the installed system with selinux=0.
-            selinuxDisabled: false
-            // No additionalImageStores: fisherman exposes the host's stores.
-        }
-        // image, targetImgref, bootloader, composeFsBackend, and flatpaks,
-        // flatpakVarPath and imageType when the leaf gives them. A key that
-        // is not there stays out: an absent `flatpaks` lets fisherman apply
-        // its default, and that is not the same as an empty list. An empty
-        // image installs the running system, which fisherman accepts only
-        // on live media (probe's live.is_live).
-        Object.assign(recipe, root.imageRecipe || {})
-        // ZFS is experimental in fisherman (no VM test boots it): the
-        // user picked it, and the recipe says that it accepts that.
-        if (root.filesystem === "zfs")
-            recipe.experimental = ["zfs"]
-        // The Session step's picks: locale, keyboard, timezone (#292).
-        Object.assign(recipe, root.regionRecipe())
-        // The account: left out when the image makes its own first user,
-        // and with no username (the schema's "empty skips"). No groups
-        // here: the backend writes the shared list or the operator's.
-        if (root.needsUserCreation && root.username !== "")
-            recipe.user = {
-                username: root.username,
-                fullname: root.fullname,
-                password: root.userPassword
-            }
-        return recipe
+            imageKeys: root.imageRecipe,
+            region: root.installRegion,
+            needsUserCreation: root.needsUserCreation,
+            username: root.username,
+            fullname: root.fullname,
+            password: root.userPassword
+        })
+        // The install source of the confirm page (#267).
+        return root.reuseActive ? BarMath.applyReuse(recipe, root.reuseSource) : recipe
     }
 
     function startInstall() {
@@ -1072,6 +1206,10 @@ ApplicationWindow {
         installFraction = 0
         installStepName = ""
         barState = BarMath.newState()
+        installReceipt = null
+        installError = null
+        installSourceReuse = null
+        copyCancel = false
         root.cancelRequested = false
         root.installCancelled = false
         root.cancelOpen = false
@@ -1104,7 +1242,11 @@ ApplicationWindow {
     }
     // Continue on the Source step: held with nothing selected, and while an
     // image that needs a download has no network.
-    readonly property bool sourceCanContinue: root.sourceReady && root.catalogLoaded && !root.downloadBlocked
+    // An image that this computer can copy (reuseOffered) goes on without a
+    // network: the confirm page offers the copy, and holds Install until it
+    // is picked or the network is back.
+    readonly property bool sourceCanContinue: root.sourceReady && root.catalogLoaded
+        && (!root.downloadBlocked || root.reuseOffered)
     function chooseAndNext() {
         if (!root.sourceCanContinue)
             return
@@ -1114,7 +1256,7 @@ ApplicationWindow {
     readonly property bool canInstall: root.selectedDisk.path !== undefined && root.sourceReady
         && root.hostnameProblem === "" && root.filesystemProblem === ""
         && (!root.needsUserCreation || root.accountReady) && !root.downloadBlocked
-        && !root.sourceBlocked
+        && !root.sourceBlocked && root.reuseProblem === ""
 
     // ── The source check (#266) and this computer's bootc storage (#267) ──
     // The backend's `source-check` runs `fisherman probe --json --source`
@@ -1131,10 +1273,11 @@ ApplicationWindow {
     property string sourceRequest: ""
     function startSourceCheck() {
         const r = root.buildRecipe()
-        const image = r.image || ""
+        // A copy of this computer's system: the probe asks about its ref.
+        const image = r.sourceReuse ? BarMath.plainRef(r.targetImgref) : (r.image || "")
         const req = {
             source: image,
-            live_root: image === "" && root.isLive,
+            live_root: image === "" && root.isLive && !r.sourceReuse,
             target: r.targetImgref || "",
             features: r.unifiedStorage === true ? ["unified_storage"] : []
         }
@@ -1162,7 +1305,8 @@ ApplicationWindow {
             rows.push({ title: root.text("source_check_" + "checking"), subtitle: "" })
             return rows
         }
-        for (const pair of [["source_install_from", v.install_from], ["source_update_ref", v.update_ref],
+        for (const pair of [[root.reuseActive ? "source_reuse_install_from" : "source_install_from", v.install_from],
+                            ["source_update_ref", v.update_ref],
                             ["source_live_host", v.live_host_image]]) {
             const line = root.sourceLine(pair[0], pair[1])
             if (line !== "") rows.push({ title: line, subtitle: "" })
@@ -2022,7 +2166,9 @@ ApplicationWindow {
                                 StyledText {
                                     // The image that is installed (the NVIDIA image
                                     // on an NVIDIA machine), with the leaf's label.
-                                    text: root.isLive && root.selectedLive
+                                    text: root.reuseActive
+                                        ? root.text("source_reuse_install_from", { value: root.reuseSource.ref })
+                                        : root.isLive && root.selectedLive
                                         ? qsTr("%1  (this system, no download)").arg(root.liveImage || qsTr("this system"))
                                         : (root.selectedLeaf
                                             ? (root.selectedLeaf.label || root.selectedLeaf.name) + "  (" + root.selectedImage + ")"
@@ -2042,8 +2188,8 @@ ApplicationWindow {
                                 StyledText {
                                     id: confirmTarget
                                     objectName: "confirmTargetImage"
-                                    visible: root.targetImage !== "" && root.targetImage !== root.selectedImage
-                                        && root.selectedImage !== ""
+                                    visible: root.targetImage !== "" && (root.reuseActive
+                                        || (root.targetImage !== root.selectedImage && root.selectedImage !== ""))
                                     text: root.targetImage
                                     isMonospace: true
                                     font.pixelSize: Theme.fontSizeSmall
@@ -2094,6 +2240,45 @@ ApplicationWindow {
                                         visible: text !== ""
                                         font.pixelSize: Theme.fontSizeSmall
                                     }
+                                }
+                            }
+                        }
+
+                        // The install source (#267): download the image (the
+                        // default), or copy the system that this computer runs
+                        // from its bootc storage.
+                        DankCard {
+                            objectName: "confirmReuse"
+                            Layout.fillWidth: true
+                            visible: root.reuseOffered
+                            title: root.text("source_reuse_title")
+                            ColumnLayout {
+                                width: parent.width
+                                spacing: 2
+                                DankListItem {
+                                    Layout.fillWidth: true
+                                    lastInGroup: false
+                                    primaryText: root.text("source_reuse_download")
+                                    secondaryText: root.text("source_reuse_download_detail",
+                                        { value: root.reuseSource ? root.reuseSource.ref : "" })
+                                    isSelected: !root.reuseSelected
+                                    onClicked: { root.reuseSelected = false; root.startSourceCheck() }
+                                }
+                                DankListItem {
+                                    Layout.fillWidth: true
+                                    firstInGroup: false
+                                    primaryText: root.text("source_reuse_local")
+                                    secondaryText: root.text("source_reuse_local_detail")
+                                    isSelected: root.reuseSelected
+                                    onClicked: { root.reuseSelected = true; root.startSourceCheck() }
+                                }
+                                StyledText {
+                                    objectName: "reuseProblem"
+                                    text: root.reuseProblem
+                                    visible: text !== ""
+                                    color: Theme.error
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
                                 }
                             }
                         }
@@ -2182,6 +2367,19 @@ ApplicationWindow {
                             : qsTr("Step %1 of %2").arg(root.installStep).arg(root.installSteps))
                         : qsTr("Starting…")
                     color: Theme.surfaceVariantText
+                }
+                // The copy of this computer's system before the first step
+                // (#267): fisherman's source_reuse events. Hidden otherwise.
+                StyledText {
+                    objectName: "installReuseLines"
+                    text: BarMath.sourceReuseLines(root.installSourceReuse, k => root.copyHas(k))
+                        .map(l => root.text(l.key).replace("{value}", l.value))
+                        .filter(l => l !== "").join("\n")
+                    visible: text !== ""
+                    color: Theme.surfaceVariantText
+                    font.pixelSize: Theme.fontSizeSmall
+                    wrapMode: Text.WrapAnywhere
+                    Layout.fillWidth: true
                 }
                 Rectangle {
                     Layout.fillWidth: true
@@ -2318,12 +2516,27 @@ ApplicationWindow {
                         horizontalAlignment: Text.AlignHCenter
                         Layout.fillWidth: true
                     }
+                    // A failure: whether fisherman changed the disk, and a
+                    // cleanup that failed or timed out (fisherman#449).
+                    StyledText {
+                        objectName: "doneFailureLines"
+                        visible: !root.installSuccess && !root.installCancelled && text !== ""
+                        text: BarMath.failureLines(root.installError)
+                            .map(k => root.text(k)).filter(t => t !== "").join("\n\n")
+                        color: Theme.surfaceVariantText
+                        wrapMode: Text.Wrap
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
                     // Installed, restart required: never "verified". Only
                     // the new system can check its own start (#269).
                     StyledText {
                         objectName: "doneVerification"
                         visible: root.installSuccess && text !== ""
-                        text: root.text("done_verification")
+                        // With what fisherman's `receipt` event set up for that
+                        // check, and the install id.
+                        text: BarMath.receiptLines(root.installReceipt, k => root.copyHas(k))
+                            .map(l => root.text(l.key, { value: l.value })).filter(t => t !== "").join("\n\n")
                         color: Theme.surfaceVariantText
                         font.pixelSize: Theme.fontSizeSmall
                         wrapMode: Text.Wrap
@@ -2593,7 +2806,11 @@ ApplicationWindow {
                 width: parent.width
                 spacing: Theme.spacingM
                 StyledText {
-                    text: qsTr("The disk is already changed. If you stop now, this computer cannot start from it until you run the installer again.")
+                    // During the copy of this computer's system the disk has
+                    // not changed yet (#267).
+                    text: root.copyCancel && root.text("progress_reuse_cancel") !== ""
+                        ? root.text("progress_reuse_cancel")
+                        : qsTr("The disk is already changed. If you stop now, this computer cannot start from it until you run the installer again.")
                     color: Theme.warning
                     wrapMode: Text.Wrap
                     width: parent.width

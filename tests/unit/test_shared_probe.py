@@ -314,12 +314,12 @@ FRONTEND_SOURCES = [
     ("frontends/niri/installer", (".go",)),
     ("frontends/niri/ui", (".qml",)),
 ]
-# GNOME's partition picker and Windows-data scan still ask lsblk about
+# GNOME's partition picker, Windows-data scan and /var disk check still ask lsblk about
 # PARTITIONS (filesystem, UUID, parent disk), which the probe does not
 # report. Nothing may list or filter disks with it again.
 LSBLK_ALLOWED = {
     "bootc_installer/core/disks.py",
-    "bootc_installer/defaults/disk.py",
+    "bootc_installer/defaults/disk_host.py",
 }
 _RUNS_LSBLK = re.compile(r"[\"']lsblk[\"']")
 

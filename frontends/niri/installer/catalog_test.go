@@ -43,6 +43,11 @@ type expectedCatalog struct {
 		Imgref            string `json:"imgref"`
 		NeedsUserCreation bool   `json:"needs_user_creation"`
 	} `json:"unknown_image"`
+	LiveImage []struct {
+		LiveImage         string  `json:"live_image"`
+		Leaf              *string `json:"leaf"`
+		NeedsUserCreation bool    `json:"needs_user_creation"`
+	} `json:"live_image"`
 	Leaves []struct {
 		Imgref string         `json:"imgref"`
 		Leaf   map[string]any `json:"leaf"`
@@ -236,6 +241,39 @@ func TestSharedCatalogAccountFlag(t *testing.T) {
 			}
 		}
 	}
+}
+
+// expected.json `live_image`: on live media the `catalog` answer names the
+// leaf of the booted image and its account flag. The NVIDIA image of a leaf
+// is that leaf: live media that holds only the NVIDIA image boots it.
+func TestSharedCatalogLiveImage(t *testing.T) {
+	catalog, want := loadShared(t)
+	if len(want.LiveImage) < 4 {
+		t.Fatalf("expected.json has %d live_image cases", len(want.LiveImage))
+	}
+	for _, c := range want.LiveImage {
+		m := Machine{IsLive: c.LiveImage != "", OfflineImages: []string{c.LiveImage}}
+		doc := asJSON(t, catalogAnswer(catalog, "", nil, "", m, c.LiveImage))
+		var got *string
+		if leaf, ok := doc["live_leaf"].(map[string]any); ok {
+			imgref, _ := leaf["imgref"].(string)
+			got = &imgref
+		}
+		if (got == nil) != (c.Leaf == nil) || (got != nil && *got != *c.Leaf) {
+			t.Errorf("%q: live_leaf = %v, want %v", c.LiveImage, deref(got), deref(c.Leaf))
+		}
+		if doc["live_needs_user_creation"] != c.NeedsUserCreation {
+			t.Errorf("%q: live_needs_user_creation = %v, want %v",
+				c.LiveImage, doc["live_needs_user_creation"], c.NeedsUserCreation)
+		}
+	}
+}
+
+func deref(s *string) any {
+	if s == nil {
+		return nil
+	}
+	return *s
 }
 
 func writeCatalog(t *testing.T, body string) string {

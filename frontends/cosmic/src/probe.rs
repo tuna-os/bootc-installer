@@ -40,6 +40,9 @@ pub struct Facts {
     /// are fisherman's: a recipe that leaves additionalImageStores out gets
     /// them.
     pub offline_images: Vec<String>,
+    /// The probe's own output, for the objects that this struct does not
+    /// hold (`bootc_store`, which offers the install source of #267).
+    pub raw: String,
 }
 
 /// Parses probe output.
@@ -110,11 +113,14 @@ pub fn parse(json: &str) -> Result<Facts, String> {
         is_live,
         live_image,
         offline_images,
+        raw: json.to_string(),
     })
 }
 
 /// Runs the probe, or reads `BOOTC_INSTALLER_FAKE_PROBE`. Blocking: call it
 /// off the UI thread. There is no fallback scan; the error says why.
+/// The wasm build reads a fixture instead (`TunaInstaller::probe`).
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub fn run() -> Result<Facts, String> {
     parse(&run_output(&[])?)
 }

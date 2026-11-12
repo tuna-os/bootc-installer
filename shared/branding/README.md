@@ -106,11 +106,14 @@ line names.
 | `step_<step_id>` | the label of the install step that is running |
 | `recovery_key_title`, `recovery_key_body`, `recovery_key_copy`, `recovery_key_ack` | the recovery-key panel after a TPM enrolment |
 | `done_title`, `done_subtitle`, `done_restart`, `done_failed_title`, `done_cancelled_title` | the done page: installed, failed, or stopped by the user (fisherman exit code 130) |
+| `done_failed_disk_unchanged`, `done_failed_disk_changed`, `done_failed_cleanup_failed`, `done_failed_cleanup_timed_out` | the failure page: whether fisherman changed the disk, and a cleanup that failed or did not end in time (`shared/progress/README.md`, "The error event") |
 | `store_label` | the store link on the done page, shown only when `store_url` is set |
-| `done_verification` | the done page after an install: the new system is not checked yet, and how its first start is checked (`shared/completion/README.md`) |
+| `done_verification` | the done page after an install: the new system is not checked yet (`shared/completion/README.md`) |
+| `done_receipt_<state>`, `done_receipt_reason_<reason>` | the done page after an install: what fisherman's `receipt` event says, with the install ID as `{value}` (`shared/progress/README.md`, "The receipt event") |
 | `source_install_from`, `source_update_ref`, `source_live_host` | the confirm page: the source of the install, the update reference of the new system, and the image that this computer runs |
 | `source_check_<state>`, `source_check_reason_<reason>`, `source_check_default_<name>` | the confirm page: the check of the selected image (`shared/probe/README.md`, "Source check") |
 | `bootc_store_listed`, `bootc_store_kind_<kind>` | the confirm page: the images in this computer's bootc storage |
+| `source_reuse_title`, `source_reuse_download`, `source_reuse_download_detail`, `source_reuse_local`, `source_reuse_local_detail`, `source_reuse_install_from` | the confirm page: the install source, the download or this computer's system (`shared/probe/README.md`, "Install from the bootc storage of this computer") |
 
 ### Encryption choices
 
@@ -200,6 +203,21 @@ after any edit here, alongside the other copies.
 `examples/bluefin/` is a complete branding for Bluefin, lifted from what
 the GNOME frontend used to hardcode; its README says how a live ISO ships
 it.
+
+## Languages
+
+The frontends translate their own text through the catalog of their
+toolkit (see [../i18n/README.md](../i18n/README.md)). Branding copy is not
+in those catalogs. This is the decision for #311:
+
+- A product owns its copy lines. A product that ships in one language
+  writes its `copy` in that language.
+- `copy-defaults.json` holds the neutral lines in English. No catalog
+  translates them, because a frontend shows a default only when the product
+  sets no line, and a translation of the default would hide that gap.
+- `confirm_quotes` is the one field that has a line for each language.
+  A field for each language in `copy` is a contract change: it needs an
+  entry in `../CHANGELOG.md` and a change to each resolver.
 
 ## Pinning branding for screenshots
 

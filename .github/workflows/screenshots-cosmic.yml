@@ -51,7 +51,7 @@ jobs:
       run:
         working-directory: frontends/cosmic
     steps:
-      - uses: actions/checkout@v4.4.0 # zizmor: ignore[artipacked] the push-to-dev step later commits and pushes from this checkout
+      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] the push-to-dev step later commits and pushes from this checkout
         with:
           fetch-depth: 0
 
@@ -127,7 +127,7 @@ jobs:
           xvfb-run -a -s "-screen 0 1400x1000x24" ./target/release/tuna-installer-cosmic
           sudo rm -rf /run/host
 
-      - uses: actions/upload-artifact@v4.6.2
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: gui-screenshots-cosmic-variant
@@ -191,7 +191,7 @@ jobs:
           python3 ../../shared/walkthrough/report_from_pngs.py cosmic docs/screenshots \
             --harness "src/capture.rs (libcosmic on lavapipe under Xvfb)"
 
-      - uses: actions/upload-artifact@v4.6.2
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: gui-screenshots-cosmic

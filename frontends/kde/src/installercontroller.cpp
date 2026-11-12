@@ -45,6 +45,7 @@ InstallerController::InstallerController(QObject *parent)
     // read inside the Flatpak sandbox.
     m_recipe.liveMode = facts.isLive;
     m_liveImage = facts.liveImage;
+    m_probeOutput = facts.raw;
     // Product identity per shared/branding/README.md: branding.json, then
     // os-release, then neutral. Nothing in this frontend names a product.
     m_branding = branding::resolve();
@@ -144,6 +145,13 @@ QByteArray InstallerController::partialRecipe() const
         if (recipe.contains(QLatin1String(key)))
             withRegion.insert(QLatin1String(key), recipe.value(QLatin1String(key)));
     }
+    // The install source of the confirm step (#267): fisherman's static
+    // sourceReuse rules, before Install.
+    if (reuseSelected()) {
+        const QJsonObject fragment = sourcecheck::reuseFragment(installRecipe());
+        for (auto it = fragment.begin(); it != fragment.end(); ++it)
+            withRegion.insert(it.key(), it.value());
+    }
     return QJsonDocument(withRegion).toJson(QJsonDocument::Compact);
 }
 
@@ -211,6 +219,101 @@ QString InstallerController::problemText(const QString &fieldPrefix) const
         return line.isEmpty() ? p.message : line;
     }
     return {};
+}
+
+QString InstallerController::reuseProblem() const
+{
+    if (!reuseSelected())
+        return {};
+    for (const validate::Problem &p : m_problems) {
+        if (!p.code.startsWith(QLatin1String("source_reuse_")))
+            continue;
+        const QString line = text(validate::copyKey(p));
+        return line.isEmpty() ? p.message : line;
+    }
+    return {};
+}
+
+QString InstallerController::outcomeOf(int exitCode, bool crashed, bool cancelRequested)
+{
+    if (!crashed && exitCode == 0)
+        return QStringLiteral("succeeded");
+    if (!crashed && exitCode == 130)
+        return QStringLiteral("cancelled");
+    // After a confirmed cancel a signal is the cancel too: this installer
+    // signalled the wrapper's group. Another exit code is fisherman's own
+    // failure, which came before the cancel reached it.
+    if (cancelRequested && (crashed || exitCode > 128))
+        return QStringLiteral("cancelled");
+    return QStringLiteral("failed");
+}
+
+QJsonObject InstallerController::installRecipe() const
+{
+    const QJsonObject recipe = m_recipe.toJson();
+    return reuseSelected() ? sourcecheck::applyReuse(recipe, m_reuseSource) : recipe;
+}
+
+void InstallerController::refreshReuse()
+{
+    const QJsonObject recipe = m_recipe.toJson();
+    QString updateRef = recipe.value(QLatin1String("targetImgref")).toString();
+    if (updateRef.isEmpty())
+        updateRef = recipe.value(QLatin1String("image")).toString();
+    const QJsonObject source = sourcecheck::reuseSource(!m_probeOutput.isEmpty(), m_probeOutput, updateRef);
+    // A different item, or none, drops the pick: the download stays the default.
+    if (source.isEmpty() || source.value(QLatin1String("digest")) != m_reuseSource.value(QLatin1String("digest")))
+        m_reuseSelected = false;
+    m_reuseSource = source;
+    Q_EMIT reuseChanged();
+    Q_EMIT catalogChanged();
+}
+
+void InstallerController::setReuseSelected(bool selected)
+{
+    selected = selected && reuseOffered();
+    if (selected == m_reuseSelected)
+        return;
+    m_reuseSelected = selected;
+    Q_EMIT reuseChanged();
+    // needsNetwork: a copy downloads nothing.
+    Q_EMIT catalogChanged();
+    Q_EMIT problemsChanged();
+    // The confirm step asks checkSource() again after the pick.
+    checkFields();
+}
+
+QStringList InstallerController::reuseLines() const
+{
+    QStringList out;
+    for (const auto &line : sourcecheck::sourceReuseLines(m_sourceReuse)) {
+        const QString shown = m_branding.text(line.first, {{QStringLiteral("value"), line.second}});
+        if (!shown.isEmpty())
+            out << shown;
+    }
+    return out;
+}
+
+QStringList InstallerController::receiptLines() const
+{
+    QStringList out;
+    for (const auto &line : sourcecheck::receiptLines(m_receipt)) {
+        const QString shown = m_branding.text(line.first, {{QStringLiteral("value"), line.second}});
+        if (!shown.isEmpty())
+            out << shown;
+    }
+    return out;
+}
+
+QStringList InstallerController::failureLines() const
+{
+    QStringList out;
+    for (const QString &key : sourcecheck::failureLines(QJsonObject::fromVariantMap(m_installError))) {
+        const QString shown = m_branding.text(key);
+        if (!shown.isEmpty())
+            out << shown;
+    }
+    return out;
 }
 
 QString InstallerController::regionProblem() const
@@ -453,7 +556,7 @@ bool InstallerController::needsNetwork() const
 {
     // Live media installs the running system; an image already in the host's
     // offline stores needs no download. Mirrors conn_check.py's skip.
-    return !m_recipe.liveMode && !m_offlineImages.contains(m_recipe.image);
+    return !m_recipe.liveMode && !m_offlineImages.contains(m_recipe.image) && !reuseSelected();
 }
 
 void InstallerController::checkConnectivity()
@@ -486,7 +589,7 @@ void InstallerController::checkConnectivity()
 void InstallerController::checkSource()
 {
     const int generation = ++m_sourceGeneration;
-    const sourcecheck::Request req = sourcecheck::fromRecipe(m_recipe.toJson(), m_recipe.liveMode);
+    const sourcecheck::Request req = sourcecheck::fromRecipe(installRecipe(), m_recipe.liveMode);
     const QStringList args = sourcecheck::probeArguments(req);
     m_sourceCheck = QJsonObject();
     m_bootcStore = QJsonObject();
@@ -532,8 +635,9 @@ QVariantList InstallerController::sourceRows() const
     }
     const QStringList identities{QStringLiteral("install_from"), QStringLiteral("update_ref"),
                                  QStringLiteral("live_host_image")};
-    const QStringList keys{QStringLiteral("source_install_from"), QStringLiteral("source_update_ref"),
-                           QStringLiteral("source_live_host")};
+    const QStringList keys{reuseSelected() ? QStringLiteral("source_reuse_install_from")
+                                           : QStringLiteral("source_install_from"),
+                           QStringLiteral("source_update_ref"), QStringLiteral("source_live_host")};
     for (int i = 0; i < identities.size(); ++i) {
         const QString value = m_sourceCheck.value(identities.at(i)).toString();
         if (!value.isEmpty())
@@ -776,6 +880,10 @@ void InstallerController::resetProgress()
     m_stepName.clear();
     m_recoveryKey.clear();
     m_installError.clear();
+    m_receipt = QJsonValue();
+    Q_EMIT receiptChanged();
+    m_sourceReuse = QJsonValue();
+    Q_EMIT sourceReuseChanged();
     m_recoveryAck = false;
     Q_EMIT recoveryChanged();
     m_cumulativePct = 0;
@@ -886,6 +994,9 @@ QString InstallerController::consumeProgress(const QString &line)
         applyOverallPct(event, before, m_fraction);
         m_stepName = stepLabel(event.value(QStringLiteral("step_id")).toString(), name);
         Q_EMIT progressChanged();
+        // copyCancel: once a step has started, the disk changes.
+        if (!m_sourceReuse.isNull())
+            Q_EMIT sourceReuseChanged();
         return QStringLiteral("[%1/%2] %3").arg(m_step).arg(m_totalSteps).arg(name);
     }
     if (type == QLatin1String("substep") || type == QLatin1String("info")) {
@@ -930,14 +1041,26 @@ QString InstallerController::consumeProgress(const QString &line)
         return message.isEmpty() ? tr("Installation complete") : message;
     }
     if (type == QLatin1String("error")) {
-        // The last one is kept; it does not move the bar. toString() is ""
-        // for a part that is missing or is not a string.
-        m_installError = {
-            {QStringLiteral("message"), event.value(QStringLiteral("message")).toString()},
-            {QStringLiteral("code"), event.value(QStringLiteral("code")).toString()},
-            {QStringLiteral("field"), event.value(QStringLiteral("field")).toString()},
-        };
+        // The last one is kept; it does not move the bar.
+        m_installError = sourcecheck::errorOf(event).toVariantMap();
         return tr("ERROR: %1").arg(event.value(QStringLiteral("message")).toString());
+    }
+    if (type == QLatin1String("source_reuse")) {
+        // The copy of this computer's system before the first step (#267).
+        // It moves no bar: the bar stays indeterminate until the first step.
+        m_sourceReuse = sourcecheck::sourceReuseOf(event, m_sourceReuse);
+        Q_EMIT sourceReuseChanged();
+        const QString code = event.value(QStringLiteral("code")).toString();
+        return tr("Source reuse: %1").arg(event.value(QStringLiteral("phase")).toString())
+            + (code.isEmpty() ? QString() : QStringLiteral(" (%1)").arg(code));
+    }
+    if (type == QLatin1String("receipt")) {
+        // What the install did with the installation receipt (#269). It
+        // moves no bar and decides no outcome; the done page reads it.
+        m_receipt = sourcecheck::receiptOf(event);
+        Q_EMIT receiptChanged();
+        const QJsonObject r = m_receipt.toObject();
+        return tr("Installation receipt: %1").arg(r.value(QLatin1String("state")).toString());
     }
     if (type == QLatin1String("recovery_key")) {
         // Kept in memory for the done page, which holds Restart until the
@@ -1080,7 +1203,7 @@ void InstallerController::startInstall()
     // The recipe can hold a LUKS passphrase. It goes to fisherman's stdin
     // (`fisherman -`, tuna-os/fisherman#276) and never to a file: this used
     // to be a 0600 file in a QTemporaryDir, handed to root by path.
-    const QByteArray recipeJson = QJsonDocument(m_recipe.toJson()).toJson(QJsonDocument::Compact);
+    const QByteArray recipeJson = QJsonDocument(installRecipe()).toJson(QJsonDocument::Compact);
 
     // In a Flatpak fisherman is the staged copy the host verified
     // (fisherman.h). Without it nothing may run as root.
@@ -1147,7 +1270,8 @@ void InstallerController::launch(QStringList cmd, const QByteArray &recipeJson)
         // Cancelled: fisherman's own exit code for it (130), or any end but
         // success after the user asked to stop. Killing the wrapper's group
         // ends it with a signal, which is not a crash to report (#299).
-        if ((!crashed && exitCode == 130) || (m_cancelRequested && (crashed || exitCode != 0))) {
+        const QString outcome = outcomeOf(exitCode, crashed, m_cancelRequested);
+        if (outcome == QLatin1String("cancelled")) {
             m_cancelled = true;
             m_exitCode = 130;
             qCInfo(logInstaller) << "the install was cancelled";

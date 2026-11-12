@@ -30,13 +30,13 @@ jobs:
         working-directory: fisherman/fisherman
 
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ matrix.branch }}
           submodules: recursive
           persist-credentials: false
 
-      - uses: actions/setup-go@v5.6.0
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version: "1.22"
           cache: true
@@ -60,13 +60,13 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ matrix.branch }}
           submodules: recursive
           persist-credentials: false
 
-      - uses: actions/setup-python@v5.6.0
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.12"
 
@@ -84,7 +84,7 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ matrix.branch }}
           submodules: recursive
@@ -133,13 +133,13 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ matrix.branch }}
           submodules: recursive
           persist-credentials: false
 
-      - uses: actions/setup-python@v5.6.0
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.12"
 

@@ -14,8 +14,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import subprocess
 from gi.repository import Adw, Gtk
+from bootc_installer.utils.host_actions import host_systemctl
 from bootc_installer.windows.requirements import requirements_text
 
 
@@ -36,4 +36,4 @@ class BootcUnsupportedWindow(Adw.Window):
         self.btn_poweroff.connect("clicked", self.__on_poweroff)
 
     def __on_poweroff(self, btn):
-        subprocess.call(["systemctl", "poweroff"])
+        host_systemctl("poweroff")

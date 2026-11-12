@@ -120,3 +120,63 @@ validation: for example, composefs plus XFS remains invalid. Sealed images may
 use ext4 with either bootc storage backend, as specified by the image producer.
 `local_imgref` changes the install source only (including an `oci:/...` source);
 `targetImgref` continues to identify the selected update-tracking image.
+
+## Install from the bootc storage of this computer
+
+`sourceReuse` (`store` `bootc`, `digest`, `platform`) tells fisherman to
+copy an image that the bootc of this computer keeps, instead of a download
+(fisherman `docs/SOURCE-REUSE.md`). It is experimental. A recipe with it
+has `bootc_store_reuse` in `experimental`, an empty `image`, and the
+catalog's update reference as `targetImgref`, as the schema says. A frontend writes it only when the user picks this computer's
+system on the confirm page. It is never the default, and never on live
+media. `../probe/README.md` ("Install from the bootc storage of this
+computer") says which item qualifies.
+
+## The compliance fixture
+
+`fixtures/compliance.json` holds the choices of a person for each case, and
+the one recipe that every frontend must write for them. The image is a leaf
+of `../catalog/fixtures/catalog.json`. The other choices are the machine,
+the disk, the filesystem, the encryption, the hostname, the account, the
+language, the keyboard layout and the time zone. One case has an
+account, LUKS and the three region values. One case has an image that
+makes its own first user and offers a choice of filesystems.
+
+Each frontend makes the choices with its own recipe code, in its own test:
+
+| Frontend | Test | What it drives |
+|---|---|---|
+| GNOME | `tests/unit/test_recipe_compliance.py` | the finals of each page, then the `Processor` |
+| XFCE | `frontends/xfce/tests/test_recipe_compliance.py` | the real setup page, then `InstallerWindow.build_recipe` |
+| KDE | `recipeCompliance` in `frontends/kde/tests/test_backend.cpp` | the setters of `InstallerController`, then `installRecipe()` |
+| COSMIC | `frontends/cosmic/src/recipe_compliance.rs` | `Recipe::apply_leaf` and the methods of each page, then `for_fisherman()` |
+| Niri | `frontends/niri/installer/compliance_test.go` | `ui/recipe.js` under node, then the Go backend's `install` code |
+
+Two recipes that fisherman reads in the same way can have different bytes.
+For example, one frontend writes `"composeFsBackend": false` and a
+different one does not write the key. The `normalise` table of the fixture
+has two rules:
+
+1. `absent_equals`: remove a key at the path `key` when its value is
+   `value`. The type must also be the same, so `0` is not `false`.
+2. `absent_without`: remove an object at the path `key` when it has no key
+   `needs` after rule 1. An account with no username is no account.
+
+After the two rules, a test writes the keys in sorted order with no spaces,
+and compares the bytes with the expected recipe. The expected recipe is
+already in that form. `compliance.py` is the reference normaliser.
+`tests/unit/test_recipe_compliance.py` also holds the fixture to the
+catalog fixture, to `../account/groups.json` and to the schema. It sends
+each expected recipe to `fisherman validate --json --partial -` when
+`FISHERMAN_BIN` names a binary.
+
+The password of the account is a complete crypt(3) hash. GNOME sends a hash
+without a change, and it hashes a password in plain text. The other four
+frontends send the password as the person typed it. Thus a password in
+plain text gives two recipes, and the fixture does not test that case.
+
+The `Recipe compliance` workflow runs the five tests and the fisherman
+check, and its last job fails when one frontend writes a different recipe.
+`promote.yml` needs that job. Each frontend's own test job also runs its
+test. When you change what a frontend writes, change the fixture in the same
+pull request, and make the other four frontends agree.

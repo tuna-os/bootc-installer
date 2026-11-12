@@ -64,7 +64,7 @@ jobs:
       checkout-submodules: ${{ steps.row.outputs.checkout-submodules }}
       also-latest: ${{ steps.row.outputs.also-latest }}
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
         with:
           sparse-checkout: shared/ci
           persist-credentials: false

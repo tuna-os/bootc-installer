@@ -46,20 +46,28 @@ these leaves:
 
 | Leaf | Account | What it tests |
 |---|---|---|
-| `quay.io/centos-bootc/centos-bootc:c10s` (`default_image`) | yes | the install that the VM job boots with an account; `flatpaks: []` |
-| `quay.io/centos-bootc/centos-bootc:stream10` | no | the same image, booted with no account; no `flatpaks` key |
+| `ghcr.io/tuna-os/fisherman/centos-bootc:ssh-enabled` (`default_image`) | yes | the install that the VM job boots with an account; `flatpaks: []` |
+| `ghcr.io/tuna-os/fisherman/centos-bootc:ssh-enabled-5c26969…` | no | the same canary at one fixed build, booted with no account; no `flatpaks` key |
 | `registry.example/os/composefs:1` | no | a composefs leaf with a choice of filesystems; no VM job installs it |
 
-The `extras` object is on the parent of the two canary leaves. The
+The two canary leaves are the SSH-enabled CentOS Stream 10 image that
+fisherman's `build-ssh-images.yml` builds, with `bootloader: grub2`. Thus
+the VM job can install the recipe of the frontend as it is and reach the
+result over SSH. The second leaf has a fixed build tag because two leaves
+must have different references. The `extras` object is on the parent of
+the two canary leaves. The
 `fallback_flatpaks` list is not empty, so a frontend that sends it fails.
 
 | Driver | Leaf that it installs | Account in the VM |
 |---|---|---|
-| GNOME (`tests/e2e/run_gnome.py`) | `c10s` | yes: the driver types `e2euser` on the user step |
-| XFCE (`frontends/xfce/tests/e2e/run.py`) | `c10s` | yes: the driver types `e2euser` on the identity page |
-| KDE (`frontends/kde/tests/e2e.cpp`) | `c10s` | yes |
-| Niri (`frontends/niri/tests/e2e/run.py`) | `c10s` | yes |
-| COSMIC (`e2e_install_path_reaches_fisherman`) | `stream10` | no |
+| GNOME (`tests/e2e/run_gnome.py`) | `default_image` | yes: the driver types `e2euser` on the user step |
+| XFCE (`frontends/xfce/tests/e2e/run.py`) | `default_image` | yes: the driver types `e2euser` on the identity page |
+| KDE (`frontends/kde/tests/e2e.cpp`) | `default_image` | yes. Also German locale and keyboard, `Europe/Berlin` and LUKS (#325) |
+| Niri (`frontends/niri/tests/e2e/run.py`) | `default_image` (the branding's) | yes |
+| COSMIC (`e2e_install_path_reaches_fisherman`) | the leaf of the same product with no account | no |
+
+No driver names an image of its own: each one gets its leaf from the
+catalog.
 
 The KDE and Niri drivers also select a leaf with no account first, and
 make sure that the account step goes away.
@@ -69,11 +77,31 @@ make sure that the account step goes away.
 `E2E (install <frontend>)` downloads that recipe and runs `vm-install.sh`:
 fisherman's own bootcrew tooling installs it onto a loop disk, enables SSH
 in the result, verifies the layout and boots it in QEMU until `bootc status`
-answers over SSH. The script rewrites only `disk`, `image` and `bootloader`
-(the loop device, and the SSH-enabled canary that matches the recipe's boot
-stack with the bootloader that the canary ships). It does not rewrite the
-filesystem: a composefs recipe on `xfs` fails here, as it fails on a real
-machine (#287).
+answers over SSH.
+
+The VM job installs the recipe of the frontend as it is (#322). The image,
+the bootloader and the Flatpak list come from the catalog leaf. Only
+`disk` can change. The frontend wrote the loop device of the runner of the
+first job. `vm-install.sh` attaches its disk at the same path when that
+device is free here, and then the two recipes are byte for byte the same.
+When another device has the path, the disk is the next free loop device.
+
+`check-recipe.py --vm` writes the copy and fails when the copy is more
+than the frontend's bytes with that one value replaced. A leaf with no
+`flatpaks` key gives a recipe with no key, and fisherman copies the system
+Flatpaks of the runner, as on a real machine. The runner has none.
+
+When the recipe has `locale`, `keyboard`, `timezone` or encryption, the
+boot runs the guest check `vm-checks/region.sh` through fisherman's
+`BOOTCREW_GUEST_CHECKS`. The check reads `/etc/locale.conf`,
+`/etc/vconsole.conf`, `/etc/localtime`, `localectl status` and
+`timedatectl` in the booted system, and compares them with the recipe. For
+an encrypted root it finds `rd.vconsole.keymap=` on the kernel command
+line and the root on an open LUKS device. fisherman's `luks-unlock.py`
+types the passphrase at the prompt, as in fisherman's own LUKS VM entries.
+It sends US key codes, so the KDE passphrase has only keys that are the
+same on a US and a German layout. `E2E (install kde)` runs this check
+(#325).
 
 The SSH-enable step is fisherman's `scripts/enable-ssh-installed.sh` and
 needs the submodule at `7c3c738` or later: that revision writes root's
@@ -83,8 +111,59 @@ sshd rejected every probe) and adds an `sshd_config.d` drop-in. The BLS
 entries are then patched like fisherman's `bootcrew-ci-test` does
 (`console=ttyS0` so the serial log in the artifact shows the boot,
 `enforcing=0` because the injected files carry no SELinux labels). The
-artifact `e2e-install-<frontend>` holds the rewritten recipe, the install
-log and the boot log.
+artifact `e2e-install-<frontend>` holds the recipe summary, the install
+log, the boot log and the logs of `boot-verify.sh`, all redacted. The next
+section has the rules.
+
+## What the artifacts hold (#270)
+
+A recipe holds the LUKS passphrase and the account password. Here they
+are synthetic test values, but anyone who can read a run can download its
+artifacts. Thus no job uploads a raw recipe or a raw log. `publish.py` has
+the rules:
+
+- `SECRET_FIELDS` names the secret fields: `encryption.passphrase` and
+  `user.password`. A unit test fails on a schema property with a secret
+  name that is not in this list.
+- The summary (`e2e-recipe-<frontend>.summary.json`) copies an allowlist of
+  recipe keys. A secret becomes the fixed marker `<redacted>`, never a hash
+  of the value. The summary lists the names of the keys that it leaves out
+  (`withheld`).
+- The redacted recipe (`e2e-recipe-<frontend>.redacted.json`) is the
+  frontend's bytes, with each secret replaced by the marker of its field.
+  `check-recipe.py` writes it only when the VM job can restore the exact
+  bytes. Thus each secret must be the test value of the driver in
+  `test-credentials.json`. A frontend that changed what the driver typed
+  fails here.
+- A publication directory holds only the names in `STAGE_ALLOWLIST`. Each
+  secret value in a log becomes the marker, and a long log keeps its first
+  and last 2 MiB.
+
+The frontend jobs upload `e2e-publish/`, which holds the summary and the
+redacted recipe. The full recipe stays in `/tmp/tuna-e2e/` on the runner.
+`setup.sh` masks the test credentials in the job log.
+
+The install job downloads the redacted recipe. `check-recipe.py --vm
+--frontend <name>` puts the test values back and writes the recipe to a
+private directory (`mktemp -d`). The install log, the boot log and the
+files of `boot-verify.sh` (`ARTIFACTS_DIR`) also go there. The console
+gets a redacted copy of each stream. On exit, also after a failure,
+`publish.py stage` copies the summary and the allowlisted logs to
+`/tmp/tuna-e2e-vm/`, the one directory that the job uploads. Then the
+script deletes the private directory.
+
+`walkthrough.yml` runs `publish.py audit docs/walkthrough` before it
+uploads or commits the page. The audit accepts only PNG, GIF, JSON and
+Markdown files. It fails on a secret field with a value or on a test
+credential. `tests/unit/test_e2e_publication.py` puts sentinel secrets in
+the recipe, the logs, the backend's answer and the credentials file. It
+makes sure that no sentinel reaches a publication directory or the console,
+as it is, as a hash or as base64.
+
+Not in this change: the receipts and the evidence classes of #270. A
+receipt records the run, the source and the harness of the evidence, and
+how much the evidence proves. Its contract is tunaOS#3475, which is not
+final.
 
 ## Run it locally
 

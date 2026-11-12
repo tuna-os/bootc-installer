@@ -65,13 +65,23 @@
       ]
     },
     {
+      "name": "tuna-installer-niri-translations",
+      "buildsystem": "cmake-ninja",
+      "subdir": "translations",
+      "config-opts": [
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DBUILD_TESTING=OFF"
+      ],
+      "sources": [{ "type": "dir", "path": ".." }]
+    },
+    {
       "name": "tuna-installer-niri",
       "buildsystem": "simple",
       "build-commands": [
         "PATH=/app/go/bin:$PATH go build -C installer -o /app/bin/tuna-installer-backend .",
         "mkdir -p /app/share/tuna-installer-niri",
         "cp -r ui /app/share/tuna-installer-niri/ui",
-        "printf '#!/bin/sh\\nexec quickshell -p /app/share/tuna-installer-niri/ui/installer.qml \"$@\"\\n' > /app/bin/tuna-installer-niri",
+        "printf '#!/bin/sh\\nexport QML_IMPORT_PATH=/app/lib/tuna-installer-niri/qml${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}\\nexec quickshell -p /app/share/tuna-installer-niri/ui/installer.qml \"$@\"\\n' > /app/bin/tuna-installer-niri",
         "chmod 755 /app/bin/tuna-installer-niri",
         "install -Dm644 data/org.tunaos.InstallerNiri.desktop /app/share/applications/org.tunaos.InstallerNiri.desktop",
         "install -Dm644 data/org.tunaos.InstallerNiri.metainfo.xml /app/share/metainfo/org.tunaos.InstallerNiri.metainfo.xml",

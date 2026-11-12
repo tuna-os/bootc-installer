@@ -31,9 +31,19 @@ separate file because fisherman's tests replay `fraction-cases.json`
 through its own computation of `overall_pct`.
 
 [`error-cases.json`](error-cases.json) pins what a parser keeps of the
-`error` event: the last one, as `message`, `code` and `field`. A part that
-is missing or is not a string is `""`. The event does not move the bar.
-The same script writes the file, and the same five test suites read it.
+`error` event, and the lines of the failure page. See "The error event"
+below. The event does not move the bar. The same script writes the file,
+and the same five test suites read it.
+
+[`receipt-cases.json`](receipt-cases.json) pins what a parser keeps of the
+`receipt` event, and the lines of the done page. See "The receipt event"
+below. The same script writes the file, and the same five test suites read
+it.
+
+[`source-reuse-cases.json`](source-reuse-cases.json) pins what a parser
+keeps of the `source_reuse` events, the lines of the progress page and the
+cancel question. See "The copy of this computer's system" below. The same
+script writes the file, and the same five test suites read it.
 
 ## Events
 
@@ -47,8 +57,10 @@ them.
 | `substep` | `message`, `overall_pct` | Progress within the current step |
 | `info` | `message` | Informational line |
 | `recovery_key` | `key` | LUKS recovery passphrase, for `tpm2-luks` |
+| `receipt` | `version`, `written`, `install_id`, `path`, `first_boot_check`, `reason` | What the install did with the installation receipt (tuna-os/fisherman#441) |
+| `source_reuse` | `version`, `phase`, `digest`, `platform`, `source`, `destination`, `destination_digest`, `estimate`, `measured`, `code`, `reason` | The copy of this computer's system before the first step (tuna-os/fisherman#384) |
 | `complete` | `message`, `boot_id` (optional), `overall_pct` | Install finished |
-| `error` | `message`, `code` (optional), `field` (optional) | Terminal failure. `code` and `field` are those of `fisherman validate` (`fisherman/docs/VALIDATE.md`), when the failure has one |
+| `error` | `message`, `code`, `field` (optional), `step_id` (optional), `disk_changed`, `cleanup` | Terminal failure. See "The error event" below |
 
 ## Driving a progress bar
 
@@ -114,6 +126,140 @@ The parser's own step-name table is that fallback for a fisherman without
 the product (`Installing {product}…`): frontends call `set_product_name()`
 with the resolved branding name. The default is a neutral `"the OS"`, never
 a distro.
+
+## The receipt event
+
+fisherman sends one `receipt` event inside the `Configuring installed
+system` step ([`fisherman/docs/RECEIPT.md`](../../fisherman/docs/RECEIPT.md)).
+The event does not move the bar, and it does not decide the outcome: the
+exit code does. A parser keeps the last one as `{state, install_id,
+reason}`:
+
+| `state` | When |
+|---|---|
+| `check_set_up` | `written` and `first_boot_check` are true |
+| `written_no_check` | `written` is true and `first_boot_check` is not |
+| `not_written` | `written` is false |
+| `unreadable` | a `version` other than the number 1, a `written` that is not a boolean, or a written receipt without an install ID of 32 lowercase hex digits |
+
+`install_id` is set only for a written receipt. `reason` is fisherman's
+code, or `""` when the event has none or the value is not a code.
+
+After an install that exits 0, the done page shows `done_verification`,
+then the line for the receipt: `done_receipt_<state>`, with the install ID
+as `{value}`. Without a `receipt` event, the line is `done_receipt_none`.
+When fisherman did not write the receipt or did not set up the first-boot
+check, a reason line follows: `done_receipt_reason_<reason>`. A code that
+the copy does not know gets `done_receipt_reason_unknown`. No
+line says that the new system started: only `fisherman verify --json` on
+that system can say so. A failed or cancelled install shows no receipt
+line.
+
+The first six cases of `receipt-cases.json` are fisherman's own events
+(`internal/progress/testdata/receipt-events.ndjson`), and a test holds the
+file to them. `bootc_shared.completion.receipt_lines()` is the canonical
+choice of lines. GNOME and XFCE call it. KDE (`sourcecheck::receiptLines`),
+COSMIC (`source_check::receipt_lines`) and Niri (`receiptLines` in
+`ui/progress.js`) port it.
+
+## The error event
+
+fisherman sends one `error` event when the install fails, and nothing
+after it (`fisherman/docs/JSON-PROGRESS-FORMAT.md`). Since
+tuna-os/fisherman#449 the event has a `code` every time. For a recipe
+rule or a preflight check, the code is the code of `fisherman validate`
+(`fisherman/docs/VALIDATE.md`). For another failure, it is a failure code
+that names the operation, or `unknown`. The event also tells the step
+that ran, whether the disk changed, and what the teardown did. A parser
+keeps the last event:
+
+| Field | From |
+|---|---|
+| `message`, `code`, `field`, `step_id` | the string, or `""` when it is missing or is not a string |
+| `disk_changed` | `true` or `false` as fisherman sent it, else null |
+| `cleanup` | `{status, message}`, or null when `cleanup` is missing or is not an object. `status` is `ok`, `failed` or `timed_out`, and `""` for another value |
+
+An older fisherman sends only `message`, and sometimes `code` and `field`.
+Then `disk_changed` and `cleanup` are null.
+
+The failure page shows the lines of
+`bootc_shared.progress.failure_lines()`, after the reason for the
+failure:
+
+| Event | Line |
+|---|---|
+| `disk_changed` is `false` | `done_failed_disk_unchanged`: the disk was not changed |
+| `disk_changed` is `true` | `done_failed_disk_changed`: the disk can hold an incomplete system |
+| `cleanup.status` is `failed` | `done_failed_cleanup_failed`: restart before another attempt |
+| `cleanup.status` is `timed_out` | `done_failed_cleanup_timed_out`: restart before another attempt |
+
+A null part adds no line. The page never says that the disk is not
+changed when fisherman did not say so. A cancelled install (exit 130)
+shows the cancelled page, not these lines. KDE
+(`InstallerController::failureLines`), COSMIC (`progress::failure_lines`)
+and Niri (`failureLines` in `ui/progress.js`) port the rule. Six cases
+of `error-cases.json` are fisherman's own events
+(`internal/progress/testdata/error-events.json`), and a test holds the
+file to them.
+
+## The copy of this computer's system
+
+With `sourceReuse` in the recipe, fisherman copies this computer's system
+into containers-storage before the first step
+([`fisherman/docs/SOURCE-REUSE.md`](../../fisherman/docs/SOURCE-REUSE.md)).
+It reports the copy in `source_reuse` events. A parser keeps one view of
+them:
+
+| Field | From |
+|---|---|
+| `phase` | the last `planned`, `copying`, `verified` or `failed`; `unreadable` for a `version` other than the number 1 |
+| `required_bytes` | `estimate.required_bytes`: the free space that the copy needs |
+| `destination_digest` | `verified`: the digest of the copy, `sha256:` and 64 lowercase hex digits, else `""` |
+| `copy_ms`, `used_bytes` | `verified`: `measured.copy_ms`, and the larger of the two peaks of `measured` (the sum on two filesystems) |
+| `code` | `failed`: the `source_reuse_*` code |
+| `released` | `released`: `removed`, `remove_failed`, or `unknown` for another reason |
+| `destination` | the copy in containers-storage |
+
+A count that is not a whole number of 0 or more is null. A phase that the
+parser does not know changes nothing. `released` can come before `failed`:
+a cancel removes the copy while bootc still runs.
+
+The progress page shows the lines of
+`bootc_shared.progress.source_reuse_lines()`. The space line uses GiB with
+one decimal, and the time line whole seconds. A failed copy shows
+`progress_reuse_failed_<code without source_reuse_>`, or
+`progress_reuse_failed_unknown` for a code that the copy does not know.
+
+The events do not move the bar. fisherman sends no `overall_pct` for the
+copy, so the bar keeps its start state until the first step: it pulses,
+or it stays at 0.
+
+The copy runs before the first disk step. While no step has started and
+the copy did not fail, `copy_cancel()` is true, and the cancel question
+says `progress_reuse_cancel`: the installer stops the copy and removes it,
+and the disk does not change. fisherman then removes the copy, writes
+`released` and maybe `failed`, and exits 130.
+
+## How an install ended
+
+The exit code of the wrapper decides the outcome, never a `complete`
+event. fisherman can write `complete` and exit non-zero, for example when
+the teardown fails. The rule:
+
+| Exit | Outcome |
+|---|---|
+| 0 | succeeded, also after a cancel that came too late |
+| 130 | cancelled: fisherman's own code for a cancel |
+| a signal (or a shell's 128 + n) after the user confirmed a cancel | cancelled: the frontend signalled the wrapper |
+| another code after the user confirmed a cancel | failed: fisherman failed before the cancel reached it |
+| another code, or a signal, without a cancel | failed |
+
+[`outcome-cases.json`](outcome-cases.json) pins the rule. GNOME and XFCE
+call `bootc_shared.progress.install_outcome()`. KDE
+(`InstallerController::outcomeOf`), COSMIC (`install_outcome`) and Niri
+(`installOutcome` in `ui/progress.js`) test their rule against the file.
+Only a succeeded install shows the receipt lines.
+
 
 ## Recovery key in a log
 

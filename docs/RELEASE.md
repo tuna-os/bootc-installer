@@ -39,7 +39,9 @@ on the actual `dev` commit, never the PR's.
 | `validate-flatpak.yml` | each GNOME Flatpak manifest is valid JSON with an app id, a runtime and a command | every push |
 | `cargo-test-cosmic.yml` | COSMIC frontend `cargo test` | when the COSMIC sources changed |
 | `browser-walkthrough.yml`, `wasm-kde.yml` | GNOME, XFCE and Niri advance in a browser; the KDE frontend compiles for WebAssembly | when that frontend changed |
+| `wasm-cosmic.yml` | advisory: the COSMIC frontend compiles for WebAssembly against the pinned tuna-os forks. It never blocks promotion | when the COSMIC frontend changed |
 | `actionlint.yml` | the workflow files pass actionlint | when a workflow changed |
+| `sbom.yml` | each frontend's SPDX SBOM builds and passes the release check (dry run: a run artifact only) | when an SBOM input changed |
 | `ste.yml` | the Markdown prose stays in the `.ste-budget` | when a Markdown file changed |
 | `walkthrough.yml` | cross-frontend parity page regenerates | after any screenshot job |
 
@@ -99,6 +101,27 @@ lose safely.
    republished. A frontend whose publish failed is published again by the
    next release run, with no change to its files.
 
+The release also carries supply-chain evidence (#151).
+
+- `<frontend>.spdx.json`: one SPDX SBOM for each frontend. It lists the
+  Flatpak that the release commit builds. The `sbom` job makes it. Syft
+  (`anchore/sbom-action`) reads the lock files of the build. These are the
+  fisherman `go.mod`, the Niri backend `go.mod` and the COSMIC `Cargo.lock`.
+  Then `shared/ci/flatpak_sbom.py` adds the app, its runtime and its SDK.
+  It also adds each module of the Flatpak manifest, with its URL, checksum,
+  tag or commit.
+  The GNOME SBOM describes the production manifest. The Devel bundle builds
+  the same modules.
+- A GitHub build-provenance attestation for each `.flatpak` bundle and each
+  SBOM (`actions/attest-build-provenance`). The attestation is keyless: the
+  run signs it with its OIDC identity through Sigstore, and GitHub keeps it.
+  Only the `release` job has `id-token: write` and `attestations: write`.
+
+The `sbom` job calls `sbom.yml`. A pull request and a push to `dev` run the
+same workflow as a dry run when an input of the SBOM changes. The dry run
+uploads a run artifact only, with no attestation and no release. A release
+with no SBOM for a frontend fails before `gh release create`.
+
 The date + sha tag is deliberate: it is monotonic, unique per promotion, and
 never a rolling name an immutable-release ruleset can permanently ban (see
 `runbooks/auto-release-rollback.md` for the history).
@@ -117,6 +140,36 @@ the Flatpak remote were rewritten on every push to `dev`, gated on nothing but
 "the bundle built". Now they move only when a `dev` commit has passed every
 check and the soak window. A consumer that wants `dev` bits takes the
 `latest-dev` pre-release, which is the same asset it was before.
+
+## Verify a release
+
+Download a bundle and its SBOM from the release, then ask GitHub for the
+attestation. You need the GitHub CLI 2.49 or later.
+
+```bash
+tag=vYYYY.MM.DD-abcdef1
+gh release download "$tag" --repo tuna-os/bootc-installer \
+  --pattern 'org.bootcinstaller.Installer.flatpak' --pattern '*.spdx.json'
+gh attestation verify org.bootcinstaller.Installer.flatpak \
+  --repo tuna-os/bootc-installer \
+  --signer-workflow tuna-os/bootc-installer/.github/workflows/release.yml
+gh attestation verify kde.spdx.json --repo tuna-os/bootc-installer
+```
+
+A pass shows that `release.yml` in this repository built the file, and it
+shows the commit and the run. `--signer-workflow` refuses a file that
+another workflow attested. To check with no GitHub CLI, download the
+Sigstore bundle with `gh attestation download <file> --repo
+tuna-os/bootc-installer`, then give it to `cosign verify-blob-attestation
+--bundle`, with `--certificate-identity-regexp` set to the `release.yml`
+workflow and `--certificate-oidc-issuer
+https://token.actions.githubusercontent.com`.
+
+The SBOM lists what the Flatpak contains or builds from. Open it with any
+SPDX tool, for example `jq '.packages[].name' kde.spdx.json`. The four
+frontends other than GNOME have no `.flatpak` bundle in the release. They
+ship as OCI images in `ghcr.io/tuna-os/bootc-installer`, and those images
+have no attestation yet.
 
 ## Escape hatches
 

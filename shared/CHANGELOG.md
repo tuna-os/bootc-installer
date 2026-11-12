@@ -9,8 +9,228 @@ the form `Recipe schema sha256:` with the hash of the file after the change
 line must match the file. `tests/unit/test_shared_contract_docs.py` makes
 sure that it does. Do not edit the hash of an old entry: add an entry.
 
+An entry that changes a contract file also has a `Contracts version:` line
+with the new value of `VERSION`, and a `Contracts sha256:` line with the
+digest of the contract files. `python3 shared/ci/contract_version.py`
+prints both lines. README.md says which files are contract files and which
+change increases which part of the version.
+
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
+
+## 2026-11-12: a stale frame is not evidence
+
+- Changed: `walkthrough/parity_report.py` writes the `sha256` of each
+  frame in `pages`. The consumer (`walkthrough/aggregate.py`) refuses a
+  page when the frame in the artifact has a different `sha256`: the frame
+  is not the frame that the emitter audited. A report without the key is
+  not checked (#186).
+- Changed: a page whose frame changed by `DIFF_PIXELS` (500) pixels or
+  fewer from the frame before it is a stale grab. It cannot be the
+  evidence for a screen. The emitter and the consumer read
+  `transition_pixels`. A transition that ImageMagick did not measure is
+  not checked.
+- Fixed: `changed_pixels()` gives `None` when `compare` fails (a missing
+  frame, two sizes). Before, an error was "0 pixels changed".
+- All five frontends use the change through `write_report`, and no
+  frontend changes. The committed captures in `docs/walkthrough/` pass.
+
+Contracts version: `1.4.0`
+Contracts sha256: `df4a8449bb41c7e8e3d8919ce685e5011daa0f31c9e18a8329b7e7d01e34feb1`
+
+## 2026-11-12: a failure line for root_flags_failed
+
+- Added: `branding/copy-defaults.json` has `validate_root_flags_failed`,
+  the failure-page line for fisherman's new runtime failure code
+  `root_flags_failed` (tuna-os/fisherman#450). The fisherman pin moves to
+  that change. `tests/unit/test_failure_code_copy.py` now fails when a
+  failure code in fisherman's `internal/progress/failure.go` has no
+  `validate_<code>` line.
+
+Contracts version: `1.3.0`
+Contracts sha256: `e8238a884458836593fe4c3b525d9bddadc698c4d93cb21eb127dcd05cdb8c39`
+
+## 2026-11-12: one recipe for the same choices
+
+- Added: `recipe/fixtures/compliance.json`. Each case has the choices of a
+  person (an image leaf of `catalog/fixtures/catalog.json`, the disk, the
+  filesystem, LUKS, the account, the language, the keyboard layout, the
+  time zone and the hostname) and the one recipe that every frontend must
+  write for them. Its `normalise` table says which forms fisherman reads
+  as absent (#226, #186).
+- Added: `recipe/compliance.py`, the reference normaliser.
+- All five frontends use the fixture: GNOME and XFCE in pytest, KDE in
+  `test_backend`, COSMIC in `cargo test`, Niri in `go test`. The new
+  `Recipe compliance` workflow runs the five tests, and `promote.yml`
+  requires its last job.
+
+Contracts version: `1.2.0`
+Contracts sha256: `0da239e00a66d9720cdfc44dd2dc9f8d0c03815ce0206264def2ed5398171c4d`
+
+## 2026-11-12: a strict walkthrough report has a meaning
+
+- Changed: `walkthrough/parity_report.py` computes `strict` and `failures`.
+  A required screen that no good frame shows is a failure: the frame is
+  missing, is not a readable PNG, did not pass the pixel audit, or is a byte
+  copy of another frame. The report has the new keys `failure_reasons`,
+  `screen_outcomes` (`passed`, `failed`, `exempt`, `optional-missing`,
+  `not-measured`) and `contract_digest`. The old keys stay (#186).
+- Added: `screen_exemptions` in a feature manifest
+  (`walkthrough/features.schema.json`): screen id to the reason. No frontend
+  has an exemption.
+- Changed: a PNG-only report from `walkthrough/report_from_pngs.py` is
+  `strict: false` and `advisory: true`.
+- Changed: `walkthrough/aggregate.py` checks each strict report again
+  against its frames, and `--strict` exits 1 on a failure. A report with no
+  `contract_digest` comes from an old emitter: the page labels it advisory.
+  `walkthrough.yml` runs with `--strict`.
+- Version 1.1.0 also covers the entry below, which adds fields to the
+  `error` event (#370). One minor version covers both additions.
+
+Contracts version: `1.1.0`
+Contracts sha256: `57aa1fd377bd3b1d8f07f1b5c82f918ae8c3190eba91e8e68813f9ff8cecb15c`
+
+## 2026-11-12: the step, the disk and the cleanup of a failure
+
+- Changed: `progress/error-cases.json`. A parser now keeps `step_id`,
+  `disk_changed` and `cleanup` of the `error` event as well as `message`,
+  `code` and `field` (tuna-os/fisherman#449). Each case has the failure
+  page's `lines`. Six new cases are fisherman's own events, and three
+  have parts of the wrong type. The Python, C++, Rust and JavaScript
+  parsers read the file.
+- Added: `bootc_shared.progress.failure_lines()`. The failure page says
+  whether the disk changed, and when the cleanup failed or did not end in
+  time. A part that fisherman did not send adds no line.
+- Added: four copy keys in `branding/copy-defaults.json`:
+  `done_failed_disk_unchanged`, `done_failed_disk_changed`,
+  `done_failed_cleanup_failed` and `done_failed_cleanup_timed_out`.
+
+## 2026-11-12: the contracts have a version
+
+- Added: `VERSION`, the version of the contracts. It starts at `1.0.0`, the
+  state of the contracts on this date. README.md ("How a contract changes")
+  has the rule: which files are contract files, and which change increases
+  which part. `ci/contract_version.py` computes the digest, and
+  `tests/unit/test_shared_contract_docs.py` fails when a contract file
+  changes with no new entry and no greater version (#226).
+
+Contracts version: `1.0.0`
+Contracts sha256: `ac5c1a4b3c17fd0aaa71ec359c157f8cbe8564f77b891b8bddd91805c2a5f9eb`
+
+## 2026-11-12: fisherman `b5b9250`, the image and runtime failure codes
+
+- Changed: the fisherman pin moves to `b5b9250`. Before the disk is touched,
+  it refuses an image that the registry does not have, refuses, or cannot
+  reach, one for another architecture, and an image that is not bootc
+  (tuna-os/fisherman#448). Every `error` event now has a `code`, one of 19
+  failure codes, plus `step_id`, `disk_changed` and `cleanup`
+  (tuna-os/fisherman#449). The parsers ignore the new fields.
+- Added: 27 `validate_<code>` lines in `branding/copy-defaults.json`: the
+  seven `image_*` codes, `selinux_workaround_unavailable` and the 19 failure
+  codes. The done page reads them through the same key as a validate code.
+
+## 2026-11-12: each frontend ships a translation
+
+- Added: `i18n/catalogs.py`. The script writes the catalog of a language
+  for KDE, Niri, XFCE and COSMIC. A translation comes from the catalog, then
+  from the same English text in `po/<lang>.po` of GNOME (translated, not
+  fuzzy). `--check` fails on a stale catalog or a lost placeholder, and
+  `tests/unit/test_frontend_translation_catalogs.py` runs it (#300).
+- Added: a French catalog in each frontend. Each frontend builds, installs
+  and loads it, and a test in each frontend translates a known string
+  with it.
+
+## 2026-11-12: fisherman `0c370b6`, two validate codes, one account default
+
+- Changed: the fisherman pin moves to `0c370b6`. It refuses a bad `image`
+  or `targetImgref` before the disk is wiped, with the codes `image_invalid`
+  and `target_imgref_invalid` (tuna-os/fisherman#445), and its catalog
+  resolver defaults `needs_user_creation` to true, as this contract does
+  (tuna-os/fisherman#446, #288).
+- Added: `validate_image_invalid` and `validate_target_imgref_invalid`
+  lines in `branding/copy-defaults.json`.
+
+## 2026-11-12: the leaf of the live image
+
+- Added: `catalog/fixtures/expected.json` has `live_image`. Each case is a
+  `live.live_image` of the probe, the leaf that it names (or `null`) and
+  the account flag. The cases include each `nvidia_imgref` of the
+  fixture, an unknown image and an empty reference. The catalog test of
+  each of the five frontends reads them (#288).
+- Changed: `catalog/resolve.py` `find()` finds a leaf by its
+  `nvidia_imgref` when no leaf has the reference as `imgref`. The Python
+  reader, COSMIC and Niri did this already. KDE did not. Live media
+  can hold only the NVIDIA image. There, KDE asked for an account that
+  the image does not need, and lost the layout of the leaf. KDE now finds
+  the leaf.
+- Changed: `catalog/README.md` replaces the old list of the changes that
+  each frontend had to make with the test of each frontend.
+
+## 2026-11-12: a translation template for each frontend
+
+- Added: `i18n/templates.py` and `i18n/README.md`. The script writes the
+  translation templates of KDE and Niri (Qt `.ts`), XFCE (gettext `.pot`)
+  and COSMIC (its JSON catalog) from the sources. `--check` fails when a
+  template is out of date, and
+  `tests/unit/test_frontend_translation_templates.py` runs it (#300).
+- Added: "Languages" in `branding/README.md`. Branding copy is not in a
+  translation catalog; a product writes its copy in its own language
+  (#311).
+
+## 2026-11-12: the progress of the copy of this computer's system, and one outcome rule
+
+- Added: `progress/source-reuse-cases.json`, written by
+  `progress/generate-fraction-cases.py`. It pins what a parser keeps of
+  fisherman's `source_reuse` events, the lines of the progress page and
+  the cancel question during the copy. Most events are fisherman's own
+  lines from its `internal/reuse` tests. The first case is the example of
+  `JSON-PROGRESS-FORMAT.md`, and a test holds it to the pinned document.
+  The case `cancelled_copy` is a cancel during the copy. Each parser reads
+  the file (#267).
+- Added: `bootc_shared.progress.source_reuse_of()`, `source_reuse_lines()`,
+  `source_reuse_text()` and `copy_cancel()`. GNOME and XFCE call them. KDE,
+  COSMIC and Niri port them.
+- Added: copy keys `progress_reuse_<phase>`, `progress_reuse_failed_<code>`
+  for each code of a failed copy, `progress_reuse_failed_unknown`,
+  `progress_reuse_released_<reason>`, `progress_reuse_unreadable` and
+  `progress_reuse_cancel`. Each frontend renders them.
+- Changed: `progress/outcome-cases.json` has the rule for an exit code
+  after a confirmed cancel. Only 130 or a signal is a cancel. Another
+  non-zero exit code is a failure. COSMIC had this rule. GNOME, KDE, Niri
+  and XFCE now follow it. New cases: `exit_1_after_a_confirmed_cancel`,
+  `a_cancelled_copy` and `a_failed_copy_after_a_confirmed_cancel`.
+
+## 2026-11-12: the receipt event, and installs from the bootc storage of this computer
+
+- Added: the recipe field `sourceReuse` (`store`, `digest`, `platform`)
+  and the `experimental` entry `bootc_store_reuse`
+  (tuna-os/fisherman#384, #443). With `sourceReuse`, the recipe must also
+  have `bootc_store_reuse` in `experimental`, an empty `image` and a
+  `targetImgref`.
+- Added: `progress/receipt-cases.json`, written by
+  `progress/generate-fraction-cases.py`. It pins what a parser keeps of the
+  `receipt` event (tuna-os/fisherman#441) and the lines of the done page.
+  Its first six cases are fisherman's own events. Each parser reads it
+  (#269).
+- Added: `progress/outcome-cases.json`. It pins how an install ended. The
+  exit code decides, never a `complete` event. GNOME and XFCE call the new
+  `bootc_shared.progress.install_outcome()`. KDE, COSMIC and Niri test
+  their rule against the file.
+- Added: `probe/source-reuse-cases.json` and two `frontend-reuse-*`
+  inventories in `probe/fixtures/bootc-store/`.
+  `probe/generate-source-check-cases.py` writes the case file. The cases
+  pin the item that a frontend offers as a second install source. They also
+  pin the recipe after the pick. Each frontend reads them (#267).
+- Added: copy keys `done_receipt_<state>`, `done_receipt_reason_<reason>`,
+  `source_reuse_title`, `source_reuse_download`,
+  `source_reuse_download_detail`, `source_reuse_local`,
+  `source_reuse_local_detail`, `source_reuse_install_from`, and the 26
+  `validate_source_reuse_<code>` lines. Each frontend renders them.
+- Changed: `done_verification` says only that nothing checked the new
+  system. The receipt line says what the install set up for the check.
+- The fisherman pin moved to `cddfa7b` (tuna-os/fisherman#441, #443).
+
+Recipe schema sha256: `da4ed42217d25a9ab9e6402d9ac82827e5fee8d5d5e2eef84940111d8574826a`
 
 ## 2026-11-11: probe, the check of the selected image and this computer's bootc storage; completion
 

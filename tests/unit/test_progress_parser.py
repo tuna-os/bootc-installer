@@ -526,7 +526,7 @@ class TestErrorEvent:
         update = apply_progress_event(json.dumps(
             {"type": "error", "message": "partitioning disk: exit status 1"}), state)
         assert update["error"] == {
-            "message": "partitioning disk: exit status 1", "code": "", "field": ""}
+            "message": "partitioning disk: exit status 1", "code": "", "field": "", "step_id": "", "disk_changed": None, "cleanup": None}
         assert state["error"] == update["error"]
 
     def test_error_event_carries_code_and_field(self):
@@ -554,7 +554,7 @@ class TestErrorEvent:
         state = new_progress_state()
         apply_progress_event(json.dumps({"type": "error", "message": "first", "code": "a"}), state)
         apply_progress_event(json.dumps({"type": "error", "message": "second"}), state)
-        assert state["error"] == {"message": "second", "code": "", "field": ""}
+        assert state["error"] == {"message": "second", "code": "", "field": "", "step_id": "", "disk_changed": None, "cleanup": None}
 
     def test_a_fresh_state_has_no_error(self):
         assert new_progress_state()["error"] is None
@@ -568,10 +568,24 @@ class TestErrorEvent:
         state = new_progress_state()
         update = apply_progress_event(json.dumps(
             {"type": "error", "message": 7, "code": ["x"], "field": None}), state)
-        assert update["error"] == {"message": "", "code": "", "field": ""}
+        assert update["error"] == {"message": "", "code": "", "field": "", "step_id": "", "disk_changed": None, "cleanup": None}
 
     def test_the_returned_error_is_a_copy(self):
         state = new_progress_state()
         update = apply_progress_event(json.dumps({"type": "error", "message": "m"}), state)
         update["error"]["message"] = "changed"
         assert state["error"]["message"] == "m"
+
+    def test_the_step_the_disk_and_the_cleanup_are_kept(self):
+        """tuna-os/fisherman#449."""
+        state = new_progress_state()
+        update = apply_progress_event(json.dumps({
+            "type": "error", "message": "partitioning disk: exit status 1",
+            "code": "partition_failed", "step_id": "partition", "disk_changed": True,
+            "cleanup": {"status": "failed", "message": "umount: busy"}}), state)
+        assert update["error"] == {
+            "message": "partitioning disk: exit status 1", "code": "partition_failed",
+            "field": "", "step_id": "partition", "disk_changed": True,
+            "cleanup": {"status": "failed", "message": "umount: busy"}}
+        update["error"]["cleanup"]["status"] = "ok"
+        assert state["error"]["cleanup"]["status"] == "failed"

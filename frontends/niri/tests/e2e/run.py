@@ -33,7 +33,8 @@ BACKEND = os.environ.get("TUNA_BACKEND", os.path.join(REPO, "installer", "tuna-i
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 # The branding the backend and the QML resolve from (shared/branding): its
 # default_image names the leaf of the catalog below that the wizard starts
-# on; on a runner that is the canary shared/e2e later rewrites.
+# on: the SSH canary, which the VM job installs and boots as the recipe
+# names it (shared/e2e/README.md).
 os.environ.setdefault("BOOTC_INSTALLER_BRANDING", os.path.join(REPO, "tests", "e2e", "branding.json"))
 # The catalog the backend reads (installer/catalog.go, FISHERMAN_IMAGES_PATH):
 # shared/e2e/catalog.json, the one every E2E driver reads.
@@ -184,7 +185,11 @@ def main():
     if not written:
         sys.exit("FAIL: startInstall wrote nothing to the backend's stdin")
     recipe = json.loads(written)
-    print("[e2e] recipe the QML wrote:\n" + json.dumps(recipe, indent=2))
+    # The summary, not the recipe: it holds the test password (#270).
+    shown = json.loads(written)
+    if isinstance(shown.get("user"), dict) and shown["user"].get("password"):
+        shown["user"]["password"] = "<redacted>"
+    print("[e2e] recipe the QML wrote (password redacted):\n" + json.dumps(shown, indent=2))
     if recipe.get("disk") != disk:
         sys.exit(f"FAIL: QML chose {recipe.get('disk')!r}, expected {disk!r}")
     # The account: the fields the user typed, and NO groups. The backend

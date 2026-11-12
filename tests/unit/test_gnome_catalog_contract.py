@@ -133,6 +133,19 @@ def test_the_account_flag_on_live_media_is_that_of_the_installed_image(entry):
         assert user_step.user_step_shows(window, {}) is want
 
 
+@pytest.mark.parametrize("case", EXPECTED["live_image"],
+                         ids=lambda case: case["live_image"] or "empty")
+def test_the_live_image_cases_are_the_shared_ones(case):
+    """expected.json `live_image`: the recipe loader puts the probe's
+    live.live_image in the system recipe's `imgref`. The NVIDIA image of a
+    leaf is that leaf."""
+    sys_recipe = {"imgref": case["live_image"]} if case["live_image"] else {}
+    assert user_step.account_needed_for(sys_recipe, CATALOG) is case["needs_user_creation"]
+    window = type("Window", (), {"image_step": None, "recipe": sys_recipe})()
+    with patch.object(user_step, "_loaded_catalog", return_value=CATALOG):
+        assert user_step.user_step_shows(window, {}) is case["needs_user_creation"]
+
+
 def test_the_account_flag_defaults_to_an_account():
     assert user_step.account_needed_for({"imgref": "r/unknown:1"}, CATALOG) is True
     assert user_step.account_needed_for({}, CATALOG) is True

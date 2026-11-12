@@ -53,7 +53,7 @@ jobs:
       matrix:
         frontend: [gnome, xfce, niri]
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
           persist-credentials: false
@@ -79,7 +79,7 @@ jobs:
             desktop-file-utils appstream gettext \
             adwaita-icon-theme
 
-      - uses: actions/setup-node@v4.4.0
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: "22"
 
@@ -101,7 +101,7 @@ jobs:
       # Qt 6.9 and Emscripten 3.1.70 are the pair Qt 6.9 is built with, and
       # the same pair wasm-kde.yml uses. The single-thread Qt is enough here
       # and needs no cross-origin isolation headers from the static server.
-      - uses: actions/setup-python@v5.6.0
+      - uses: actions/setup-python@v7.1.0
         if: matrix.frontend == 'niri'
         with:
           python-version: "3.12"
@@ -143,7 +143,7 @@ jobs:
 
       - name: upload what the browser saw
         if: always()
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: browser-walkthrough-${{ matrix.frontend }}
           path: docs/browser/${{ matrix.frontend }}

@@ -58,6 +58,29 @@ a capture task rather than a "run cosmic-comp in CI" task.
 If a screenshot job fails with an adapter or surface error rather than a Rust
 error, that is this machinery, not your UI change.
 
+## The browser-only wasm build
+
+`../../.github/workflows/wasm-cosmic.yml` runs `cargo check --target
+wasm32-unknown-unknown --no-default-features --features web` against the
+tuna-os forks of libcosmic, iced and rust-atomicwrites (#105). The job is
+advisory. It never blocks `dev`.
+
+- The shipped installer is the `desktop` feature, which is the default.
+  `web` is off by default, and the two do not build together.
+- The fork pins are in `web/cargo-patch.toml` and `web/assemble-iced.sh`,
+  each a full commit SHA. They reach Cargo only through `--config` in that
+  job. Do not add a `[patch]` to `Cargo.toml`, and do not commit the lock
+  that the job makes. `../../tests/unit/test_wasm_cosmic.py` checks this.
+- Code that needs a host goes under `cfg(unix)` or
+  `cfg(not(target_arch = "wasm32"))`. On wasm the probe reads
+  `shared/probe/fixtures/laptop.json`, nothing is staged, no install log is
+  written and the install refuses to start.
+- Do not add a dependency for the web build. A new dependency changes
+  `Cargo.lock` and `flatpak/cargo-sources.json`.
+- Agents send no upstream PRs for these fixes: pop-os does not accept
+  LLM-generated changes. `../../shared/browser/wasm-patches/README.md` says
+  where each patch comes from.
+
 ## `cargo-sources.json` must track `Cargo.lock`
 
 flatpak-builder runs `cargo --offline build`, so `flatpak/cargo-sources.json`
@@ -81,7 +104,11 @@ fisherman resolver, the staging and host commands), `image_catalog.rs` (the
 catalog reader), `model.rs` (the recipe, `Recipe::apply_leaf`, the account
 groups), `validate.rs` (`fisherman validate` and the encryption choices),
 `i18n.rs` (`tr`), `readiness.rs`, `branding.rs`, `capture.rs` (the
-screenshot harness entry point).
+screenshot harness entry point), `recipe_compliance.rs` (the test that holds
+the recipe to `shared/recipe/fixtures/compliance.json`). The update loop
+changes the recipe through the methods of `Recipe` (`apply_leaf`,
+`choose_filesystem`, `choose_encryption`, `choose_keyboard`), and the test
+calls the same methods.
 
 `build.rs` copies three data files from `../../shared/` into `OUT_DIR`:
 `branding/copy-defaults.json`, `recipe/encryption-choices.json` and
@@ -125,7 +152,13 @@ Every user-facing line is a branding copy key (`branding::text`) or a
 message id in `ui::copy` that goes through `i18n::tr`.
 `ui::tests::no_widget_takes_a_bare_string` fails on a string literal in a
 text, label or title call, and on a `copy` constant that does not go
-through `tr`. `i18n.rs` says why this is a shim and not `fl!`.
+through `tr`. `i18n.rs` says why this is a shim and not `fl!`. The
+template is `i18n/template.json`. After you change a `copy` constant, run
+`python3 ../../shared/i18n/templates.py cosmic` and commit the template.
+Then run `python3 ../../shared/i18n/catalogs.py fr cosmic` to update the
+French catalog `i18n/fr.json`. The Flatpak installs each `i18n/<lang>.json`
+except the template. `the_shipped_french_catalog_loads_and_translates` in
+`i18n.rs` loads it.
 
 ## The recipe, live media and validation
 
@@ -179,11 +212,24 @@ The confirm page also asks fisherman about the selected image (#266):
 `check_source` runs `fisherman probe --json --source` off the UI thread,
 and `src/source_check.rs` reads its `capabilities` and `bootc_store`
 (#267). Only a blocked source holds Install. A reply for an older visit,
-or for another source, is dropped. Never offer an image of this computer's
-bootc storage as a source. The done page says "installed, restart
-required" and never "verified" (`done_verification`, #269). `cargo test
-source_check` reads the shared case files. The capture does not run the
+or for another source, is dropped.
+
+The confirm page offers the system that this computer runs as a second
+install source (#267). `refresh_reuse` reads the plain probe through
+`source_check::reuse_source`. It offers nothing on live media, and the
+download stays the default. `install_recipe()` is what the install and the
+source check get. fisherman checks the pick (`reuse_problem`). The wizard
+skips the network page when this computer can copy its own system. The done page says
+"installed, restart required" and never "verified": `receipt_lines()` is
+`done_verification` and the line for fisherman's `receipt` event (#269).
+`cargo test source_check` reads the shared case files. The capture does not run the
 check, so the section is not in the screenshots.
+The progress page shows fisherman's `source_reuse` events for a copy of
+this computer's system (`ui::source_reuse_text`,
+`source_check::source_reuse_lines`, #267). The copy does not move the
+bar. During the copy the cancel question says `progress_reuse_cancel`
+(`source_check::copy_cancel`). `the_shared_source_reuse_progress_cases`
+reads `../../shared/progress/source-reuse-cases.json`.
 
 ## Sibling contract
 

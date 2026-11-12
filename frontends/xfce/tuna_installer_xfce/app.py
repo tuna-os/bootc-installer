@@ -11,6 +11,7 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
+from bootc_shared import progress as progress_parser  # noqa: E402
 from bootc_shared import readiness  # noqa: E402
 
 from . import core, gates
@@ -244,6 +245,15 @@ class InstallerWindow(Gtk.ApplicationWindow):
                                       bool(source.live), core.offline_images())
 
     def build_recipe(self):
+        """The recipe of the wizard, with the install source of the confirm
+        page: the download, or this computer's system from its bootc
+        storage (#267)."""
+        recipe = InstallerWindow.wizard_recipe(self)
+        confirm = self.pages.get("confirm") if isinstance(self.pages, dict) else None
+        apply = getattr(confirm, "apply_source", None)
+        return apply(recipe) if callable(apply) else recipe
+
+    def wizard_recipe(self):
         """Read page widgets and adapt their values to the core recipe API."""
         setup = self.pages["setup"]
         leaf = self.selected_leaf()
@@ -314,10 +324,17 @@ class InstallerWindow(Gtk.ApplicationWindow):
         return True
 
     def _confirm_cancel(self):
-        dialog = gates.ConfirmCancelDialog(self)
+        dialog = gates.ConfirmCancelDialog(self, self.cancel_question_body())
         response = dialog.run()
         dialog.destroy()
         return response == Gtk.ResponseType.OK
+
+    def cancel_question_body(self):
+        """The cancel question's body during the copy of this computer's
+        system (#267), when the disk has not changed yet; "" otherwise."""
+        if progress_parser.copy_cancel(self.pages["progress"].progress_state()):
+            return core.BRANDING.text("progress_reuse_cancel")
+        return ""
 
     def cancel_install(self):
         """Stop the install after a confirmed cancel: SIGTERM the wrapper's
@@ -337,7 +354,8 @@ class InstallerWindow(Gtk.ApplicationWindow):
         """Fill the done page and show it."""
         log_tail = "".join(self._log_tail) if message is None else message
         self.pages["done"].set_result(
-            ok, log_tail, self.pages["progress"].recovery_key(), cancelled=cancelled)
+            ok, log_tail, self.pages["progress"].recovery_key(), cancelled=cancelled,
+            receipt=self.pages["progress"].receipt(), error=self.pages["progress"].error())
         self._enter(PAGE_ORDER.index("done"))
 
     def _on_delete(self, *_args):
@@ -370,8 +388,11 @@ class InstallerWindow(Gtk.ApplicationWindow):
         sel = self.pages["source"].selection() or {}
         # The image the install reads: the NVIDIA one on an NVIDIA machine.
         image = self.source_and_target()[0]
-        offline = bool(sel.get("live")) or (bool(image)
-                                            and image in core.offline_images())
+        # A copy of this computer's system downloads nothing (#267).
+        confirm = self.pages.get("confirm") if isinstance(self.pages, dict) else None
+        reuse = bool(getattr(confirm, "reuse_selected", False))
+        offline = reuse or bool(sel.get("live")) or (bool(image)
+                                                     and image in core.offline_images())
         return (locale_checks.needs_network(offline), offline)
 
     @staticmethod
@@ -511,11 +532,13 @@ class InstallerWindow(Gtk.ApplicationWindow):
         for channel, page in channels:
             self._read_lines(channel, page)
         code = os.WEXITSTATUS(status) if os.WIFEXITED(status) else None
-        ok = code == 0
         # fisherman exits 130 when it is cancelled. After a cancel the
         # person confirmed, the wrapper dies by the signal this app sent;
-        # that is a cancel too, not a failure (#299).
-        cancelled = not ok and (code == EXIT_CANCELLED or self._cancel_requested)
+        # that is a cancel too, not a failure (#299). The shared rule:
+        # shared/progress/outcome-cases.json.
+        outcome = progress_parser.install_outcome(code, bool(self._cancel_requested))
+        ok = outcome == "succeeded"
+        cancelled = outcome == "cancelled"
         if self._install_log:
             outcome = "ok" if ok else (
                 "cancelled" if cancelled else f"failed (status {status})")

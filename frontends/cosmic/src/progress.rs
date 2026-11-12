@@ -42,6 +42,14 @@ pub struct Progress {
     /// fisherman's reason for the failure: the last `error` event, `None`
     /// before one arrives (shared/progress/error-cases.json).
     pub error: Option<InstallError>,
+    /// What the install did with the installation receipt: the last
+    /// `receipt` event as `source_check::receipt_of` reads it, `None`
+    /// before one (#269, shared/progress/receipt-cases.json).
+    pub receipt: Option<Value>,
+    /// The copy of this computer's system before the first step: the
+    /// `source_reuse` events as `source_check::source_reuse_of` keeps them,
+    /// `None` before one (#267, shared/progress/source-reuse-cases.json).
+    pub source_reuse: Option<Value>,
     cumulative_pct: f32,
     weight_pct: f32,
     /// How far through the current step the bar is, 0-1. Never decreases
@@ -52,13 +60,67 @@ pub struct Progress {
     product: String,
 }
 
-/// The parts of an `error` event: `code` and `field` are those of
-/// `fisherman validate`, "" from a fisherman that does not send them.
+/// The parts of an `error` event, as `bootc_shared.progress._error_of()`
+/// keeps them (shared/progress/error-cases.json): the strings are "" when
+/// missing or not a string; `disk_changed` and `cleanup` are `None` from a
+/// fisherman before tuna-os/fisherman#449, or for a part of the wrong type.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct InstallError {
     pub message: String,
     pub code: String,
     pub field: String,
+    pub step_id: String,
+    pub disk_changed: Option<bool>,
+    pub cleanup: Option<Cleanup>,
+}
+
+/// What the teardown before the `error` event did. `status` is `ok`,
+/// `failed` or `timed_out`, and "" for any other value.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Cleanup {
+    pub status: String,
+    pub message: String,
+}
+
+impl InstallError {
+    pub fn of(event: &Value) -> Self {
+        let text = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).unwrap_or("").to_string();
+        let cleanup = event.get("cleanup").filter(|c| c.is_object()).map(|c| {
+            let status = text(c, "status");
+            Cleanup {
+                status: if matches!(status.as_str(), "ok" | "failed" | "timed_out") { status } else { String::new() },
+                message: text(c, "message"),
+            }
+        });
+        InstallError {
+            message: text(event, "message"),
+            code: text(event, "code"),
+            field: text(event, "field"),
+            step_id: text(event, "step_id"),
+            disk_changed: event.get("disk_changed").and_then(Value::as_bool),
+            cleanup,
+        }
+    }
+}
+
+/// The failure page's copy keys for the last `error` event, in order:
+/// whether the disk changed, then a cleanup that failed or timed out
+/// (`bootc_shared.progress.failure_lines()`). A part fisherman did not
+/// send adds no line.
+pub fn failure_lines(error: Option<&InstallError>) -> Vec<&'static str> {
+    let Some(error) = error else { return Vec::new() };
+    let mut lines = Vec::new();
+    match error.disk_changed {
+        Some(true) => lines.push("done_failed_disk_changed"),
+        Some(false) => lines.push("done_failed_disk_unchanged"),
+        None => {}
+    }
+    match error.cleanup.as_ref().map(|c| c.status.as_str()) {
+        Some("failed") => lines.push("done_failed_cleanup_failed"),
+        Some("timed_out") => lines.push("done_failed_cleanup_timed_out"),
+        _ => {}
+    }
+    lines
 }
 
 /// Share of a step's weight the layer pull covers; the rest is for the
@@ -111,6 +173,8 @@ impl Progress {
             step_id: String::new(),
             recovery_key: String::new(),
             error: None,
+            receipt: None,
+            source_reuse: None,
             cumulative_pct: 0.0,
             weight_pct: 0.0,
             step_frac: 0.0,
@@ -231,12 +295,27 @@ impl Progress {
             }
             "error" => {
                 // The last one is kept; it does not move the bar.
-                self.error = Some(InstallError {
-                    message: str_field("message").to_string(),
-                    code: str_field("code").to_string(),
-                    field: str_field("field").to_string(),
-                });
+                self.error = Some(InstallError::of(&event));
                 Some(format!("ERROR: {}", str_field("message")))
+            }
+            "source_reuse" => {
+                // The copy before the first step. It moves no bar: the bar
+                // means nothing until fisherman's first step.
+                self.source_reuse = crate::source_check::source_reuse_of(&event, self.source_reuse.as_ref());
+                let code = str_field("code");
+                Some(if code.is_empty() {
+                    format!("Source reuse: {}", str_field("phase"))
+                } else {
+                    format!("Source reuse: {} ({code})", str_field("phase"))
+                })
+            }
+            "receipt" => {
+                // It moves no bar and decides no outcome; the done page
+                // reads it.
+                let view = crate::source_check::receipt_of(&event);
+                let line = format!("Installation receipt: {}", str_of_value(&view, "state"));
+                self.receipt = Some(view);
+                Some(line)
             }
             // Kept in the log as well as on the done page: the log is what
             // gets pasted into a bug report, and a key that only ever
@@ -251,6 +330,10 @@ impl Progress {
             _ => None,
         }
     }
+}
+
+fn str_of_value<'a>(v: &'a Value, key: &str) -> &'a str {
+    v.get(key).and_then(Value::as_str).unwrap_or("")
 }
 
 /// Whether the done page must hold its Restart button (#129).
@@ -349,8 +432,9 @@ mod tests {
     }
 
     /// shared/progress/error-cases.json: the last `error` event is kept as
-    /// {message, code, field}, as the canonical parser keeps it, and it
-    /// does not move the bar.
+    /// {message, code, field, step_id, disk_changed, cleanup}, as the
+    /// canonical parser keeps it, it does not move the bar, and the failure
+    /// page gets the lines of the case.
     #[test]
     fn reproduces_the_shared_error_cases() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/progress/error-cases.json");
@@ -376,8 +460,17 @@ mod tests {
                 message: e["message"].as_str().unwrap().to_string(),
                 code: e["code"].as_str().unwrap().to_string(),
                 field: e["field"].as_str().unwrap().to_string(),
+                step_id: e["step_id"].as_str().unwrap().to_string(),
+                disk_changed: e["disk_changed"].as_bool(),
+                cleanup: e["cleanup"].as_object().map(|c| Cleanup {
+                    status: c["status"].as_str().unwrap().to_string(),
+                    message: c["message"].as_str().unwrap().to_string(),
+                }),
             });
             assert_eq!(p.error, want, "{name}");
+            // The failure page's copy keys (tuna-os/fisherman#449).
+            let lines: Vec<&str> = case["lines"].as_array().unwrap().iter().map(|l| l.as_str().unwrap()).collect();
+            assert_eq!(failure_lines(p.error.as_ref()), lines, "{name}");
         }
     }
 

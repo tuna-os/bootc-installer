@@ -3,14 +3,13 @@
   "02-language.png": "The language of the installed system.",
   "03-keyboard.png": "The keyboard layout, for this session and the installed system.",
   "04-timezone.png": "The time zone of the installed system.",
-  "05-conn-check.png": "A check that the image registry can be reached.",
-  "06-image.png": "Choose the image to install from the catalog.",
-  "07-qr_companion.png": "Optional: scan a QR code and type your account details on your phone.",
-  "08-disk.png": "Choose the disk. Nothing is written yet.",
-  "09-encryption.png": "Full-disk encryption, with or without TPM2.",
-  "10-user.png": "Your account and password.",
-  "11-confirm.png": "The last screen before anything is written.",
-  "12-progress.png": "The install, step by step.",
-  "13-recovery-key.png": "The LUKS recovery key, shown once after an encrypted install.",
-  "14-done.png": "Finished. Restart into the new system."
+  "05-image.png": "Choose the image to install from the catalog.",
+  "06-qr_companion.png": "Optional: scan a QR code and type your account details on your phone.",
+  "07-disk.png": "Choose the disk. Nothing is written yet.",
+  "08-encryption.png": "Full-disk encryption, with or without TPM2.",
+  "09-user.png": "Your account and password.",
+  "10-confirm.png": "The last screen before anything is written.",
+  "11-progress.png": "The install, step by step.",
+  "12-recovery-key.png": "The LUKS recovery key, shown once after an encrypted install.",
+  "13-done.png": "Finished. Restart into the new system."
 }

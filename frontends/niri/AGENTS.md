@@ -63,6 +63,11 @@ contracts, so run them before you push:
   fails `install`. Add a new key to the struct when the schema gets one.
 - `offline_test.go` holds the one fisherman resolver (native, live media,
   Flatpak).
+- `compliance_test.go` sends the choices of
+  `../../shared/recipe/fixtures/compliance.json` through `ui/recipe.js`
+  (under node, `tests/recipe-build.mjs`) and then through `decodeRecipe` and
+  `normalizeRecipe`. The result must be the recipe of the fixture. The QML
+  builds the install recipe only through `ui/recipe.js`.
 - `user_test.go` holds `installer/groups.json` to
   `../../shared/account/groups.json`.
 - `redact_test.go` sends `../../shared/progress/recovery-key-transcript.ndjson`
@@ -74,6 +79,10 @@ contracts, so run them before you push:
 copies because `go:embed` cannot leave the module. Do not edit them. After a
 change in `shared/`, run `go generate ./...` in `installer/`. The tests fail
 when a copy is different from the shared file.
+- `translations/` is a C++ QML module that loads the Qt catalog for the
+  locale, because Quickshell loads none. Its test is
+  `translations/tests/test_catalog.cpp` (the `Translations (niri)` job of
+  `ci-niri.yml`). See the "Translation" section of `README.md`.
 - `i18n_test.go` fails on a text literal in `ui/*.qml` that is not in
   `qsTr()` and not a `root.text()` key.
 
@@ -120,11 +129,24 @@ it. `go test -run TestProbe` renders the shared fixtures, and
 `features`) on stdin, runs `fisherman probe --json --source`, and prints
 the views of `installer/sourcecheck.go` (#266, #267). The confirm page
 calls it on each visit and drops a reply for an older visit. Only a
-blocked source holds Install. Never offer an image of this computer's
-bootc storage as a source. The done page says "installed, restart
-required" and never "verified" (`done_verification`, #269).
-`sourcecheck_test.go` reads the shared case files. The QML stub answers
+blocked source holds Install.
+
+`detect` also sends `reuse`: the item of this computer's bootc storage that
+fisherman can copy (`bootedReuse`, #267), never on live media. The confirm
+page offers it as a second install source for the image whose update
+reference is its ref, never as the default. `buildRecipe()` then applies
+`applyReuse()` of `ui/progress.js`, fisherman checks the pick
+(`reuseProblem`), and a copy needs no network. The done page says
+"installed, restart required" and never "verified": `done_verification`
+and the line for fisherman's `receipt` event (`receiptLines()`, #269).
+`sourcecheck_test.go` and `tests/progress-fraction-test.mjs` read the
+shared case files. The QML stub answers
 `source-check` for the capture.
+The progress page shows fisherman's `source_reuse` events for a copy of
+this computer's system (`sourceReuseLines()`, #267), and the copy does not
+move the bar. During the copy the cancel card says `progress_reuse_cancel`
+(`copyCancel()`). After a confirmed cancel, only exit code 130 or a
+signal is a cancel (`installOutcome()`).
 
 ## The recipe, live media and validation
 

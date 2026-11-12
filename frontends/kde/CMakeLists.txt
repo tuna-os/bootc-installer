@@ -65,6 +65,8 @@ set(BACKEND_SOURCES
     src/sourcecheck.h
     src/validate.cpp
     src/validate.h
+    src/translations.cpp
+    src/translations.h
 )
 
 # The data the five frontends share is compiled in from shared/, the one copy
@@ -143,6 +145,38 @@ target_link_libraries(tunainstallerapp PUBLIC
 qt_add_executable(tuna-installer-kde src/main.cpp)
 target_link_libraries(tuna-installer-kde PRIVATE tunainstallerapp tunainstallerappplugin)
 
+# --- translations (#300) ------------------------------------------------------
+# Each i18n/tuna-installer-kde_<lang>.ts (shared/i18n/catalogs.py writes
+# them) is compiled to a .qm file and installed where main.cpp looks:
+# share/tuna-installer-kde/translations (src/translations.h). The template,
+# i18n/tuna-installer-kde.ts, has no language and is not compiled. lrelease
+# runs directly, not through qt_add_lrelease(), whose signature changed in
+# Qt 6.7. The wasm preview turns this off; every other build needs
+# Qt Linguist Tools.
+option(TUNA_TRANSLATIONS "Compile and install the translation catalogs" ON)
+set(TUNA_QM_DIR "${CMAKE_BINARY_DIR}/translations")
+if(TUNA_TRANSLATIONS)
+    find_package(Qt6 6.5 REQUIRED COMPONENTS LinguistTools)
+    file(GLOB TUNA_TS_FILES CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/i18n/tuna-installer-kde_*.ts")
+    if(NOT TUNA_TS_FILES)
+        message(FATAL_ERROR "No i18n/tuna-installer-kde_<lang>.ts to compile.")
+    endif()
+    set(TUNA_QM_FILES)
+    foreach(ts ${TUNA_TS_FILES})
+        get_filename_component(name "${ts}" NAME_WE)
+        set(qm "${TUNA_QM_DIR}/${name}.qm")
+        add_custom_command(OUTPUT "${qm}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${TUNA_QM_DIR}"
+            COMMAND Qt6::lrelease -silent "${ts}" -qm "${qm}"
+            DEPENDS "${ts}"
+            VERBATIM)
+        list(APPEND TUNA_QM_FILES "${qm}")
+    endforeach()
+    add_custom_target(tuna-installer-kde-translations ALL DEPENDS ${TUNA_QM_FILES})
+    install(FILES ${TUNA_QM_FILES} DESTINATION share/tuna-installer-kde/translations)
+endif()
+
 # --- screenshot capture -------------------------------------------------------
 # Reuses the real QML module — only main.cpp is swapped — so the images
 # document the shipped UI rather than a replica.
@@ -192,6 +226,7 @@ if(BUILD_TESTING)
         # tests below feed appendLine() directly, which is the same entry
         # point readyReadStandardOutput uses.
         src/installercontroller.cpp
+        src/translations.cpp
     )
     target_include_directories(tuna-installer-backend-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR})
     # The branding fixtures every frontend's resolver is judged by; the test
@@ -203,6 +238,7 @@ if(BUILD_TESTING)
         SHARED_COMPLETION_DIR="${TUNA_SHARED_DIR}/completion"
         PROGRESS_FIXTURES_DIR="${TUNA_SHARED_DIR}/progress"
         CATALOG_FIXTURES_DIR="${TUNA_SHARED_DIR}/catalog/fixtures"
+        RECIPE_FIXTURES_DIR="${TUNA_SHARED_DIR}/recipe/fixtures"
         NETWORK_TARGETS_FILE="${TUNA_SHARED_DIR}/network/targets.json"
         SHARED_GROUPS_FILE="${TUNA_SHARED_DIR}/account/groups.json"
         # The QML the strings lint reads (tests/test_backend.cpp, #300).
@@ -212,6 +248,12 @@ if(BUILD_TESTING)
     # QQuickWindow, so the type must be complete even though the tests below
     # only exercise writeStamp(), which has no Quick dependency of its own.
     target_link_libraries(tuna-installer-backend-tests PRIVATE Qt6::Core Qt6::Quick Qt6::Test)
+    if(TUNA_TRANSLATIONS)
+        # The .qm files this build compiled: the catalogs the install ships.
+        target_compile_definitions(tuna-installer-backend-tests PRIVATE
+            TUNA_QM_DIR="${TUNA_QM_DIR}")
+        add_dependencies(tuna-installer-backend-tests tuna-installer-kde-translations)
+    endif()
 
     add_test(NAME tuna-installer-backend-tests COMMAND tuna-installer-backend-tests)
 endif()

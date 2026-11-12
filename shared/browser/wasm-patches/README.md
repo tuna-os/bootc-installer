@@ -1,12 +1,44 @@
 # Getting the COSMIC frontend to build for wasm32
 
-These five patches take `frontends/cosmic` from "48 errors in mio, nowhere
+These patches take `frontends/cosmic` from "48 errors in mio, nowhere
 near a browser" to a clean `cargo check --target wasm32-unknown-unknown`.
-They are a record of an experiment, not something the build applies: four of
-the five belong upstream, and the point of keeping them here is that the
-upstream asks are now specific enough to make.
+The files here are the record of the first experiment. The build does not
+apply them. CI builds the same fixes from the tuna-os forks.
 
 Tracked in #105.
+
+## Where each patch comes from now
+
+pop-os does not accept LLM-generated changes. It closed libcosmic#1446,
+iced#397 and iced#398. Agents send no more upstream PRs. The advisory job
+`.github/workflows/wasm-cosmic.yml` builds against the tuna-os forks. Each
+fork is pinned by a full commit SHA in `frontends/cosmic/web/`.
+
+| Patch | Source in the wasm job |
+|---|---|
+| `01` | tuna-os/rust-atomicwrites, branch `wasm/fallback-imp-for-unsupported-targets`, pinned in `web/cargo-patch.toml` |
+| `02` | tuna-os/libcosmic `master` (tuna-os/libcosmic#1), pinned in `web/cargo-patch.toml` |
+| `03`, `06` | tuna-os/iced#2 and tuna-os/iced#1. `web/assemble-iced.sh` applies the two commits on top of the iced commit that libcosmic pins. The fork `master` has them only on a newer iced, and libcosmic does not build against that iced. |
+| `04`, `08` | `frontends/cosmic/src`, under `cfg(unix)` and `cfg(target_arch = "wasm32")` |
+| `05` | `frontends/cosmic/Cargo.toml`: the `desktop` feature (the default) and the `web` feature |
+| `07` | not applied. No fork has it. The `cargo check` does not need it. A render in Chromium needs it. |
+
+The patch overrides reach Cargo only through `cargo --config` in that job.
+`Cargo.toml` has no `[patch]`. `Cargo.lock`, the Flatpak cargo sources and
+the native build do not change. Thus a fork that stops building does not
+block `dev`.
+
+`08` changed. The web build needs no `wasm_bindgen(start)` entry, because
+wasm-bindgen starts the `main` of a binary. Thus the build needs no new
+dependency, and `Cargo.lock` stays the same. On wasm, the probe reads
+`shared/probe/fixtures/laptop.json`, and the install path refuses to run.
+
+`05` changed too. `tokio/full`, `libcosmic/tokio` and `libcosmic/desktop`
+are in the `desktop` feature. The `web` feature turns off none of them.
+Thus the web build is `--no-default-features --features web`.
+
+A person can still send `06` or `02` to pop-os by hand. When upstream
+merges one, remove its entry from `web/`.
 
 ## Result
 
@@ -33,18 +65,18 @@ WebGL) and WebGL performance warnings.
 
 ## The patches
 
-Eight patches, 278 diff lines. Five belong upstream, three are ours.
+Eight patches, 278 diff lines. Five are fixes to libraries, three are ours.
 
 | | What | Where it belongs |
 |---|---|---|
-| `01` | `atomicwrites` has `mod imp` for unix, redox and windows, and no wasm arm, so `imp` does not resolve. Adds one using `std::fs::rename`. | upstream, [jackpot51/rust-atomicwrites](https://github.com/jackpot51/rust-atomicwrites) |
-| `02` | `cosmic-config` binds `system_path` under `cfg(unix)` and `cfg(windows)`, then uses it unconditionally. wasm is neither, so it is used but never defined. Adds a `not(any(unix, windows))` arm returning `None`. | upstream, pop-os/libcosmic |
-| `03` | libcosmic's vendored `iced_winit` has a **real web path that has bit-rotted** against the winit it pins. Four renamed APIs, one struct field the wasm arm never learned about, one lifetime bound. | upstream, pop-os/libcosmic |
-| `06` | `iced_wgpu` sets `VK_LOADER_DRIVERS_DISABLE` under `cfg(wayland_platform)` but **unsets it ungated**. wasm cannot unset an environment variable — std panics rather than failing softly — so every browser build dies there. | upstream, pop-os/libcosmic |
-| `07` | libcosmic exposes no way to reach iced's `webgl` feature. Adds a passthrough, off by default. | upstream, pop-os/libcosmic |
-| `04` | Our own `offline.rs` imports `std::os::unix` and calls `OpenOptions::mode` unconditionally. Gates both on `cfg(unix)`. | this repo |
-| `05` | `tokio` trimmed to the four features this crate uses, libcosmic's `desktop` and `tokio` features dropped, `webgl` enabled, a `cdylib` lib target added. | this repo |
-| `08` | A `wasm_bindgen(start)` entry beside `main`, and the two host-dependent calls gated: the `live_iso_image` probe (no host to shell out to) and `scan_disks` (no lsblk, no tokio reactor — it returns the capture fixtures instead). The frontend has since replaced `scan_disks` with `probe()` (`shared/probe/README.md`), so this hunk no longer applies as written. | this repo |
+| `01` | `atomicwrites` has `mod imp` for unix, redox and windows, and no wasm arm, so `imp` does not resolve. Adds one using `std::fs::rename`. | tuna-os/rust-atomicwrites |
+| `02` | `cosmic-config` binds `system_path` under `cfg(unix)` and `cfg(windows)`, then uses it unconditionally. wasm is neither, so it is used but never defined. Adds a `not(any(unix, windows))` arm returning `None`. | tuna-os/libcosmic |
+| `03` | libcosmic's vendored `iced_winit` has a **real web path that has bit-rotted** against the winit it pins. Four renamed APIs, one struct field the wasm arm never learned about, one lifetime bound. | tuna-os/iced |
+| `06` | `iced_wgpu` sets `VK_LOADER_DRIVERS_DISABLE` under `cfg(wayland_platform)` but **unsets it ungated**. wasm cannot unset an environment variable — std panics rather than failing softly — so every browser build dies there. | tuna-os/iced |
+| `07` | libcosmic exposes no way to reach iced's `webgl` feature. Adds a passthrough, off by default. | not carried |
+| `04` | Our own `offline.rs` imports `std::os::unix` and calls `OpenOptions::mode` unconditionally. Gates both on `cfg(unix)`. | `frontends/cosmic` |
+| `05` | `tokio` trimmed to the four features this crate uses, libcosmic's `desktop` and `tokio` features dropped, `webgl` enabled, a `cdylib` lib target added. | `frontends/cosmic` |
+| `08` | A `wasm_bindgen(start)` entry beside `main`, and the two host-dependent calls gated: the `live_iso_image` probe (no host to shell out to) and `scan_disks` (no lsblk, no tokio reactor — it returns the capture fixtures instead). The frontend has since replaced `scan_disks` with `probe()` (`shared/probe/README.md`), so this hunk no longer applies as written. | `frontends/cosmic` |
 
 ## The interesting one
 
@@ -86,6 +118,10 @@ any libcosmic app can draw a frame.
 `index.html`, `render.mjs` and `drive.mjs` here are the shell and the two
 Playwright drivers used for the screenshots above.
 
+The screenshots came from the first experiment, which had `07` and a
+`cdylib` target. The wasm job has neither, so these commands are a record
+of that run. A render needs `07` in a fork first.
+
 ```bash
 cargo build --target wasm32-unknown-unknown --lib
 wasm-bindgen --target web --out-dir web --no-typescript \
@@ -103,24 +139,21 @@ available there, which is why `07` exists.
 
 ## Reproducing the build
 
+The commands of `wasm-cosmic.yml`, in `frontends/cosmic`:
+
 ```bash
-cp -r frontends/cosmic /tmp/cosmic-wasm
-cp -r <cargo checkout of libcosmic>   /tmp/libcosmic
-cp -r <cargo checkout of atomicwrites> /tmp/atomicwrites
-# apply 01 and 02 and 03 to the copies, 04 and 05 to /tmp/cosmic-wasm,
-# then point Cargo at them:
-#   [patch."https://github.com/pop-os/libcosmic"]
-#   libcosmic = { path = "/tmp/libcosmic" }
-#   cosmic-config = { path = "/tmp/libcosmic/cosmic-config" }
-#   cosmic-theme = { path = "/tmp/libcosmic/cosmic-theme" }
-#   [patch."https://github.com/jackpot51/rust-atomicwrites"]
-#   atomicwrites = { path = "/tmp/atomicwrites" }
-# The copy is outside the monorepo: build.rs needs shared/ named.
-export TUNA_SHARED_DIR="$PWD/shared"
-cd /tmp/cosmic-wasm && rustup target add wasm32-unknown-unknown
-cargo check --target wasm32-unknown-unknown
+rustup target add wasm32-unknown-unknown
+web/assemble-iced.sh
+cargo update --config web/cargo-patch.toml -p atomicwrites
+cargo check --target wasm32-unknown-unknown \
+    --no-default-features --features web --config web/cargo-patch.toml
+git checkout Cargo.lock
 ```
 
-Pinned at libcosmic `43a50cb`, winit `0.31.0-beta.2`
-(`pop-os/winit`, tag `cosmic-0.14`), wgpu 28, iced 0.14. The winit API
-details above are specific to that pin.
+The `cargo update` changes `Cargo.lock` for the forks. Do not commit that
+change. `git checkout Cargo.lock` puts it back.
+
+The first experiment used libcosmic `43a50cb`, winit
+`0.31.0-beta.2` (`pop-os/winit`, tag `cosmic-0.14`), wgpu 28, iced 0.14.
+The wasm job uses tuna-os/libcosmic `f59dea6` and iced `5fc4372` with `06`
+and `03`. These use the same winit.

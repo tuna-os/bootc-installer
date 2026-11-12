@@ -25,20 +25,39 @@ mod hardware;
 mod preflight;
 mod tour;
 mod i18n;
+#[cfg(test)]
+mod recipe_compliance;
 
 use cosmic::app::{Core, Settings, Task};
 use cosmic::iced::{Length, Size};
 use cosmic::prelude::*;
 use cosmic::widget;
 use cosmic::iced::futures::{SinkExt, Stream, StreamExt};
+#[cfg(not(target_arch = "wasm32"))]
 use std::process::Stdio;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::io::{AsyncBufReadExt, BufReader};
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::process::Command as TokioCommand;
+
+// The browser-only build (#105): `--no-default-features --features web`
+// for wasm32-unknown-unknown, never one without the other. The shipped
+// installer is the `desktop` feature on a native target.
+#[cfg(all(target_arch = "wasm32", not(feature = "web")))]
+compile_error!("a wasm32 build needs `--no-default-features --features web`");
+#[cfg(all(target_arch = "wasm32", feature = "desktop"))]
+compile_error!("the `desktop` feature does not build for wasm32: use `--no-default-features --features web`");
+#[cfg(all(feature = "web", not(target_arch = "wasm32")))]
+compile_error!("the `web` feature is only for `--target wasm32-unknown-unknown`");
 
 pub use model::{DiskInfo, Recipe};
 
 pub const APP_ID: &str = "org.tunaos.InstallerCosmic";
 
+/// The entry point, also in a browser: wasm-bindgen starts the `main` of a
+/// binary, so the web build needs no entry of its own and no dependency
+/// that Cargo.lock does not already have. In a browser no environment
+/// variable is set, so `capture` is `None`.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
@@ -322,6 +341,9 @@ pub enum Message {
     /// `.0` (#266, #267): the request and the probe's stdout, or None when
     /// it failed. An answer for an older check is dropped.
     SourceChecked(u64, source_check::Request, Option<String>),
+    /// The confirm page's install source: true is this computer's system
+    /// from its bootc storage, false the download (#267).
+    ReuseSelected(bool),
     HostnameChanged(String),
     FilesystemChanged(usize),
     EncryptionChanged(usize),
@@ -431,6 +453,12 @@ pub struct TunaInstaller {
     source_seq: u64,
     source_view: Option<serde_json::Value>,
     store_view: Option<serde_json::Value>,
+    /// The plain probe's output; the item of this computer's bootc storage
+    /// that it offers as the install source (#267), and the user's pick.
+    /// The download is the default.
+    probe_output: Option<String>,
+    reuse_source: Option<serde_json::Value>,
+    reuse_selected: bool,
     source_visible: bool,
     recipe: Recipe,
     disks: Vec<DiskInfo>,
@@ -762,7 +790,11 @@ impl TunaInstaller {
                 self.live_image.is_none()
                     && (self.catalog.leaves.len() > 1 || !self.image_preselected)
             }
-            Page::Network => self.live_image.is_none(),
+            // An installed bootc computer can copy its own system (#267):
+            // the network check must not stop it before that choice.
+            Page::Network => {
+                self.live_image.is_none() && !source_check::offers_reuse(self.probe_output.as_deref())
+            }
             Page::Account => self.account_required(),
             Page::Tour => !self.tour_slides().is_empty(),
             _ => true,
@@ -785,6 +817,7 @@ impl TunaInstaller {
                 // /proc/cmdline, read inside the Flatpak sandbox.
                 self.live_image = facts.is_live.then_some(facts.live_image);
                 self.offline_images = facts.offline_images;
+                self.probe_output = Some(facts.raw);
                 // The image fields depend on live media and on the offline
                 // stores. Build them again when those changed, and only
                 // then: a later probe (the disk page runs one) must not
@@ -862,7 +895,15 @@ impl TunaInstaller {
         }
         self.validate_seq += 1;
         let seq = self.validate_seq;
-        let partial = partial_recipe(&self.recipe);
+        let mut partial = partial_recipe(&self.recipe);
+        if self.reuse_selected() {
+            // fisherman's static sourceReuse rules, before Install (#267).
+            if let (Some(map), serde_json::Value::Object(fragment)) =
+                (partial.as_object_mut(), source_check::reuse_fragment(&self.install_recipe()))
+            {
+                map.extend(fragment);
+            }
+        }
         Task::perform(
             async move {
                 tokio::time::sleep(std::time::Duration::from_millis(300)).await;
@@ -964,7 +1005,8 @@ impl TunaInstaller {
         self.source_seq += 1;
         self.source_view = None;
         self.store_view = None;
-        let recipe = serde_json::to_value(&self.recipe).unwrap_or_default();
+        self.refresh_reuse();
+        let recipe = self.install_recipe();
         let req = source_check::Request::from_recipe(&recipe, self.live_image.is_some());
         let args = req.probe_args();
         self.source_visible = !args.is_empty();
@@ -1001,12 +1043,77 @@ impl TunaInstaller {
         if !self.source_visible {
             return Vec::new();
         }
-        source_check::rows(self.source_view.as_ref(), self.store_view.as_ref())
+        source_check::rows(self.source_view.as_ref(), self.store_view.as_ref(), self.reuse_selected())
+    }
+
+    /// Offers this computer's system as a second install source when the
+    /// probe has an item that qualifies (#267). A different item, or none,
+    /// drops the pick: the download stays the default.
+    pub fn refresh_reuse(&mut self) {
+        let update_ref = if self.recipe.target_imgref.is_empty() {
+            self.recipe.image.clone()
+        } else {
+            self.recipe.target_imgref.clone()
+        };
+        let source = source_check::reuse_source(self.probe_output.as_deref(), &update_ref);
+        if source.as_ref().map(|s| &s["digest"]) != self.reuse_source.as_ref().map(|s| &s["digest"]) {
+            self.reuse_selected = false;
+        }
+        self.reuse_source = source;
+    }
+
+    /// The failure page's lines for fisherman's last `error` event
+    /// (tuna-os/fisherman#449): whether the disk was changed, and a
+    /// cleanup that failed or timed out.
+    pub fn failure_lines(&self) -> Vec<String> {
+        progress::failure_lines(self.progress.error.as_ref())
+            .into_iter()
+            .map(|key| branding::get().text(key))
+            .filter(|line| !line.is_empty())
+            .collect()
+    }
+
+    /// The done page's lines after an install that exited 0 (#269): that
+    /// nothing checked the new system, and what the `receipt` event says.
+    pub fn receipt_lines(&self) -> Vec<String> {
+        source_check::receipt_lines(self.progress.receipt.as_ref())
+            .into_iter()
+            .map(|(key, value)| branding::get().text_with(&key, &[("value", &value)]))
+            .filter(|line| !line.is_empty())
+            .collect()
+    }
+
+    /// The item that may be copied, as {ref, digest, platform}.
+    pub fn reuse_source(&self) -> Option<&serde_json::Value> {
+        self.reuse_source.as_ref()
+    }
+
+    /// The user picked this computer's system.
+    pub fn reuse_selected(&self) -> bool {
+        self.reuse_selected && self.reuse_source.is_some()
+    }
+
+    /// The recipe that fisherman gets: the wizard's, with the install
+    /// source of the confirm page.
+    pub fn install_recipe(&self) -> serde_json::Value {
+        let value = self.recipe.for_fisherman();
+        match self.reuse_source.as_ref().filter(|_| self.reuse_selected) {
+            Some(source) => source_check::apply_reuse(&value, source),
+            None => value,
+        }
+    }
+
+    /// fisherman's problem with the pick (`validate_source_reuse_<code>`).
+    pub fn reuse_problem(&self) -> Option<&validate::Problem> {
+        if !self.reuse_selected() {
+            return None;
+        }
+        self.problems.iter().find(|p| p.code.starts_with("source_reuse_"))
     }
 
     /// Only a blocked source holds Install.
     pub fn source_blocked(&self) -> bool {
-        self.source_view.as_ref().is_some_and(source_check::blocks_install)
+        self.source_view.as_ref().is_some_and(source_check::blocks_install) || self.reuse_problem().is_some()
     }
 
     fn advance(&mut self) -> (Option<Page>, Task<Message>) {
@@ -1092,6 +1199,9 @@ impl cosmic::Application for TunaInstaller {
             source_seq: 0,
             source_view: None,
             store_view: None,
+            probe_output: None,
+            reuse_source: None,
+            reuse_selected: false,
             source_visible: false,
             recipe,
             selected_disk: None,
@@ -1381,10 +1491,7 @@ impl cosmic::Application for TunaInstaller {
                 {
                     self.selected_keymap = Some(idx);
                     let keymap = self.keymaps[idx].clone();
-                    self.recipe.keyboard = Some(model::Keyboard {
-                        layout: keymap.clone(),
-                        ..model::Keyboard::default()
-                    });
+                    self.recipe.choose_keyboard(&keymap);
                     if !self.capturing() {
                         preflight::apply_best_effort(&preflight::apply_keymap_command(&keymap));
                     }
@@ -1485,6 +1592,12 @@ impl cosmic::Application for TunaInstaller {
                 self.apply_source_reply(seq, &req, out.as_deref());
                 Task::none()
             }
+            Message::ReuseSelected(selected) => {
+                self.reuse_selected = selected && self.reuse_source.is_some();
+                // fisherman checks the pick, and the source check asks
+                // about the new source.
+                Task::batch([self.check_fields(), self.check_source()])
+            }
             Message::Validated(seq, result) => {
                 if seq == self.validate_seq {
                     self.problems = result.unwrap_or_else(|e| {
@@ -1502,9 +1615,8 @@ impl cosmic::Application for TunaInstaller {
             Message::FilesystemChanged(idx) => {
                 // A position in the list the page drew: the active leaf's
                 // choices (`filesystem_choices`).
-                if let Some(fs) = self.filesystem_choices().get(idx) {
-                    self.recipe.btrfs_subvolumes = fs == "btrfs";
-                    self.recipe.filesystem.clone_from(fs);
+                if let Some(fs) = self.filesystem_choices().get(idx).cloned() {
+                    self.recipe.choose_filesystem(&fs);
                 }
                 self.check_fields()
             }
@@ -1514,12 +1626,11 @@ impl cosmic::Application for TunaInstaller {
                 // to the same choice the user actually saw and clicked.
                 let choices = available_encryption_choices(self.has_tpm);
                 if let Some(choice) = choices.get(idx) {
-                    self.recipe.encryption.enc_type = choice.to_string();
                     // Only a needs_passphrase choice carries a passphrase;
-                    // clear it for the others so a stale value from a
-                    // previous choice can't linger into the recipe.
-                    if !validate::needs_passphrase(choice) {
-                        self.recipe.encryption.passphrase.clear();
+                    // the others clear it, and its confirmation, so a stale
+                    // value from a previous choice can't linger into the
+                    // recipe.
+                    if self.recipe.choose_encryption(choice) {
                         self.passphrase_confirm.clear();
                     }
                 }
@@ -1592,7 +1703,7 @@ impl cosmic::Application for TunaInstaller {
                 self.cancel_confirmed = false;
                 self.show_cancel_dialog = false;
                 self.progress.reset();
-                let recipe = self.recipe.clone();
+                let recipe = self.install_recipe();
                 let pid_slot = self.install_pid.clone();
                 let live = self.live_image.is_some();
                 Task::stream(Self::stream_fisherman(recipe, pid_slot, live).map(cosmic::action::app))
@@ -1672,10 +1783,22 @@ impl cosmic::Application for TunaInstaller {
 
 impl TunaInstaller {
     /// `fisherman probe --json`, off the UI thread (shared/probe/README.md).
+    #[cfg(not(target_arch = "wasm32"))]
     async fn probe() -> Result<probe::Facts, String> {
         tokio::task::spawn_blocking(probe::run)
             .await
             .map_err(|e| format!("Task join error: {e}"))?
+    }
+
+    /// A browser has no host, no fisherman and no tokio reactor. It gets
+    /// the probe fixture of the capture harness, compiled in, so the wizard
+    /// can show disks and nothing can touch one (#105).
+    #[cfg(target_arch = "wasm32")]
+    async fn probe() -> Result<probe::Facts, String> {
+        probe::parse(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../shared/probe/fixtures/laptop.json"
+        )))
     }
 
     /// Runs fisherman and yields its output a line at a time, then the exit
@@ -1694,14 +1817,14 @@ impl TunaInstaller {
     /// (shared/progress/README.md); stderr is plain text and is interleaved
     /// into the same stream line by line (see `merged_lines`), which the
     /// parser passes through untouched.
+    #[cfg(not(target_arch = "wasm32"))]
     fn stream_fisherman(
-        recipe: Recipe,
+        recipe: serde_json::Value,
         pid_slot: std::sync::Arc<std::sync::Mutex<Option<u32>>>,
         live: bool,
     ) -> impl Stream<Item = Message> {
         cosmic::iced::stream::channel(64, async move |mut output| {
-            let mut recipe = recipe;
-            recipe.accept_experimental();
+            // `install_recipe()`: the experimental opt-ins are in it.
             let json = match serde_json::to_string_pretty(&recipe) {
                 Ok(json) => json,
                 Err(e) => {
@@ -1772,6 +1895,22 @@ impl TunaInstaller {
             let _ = output.send(Message::InstallFinished(Ok(code))).await;
         })
     }
+
+    /// A browser build never starts fisherman: it has no host (#105).
+    #[cfg(target_arch = "wasm32")]
+    fn stream_fisherman(
+        _recipe: serde_json::Value,
+        _pid_slot: std::sync::Arc<std::sync::Mutex<Option<u32>>>,
+        _live: bool,
+    ) -> impl Stream<Item = Message> {
+        cosmic::iced::stream::channel(1, async move |mut output| {
+            let _ = output
+                .send(Message::InstallFinished(Err(
+                    "A browser build cannot install.".to_string(),
+                )))
+                .await;
+        })
+    }
 }
 
 /// Spawn a host command detached: power off, firmware setup, and the
@@ -1820,6 +1959,7 @@ fn check_network_task(
 /// process group", which must never be the installer's own group. This
 /// The progress page's Cancel (after its dialog) and the header's Exit
 /// both signal that group (`hardware::terminate_process_group`).
+#[cfg(not(target_arch = "wasm32"))]
 async fn spawn_wrapper(argv: &[String], stdin_data: Vec<u8>) -> std::io::Result<tokio::process::Child> {
     use tokio::io::AsyncWriteExt;
     let mut child = TokioCommand::new(&argv[0])
@@ -1844,6 +1984,7 @@ async fn spawn_wrapper(argv: &[String], stdin_data: Vec<u8>) -> std::io::Result<
 /// split across the two streams. The tasks keep draining after the receiver
 /// is dropped, so an abandoned install page cannot leave the child blocked on
 /// a full pipe.
+#[cfg(not(target_arch = "wasm32"))]
 fn merged_lines<O, E>(stdout: Option<O>, stderr: Option<E>) -> tokio::sync::mpsc::UnboundedReceiver<String>
 where
     O: tokio::io::AsyncRead + Unpin + Send + 'static,
@@ -2076,10 +2217,32 @@ mod tests {
     /// image needs one".
     const E2E_CATALOG: &str =
         include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/e2e/catalog.json"));
-    /// The leaf this frontend installs: the canary image with no account.
-    /// GNOME, XFCE, KDE and Niri install the leaf with an account, so the
-    /// VM job boots both cases.
-    const E2E_IMAGE: &str = "quay.io/centos-bootc/centos-bootc:stream10";
+    /// The leaf this frontend installs, picked through the catalog: the
+    /// leaf of the default image's product that needs no account. GNOME,
+    /// XFCE, KDE and Niri install the default image, which needs one, so the
+    /// VM job boots both cases. The VM job installs the recipe with the
+    /// leaf's image as it is (#322).
+    fn e2e_leaf(catalog: &image_catalog::Catalog) -> &image_catalog::ImageLeaf {
+        let default = &catalog.leaves[catalog.find(&catalog.default_image).expect("default_image")];
+        catalog
+            .leaves
+            .iter()
+            .find(|leaf| leaf.product == default.product && !leaf.needs_user_creation)
+            .expect("the e2e catalog has a leaf of the default product with no account")
+    }
+
+    /// The leaf the end-to-end test installs needs no account, is not the
+    /// default image (the other four frontends install that one), and is
+    /// an image the VM job can boot as the recipe names it.
+    #[test]
+    fn e2e_leaf_is_the_canary_with_no_account() {
+        let catalog = image_catalog::parse_manifest(E2E_CATALOG).unwrap();
+        let leaf = e2e_leaf(&catalog);
+        assert!(!leaf.needs_user_creation);
+        assert_ne!(leaf.imgref, catalog.default_image);
+        assert!(!leaf.composefs);
+        assert_eq!(leaf.bootloader, "grub2");
+    }
 
     /// End to end: the Install button's code path against the real backend.
     ///
@@ -2103,7 +2266,8 @@ mod tests {
         let catalog = image_catalog::parse_manifest(E2E_CATALOG).unwrap();
         std::fs::write(format!("{e2e_dir}/catalog.json"), E2E_CATALOG)
             .expect("the e2e directory is writable");
-        let leaf = &catalog.leaves[catalog.find(E2E_IMAGE).unwrap()];
+        let leaf = e2e_leaf(&catalog);
+        let e2e_image = leaf.imgref.clone();
 
         let mut recipe = Recipe::default();
         recipe.disk = disk;
@@ -2121,8 +2285,10 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let (code, log, fraction) = rt.block_on(async {
             use cosmic::iced::futures::StreamExt;
+            let mut recipe = recipe;
+            recipe.accept_experimental();
             let mut stream = Box::pin(TunaInstaller::stream_fisherman(
-                recipe,
+                serde_json::to_value(&recipe).unwrap(),
                 Default::default(),
                 false,
             ));
@@ -2166,7 +2332,7 @@ mod tests {
             .expect("the shim recorded no recipe");
         let recorded: serde_json::Value = serde_json::from_str(&recorded).unwrap();
         assert!(recorded.get("user").is_none(), "an account for an image that needs none: {recorded}");
-        assert_eq!(recorded["image"], E2E_IMAGE);
+        assert_eq!(recorded["image"], e2e_image.as_str());
         assert_eq!(recorded["targetImgref"], recorded["image"]);
         assert_eq!(recorded["filesystem"], "xfs");
         // No list in the catalog for this leaf: no key, never `[]`, never
@@ -2297,6 +2463,33 @@ mod tests {
         assert!(account_required_for(&catalog, Some(""), "", Some(own)));
     }
 
+    /// `shared/catalog/fixtures/expected.json` `live_image`: on live media
+    /// the account flag and the layout are those of the leaf of the booted
+    /// image. The NVIDIA image of a leaf is that leaf.
+    #[test]
+    fn the_live_image_cases_are_the_shared_ones() {
+        use super::account_required_for;
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/catalog/fixtures");
+        let read = |name: &str| std::fs::read_to_string(format!("{dir}/{name}")).unwrap();
+        let catalog = image_catalog::parse_manifest(&read("catalog.json")).unwrap();
+        let expected: serde_json::Value = serde_json::from_str(&read("expected.json")).unwrap();
+        let cases = expected["live_image"].as_array().unwrap();
+        assert!(cases.len() >= 4);
+        for case in cases {
+            let live = case["live_image"].as_str().unwrap();
+            let leaf = catalog.find(live).map(|i| catalog.leaves[i].imgref.clone());
+            assert_eq!(leaf.as_deref(), case["leaf"].as_str(), "{live}: leaf");
+            // Whatever row is selected, the booted image decides.
+            for selected in [None, catalog.leaves.first(), catalog.leaves.last()] {
+                assert_eq!(
+                    account_required_for(&catalog, Some(live), "", selected),
+                    case["needs_user_creation"].as_bool().unwrap(),
+                    "{live}: needs_user_creation"
+                );
+            }
+        }
+    }
+
     /// fisherman exits 130 when cancelled; a signal ends the wrapper after
     /// this frontend signals its group. Neither is a failure (#299).
     #[test]
@@ -2317,6 +2510,27 @@ mod tests {
         assert_eq!(install_outcome(Some(1), false), Outcome::Failed);
         assert_eq!(install_outcome(Some(1), true), Outcome::Failed);
         assert_eq!(install_outcome(Some(126), true), Outcome::Failed);
+    }
+
+    /// shared/progress/outcome-cases.json: the exit code decides, never a
+    /// `complete` event (#269).
+    #[test]
+    fn the_shared_outcome_cases() {
+        use super::{install_outcome, Outcome};
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/progress/outcome-cases.json");
+        let doc: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        let cases = doc["cases"].as_array().unwrap();
+        assert!(cases.len() >= 10);
+        for case in cases {
+            let code = case["exit_code"].as_i64().map(|c| c as i32);
+            let want = match case["outcome"].as_str().unwrap() {
+                "succeeded" => Outcome::Succeeded,
+                "cancelled" => Outcome::Cancelled,
+                _ => Outcome::Failed,
+            };
+            let cancel = case["cancel_requested"] == serde_json::Value::Bool(true);
+            assert_eq!(install_outcome(code, cancel), want, "{}", case["name"]);
+        }
     }
 
     /// The cancel's whole path short of the UI: the wrapper's group is

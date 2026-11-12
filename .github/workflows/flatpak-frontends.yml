@@ -42,7 +42,7 @@ jobs:
       niri: ${{ steps.filter.outputs.niri }}
       xfce: ${{ steps.filter.outputs.xfce }}
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false

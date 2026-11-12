@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: vanilla-installer\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 02:03+0000\n"
+"POT-Creation-Date: 2026-11-12 10:12+0000\n"
 "PO-Revision-Date: 2023-12-29 16:06+0000\n"
 "Last-Translator: Balázs Szeles <zutvas@gmail.com>\n"
 "Language-Team: Hungarian <https://hosted.weblate.org/projects/vanilla-os/"
@@ -23,7 +23,7 @@ msgstr ""
 
 #: data/org.bootcinstaller.Installer.appdata.xml.in:6
 #: data/org.bootcinstaller.Installer.desktop.in:3
-#: bootc_installer/gtk/window.blp:7 bootc_installer/windows/main_window.py:601
+#: bootc_installer/gtk/window.blp:7 bootc_installer/windows/main_window.py:609
 #, fuzzy
 msgid "bootc Installer"
 msgstr "Ne legyen telepítve"
@@ -50,40 +50,40 @@ msgstr "Telepítés megerősítése"
 msgid "Summary"
 msgstr ""
 
-#: bootc_installer/gtk/confirm.blp:67 bootc_installer/gtk/default-nvidia.blp:40
-#: bootc_installer/gtk/default-vm.blp:40
+#: bootc_installer/gtk/confirm.blp:75
 #: bootc_installer/gtk/default-welcome.blp:23
-#: bootc_installer/views/confirm.py:449
+#: bootc_installer/views/confirm.py:458
 msgid "Install"
 msgstr "Telepítés"
 
-#: bootc_installer/gtk/confirm.blp:86
+#: bootc_installer/gtk/confirm.blp:94
 #, fuzzy
 msgid "Selected image"
 msgstr "Válasszon egy lemezt"
 
 #: bootc_installer/gtk/default-conn-check.blp:19
-#: bootc_installer/defaults/conn_check.py:146
+#: bootc_installer/defaults/conn_check.py:190
 #, fuzzy
 msgid "Checking Connection"
 msgstr "Csatlakozás ellenőrzése…"
 
 #: bootc_installer/gtk/default-conn-check.blp:20
-#: bootc_installer/defaults/conn_check.py:148
+#: bootc_installer/defaults/conn_check.py:192
 msgid "Please wait until the connection check is done"
 msgstr "Kérjük várjon, amíg a kapcsolat ellenőrzése befejeződik"
+
+#: bootc_installer/gtk/default-conn-check.blp:31
+msgid "Network settings"
+msgstr ""
 
 #: bootc_installer/gtk/default-disk.blp:22
 #: bootc_installer/gtk/default-encryption.blp:21
 #: bootc_installer/gtk/default-image.blp:22
 #: bootc_installer/gtk/default-keyboard.blp:28
 #: bootc_installer/gtk/default-language.blp:20
-#: bootc_installer/gtk/default-network.blp:21
-#: bootc_installer/gtk/default-theme.blp:48
 #: bootc_installer/gtk/default-timezone.blp:23
-#: bootc_installer/gtk/default-users.blp:21
-#: bootc_installer/gtk/layout-preferences.blp:26
-#: bootc_installer/gtk/window.blp:66 bootc_installer/gtk/window.blp:67
+#: bootc_installer/gtk/default-users.blp:21 bootc_installer/gtk/window.blp:66
+#: bootc_installer/gtk/window.blp:67
 msgid "Next"
 msgstr "Következő"
 
@@ -130,8 +130,8 @@ msgid "Choose a unique name to identify this computer on your network."
 msgstr ""
 
 #: bootc_installer/gtk/default-disk.blp:115
-#: bootc_installer/utils/phone_companion.py:143
-#: bootc_installer/views/confirm.py:317
+#: bootc_installer/utils/phone_companion.py:144
+#: bootc_installer/views/confirm.py:326
 #, fuzzy
 msgid "Hostname"
 msgstr "Felhasználónév"
@@ -180,78 +180,18 @@ msgstr ""
 
 #: bootc_installer/gtk/default-encryption.blp:59
 #: bootc_installer/gtk/default-users.blp:64
-#: bootc_installer/utils/phone_companion.py:138
+#: bootc_installer/utils/phone_companion.py:139
 msgid "Password"
 msgstr "Jelszó"
 
 #: bootc_installer/gtk/default-encryption.blp:64
 #: bootc_installer/gtk/default-users.blp:85
-#: bootc_installer/utils/phone_companion.py:140
+#: bootc_installer/utils/phone_companion.py:141
 msgid "Confirm Password"
 msgstr "Jelszó megerősítése"
 
 #: bootc_installer/gtk/default-encryption.blp:81
 msgid "Use hardware-backed encryption"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:19
-msgid "System Check"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:20
-msgid "Verifying hardware compatibility"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:44
-msgid "Your system is ready"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:59
-msgid "Hardware"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:60
-msgid ""
-"We’ll quickly review the main components needed for a smooth installation "
-"and first boot."
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:63
-#: bootc_installer/views/confirm.py:407
-msgid "Graphics"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:68
-#: bootc_installer/gtk/default-hardware.blp:84
-#: bootc_installer/gtk/default-hardware.blp:100
-#: bootc_installer/gtk/default-hardware.blp:116
-#: bootc_installer/gtk/default-hardware.blp:132
-#: bootc_installer/gtk/default-hardware.blp:148
-msgid "Scanning…"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:79
-msgid "Processor"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:95
-msgid "Memory"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:111
-msgid "Storage"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:127
-msgid "Security Chip"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:143
-msgid "Secure Boot"
-msgstr ""
-
-#: bootc_installer/gtk/default-hardware.blp:170
-msgid "Scanning hardware"
 msgstr ""
 
 #: bootc_installer/gtk/default-image.blp:40
@@ -295,7 +235,7 @@ msgstr "Billentyűkiosztások keresése"
 
 #: bootc_installer/gtk/default-language.blp:37
 #: bootc_installer/gtk/widget-language.blp:13
-#: bootc_installer/views/confirm.py:211
+#: bootc_installer/views/confirm.py:220
 msgid "Language"
 msgstr "Nyelv"
 
@@ -306,86 +246,6 @@ msgstr "Válassza ki a nyelvét"
 #: bootc_installer/gtk/default-language.blp:45
 msgid "Search languages"
 msgstr "Nyelvek keresése"
-
-#: bootc_installer/gtk/default-network.blp:38
-msgid "Internet"
-msgstr "Internet"
-
-#: bootc_installer/gtk/default-network.blp:39
-msgid "An active internet connection is required to install the system"
-msgstr "Aktív internetkapcsolatra van szükség a rendszer telepítéséhez"
-
-#: bootc_installer/gtk/default-network.blp:44
-msgid "Wired"
-msgstr "Vezetékes"
-
-#: bootc_installer/gtk/default-network.blp:48
-msgid "Wireless Networks"
-msgstr "Vezeték nélküli hálózatok"
-
-#: bootc_installer/gtk/default-network.blp:52
-msgid "Advanced"
-msgstr "Speciális"
-
-#: bootc_installer/gtk/default-network.blp:55
-msgid "Connect to Hidden Network..."
-msgstr "Kapcsolódás rejtett hálózathoz..."
-
-#: bootc_installer/gtk/default-network.blp:80
-msgid "Open Proxy Settings..."
-msgstr "Proxy-beállítások megnyitása..."
-
-#: bootc_installer/gtk/default-nvidia.blp:19
-msgid "NVIDIA® Drivers"
-msgstr "NVIDIA® illesztőprogramok"
-
-#: bootc_installer/gtk/default-nvidia.blp:20
-#, fuzzy
-msgid ""
-"Choose whether to install proprietary NVIDIA drivers for better "
-"compatibility and performance"
-msgstr ""
-"Válassza ki, hogy a jobb kompatibilitás és teljesítmény érdekében telepíteni "
-"kívánja-e a védjegyzett NVIDIA illesztőprogramokat."
-
-#: bootc_installer/gtk/default-nvidia.blp:31
-#: bootc_installer/gtk/default-vm.blp:31
-#: bootc_installer/defaults/qr_companion.py:291
-msgid "Skip"
-msgstr "Átugrás"
-
-#: bootc_installer/gtk/default-nvidia.blp:70
-msgid "About Proprietary Drivers"
-msgstr "A védjegyezett illesztőprogramokról"
-
-#: bootc_installer/gtk/default-nvidia.blp:79
-#, fuzzy
-msgid ""
-"A proprietary driver has private code that neither bootc installer nor "
-"Debian developers can review.\n"
-"\n"
-"Security and other updates are dependent on the driver vendor."
-msgstr ""
-"A védjegyezett illesztőprogramnak privát kódja van, amelyet sem a Vanilla "
-"OS, sem az Ubuntu fejlesztői nem tudnak áttekinteni.\n"
-"\n"
-"A biztonsági és egyéb frissítések az illesztőprogram gyártójától függnek."
-
-#: bootc_installer/gtk/default-theme.blp:15
-msgid "Default"
-msgstr "Alapértelmezett"
-
-#: bootc_installer/gtk/default-theme.blp:27
-msgid "Dark"
-msgstr "Sötét"
-
-#: bootc_installer/gtk/default-theme.blp:40
-msgid "Color Scheme"
-msgstr "Színséma"
-
-#: bootc_installer/gtk/default-theme.blp:41
-msgid "Choose a color scheme for your system"
-msgstr "Válasszon színsémát a rendszeréhez"
 
 #: bootc_installer/gtk/default-timezone.blp:40
 msgid "Date & Time"
@@ -416,21 +276,9 @@ msgid "Name"
 msgstr "Név"
 
 #: bootc_installer/gtk/default-users.blp:59
-#: bootc_installer/utils/phone_companion.py:136
+#: bootc_installer/utils/phone_companion.py:137
 msgid "Username"
 msgstr "Felhasználónév"
-
-#: bootc_installer/gtk/default-vm.blp:19
-msgid "VM Tools"
-msgstr ""
-
-#: bootc_installer/gtk/default-vm.blp:20
-#, fuzzy
-msgid ""
-"Choose whether to install VM Tools for better compatibility and performance"
-msgstr ""
-"Válassza ki, hogy a jobb kompatibilitás és teljesítmény érdekében telepíteni "
-"kívánja-e a védjegyzett NVIDIA illesztőprogramokat."
 
 #: bootc_installer/gtk/default-welcome.blp:24
 msgid "Installs to your internal disk. Takes about 5–10 minutes."
@@ -466,8 +314,8 @@ msgid "Confirm Changes"
 msgstr "Változások megerősítése"
 
 #: bootc_installer/gtk/dialog-disk-confirm.blp:17
-#: bootc_installer/gtk/progress.blp:312
-#: bootc_installer/windows/main_window.py:641
+#: bootc_installer/gtk/progress.blp:328
+#: bootc_installer/windows/main_window.py:649
 msgid "Cancel"
 msgstr "Mégse"
 
@@ -541,27 +389,27 @@ msgstr ""
 msgid "Installation will continue normally. Feel free to browse around. Rawr."
 msgstr ""
 
-#: bootc_installer/gtk/progress.blp:191 bootc_installer/views/progress.py:831
-#: bootc_installer/views/progress.py:906
+#: bootc_installer/gtk/progress.blp:191 bootc_installer/views/progress.py:860
+#: bootc_installer/views/progress.py:937
 #, fuzzy
 msgid "Installing"
 msgstr "Telepítés…"
 
-#: bootc_installer/gtk/progress.blp:225 bootc_installer/views/progress.py:838
+#: bootc_installer/gtk/progress.blp:241 bootc_installer/views/progress.py:868
 msgid "0:00 elapsed"
 msgstr ""
 
-#: bootc_installer/gtk/progress.blp:280
+#: bootc_installer/gtk/progress.blp:296
 #, fuzzy
 msgid "Copy Console Log"
 msgstr "Konzol kimenet megjelenítése"
 
-#: bootc_installer/gtk/progress.blp:290
+#: bootc_installer/gtk/progress.blp:306
 #, fuzzy
 msgid "Show Console Output"
 msgstr "Konzol kimenet megjelenítése"
 
-#: bootc_installer/gtk/progress.blp:300
+#: bootc_installer/gtk/progress.blp:316
 #, fuzzy
 msgid "Show Installation Media"
 msgstr "Telepítés megerősítése"
@@ -591,16 +439,11 @@ msgstr "Telepítés"
 msgid "About"
 msgstr ""
 
-#: bootc_installer/gtk/wireless-row.blp:35
-#: bootc_installer/defaults/network.py:389
-msgid "Connected"
-msgstr "Csatlakoztatva"
-
-#: bootc_installer/defaults/conn_check.py:135
+#: bootc_installer/defaults/conn_check.py:173
 msgid "No Internet Connection!"
 msgstr ""
 
-#: bootc_installer/defaults/conn_check.py:137
+#: bootc_installer/defaults/conn_check.py:175
 msgid "Installer requires an active internet connection"
 msgstr ""
 
@@ -643,23 +486,23 @@ msgstr ""
 
 #. ZFS is experimental in fisherman (no VM test boots it): the
 #. branding copy says so.
-#: bootc_installer/defaults/disk.py:335
+#: bootc_installer/defaults/disk.py:331
 msgid "Btrfs (with subvolumes)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:378
+#: bootc_installer/defaults/disk.py:366
 msgid "Install the \"{}\" package on the host to use this filesystem"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:381
+#: bootc_installer/defaults/disk.py:369
 msgid "Missing host tool: \"{}\" — install the \"{}\" package"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:459
+#: bootc_installer/defaults/disk.py:447
 msgid "Virtual disk (for VMs / testing)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:461
+#: bootc_installer/defaults/disk.py:449
 #, python-format
 msgid "Creates a %s disk image and attaches it as a loop device"
 msgstr ""
@@ -681,62 +524,6 @@ msgstr ""
 #: bootc_installer/defaults/encryption.py:318
 msgid "Strong passphrase"
 msgstr ""
-
-#: bootc_installer/defaults/network.py:40
-msgid "Insecure network (WEP)"
-msgstr "Nem biztonságos hálózat (WEP)"
-
-#: bootc_installer/defaults/network.py:41
-msgid "Secure network (WPA)"
-msgstr "Biztonságos hálózat (WPA)"
-
-#: bootc_installer/defaults/network.py:42
-msgid "Secure network (WPA2)"
-msgstr "Biztonságos hálózat (WPA2)"
-
-#: bootc_installer/defaults/network.py:43
-msgid "Secure network (WPA3)"
-msgstr "Biztonságos hálózat (WPA3)"
-
-#: bootc_installer/defaults/network.py:392
-msgid "Authentication required"
-msgstr "Hitelesítés szükséges"
-
-#: bootc_installer/defaults/network.py:400
-msgid "Connecting"
-msgstr "Csatlakozás"
-
-#: bootc_installer/defaults/network.py:402
-msgid "Disconnected"
-msgstr "Lekapcsolódott"
-
-#: bootc_installer/defaults/network.py:404
-msgid "Disconnecting"
-msgstr "Lekapcsolódás"
-
-#: bootc_installer/defaults/network.py:406
-msgid "Connection Failed"
-msgstr "Nem sikerült a kapcsolódás"
-
-#: bootc_installer/defaults/network.py:408
-msgid "Status Unknown"
-msgstr "Ismeretlen állapot"
-
-#: bootc_installer/defaults/network.py:410
-msgid "Unmanaged"
-msgstr "Nem kezelt"
-
-#: bootc_installer/defaults/network.py:412
-msgid "Unavailable"
-msgstr "Nem elérhető"
-
-#: bootc_installer/defaults/network.py:414
-msgid "Unknown"
-msgstr "Ismeretlen"
-
-#: bootc_installer/defaults/network.py:426
-msgid "Cable Unplugged"
-msgstr "Kábel kihúzva"
 
 #: bootc_installer/defaults/qr_companion.py:163
 msgid "Set Up From Your Phone"
@@ -780,6 +567,10 @@ msgstr ""
 #: bootc_installer/defaults/qr_companion.py:456
 msgid "Copy link"
 msgstr ""
+
+#: bootc_installer/defaults/qr_companion.py:291
+msgid "Skip"
+msgstr "Átugrás"
 
 #: bootc_installer/defaults/qr_companion.py:294
 msgid "Enter your details on this computer instead"
@@ -832,123 +623,114 @@ msgstr ""
 msgid "Strong"
 msgstr ""
 
-#: bootc_installer/layouts/preferences.py:67
-msgid "Please select at least one option."
-msgstr "Kérjük, válasszon legalább egy lehetőséget."
-
-#: bootc_installer/utils/builder.py:70
+#: bootc_installer/utils/builder.py:89
 #, python-format
 msgid "(%s) Processing step..."
 msgstr ""
 
-#: bootc_installer/utils/builder.py:74
+#: bootc_installer/utils/builder.py:93
 #, python-format
 msgid "(%s) Display-conditions found"
 msgstr ""
 
-#: bootc_installer/utils/builder.py:79
+#: bootc_installer/utils/builder.py:97
 #, fuzzy, python-format
 msgid "(%s) Performing display-condition: %s"
 msgstr "Megjelenítési feltétel végrehajtása: %s"
 
-#: bootc_installer/utils/builder.py:88
-#, python-format
-msgid "(%s) Display-conditions not met"
-msgstr ""
-
-#: bootc_installer/utils/builder.py:90
-#, fuzzy, python-format
-msgid "(%s) Display-conditions met"
-msgstr "Megjelenítési feltétel végrehajtása: %s"
-
-#: bootc_installer/utils/builder.py:93
+#: bootc_installer/utils/builder.py:101
 #, python-format
 msgid "Step %s skipped due to display-conditions"
 msgstr "%s lépés kihagyva a megjelenítési feltételek miatt"
 
 #: bootc_installer/utils/builder.py:104
+#, fuzzy, python-format
+msgid "(%s) Display-conditions met"
+msgstr "Megjelenítési feltétel végrehajtása: %s"
+
+#: bootc_installer/utils/builder.py:113
 #, python-format
 msgid "(%s) Initializing widgets for template: %s"
 msgstr ""
 
-#: bootc_installer/utils/builder.py:111
+#: bootc_installer/utils/builder.py:120
 #, python-format
 msgid "(%s) Widgets initialized"
 msgstr ""
 
-#: bootc_installer/utils/phone_companion.py:131
+#: bootc_installer/utils/phone_companion.py:132
 #, fuzzy, python-brace-format
 msgid "{name} Installer Companion"
 msgstr "Telepítés helye"
 
-#: bootc_installer/utils/phone_companion.py:132
+#: bootc_installer/utils/phone_companion.py:133
 #, python-brace-format
 msgid "{name} Setup"
 msgstr ""
 
-#: bootc_installer/utils/phone_companion.py:133
+#: bootc_installer/utils/phone_companion.py:134
 msgid "Complete your installation settings from your phone"
 msgstr ""
 
-#: bootc_installer/utils/phone_companion.py:134
+#: bootc_installer/utils/phone_companion.py:135
 #, fuzzy
 msgid "Full Name"
 msgstr "Név"
 
-#: bootc_installer/utils/phone_companion.py:135
+#: bootc_installer/utils/phone_companion.py:136
 msgid "e.g. John Doe"
 msgstr ""
 
-#: bootc_installer/utils/phone_companion.py:137
+#: bootc_installer/utils/phone_companion.py:138
 msgid "e.g. johndoe"
 msgstr ""
 
-#: bootc_installer/utils/phone_companion.py:139
+#: bootc_installer/utils/phone_companion.py:140
 #, fuzzy
 msgid "Create user password"
 msgstr "Felhasználó létrehozása"
 
-#: bootc_installer/utils/phone_companion.py:141
+#: bootc_installer/utils/phone_companion.py:142
 msgid "Type the password again"
 msgstr ""
 
-#: bootc_installer/utils/phone_companion.py:142
+#: bootc_installer/utils/phone_companion.py:143
 #, fuzzy
 msgid "Show passwords"
 msgstr "Jelszó"
 
-#: bootc_installer/utils/phone_companion.py:144
+#: bootc_installer/utils/phone_companion.py:145
 #, python-brace-format
 msgid "e.g. {hostname}-desktop"
 msgstr ""
 
-#: bootc_installer/utils/phone_companion.py:145
+#: bootc_installer/utils/phone_companion.py:146
 msgid "Submit Setup"
 msgstr ""
 
-#: bootc_installer/utils/phone_companion.py:146
+#: bootc_installer/utils/phone_companion.py:147
 msgid "Setup Completed!"
 msgstr ""
 
-#: bootc_installer/utils/phone_companion.py:147
+#: bootc_installer/utils/phone_companion.py:148
 msgid ""
 "You can now look back at the installer screen to confirm and finish the "
 "installation."
 msgstr ""
 
-#: bootc_installer/utils/phone_companion.py:149
+#: bootc_installer/utils/phone_companion.py:150
 msgid "Please fill out all required fields."
 msgstr ""
 
-#: bootc_installer/utils/phone_companion.py:150
+#: bootc_installer/utils/phone_companion.py:151
 msgid "The passwords do not match."
 msgstr ""
 
-#: bootc_installer/utils/phone_companion.py:151
+#: bootc_installer/utils/phone_companion.py:152
 msgid "Submission failed, please try again."
 msgstr ""
 
-#: bootc_installer/utils/phone_companion.py:152
+#: bootc_installer/utils/phone_companion.py:153
 #, fuzzy
 msgid "Connection error."
 msgstr "Nem sikerült a kapcsolódás"
@@ -1005,43 +787,47 @@ msgstr ""
 msgid "{first} and {second}"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:219
+#: bootc_installer/views/confirm.py:228
 msgid "Keyboard"
 msgstr "Billentyűzet"
 
-#: bootc_installer/views/confirm.py:225
+#: bootc_installer/views/confirm.py:234
 #, fuzzy
 msgid "Time zone"
 msgstr "Időzóna"
 
-#: bootc_installer/views/confirm.py:237
+#: bootc_installer/views/confirm.py:246
 msgid "Users"
 msgstr "Felhasználók"
 
-#: bootc_installer/views/confirm.py:248
+#: bootc_installer/views/confirm.py:257
 msgid "/var disk"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:261 bootc_installer/views/confirm.py:289
+#: bootc_installer/views/confirm.py:270 bootc_installer/views/confirm.py:298
 msgid "Target disk"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:270
+#: bootc_installer/views/confirm.py:279
 msgid "Filesystem"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:310
+#: bootc_installer/views/confirm.py:319
 #, fuzzy
 msgid "Encryption"
 msgstr "Eszköz titkosítása"
 
-#: bootc_installer/views/confirm.py:338 bootc_installer/views/confirm.py:346
-#: bootc_installer/views/confirm.py:364 bootc_installer/views/confirm.py:382
+#: bootc_installer/views/confirm.py:347 bootc_installer/views/confirm.py:355
+#: bootc_installer/views/confirm.py:373 bootc_installer/views/confirm.py:391
 msgid "Image"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:390
+#: bootc_installer/views/confirm.py:399
 msgid "Updates follow"
+msgstr ""
+
+#: bootc_installer/views/confirm.py:416
+msgid "Graphics"
 msgstr ""
 
 #. Destructive action warning: the branding contract's confirm_warning,
@@ -1055,29 +841,29 @@ msgstr ""
 #. A second disk for /var that is formatted is named too (#313): in
 #. the same sentence, or in a sentence of its own after the
 #. removable-drive line, which is about one disk.
-#: bootc_installer/views/confirm.py:424
+#: bootc_installer/views/confirm.py:433
 msgid "All data on this disk will be erased. This cannot be undone."
 msgstr ""
 
-#: bootc_installer/views/done.py:111
+#: bootc_installer/views/done.py:108
 msgid ""
 "The administrator password prompt was closed, or the installer helper cannot "
 "run. Nothing was changed on the disk. Try again."
 msgstr ""
 
-#: bootc_installer/views/done.py:114
+#: bootc_installer/views/done.py:111
 msgid ""
 "The installer did not get administrator rights, or its helper program is "
 "missing. Nothing was changed on the disk."
 msgstr ""
 
-#: bootc_installer/views/done.py:117
+#: bootc_installer/views/done.py:114
 msgid ""
 "The installation was stopped before it finished. The disk can hold a partial "
 "system that does not start."
 msgstr ""
 
-#: bootc_installer/views/done.py:143 bootc_installer/views/done.py:332
+#: bootc_installer/views/done.py:140 bootc_installer/views/done.py:340
 msgid "Error: {}"
 msgstr ""
 
@@ -1086,107 +872,107 @@ msgstr ""
 msgid "Installed in %s. "
 msgstr "Telepítés…"
 
-#: bootc_installer/views/done.py:226
+#: bootc_installer/views/done.py:228
 #, fuzzy
 msgid "Restart now"
 msgstr "Újraindítás"
 
-#: bootc_installer/views/done.py:250
+#: bootc_installer/views/done.py:252
 #, fuzzy
 msgid "Installation cancelled"
 msgstr "telepítés-megerősítve"
 
-#: bootc_installer/views/done.py:261
+#: bootc_installer/views/done.py:263
 #, fuzzy
 msgid "Installation failed"
 msgstr "telepítés-megerősítve"
 
-#: bootc_installer/views/done.py:302
+#: bootc_installer/views/done.py:310
 msgid "Check the log for details. Click 'Show Log' below."
 msgstr ""
 
-#: bootc_installer/views/done.py:311
+#: bootc_installer/views/done.py:319
 msgid "The installer exited unexpectedly. Check the log for details."
 msgstr ""
 
-#: bootc_installer/views/done.py:316
+#: bootc_installer/views/done.py:324
 msgid ""
 "A required system tool is missing. Ensure you are running from the official "
 "live media."
 msgstr ""
 
-#: bootc_installer/views/done.py:318
+#: bootc_installer/views/done.py:326
 msgid ""
 "Network error during image download. Check your internet connection and try "
 "again."
 msgstr ""
 
-#: bootc_installer/views/done.py:320
+#: bootc_installer/views/done.py:328
 msgid "Not enough disk space. Select a larger disk or free up space."
 msgstr ""
 
-#: bootc_installer/views/done.py:322
+#: bootc_installer/views/done.py:330
 msgid "Permission denied. The installer needs administrator access to proceed."
 msgstr ""
 
-#: bootc_installer/views/done.py:324
+#: bootc_installer/views/done.py:332
 msgid ""
 "Disk encryption setup failed. Try disabling encryption or check your "
 "passphrase."
 msgstr ""
 
-#: bootc_installer/views/done.py:326
+#: bootc_installer/views/done.py:334
 msgid "Disk partitioning failed. The disk may be in use or damaged."
 msgstr ""
 
-#: bootc_installer/views/done.py:328
+#: bootc_installer/views/done.py:336
 msgid "Filesystem mount failed. The disk may be in use by another process."
 msgstr ""
 
-#: bootc_installer/views/done.py:345
+#: bootc_installer/views/done.py:351
 msgid "Could not reboot"
 msgstr ""
 
-#: bootc_installer/views/done.py:346
+#: bootc_installer/views/done.py:352
 msgid "Please reboot manually by running: systemctl reboot"
 msgstr ""
 
-#: bootc_installer/views/done.py:348
+#: bootc_installer/views/done.py:354
 msgid "OK"
 msgstr ""
 
-#: bootc_installer/views/progress.py:190
+#: bootc_installer/views/progress.py:198
 #, python-format
 msgid "Downloading\\u2026 (%s of %s parts)"
 msgstr ""
 
-#: bootc_installer/views/progress.py:192 bootc_installer/views/progress.py:194
+#: bootc_installer/views/progress.py:200 bootc_installer/views/progress.py:202
 msgid "Downloading system image\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:196
+#: bootc_installer/views/progress.py:204
 msgid "Compressing\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:198
+#: bootc_installer/views/progress.py:206
 msgid "Optimizing drive\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:309
+#: bootc_installer/views/progress.py:330
 msgid "Stopping the installation\\u2026"
 msgstr ""
 
-#: bootc_installer/views/progress.py:589
+#: bootc_installer/views/progress.py:610
 #, python-format
 msgid "~%d sec remaining"
 msgstr ""
 
-#: bootc_installer/views/progress.py:592
+#: bootc_installer/views/progress.py:613
 #, python-format
 msgid "~%d min remaining"
 msgstr ""
 
-#: bootc_installer/views/progress.py:599
+#: bootc_installer/views/progress.py:620
 #, python-format
 msgid "%s elapsed"
 msgstr ""
@@ -1215,79 +1001,194 @@ msgstr ""
 msgid "Log not available."
 msgstr "Nem elérhető"
 
-#: bootc_installer/windows/main_window.py:542
+#: bootc_installer/windows/main_window.py:549
 #, python-brace-format
 msgid "The recipe file {path} cannot be read: {error}"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:547
+#: bootc_installer/windows/main_window.py:554
 #, python-brace-format
 msgid "The recipe file {path} is not valid JSON: {error}"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:550
+#: bootc_installer/windows/main_window.py:557
 #, python-brace-format
 msgid "The recipe file {path} does not hold a JSON object."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:568
+#: bootc_installer/windows/main_window.py:575
 #, fuzzy
 msgid "The recipe names no installation disk."
 msgstr "Módosítsa a Vanilla OS telepítését."
 
-#: bootc_installer/windows/main_window.py:587
+#: bootc_installer/windows/main_window.py:595
 msgid "fisherman did not accept the recipe."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:636
+#: bootc_installer/windows/main_window.py:644
 #, fuzzy
 msgid "Exit Installer?"
 msgstr "Telepítés"
 
-#: bootc_installer/windows/main_window.py:637
+#: bootc_installer/windows/main_window.py:645
 msgid ""
 "An installation is in progress. If you exit now, the installer stops it, and "
 "the disk can be left without a system that starts."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:639
+#: bootc_installer/windows/main_window.py:647
 #, fuzzy
 msgid "Any progress will be lost."
 msgstr "A napló nem kerül tárolásra."
 
-#: bootc_installer/windows/main_window.py:642
+#: bootc_installer/windows/main_window.py:650
 msgid "Exit"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:661
+#: bootc_installer/windows/main_window.py:673
 #, fuzzy
 msgid "Cancel the installation?"
 msgstr "Telepítés megerősítése"
 
-#: bootc_installer/windows/main_window.py:662
+#: bootc_installer/windows/main_window.py:674
 msgid ""
 "The installer stops the work on the disk. The disk can be left without a "
 "system that starts."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:665
+#: bootc_installer/windows/main_window.py:677
 #, fuzzy
 msgid "Continue Installation"
 msgstr "Telepítés megerősítése"
 
-#: bootc_installer/windows/main_window.py:666
+#: bootc_installer/windows/main_window.py:678
 #, fuzzy
 msgid "Cancel Installation"
 msgstr "Telepítés megerősítése"
 
-#: bootc_installer/windows/main_window.py:718
+#: bootc_installer/windows/main_window.py:733
 msgid ""
 "The installation storage configuration is invalid. Check the system recipe."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:727
+#: bootc_installer/windows/main_window.py:742
 msgid "No installation disk is selected. Go back and choose a disk."
 msgstr ""
+
+#~ msgid "Internet"
+#~ msgstr "Internet"
+
+#~ msgid "An active internet connection is required to install the system"
+#~ msgstr "Aktív internetkapcsolatra van szükség a rendszer telepítéséhez"
+
+#~ msgid "Wired"
+#~ msgstr "Vezetékes"
+
+#~ msgid "Wireless Networks"
+#~ msgstr "Vezeték nélküli hálózatok"
+
+#~ msgid "Advanced"
+#~ msgstr "Speciális"
+
+#~ msgid "Connect to Hidden Network..."
+#~ msgstr "Kapcsolódás rejtett hálózathoz..."
+
+#~ msgid "Open Proxy Settings..."
+#~ msgstr "Proxy-beállítások megnyitása..."
+
+#~ msgid "NVIDIA® Drivers"
+#~ msgstr "NVIDIA® illesztőprogramok"
+
+#, fuzzy
+#~ msgid ""
+#~ "Choose whether to install proprietary NVIDIA drivers for better "
+#~ "compatibility and performance"
+#~ msgstr ""
+#~ "Válassza ki, hogy a jobb kompatibilitás és teljesítmény érdekében "
+#~ "telepíteni kívánja-e a védjegyzett NVIDIA illesztőprogramokat."
+
+#~ msgid "About Proprietary Drivers"
+#~ msgstr "A védjegyezett illesztőprogramokról"
+
+#, fuzzy
+#~ msgid ""
+#~ "A proprietary driver has private code that neither bootc installer nor "
+#~ "Debian developers can review.\n"
+#~ "\n"
+#~ "Security and other updates are dependent on the driver vendor."
+#~ msgstr ""
+#~ "A védjegyezett illesztőprogramnak privát kódja van, amelyet sem a Vanilla "
+#~ "OS, sem az Ubuntu fejlesztői nem tudnak áttekinteni.\n"
+#~ "\n"
+#~ "A biztonsági és egyéb frissítések az illesztőprogram gyártójától függnek."
+
+#~ msgid "Default"
+#~ msgstr "Alapértelmezett"
+
+#~ msgid "Dark"
+#~ msgstr "Sötét"
+
+#~ msgid "Color Scheme"
+#~ msgstr "Színséma"
+
+#~ msgid "Choose a color scheme for your system"
+#~ msgstr "Válasszon színsémát a rendszeréhez"
+
+#, fuzzy
+#~ msgid ""
+#~ "Choose whether to install VM Tools for better compatibility and "
+#~ "performance"
+#~ msgstr ""
+#~ "Válassza ki, hogy a jobb kompatibilitás és teljesítmény érdekében "
+#~ "telepíteni kívánja-e a védjegyzett NVIDIA illesztőprogramokat."
+
+#~ msgid "Connected"
+#~ msgstr "Csatlakoztatva"
+
+#~ msgid "Insecure network (WEP)"
+#~ msgstr "Nem biztonságos hálózat (WEP)"
+
+#~ msgid "Secure network (WPA)"
+#~ msgstr "Biztonságos hálózat (WPA)"
+
+#~ msgid "Secure network (WPA2)"
+#~ msgstr "Biztonságos hálózat (WPA2)"
+
+#~ msgid "Secure network (WPA3)"
+#~ msgstr "Biztonságos hálózat (WPA3)"
+
+#~ msgid "Authentication required"
+#~ msgstr "Hitelesítés szükséges"
+
+#~ msgid "Connecting"
+#~ msgstr "Csatlakozás"
+
+#~ msgid "Disconnected"
+#~ msgstr "Lekapcsolódott"
+
+#~ msgid "Disconnecting"
+#~ msgstr "Lekapcsolódás"
+
+#~ msgid "Connection Failed"
+#~ msgstr "Nem sikerült a kapcsolódás"
+
+#~ msgid "Status Unknown"
+#~ msgstr "Ismeretlen állapot"
+
+#~ msgid "Unmanaged"
+#~ msgstr "Nem kezelt"
+
+#~ msgid "Unavailable"
+#~ msgstr "Nem elérhető"
+
+#~ msgid "Unknown"
+#~ msgstr "Ismeretlen"
+
+#~ msgid "Cable Unplugged"
+#~ msgstr "Kábel kihúzva"
+
+#~ msgid "Please select at least one option."
+#~ msgstr "Kérjük, válasszon legalább egy lehetőséget."
 
 #~ msgid "Recovery"
 #~ msgstr "Helyreállítás"

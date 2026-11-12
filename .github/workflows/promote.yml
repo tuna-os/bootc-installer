@@ -57,6 +57,9 @@ on:
       - Prose
       - Browser walkthrough
       - KDE wasm build
+      - COSMIC wasm build
+      - SBOM
+      - Recipe compliance
     types: [completed]
     branches: [dev]
   # Catch-up only. The gate sleeps out the soak itself (see the header), so
@@ -117,6 +120,7 @@ env:
     E2E (install cosmic)
     E2E (install niri)
     E2E (install xfce)
+    Recipe compliance
   # Minimum age of the candidate commit before it may ship.
   SOAK_MINUTES: "30"
 
@@ -132,7 +136,7 @@ jobs:
       sha: ${{ steps.candidate.outputs.sha }}
       reason: ${{ steps.decide.outputs.reason }}
     steps:
-      - uses: actions/checkout@v4.4.0
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ env.DEV_BRANCH }}
           fetch-depth: 0
@@ -292,7 +296,7 @@ jobs:
       contents: write
       actions: write
     steps:
-      - uses: actions/checkout@v4.4.0 # zizmor: ignore[artipacked] the next step pushes prod with these credentials
+      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] the next step pushes prod with these credentials
         with:
           ref: ${{ needs.gate.outputs.sha }}
           fetch-depth: 0

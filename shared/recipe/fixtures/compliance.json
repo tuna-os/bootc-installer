@@ -1,0 +1,91 @@
+{
+  "contract_version": 1,
+  "about": "One set of choices per case, and the one recipe that every frontend must write for it. shared/recipe/README.md, 'The compliance fixture'.",
+  "catalog": "shared/catalog/fixtures/catalog.json",
+  "branding": {"id": "example"},
+  "normalise": {
+    "absent_equals": [
+      {"key": ["btrfsSubvolumes"], "value": false},
+      {"key": ["selinuxDisabled"], "value": false},
+      {"key": ["composeFsBackend"], "value": false},
+      {"key": ["bootloader"], "value": ""},
+      {"key": ["imageType"], "value": "bootc"},
+      {"key": ["encryption", "passphrase"], "value": ""},
+      {"key": ["user", "username"], "value": ""}
+    ],
+    "absent_without": [
+      {"key": ["user"], "needs": "username"}
+    ]
+  },
+  "cases": [
+    {
+      "name": "account-luks-region",
+      "choices": {
+        "image": "registry.example/os/atlas:stable",
+        "machine": {"has_nvidia": false, "is_live": false, "offline_images": []},
+        "disk": "/dev/vda",
+        "filesystem": "xfs",
+        "encryption": {"type": "luks-passphrase", "passphrase": "correct horse battery staple"},
+        "hostname": "compliance-box",
+        "account": {
+          "username": "jo",
+          "fullname": "Jo Example",
+          "password": "$6$complianceSalt$.k5nqXXa/wAZhE9txmBdwDVRyCX2pGv.op1CFKv/87ObcYu6qyJQiYgvaet5Ny5dPdDDEqT14GJ3hwDfMmOR/1"
+        },
+        "locale": "de_DE.UTF-8",
+        "keyboard": {"layout": "de"},
+        "timezone": "Europe/Berlin"
+      },
+      "recipe": {
+        "disk": "/dev/vda",
+        "filesystem": "xfs",
+        "encryption": {"type": "luks-passphrase", "passphrase": "correct horse battery staple"},
+        "image": "registry.example/os/atlas:stable",
+        "targetImgref": "registry.example/os/atlas:stable",
+        "bootloader": "grub2",
+        "flatpaks": ["org.example.Browser", "org.example.Editor"],
+        "extras": {"printServices": true, "oemSetup": false, "audioNames": true, "bootSplash": true},
+        "locale": "de_DE.UTF-8",
+        "keyboard": {"layout": "de"},
+        "timezone": "Europe/Berlin",
+        "distroID": "example",
+        "hostname": "compliance-box",
+        "user": {
+          "username": "jo",
+          "fullname": "Jo Example",
+          "password": "$6$complianceSalt$.k5nqXXa/wAZhE9txmBdwDVRyCX2pGv.op1CFKv/87ObcYu6qyJQiYgvaet5Ny5dPdDDEqT14GJ3hwDfMmOR/1",
+          "groups": ["wheel", "sudo", "docker", "incus-admin", "libvirt", "dialout"]
+        }
+      }
+    },
+    {
+      "name": "no-account-filesystem-choice",
+      "choices": {
+        "image": "registry.example/os/boreal:latest",
+        "machine": {"has_nvidia": false, "is_live": false, "offline_images": []},
+        "disk": "/dev/vda",
+        "filesystem": "ext4",
+        "encryption": {"type": "none", "passphrase": ""},
+        "hostname": "boreal-box",
+        "account": null,
+        "locale": "",
+        "keyboard": null,
+        "timezone": ""
+      },
+      "recipe": {
+        "disk": "/dev/vda",
+        "filesystem": "ext4",
+        "encryption": {"type": "none"},
+        "image": "registry.example/os/boreal:latest",
+        "targetImgref": "registry.example/os/boreal:latest",
+        "bootloader": "systemd",
+        "composeFsBackend": true,
+        "flatpaks": ["org.example.Files"],
+        "flatpakVarPath": "state/os/default/var",
+        "extras": {"printServices": false, "oemSetup": false, "audioNames": false, "bootSplash": false},
+        "distroID": "example",
+        "hostname": "boreal-box"
+      }
+    }
+  ]
+}

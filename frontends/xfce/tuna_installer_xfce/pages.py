@@ -1,4 +1,4 @@
-"""TunaOS installer for XFCE — classic GTK3 wizard. Design: ../DESIGN.md.
+"""The bootc installer for XFCE — classic GTK3 wizard. Design: ../DESIGN.md.
 Flow and recipe contract: ../../INSTALLER-FRONTENDS.md."""
 
 import os
@@ -10,6 +10,7 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, GLib, Gtk, Pango
 
+from bootc_shared import completion  # noqa: E402
 from bootc_shared import progress as progress_parser  # noqa: E402
 from bootc_shared import redact  # noqa: E402
 from bootc_shared import source_check  # noqa: E402
@@ -684,6 +685,29 @@ class ConfirmPage(Page):
         self.summary = Gtk.Label(xalign=0)
         self.summary.set_line_wrap(True)
         self.pack_start(self.summary, False, False, 0)
+        # The install source (#267): download the image (the default), or
+        # copy the system that this computer runs from its bootc storage.
+        # Shown only when fisherman's probe has an item that qualifies;
+        # never on live media.
+        self.reuse_source = None
+        self.reuse_selected = False
+        self.reuse_problems = []
+        self.reuse_check = None
+        self.reuse_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.reuse_box.set_no_show_all(True)
+        self.reuse_title = Gtk.Label(xalign=0)
+        self.reuse_box.pack_start(self.reuse_title, False, False, 0)
+        self.reuse_download = Gtk.RadioButton(label=core.BRANDING.text("source_reuse_download"))
+        self.reuse_local = Gtk.RadioButton.new_with_label_from_widget(
+            self.reuse_download, core.BRANDING.text("source_reuse_local"))
+        self.reuse_detail = Gtk.Label(xalign=0)
+        self.reuse_detail.set_line_wrap(True)
+        for widget in (self.reuse_download, self.reuse_local, self.reuse_detail):
+            self.reuse_box.pack_start(widget, False, False, 0)
+        self.reuse_problem = problem_label()
+        self.reuse_box.pack_start(self.reuse_problem, False, False, 0)
+        self.reuse_local.connect("toggled", self._on_reuse_toggled)
+        self.pack_start(self.reuse_box, False, False, 0)
         # The source check (#266) and this computer's bootc storage (#267):
         # what fisherman's probe says about the selected image. Only a
         # blocked source holds Install.
@@ -743,16 +767,26 @@ class ConfirmPage(Page):
             widget.set_visible(bool(line))
 
     def on_enter(self):
+        self._update_reuse(self.win.wizard_recipe() if hasattr(self.win, "wizard_recipe")
+                           else self.win.build_recipe())
+        self._fill()
+
+    def _fill(self):
         r = self.win.build_recipe()
         disk = r.get("disk") or self.win.pages["destination"].selected_disk()["path"]
+        if r.get("sourceReuse"):
+            image = core.BRANDING.text("source_reuse_install_from").replace(
+                "{value}", self.reuse_source["ref"])
+        else:
+            image = (r.get("image") or self.win.pages["source"].live_image
+                     or _("this live system"))
         # The same rows, in the same order, as KDE's confirm step.
         rows = [
             (_("Target disk"), disk),
             (_("Filesystem"), filesystem_label(r["filesystem"])),
             (_("Encryption"), encryption_text(r["encryption"]["type"] or "none", "_label")),
             (_("Hostname"), r["hostname"]),
-            (_("Image"), r.get("image") or self.win.pages["source"].live_image
-             or _("this live system")),
+            (_("Image"), image),
         ]
         if r.get("targetImgref") and r["targetImgref"] != r.get("image"):
             # The image that updates follow, when it is not the one installed.
@@ -778,6 +812,70 @@ class ConfirmPage(Page):
         self.warn_text.set_text(core.BRANDING.text(warn_key, disk=disk))
         self._check_source(r)
         self._check_network()
+
+    def apply_source(self, recipe):
+        """`recipe` with the install source that this page selected."""
+        if not (self.reuse_selected and self.reuse_source):
+            return recipe
+        return source_check.apply_reuse(recipe, self.reuse_source)
+
+    def _update_reuse(self, recipe):
+        """Offer this computer's system as a second install source when the
+        probe has an item that qualifies. The download stays selected until
+        the user picks the item; a different item, or none, drops the
+        choice."""
+        update_ref = recipe.get("targetImgref") or recipe.get("image") or ""
+        result, _error = core.probe()
+        source = source_check.reuse_source(result, update_ref)
+        if not source or (self.reuse_source or {}).get("digest") != source["digest"]:
+            self.reuse_selected = False
+            self.reuse_problems = []
+        self.reuse_source = source
+        rows = source_check.reuse_rows(source, update_ref, core.BRANDING.text)
+        self.reuse_box.set_visible(bool(rows))
+        if not rows:
+            return
+        self.reuse_title.set_text(core.BRANDING.text("source_reuse_title"))
+        (_k1, download, download_detail), (_k2, local, local_detail) = rows
+        self.reuse_download.set_label(download)
+        self.reuse_local.set_label(local)
+        self.reuse_detail.set_text(local_detail if self.reuse_selected else download_detail)
+        if self.reuse_local.get_active() != self.reuse_selected:
+            (self.reuse_local if self.reuse_selected else self.reuse_download).set_active(True)
+        self.reuse_box.show_all()
+        self._show_reuse_problems()
+        if self.reuse_selected:
+            self._check_reuse(recipe)
+
+    def _on_reuse_toggled(self, button):
+        if button.get_active() == self.reuse_selected or not self.reuse_source:
+            return
+        self.reuse_selected = button.get_active()
+        self.reuse_problems = []
+        self.on_enter()
+        self.win.refresh_nav()
+
+    def _check_reuse(self, recipe):
+        """`fisherman validate --json --partial -` for the reuse fields;
+        a problem shows in the words of `validate_<code>` and holds Next."""
+        if self.reuse_check is None:
+            self.reuse_check = live_check(self._on_reuse_checked)
+        self.reuse_check.submit(source_check.reuse_fragment(
+            source_check.apply_reuse(recipe, self.reuse_source)))
+
+    def _on_reuse_checked(self, problems, error):
+        if not self.reuse_selected:
+            return
+        self.reuse_problems = [] if error is not None else list(problems or [])
+        self._show_reuse_problems()
+        refresh = getattr(self.win, "refresh_nav", None)
+        if refresh is not None:
+            refresh()
+
+    def _show_reuse_problems(self):
+        lines = [fisherman_validate.render(p, core.BRANDING.text) for p in self.reuse_problems]
+        self.reuse_problem.set_text("\n".join(lines))
+        self.reuse_problem.set_visible(bool(lines))
 
     def _check_source(self, recipe):
         """Probe the selected source off the UI thread, and drop a reply
@@ -811,7 +909,8 @@ class ConfirmPage(Page):
             return False
         self.source_blocked = source_check.blocks_install(view)
         self._show_source(source_check.rows(
-            view, source_check.bootc_store(result), core.BRANDING.text))
+            view, source_check.bootc_store(result), core.BRANDING.text,
+            reuse=bool(self.reuse_selected and self.reuse_source)))
         refresh = getattr(self.win, "refresh_nav", None)
         if refresh is not None:
             refresh()
@@ -885,7 +984,8 @@ class ConfirmPage(Page):
         self.net_settings.set_visible(not ok)
 
     def can_continue(self):
-        return self.net_ok and not self.source_blocked
+        return (self.net_ok and not self.source_blocked
+                and not (self.reuse_selected and self.reuse_problems))
 
 
 class ProgressPage(Page):
@@ -903,6 +1003,13 @@ class ProgressPage(Page):
         self.note.get_style_context().add_class("dim-label")
         self.note.set_no_show_all(not self.note.get_text())
         self.pack_start(self.note, False, False, 0)
+        # The copy of this computer's system before the first step (#267):
+        # fisherman's source_reuse events. Hidden on every other install.
+        self.reuselabel = Gtk.Label(xalign=0, selectable=True)
+        self.reuselabel.set_line_wrap(True)
+        self.reuselabel.get_style_context().add_class("dim-label")
+        self.reuselabel.set_no_show_all(True)
+        self.pack_start(self.reuselabel, False, False, 0)
         # Multi-line parser context (current step, weight, seen substeps).
         self._progress = progress_parser.new_progress_state()
         # The one step label that names the product ("Installing {product}…")
@@ -979,6 +1086,10 @@ class ProgressPage(Page):
             update = progress_parser.apply_progress_event(line, self._progress)
             if update is None:
                 continue
+            if "source_reuse" in update:
+                # The copy moves no bar: it holds until fisherman's first step.
+                self.show_source_reuse()
+                continue
             if update["label"] is not None:
                 # The step label sits directly under the page title, and for
                 # the install step the branding's "progress_title" and the
@@ -993,6 +1104,16 @@ class ProgressPage(Page):
                 self.bar.set_fraction(frac)
                 self.win.trawl.set_fill(frac)
 
+    def show_source_reuse(self):
+        lines = progress_parser.source_reuse_text(self._progress.get("source_reuse"),
+                                                  core.BRANDING.text)
+        self.reuselabel.set_text("\n".join(lines))
+        self.reuselabel.set_visible(bool(lines))
+
+    def progress_state(self):
+        """The parser's state, for the cancel question (copy_cancel)."""
+        return self._progress
+
     def recovery_key(self):
         """The key fisherman emitted, or "" for a non-TPM install.
 
@@ -1000,6 +1121,16 @@ class ProgressPage(Page):
         nothing read it, which is how it stayed a log line only.
         """
         return self._progress.get("recovery_key", "")
+
+    def receipt(self):
+        """What the install did with the installation receipt: the parser's
+        view of fisherman's `receipt` event, or None when none came (#269)."""
+        return self._progress.get("receipt")
+
+    def error(self):
+        """fisherman's last `error` event as the parser keeps it, or None
+        when none came (shared/progress/error-cases.json)."""
+        return self._progress.get("error")
 
     def can_continue(self):
         return False  # navigation unlocked by install completion
@@ -1127,12 +1258,18 @@ class DonePage(Page):
         self.recovery_box.show_all()
         self.recovery_box.set_no_show_all(True)
 
-    def set_result(self, ok, log_tail, recovery_key="", cancelled=False):
+    def set_result(self, ok, log_tail, recovery_key="", cancelled=False, receipt=None,
+                   error=None):
         """Show how the install ended: installed, cancelled or failed.
 
         `cancelled` is a cancel the person confirmed, or fisherman's exit
         code 130. It is not a failure and has its own heading, the copy key
-        done_cancelled_title (#299)."""
+        done_cancelled_title (#299). `receipt` is the progress page's
+        receipt(): the done page says what it set up for the first-boot
+        check, and never that the new system started. `error` is the
+        progress page's error(): a failure says whether the disk was
+        changed, and when the cleanup failed or timed out
+        (tuna-os/fisherman#449)."""
         # Only a finished install enrolled a TPM, so only it has a key.
         self.show_recovery_key(recovery_key if ok else "")
         self.logo.set_visible(ok and self.logo.get_pixbuf() is not None)
@@ -1144,7 +1281,7 @@ class DonePage(Page):
             # system can check its own start (shared/completion/README.md).
             self.body.set_text("\n\n".join(line for line in (
                 core.BRANDING.text("done_subtitle"),
-                core.BRANDING.text("done_verification")) if line))
+                *completion.receipt_text(receipt, core.BRANDING.text)) if line))
             self.store_btn.set_visible(bool(core.BRANDING.store_url))
             self.reboot_btn.show()
             self.log_btn.set_visible(False)
@@ -1162,9 +1299,10 @@ class DonePage(Page):
         else:
             self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
                 core.BRANDING.text("done_failed_title")) + "</b></big>")
-            self.body.set_text(_(
-                "The last lines of the install log:\n\n{log}"
-                "\n\nFull log: {path}").format(log=log_tail, path=core.install_log_path()))
+            self.body.set_text("\n\n".join(
+                progress_parser.failure_text(error, core.BRANDING.text) + [_(
+                    "The last lines of the install log:\n\n{log}"
+                    "\n\nFull log: {path}").format(log=log_tail, path=core.install_log_path())]))
 
 
 PAGE_ORDER = ["welcome", "source", "destination", "setup", "identity",

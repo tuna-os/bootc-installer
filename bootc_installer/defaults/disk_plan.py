@@ -41,6 +41,20 @@ def filesystem_options(image_finals) -> tuple[list, int]:
     return options, options.index(default) if default in options else 0
 
 
+def var_disk_offered(image_finals, filesystem) -> bool:
+    """Whether the page can offer a separate /var disk.
+
+    fisherman refuses a `varDisk` on a composefs install
+    (`var_disk_unsupported_composefs`, tuna-os/fisherman#252): the image's
+    `composeFsBackend`, or `filesystem: zfs`. The page says so at once,
+    not when the install starts.
+    """
+    finals = image_finals if isinstance(image_finals, dict) else {}
+    if finals.get("composefs_backend") is True:
+        return False
+    return filesystem != "zfs"
+
+
 def build_disk_finals(
     partition_recipe: dict | None,
     filesystem: str,

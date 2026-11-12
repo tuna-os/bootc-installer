@@ -60,7 +60,9 @@
         "progress_bar",
         "source_check",
         "bootc_store_view",
+        "source_reuse_progress",
         "done_not_verified",
+        "done_receipt",
         "restart_from_done",
         "log_after_failure",
         "recovery_key_not_in_log",
@@ -264,13 +266,25 @@
           "type": "string",
           "minLength": 1,
           "pattern": "^[^|\\n]+$",
-          "description": "Images in this computer's bootc storage (`bootc_store`, #267)"
+          "description": "Images in this computer's bootc storage (`bootc_store`), and this computer's system as the install source (`sourceReuse`, #267)"
+        },
+        "source_reuse_progress": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Progress of the copy of this computer's system (`source_reuse` events: space, copy, check, failure, removal; #267)"
         },
         "done_not_verified": {
           "type": "string",
           "minLength": 1,
           "pattern": "^[^|\\n]+$",
           "description": "Done page: installed, restart required, start not verified (#269)"
+        },
+        "done_receipt": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Done page: the `receipt` event (install ID, first-boot check) (#269)"
         },
         "restart_from_done": {
           "type": "string",
@@ -302,6 +316,24 @@
           "pattern": "^[^|\\n]+$",
           "description": "End-to-end gate (real install and boot)"
         }
+      }
+    },
+    "screen_exemptions": {
+      "type": "object",
+      "description": "Screen id of the contract in shared/walkthrough/parity_report.py -> why this frontend does not show that screen. A required screen that a strict capture does not reach is a failure unless it is listed here. aggregate.py and parity_report.py read it.",
+      "propertyNames": {
+        "enum": [
+          "welcome",
+          "disk",
+          "encryption",
+          "summary",
+          "install",
+          "done"
+        ]
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 20
       }
     }
   }

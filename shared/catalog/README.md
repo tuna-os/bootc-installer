@@ -198,8 +198,15 @@ account. `false` is for an image that makes the account at first boot.
 - The flag comes from the leaf that the user selected.
 - Live media can have no image page. The probe then gives the image as
   `live.live_image`. Find the leaf with that reference in the catalog from the
-  search path, and use its flag.
+  search path, and use its flag. Live media that holds only the NVIDIA image
+  boots the NVIDIA image. Thus a leaf whose `nvidia_imgref` is that reference
+  is the leaf of that image. A leaf whose `imgref` is the reference comes
+  first.
 - If no leaf has that reference, the answer is `true`.
+- The same leaf gives the layout of an install from live media:
+  `bootloader`, `composefs` and `filesystem`.
+
+`expected.json` gives the cases as `live_image`.
 
 When the answer is `true`, the frontend shows the account page and the
 recipe has a `user` with a `username`. When it is `false`, the frontend
@@ -239,6 +246,7 @@ bundled catalog have that name. A row must also show the product.
 search_paths[]       in_flatpak, xdg_config_home -> paths ("<bundled>" is your own file)
 default_selection[]  branding_default_image, catalog_default_image -> selected (null: nothing)
 unknown_image        an image that is not in the catalog -> needs_user_creation
+live_image[]         live_image of the probe -> leaf (null: no leaf), needs_user_creation
 leaves[]             imgref, leaf (the resolved fields), cases[]
   cases[]            inputs (has_nvidia, is_live, offline_images) -> recipe, absent
 ```
@@ -255,12 +263,20 @@ removed.
 Change the fixture catalog, then run
 `python3 shared/catalog/resolve.py --write`.
 
-## What each frontend must change
+## Where each frontend holds the contract
 
-| Frontend | Change |
+Each frontend reads the two fixture files in a test in its own language.
+The test fails when the frontend gives a different answer.
+
+| Frontend | Test |
 |---|---|
-| GNOME | Put the system catalog before the user's. Read the legacy path. Default `needs_user_creation` to `true`. Stop the download of Flatpak lists and the use of `fallback_flatpaks`. Apply the NVIDIA table (#314). |
-| KDE | Apply `filesystem` and `filesystems` (#287). Apply the NVIDIA table and `flatpak_var_path`. |
-| COSMIC | Read all fields (#286). Default `needs_user_creation` to `true`. Remove the `fallback_flatpaks` list. Select nothing at the start. |
-| Niri | Add the `/run/host` prefix (#298). Read `nvidia_imgref`, `flatpak_var_path` and alias lists. Write `targetImgref`. Select nothing at the start. |
-| XFCE | Add the `/run/host` prefix and the current path (#298). Read `nvidia_imgref`, `flatpak_var_path`, `default_hostname` and alias lists. Write `targetImgref`. Select nothing at the start. |
+| GNOME | `tests/unit/test_gnome_catalog_contract.py`, and `tests/unit/test_shared_python_catalog.py` for the shared reader |
+| KDE | the `catalogContract` cases in `frontends/kde/tests/test_backend.cpp` |
+| COSMIC | the tests in `frontends/cosmic/src/image_catalog.rs` |
+| Niri | the `TestSharedCatalog` cases in `frontends/niri/installer/catalog_test.go` |
+| XFCE | `frontends/xfce/tests/test_catalog_contract.py` |
+
+fisherman has a resolver of its own (`internal/images`), for
+`fisherman images`. Its default for `needs_user_creation` is still `false`,
+and the bundled catalog does not set the flag on each leaf. That work is
+in fisherman (#288). The frontends do not read that resolver.

@@ -11,8 +11,8 @@ needs a new `cargo-sources.json` in the same commit.
   crate that is already vendored and `cargo-sources.json` did not change.
 - `i18n` is a small shim, not Fluent. `fl!` needs `i18n-embed` and
   `rust-embed` as direct dependencies and an asset directory at build
-  time. No translation ships yet, so the shim is the smaller change. See
-  the comment at the top of `src/i18n.rs`.
+  time. The shim reads the JSON catalogs in `i18n/` and needs no new
+  crate. See the comment at the top of `src/i18n.rs`.
 
 There is no phone companion. The earlier port had a hand-written HTTP
 server because no TLS stack is vendored, and it sent the account password

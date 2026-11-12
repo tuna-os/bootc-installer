@@ -49,6 +49,8 @@ claimed a render that nobody had wired up.
 | `confirm_quotes` | random line per language | no | no | no | no |
 | `progress_title` | image-writing step label (centred title) | label | page title | heading | page title |
 | `progress_note` | dim caption under the bar | label | warning caption | caption | dim label under the bar |
+| `progress_reuse_*` | caption under the step line, while fisherman copies this computer's system and after it | label under the step line | caption under the step line | small line under the step line | dim label under the bar |
+| `progress_reuse_cancel` | body of the cancel question during the copy | subtitle of the cancel dialog during the copy | body of the cancel question during the copy | body of the cancel card during the copy | body of the cancel dialog during the copy |
 | `step_prepare_disk` | step label on the progress page | "Step N of M" caption | "Step N of M" caption | "Step N of M" caption | step label under the title |
 | `step_partition` | step label on the progress page | "Step N of M" caption | "Step N of M" caption | "Step N of M" caption | step label under the title |
 | `step_format_efi` | step label on the progress page | "Step N of M" caption | "Step N of M" caption | "Step N of M" caption | step label under the title |
@@ -69,15 +71,19 @@ claimed a render that nobody had wired up.
 | `done_subtitle` | header subtitle (+ elapsed time) | label | body | label | label |
 | `done_restart` | Reboot Now button | Restart button | suggested button | button | suggested button beside Close |
 | `done_failed_title` | page header | heading | title2 | heading | headline |
-| `done_cancelled_title` | page header, after a confirmed Cancel or fisherman exit code 130 | heading | title2, after a confirmed Cancel or fisherman exit code 130 | heading, after a confirmed Cancel or fisherman exit code 130 | headline, after a confirmed Cancel or fisherman exit code 130 |
+| `done_cancelled_title` | page header, after fisherman exit code 130, or a signal after a confirmed Cancel | heading | title2, after fisherman exit code 130, or a signal after a confirmed Cancel | heading, after fisherman exit code 130, or a signal after a confirmed Cancel | headline, after fisherman exit code 130, or a signal after a confirmed Cancel |
+| `done_failed_disk_*` | header subtitle, under the reason: whether fisherman's `error` event says that the disk changed | label on the done page, after a failure | body on the done page, after a failure | line on the done page, after a failure | done page body, above the log, after a failure |
+| `done_failed_cleanup_*` | header subtitle, under the reason: a cleanup that failed or timed out | label on the done page, after a failure | body on the done page, after a failure | line on the done page, after a failure | done page body, above the log, after a failure |
 | `done_verification` | line under the done header, after an install | line on the done page, after an install | line on the done page, after an install | line on the done page, after an install | done page body, after an install |
+| `done_receipt_*` | under `done_verification`: what the `receipt` event says, with the install ID | under `done_verification` | under `done_verification` | under `done_verification` | under `done_verification` |
 | `source_install_from` | confirm page, Selected image group | confirm step, Selected image card | confirm page, Selected image section | confirm page, Selected image card | confirm page, under the summary |
 | `source_update_ref` | confirm page, Selected image group | confirm step, Selected image card | confirm page, Selected image section | confirm page, Selected image card | confirm page, under the summary |
 | `source_live_host` | confirm page, Selected image group | confirm step, Selected image card | confirm page, Selected image section | confirm page, Selected image card | confirm page, under the summary |
 | `source_check_*` | confirm page, Selected image group: state, reason, image defaults | confirm step, Selected image card | confirm page, Selected image section | confirm page, Selected image card | confirm page, under the summary |
 | `bootc_store_listed` | confirm page, Selected image group, when this computer's bootc storage has images | confirm step, Selected image card | confirm page, Selected image section | confirm page, Selected image card | confirm page, under the summary |
 | `bootc_store_kind_*` | each image of this computer's bootc storage | each image of this computer's bootc storage | each image of this computer's bootc storage | each image of this computer's bootc storage | each image of this computer's bootc storage |
-| `validate_*` | error line under the hostname (disk and confirm pages) and the username | inline message on the encryption step (passphrase) and the confirm step (hostname) | hostname row description; encryption row description | line under the hostname (confirm) and under the passphrase | line under the hostname, the username and the encryption choice |
+| `source_reuse_*` | confirm page, Install source group (download, or this computer's system); the Image row and the Selected image group name the source | confirm step, Install source card; Image row | confirm page, Install source section; Image row | confirm page, Install source card; Image row | confirm page, install source choice; Image row |
+| `validate_*` | error line under the hostname (disk and confirm pages) and the username; under the install source choice | inline message on the encryption step (passphrase) and the confirm step (hostname); under the install source choice | hostname row description; encryption row description; under the install source choice | line under the hostname (confirm) and under the passphrase; under the install source choice | line under the hostname, the username and the encryption choice; under the install source choice |
 | `store_label` | done page link to `store_url` (+ QR from `assets.store_qr`, US locale) | done page link | done page link | done page link | done page link |
 | `logo` | product icon (GNOME file adapter tracked separately) | theme/file on welcome and successful done, after the asset; else `system-software-install` / `checkmark` | theme/file on welcome and successful done, after the asset; else `computer-symbolic` in an accent disc / the check | theme/file on welcome and successful done | theme/file/resource on welcome and successful done |
 | `assets.welcome_image`, `assets.complete_image` | tour pages | welcome / successful done artwork, before `logo` | welcome / successful done artwork, before `logo` | welcome logo disc (`logo`) | no |
@@ -125,8 +131,8 @@ other four. Video and credits then leave the contract; nothing else gets
 them.
 
 All five render the identity keys (`name`, `id`, `default_hostname`, URLs);
-see `shared/branding/README.md`. Off live media, Niri and XFCE do
-not use `default_image` yet (#289).
+see `shared/branding/README.md`. Off live media, all five select the leaf
+of `default_image` at the start (`shared/catalog/README.md`).
 
 ## Features
 
@@ -147,7 +153,7 @@ not use `default_image` yet (#289).
 | Disk row: model (path when unknown), path, size label, bus | yes | yes | yes | yes | yes |
 | Disk probe failure shown on the disk page | yes | yes | yes | yes | yes |
 | RAM / CPU / UEFI check (fisherman's `system.unmet`) | blocks (gate window) | holds Next; override for RAM and CPU | blocks (requirements page) | blocks (gate dialog) | blocks (gate window) |
-| Connectivity check | blocks (connection-check step); probes the image's registry first; the Wi-Fi page is not in the bundled recipe | blocks on welcome and confirm; image registry first; Network settings action | blocks (network page; registry of the image first; Network settings button) | blocks on source and confirm when the image needs a download; probes the image's registry first; Network settings button | blocks on confirm; probes the image's registry first; Network settings button |
+| Connectivity check | blocks (connection-check step, skipped when this computer can copy its own system); probes the image's registry first; Network settings button (the host's own tool); no Wi-Fi page: the live session's own network menu joins a network | blocks on welcome and confirm, not for a copy of this computer's system; image registry first; Network settings action | blocks (network page, skipped when this computer can copy its own system; registry of the image first; Network settings button) | blocks on source and confirm when the image needs a download, not for a copy of this computer's system; probes the image's registry first; Network settings button | blocks on confirm, not for a copy of this computer's system; probes the image's registry first; Network settings button |
 | Filesystem choice | yes (list from the image) | yes (the choices of the image) | the image's list, else xfs, ext4 or btrfs | yes (Advanced, list from the image) | yes (Advanced, list from the image) |
 | Encryption: none / passphrase | yes | yes | yes | yes | yes |
 | Passphrase typed twice, Next held on a mismatch | yes | yes | yes | yes | yes |
@@ -163,13 +169,15 @@ not use `default_image` yet (#289).
 | Keyboard / language / timezone in the installed system | yes, for a selected value: `locale`, `keyboard.layout` and `keyboard.variant`, `timezone` | yes: `locale`, `keyboard.layout`, `timezone` in the recipe | yes, after a pick: `locale`, `keyboard.layout`, `timezone` | yes, after a change: `locale`, `keyboard.layout`, `timezone` | yes, after a pick: `locale`, `keyboard.layout`, `timezone` |
 | Cancel a running install (#299) | Cancel button, window close and Ctrl+Q: each asks first; a cancelled page follows | Cancel button, asks first; cancelled page | Cancel button, asks first; cancelled page | Cancel button and window close: each asks first; a cancelled page follows | Cancel button and window close: each asks first; a cancelled page follows |
 | `--autoinstall` | yes (the recipe is validated first) | no | no | no | yes (the recipe is validated first) |
-| Translatable UI | gettext, one domain (`bootc-installer`); branding copy stays in one language (#311) | strings marked (qsTr, tr); no catalog ships (#300) | one tr() shim and a lint; no catalog ships (#300) | strings marked with qsTr, no translations shipped (#300) | gettext, one domain (`tuna-installer-xfce`), lint test; no translation ships yet; branding copy stays in one language (#311) |
+| Translatable UI | gettext, one domain (`bootc-installer`); branding copy stays in one language (#311) | strings marked (qsTr, tr); template `i18n/tuna-installer-kde.ts`; CMake compiles `i18n/tuna-installer-kde_fr.ts` to a `.qm` that loads for the locale; catalogs kept current by a check (#300) | one tr() shim and a lint; template `i18n/template.json`; ships `i18n/fr.json`, loaded for the locale; catalogs kept current by a check (#300) | strings marked with qsTr; template `i18n/tuna-installer-niri.ts`; ships `i18n/tuna-installer-niri_fr.ts` as a `.qm`, loaded for the locale by `translations/` (a QML module); catalogs kept current by a check (#300) | gettext, one domain (`tuna-installer-xfce`), lint test; template `po/tuna-installer-xfce.pot`; the Flatpak compiles `po/fr.po` to a `.mo`, loaded for the locale; catalogs kept current by a check; branding copy stays in one language (#311) |
 | Progress bar from fisherman's protocol | yes | yes | yes | yes | yes |
 | Check of the selected image (`capabilities` of `fisherman probe --json`, #266) | confirm page, Selected image group; a blocked source holds Install | confirm step, Selected image card; a blocked source holds Install | confirm page, Selected image section; a blocked source holds Install | confirm page, Selected image card; a blocked source holds Install | confirm page, under the summary; a blocked source holds Next |
-| Images in this computer's bootc storage (`bootc_store`, #267) | yes, on the confirm page; never offered as a source | yes, on the confirm step; never offered as a source | yes, on the confirm page; never offered as a source | yes, on the confirm page; never offered as a source | yes, on the confirm page; never offered as a source |
+| Images in this computer's bootc storage (`bootc_store`), and this computer's system as the install source (`sourceReuse`, #267) | yes, on the confirm page; the system that this computer runs is a second install source there (experimental, never the default, never on live media) | yes, on the confirm step; the system that this computer runs is a second install source there (experimental, never the default, never on live media) | yes, on the confirm page; the system that this computer runs is a second install source there (experimental, never the default, never on live media) | yes, on the confirm page; the system that this computer runs is a second install source there (experimental, never the default, never on live media) | yes, on the confirm page; the system that this computer runs is a second install source there (experimental, never the default, never on live media) |
+| Progress of the copy of this computer's system (`source_reuse` events: space, copy, check, failure, removal; #267) | yes: a caption under the step line; the bar pulses until the first step; the cancel question says that the disk does not change | yes: a label under the step line; the bar is indeterminate until the first step; the cancel dialog says that the disk does not change | yes: a caption under the bar; the bar is indeterminate until the first step; the cancel question says that the disk does not change | yes: a line under the step line; the bar holds until the first step; the cancel card says that the disk does not change | yes: a label under the bar; the bar holds until the first step; the cancel dialog says that the disk does not change |
 | Done page: installed, restart required, start not verified (#269) | yes | yes | yes | yes | yes |
+| Done page: the `receipt` event (install ID, first-boot check) (#269) | yes: install ID and first-boot check, or the reason | yes: install ID and first-boot check, or the reason | yes: install ID and first-boot check, or the reason | yes: install ID and first-boot check, or the reason | yes: install ID and first-boot check, or the reason |
 | Restart from the done page | yes | yes | yes | yes | yes |
-| Show log after failure | yes (recovery key redacted); the page shows fisherman's `error` event | log path | log in page | log in page | log tail |
+| Show log after failure | yes (recovery key redacted); the page shows fisherman's `error` event, whether the disk was changed, and a cleanup that failed or timed out | log path; the failure page says whether the disk was changed, and when the cleanup failed or timed out | log in page; the failure page says whether the disk was changed, and when the cleanup failed or timed out | log in page; the failure page says whether the disk was changed, and when the cleanup failed or timed out | log tail; the failure page says whether the disk was changed, and when the cleanup failed or timed out |
 | Recovery key kept out of log files (#337) | yes (log file scrubbed; dialog and clipboard redacted) | yes (log file and clipboard copy redacted) | yes (install.log and Copy log redacted) | yes (install.log and Copy log redacted) | yes (install.log, log pane and failure tail redacted) |
 | Screenshot walkthrough + parity report | yes | yes | yes | yes | yes |
 | End-to-end gate (real install and boot) | yes | yes | yes | yes | yes |
@@ -210,18 +218,24 @@ four frontends a catalog, gates, locale pages and a companion.
    enrolment. GNOME shows a page. The other four show a panel on the done
    screen. Each holds the restart button until the user acknowledges the
    key (#129).
-4. **User account**: all five have the step, and each shows it only when
-   the image needs an account. Three things are still open. The frontends
-   do not agree on the default when the catalog does not set
-   `needs_user_creation` (#288). Four of them put the account only in
-   `wheel` (#302). XFCE asks for the password once (#295).
+4. ~~**User account**~~ — closed. All five have the step, and each shows
+   it only when the image needs an account. All five create an account
+   when the catalog does not set `needs_user_creation` (#288). On live
+   media, all five read the flag from the leaf of `live.live_image`
+   (#288). All five use the groups of `shared/account/` (#302). All five
+   ask for the password two times, hold Next on a mismatch and have a
+   reveal control (#295).
+   The strength hint is not part of the contract. GNOME and KDE show
+   one. fisherman does not check the strength, and the hint stops no
+   install. A frontend can add one, but no frontend must.
 5. **Store and tour assets**: only worth it where the desktop has a place
    for artwork. Every resolver already resolves the keys, so this is view
    work only. KDE and COSMIC now show `welcome_image` and
    `complete_image` as the welcome and done artwork, ahead of `logo`.
-6. **Companion and locale steps**: no longer GNOME-only. XFCE
-   has a companion, over plain HTTP (#293). COSMIC had one and removed it.
-   All five have locale pages. Each one now sends the
+6. **Companion and locale steps**: only GNOME has a companion. It sends
+   the account over TLS on the LAN address, with a single-use token in a
+   header. XFCE and COSMIC had a companion over plain HTTP and removed it
+   (#293). All five have locale pages. Each one now sends the
    choice to the installed system in the recipe's `locale`, `keyboard` and
    `timezone` (#292, tuna-os/fisherman#405), and only a choice: without
    one the image keeps its own value. Windows data migration (slurp) is not

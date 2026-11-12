@@ -182,6 +182,11 @@ PATCHERS = [
     # the page renders the same on every runner, online or not.
     patch("bootc_installer.defaults.timezone.get_location",
           lambda callback=None: callback(None) if callback else None),
+    # The disk page asks the host whether the mkfs tool of the filesystem is
+    # installed, and a probe that cannot answer blocks Next (#85). The
+    # capture renders the page of a host that has the tools, on every runner.
+    patch("bootc_installer.defaults.disk_host.fs_tool_available",
+          lambda tool, executor=None: True),
 ]
 
 CAPTIONS = {

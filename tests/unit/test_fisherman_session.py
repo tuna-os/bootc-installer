@@ -159,7 +159,9 @@ class FishermanSessionPollTests(unittest.TestCase):
         self.addCleanup(__import__("shutil").rmtree, self.tmp, True)
 
     def _launched_session(self, poll_sequence=(None, None, 0)):
-        popen = lambda argv, **kw: _fake_popen(poll_sequence=poll_sequence)
+        def popen(argv, **kw):
+            return _fake_popen(poll_sequence=poll_sequence)
+
         session = FishermanSession(
             _RECIPE,
             in_flatpak=False,

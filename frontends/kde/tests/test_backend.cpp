@@ -12,6 +12,7 @@
 #include "validate.h"
 #include "redact.h"
 #include "sourcecheck.h"
+#include "translations.h"
 
 #include <QDir>
 #include <QFile>
@@ -29,6 +30,7 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTranslator>
 #include <QUrl>
 
 #include <csignal>
@@ -74,6 +76,13 @@ private slots:
     void sourceCheckCases();
     void bootcStoreCases();
     void verificationCases();
+    // #267: this computer's system as a second install source.
+    void sourceReuseCases();
+    void sourceReuseIsNeverTheDefault();
+    // #269: the receipt event and the done page's lines.
+    void progressReproducesTheSharedReceiptCases();
+    void outcomeFollowsTheSharedCases();
+    void progressReproducesTheSharedSourceReuseCases();
     void sourceReplyOfAnOlderRequestIsDropped();
     void probeFakeEnvReachesTheController();
     void probeFailureOffersNothingAndSaysWhy();
@@ -131,6 +140,11 @@ private slots:
     void catalogContractDefaultSelection();
     void catalogContractLeaves();
     void catalogContractRecipes();
+    // The cross-frontend recipe contract (shared/recipe/fixtures/compliance.json,
+    // #226 and #186): the choices of each case, made through the controller,
+    // give the one recipe that every frontend writes.
+    void recipeCompliance();
+    void recipeComplianceNormaliser();
     void catalogBrandingDefaultWinsInTheController();
     void catalogLoadSkipsAFileThatIsNoCatalog();
     void catalogLiveMediaReadsTheLeafOfTheLiveImage();
@@ -152,6 +166,7 @@ private slots:
     void connectivityTriesTheImageRegistryFirst();
     // #300
     void qmlStringsGoThroughQsTr();
+    void shippedCatalogLoadsAndTranslates();
     void confirmPageListsNoLocaleRows();
 
     // The user block follows the account step: omitted when the selected
@@ -937,8 +952,9 @@ void BackendTest::progressReproducesTheSharedFractionCases()
 }
 
 // shared/progress/error-cases.json: the last `error` event is kept as
-// {message, code, field}, as the canonical parser keeps it, and it does not
-// move the bar.
+// {message, code, field, step_id, disk_changed, cleanup}, as the canonical
+// parser keeps it, and it does not move the bar. The failure page says
+// whether the disk was changed and when the cleanup failed or timed out.
 void BackendTest::progressReproducesTheSharedErrorCases()
 {
     replayProgressCases(QStringLiteral("error-cases.json"), 6);
@@ -955,6 +971,16 @@ void BackendTest::progressReproducesTheSharedErrorCases()
         const QJsonValue want = kase.value(QStringLiteral("error"));
         const QVariantMap expected = want.isNull() ? QVariantMap() : want.toObject().toVariantMap();
         QVERIFY2(c.installError() == expected, qPrintable(kase.value(QStringLiteral("name")).toString()));
+        // The failure page's lines (fisherman#449), as copy keys and as
+        // the text the page shows.
+        QStringList keys;
+        for (const QJsonValue &key : kase.value(QStringLiteral("lines")).toArray())
+            keys << key.toString();
+        QCOMPARE(sourcecheck::failureLines(QJsonObject::fromVariantMap(c.installError())), keys);
+        QStringList shown;
+        for (const QString &key : keys)
+            shown << c.text(key);
+        QCOMPARE(c.failureLines(), shown);
     }
 }
 
@@ -1368,6 +1394,180 @@ void BackendTest::verificationCases()
         QVERIFY2(view == c.value(QStringLiteral("expected")).toObject(),
                  qPrintable(c.value(QStringLiteral("name")).toString() + QStringLiteral(": ")
                             + QString::fromUtf8(QJsonDocument(view).toJson(QJsonDocument::Compact))));
+    }
+}
+
+// shared/probe/source-reuse-cases.json: the item offered, the recipe after
+// the pick, the validate fragment and the source check of that recipe.
+void BackendTest::sourceReuseCases()
+{
+    const QJsonArray cases = sharedCases(QStringLiteral(SHARED_PROBE_DIR "/source-reuse-cases.json"));
+    if (cases.isEmpty())
+        QSKIP("shared/probe is absent; this tree is checked out alone");
+    QVERIFY(cases.size() >= 20);
+    for (const QJsonValue &value : cases) {
+        const QJsonObject c = value.toObject();
+        const QString name = c.value(QStringLiteral("name")).toString();
+        bool ok = !c.value(QStringLiteral("probe_failed")).toBool();
+        QJsonObject probe{{QStringLiteral("protocol_version"), 1}};
+        if (ok && !c.value(QStringLiteral("fixture")).isNull()) {
+            QFile f(QDir(QStringLiteral(SHARED_PROBE_DIR "/fixtures/bootc-store"))
+                        .filePath(c.value(QStringLiteral("fixture")).toString()));
+            QVERIFY(f.open(QIODevice::ReadOnly));
+            const QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+            probe.insert(QStringLiteral("bootc_store"), doc.isObject() ? QJsonValue(doc.object()) : QJsonValue(doc.array()));
+        }
+        if (!c.value(QStringLiteral("live")).isNull())
+            probe.insert(QStringLiteral("live"), QJsonObject{{QStringLiteral("is_live"), c.value(QStringLiteral("live"))}});
+        const QByteArray out = ok ? QJsonDocument(probe).toJson() : QByteArray();
+        const QJsonObject source = sourcecheck::reuseSource(ok, out, c.value(QStringLiteral("update_ref")).toString());
+        const QJsonValue expected = c.value(QStringLiteral("expected"));
+        QVERIFY2(expected.isNull() ? source.isEmpty() : source == expected.toObject(), qPrintable(name));
+        if (expected.isNull())
+            continue;
+        const QString ref = c.value(QStringLiteral("update_ref")).toString();
+        QJsonObject base{
+            {QStringLiteral("disk"), QStringLiteral("/dev/vda")}, {QStringLiteral("filesystem"), QStringLiteral("xfs")},
+            {QStringLiteral("encryption"), QJsonObject{{QStringLiteral("type"), QStringLiteral("none")}, {QStringLiteral("passphrase"), QString()}}},
+            {QStringLiteral("image"), ref}, {QStringLiteral("targetImgref"), ref},
+            {QStringLiteral("composeFsBackend"), false}, {QStringLiteral("hostname"), QStringLiteral("workstation")},
+        };
+        const QJsonObject recipe = sourcecheck::applyReuse(base, source);
+        QVERIFY2(recipe == c.value(QStringLiteral("recipe")).toObject(), qPrintable(name));
+        QVERIFY2(sourcecheck::reuseFragment(recipe) == c.value(QStringLiteral("fragment")).toObject(), qPrintable(name));
+        QStringList args;
+        for (const QJsonValue &a : c.value(QStringLiteral("probe_args")).toArray())
+            args << a.toString();
+        QCOMPARE(sourcecheck::probeArguments(sourcecheck::fromRecipe(recipe, false)), args);
+    }
+}
+
+void BackendTest::sourceReuseIsNeverTheDefault()
+{
+    QFile f(QStringLiteral(SHARED_PROBE_DIR "/fixtures/bootc-store/store-inaccessible.json"));
+    if (!f.open(QIODevice::ReadOnly))
+        QSKIP("shared/probe is absent");
+    const QByteArray store = f.readAll();
+    auto probe = [&](bool live) {
+        return QByteArrayLiteral("{\"protocol_version\": 1, \"live\": {\"is_live\": ")
+            + (live ? QByteArrayLiteral("true") : QByteArrayLiteral("false"))
+            + QByteArrayLiteral("}, \"bootc_store\": ") + store + QByteArrayLiteral("}");
+    };
+    InstallerController c;
+    c.setImage(QStringLiteral("ghcr.io/example/os:stable"));
+    c.setProbeOutput(probe(false));
+    c.refreshReuse();
+    QVERIFY(c.reuseOffered());
+    QVERIFY(!c.reuseSelected());
+    QCOMPARE(c.installRecipe().value(QStringLiteral("image")).toString(), QStringLiteral("ghcr.io/example/os:stable"));
+    QVERIFY(!c.installRecipe().contains(QStringLiteral("sourceReuse")));
+    c.setReuseSelected(true);
+    const QJsonObject recipe = c.installRecipe();
+    QCOMPARE(recipe.value(QStringLiteral("image")).toString(), QString());
+    QCOMPARE(recipe.value(QStringLiteral("targetImgref")).toString(), QStringLiteral("ghcr.io/example/os:stable"));
+    QCOMPARE(recipe.value(QStringLiteral("sourceReuse")).toObject().value(QStringLiteral("store")).toString(), QStringLiteral("bootc"));
+    QVERIFY(recipe.value(QStringLiteral("experimental")).toArray().contains(QJsonValue(QStringLiteral("bootc_store_reuse"))));
+    QVERIFY(!c.needsNetwork());
+    // The partial check gets the reuse fields; its code shows through the copy.
+    const QJsonObject partial = QJsonDocument::fromJson(c.partialRecipe()).object();
+    QCOMPARE(partial.value(QStringLiteral("sourceReuse")), recipe.value(QStringLiteral("sourceReuse")));
+    c.applyValidateAnswer(QByteArrayLiteral(
+        "{\"protocol_version\":1,\"valid\":false,\"errors\":[{\"field\":\"sourceReuse\","
+        "\"code\":\"source_reuse_backend_unsupported\",\"message\":\"x\"}]}"));
+    QCOMPARE(c.reuseProblem(), c.text(QStringLiteral("validate_source_reuse_backend_unsupported")));
+    // On live media: nothing is offered, and the pick is dropped.
+    c.setProbeOutput(probe(true));
+    c.refreshReuse();
+    QVERIFY(!c.reuseOffered());
+    QVERIFY(!c.installRecipe().contains(QStringLiteral("sourceReuse")));
+}
+
+// shared/progress/receipt-cases.json: the receipt kept, the bar unmoved, and
+// the done page's lines with the install id.
+void BackendTest::progressReproducesTheSharedReceiptCases()
+{
+    replayProgressCases(QStringLiteral("receipt-cases.json"), 15);
+    QFile f(QStringLiteral(PROGRESS_FIXTURES_DIR "/receipt-cases.json"));
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const QJsonArray cases = QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("cases")).toArray();
+    for (const QJsonValue &cv : cases) {
+        const QJsonObject kase = cv.toObject();
+        const QString name = kase.value(QStringLiteral("name")).toString();
+        QStringList lines;
+        for (const QJsonValue &event : kase.value(QStringLiteral("events")).toArray())
+            lines << QString::fromUtf8(QJsonDocument(event.toObject()).toJson(QJsonDocument::Compact));
+        InstallerController c;
+        feed(c, lines);
+        const QJsonValue want = kase.value(QStringLiteral("receipt"));
+        QVERIFY2(want.isNull() ? c.receipt().isNull() || c.receipt().isUndefined() : c.receipt() == want, qPrintable(name));
+        const auto got = sourcecheck::receiptLines(c.receipt());
+        const QJsonArray wantLines = kase.value(QStringLiteral("done_lines")).toArray();
+        QCOMPARE(got.size(), wantLines.size());
+        QStringList shown;
+        for (int i = 0; i < got.size(); ++i) {
+            const QJsonObject w = wantLines.at(i).toObject();
+            QCOMPARE(got.at(i).first, w.value(QStringLiteral("key")).toString());
+            QCOMPARE(got.at(i).second, w.value(QStringLiteral("value")).toString());
+            shown << c.text(got.at(i).first).replace(QStringLiteral("{value}"), got.at(i).second);
+        }
+        QCOMPARE(c.receiptLines(), shown);
+    }
+}
+
+// shared/progress/source-reuse-cases.json (#267): the copy of this
+// computer's system, its lines on the progress step, the cancel question,
+// and a bar that the copy does not move.
+void BackendTest::progressReproducesTheSharedSourceReuseCases()
+{
+    replayProgressCases(QStringLiteral("source-reuse-cases.json"), 15);
+    QFile f(QStringLiteral(PROGRESS_FIXTURES_DIR "/source-reuse-cases.json"));
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const QJsonArray cases = QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("cases")).toArray();
+    for (const QJsonValue &cv : cases) {
+        const QJsonObject kase = cv.toObject();
+        const QString name = kase.value(QStringLiteral("name")).toString();
+        QStringList lines;
+        for (const QJsonValue &event : kase.value(QStringLiteral("events")).toArray())
+            lines << QString::fromUtf8(QJsonDocument(event.toObject()).toJson(QJsonDocument::Compact));
+        InstallerController c;
+        feed(c, lines);
+        const QJsonValue want = kase.value(QStringLiteral("source_reuse"));
+        if (want.isNull())
+            QVERIFY2(c.sourceReuse().isNull() || c.sourceReuse().isUndefined(), qPrintable(name));
+        else
+            QVERIFY2(QJsonDocument(c.sourceReuse().toObject()).toJson(QJsonDocument::Compact)
+                         == QJsonDocument(want.toObject()).toJson(QJsonDocument::Compact),
+                     qPrintable(name + QStringLiteral(": ")
+                                + QString::fromUtf8(QJsonDocument(c.sourceReuse().toObject()).toJson(QJsonDocument::Compact))));
+        const auto got = sourcecheck::sourceReuseLines(c.sourceReuse());
+        const QJsonArray wantLines = kase.value(QStringLiteral("lines")).toArray();
+        QVERIFY2(got.size() == wantLines.size(), qPrintable(name));
+        QStringList shown;
+        for (int i = 0; i < got.size(); ++i) {
+            const QJsonObject w = wantLines.at(i).toObject();
+            QCOMPARE(got.at(i).first, w.value(QStringLiteral("key")).toString());
+            QCOMPARE(got.at(i).second, w.value(QStringLiteral("value")).toString());
+            shown << c.text(got.at(i).first).replace(QStringLiteral("{value}"), got.at(i).second);
+        }
+        QCOMPARE(c.reuseLines(), shown);
+        QVERIFY2(c.copyCancel() == kase.value(QStringLiteral("copy_cancel")).toBool(), qPrintable(name));
+    }
+}
+
+// shared/progress/outcome-cases.json: the exit code decides, never a
+// `complete` event.
+void BackendTest::outcomeFollowsTheSharedCases()
+{
+    const QJsonArray cases = sharedCases(QStringLiteral(PROGRESS_FIXTURES_DIR "/outcome-cases.json"));
+    if (cases.isEmpty())
+        QSKIP("shared/progress is absent");
+    for (const QJsonValue &value : cases) {
+        const QJsonObject c = value.toObject();
+        const QJsonValue code = c.value(QStringLiteral("exit_code"));
+        const QString got = InstallerController::outcomeOf(code.isNull() ? 0 : code.toInt(), code.isNull(),
+                                                           c.value(QStringLiteral("cancel_requested")).toBool());
+        QVERIFY2(got == c.value(QStringLiteral("outcome")).toString(),
+                 qPrintable(c.value(QStringLiteral("name")).toString() + QStringLiteral(": ") + got));
     }
 }
 
@@ -2209,6 +2409,135 @@ void BackendTest::catalogContractRecipes()
     QVERIFY2(liveCases > 0, "the fixture has no live-media row for the NVIDIA table");
 }
 
+static QJsonObject complianceFixture()
+{
+    return QJsonDocument::fromJson(readFixture(QStringLiteral(RECIPE_FIXTURES_DIR "/compliance.json"))).object();
+}
+
+// The fixture's two rules (shared/recipe/compliance.py is the reference):
+// a key whose value is the listed one is absent, and so is an object that
+// has no `needs` key. QJsonValue compares the type too, so 0 is not false.
+static QJsonObject complianceRemove(QJsonObject object, const QJsonArray &path, int depth,
+                                    const QJsonValue &value, const QString &needs)
+{
+    const QString key = path.at(depth).toString();
+    if (!object.contains(key))
+        return object;
+    if (depth + 1 < path.size()) {
+        if (object.value(key).isObject())
+            object.insert(key, complianceRemove(object.value(key).toObject(), path, depth + 1, value, needs));
+        return object;
+    }
+    const QJsonValue found = object.value(key);
+    if (needs.isEmpty() ? found == value : (found.isObject() && !found.toObject().contains(needs)))
+        object.remove(key);
+    return object;
+}
+
+static QByteArray complianceCanonical(const QJsonObject &table, QJsonObject recipe)
+{
+    for (const QJsonValue &rule : table.value(QStringLiteral("absent_equals")).toArray()) {
+        const QJsonObject r = rule.toObject();
+        recipe = complianceRemove(recipe, r.value(QStringLiteral("key")).toArray(), 0,
+                                  r.value(QStringLiteral("value")), QString());
+    }
+    for (const QJsonValue &rule : table.value(QStringLiteral("absent_without")).toArray()) {
+        const QJsonObject r = rule.toObject();
+        recipe = complianceRemove(recipe, r.value(QStringLiteral("key")).toArray(), 0, QJsonValue(),
+                                  r.value(QStringLiteral("needs")).toString());
+    }
+    // QJsonObject keeps its keys sorted: Compact is the byte form.
+    return QJsonDocument(recipe).toJson(QJsonDocument::Compact);
+}
+
+void BackendTest::recipeCompliance()
+{
+    const QJsonObject fx = complianceFixture();
+    const QJsonArray cases = fx.value(QStringLiteral("cases")).toArray();
+    if (cases.isEmpty())
+        QSKIP("shared/recipe/fixtures is absent");
+    QVERIFY(cases.size() >= 2);
+    QCOMPARE(fx.value(QStringLiteral("catalog")).toString(),
+             QStringLiteral("shared/catalog/fixtures/catalog.json"));
+    const QJsonObject table = fx.value(QStringLiteral("normalise")).toObject();
+    const QByteArray branding = QJsonDocument(fx.value(QStringLiteral("branding")).toObject()).toJson();
+    for (const QJsonValue &v : cases) {
+        const QJsonObject c = v.toObject();
+        const QByteArray name = c.value(QStringLiteral("name")).toString().toUtf8();
+        const QJsonObject choices = c.value(QStringLiteral("choices")).toObject();
+        const QJsonObject machine = choices.value(QStringLiteral("machine")).toObject();
+        Machine host(sharedCatalog(), machine.value(QStringLiteral("is_live")).toBool(), QString(),
+                     strings(machine.value(QStringLiteral("offline_images"))),
+                     machine.value(QStringLiteral("has_nvidia")).toBool(), branding);
+        InstallerController controller;
+
+        // The disk step: the image, the disk, the filesystem, the hostname.
+        const int index = controller.catalogImgrefs().indexOf(choices.value(QStringLiteral("image")).toString());
+        QVERIFY2(index >= 0, name);
+        controller.selectCatalogImage(index);
+        controller.setDisk(choices.value(QStringLiteral("disk")).toString());
+        const QString filesystem = choices.value(QStringLiteral("filesystem")).toString();
+        QVERIFY2(controller.filesystemChoices().isEmpty() || controller.filesystemChoices().contains(filesystem),
+                 name + ": the disk step does not offer " + filesystem.toUtf8());
+        controller.setFilesystem(filesystem);
+        controller.setHostname(choices.value(QStringLiteral("hostname")).toString());
+
+        // The encryption step.
+        const QJsonObject encryption = choices.value(QStringLiteral("encryption")).toObject();
+        controller.setEncryptionType(encryption.value(QStringLiteral("type")).toString());
+        if (Recipe::needsPassphrase(encryption.value(QStringLiteral("type")).toString()))
+            controller.setPassphrase(encryption.value(QStringLiteral("passphrase")).toString());
+
+        // The account step, which the wizard shows only when the image
+        // needs an account.
+        const QJsonObject account = choices.value(QStringLiteral("account")).toObject();
+        if (controller.needsUserCreation() && !account.isEmpty()) {
+            controller.setUsername(account.value(QStringLiteral("username")).toString());
+            controller.setFullname(account.value(QStringLiteral("fullname")).toString());
+            controller.setUserPassword(account.value(QStringLiteral("password")).toString());
+        }
+
+        // The welcome step's region pickers. The language picker lists
+        // languages: "de" is "de_DE.UTF-8".
+        const QString locale = choices.value(QStringLiteral("locale")).toString();
+        if (!locale.isEmpty()) {
+            const QString language = locale.section(QLatin1Char('_'), 0, 0);
+            QCOMPARE(region::localeName(language), locale);
+            controller.setLanguage(language);
+        }
+        const QJsonObject keyboard = choices.value(QStringLiteral("keyboard")).toObject();
+        if (!keyboard.isEmpty()) {
+            QVERIFY2(keyboard.size() == 1, name + ": the keyboard picker offers layouts only");
+            controller.setKeyboardLayout(keyboard.value(QStringLiteral("layout")).toString());
+        }
+        const QString timezone = choices.value(QStringLiteral("timezone")).toString();
+        if (!timezone.isEmpty())
+            controller.setTimezone(timezone);
+
+        const QByteArray got = complianceCanonical(table, controller.installRecipe());
+        const QByteArray want = complianceCanonical(table, c.value(QStringLiteral("recipe")).toObject());
+        QVERIFY2(got == want, name + ": the recipe differs from shared/recipe/fixtures/compliance.json\n got "
+                                  + got + "\nwant " + want);
+    }
+}
+
+void BackendTest::recipeComplianceNormaliser()
+{
+    const QJsonObject table = complianceFixture().value(QStringLiteral("normalise")).toObject();
+    if (table.isEmpty())
+        QSKIP("shared/recipe/fixtures is absent");
+    const QJsonObject recipe = QJsonDocument::fromJson(R"({"disk": "/dev/vda", "composeFsBackend": false,
+        "imageType": "bootc", "bootloader": "", "selinuxDisabled": false, "btrfsSubvolumes": false,
+        "encryption": {"type": "none", "passphrase": ""},
+        "user": {"username": "", "fullname": "", "password": "", "groups": []}})").object();
+    QCOMPARE(complianceCanonical(table, recipe), QByteArray(R"({"disk":"/dev/vda","encryption":{"type":"none"}})"));
+    // A value that is not the default stays, and so does one of another type.
+    const QJsonObject kept = QJsonDocument::fromJson(
+        R"({"composeFsBackend": true, "btrfsSubvolumes": 0, "bootloader": "grub2", "user": {"username": "jo"}})").object();
+    QCOMPARE(complianceCanonical(table, kept),
+             QByteArray(R"({"bootloader":"grub2","btrfsSubvolumes":0,"composeFsBackend":true,"user":{"username":"jo"}})"));
+}
+
 void BackendTest::catalogBrandingDefaultWinsInTheController()
 {
     if (sharedCatalog().isEmpty())
@@ -2269,6 +2598,29 @@ void BackendTest::catalogLiveMediaReadsTheLeafOfTheLiveImage()
 {
     if (sharedCatalog().isEmpty())
         QSKIP("shared/catalog/fixtures is absent");
+    // expected.json `live_image`: the probe's live.live_image -> the leaf
+    // and its account flag. The NVIDIA image of a leaf is that leaf: live
+    // media that holds only the NVIDIA image boots it.
+    const imagecatalog::Catalog catalog = imagecatalog::parse(sharedCatalog());
+    const QJsonArray cases = sharedExpected().value(QStringLiteral("live_image")).toArray();
+    QVERIFY(cases.size() >= 4);
+    for (const QJsonValue &v : cases) {
+        const QJsonObject row = v.toObject();
+        const QString live = row.value(QStringLiteral("live_image")).toString();
+        const bool want = row.value(QStringLiteral("needs_user_creation")).toBool();
+        const imagecatalog::Leaf *leaf = catalog.find(live);
+        if (row.value(QStringLiteral("leaf")).isNull())
+            QVERIFY2(!leaf, qPrintable(live));
+        else
+            QVERIFY2(leaf && leaf->imgref == row.value(QStringLiteral("leaf")).toString(), qPrintable(live));
+        QVERIFY2(catalog.needsUserCreation(live) == want, qPrintable(live));
+        Machine machine(sharedCatalog(), true, live, {live}, false);
+        InstallerController c;
+        QVERIFY2(c.needsUserCreation() == want, qPrintable(live));
+        // The layout is that leaf's too (#287).
+        QCOMPARE(c.filesystemChoices(), leaf && !leaf->filesystems.isEmpty()
+                     ? leaf->filesystems : InstallerController::ownFilesystems());
+    }
     // The live image is a leaf that needs no account. It is not the first
     // leaf of the catalog, whose flag the old code read (#288).
     {
@@ -2555,8 +2907,9 @@ void BackendTest::cancelSignalsTheGroupAndIsNotACrash()
     QVERIFY2(state == 0 || state == 'Z', "the wrapper's child survived the cancel");
     // This test's own group was not signalled, or it would not be here.
 
-    // A wrapper that ends with its own exit code after the cancel is
-    // cancelled too.
+    // A wrapper that ends with its own exit code (not 130, not a signal)
+    // after the cancel failed before the cancel reached it: the decided
+    // rule of shared/progress/outcome-cases.json.
     InstallerController second;
     second.launch({QStringLiteral("bash"), QStringLiteral("-c"),
                    QStringLiteral("trap 'exit 3' TERM; echo trap-is-\"\"set; sleep 300 & wait")}, QByteArray("{}"));
@@ -2566,8 +2919,9 @@ void BackendTest::cancelSignalsTheGroupAndIsNotACrash()
         QVERIFY(!second.waitForInstall(100));
     second.cancelInstall();
     QVERIFY(second.waitForInstall(5000));
-    QVERIFY(second.cancelled());
-    QCOMPARE(second.exitCode(), 130);
+    QVERIFY(!second.cancelled());
+    QVERIFY(!second.succeeded());
+    QCOMPARE(second.exitCode(), 3);
 #endif
 }
 
@@ -2904,6 +3258,39 @@ void BackendTest::connectivityTriesTheImageRegistryFirst()
         QVERIFY2(page.contains(QStringLiteral("NetworkGate {")), step);
         QVERIFY2(page.contains(QStringLiteral("!networkGate.blocked")), step);
     }
+}
+
+// #300: the French catalog this build compiled (i18n/tuna-installer-kde_fr.ts
+// to translations/tuna-installer-kde_fr.qm) loads through the function
+// main.cpp calls, and translates a known string in its QML context. Without
+// TUNA_TRANSLATIONS there is no catalog to load, and the test fails rather
+// than passing on nothing.
+void BackendTest::shippedCatalogLoadsAndTranslates()
+{
+#ifndef TUNA_QM_DIR
+    QFAIL("built with -DTUNA_TRANSLATIONS=OFF: no catalog to test");
+#else
+    const QStringList dirs{QStringLiteral("/nonexistent"), QStringLiteral(TUNA_QM_DIR)};
+    QVERIFY(QFileInfo::exists(QStringLiteral(TUNA_QM_DIR "/tuna-installer-kde_fr.qm")));
+
+    QTranslator french;
+    QVERIFY(translations::load(french, QLocale(QStringLiteral("fr_FR")), dirs));
+    // Wizard.qml's Back button, translated in GNOME's po/fr.po.
+    QCOMPARE(french.translate("Wizard", "Back"), QStringLiteral("Retour"));
+    QCOMPARE(french.translate("main", "Cancel"), QStringLiteral("Annuler"));
+    // A message the catalog leaves untranslated has no translation: qsTr()
+    // then shows the English text.
+    QVERIFY(french.translate("Wizard", "User Account").isEmpty());
+
+    // A language with no catalog loads nothing.
+    QTranslator none;
+    QVERIFY(!translations::load(none, QLocale(QStringLiteral("ja_JP")), dirs));
+    QVERIFY(!translations::load(none, QLocale(QStringLiteral("fr_FR")), {QStringLiteral("/nonexistent")}));
+
+    // main.cpp's search path ends in the directory CMake installs into.
+    for (const QString &dir : translations::directories())
+        QVERIFY2(dir.endsWith(QStringLiteral("/tuna-installer-kde/translations")), qPrintable(dir));
+#endif
 }
 
 QTEST_APPLESS_MAIN(BackendTest)

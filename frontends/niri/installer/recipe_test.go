@@ -59,7 +59,7 @@ func TestRecipeStructListsEverySchemaProperty(t *testing.T) {
 		t.Errorf("Recipe keys\n got %v\nwant %v", got, want)
 	}
 	for field, sample := range map[string]any{"user": User{}, "encryption": Encryption{},
-		"keyboard": Keyboard{}, "extras": Extras{}} {
+		"keyboard": Keyboard{}, "extras": Extras{}, "sourceReuse": SourceReuse{}} {
 		sub, _ := properties[field]["properties"].(map[string]any)
 		want := []string{}
 		for key := range sub {
@@ -94,6 +94,7 @@ func TestRecipeRoundTripKeepsEveryKey(t *testing.T) {
 		"override": ["too_small"],
 		"extras": {"printServices": true, "oemSetup": false, "audioNames": true, "bootSplash": false},
 		"experimental": ["zfs"],
+		"sourceReuse": {"store": "bootc", "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111", "platform": "x86_64"},
 		"locale": "de_DE.UTF-8",
 		"keyboard": {"layout": "de", "variant": "nodeadkeys", "model": "pc105"},
 		"timezone": "Europe/Berlin",

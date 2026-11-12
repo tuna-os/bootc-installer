@@ -221,7 +221,7 @@ def test_the_default_question_is_the_dialog(monkeypatch, tmp_path):
         built = []
 
         class _Dialog:
-            def __init__(self, parent):
+            def __init__(self, parent, body_text=""):
                 built.append(parent)
 
             def run(self):
@@ -285,6 +285,79 @@ def test_a_failure_is_still_a_failure(monkeypatch, tmp_path):
         assert win.pages["done"].result == "failed"
     finally:
         win.destroy()
+
+
+def test_exit_1_after_a_confirmed_cancel_is_a_failure(monkeypatch, tmp_path):
+    # The decided rule (shared/progress/outcome-cases.json): fisherman
+    # failed before the cancel reached it. A signal is still the cancel.
+    win = _window(monkeypatch, tmp_path)
+    try:
+        win._cancel_requested = True
+        win._on_exit(0, _exit_status(1))
+        assert win.pages["done"].result == "failed"
+        win._on_exit(0, signal.SIGTERM)
+        assert win.pages["done"].result == "cancelled"
+    finally:
+        win.destroy()
+
+
+def _reuse_case(name):
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "shared", "progress",
+                        "source-reuse-cases.json")
+    with open(path, encoding="utf-8") as fh:
+        return next(c for c in json.load(fh)["cases"] if c["name"] == name)
+
+
+def test_the_progress_page_shows_the_copy_and_the_question_says_so(monkeypatch, tmp_path):
+    """#267: the copy of this computer's system runs before the first step.
+    The page says what fisherman reports, the bar holds, and a cancel then
+    leaves the disk as it was."""
+    win = _window(monkeypatch, tmp_path)
+    try:
+        progress = win.pages["progress"]
+        assert win.cancel_question_body() == ""
+        for event in _reuse_case("the_cancel_question_during_the_copy")["events"]:
+            progress.append_log(json.dumps(event))
+        text = progress.reuselabel.get_text()
+        assert core.BRANDING.text("progress_reuse_copying") in text
+        assert "1.0 GiB" in text
+        assert progress.bar.get_fraction() == 0.0
+        body = win.cancel_question_body()
+        assert body == core.BRANDING.text("progress_reuse_cancel")
+        dialog = gates.ConfirmCancelDialog(None, body)
+        try:
+            assert dialog.body.get_text() == body
+        finally:
+            dialog.destroy()
+        for event in _reuse_case("cancelled_copy")["events"][2:]:
+            progress.append_log(json.dumps(event))
+        assert core.BRANDING.text("progress_reuse_released_removed") in progress.reuselabel.get_text()
+        assert win.cancel_question_body() == ""
+    finally:
+        win.destroy()
+
+
+def test_the_progress_page_shows_every_source_reuse_case(monkeypatch, tmp_path):
+    """shared/progress/source-reuse-cases.json: the lines of each case on
+    the progress page, with their values, and the bar of each event."""
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "shared", "progress",
+                        "source-reuse-cases.json")
+    with open(path, encoding="utf-8") as fh:
+        cases = json.load(fh)["cases"]
+    for case in cases:
+        win = _window(monkeypatch, tmp_path)
+        try:
+            progress = win.pages["progress"]
+            for event, bar in zip(case["events"], case["bar"]):
+                progress.append_log(json.dumps(event))
+                assert abs(progress.bar.get_fraction() - bar) < 1e-6, case["name"]
+            want = [core.BRANDING.text(line["key"]).replace("{value}", line["value"])
+                    for line in case["lines"]]
+            assert progress.reuselabel.get_text() == "\n".join(want), case["name"]
+            assert progress.reuselabel.get_visible() == bool(want), case["name"]
+            assert bool(win.cancel_question_body()) == case["copy_cancel"], case["name"]
+        finally:
+            win.destroy()
 
 
 def test_success_after_a_late_cancel_is_success(monkeypatch, tmp_path):

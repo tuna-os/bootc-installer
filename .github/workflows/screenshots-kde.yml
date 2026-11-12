@@ -20,6 +20,7 @@ on:
       - "frontends/kde/modules/**"
       - "frontends/kde/tests/**"
       - "frontends/kde/CMakeLists.txt"
+      - "frontends/kde/i18n/**"
       - "frontends/kde/*.json"
       - "shared/**"
       - ".github/actions/push-to-dev/**"
@@ -30,6 +31,7 @@ on:
       - "frontends/kde/modules/**"
       - "frontends/kde/tests/**"
       - "frontends/kde/CMakeLists.txt"
+      - "frontends/kde/i18n/**"
       - "frontends/kde/*.json"
       - "shared/**"
       - ".github/actions/push-to-dev/**"
@@ -63,6 +65,7 @@ jobs:
             git openssh-clients tar findutils which \
             cmake ninja-build gcc-c++ \
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg \
+            qt6-qttools-devel qt6-linguist \
             kf6-kirigami kf6-kirigami-addons kf6-qqc2-desktop-style \
             kf6-breeze-icons dejavu-sans-fonts dejavu-sans-mono-fonts \
             ImageMagick python3
@@ -73,7 +76,7 @@ jobs:
                  kf6-qqc2-desktop-style kf6-breeze-icons
           test -f /usr/share/icons/breeze/index.theme
 
-      - uses: actions/checkout@v4.4.0 # zizmor: ignore[artipacked] the push-to-dev step later commits and pushes from this checkout
+      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] the push-to-dev step later commits and pushes from this checkout
         with:
           fetch-depth: 0
 
@@ -138,13 +141,13 @@ jobs:
           grep PRETTY_NAME /etc/os-release
           ls -l /tmp/branding-check
 
-      - uses: actions/upload-artifact@v4.6.2
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: branding-check-kde
           path: /tmp/branding-check/
 
-      - uses: actions/upload-artifact@v4.6.2
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: gui-screenshots-kde

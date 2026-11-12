@@ -4,7 +4,6 @@ GTK widgets are stubbed at import time, and widget subclasses are instantiated
 with __new__ plus manual attribute injection so no display is required.
 """
 
-import copy
 import importlib
 import sys
 import types
@@ -461,9 +460,17 @@ class TestBootcDefaultDiskRefreshFromImageStep(unittest.TestCase):
         window = types.SimpleNamespace(image_step=image_step)
         setattr(obj, "_BootcDefaultDisk__window", window)
         setattr(obj, "_BootcDefaultDisk__setup_filesystem_row", MagicMock())
+        setattr(obj, "_BootcDefaultDisk__update_var_disk_offer", MagicMock())
         obj.hostname_entry = MagicMock()
         obj.hostname_entry.get_text.return_value = current_hostname
         return obj
+
+    def test_refresh_from_image_step_updates_the_var_disk_offer(self):
+        obj = self._make_obj("", {"composefs_backend": True})
+        obj._BootcDefaultDisk__refresh_from_image_step()
+        getattr(obj, "_BootcDefaultDisk__update_var_disk_offer").assert_called_once_with()
+        self.assertEqual(getattr(obj, "_BootcDefaultDisk__image_finals"), {"composefs_backend": True})
+
 
     def test_refresh_from_image_step_applies_default_hostname_to_empty_entry(self):
         obj = self._make_obj("", {"default_hostname": "bluefin", "supported_filesystems": ["xfs", "btrfs"]})
@@ -481,6 +488,44 @@ class TestBootcDefaultDiskRefreshFromImageStep(unittest.TestCase):
 
         obj.hostname_entry.set_text.assert_not_called()
         getattr(obj, "_BootcDefaultDisk__setup_filesystem_row").assert_called_once_with(["xfs"])
+
+
+class TestBootcDefaultDiskVarDiskOffer(unittest.TestCase):
+    """#252: fisherman refuses a varDisk on composefs, so the page turns
+    the switch off and says why, before the install starts."""
+
+    def setUp(self):
+        self.mod = _import_disk_fresh()
+
+    def _make_obj(self, finals, filesystem, active):
+        obj = self.mod.BootcDefaultDisk.__new__(self.mod.BootcDefaultDisk)
+        setattr(obj, "_BootcDefaultDisk__window", None)
+        setattr(obj, "_BootcDefaultDisk__image_finals", finals)
+        setattr(obj, "_BootcDefaultDisk__get_selected_filesystem", lambda: filesystem)
+        obj.var_disk_switch = MagicMock()
+        obj.var_disk_switch.get_active.return_value = active
+        return obj
+
+    def test_composefs_turns_the_switch_off_and_says_why(self):
+        obj = self._make_obj({"composefs_backend": True}, "ext4", True)
+        obj._BootcDefaultDisk__update_var_disk_offer()
+        obj.var_disk_switch.set_active.assert_called_once_with(False)
+        obj.var_disk_switch.set_sensitive.assert_called_once_with(False)
+        subtitle = obj.var_disk_switch.set_subtitle.call_args[0][0]
+        self.assertIn("/var", subtitle)
+
+    def test_zfs_turns_the_switch_off(self):
+        obj = self._make_obj({"composefs_backend": False}, "zfs", False)
+        obj._BootcDefaultDisk__update_var_disk_offer()
+        obj.var_disk_switch.set_active.assert_not_called()
+        obj.var_disk_switch.set_sensitive.assert_called_once_with(False)
+
+    def test_ostree_offers_the_switch(self):
+        obj = self._make_obj({"composefs_backend": False}, "xfs", True)
+        obj._BootcDefaultDisk__update_var_disk_offer()
+        obj.var_disk_switch.set_active.assert_not_called()
+        obj.var_disk_switch.set_sensitive.assert_called_once_with(True)
+        obj.var_disk_switch.set_subtitle.assert_called_once_with("")
 
 
 if __name__ == "__main__":

@@ -26,8 +26,12 @@ TunaComponents.SetupModule {
             || (InstallerController.username.length > 0 && InstallerController.usernameProblem === ""))
         && !networkGate.blocked
         && !InstallerController.sourceBlocked
+        && InstallerController.reuseProblem === ""
 
     function onPageActivated(): void {
+        // This computer's system as a second install source (#267), before
+        // the checks: the pick changes what they ask about.
+        InstallerController.refreshReuse();
         InstallerController.checkConnectivity();
         // What fisherman says about the selected image (#266) and this
         // computer's bootc storage (#267); asked again on each visit.
@@ -151,7 +155,9 @@ TunaComponents.SetupModule {
                     text: qsTr("Image")
                     // Empty on live media: bootc installs the running container,
                     // so the recipe legitimately omits `image`.
-                    description: InstallerController.image.length === 0
+                    description: InstallerController.reuseSelected
+                        ? InstallerController.reuseInstallFrom
+                        : InstallerController.image.length === 0
                         ? qsTr("the running live system")
                         : (InstallerController.imageLabel.length > 0
                            ? InstallerController.imageLabel + "\n" + InstallerController.image
@@ -168,7 +174,8 @@ TunaComponents.SetupModule {
                     id: updatesRow
                     objectName: "confirmTargetImgref"
                     visible: InstallerController.targetImgref.length > 0
-                        && InstallerController.targetImgref !== InstallerController.image
+                        && (InstallerController.reuseSelected
+                            || InstallerController.targetImgref !== InstallerController.image)
                     text: qsTr("Updates come from")
                     description: InstallerController.targetImgref
                 }
@@ -219,6 +226,58 @@ TunaComponents.SetupModule {
                     description: InstallerController.timezoneDisplay(InstallerController.timezone)
                 }
             }
+            // The install source (#267): download the image (the default),
+            // or copy the system that this computer runs from its bootc
+            // storage. Only when fisherman's probe has an item that
+            // qualifies; never on live media.
+            FormCard.FormHeader {
+                visible: InstallerController.reuseOffered
+                title: InstallerController.text("source_reuse_title")
+                maximumWidth: root.cardWidth
+
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+            FormCard.FormCard {
+                objectName: "confirmReuse"
+                visible: InstallerController.reuseOffered
+                maximumWidth: root.cardWidth
+
+                Layout.alignment: Qt.AlignHCenter
+
+                FormCard.FormRadioDelegate {
+                    objectName: "confirmReuseDownload"
+                    text: InstallerController.text("source_reuse_download")
+                    description: InstallerController.reuseDownloadDetail
+                    checked: !InstallerController.reuseSelected
+                    onToggled: if (checked) {
+                        InstallerController.reuseSelected = false
+                        InstallerController.checkSource()
+                    }
+                }
+
+                FormCard.FormRadioDelegate {
+                    objectName: "confirmReuseLocal"
+                    text: InstallerController.text("source_reuse_local")
+                    description: InstallerController.text("source_reuse_local_detail")
+                    checked: InstallerController.reuseSelected
+                    onToggled: if (checked) {
+                        InstallerController.reuseSelected = true
+                        InstallerController.checkSource()
+                    }
+                }
+            }
+
+            Kirigami.InlineMessage {
+                type: Kirigami.MessageType.Error
+                visible: text !== ""
+                text: InstallerController.reuseProblem
+
+                Layout.fillWidth: true
+                Layout.maximumWidth: root.cardWidth
+                Layout.alignment: Qt.AlignHCenter
+            }
+
             // The source check: the source of the install, the update
             // reference of the new system, what this computer runs, the
             // check's state and reason, and this computer's bootc storage.

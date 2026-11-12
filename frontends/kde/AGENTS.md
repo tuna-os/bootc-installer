@@ -87,14 +87,23 @@ the copy only when the two hashes are equal. Do not use `HOME/.cache`.
 
 The progress step has a Cancel button. It asks first. A confirmed cancel
 sends SIGTERM to the process group of the wrapper, then SIGKILL after five
-seconds. Exit code 130, or an unsuccessful end after a cancel, shows the
-cancelled page (`done_cancelled_title`), not the failure page.
+seconds. Exit code 130, or a signal after a cancel, shows the cancelled
+page (`done_cancelled_title`), not the failure page. Another exit code
+after a cancel is a failure.
 
 ## Strings
 
 Put each string that a person reads in `qsTr()` (QML) or `tr()` (C++).
 `test_backend` (`qmlStringsGoThroughQsTr`) fails on a bare literal in a
-text, label or title property. No translation catalog ships yet.
+text, label or title property. The template is `i18n/tuna-installer-kde.ts`.
+After you change a marked string, run
+`python3 ../../shared/i18n/templates.py kde` from this directory and commit
+the template. Then run `python3 ../../shared/i18n/catalogs.py fr kde` to
+update the French catalog `i18n/tuna-installer-kde_fr.ts`. CMake compiles
+each catalog to a `.qm` file (`TUNA_TRANSLATIONS`, on by default; it needs
+Qt Linguist Tools), and `src/translations.cpp` loads the file for the
+locale. `test_backend` (`shippedCatalogLoadsAndTranslates`) loads the
+catalog that the build compiled. See `../../shared/i18n/README.md`.
 
 ### QML gotchas already paid for
 
@@ -164,10 +173,28 @@ The confirm step also asks fisherman about the selected image (#266):
 off the UI thread, and `src/sourcecheck.{h,cpp}` reads its `capabilities`
 and `bootc_store` (#267). The step shows `sourceRows`. Only a blocked source
 holds Install. A reply for an older visit, or for another source, is
-dropped. Never offer an image of this computer's bootc storage as a source.
-The done step says "installed, restart required" and never "verified"
-(`done_verification`, #269). `test_backend` (`sourceCheckCases`,
-`bootcStoreCases`, `verificationCases`) reads the shared case files.
+dropped.
+
+The confirm step offers the system that this computer runs as a second
+install source (#267): `refreshReuse()` reads the plain probe through
+`sourcecheck::reuseSource()`, never on live media and never as the
+default. `installRecipe()` is what the install and the source check get:
+the wizard's recipe, with `sourceReuse` when the user picked the copy.
+fisherman checks the pick (`reuseProblem`, `validate_source_reuse_<code>`),
+and a copy needs no network. The done step says "installed, restart
+required" and never "verified": `receiptLines` is `done_verification` and
+the line for fisherman's `receipt` event (#269). `test_backend`
+(`sourceCheckCases`, `bootcStoreCases`, `verificationCases`,
+`sourceReuseCases`, `progressReproducesTheSharedReceiptCases`) reads the
+shared case files.
+
+The progress step shows fisherman's `source_reuse` events for a copy of
+this computer's system (`reuseLines`, `sourcecheck::sourceReuseLines`,
+#267). The copy does not move the bar. While `copyCancel` is true, the
+cancel dialog says `progress_reuse_cancel`: the disk does not change.
+`test_backend` reads `../../shared/progress/source-reuse-cases.json`.
+After a confirmed cancel, only exit code 130 or a signal is a cancel
+(`outcomeOf`).
 
 ## Visual verification
 

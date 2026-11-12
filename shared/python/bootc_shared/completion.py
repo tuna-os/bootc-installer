@@ -79,3 +79,50 @@ def verification(data, expected_install_id=""):
                 v == "mismatch" for v in checks.values()):
             return _view("unavailable", "result_inconsistent")
     return _view(state, reason)
+
+
+# The done page (#269): what the install said about its receipt. The view
+# is bootc_shared.progress.receipt_of(); None means no `receipt` event came
+# (a fisherman older than tuna-os/fisherman#441).
+RECEIPT_PREFIX = "done_receipt_"
+RECEIPT_REASON_PREFIX = "done_receipt_reason_"
+RECEIPT_REASON_UNKNOWN = RECEIPT_REASON_PREFIX + "unknown"
+
+
+def receipt_lines(receipt, has_copy=None):
+    """The copy lines of the done page after an install that exited 0, in
+    order: [(key, value)]. `value` fills `{value}` (the install id), "" for
+    none. Always `done_verification` first: no line says that the new
+    system started. Then the receipt line, then, for a receipt that is not
+    written or has no first-boot check, the reason line
+    (`done_receipt_reason_<reason>`, or the unknown line)."""
+    if has_copy is None:
+        from bootc_shared import _data
+        keys = frozenset(k for k in _data.load_json("branding/copy-defaults.json")
+                         if not k.startswith("_"))
+        has_copy = keys.__contains__
+    lines = [("done_verification", "")]
+    if not isinstance(receipt, dict):
+        lines.append((RECEIPT_PREFIX + "none", ""))
+        return lines
+    state = receipt.get("state")
+    if state not in ("check_set_up", "written_no_check", "not_written"):
+        lines.append((RECEIPT_PREFIX + "unreadable", ""))
+        return lines
+    lines.append((RECEIPT_PREFIX + state, receipt.get("install_id", "")))
+    if state != "check_set_up":
+        key = RECEIPT_REASON_PREFIX + (receipt.get("reason") or "unknown")
+        lines.append((key if has_copy(key) else RECEIPT_REASON_UNKNOWN, ""))
+    return lines
+
+
+def receipt_text(receipt, text):
+    """receipt_lines() as the strings to show: `text(key)` is the
+    frontend's copy resolver. An empty line (a product hid it) is left
+    out."""
+    out = []
+    for key, value in receipt_lines(receipt):
+        line = text(key).replace("{value}", value)
+        if line:
+            out.append(line)
+    return out

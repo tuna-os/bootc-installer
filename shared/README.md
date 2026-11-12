@@ -66,17 +66,44 @@ switches. `publish-flatpak.yml` publishes each frontend from its row, and
 `frontend_table.py` reads the row. `fisherman_pins.py` moves the fisherman
 submodule pin, the one pin. `flatpak_manifest.py` reads a Flatpak manifest
 with its module includes, as flatpak-builder does, and checks its local
-sources. `published_freshness.py` compares the served Flatpaks with `prod`. `tests/unit/test_ci_frontend_table.py`,
-`tests/unit/test_ci_fisherman_pins.py` and
-`tests/unit/test_ci_published_freshness.py` cover them. A new frontend adds
-one row to `frontends.json`, and one `Publish (<name>)` job to `release.yml`.
+sources. `published_freshness.py` compares the served Flatpaks with `prod`.
+`flatpak_sbom.py` makes the SPDX SBOM of each frontend's Flatpak for the
+release. `contract_version.py` computes the digest of the contract files and
+checks the version (see "How a contract changes").
+`tests/unit/test_ci_frontend_table.py`, `tests/unit/test_ci_fisherman_pins.py`,
+`tests/unit/test_ci_published_freshness.py` and
+`tests/unit/test_release_sbom.py` cover them. A new frontend adds one row to
+`frontends.json`, one `Publish (<name>)` job to `release.yml`, one entry to
+the matrix of `sbom.yml`, and one lock file list to `flatpak_sbom.py`.
+
+Each frontend has a metadata file with its build and test commands:
+`frontend-gnome.json` here for GNOME, and `frontends/<name>/frontend.json`
+for the other four. A file has three lists: `build`, `test` and
+`compliance`. Each command names the workflow and the job that runs it.
+`tests/unit/test_ci_frontend_meta.py` fails when a command is not a line
+of that job, in the same directory and with the same variables. Thus the
+files cannot drift from CI. `frontend_tests.py` runs the commands from the
+repository root:
+
+```bash
+python3 shared/ci/frontend_tests.py --list           # the plan; runs nothing
+python3 shared/ci/frontend_tests.py                   # all tests of all five
+python3 shared/ci/frontend_tests.py kde niri:backend  # one frontend, one test
+python3 shared/ci/frontend_tests.py --compliance      # the recipe compliance tests
+```
+
+The script prints each command before it runs it. When a tool is missing,
+the script skips the command and gives the name of the tool. The exit code
+is 1 when a command fails. With `--require-all`, a skip is also a failure.
+A new frontend adds its file, with the commands of its workflows.
 
 ## `completion/`
 
 How the done page tells an installed system from a verified start (#269),
 and the reader of a `fisherman verify --json` result. The done page says
 "installed, restart required" and never "verified": only the new system
-can check its own start. Each frontend renders `done_verification`.
+can check its own start. Each frontend renders `done_verification`, then
+the line for fisherman's `receipt` event (`progress/receipt-cases.json`).
 `bootc_shared.completion` is the Python reader, and
 `tests/unit/test_shared_source_check.py` holds the case file to it. The
 KDE, COSMIC and Niri readers read the same `verification-cases.json`. A
@@ -112,6 +139,19 @@ in these files from `shared/flatpak/`, not from the manifest directory.
 `"../../../shared/flatpak/fisherman.json"` to its `modules`, and sets
 `checkout-submodules` in its `ci/frontends.json` row.
 
+## `i18n/`
+
+The translation templates of KDE, Niri, XFCE and COSMIC. Each frontend
+marks its text in the way of its own toolkit, and has a template in the
+format of that toolkit: a Qt `.ts` file, a gettext `.pot` file, or the JSON
+catalog of COSMIC. `templates.py` writes the templates from the sources, and
+`tests/unit/test_frontend_translation_templates.py` fails when one is out of
+date. A new frontend adds a target to `templates.py` and a lint that fails
+on a bare string. `catalogs.py` writes the catalog of a language for each
+frontend from its template and from `po/` of GNOME, and
+`tests/unit/test_frontend_translation_catalogs.py` fails when a catalog is
+out of date. Each frontend ships French. See [i18n/README.md](i18n/README.md).
+
 ## `network/`
 
 The network check before an install that downloads its image:
@@ -133,7 +173,9 @@ a fixture with `BOOTC_INSTALLER_FAKE_PROBE`. The same command with
 `--source` gives the check of the selected image (`capabilities`, #266) and
 the images in this computer's bootc storage (`bootc_store`, #267);
 `bootc_shared.source_check` reads them, and each frontend runs its reader
-against `capabilities-cases.json` and `bootc-store-cases.json`. See
+against `capabilities-cases.json` and `bootc-store-cases.json`. The
+system that this computer runs can be the install source (`sourceReuse`):
+each frontend runs its reader against `source-reuse-cases.json`. See
 [probe/README.md](probe/README.md).
 
 ## `progress/`
@@ -188,6 +230,13 @@ with no new entry in [CHANGELOG.md](CHANGELOG.md). A new frontend builds
 the recipe in memory, sends it to `fisherman -` on stdin, and adds its
 recipe to the checks in `e2e/`. See [recipe/README.md](recipe/README.md).
 
+`recipe/fixtures/compliance.json` holds the choices of a person and the one
+recipe that each frontend must write for them. Each frontend has a test that
+makes the choices with its own recipe code and compares the result with that
+recipe. The `Recipe compliance` workflow runs the five tests, and fails when
+one recipe is different. A new frontend adds its test and a job to that
+workflow ("The compliance fixture" in [recipe/README.md](recipe/README.md)).
+
 ## `tpm/`
 
 How to decide whether to offer the TPM encryption types. fisherman makes
@@ -207,7 +256,15 @@ share the pixel audit (`pixel_audit.py`) and the capture fixtures
 (`capture_fixtures.py`: the cut transcript, the recovery event and the GIF
 step). `tests/unit/test_walkthrough_pixel_audit.py` covers both. The
 compiled harnesses (KDE, COSMIC) write their PNGs and a `texts.json`, and
-their workflows run `report_from_pngs.py`. A new
+their workflows run `report_from_pngs.py`. A report is strict: each
+required screen shows on a page whose frame is present, readable, rendered,
+not a copy of another frame, the same file that the emitter audited
+(`sha256`), and changed from the frame before it (a stale grab does not
+change), or the `screen_exemptions` of the
+frontend's feature manifest exempt it with a reason. Else the screen is a
+failure. `aggregate.py --strict` checks each strict report again against
+its frames, and `walkthrough.yml` fails on a failure. A PNG-only report is
+advisory. `tests/unit/test_walkthrough_strict.py` covers each case. A new
 frontend adds a capture harness and a `screenshots-<name>.yml` workflow
 that writes `walkthrough-<name>.json`, and `walkthrough.yml` adds it to the
 page.
@@ -229,6 +286,29 @@ Where a contract has Python code, the code is in the `bootc_shared`
 package (`python/`), and a Python frontend imports it. A Python frontend
 does not keep a copy. A frontend in a different language implements the same
 behaviour and runs it against the same fixtures.
+
+## Required by this version
+
+Each frontend must support each row of this table in the version that
+`VERSION` names. A row names the case that holds all five frontends to
+it. The `Recipe compliance` workflow runs the cases of
+`recipe/fixtures/compliance.json` in each frontend.
+`tests/unit/test_shared_required.py` fails when a boot stack row or the
+region row has no compliance case with the same values. It also fails
+when a frontend has no catalog for a language row.
+
+| Requirement | Values | Case |
+|---|---|---|
+| Boot stack | `grub2`, ostree, `xfs` | `account-luks-region` in `recipe/fixtures/compliance.json` |
+| Boot stack | `systemd`, composefs, `ext4` | `no-account-filesystem-choice` in `recipe/fixtures/compliance.json` |
+| Region in the recipe | `de_DE.UTF-8`, `de`, `Europe/Berlin` | `account-luks-region` in `recipe/fixtures/compliance.json` |
+| Language of the interface | English, French (`fr`) | the French catalog of each frontend (`i18n/README.md`) |
+
+A boot stack that is not in this table is not a requirement. For example,
+the catalog fixture has a leaf with `systemd`, composefs and `btrfs`, but
+no compliance case holds a frontend to it. A new required row needs a
+compliance case first. The removal of a row follows "Deprecate" and
+"Remove" below.
 
 ## How a contract changes
 
@@ -253,6 +333,27 @@ frontend reads the new fixture in the same pull request.
   a recipe field, fisherman must stop support first: the schema cannot lose
   a field that fisherman's `Recipe` struct still has.
 
-The contracts have no version number at this time. The date of the newest
-`CHANGELOG.md` entry, and the sha256 of the recipe schema, identify the
-state of the contracts.
+`VERSION` holds the version of the contracts, in the form
+MAJOR.MINOR.PATCH. One version covers all the contract files. A contract
+file is each file in `shared/` that git tracks, except Markdown, `VERSION`,
+and the CI tools in `ci/`, `browser/` and `e2e/`.
+`ci/contract_version.py` keeps this list.
+
+Each change to a contract file increases the version, in the same pull
+request:
+
+- **MAJOR** for a removal, or for a change that an old reader cannot read.
+- **MINOR** for an addition, a deprecation, or a new recipe schema that adds
+  a field.
+- **PATCH** for a change that no reader sees in its fields: a corrected
+  fixture value, a new test case, a fix in shared code.
+
+The `CHANGELOG.md` entry of the change has two more lines, which
+`python3 shared/ci/contract_version.py` prints:
+`Contracts version:` with the new version, and `Contracts sha256:` with the
+digest of the contract files. `tests/unit/test_shared_contract_docs.py`
+fails when a contract file changes with no new entry, and when the version
+in the entry is not `VERSION`. The `Shared contract version` job of
+`python-test.yml` runs `ci/contract_version.py --check` with the full
+history. It fails when the version is not greater than the version of the
+base, and when the change edits an old entry.

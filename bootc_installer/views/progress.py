@@ -55,7 +55,7 @@ _FISHERMAN_CACHE_DIR = fisherman_runner.default_cache_dir()
 _FISHERMAN_HOST_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman")
 _FISHERMAN_LOG_PATH = os.path.join(_FISHERMAN_CACHE_DIR, "fisherman-output.log")
 
-from bootc_shared.progress import apply_progress_event, new_progress_state, render_event, set_product_name, set_install_label, set_step_label_resolver, _RE_LAYER_PROGRESS  # noqa: E402
+from bootc_shared.progress import apply_progress_event, copy_cancel, install_outcome, source_reuse_text, new_progress_state, render_event, set_product_name, set_install_label, set_step_label_resolver, _RE_LAYER_PROGRESS  # noqa: E402
 from bootc_installer.utils.codec_check import check_codecs_present  # noqa: E402
 
 
@@ -98,6 +98,14 @@ def failure_report(exit_code, error, tail, recovery_key="") -> list:
         lines.append("fisherman error: %s (code=%s, field=%s)" % (
             clean(error.get("message", "")), error.get("code") or "-",
             error.get("field") or "-"))
+        cleanup = error.get("cleanup") if isinstance(error.get("cleanup"), dict) else {}
+        if error.get("disk_changed") is not None or cleanup:
+            # tuna-os/fisherman#449: the step that ran, whether the disk
+            # changed and what the teardown did.
+            changed = {True: "yes", False: "no"}.get(error.get("disk_changed"), "-")
+            detail = (": " + clean(cleanup["message"])) if cleanup.get("message") else ""
+            lines.append(f"fisherman error: step={error.get('step_id') or '-'}, "
+                         f"disk_changed={changed}, cleanup={cleanup.get('status') or '-'}{detail}")
     else:
         lines.append("fisherman sent no error event")
     tail = list(tail)[-FAILURE_LOG_LINES:]
@@ -215,6 +223,7 @@ class BootcProgress(Gtk.Box):
     progress_elapsed = Gtk.Template.Child()
     progress_eta = Gtk.Template.Child()
     progress_substep = Gtk.Template.Child()
+    progress_reuse = Gtk.Template.Child()
     progress_note = Gtk.Template.Child()
     console_button = Gtk.Template.Child()
     media_button = Gtk.Template.Child()
@@ -294,6 +303,18 @@ class BootcProgress(Gtk.Box):
     @property
     def cancel_requested(self) -> bool:
         return self.__cancel_requested
+
+    @property
+    def copy_cancel(self) -> bool:
+        """Whether a cancel now only stops the copy of this computer's
+        system: the disk does not change yet (#267)."""
+        return copy_cancel(self.__progress_state)
+
+    def __show_source_reuse(self):
+        lines = source_reuse_text(self.__progress_state.get("source_reuse"),
+                                  lambda key: copy_text.text(self.__window, key))
+        self.progress_reuse.set_label("\n".join(lines))
+        self.progress_reuse.set_visible(bool(lines))
 
     def cancel(self) -> bool:
         """Stop the running install on the user's confirmed request.
@@ -704,7 +725,10 @@ class BootcProgress(Gtk.Box):
         # The install is over: the log poller, the pulse and the process
         # poller all stop on this, and a new start() is accepted again.
         self.__pulse_active = False
-        cancelled = self.__cancel_requested and ret != 0
+        # The exit code decides, never a `complete` event (subprocess gives
+        # a negative code for a signal): shared/progress/outcome-cases.json.
+        outcome = install_outcome(ret if ret >= 0 else None, self.__cancel_requested)
+        cancelled = outcome == "cancelled"
         self.__set_running(False)
         if ret != 0:
             # The failure page offers the log. A key for a disk that the
@@ -712,9 +736,10 @@ class BootcProgress(Gtk.Box):
             session.scrub_log(self.__recovery_key)
             self.__log_failure(ret)
         self.__window.set_installation_result(
-            ret == 0, None, self.__boot_id, self.__recovery_key, elapsed_secs,
+            outcome == "succeeded", None, self.__boot_id, self.__recovery_key, elapsed_secs,
             exit_code=ret, cancelled=cancelled,
             error=self.__last_error if ret != 0 else None,
+            receipt=self.__progress_state.get("receipt"),
         )
         return False
 
@@ -764,6 +789,10 @@ class BootcProgress(Gtk.Box):
             self.__recovery_key = self.__progress_state.get("recovery_key", "")
             logger.info("Fisherman reported recovery key")
         if update is None:
+            return
+        if "source_reuse" in update:
+            # The copy moves no bar: the bar pulses until the first step.
+            self.__show_source_reuse()
             return
 
         if update["fraction"] is not None:
@@ -830,6 +859,7 @@ class BootcProgress(Gtk.Box):
         self.progressbar_text.set_label(
             copy_text.text(self.__window, "progress_title") or _("Installing"))
         self.progress_substep.set_label("")
+        self.__show_source_reuse()
         self.__hide_video_fallback()
         self.__show_media_view()
         if not self._video_configured:
@@ -847,7 +877,8 @@ class BootcProgress(Gtk.Box):
                 return False  # cancelled, or another replay has started
             self.__set_running(False)
             # No boot_id: the transcript's is a placeholder.
-            self.__window.set_installation_result(True, None, "")
+            self.__window.set_installation_result(
+                True, None, "", receipt=self.__progress_state.get("receipt"))
             return False
 
         def _finish():
@@ -905,6 +936,7 @@ class BootcProgress(Gtk.Box):
         self.progressbar_text.set_label(
             copy_text.text(self.__window, "progress_title") or _("Installing"))
         self.progress_substep.set_label("")
+        self.__show_source_reuse()
         self.__hide_video_fallback()
         self.__show_media_view()
         if not self._video_configured:

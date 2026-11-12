@@ -123,6 +123,13 @@ fails when the two differ.
 - Each user-facing literal goes through `_()` from
   `tuna_installer_xfce/i18n.py`. `tests/test_i18n.py` fails on a bare
   literal. Do not use `_` as a parameter or variable name in those modules.
+  The template is `po/tuna-installer-xfce.pot`. After you change a marked
+  string, run `python3 ../../shared/i18n/templates.py xfce` and commit the
+  template. Then run `python3 ../../shared/i18n/catalogs.py fr xfce` to
+  update `po/fr.po`. The Flatpak compiles each `po/<lang>.po` to a `.mo`
+  file (`separate-locales` is `false`, so the bundle holds the files).
+  `tests/test_catalogs.py` compiles the catalogs with `msgfmt` and loads
+  them through `i18n.py`.
 - The keyboard combo applies to the live session only. The recipe has no
   locale field yet, so do not add a control that only stores a value.
 
@@ -142,10 +149,24 @@ The confirm page also asks fisherman about the selected image (#266):
 `core.probe_source()` runs the probe with the `--source` arguments of
 `bootc_shared.source_check`, off the UI thread (on the UI thread in a dry
 run), and the page shows `source_check.rows()`. Only a blocked source holds
-Next. A reply for an older visit, or for another source, is dropped. Never
-offer an image of this computer's bootc storage (#267) as a source. The done
-page says "installed, restart required" and never "verified"
-(`done_verification`, #269). `tests/test_source_check.py` covers the page.
+Next. A reply for an older visit, or for another source, is dropped.
+
+The confirm page offers the system that this computer runs as a second
+install source (#267). `source_check.reuse_source()` finds the item in the
+plain probe. It offers nothing on live media, and the download stays the
+default. The pick goes into the recipe through
+`ConfirmPage.apply_source()`, which `InstallerWindow.build_recipe()`
+calls, and fisherman checks it (`validate --partial`,
+`validate_source_reuse_<code>`). A copy needs no network.
+
+The done page says "installed, restart required" and never
+"verified": `done_verification`, then the line for fisherman's `receipt`
+event (`completion.receipt_text()`, #269). `tests/test_source_check.py` and
+`tests/test_navigation.py` cover the pages.
+The progress page shows fisherman's `source_reuse` events for a copy of
+this computer's system (`progress.source_reuse_text()`, #267). The copy
+does not move the bar. During the copy the cancel dialog says
+`progress_reuse_cancel` (`InstallerWindow.cancel_question_body()`).
 
 ## Offline and live-ISO installs
 

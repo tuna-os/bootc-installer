@@ -1,13 +1,15 @@
 import logging
 import os
-import subprocess
 import threading
 import time
 from gettext import gettext as _
 
+from bootc_shared import completion, progress
+
 from gi.repository import Adw, Gio, GLib, Gtk
 
 
+from bootc_installer.utils.host import HostExecutor, Scope, default_executor
 from bootc_installer.widgets.page_header import BootcPageHeader  # noqa: F401
 from bootc_installer.windows.dialog_output import BootcDialogOutput
 
@@ -33,33 +35,30 @@ def apply_icon(page_header, icon_spec):
         log.warning("Could not apply icon %r: %s", icon_spec, e)
 
 
-def warmup_registry(image_ref: str):
+def warmup_registry(image_ref: str, executor: HostExecutor | None = None):
     """Fire a skopeo inspect to warm DNS, TLS, and CDN routing for the registry.
 
     Called in a daemon thread 30 seconds after install success. Does not write
-    to the target disk (which is finalized/frozen after install).
+    to the target disk (which is finalized/frozen after install). skopeo runs
+    where the installer runs (`Scope.LOCAL`); in a Flatpak without skopeo
+    the warmup is skipped.
     """
-    try:
-        result = subprocess.run(
-            ["skopeo", "inspect", f"docker://{image_ref}"],
-            capture_output=True,
-            timeout=60,
-        )
-        if result.returncode == 0:
-            log.info("Registry warmup succeeded for %s", image_ref)
-        else:
-            log.debug("Registry warmup exited %d for %s: %s",
-                      result.returncode, image_ref,
-                      result.stderr.decode(errors="replace").strip()[:200])
-    except FileNotFoundError:
+    executor = executor or default_executor()
+    result = executor.run(["skopeo", "inspect", f"docker://{image_ref}"],
+                          scope=Scope.LOCAL, timeout=60)
+    if result.ok:
+        log.info("Registry warmup succeeded for %s", image_ref)
+    elif result.missing_command:
         log.debug("skopeo not available — registry warmup skipped")
-    except subprocess.TimeoutExpired:
-        log.debug("Registry warmup timed out for %s", image_ref)
-    except Exception as e:
-        log.debug("Registry warmup failed for %s: %s", image_ref, e)
+    else:
+        log.debug("Registry warmup failed for %s: %s", image_ref, result.describe()[:200])
 
 
-def do_reboot(in_flatpak):
+# The host commands that reboot when logind cannot be reached, in order.
+REBOOT_COMMANDS = (["systemctl", "reboot"], ["reboot"])
+
+
+def do_reboot(executor: HostExecutor | None = None):
     """Attempt to reboot. Returns True if a reboot command succeeded."""
     # Preferred: logind D-Bus — works correctly from inside the Flatpak
     # sandbox and handles polkit transparently.
@@ -80,17 +79,15 @@ def do_reboot(in_flatpak):
     except Exception as e:
         log.warning("logind D-Bus reboot failed: %s", e)
 
-    # Fallback: spawn systemctl / reboot on the host.
-    cmds = [["systemctl", "reboot"], ["reboot"]]
-    for cmd in cmds:
-        argv = (["flatpak-spawn", "--host"] + cmd) if in_flatpak else cmd
-        try:
-            result = subprocess.run(argv, capture_output=True)
-            if result.returncode == 0:
-                return True
-            log.warning("%s exited %d: %s", argv, result.returncode, result.stderr.decode())
-        except Exception as e:
-            log.warning("%s failed: %s", argv, e)
+    # Fallback: systemctl / reboot on the host (`flatpak-spawn --host` in a
+    # Flatpak). No timeout: killing flatpak-spawn would not stop a reboot
+    # that already started on the host (utils/host.py).
+    executor = executor or default_executor()
+    for cmd in REBOOT_COMMANDS:
+        result = executor.run(cmd, scope=Scope.HOST, timeout=None)
+        if result.ok:
+            return True
+        log.warning("Reboot fallback failed: %s", result.describe())
 
     return False
 
@@ -191,7 +188,8 @@ class BootcDone(Adw.Bin):
         parent.prepend(self.store_qr)
 
     def set_result(self, result, terminal, boot_id="", elapsed_secs=0, image_ref=None,
-                   exit_code=None, cancelled=False, message=None, error=None):
+                   exit_code=None, cancelled=False, message=None, error=None,
+                   receipt=None):
         """Show the result of an install.
 
         `exit_code` is the wrapper's; 126, 127 and 130 have lines of their
@@ -201,6 +199,8 @@ class BootcDone(Adw.Bin):
         `boot_id` is not used: fisherman sets BootNext itself (#318).
         `error` is fisherman's last `error` event: its message is the
         reason for a failure, and the log is read only when there is none.
+        `receipt` is what the parser kept of fisherman's `receipt` event
+        (bootc_shared.progress.receipt_of), None when none came.
         """
         self.__terminal = terminal
         from bootc_installer.utils import copy as copy_text
@@ -220,7 +220,9 @@ class BootcDone(Adw.Bin):
             self.page_header.subtitle = subtitle
             # Installed, restart required: never "verified". Only the new
             # system can check its own start (shared/completion/README.md).
-            verification = copy_text.text(self.__window, "done_verification")
+            # The receipt line says what this install set up for that check.
+            verification = "\n\n".join(completion.receipt_text(
+                receipt, lambda key: copy_text.text(self.__window, key)))
             self.lbl_verification.set_label(verification)
             self.group_verification.set_visible(bool(verification))
             self.btn_reboot.set_label(copy_text.text(self.__window, "done_restart") or _("Restart now"))
@@ -266,7 +268,13 @@ class BootcDone(Adw.Bin):
                     or error_event_hint(
                         error, lambda key: copy_text.text(self.__window, key))
                     or self.__extract_failure_hint())
-            self.page_header.subtitle = hint
+            # Then what fisherman's `error` event says about the disk and
+            # the cleanup (tuna-os/fisherman#449): whether the disk was
+            # changed, and a teardown that failed or timed out.
+            lines = progress.failure_text(
+                error, lambda key: copy_text.text(self.__window, key))
+            self.page_header.subtitle = ("\n\n".join(line for line in (hint, *lines) if line)
+                                         if lines else hint)
             self.group_verification.set_visible(False)
             self.store_group.set_visible(False)
             self.btn_reboot.set_visible(False)
@@ -332,12 +340,10 @@ class BootcDone(Adw.Bin):
         return _("Error: {}").format(short_msg)
 
     def __on_reboot_clicked(self, button):
-        in_flatpak = os.path.exists("/.flatpak-info")
-
         # No BootNext here. fisherman sets it while it is root, when the
         # host booted from live media (tuna-os/fisherman#435); its log line
         # says what it did. This process cannot write an EFI variable (#318).
-        if not do_reboot(in_flatpak):
+        if not do_reboot():
             self.__show_reboot_error()
 
     def __show_reboot_error(self):

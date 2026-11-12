@@ -59,7 +59,11 @@ TunaComponents.SetupModule {
                 objectName: "cancelConfirmDialog"
 
                 title: qsTr("Stop the installation?")
-                subtitle: qsTr("The disk %1 is erased already. If you stop now, no system can start from it until you install again.").arg(InstallerController.disk)
+                // During the copy of this computer's system the disk has
+                // not changed yet (#267).
+                subtitle: InstallerController.copyCancel && InstallerController.text("progress_reuse_cancel") !== ""
+                    ? InstallerController.text("progress_reuse_cancel")
+                    : qsTr("The disk %1 is erased already. If you stop now, no system can start from it until you install again.").arg(InstallerController.disk)
                 standardButtons: Kirigami.Dialog.NoButton
                 customFooterActions: [
                     Kirigami.Action {
@@ -172,6 +176,19 @@ TunaComponents.SetupModule {
 
                 Layout.fillWidth: true
             }
+        }
+
+        // The copy of this computer's system before the first step (#267):
+        // fisherman's source_reuse events. Hidden on every other install.
+        Label {
+            objectName: "reuseLines"
+            text: InstallerController.reuseLines.join("\n")
+            visible: text !== ""
+            color: Kirigami.Theme.disabledTextColor
+            wrapMode: Text.Wrap
+            textFormat: Text.PlainText
+
+            Layout.fillWidth: true
         }
 
         Kirigami.Card {

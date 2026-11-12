@@ -44,7 +44,7 @@ jobs:
       (github.event.workflow_run.head_repository.full_name == github.repository &&
       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch'))
     steps:
-      - uses: actions/checkout@v4.4.0 # zizmor: ignore[artipacked] the push-to-dev step later commits and pushes from this checkout
+      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] the push-to-dev step later commits and pushes from this checkout
         with:
           fetch-depth: 0
           ref: dev
@@ -77,13 +77,25 @@ jobs:
           done
           ls -R captures | head -80
 
+      # --strict: a strict report whose required evidence is missing is a
+      # failure (#186). The page is still built and committed first, so it
+      # shows the gap; the last step then fails the job.
       - name: Build docs/walkthrough
+        id: build
         run: |
+          set +e
           python3 shared/walkthrough/aggregate.py captures docs/walkthrough \
-            --repo "$GITHUB_REPOSITORY"
-          cat docs/walkthrough/README.md | head -60
+            --repo "$GITHUB_REPOSITORY" --strict
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+          head -60 docs/walkthrough/README.md
 
-      - uses: actions/upload-artifact@v4.6.2
+      # The publication allowlist (#270): only images, JSON and Markdown,
+      # and no recipe secret or E2E test credential. A failure stops the
+      # upload and the commit.
+      - name: Audit what the artifact and the commit publish
+        run: python3 shared/e2e/publish.py audit docs/walkthrough
+
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: walkthrough
           path: docs/walkthrough/
@@ -94,3 +106,9 @@ jobs:
           paths: docs/walkthrough
           message: "docs: refresh cross-frontend walkthrough [skip ci]"
           ssh-key: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}
+
+      - name: Fail on a strict walkthrough failure
+        if: steps.build.outputs.rc != '0'
+        run: |
+          echo "::error::a required screen has no evidence; see the failures in the Build step and docs/walkthrough/README.md"
+          exit 1

@@ -449,3 +449,119 @@ func sourceCheckMain() {
 	})
 	fmt.Println(string(out))
 }
+
+// ReuseSource is the item of this computer's bootc storage that the install
+// may copy instead of a download (#267, shared/probe/source-reuse-cases.json).
+type ReuseSource struct {
+	Ref      string `json:"ref"`
+	Digest   string `json:"digest"`
+	Platform string `json:"platform"`
+}
+
+var (
+	reuseDigest   = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+	reusePlatform = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$`)
+)
+
+// plainRef is a registry reference without its docker:// transport.
+func plainRef(ref string) string {
+	return strings.TrimPrefix(strings.TrimSpace(ref), "docker://")
+}
+
+func jRoles(item map[string]any) []string {
+	raw, _ := item["roles"].([]any)
+	out := []string{}
+	for _, r := range raw {
+		if s, ok := r.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func hasRole(item map[string]any, role string) bool {
+	for _, r := range jRoles(item) {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
+// readReuseSource is bootc_shared.source_check.reuse_source: the item that
+// qualifies for updateRef (the recipe's targetImgref), or nil. data is the
+// plain probe's output. Never on live media.
+func readReuseSource(data []byte, updateRef string) *ReuseSource {
+	if data == nil {
+		return nil
+	}
+	v, err := decodeAny(data)
+	if err != nil {
+		return nil
+	}
+	root, ok := v.(map[string]any)
+	if !ok {
+		return nil
+	}
+	live, ok := root["live"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	if isLive, ok := live["is_live"].(bool); !ok || isLive {
+		return nil
+	}
+	store, ok := root["bootc_store"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	if n, ok := jInt(store["version"]); !ok || n != 1 || !jTrue(store["available"]) {
+		return nil
+	}
+	items, ok := store["items"].([]any)
+	if !ok {
+		return nil
+	}
+	want := plainRef(updateRef)
+	if want == "" {
+		return nil
+	}
+	for _, it := range items {
+		item := jObj(it)
+		if jStr(item["ref"]) == want && hasRole(item, "staged") {
+			return nil
+		}
+	}
+	for _, it := range items {
+		item := jObj(it)
+		digest, platform := jStr(item["digest"]), jStr(item["platform"])
+		if jStr(item["ref"]) == want && hasRole(item, "booted") &&
+			jStr(item["owner"]) == "bootc" && jStr(item["context"]) == "live-host" &&
+			jStr(item["storage"]) == "ostree" && jStr(item["availability"]) == "deployed" &&
+			jTrue(item["matches_machine"]) &&
+			reuseDigest.MatchString(digest) && reusePlatform.MatchString(platform) {
+			return &ReuseSource{Ref: want, Digest: digest, Platform: platform}
+		}
+	}
+	return nil
+}
+
+// bootedReuse is the item that the probe offers for the reference of the
+// system that this computer runs (bootc_shared.source_check.offers_reuse).
+// `detect` gives it to the QML: the image page, which comes before the
+// confirm page, then lets a computer without a network go on to the choice.
+func bootedReuse(data []byte) *ReuseSource {
+	v, err := decodeAny(data)
+	if err != nil {
+		return nil
+	}
+	items, _ := jObj(jObj(v)["bootc_store"])["items"].([]any)
+	for _, it := range items {
+		item := jObj(it)
+		if hasRole(item, "booted") {
+			if src := readReuseSource(data, jStr(item["ref"])); src != nil {
+				return src
+			}
+		}
+	}
+	return nil
+}

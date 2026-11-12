@@ -27,7 +27,6 @@ The tracker is the source of truth. This list is a snapshot from 2026-11-10.
 
 | Issue | Gap |
 |---|---|
-| #300 | The strings go through one `tr()` shim and a lint holds that, but no translation ships |
 | #105 | Five libcosmic patches for the browser build must go upstream |
 | #292 | Language, keyboard and time zone change the live session only (each page says so); the recipe fields wait for fisherman |
 

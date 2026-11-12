@@ -84,12 +84,27 @@ TunaComponents.SetupModule {
                 Layout.fillWidth: true
             }
 
+            // A failure: whether fisherman changed the disk, and a cleanup
+            // that failed or timed out (its `error` event, fisherman#449).
+            Label {
+                objectName: "doneFailureLines"
+                text: InstallerController.failureLines.join("\n\n")
+                visible: !InstallerController.succeeded && !InstallerController.cancelled
+                    && text.length > 0
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+
+                Layout.fillWidth: true
+            }
+
             // Installed, restart required: never "verified". Only the new
             // system can check its own start (#269,
             // shared/completion/README.md).
+            // The receipt line says what fisherman's `receipt` event set up
+            // for that check, and the install id.
             Label {
                 objectName: "doneVerification"
-                text: InstallerController.text("done_verification")
+                text: InstallerController.receiptLines.join("\n\n")
                 visible: InstallerController.succeeded && text.length > 0
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap

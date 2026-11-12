@@ -553,5 +553,107 @@ class TestSourceCheck(unittest.TestCase):
         obj.btn_confirm.set_sensitive.assert_called_with(True)
 
 
+class TestSourceReuse(unittest.TestCase):
+    """The install source (#267): this computer's system from its bootc
+    storage, offered as a second choice and never the default."""
+
+    UPDATE_REF = "ghcr.io/example/os:stable"
+
+    def _probe(self, live=False):
+        import json
+        import os
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "shared", "probe",
+                            "fixtures", "bootc-store", "store-inaccessible.json")
+        with open(path, encoding="utf-8") as fh:
+            store = json.load(fh)
+        return {"protocol_version": 1, "live": {"is_live": live}, "bootc_store": store}
+
+    def _make_obj(self):
+        obj = confirm_mod.BootcConfirm.__new__(confirm_mod.BootcConfirm)
+        obj.group_reuse = MagicMock()
+        obj.btn_confirm = MagicMock()
+        obj._hostname_check = None
+        _set_window(obj, {})
+        rows = []
+
+        class _Row:
+            def __init__(self):
+                self.title = self.subtitle = ""
+                rows.append(self)
+
+            def set_title(self, t):
+                self.title = t
+
+            def set_subtitle(self, t):
+                self.subtitle = t
+
+            def __getattr__(self, name):
+                return lambda *a, **kw: None
+
+        for owner, name, value in ((confirm_mod.Adw, "ActionRow", _Row),
+                                   (confirm_mod.Gtk, "CheckButton", MagicMock),
+                                   (confirm_mod.Gtk, "Align", MagicMock())):
+            self.addCleanup(setattr, owner, name, getattr(owner, name, None))
+            setattr(owner, name, value)
+        self.checks = []
+        obj._reuse_check = types.SimpleNamespace(submit=self.checks.append)
+        return obj, rows
+
+    def _recipe(self):
+        return {"disk": "/dev/vda", "image": self.UPDATE_REF, "targetImgref": self.UPDATE_REF,
+                "filesystem": "xfs", "encryption": {"type": "luks-passphrase", "passphrase": "s"}}
+
+    def test_offered_but_never_the_default(self):
+        obj, rows = self._make_obj()
+        obj._BootcConfirm__update_reuse(self._probe(), self._recipe())
+        window = obj._BootcConfirm__window
+        titles = [r.title for r in rows]
+        self.assertEqual(titles, [confirm_mod.copy_text.text(window, "source_reuse_download"),
+                                  confirm_mod.copy_text.text(window, "source_reuse_local")])
+        self.assertFalse(obj.reuse_selected)
+        self.assertEqual(obj.apply_source(self._recipe()), self._recipe())
+        obj.group_reuse.set_visible.assert_called_with(True)
+
+    def test_never_on_live_media(self):
+        obj, rows = self._make_obj()
+        obj._BootcConfirm__update_reuse(self._probe(live=True), self._recipe())
+        self.assertEqual(rows, [])
+        obj.group_reuse.set_visible.assert_called_with(False)
+
+    def test_the_choice_writes_source_reuse_and_is_checked(self):
+        obj, _rows = self._make_obj()
+        obj._BootcConfirm__update_reuse(self._probe(), self._recipe())
+        obj._reuse_selected = True
+        obj._BootcConfirm__update_reuse(self._probe(), self._recipe())
+        recipe = obj.apply_source(self._recipe())
+        self.assertEqual(recipe["image"], "")
+        self.assertEqual(recipe["targetImgref"], self.UPDATE_REF)
+        self.assertEqual(recipe["sourceReuse"]["digest"], "sha256:" + "1" * 64)
+        self.assertIn("bootc_store_reuse", recipe["experimental"])
+        fragment = self.checks[-1]
+        self.assertEqual(fragment["sourceReuse"], recipe["sourceReuse"])
+        self.assertNotIn("encryption", fragment)
+
+    def test_a_validate_code_shows_its_copy_line_and_holds_install(self):
+        obj, rows = self._make_obj()
+        obj._BootcConfirm__update_reuse(self._probe(), self._recipe())
+        obj._reuse_selected = True
+        obj._BootcConfirm__on_reuse_checked(
+            [{"code": "source_reuse_source_moved", "field": "sourceReuse", "message": "x"}], None)
+        window = obj._BootcConfirm__window
+        self.assertIn(confirm_mod.copy_text.text(window, "validate_source_reuse_source_moved"),
+                      [r.title for r in rows])
+        obj.btn_confirm.set_sensitive.assert_called_with(False)
+
+    def test_a_different_item_drops_the_choice(self):
+        obj, _rows = self._make_obj()
+        obj._BootcConfirm__update_reuse(self._probe(), self._recipe())
+        obj._reuse_selected = True
+        probe = self._probe()
+        probe["bootc_store"]["items"][0]["digest"] = "sha256:" + "2" * 64
+        obj._BootcConfirm__update_reuse(probe, self._recipe())
+        self.assertFalse(obj.reuse_selected)
+
+
 if __name__ == "__main__":
     unittest.main()

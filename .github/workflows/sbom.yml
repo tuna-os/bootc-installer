@@ -1,0 +1,113 @@
+name: SBOM
+
+# The one definition of the SPDX SBOM of each frontend's Flatpak (#151).
+#
+# release.yml calls this workflow (job `sbom`) and attaches the five
+# <frontend>.spdx.json files, which it downloads from the `sbom-<frontend>`
+# artifacts, to the GitHub release. The attestation and the release stay in
+# release.yml's `release` job, which only runs on prod or a v* tag.
+#
+# A pull request and a push to dev run the same jobs as a dry run when an
+# input of the SBOM changes, so the steps that a release depends on run
+# before prod. A dry run only uploads a run artifact: it has `contents: read`
+# and no attestation, release or package step. tests/unit/test_release_sbom.py
+# holds this.
+#
+# Each leg: stage the lock files that the Flatpak builds from, Syft
+# (anchore/sbom-action) lists their packages, shared/ci/flatpak_sbom.py adds
+# the app, its runtime and the manifest's modules, then checks the document
+# with the same check that release.yml applies after the download.
+
+on:
+  workflow_call:
+  pull_request:
+    paths:
+      - 'shared/ci/flatpak_sbom.py'
+      - 'shared/ci/flatpak_manifest.py'
+      - 'shared/ci/frontend_table.py'
+      - 'shared/ci/frontends.json'
+      - 'shared/flatpak/**'
+      - 'flatpak/*.json'
+      - 'frontends/*/flatpak/*.json'
+      - 'frontends/cosmic/Cargo.lock'
+      - 'frontends/niri/installer/go.mod'
+      - 'fisherman'
+      - '.github/workflows/sbom.yml'
+      - '.github/workflows/release.yml'
+  push:
+    branches: [dev]
+    # The same list as pull_request (tests/unit/test_release_sbom.py).
+    paths:
+      - 'shared/ci/flatpak_sbom.py'
+      - 'shared/ci/flatpak_manifest.py'
+      - 'shared/ci/frontend_table.py'
+      - 'shared/ci/frontends.json'
+      - 'shared/flatpak/**'
+      - 'flatpak/*.json'
+      - 'frontends/*/flatpak/*.json'
+      - 'frontends/cosmic/Cargo.lock'
+      - 'frontends/niri/installer/go.mod'
+      - 'fisherman'
+      - '.github/workflows/sbom.yml'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    # In a release run the check is "SBOM / SBOM (<frontend>)"; on a pull
+    # request or dev it is the dry run "SBOM (<frontend>)". The name has no
+    # other expression: the promotion gate matches check names exactly.
+    name: SBOM (${{ matrix.frontend }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # The rows of shared/ci/frontends.json (tests/unit/test_release_sbom.py).
+        frontend: [gnome, kde, cosmic, niri, xfce]
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - name: Stage the lock files
+        env:
+          FRONTEND: ${{ matrix.frontend }}
+        run: python3 shared/ci/flatpak_sbom.py stage --frontend "$FRONTEND" --into "sbom-src/$FRONTEND"
+
+      - uses: anchore/sbom-action@v0.24.3
+        with:
+          path: sbom-src/${{ matrix.frontend }}
+          format: spdx-json
+          output-file: ${{ matrix.frontend }}.syft.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Add the Flatpak manifest
+        env:
+          FRONTEND: ${{ matrix.frontend }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python3 shared/ci/flatpak_sbom.py merge --frontend "$FRONTEND" \
+            --syft "$FRONTEND.syft.spdx.json" --out "$FRONTEND.spdx.json" \
+            --repo-url "https://github.com/$GITHUB_REPOSITORY" --commit "$SHA"
+
+      - name: Check the SBOM
+        env:
+          FRONTEND: ${{ matrix.frontend }}
+          SHA: ${{ github.sha }}
+        run: python3 shared/ci/flatpak_sbom.py check --commit "$SHA" "$FRONTEND.spdx.json"
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: sbom-${{ matrix.frontend }}
+          path: ${{ matrix.frontend }}.spdx.json
+          if-no-files-found: error
+          retention-days: 7
