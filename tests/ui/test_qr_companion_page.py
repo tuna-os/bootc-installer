@@ -1,11 +1,19 @@
-"""The phone companion page against real GTK.
+"""The phone companion page against real GTK, in the real window.
 
 The QR code is a Gdk.Texture made from in-memory PNG bytes, black on white
 with a quiet zone; without segno the page falls back to the link; the
 token-bearing URL never lands in a widget the user can read.
+
+Each test opens the real BootcWindow on the shipped recipe.json and moves
+the carousel to the companion page, as a user does: the page starts its
+server because it is the page on screen (#321). The tests used to build
+the page alone with a step number and call its private start method, so
+they could not see where the window starts it. Only the server is a
+stand-in (RecordingServer): no test binds a port or runs openssl.
 """
 
-from unittest.mock import MagicMock, patch
+import contextlib
+from unittest.mock import patch
 
 import gi
 import pytest
@@ -17,21 +25,41 @@ from gi.repository import Adw, Gdk, GLib, Gtk
 
 from bootc_installer.defaults import qr_companion as mod
 
-TOKEN = "ui-test-token-must-stay-hidden"
+from ._real_window import (
+    RecordingServer,
+    current_page,
+    go,
+    go_to_before,
+    page_by_key,
+    real_window,
+    shipped_recipe,
+    wait_for,
+)
+
+# What RecordingServer hands out when it starts.
+TOKEN = "window-test-token"
+ADDRESS = "192.0.2.10:8443"
 
 
-def _page(start_ok=True, segno=mod.segno, reason="no-tls"):
-    page = mod.BootcDefaultQrCompanion(MagicMock(), {}, "qr_companion", {"num": 2})
-    server = MagicMock()
-    server.start.return_value = start_ok
-    server.auth_token = TOKEN if start_ok else None
-    server.host = "192.0.2.10" if start_ok else None
-    server.unavailable_reason = None if start_ok else reason
-    with patch.object(mod, "CompanionServer", return_value=server), \
-         patch.object(mod, "segno", segno), \
-         patch.object(mod.GLib, "timeout_add", return_value=0):
-        page._BootcDefaultQrCompanion__start_companion()
-    return page
+@pytest.fixture()
+def companion(tmp_path):
+    """Open the window and go to the companion page. Yields a function of
+    (start_ok, segno), so that each test picks the server's answer."""
+    with contextlib.ExitStack() as stack:
+        def open_page(start_ok=True, segno=mod.segno):
+            stack.enter_context(patch.object(mod, "segno", segno))
+            window = stack.enter_context(
+                real_window(tmp_path, shipped_recipe(needs_user_creation=True)))
+            RecordingServer.start_result = start_ok
+            page = page_by_key(window, "qr_companion")
+            assert page is not None
+            go_to_before(window, "qr_companion")
+            assert not RecordingServer.any_running()
+            go(window, +1)
+            assert current_page(window) is page
+            assert RecordingServer.any_running() is start_ok
+            return page
+        yield open_page
 
 
 def _strings(widget, acc=None):
@@ -62,14 +90,14 @@ def _pixel(texture, x, y):
 
 
 @pytest.mark.skipif(mod.segno is None, reason="segno not installed")
-def test_qr_is_a_crisp_black_on_white_texture():
-    page = _page()
+def test_qr_is_a_crisp_black_on_white_texture(companion):
+    page = companion()
     assert page.state_stack.get_visible_child_name() == "companion"
     assert page.qr_stack.get_visible_child_name() == "code"
     texture = page.qr_picture.get_paintable()
     assert isinstance(texture, Gdk.Texture)
 
-    url = f"https://192.0.2.10:8443/?token={TOKEN}"
+    url = f"https://{ADDRESS}/?token={TOKEN}"
     modules = mod.segno.make_qr(url, error="m").symbol_size(
         scale=1, border=mod.QR_QUIET_ZONE)[0]
     assert texture.get_width() == texture.get_height()
@@ -86,27 +114,27 @@ def test_qr_is_a_crisp_black_on_white_texture():
     assert _pixel(texture, q + 3 * px, q + 3 * px) == (0, 0, 0)
 
 
-def test_without_segno_the_page_offers_the_link():
-    page = _page(segno=None)
+def test_without_segno_the_page_offers_the_link(companion):
+    page = companion(segno=None)
     assert page.state_stack.get_visible_child_name() == "companion"
     assert page.qr_stack.get_visible_child_name() == "nocode"
     assert page.qr_picture.get_paintable() is None
-    assert page.address_label.get_text() == "192.0.2.10:8443"
+    assert page.address_label.get_text() == ADDRESS
     assert page.copy_button.get_sensitive()
 
 
 @pytest.mark.parametrize("segno", [mod.segno, None])
-def test_the_token_is_never_in_a_label(segno):
-    page = _page(segno=segno)
+def test_the_token_is_never_in_a_label(companion, segno):
+    page = companion(segno=segno)
     strings = _strings(page)
-    assert "192.0.2.10:8443" in strings
+    assert ADDRESS in strings
     for s in strings:
         assert TOKEN not in s, f"token on screen: {s!r}"
         assert "token=" not in s, f"full URL on screen: {s!r}"
 
 
-def test_copy_link_copies_the_full_url():
-    page = _page(segno=None)
+def test_copy_link_copies_the_full_url(companion):
+    page = companion(segno=None)
     with patch.object(mod.GLib, "timeout_add_seconds", return_value=0):
         page.copy_button.emit("clicked")
     clipboard = Gdk.Display.get_default().get_clipboard()
@@ -120,17 +148,19 @@ def test_copy_link_copies_the_full_url():
     clipboard.read_text_async(None, done)
     GLib.timeout_add(2000, loop.quit)
     loop.run()
-    assert got.get("text") == f"https://192.0.2.10:8443/?token={TOKEN}"
+    assert got.get("text") == f"https://{ADDRESS}/?token={TOKEN}"
 
 
-def test_skip_is_a_plain_button():
-    page = _page()
+def test_skip_is_a_plain_button(companion):
+    page = companion()
     assert not page.btn_next.has_css_class("suggested-action")
     page.btn_next.emit("clicked")
+    # Skip moves on, and the server stops with the page.
+    wait_for(lambda: not RecordingServer.any_running(), what="the server to stop")
 
 
-def test_unavailable_is_a_status_page():
-    page = _page(start_ok=False)
+def test_unavailable_is_a_status_page(companion):
+    page = companion(start_ok=False)
     assert page.state_stack.get_visible_child_name() == "unavailable"
     assert isinstance(page.state_stack.get_visible_child(), Adw.StatusPage)
     assert "Unavailable" in page.unavailable_page.get_title()
