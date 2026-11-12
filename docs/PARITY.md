@@ -46,7 +46,7 @@ claimed a render that nobody had wired up.
 | `confirm_warning` | summary warning row (own group above the summary, `{disk}` filled) | inline message | warning card | warning line | warning row naming the selected disk |
 | `confirm_warning_removable` | summary warning row (replaces `confirm_warning` when the target disk is removable, `{disk}` filled) | inline message (replaces `confirm_warning`) | warning card (replaces `confirm_warning`) | warning line (replaces `confirm_warning`) | warning row (replaces `confirm_warning`) |
 | `confirm_button` | pill button | Next button | forward button | button | Next button |
-| `confirm_plan_*` | confirm page, install plan group (`fisherman plan --json -`): the target disk with model, size and serial, whether the install is bound to it, each device erased | no (tuna-os/fisherman#371) | no (tuna-os/fisherman#371) | no (tuna-os/fisherman#371) | no (tuna-os/fisherman#371) |
+| `confirm_plan_*` | confirm page, install plan group (`fisherman plan --json -`): the target disk with model, size and serial, whether the install is bound to it, each device erased | no (tuna-os/fisherman#371) | no (tuna-os/fisherman#371) | no (tuna-os/fisherman#371) | install plan lines under the summary (`fisherman plan --json -`): the target disk with model, size and serial, whether the install is bound to it, each device erased |
 | `confirm_quotes` | random line per language | no | no | no | no |
 | `progress_title` | image-writing step label (centred title) | label | page title | heading | page title |
 | `progress_note` | dim caption under the bar | label | warning caption | caption | dim label under the bar |
