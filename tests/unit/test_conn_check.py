@@ -118,6 +118,7 @@ class TestConnCheckAsyncLogic(unittest.TestCase):
         step._BootcDefaultConnCheck__check_run = 0
         step.page_header = SimpleNamespace(icon_name=None, title=None, subtitle=None)
         step.btn_recheck = MagicMock()
+        step.btn_network_settings = MagicMock()
         return step
 
     def _show(self, step, index):
@@ -172,6 +173,25 @@ class TestConnCheckAsyncLogic(unittest.TestCase):
             "Installer requires an active internet connection",
         )
         step.btn_recheck.set_visible.assert_called_once_with(True)
+        step.btn_network_settings.set_visible.assert_called_once_with(True)
+
+    def test_network_settings_opens_the_hosts_tool(self):
+        """The offline page offers the desktop's own network settings, as
+        the other four frontends do."""
+        mod = _import_conn_check_fresh()
+        step = self._step(mod)
+        with patch.object(mod.subprocess, "Popen") as popen:
+            step._BootcDefaultConnCheck__on_btn_network_settings_clicked(MagicMock())
+        argv = popen.call_args.args[0]
+        self.assertEqual(argv, mod.network_settings_argv())
+        self.assertTrue(popen.call_args.kwargs["start_new_session"])
+
+    def test_check_again_hides_network_settings_until_the_answer(self):
+        mod = _import_conn_check_fresh()
+        step = self._step(mod)
+        with patch.object(mod, "RunAsync", lambda *a, **kw: None):
+            step._BootcDefaultConnCheck__on_btn_recheck_clicked(MagicMock())
+        step.btn_network_settings.set_visible.assert_called_once_with(False)
 
     def test_the_registry_of_the_selected_image_is_probed_first(self):
         """bootc_shared.network: the image's own registry, then ghcr.io,
@@ -291,6 +311,33 @@ class TestConnCheckAsyncLogic(unittest.TestCase):
 
         step._BootcDefaultConnCheck__window.next.assert_called_once_with()
         step._BootcDefaultConnCheck__window.back.assert_not_called()
+
+
+class TestNetworkSettingsCommand(unittest.TestCase):
+    def test_in_a_flatpak_the_command_runs_on_the_host(self):
+        mod = _import_conn_check_fresh()
+        argv = mod.network_settings_argv(in_flatpak=True)
+        self.assertEqual(argv[:2], ["flatpak-spawn", "--host"])
+        self.assertEqual(argv[2:4], ["sh", "-c"])
+        self.assertEqual(mod.network_settings_argv(in_flatpak=False),
+                         ["sh", "-c", mod.NETWORK_SETTINGS_SCRIPT])
+
+    def test_gnome_settings_first_then_the_other_desktops(self):
+        mod = _import_conn_check_fresh()
+        script = mod.NETWORK_SETTINGS_SCRIPT
+        order = [script.index(tool) for tool in (
+            "gnome-control-center wifi", "nm-connection-editor",
+            "systemsettings kcm_networkmanagement", "cosmic-settings network")]
+        self.assertEqual(order, sorted(order))
+        self.assertTrue(script.endswith("else exit 127; fi"))
+
+    def test_a_command_that_cannot_start_is_not_an_error(self):
+        mod = _import_conn_check_fresh()
+        with patch.object(mod.subprocess, "Popen", side_effect=OSError("no flatpak-spawn")):
+            self.assertFalse(mod.open_network_settings(in_flatpak=True))
+        with patch.object(mod.subprocess, "Popen") as popen:
+            self.assertTrue(mod.open_network_settings(in_flatpak=True))
+        self.assertEqual(popen.call_args.args[0][:2], ["flatpak-spawn", "--host"])
 
 
 if __name__ == "__main__":
