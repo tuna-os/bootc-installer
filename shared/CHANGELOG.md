@@ -18,6 +18,25 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-12: the confirm page shows fisherman's install plan
+
+- Added: `python/bootc_shared/plan.py`, the reader for
+  `fisherman plan --json -` (tuna-os/fisherman#371): it parses the plan,
+  makes the rows of the target disk and of each device that the install
+  destroys, and copies the plan's `target.identity` into the recipe as
+  `diskIdentity`. `fisherman_host.command` has the purpose `plan`
+  (unprivileged, recipe on stdin). GNOME uses it; KDE, COSMIC, Niri and
+  XFCE do not yet.
+- Added: `branding/copy-defaults.json` has the `confirm_plan_*` lines
+  (the group title, the target disk with `{model}`, `{size}` and
+  `{serial}`, whether the install is bound to it, and one line for each
+  effect: `wipe_disk`, `format`, `mkswap`).
+- Added: `walkthrough/feature-rows.json` and `features.schema.json` have
+  the row `install_plan`.
+
+Contracts version: `1.6.0`
+Contracts sha256: `a87e6fc61b9b8645426b5404af6691490824a2cf5f75861f0d5ff146b61e738e`
+
 ## 2026-11-12: a recipe can bind the install to the planned disk
 
 - Added: `recipe/fisherman-recipe.schema.json` has `diskIdentity`

@@ -59,6 +59,7 @@
         "translatable",
         "progress_bar",
         "source_check",
+        "install_plan",
         "bootc_store_view",
         "source_reuse_progress",
         "done_not_verified",
@@ -261,6 +262,12 @@
           "minLength": 1,
           "pattern": "^[^|\\n]+$",
           "description": "Check of the selected image (`capabilities` of `fisherman probe --json`, #266)"
+        },
+        "install_plan": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Install plan on the confirm page (`fisherman plan --json -`: target disk identity, what is erased), install bound to that disk (`diskIdentity`, tuna-os/fisherman#371)"
         },
         "bootc_store_view": {
           "type": "string",

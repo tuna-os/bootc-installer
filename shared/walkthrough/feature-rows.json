@@ -32,6 +32,7 @@
     {"id": "translatable", "label": "Translatable UI"},
     {"id": "progress_bar", "label": "Progress bar from fisherman's protocol", "evidence": {"walkthrough_screen": "install"}},
     {"id": "source_check", "label": "Check of the selected image (`capabilities` of `fisherman probe --json`, #266)"},
+    {"id": "install_plan", "label": "Install plan on the confirm page (`fisherman plan --json -`: target disk identity, what is erased), install bound to that disk (`diskIdentity`, tuna-os/fisherman#371)"},
     {"id": "bootc_store_view", "label": "Images in this computer's bootc storage (`bootc_store`), and this computer's system as the install source (`sourceReuse`, #267)"},
     {"id": "source_reuse_progress", "label": "Progress of the copy of this computer's system (`source_reuse` events: space, copy, check, failure, removal; #267)"},
     {"id": "done_not_verified", "label": "Done page: installed, restart required, start not verified (#269)"},

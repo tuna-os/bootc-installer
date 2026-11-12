@@ -19,6 +19,7 @@ import re
 import threading
 from gettext import gettext as _
 
+from bootc_shared import plan as install_plan
 from bootc_shared import source_check
 
 from bootc_installer.utils import copy as copy_text
@@ -106,6 +107,22 @@ def keyboard_summary(keyboard) -> str:
     return f"{keyboard['layout']}+{variant}" if variant else keyboard["layout"]
 
 
+def request_plan(recipe):
+    """(result, error) of `fisherman plan --json -` for `recipe`: the
+    parsed plan result and None, or None and why fisherman could not be
+    asked. Runs fisherman unprivileged on the host, as the validate checks
+    do, with the recipe on stdin. Call it off the UI thread: it waits up to
+    install_plan.TIMEOUT_SECONDS."""
+    from bootc_installer.utils import fisherman_runner
+    try:
+        if fisherman_runner.IN_FLATPAK and not fisherman_runner.stage_on_host():
+            raise install_plan.PlanError("could not stage fisherman on the host")
+        command = install_plan.argv(fisherman_runner.fisherman_argv())
+        return install_plan.run(command, recipe), None
+    except install_plan.PlanError as exc:
+        return None, str(exc)
+
+
 def erased_disks_text(disks: list) -> str:
     """The {disk} of the erase warning: every disk the install formats."""
     disks = [d for d in disks if d]
@@ -154,6 +171,7 @@ class BootcConfirm(Adw.Bin):
     group_changes = Gtk.Template.Child()
     group_source = Gtk.Template.Child()
     group_reuse = Gtk.Template.Child()
+    group_plan = Gtk.Template.Child()
     btn_confirm = Gtk.Template.Child()
     lbl_body = Gtk.Template.Child()
     page_header = Gtk.Template.Child()
@@ -173,6 +191,17 @@ class BootcConfirm(Adw.Bin):
     _reuse_widgets = ()
     _reuse_problems = ()
     _reuse_check = None
+    # The install plan (tuna-os/fisherman#371): fisherman's own account of
+    # what the install destroys and which disk it writes to. Each visit
+    # asks once; a reply for an older visit is dropped. `_plan` is the plan
+    # of this visit when fisherman gave a valid one, else None: the page
+    # then works as it did before plans, and the install is not bound.
+    _plan_generation = 0
+    _plan = None
+    _plan_invalid = False
+    _plan_widgets = ()
+    _plan_request = staticmethod(request_plan)
+    _plan_start = staticmethod(lambda fn: threading.Thread(target=fn, daemon=True).start())
 
     def __init__(self, window, **kwargs):
         super().__init__(**kwargs)
@@ -339,7 +368,7 @@ class BootcConfirm(Adw.Bin):
                     self._hostname_check = FieldCheck(
                         self.__window, entry_row, "hostname",
                         lambda text: {"hostname": text.strip()},
-                        message, on_change=self.__update_confirm_button)
+                        message, on_change=self.__on_hostname_checked)
                 elif key == "selected_image" and value:
                     pn = final.get("pretty_name") or value
                     primary["image"].append(
@@ -472,6 +501,8 @@ class BootcConfirm(Adw.Bin):
         self._source_generation += 1
         generation = self._source_generation
         self._source_blocked = False
+        # No plan of an earlier visit or source may bind this install.
+        self.__clear_plan()
         window = self.__window
         try:
             from bootc_installer.core.system import Systeminfo
@@ -479,6 +510,7 @@ class BootcConfirm(Adw.Bin):
                 "", getattr(window, "finals", []) or [], getattr(window, "recipe", {}) or {})
             self.__update_reuse(Systeminfo.probe(), recipe)
             recipe = self.apply_source(recipe)
+            self.__start_plan(self.__with_hostname(recipe))
             req = source_check.recipe_request(recipe, Systeminfo.is_live())
             del recipe
         except Exception as exc:  # noqa: BLE001 - the install refuses it with its own message
@@ -628,6 +660,109 @@ class BootcConfirm(Adw.Bin):
             fisherman_validate.render(p, self.__text) for p in problems or [])
         self.__show_reuse_rows(self._reuse_source["ref"])
         self.__update_confirm_button()
+
+    def __with_hostname(self, recipe):
+        """`recipe` with the hostname typed on this page, as the window
+        writes it at confirmation."""
+        override = self.get_hostname_override()
+        if override and isinstance(recipe, dict) and "hostname" in recipe:
+            recipe = dict(recipe, hostname=override)
+        return recipe
+
+    def __plan_text(self, key, **values):
+        return copy_text.text(self.__window, key, **values)
+
+    def __clear_plan(self):
+        """Forget the plan; a reply that is still on its way is dropped."""
+        self._plan_generation += 1
+        self._plan = None
+        self._plan_invalid = False
+        self.__show_plan_rows([])
+
+    def __start_plan(self, recipe):
+        """Ask `fisherman plan --json -` about the recipe the install will
+        use, off the UI thread. The recipe goes to fisherman on stdin; the
+        worker drops it with its answer."""
+        self.__clear_plan()
+        generation = self._plan_generation
+        request = self._plan_request
+
+        def work():
+            answer = request(recipe)
+            GLib.idle_add(self.__on_plan_reply, generation, answer)
+
+        self._plan_start(work)
+
+    def __on_plan_reply(self, generation, answer):
+        if generation != self._plan_generation:
+            return False
+        result, error = answer
+        if error is not None:
+            # An older fisherman has no plan; the page works as before.
+            logger.info("no install plan: %s", error)
+            return False
+        if not result.get("valid"):
+            # The field checks name the problem; the install refuses it.
+            codes = sorted({str(e.get("code", "")) for e in result.get("errors") or []
+                            if isinstance(e, dict)})
+            logger.info("fisherman plan refused the recipe: %s", ", ".join(codes))
+            self._plan_invalid = True
+            return False
+        self._plan = result["plan"]
+        logger.info("install plan: %d device(s) destroyed, disk identity %s",
+                    len(install_plan.destroys(self._plan)),
+                    sorted(install_plan.disk_identity(self._plan)) or "unknown")
+        self.__show_plan_rows(install_plan.rows(self._plan, self.__plan_text))
+        return False
+
+    def __show_plan_rows(self, rows):
+        for row in self._plan_widgets:
+            self.group_plan.remove(row)
+        self._plan_widgets = []
+        for title, subtitle in rows:
+            row = Adw.ActionRow()
+            row.set_use_markup(False)
+            row.set_title_lines(0)
+            row.set_subtitle_lines(0)
+            row.set_title(title)
+            row.set_subtitle(subtitle)
+            self.group_plan.add(row)
+            self._plan_widgets.append(row)
+        self.group_plan.set_title(self.__plan_text("confirm_plan_title") if rows else "")
+        self.group_plan.set_visible(bool(rows))
+
+    def __on_hostname_checked(self):
+        self.__update_confirm_button()
+        # A plan that fisherman refused for the hostname is asked again
+        # once the hostname passes.
+        if self._plan_invalid and self._hostname_check is not None and self._hostname_check.ok:
+            self.__restart_plan()
+
+    def __restart_plan(self):
+        window = self.__window
+        try:
+            recipe = self.apply_source(Processor.gen_install_recipe(
+                "", getattr(window, "finals", []) or [], getattr(window, "recipe", {}) or {}))
+        except Exception as exc:  # noqa: BLE001 - the install refuses it with its own message
+            logger.info("no install plan: %s", exc)
+            return
+        self.__start_plan(self.__with_hostname(recipe))
+
+    @property
+    def install_plan(self):
+        """fisherman's plan for this visit, or None."""
+        return self._plan
+
+    def bind_disk(self, recipe):
+        """`recipe` bound to the disk that the plan on this page showed:
+        with `diskIdentity` (the serial, WWN and size that fisherman
+        reported), so that fisherman refuses the install if another device
+        is at that path (`disk_identity_mismatch`). `recipe` unchanged when
+        there is no plan, when the plan is for another disk, or when the
+        disk reports nothing to bind to."""
+        if self._plan is None:
+            return recipe
+        return install_plan.bind(recipe, self._plan)
 
     def __update_confirm_button(self):
         self.btn_confirm.set_sensitive(

@@ -5,10 +5,12 @@ without a display.  BootcChoiceEntry is replaced with a MagicMock factory
 after import so process_keyboards() and update() can execute.
 """
 
+import json
+import os
 import sys
 import types
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 
 def _build_gi_stubs():
@@ -653,6 +655,174 @@ class TestSourceReuse(unittest.TestCase):
         probe["bootc_store"]["items"][0]["digest"] = "sha256:" + "2" * 64
         obj._BootcConfirm__update_reuse(probe, self._recipe())
         self.assertFalse(obj.reuse_selected)
+
+
+
+class TestInstallPlan(unittest.TestCase):
+    """The install plan (tuna-os/fisherman#371): `fisherman plan --json -`
+    of the recipe that the install uses, shown on the page, and its disk
+    identity bound into the recipe at confirmation. Without a plan the page
+    and the recipe are as before."""
+
+    SECRET = "plan-sentinel-passphrase"
+    GOLDEN = os.path.join(os.path.dirname(__file__), "..", "..", "fisherman", "fisherman",
+                          "cmd", "fisherman", "testdata", "plan")
+
+    def _golden(self, name):
+        from bootc_shared import plan as install_plan
+        path = os.path.join(self.GOLDEN, name + ".golden")
+        if not os.path.exists(path):
+            self.skipTest("no fisherman submodule")
+        with open(path, encoding="utf-8") as fh:
+            return install_plan.parse(fh.read().replace("@DIR@", "/dev"))
+
+    def _recipe(self, disk="/dev/sda"):
+        return {"disk": disk, "image": "ghcr.io/example/os:stable", "hostname": "host",
+                "encryption": {"type": "luks-passphrase", "passphrase": self.SECRET}}
+
+    def _make_obj(self):
+        obj = confirm_mod.BootcConfirm.__new__(confirm_mod.BootcConfirm)
+        obj.group_plan = MagicMock()
+        obj._hostname_entry_row = None
+        _set_window(obj, {})
+        rows = []
+
+        class _Row:
+            def __init__(self):
+                self.title = self.subtitle = ""
+                rows.append(self)
+
+            def set_title(self, t):
+                self.title = t
+
+            def set_subtitle(self, t):
+                self.subtitle = t
+
+            def __getattr__(self, name):
+                return lambda *a, **kw: None
+
+        self.addCleanup(setattr, confirm_mod.Adw, "ActionRow", confirm_mod.Adw.ActionRow)
+        confirm_mod.Adw.ActionRow = _Row
+        # The worker runs at once, and its idle callback with it.
+        self.addCleanup(setattr, confirm_mod.GLib, "idle_add", confirm_mod.GLib.idle_add)
+        confirm_mod.GLib.idle_add = lambda fn, *a: fn(*a)
+        obj._plan_start = lambda fn: fn()
+        self.requests = []
+        return obj, rows
+
+    def _answer(self, obj, answer):
+        def request(recipe):
+            self.requests.append(recipe)
+            return answer
+        obj._plan_request = request
+
+    def test_a_plan_shows_the_disk_and_what_is_erased(self):
+        obj, rows = self._make_obj()
+        self._answer(obj, (self._golden("grub2-plain"), None))
+        obj._BootcConfirm__start_plan(self._recipe())
+        titles = [r.title for r in rows]
+        self.assertEqual(titles[0], "Installs to Fixture Disk")
+        self.assertIn("serial number FIXTURE-SDA-SERIAL", rows[0].subtitle)
+        self.assertIn("Everything on /dev/sda is erased.", titles)
+        obj.group_plan.set_visible.assert_called_with(True)
+        obj.group_plan.set_title.assert_called_with(
+            confirm_mod.copy_text.text(obj._BootcConfirm__window, "confirm_plan_title"))
+        # The recipe that was asked about is the install's, passphrase and all.
+        self.assertEqual(self.requests, [self._recipe()])
+
+    def test_confirmation_binds_the_recipe_to_the_planned_disk(self):
+        obj, _rows = self._make_obj()
+        self._answer(obj, (self._golden("grub2-plain"), None))
+        obj._BootcConfirm__start_plan(self._recipe())
+        bound = obj.bind_disk(self._recipe())
+        self.assertEqual(bound["diskIdentity"], {
+            "serial": "FIXTURE-SDA-SERIAL", "wwn": "0x5000c500a1b2c3d4",
+            "sizeBytes": 500107862016})
+        # Another disk than the plan's is not bound.
+        self.assertNotIn("diskIdentity", obj.bind_disk(self._recipe("/dev/sdb")))
+
+    def test_a_disk_without_serial_binds_its_size_and_says_so(self):
+        obj, rows = self._make_obj()
+        self._answer(obj, (self._golden("loop-image"), None))
+        obj._BootcConfirm__start_plan(self._recipe("/dev/loop0"))
+        self.assertEqual(rows[0].title, "Installs to unknown")
+        self.assertIn("serial number unknown", rows[0].subtitle)
+        self.assertIn(confirm_mod.copy_text.text(obj._BootcConfirm__window, "confirm_plan_unbound"),
+                      [r.title for r in rows])
+        self.assertEqual(obj.bind_disk(self._recipe("/dev/loop0"))["diskIdentity"],
+                         {"sizeBytes": 8589934592})
+
+    def test_no_plan_leaves_the_page_and_the_recipe_as_before(self):
+        for answer in ((None, "fisherman plan failed (exit 2): unknown command"),
+                       (self._golden("invalid"), None)):
+            with self.subTest(answer=answer[1]):
+                obj, rows = self._make_obj()
+                self._answer(obj, answer)
+                with self.assertLogs("Installer::Confirm", level="INFO") as logs:
+                    obj._BootcConfirm__start_plan(self._recipe())
+                self.assertEqual(rows, [])
+                obj.group_plan.set_visible.assert_called_with(False)
+                self.assertIsNone(obj.install_plan)
+                self.assertEqual(obj.bind_disk(self._recipe()), self._recipe())
+                self.assertNotIn(self.SECRET, "\n".join(logs.output))
+
+    def test_a_late_reply_is_dropped(self):
+        obj, rows = self._make_obj()
+        obj._plan_generation = 4
+        obj._BootcConfirm__on_plan_reply(3, (self._golden("grub2-plain"), None))
+        self.assertEqual(rows, [])
+        self.assertIsNone(obj.install_plan)
+
+    def test_a_new_visit_forgets_the_old_plan(self):
+        obj, _rows = self._make_obj()
+        self._answer(obj, (self._golden("grub2-plain"), None))
+        obj._BootcConfirm__start_plan(self._recipe())
+        self.assertIsNotNone(obj.install_plan)
+        obj._BootcConfirm__clear_plan()
+        self.assertEqual(obj.bind_disk(self._recipe()), self._recipe())
+
+    def test_the_plan_is_asked_unprivileged_with_the_recipe_on_stdin(self):
+        from bootc_shared import plan as install_plan
+
+        from bootc_installer.utils import fisherman_runner
+        calls = []
+
+        class _Proc:
+            returncode = 0
+            stderr = ""
+            stdout = json.dumps({"protocol_version": 1, "valid": True, "errors": [],
+                                 "plan": {"target": {"layout": "manual"}, "destroys": []}})
+
+        def fake_run(argv, **kwargs):
+            calls.append((argv, kwargs))
+            return _Proc()
+
+        with patch.object(fisherman_runner, "IN_FLATPAK", False), \
+                patch.object(install_plan.subprocess, "run", fake_run):
+            result, error = confirm_mod.request_plan(self._recipe())
+        self.assertIsNone(error)
+        self.assertTrue(result["valid"])
+        argv, kwargs = calls[0]
+        self.assertEqual(argv[-3:], ["plan", "--json", "-"])
+        self.assertNotIn("pkexec", argv)
+        self.assertNotIn(self.SECRET, " ".join(argv))
+        self.assertEqual(json.loads(kwargs["input"])["encryption"]["passphrase"], self.SECRET)
+
+    def test_a_flatpak_that_cannot_stage_has_no_plan(self):
+        from bootc_installer.utils import fisherman_runner
+        with patch.object(fisherman_runner, "IN_FLATPAK", True), \
+                patch.object(fisherman_runner, "stage_on_host", lambda: False):
+            result, error = confirm_mod.request_plan(self._recipe())
+        self.assertIsNone(result)
+        self.assertIn("stage", error)
+
+    def test_the_hostname_typed_here_is_in_the_planned_recipe(self):
+        obj, _rows = self._make_obj()
+        row = confirm_mod.Adw.EntryRow()
+        row.set_text("typed-host")
+        obj._hostname_entry_row = row
+        self.assertEqual(obj._BootcConfirm__with_hostname(self._recipe())["hostname"],
+                         "typed-host")
 
 
 if __name__ == "__main__":

@@ -38,7 +38,7 @@ BUNDLED_FISHERMAN = "/app/bin/fisherman"
 # A test names a different binary to stage with this variable.
 SOURCE_ENV = "BOOTC_FISHERMAN_PATH"
 
-PURPOSES = ("probe", "validate", "validate-full", "install")
+PURPOSES = ("probe", "validate", "validate-full", "plan", "install")
 
 
 class StageError(Exception):
@@ -165,7 +165,8 @@ def command(purpose, *, in_flatpak, live=False, host_path=None, log_path=None,
     """The argv that runs fisherman for `purpose`. The only resolver.
 
     "probe" (`probe --json`), "validate" (`validate --json --partial -`) and
-    "validate-full" (`validate --json -`) run unprivileged, never through
+    "validate-full" (`validate --json -`) and "plan" (`plan --json -`,
+    fisherman/docs/PLAN.md) run unprivileged, never through
     pkexec or sudo. "install" runs with privileges and reads the recipe on
     stdin.
 
@@ -186,4 +187,6 @@ def command(purpose, *, in_flatpak, live=False, host_path=None, log_path=None,
             FISHERMAN_PATH, escalate or ("sudo -n" if live else "pkexec"), log_path)]
     if purpose == "probe":
         return plain + ["probe", "--json"]
+    if purpose == "plan":
+        return plain + ["plan", "--json", "-"]
     return validate.argv(plain, partial=purpose == "validate")

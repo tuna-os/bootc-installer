@@ -72,13 +72,18 @@ KNOWN_GAPS = {
         "welcome_install": "modules/welcome hardcodes its two body sentences",
         "welcome_install_subtitle": "modules/welcome hardcodes its two body sentences",
         "filesystem_zfs_label": "the disk step offers no ZFS (src/recipe.cpp has no zfs choice)",
+        "confirm_plan_*": "no install plan on the confirm page yet (tuna-os/fisherman#371)",
     },
     "cosmic": {
         "welcome_install": "the welcome page has no install row to label",
         "welcome_install_subtitle": "the welcome page has no install row to label",
+        "confirm_plan_*": "no install plan on the confirm page yet (tuna-os/fisherman#371)",
     },
-    "niri": {},
+    "niri": {
+        "confirm_plan_*": "no install plan on the confirm page yet (tuna-os/fisherman#371)",
+    },
     "xfce": {
+        "confirm_plan_*": "no install plan on the confirm page yet (tuna-os/fisherman#371)",
     },
 }
 
@@ -249,6 +254,11 @@ FAILURE_FAMILIES = ("done_failed_disk_", "done_failed_cleanup_")
 # line but the cancel question, which a frontend names itself.
 COPY_PROGRESS_RENDER = "source_reuse_text("
 COPY_CANCEL_KEY = "progress_reuse_cancel"
+# The confirm page's install plan (tuna-os/fisherman#371):
+# bootc_shared.plan.rows() names every confirm_plan_* line but the group
+# title, which a frontend names itself.
+PLAN_RENDER = "install_plan.rows("
+PLAN_PREFIX = "confirm_plan_"
 
 
 def rendered_source_keys(text, keys):
@@ -272,6 +282,8 @@ def rendered_source_keys(text, keys):
         found |= {k for k in keys if k.startswith("source_reuse_")}
     if COPY_PROGRESS_RENDER in text:
         found |= {k for k in keys if k.startswith("progress_reuse_") and k != COPY_CANCEL_KEY}
+    if PLAN_RENDER in text:
+        found |= {k for k in keys if k.startswith(PLAN_PREFIX) and k != PLAN_PREFIX + "title"}
     for prefix in SOURCE_FAMILIES:
         if f'"{prefix}"' in text or f"'{prefix}'" in text:
             found |= {k for k in keys if k.startswith(prefix) and k != COPY_CANCEL_KEY}
