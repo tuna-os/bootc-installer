@@ -58,6 +58,7 @@ on:
       - Browser walkthrough
       - KDE wasm build
       - COSMIC wasm build
+      - SBOM
     types: [completed]
     branches: [dev]
   # Catch-up only. The gate sleeps out the soak itself (see the header), so
