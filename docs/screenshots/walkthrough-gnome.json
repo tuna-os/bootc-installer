@@ -192,9 +192,9 @@
       "rendered": true,
       "colours": 290,
       "flat": 0.8548616600790514,
-      "ink": 0.03313570487483531,
-      "stddev": 0.14987173499299164,
-      "sha256": "dffcc5c953c7d04b0605dbdaeb89765007bbad53501cf20ec122592dc2a24d73",
+      "ink": 0.033122529644268775,
+      "stddev": 0.14987348490278915,
+      "sha256": "307182017e4441105b29dfb810b4dde3ee79fd4792d873dd3ebd559745858efd",
       "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
     },
     {
@@ -225,9 +225,9 @@
       "rendered": true,
       "colours": 327,
       "flat": 0.7092094861660079,
-      "ink": 0.02067193675889328,
-      "stddev": 0.0813719711954672,
-      "sha256": "971aa44fb0102fd85ed5e94ce873a2f2cce95612caea5e3392f57be3d39c2061",
+      "ink": 0.0049934123847167325,
+      "stddev": 0.06024159663014559,
+      "sha256": "365506e44a098bd40e0ab2ea675d1f3b84b631c4ac439b550a6e178a9ccae167",
       "text_excerpt": "Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Confirm Password Confirm Password"
     },
     {
@@ -235,10 +235,10 @@
       "png": "docs/screenshots/10-confirm.png",
       "rendered": true,
       "colours": 355,
-      "flat": 0.5575494071146245,
-      "ink": 0.010368906455862978,
-      "stddev": 0.06963907577789125,
-      "sha256": "6e5a7e5c85e9199eaa274066c437b890572930abdce377c6809a55a6d8bce1e7",
+      "flat": 0.557536231884058,
+      "ink": 0.010289855072463768,
+      "stddev": 0.06942068786473507,
+      "sha256": "ba3143d0ce1f62334a0a7ab1fb4ef3a41fe313516e0f54be744c3b0b3654c793",
       "text_excerpt": "Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be undone. Summary Summary Target disk Samsung SSD 870 EVO 500GB (/dev/sda, 465.8 GiB) Target disk Samsung"
     },
     {
@@ -259,8 +259,8 @@
       "colours": 256,
       "flat": 0.8902371541501977,
       "ink": 0.01785243741765481,
-      "stddev": 0.09072438481569614,
-      "sha256": "42ff8b1c50526d56f485a3808025436e347daea50806caf7f14233d9f0bad907",
+      "stddev": 0.09072446218336834,
+      "sha256": "e4520add90beed299bda89d261eef6a0092d7e07d9d4444e826f6032542d1147",
       "text_excerpt": "Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf I have saved "
     },
     {
@@ -280,12 +280,12 @@
     27739,
     29291,
     27037,
-    70837,
+    70836,
     68061,
     51793,
-    43790,
-    42508,
-    37415,
+    43789,
+    42513,
+    37416,
     38578,
     44391
   ],
