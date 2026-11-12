@@ -131,6 +131,9 @@ files (`caps-*.json`), and three files that this repository made
 (`frontend-*.json`). `generate-source-check-cases.py` writes the case file
 from `bootc_shared.source_check`. Run it after a change to the reader or
 a fixture.
+`tests/unit/test_pinned_fisherman_contract.py` builds the pinned fisherman
+and runs `probe --json` (with and without `--source`) and `validate --json
+--partial -` through the readers. Both commands run as the user.
 
 ## bootc storage of this computer
 
