@@ -7,8 +7,8 @@ name: COSMIC wasm build
 #
 # Upstream does not take these fixes (pop-os closed libcosmic#1446,
 # iced#397 and iced#398). This job builds against the tuna-os forks instead,
-# each pinned by a full commit SHA in frontends/cosmic/web/: cargo-patch.toml
-# has the patch overrides, and assemble-iced.sh makes the iced tree. The
+# each pinned by a full commit SHA in frontends/cosmic/web/cargo-patch.toml
+# (shared/browser/wasm-patches/CARRIED.md lists the carried patches). The
 # patches reach Cargo only through `--config` in this job. Cargo.toml has
 # no [patch], and the committed Cargo.lock, the Flatpak cargo sources and
 # the native build do not change. The `cargo update` step changes the lock
@@ -61,9 +61,6 @@ jobs:
         with:
           workspaces: frontends/cosmic
           key: wasm
-
-      - name: assemble the pinned iced tree
-        run: web/assemble-iced.sh
 
       - name: cargo check (wasm32, tuna-os forks)
         id: wasm
