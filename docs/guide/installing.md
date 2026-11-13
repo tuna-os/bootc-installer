@@ -42,13 +42,18 @@ Refer to [the GNOME walkthrough](../gui-walkthrough.md) for the full set.
 | Screen | What you do |
 |---|---|
 | ![Welcome](../screenshots/01-welcome.png) | **Welcome**. Read what the installer will do. |
-| ![Phone companion](../screenshots/02-qr_companion.png) | **Phone companion**. Scan the QR code to type your account data on a phone. This step is optional. |
-| ![Install location](../screenshots/03-disk.png) | **Install location**. Select a disk. The installer does not write to the disk yet. |
-| ![Encryption](../screenshots/04-encryption.png) | **Disk encryption**. Select LUKS with a passphrase, TPM2, or the two together. |
-| ![Confirm](../screenshots/05-confirm.png) | **Confirm**. Make sure that the data is correct. After this screen, the installer writes to the disk. |
-| ![Installing](../screenshots/06-progress.png) | **Installing**. Wait for the install steps to complete. Open the log if you want to see more. |
-| ![Recovery key](../screenshots/07-recovery-key.png) | **Recovery key**. Keep the key in a safe place, then confirm. This screen shows only after an encrypted install. |
-| ![Done](../screenshots/08-done.png) | **Done**. Restart into the new system. |
+| ![Language](../screenshots/02-language.png) | **Language**. Select the language of the installed system. |
+| ![Keyboard](../screenshots/03-keyboard.png) | **Keyboard**. Select the keyboard layout. |
+| ![Time zone](../screenshots/04-timezone.png) | **Time zone**. Select the time zone. |
+| ![Image](../screenshots/05-image.png) | **Image**. Select the image to install. |
+| ![Phone companion](../screenshots/06-qr_companion.png) | **Phone companion**. Scan the QR code to type your account data on a phone. This step is optional. |
+| ![Install location](../screenshots/07-disk.png) | **Install location**. Select a disk. The installer does not write to the disk yet. |
+| ![Encryption](../screenshots/08-encryption.png) | **Disk encryption**. Select LUKS with a passphrase, TPM2, or the two together. |
+| ![User account](../screenshots/09-user.png) | **User account**. Type your name, user name and password. |
+| ![Confirm](../screenshots/10-confirm.png) | **Confirm**. Make sure that the data is correct. After this screen, the installer writes to the disk. |
+| ![Installing](../screenshots/11-progress.png) | **Installing**. Wait for the install steps to complete. Open the log if you want to see more. |
+| ![Recovery key](../screenshots/12-recovery-key.png) | **Recovery key**. Keep the key in a safe place, then confirm. This screen shows only after an encrypted install. |
+| ![Done](../screenshots/13-done.png) | **Done**. Restart into the new system. |
 
 Some screens show only for some images.
 For example, the account screen shows only when the image needs a user account.
