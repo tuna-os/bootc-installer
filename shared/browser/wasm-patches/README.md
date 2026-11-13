@@ -12,16 +12,18 @@ Tracked in #105.
 pop-os does not accept LLM-generated changes. It closed libcosmic#1446,
 iced#397 and iced#398. Agents send no more upstream PRs. The advisory job
 `.github/workflows/wasm-cosmic.yml` builds against the tuna-os forks. Each
-fork is pinned by a full commit SHA in `frontends/cosmic/web/`.
+fork is pinned by a full commit SHA in `frontends/cosmic/web/cargo-patch.toml`.
+[CARRIED.md](CARRIED.md) lists each fork commit, why it is carried, and how
+to rebase a fork and move its pin.
 
 | Patch | Source in the wasm job |
 |---|---|
-| `01` | tuna-os/rust-atomicwrites, branch `wasm/fallback-imp-for-unsupported-targets`, pinned in `web/cargo-patch.toml` |
-| `02` | tuna-os/libcosmic `master` (tuna-os/libcosmic#1), pinned in `web/cargo-patch.toml` |
-| `03`, `06` | tuna-os/iced#2 and tuna-os/iced#1. `web/assemble-iced.sh` applies the two commits on top of the iced commit that libcosmic pins. The fork `master` has them only on a newer iced, and libcosmic does not build against that iced. |
+| `01` | tuna-os/rust-atomicwrites `master` (tuna-os/rust-atomicwrites#1) |
+| `02` | tuna-os/libcosmic `master` (tuna-os/libcosmic#1) |
+| `03`, `06` | tuna-os/iced `cosmic-wasm/5fc4372` (tuna-os/iced#10): tuna-os/iced#2 and tuna-os/iced#1 on the iced commit that libcosmic pins. The fork `master` has them only on a newer iced, and libcosmic does not build against that iced. |
 | `04`, `08` | `frontends/cosmic/src`, under `cfg(unix)` and `cfg(target_arch = "wasm32")` |
 | `05` | `frontends/cosmic/Cargo.toml`: the `desktop` feature (the default) and the `web` feature |
-| `07` | not applied. No fork has it. The `cargo check` does not need it. A render in Chromium needs it. |
+| `07` | this directory only, as a local patch. No fork carries it. The `cargo check` does not need it. A render in Chromium needs it. |
 
 The patch overrides reach Cargo only through `cargo --config` in that job.
 `Cargo.toml` has no `[patch]`. `Cargo.lock`, the Flatpak cargo sources and
@@ -143,7 +145,6 @@ The commands of `wasm-cosmic.yml`, in `frontends/cosmic`:
 
 ```bash
 rustup target add wasm32-unknown-unknown
-web/assemble-iced.sh
 cargo update --config web/cargo-patch.toml -p atomicwrites
 cargo check --target wasm32-unknown-unknown \
     --no-default-features --features web --config web/cargo-patch.toml
@@ -155,5 +156,5 @@ change. `git checkout Cargo.lock` puts it back.
 
 The first experiment used libcosmic `43a50cb`, winit
 `0.31.0-beta.2` (`pop-os/winit`, tag `cosmic-0.14`), wgpu 28, iced 0.14.
-The wasm job uses tuna-os/libcosmic `f59dea6` and iced `5fc4372` with `06`
-and `03`. These use the same winit.
+The wasm job uses the pins in `web/cargo-patch.toml`: tuna-os/libcosmic
+`f59dea6` and iced `5fc4372` with `06` and `03`. These use the same winit.

@@ -9,12 +9,14 @@ pins live in `frontends/cosmic/web/` and reach Cargo only through
   may fail on dev, and no job of it in the promote gate's REQUIRED_CHECKS.
 - It is path-filtered to frontends/cosmic/** and itself.
 - Each fork pin is a tuna-os repository at a full 40-hex commit SHA, never a
-  branch or a tag, and the iced crates are patched as one set.
+  branch, a tag or a local path, and the iced crates are patched as one set.
+- CARRIED.md names each pin, and Renovate tracks each pin.
 - Nothing outside the job names a fork: Cargo.toml has no [patch], and
   Cargo.lock and the Flatpak cargo sources name no tuna-os source.
 - The `web` feature is off by default.
 """
 
+import json
 import pathlib
 import re
 import tomllib
@@ -26,11 +28,13 @@ WORKFLOW = REPO / ".github" / "workflows" / "wasm-cosmic.yml"
 PROMOTE = REPO / ".github" / "workflows" / "promote.yml"
 COSMIC = REPO / "frontends" / "cosmic"
 PATCH = COSMIC / "web" / "cargo-patch.toml"
-ASSEMBLE = COSMIC / "web" / "assemble-iced.sh"
+CARRIED = REPO / "shared" / "browser" / "wasm-patches" / "CARRIED.md"
+RENOVATE = REPO / "renovate.json"
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
 FORKS = {
     "https://github.com/tuna-os/libcosmic",
+    "https://github.com/tuna-os/iced",
     "https://github.com/tuna-os/rust-atomicwrites",
 }
 ICED_CRATES = {
@@ -95,10 +99,6 @@ def test_each_git_pin_is_a_tuna_os_fork_at_a_full_sha():
     revs = {}
     for source, crates in patch.items():
         for name, spec in crates.items():
-            if "path" in spec:
-                assert name in ICED_CRATES, name
-                assert spec["path"].startswith("web/iced"), spec
-                continue
             assert set(spec) == {"git", "rev"}, (source, name, spec)
             assert spec["git"] in FORKS, spec
             assert SHA.match(spec["rev"]), spec
@@ -111,17 +111,38 @@ def test_each_git_pin_is_a_tuna_os_fork_at_a_full_sha():
 def test_the_iced_crates_are_patched_as_one_set():
     patch = tomllib.loads(PATCH.read_text())["patch"]
     for source in ("https://github.com/pop-os/libcosmic", "https://github.com/tuna-os/libcosmic"):
-        iced = {n for n, s in patch[source].items() if "path" in s}
+        iced = {n for n, s in patch[source].items() if s["git"] == "https://github.com/tuna-os/iced"}
         assert iced == ICED_CRATES, source
 
 
-def test_the_iced_tree_is_pinned_by_full_shas():
-    text = ASSEMBLE.read_text()
-    assert 'ICED_REPO=https://github.com/tuna-os/iced\n' in text
-    base = re.search(r"^ICED_BASE=(\S+)$", text, re.M).group(1)
-    picks = re.search(r'^ICED_PICKS="([^"]+)"$', text, re.M).group(1).split()
-    assert SHA.match(base)
-    assert len(picks) == 2 and all(SHA.match(p) for p in picks)
+def pins():
+    patch = tomllib.loads(PATCH.read_text())["patch"]
+    return {(s["git"], s["rev"]) for crates in patch.values() for s in crates.values()}
+
+
+def test_carried_md_names_each_pin():
+    text = CARRIED.read_text()
+    for git, rev in pins():
+        assert git.removeprefix("https://github.com/") in text, git
+        assert rev in text, (git, rev)
+
+
+def test_renovate_tracks_each_pin():
+    managers = [
+        m for m in json.loads(RENOVATE.read_text())["customManagers"]
+        if any("cargo-patch" in p for p in m["managerFilePatterns"])
+    ]
+    found = set()
+    for manager in managers:
+        assert manager["datasourceTemplate"] == "git-refs"
+        assert manager["currentValueTemplate"]
+        for pattern in manager["matchStrings"]:
+            # Renovate regexes are JavaScript; these use only syntax that
+            # Python reads the same way, apart from the group names.
+            regex = re.compile(pattern.replace("(?<", "(?P<"))
+            for m in regex.finditer(PATCH.read_text()):
+                found.add((m["depName"], m["currentDigest"]))
+    assert found == pins()
 
 
 def test_nothing_outside_the_job_names_a_fork():

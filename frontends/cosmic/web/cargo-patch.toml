@@ -4,19 +4,21 @@
 # `cargo --config web/cargo-patch.toml`. Cargo.toml, Cargo.lock, the
 # Flatpak cargo sources and the shipped native build do not use it.
 #
-# Every source is a tuna-os fork at a full commit SHA:
-# - tuna-os/libcosmic: patch 02 (cosmic-config `system_path` on wasm).
-# - tuna-os/rust-atomicwrites: patch 01 (a fallback `imp` for wasm).
-# - tuna-os/iced: patches 06 and 03. libcosmic carries iced as a git
-#   submodule, so the lockfile names each iced crate with the libcosmic
-#   source, and nothing depends on an iced git URL. web/assemble-iced.sh
-#   puts the pinned iced tree in web/iced, and the iced crates point there.
-#   They are patched under both libcosmic sources: the patched libcosmic
+# Every source is a tuna-os fork at a full commit SHA on a branch of that
+# fork, merged by pull request. shared/browser/wasm-patches/CARRIED.md has
+# the fork, the commit and the reason of each pin, and how to rebase.
+# - tuna-os/libcosmic `master`: patch 02 (cosmic-config `system_path`).
+# - tuna-os/rust-atomicwrites `master`: patch 01 (a fallback `imp`).
+# - tuna-os/iced `cosmic-wasm/5fc4372`: patches 06 and 03 on the iced
+#   commit that the libcosmic pin has as its submodule. libcosmic carries
+#   iced as a git submodule, so the lockfile names each iced crate with
+#   the libcosmic source, and nothing depends on an iced git URL. The iced
+#   crates are patched under both libcosmic sources: the patched libcosmic
 #   refers to its own source. Patch all of them or none: two copies of
 #   iced_core do not link.
 #
-# A path in a --config file is relative to the parent of the directory
-# that holds the file, which is frontends/cosmic.
+# Renovate bumps each rev to the head of its branch (renovate.json,
+# customManagers), and does not automerge it.
 # tests/unit/test_wasm_cosmic.py checks the format.
 
 [patch."https://github.com/pop-os/libcosmic"]
@@ -24,36 +26,36 @@ libcosmic = { git = "https://github.com/tuna-os/libcosmic", rev = "f59dea696d6c1
 cosmic-config = { git = "https://github.com/tuna-os/libcosmic", rev = "f59dea696d6c15568f936286db081e778c264a57" }
 cosmic-config-derive = { git = "https://github.com/tuna-os/libcosmic", rev = "f59dea696d6c15568f936286db081e778c264a57" }
 cosmic-theme = { git = "https://github.com/tuna-os/libcosmic", rev = "f59dea696d6c15568f936286db081e778c264a57" }
-build_helpers = { path = "web/iced/build_helpers" }
-iced = { path = "web/iced" }
-iced_accessibility = { path = "web/iced/accessibility" }
-iced_core = { path = "web/iced/core" }
-iced_debug = { path = "web/iced/debug" }
-iced_futures = { path = "web/iced/futures" }
-iced_graphics = { path = "web/iced/graphics" }
-iced_program = { path = "web/iced/program" }
-iced_renderer = { path = "web/iced/renderer" }
-iced_runtime = { path = "web/iced/runtime" }
-iced_tiny_skia = { path = "web/iced/tiny_skia" }
-iced_wgpu = { path = "web/iced/wgpu" }
-iced_widget = { path = "web/iced/widget" }
-iced_winit = { path = "web/iced/winit" }
+build_helpers = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_accessibility = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_core = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_debug = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_futures = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_graphics = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_program = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_renderer = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_runtime = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_tiny_skia = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_wgpu = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_widget = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_winit = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
 
 [patch."https://github.com/tuna-os/libcosmic"]
-build_helpers = { path = "web/iced/build_helpers" }
-iced = { path = "web/iced" }
-iced_accessibility = { path = "web/iced/accessibility" }
-iced_core = { path = "web/iced/core" }
-iced_debug = { path = "web/iced/debug" }
-iced_futures = { path = "web/iced/futures" }
-iced_graphics = { path = "web/iced/graphics" }
-iced_program = { path = "web/iced/program" }
-iced_renderer = { path = "web/iced/renderer" }
-iced_runtime = { path = "web/iced/runtime" }
-iced_tiny_skia = { path = "web/iced/tiny_skia" }
-iced_wgpu = { path = "web/iced/wgpu" }
-iced_widget = { path = "web/iced/widget" }
-iced_winit = { path = "web/iced/winit" }
+build_helpers = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_accessibility = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_core = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_debug = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_futures = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_graphics = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_program = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_renderer = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_runtime = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_tiny_skia = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_wgpu = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_widget = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
+iced_winit = { git = "https://github.com/tuna-os/iced", rev = "2b79c4675969a42d1d3cc1cf5d87bb6f35bb01f6" }
 
 [patch."https://github.com/jackpot51/rust-atomicwrites"]
-atomicwrites = { git = "https://github.com/tuna-os/rust-atomicwrites", rev = "f912bc98185624340d78f587270191c9672cc442" }
+atomicwrites = { git = "https://github.com/tuna-os/rust-atomicwrites", rev = "7e18cf3045168c9e57368470d9d9dfb582d67d8a" }

@@ -59,6 +59,43 @@
       "groupName": "fisherman",
       "commitMessageTopic": "fisherman",
       "automerge": true
+    },
+    {
+      "description": "COSMIC wasm fork pins (frontends/cosmic/web/cargo-patch.toml, #105): never automerge. Only the advisory wasm-cosmic.yml job builds them, and it stays green when the check fails, so green proves nothing. Read the job's step summary before merging. shared/browser/wasm-patches/CARRIED.md says how to move them.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchPackageNames": [
+        "/^https://github\\.com/tuna-os/(libcosmic|iced|rust-atomicwrites)$/"
+      ],
+      "groupName": "COSMIC wasm forks",
+      "automerge": false
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "COSMIC wasm fork pins on the master branch of tuna-os/libcosmic and tuna-os/rust-atomicwrites.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^frontends/cosmic/web/cargo-patch\\.toml$/"
+      ],
+      "matchStrings": [
+        "git = \"(?<depName>https://github\\.com/tuna-os/(?:libcosmic|rust-atomicwrites))\", rev = \"(?<currentDigest>[0-9a-f]{40})\""
+      ],
+      "currentValueTemplate": "master",
+      "datasourceTemplate": "git-refs"
+    },
+    {
+      "description": "COSMIC wasm fork pin on the tuna-os/iced carry branch: patches 06 and 03 on the iced commit that the libcosmic pin has as its submodule. A new carry branch (a new libcosmic iced pin) needs this branch name changed by hand.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^frontends/cosmic/web/cargo-patch\\.toml$/"
+      ],
+      "matchStrings": [
+        "git = \"(?<depName>https://github\\.com/tuna-os/iced)\", rev = \"(?<currentDigest>[0-9a-f]{40})\""
+      ],
+      "currentValueTemplate": "cosmic-wasm/5fc4372",
+      "datasourceTemplate": "git-refs"
     }
   ]
 }

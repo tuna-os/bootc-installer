@@ -67,10 +67,11 @@ advisory. It never blocks `dev`.
 
 - The shipped installer is the `desktop` feature, which is the default.
   `web` is off by default, and the two do not build together.
-- The fork pins are in `web/cargo-patch.toml` and `web/assemble-iced.sh`,
-  each a full commit SHA. They reach Cargo only through `--config` in that
-  job. Do not add a `[patch]` to `Cargo.toml`, and do not commit the lock
-  that the job makes. `../../tests/unit/test_wasm_cosmic.py` checks this.
+- The fork pins are in `web/cargo-patch.toml`, each a full commit SHA.
+  They reach Cargo only through `--config` in that job. Do not add a
+  `[patch]` to `Cargo.toml`, and do not commit the lock that the job makes.
+  `../../tests/unit/test_wasm_cosmic.py` checks this.
+  `../../shared/browser/wasm-patches/CARRIED.md` says how to move a pin.
 - Code that needs a host goes under `cfg(unix)` or
   `cfg(not(target_arch = "wasm32"))`. On wasm the probe reads
   `shared/probe/fixtures/laptop.json`, nothing is staged, no install log is
