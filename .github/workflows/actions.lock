@@ -208,7 +208,7 @@ dependencies:
         repo_id: 298565987
     'tuna-os/.github@main':
         ref: 'main'
-        commit: 'sha1-4078f531ac74703f203bde835ef6c25e9321b97b'
+        commit: 'sha1-1821b29c1b4a1f444fec1ec067ff7ce2094414b6'
         owner_id: 223733964
         repo_id: 1187761922
     'zizmorcore/zizmor-action@v0.8.1':
