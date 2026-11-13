@@ -191,10 +191,10 @@
       "png": "docs/screenshots/06-qr_companion.png",
       "rendered": true,
       "colours": 290,
-      "flat": 0.8548880105401845,
-      "ink": 0.03313570487483531,
-      "stddev": 0.149886808457437,
-      "sha256": "00fc7945613c8a7b5c4f0ee656242b32b4b53c47accedbbefb05a9febff3044e",
+      "flat": 0.8548484848484849,
+      "ink": 0.033122529644268775,
+      "stddev": 0.14985793420962662,
+      "sha256": "5f50c9db72c09a99d339401e6776491e24a971d0887bb33934d3d6126e22ca4b",
       "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
     },
     {
@@ -237,8 +237,8 @@
       "colours": 355,
       "flat": 0.557536231884058,
       "ink": 0.010303030303030303,
-      "stddev": 0.06955297508881572,
-      "sha256": "30e4e9c9caf5ce13dab7b0911f903b389de272eda705313133499e8aa76beb20",
+      "stddev": 0.06950028005231841,
+      "sha256": "cee8cb14b35ce8efbb7dea54ed08c1fde95cc200bffb88c3b0c8ce8b8433ec89",
       "text_excerpt": "Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be undone. Summary Summary Target disk Samsung SSD 870 EVO 500GB (/dev/sda, 465.8 GiB) Target disk Samsung"
     },
     {
@@ -259,8 +259,8 @@
       "colours": 256,
       "flat": 0.8902371541501977,
       "ink": 0.01785243741765481,
-      "stddev": 0.09072438481569614,
-      "sha256": "42ff8b1c50526d56f485a3808025436e347daea50806caf7f14233d9f0bad907",
+      "stddev": 0.09072446218336834,
+      "sha256": "e4520add90beed299bda89d261eef6a0092d7e07d9d4444e826f6032542d1147",
       "text_excerpt": "Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf I have saved "
     },
     {
@@ -280,12 +280,12 @@
     27739,
     29291,
     27037,
-    70835,
-    68060,
+    70836,
+    68059,
     51793,
     43790,
-    42508,
-    37402,
+    42507,
+    37411,
     38578,
     44391
   ],
