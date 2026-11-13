@@ -18,17 +18,26 @@ by side and the parity matrix on top, is [`walkthrough/`](walkthrough/README.md)
 | | |
 |---|---|
 | ![Welcome](screenshots/01-welcome.png) | **Welcome**: what the installer is about to do, with power-off and credits. |
-| ![Phone companion](screenshots/02-qr_companion.png) | **Phone companion**: optional QR pairing so the rest of the wizard can be typed from a phone. |
-| ![Install location](screenshots/03-disk.png) | **Install location**: whole disks only, plus the virtual-disk option for VMs. Nothing is written yet. |
-| ![Encryption](screenshots/04-encryption.png) | **Disk encryption**: LUKS with a passphrase, TPM2, or both. |
-| ![Confirm](screenshots/05-confirm.png) | **Confirm**: the last screen before anything is written. |
-| ![Installing](screenshots/06-progress.png) | **Installing**: fisherman's install steps, with the log one click away. |
-| ![Recovery key](screenshots/07-recovery-key.png) | **Recovery key**: shown once after an encrypted install and must be acknowledged. |
-| ![Done](screenshots/08-done.png) | **Done**: restart into the new system. |
+| ![Language](screenshots/02-language.png) | **Language**: the language of the installed system. |
+| ![Keyboard](screenshots/03-keyboard.png) | **Keyboard**: the layout for this session and the installed system. |
+| ![Time zone](screenshots/04-timezone.png) | **Time zone**: the time zone of the installed system. |
+| ![Image](screenshots/05-image.png) | **Image**: choose the image to install from the catalog. |
+| ![Phone companion](screenshots/06-qr_companion.png) | **Phone companion**: optional QR pairing so the rest of the wizard can be typed from a phone. |
+| ![Install location](screenshots/07-disk.png) | **Install location**: whole disks only, plus the virtual-disk option for VMs. Nothing is written yet. |
+| ![Encryption](screenshots/08-encryption.png) | **Disk encryption**: LUKS with a passphrase, TPM2, or both. |
+| ![User account](screenshots/09-user.png) | **User account**: name, user name and password for the first account. |
+| ![Confirm](screenshots/10-confirm.png) | **Confirm**: the last screen before anything is written. |
+| ![Installing](screenshots/11-progress.png) | **Installing**: fisherman's install steps, with the log one click away. |
+| ![Recovery key](screenshots/12-recovery-key.png) | **Recovery key**: shown once after an encrypted install and must be acknowledged. |
+| ![Done](screenshots/13-done.png) | **Done**: restart into the new system. |
 
-The user-account page is part of the wizard but not of this capture. The
-repository's `recipe.json` targets an image with `needs_user_creation: false`.
-Thus the wizard skips the page, exactly as it would on that ISO.
+The user-account page shows only for an image that needs one. The capture
+picks such an image on the image page, so the account page is in the set.
+
+The number in each file name is the page's position in the wizard. When a
+page is added or removed, the capture renumbers the files, and the tables
+here and in [the install guide](guide/installing.md) must follow.
+`screenshots/captions.json` lists the current names.
 
 ## What the capture checks
 
