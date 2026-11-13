@@ -74,12 +74,10 @@ type Recipe struct {
 	DiskIdentity json.RawMessage `json:"diskIdentity,omitempty"`
 	// PlanBinding binds the install to the plan the user confirmed
 	// (`plan.binding`); fisherman refuses a changed plan (plan_stale).
-	PlanBinding     json.RawMessage `json:"planBinding,omitempty"`
-	SlurpWallpapers bool            `json:"slurpWallpapers,omitempty"`
-	Slurp           json.RawMessage `json:"slurp,omitempty"`
-	TargetMount     string          `json:"targetMount,omitempty"`
-	LuksMapperName  string          `json:"luksMapperName,omitempty"`
-	BrewTap         string          `json:"brewTap,omitempty"`
+	PlanBinding    json.RawMessage `json:"planBinding,omitempty"`
+	TargetMount    string          `json:"targetMount,omitempty"`
+	LuksMapperName string          `json:"luksMapperName,omitempty"`
+	BrewTap        string          `json:"brewTap,omitempty"`
 	// Extras is the catalog leaf's object (catalog.go). Left out (nil),
 	// fisherman looks the image up in the catalog that it finds; a staged
 	// fisherman has none, so the wizard sends the object.

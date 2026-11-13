@@ -12,9 +12,8 @@ Refs: #42|Closes
 | 2 | Encrypted install (passphrase) | luks-passphrase | GRUB | online | real NVMe |
 | 3 | Encrypted install (TPM2) | tpm2-luks-passphrase | systemd-boot | online | real NVMe |
 | 4 | Offline ISO install | none | GRUB | **disabled** | real NVMe |
-| 5 | Windows slurp | none | GRUB | online | NVMe with NTFS |
-| 6 | Failure path (bad image) | — | — | online | real NVMe |
-| 7 | Failure path (too-small disk) | — | — | — | USB stick |
+| 5 | Failure path (bad image) | — | — | online | real NVMe |
+| 6 | Failure path (too-small disk) | — | — | — | USB stick |
 
 ## Lab Machine Requirements
 
@@ -22,7 +21,6 @@ Refs: #42|Closes
 - **Access:** SSH or IPMI/remote KVM for headless observation
 - **Target disk:** Identified by model/serial, NOT by `/dev/nvmeXnY` alone
 - **Live ISO:** Boot from USB with installer Flatpak pre-installed
-- **Secondary:** Machine with dual-boot Windows (NTFS) for slurp tests
 
 ## Procedure
 

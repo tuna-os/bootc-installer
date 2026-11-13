@@ -50,8 +50,7 @@ Thus a frontend reads the percentage from fisherman and does not count steps.
 5. **Mount.** fisherman mounts all partitions under `/mnt/fisherman-target`.
 6. **Install with bootc.** fisherman runs `bootc install to-filesystem --skip-finalize` in a privileged podman container. The `--skip-finalize` flag keeps the target writable for the next steps.
 7. **Post-install.** fisherman sets the hostname and copies the Flatpaks. It also does the first-boot tasks below.
-8. **Windows data.** fisherman does this step only when the recipe asks for it. This installer never asks. Windows data migration is the job of [wootc](https://github.com/tuna-os/wootc).
-9. **Finalize.** fisherman runs `fstrim`, mounts the root read-only, then runs `fsfreeze` and `fsthaw`. This does the work of `bootc install finalize`, which does nothing upstream at this time.
+8. **Finalize.** fisherman runs `fstrim`, mounts the root read-only, then runs `fsfreeze` and `fsthaw`. This does the work of `bootc install finalize`, which does nothing upstream at this time.
 
 > **Scratch space:** fisherman keeps OCI blobs in `/var/fisherman-tmp` while it pulls an image.
 > This directory is on the disk, and fisherman bind-mounts it to `/var/tmp`.

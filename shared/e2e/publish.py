@@ -55,14 +55,14 @@ MARKER = "<redacted>"
 
 # Top-level recipe keys that the summary copies as they are. Every other
 # key is left out by name: `user` and `encryption` are summarised below,
-# and `slurp`, `override` and anything new are not published.
+# and `override` and anything new are not published.
 SUMMARY_KEYS = frozenset({
     "disk", "filesystem", "btrfsSubvolumes", "image", "targetImgref",
     "sourceReuse", "bootloader", "composeFsBackend", "flatpaks",
     "additionalImageStores", "distroID", "selinuxDisabled", "hostname",
     "unifiedStorage", "genericImage", "zfsPoolName", "imageType",
-    "flatpakVarPath", "customMounts", "varDisk", "slurpWallpapers",
-    "targetMount", "luksMapperName", "brewTap", "copyNetworkProfiles",
+    "flatpakVarPath", "customMounts", "varDisk", "targetMount",
+    "luksMapperName", "brewTap", "copyNetworkProfiles",
     "copyBluetoothPairings", "extras", "experimental", "setBootNext",
     "locale", "keyboard", "timezone",
 })

@@ -153,17 +153,13 @@ Every new Python file must appear in `sources = [...]` in its subpackage's `meso
 
 ## fisherman / Install Pipeline
 
-### Windows data (slurp) is not this installer's
+### Windows data is not this installer's
 
-No frontend sends `slurp` or `slurpWallpapers`. Windows data migration belongs to wootc, and `fisherman validate` refuses `slurp` without a durable rescue store anyway (`slurp_unsupported`).
+No frontend sends `slurp` or `slurpWallpapers`. Windows data migration belongs to wootc. fisherman has no such feature, and refuses both keys as `recipe_unknown_field`.
 
 ### Offline install detection
 
 Check `local_imgref` in recipe OR live ISO indicators (`/run/initramfs/live`, `/run/ostree-booted`). `processor.py` passes `additionalImageStores` to fisherman recipe for ISO-baked OCI stores.
-
-### NTFS mounting
-
-Try kernel `ntfs3` (faster, in-kernel since Linux 5.15) then fall back to `ntfs-3g` FUSE.
 
 ---
 

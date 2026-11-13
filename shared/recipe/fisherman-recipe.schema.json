@@ -237,46 +237,6 @@
         }
       }
     },
-    "slurpWallpapers": {
-      "type": "boolean",
-      "default": false,
-      "description": "Rescue wallpapers from an existing Windows partition on the target disk. Never fatal."
-    },
-    "slurp": {
-      "type": "object",
-      "description": "Full user-data migration from an existing Windows partition. Takes priority over slurpWallpapers.",
-      "additionalProperties": false,
-      "required": [
-        "sourcePartition",
-        "users"
-      ],
-      "properties": {
-        "sourcePartition": {
-          "type": "string"
-        },
-        "users": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "name"
-            ],
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "categories": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "targetMount": {
       "type": "string",
       "description": "Host path where the target hierarchy is assembled. Defaults to /mnt/fisherman-target. For parallel test installs."

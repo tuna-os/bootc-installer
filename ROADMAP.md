@@ -64,7 +64,6 @@ record of the move, and every issue and PR it carried over, is
 | P1 | Finish the shared core: KDE and COSMIC consume `shared/` instead of vendored copies | docs/MIGRATION.md | 🟡 Drift-checked, not yet consolidated |
 | P1 | Browser rendering for the three non-GTK frontends | #103, #104, #105 | 🟡 COSMIC renders; Niri and KDE open |
 | P1 | Per-frontend `ROADMAP.md` files under `frontends/` still describe standalone repositories and cite issue numbers from the deleted repositories | #112 | ⬜ Not started |
-| P2 | Windows migration QA matrix (Win10/11, FAT32/NTFS/exFAT) | docs/features/ | ⬜ Not started |
 | P2 | One version identity: `meson.build` says 3.0.0, `VERSION` says 1.0.0, tags carry both legacy `v3.0.x` and the authoritative `vYYYY.MM.DD-<sha>` from RELEASE.md | docs/RELEASE.md | ⬜ Not started |
 | P2 | Docs guidebook and a slimmed README; the automated walkthrough half of the ask is done | #84 | 🟡 Walkthrough exists |
 | P3 | Record what has been sent upstream to the Vanilla OS installer and what is fork-only | #23 | ⬜ No record |
