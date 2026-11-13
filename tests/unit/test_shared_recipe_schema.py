@@ -153,8 +153,6 @@ class SharedRecipeSchemaTests(unittest.TestCase):
             "VarDiskSpec": props["varDisk"]["properties"],
             "CustomMount": props["customMounts"]["items"]["properties"],
             "Encryption": props["encryption"]["properties"],
-            "SlurpSpec": props["slurp"]["properties"],
-            "SlurpUserSpec": props["slurp"]["properties"]["users"]["items"]["properties"],
             "SourceReuse": props["sourceReuse"]["properties"],
         }
         for struct, schema_props in cases.items():

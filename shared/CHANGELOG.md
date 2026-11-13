@@ -18,6 +18,24 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-13: fisherman has no Windows data migration
+
+- Removed: `recipe/fisherman-recipe.schema.json` has no `slurp` and no
+  `slurpWallpapers`. Windows data migration belongs to wootc, and
+  fisherman removed the feature (tuna-os/fisherman#476). fisherman now
+  refuses a recipe with either key as `recipe_unknown_field`, so the
+  schema cannot keep them. There is no deprecation period: no frontend
+  sent either key. The fisherman pin moves to that change.
+- Removed: `branding/copy-defaults.json` has no
+  `validate_slurp_unsupported`. fisherman no longer has the
+  `slurp_unsupported` code.
+- Removed: Niri's `Recipe` struct does not pass `slurp` or
+  `slurpWallpapers` through.
+
+Contracts version: `2.0.0`
+Contracts sha256: `f48d91a4e8741bfbbbd92acd74b7c5a286eeb5e020c0482043e35d088b11712e`
+Recipe schema sha256: `406d95657b6f23c7f8261736416b513ec782a562e5994d245c4db8a3694e91b6`
+
 ## 2026-11-12: a recipe can bind the install to the confirmed plan
 
 - Added: `recipe/fisherman-recipe.schema.json` has `planBinding`

@@ -223,7 +223,8 @@ class TestManualDisk:
 # ── User spec tests ────────────────────────────────────────────────────────────
 
 class TestNoWindowsMigration:
-    """Windows data migration (slurp) belongs to wootc, not this installer."""
+    """Windows data migration belongs to wootc, not this installer, and
+    fisherman refuses its old keys (slurp, slurpWallpapers) as unknown."""
 
     def test_recipe_never_asks_fisherman_to_migrate_windows_data(self):
         finals = _auto_finals()

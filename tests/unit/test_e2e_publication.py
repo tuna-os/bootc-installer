@@ -35,7 +35,7 @@ RECIPE = (
     '  "hostname": "e2e-host",\n  "filesystem": "xfs",\n'
     f'  "encryption": {{"type": "luks-passphrase", "passphrase": "{PASSPHRASE}"}},\n'
     f'  "user": {{"username": "e2euser", "fullname": "E2E User", "password": "{PASSWORD}", '
-    '"groups": ["wheel"]},\n  "slurp": {"sourcePartition": "/dev/sdz9"}\n}\n'
+    '"groups": ["wheel"]},\n  "override": ["too_small"]\n}\n'
 ).encode()
 
 
@@ -114,7 +114,7 @@ class FrontendJobPublishesNoSecret(unittest.TestCase):
                          {"type": "luks-passphrase", "passphrase": publish.MARKER})
         self.assertEqual(summary["recipe"]["user"],
                          {"username": "e2euser", "groups": ["wheel"], "password": publish.MARKER})
-        self.assertEqual(summary["withheld"], ["slurp", "user.fullname"])
+        self.assertEqual(summary["withheld"], ["override", "user.fullname"])
         self.assertEqual(summary["redacted"], ["encryption.passphrase", "user.password"])
 
     def test_vm_job_restores_the_exact_bytes(self):

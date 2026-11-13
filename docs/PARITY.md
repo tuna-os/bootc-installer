@@ -240,6 +240,6 @@ four frontends a catalog, gates, locale pages and a companion.
    (#293). All five have locale pages. Each one now sends the
    choice to the installed system in the recipe's `locale`, `keyboard` and
    `timezone` (#292, tuna-os/fisherman#405), and only a choice: without
-   one the image keeps its own value. Windows data migration (slurp) is not
-   an installer feature at all: it belongs to wootc, and no frontend here
-   offers it.
+   one the image keeps its own value. Windows data migration is not
+   an installer feature at all: it belongs to wootc. No frontend here
+   offers it, and fisherman has no such feature.

@@ -67,7 +67,7 @@ Python GUI  →  wizard finals  →  Processor  →  recipe.json
 
 Single variant: `org.bootcinstaller.Installer`. Entry point: `main.py`. Blueprint `.blp` files live in `gtk/`.
 
-### fisherman Install Pipeline (9 steps)
+### fisherman Install Pipeline
 
 | Step | Action |
 |------|--------|
@@ -78,8 +78,7 @@ Single variant: `org.bootcinstaller.Installer`. Entry point: `main.py`. Blueprin
 | 5 | Mount at `/mnt/fisherman-target` |
 | 6 | `bootc install to-filesystem` via `podman run --privileged` |
 | 7 | Copy system Flatpaks, write hostname, WiFi/BT persistence, audio, OEM, caches |
-| 8 | Windows data migration (`slurp`) if requested |
-| 9 | Finalize: fstrim → remount ro → fsfreeze/thaw |
+| 8 | Finalize: fstrim → remount ro → fsfreeze/thaw |
 
 **Why 3-partition layout always?** GRUB cannot read modern XFS (`nrext64`, `exchange`, `rmapbt`), so `/boot` must be ext4. `bootupctl` in its bwrap sandbox also needs to find `/boot` UUID from a raw block device (fails on LUKS mapper).
 
