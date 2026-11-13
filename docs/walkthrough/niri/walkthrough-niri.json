@@ -179,8 +179,8 @@
       "colours": 484,
       "flat": 0.6199333333333333,
       "ink": 0.11003333333333333,
-      "stddev": 0.10556755838076784,
-      "sha256": "58c7ddd783c2527679e02bf86b0fbfc659ed9bb247ee0b7974e30777eb8dfa58",
+      "stddev": 0.10557607011149404,
+      "sha256": "da8e4ee577e2fb8859e8b44607083a81bba39cf9741584ad8160d74c0560dae0",
       "text_excerpt": "Step 4 of 9 \u00b7 Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  \u00b7  465.8 GiB  \u00b7  SATA Extreme SSD /dev/sdc  \u00b7  931.5 GiB  \u00b7  USB Cruzer Blade /dev/sdd  \u00b7  59.6 GiB  \u00b7  USB WD_"
     },
     {
@@ -209,11 +209,11 @@
       "name": "07-confirm",
       "png": "docs/screenshots/07-confirm.png",
       "rendered": true,
-      "colours": 567,
+      "colours": 566,
       "flat": 0.4991333333333333,
       "ink": 0.042633333333333336,
-      "stddev": 0.1149018303329693,
-      "sha256": "dca9e788bc397093abc57acffed1f2a770ddf2dcd364b29ff9b12757320be256",
+      "stddev": 0.11490926253086496,
+      "sha256": "2132464119f6fa90346deeb3f121487c50570f32ddc4792b6a08c2eb3784d809",
       "text_excerpt": "Step 7 of 9 \u00b7 Confirm Confirm installation \u26a0  Everything on /dev/sda will be erased. This cannot be undone. Summary Target disk /dev/sda Image Capture Desktop Stable  (ghcr.io/example/os:stable) Filesystem btrfs Encryption No encryption Use"
     },
     {
