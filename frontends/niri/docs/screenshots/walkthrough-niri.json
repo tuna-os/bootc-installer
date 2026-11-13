@@ -154,11 +154,11 @@
       "name": "02-session",
       "png": "docs/screenshots/02-session.png",
       "rendered": true,
-      "colours": 410,
+      "colours": 409,
       "flat": 0.6247,
       "ink": 0.026266666666666667,
       "stddev": 0.09779041921278185,
-      "sha256": "65744320755a56e4b92f5b39539d1e5dd731c8641a459533ae0487b72069f9cc",
+      "sha256": "9efae789ea88c32d4ad49c6ac18b2908ae4e9acd6dce97a97ce5a22d8f591d39",
       "text_excerpt": "Step 2 of 9 \u00b7 Session Session Keyboard, language and time zone for the installed system. This computer keeps its own. Keyboard and language Keyboard us Language en_US.UTF-8 Timezone Europe/Berlin Network Connected \u2014 downloads will work. Rec"
     },
     {
@@ -168,8 +168,8 @@
       "colours": 497,
       "flat": 0.5597333333333333,
       "ink": 0.1155,
-      "stddev": 0.1152965279548122,
-      "sha256": "4c22d447dc55c42c83948dd9e99a7e309a63abb729e21d9d9cb33843e4600d63",
+      "stddev": 0.11528884652927622,
+      "sha256": "248804118c975c63723f325557ccf534b0f0d80e273302b3fa8b111119a7a06c",
       "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Capture Desktop \u203a Edge ghcr.io/exa"
     },
     {
@@ -179,8 +179,8 @@
       "colours": 484,
       "flat": 0.6199333333333333,
       "ink": 0.11003333333333333,
-      "stddev": 0.10557607011149404,
-      "sha256": "da8e4ee577e2fb8859e8b44607083a81bba39cf9741584ad8160d74c0560dae0",
+      "stddev": 0.10556755838076784,
+      "sha256": "58c7ddd783c2527679e02bf86b0fbfc659ed9bb247ee0b7974e30777eb8dfa58",
       "text_excerpt": "Step 4 of 9 \u00b7 Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  \u00b7  465.8 GiB  \u00b7  SATA Extreme SSD /dev/sdc  \u00b7  931.5 GiB  \u00b7  USB Cruzer Blade /dev/sdd  \u00b7  59.6 GiB  \u00b7  USB WD_"
     },
     {
@@ -190,8 +190,8 @@
       "colours": 521,
       "flat": 0.4215333333333333,
       "ink": 0.2012,
-      "stddev": 0.11962846478068354,
-      "sha256": "427d4845e87d359582fcbeb8ea473189dba1cb7d9249376f14b58c08630d9251",
+      "stddev": 0.11963561917385698,
+      "sha256": "55a09312f3353721083d7d22cf240b2b35c01a656957598b3c65edd60703ee0a",
       "text_excerpt": "Step 5 of 9 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
@@ -201,19 +201,19 @@
       "colours": 346,
       "flat": 0.5258333333333334,
       "ink": 0.030633333333333332,
-      "stddev": 0.10060174578702649,
-      "sha256": "bcf282deb1a04a3fdcf4d731c53fb8abcaa54336c1693a1df266b4d11ba2d0b9",
+      "stddev": 0.10059300974972753,
+      "sha256": "14b64d27b11b5bfc6425dd9cde10d24ee37c118ce0c907c10e4423af4e611d34",
       "text_excerpt": "Step 6 of 9 \u00b7 Account Your account The account you sign in with. It can administer this computer. Account Username alex Full name Alex Example Password capture Password again capture Show passwords Show passwords Back Back Continue Continue"
     },
     {
       "name": "07-confirm",
       "png": "docs/screenshots/07-confirm.png",
       "rendered": true,
-      "colours": 566,
+      "colours": 567,
       "flat": 0.4991333333333333,
       "ink": 0.042633333333333336,
-      "stddev": 0.11490926253086496,
-      "sha256": "2132464119f6fa90346deeb3f121487c50570f32ddc4792b6a08c2eb3784d809",
+      "stddev": 0.1149018303329693,
+      "sha256": "dca9e788bc397093abc57acffed1f2a770ddf2dcd364b29ff9b12757320be256",
       "text_excerpt": "Step 7 of 9 \u00b7 Confirm Confirm installation \u26a0  Everything on /dev/sda will be erased. This cannot be undone. Summary Target disk /dev/sda Image Capture Desktop Stable  (ghcr.io/example/os:stable) Filesystem btrfs Encryption No encryption Use"
     },
     {
@@ -279,7 +279,7 @@
       "flat": 0.9648333333333333,
       "ink": 0.0125,
       "stddev": 0.06889365344625271,
-      "sha256": "4c4ca122ff95553bb70c2ed208c34174be8f106f8afcd815a222356352b62f89",
+      "sha256": "f36dd679be8eb325b635187634c8c58cd0140a7609a0a59afd8423729b3e4fdf",
       "text_excerpt": "Step 9 of 9 \u00b7 Done \u2013 Installation cancelled You stopped the installer. The disk can be in an incomplete state: start the installer again before you use it. Close Close"
     },
     {
