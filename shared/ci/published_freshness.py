@@ -31,7 +31,8 @@ below), so the served commit need not BE the released commit. It
 must be on prod, and either an ancestor of the released commit with no
 change to that frontend's tree in between, using release.yml's own path rule
 (gnome: anything outside frontends/, docs/ and top-level *.md; the others:
-frontends/<name>/, and the files in shared/ that the manifest copies), or
+frontends/<name>/, the files in shared/ that the manifest copies, and the
+fisherman pin that every non-GNOME manifest builds), or
 newer than it (a release still publishing, or the hand-dispatched republish
 on prod that docs/RELEASE.md lists).
 
@@ -91,6 +92,12 @@ _SHARED_INPUTS = {
         "shared/recipe/encryption-choices.json",
     ),
 }
+# The four non-GNOME manifests build the fisherman submodule (shared/flatpak/
+# fisherman.json, source ../../fisherman), so a bump of its gitlink is a change
+# to each of their Flatpaks. The rule used to miss it: promoting the fisherman
+# fix for guppy:xfce (tuna-os/fisherman#484) skipped Publish (xfce), and the
+# live overlay kept installing the old bundle.
+_FISHERMAN_PIN = ("fisherman", "shared/flatpak/fisherman.json")
 
 
 # ---------------------------------------------------------------- pure logic
@@ -149,7 +156,7 @@ def touches(frontend: str, paths) -> list:
     if frontend == "gnome":
         return [p for p in paths if p and not _GNOME_EXCLUDED.match(p)]
     prefixes = (f"frontends/{frontend}/", *_SHARED_INPUTS.get(frontend, ()))
-    return [p for p in paths if p.startswith(prefixes)]
+    return [p for p in paths if p.startswith(prefixes) or p in _FISHERMAN_PIN]
 
 
 def served_images(frontend: str, images) -> tuple:
