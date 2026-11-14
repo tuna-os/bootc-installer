@@ -35,6 +35,9 @@ jobs:
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
       options: --privileged
+      # See the devel job: the runtimes must not sit in an overlay layer.
+      volumes:
+        - /var/lib/flatpak
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -80,6 +83,9 @@ jobs:
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
       options: --privileged
+      # See the devel job: the runtimes must not sit in an overlay layer.
+      volumes:
+        - /var/lib/flatpak
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -120,6 +126,13 @@ jobs:
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
       options: --privileged
+      # The image ships its runtimes in /var/lib/flatpak. When flathub has a
+      # newer commit, the builder UPDATES them in place, and renaming a
+      # directory that comes from an overlay lower layer fails with "Invalid
+      # cross-device link". A volume is populated from the image and lives on
+      # the host's ext4, so the update renames inside one filesystem.
+      volumes:
+        - /var/lib/flatpak
     steps:
       - uses: actions/checkout@v7.0.1
         with:

@@ -309,3 +309,21 @@ def test_every_flatpak_builder_step_is_retried_once():
                 assert second["with"].get(key) == first["with"].get(key), (where, key)
             found += 1
     assert found == 4, "flatpak.yml has three builder jobs and publish-oci.yml one"
+
+
+def test_every_flatpak_builder_container_keeps_its_runtimes_off_the_overlay():
+    """The image ships its runtimes in /var/lib/flatpak. Updating them in place
+    renames directories of an overlay lower layer, which fails with "Invalid
+    cross-device link" (run 43632904864 failed twice in one job, so a retry
+    alone does not cure it). A volume at that path is populated from the image
+    and sits on the host's filesystem.
+
+    Falsification: delete a `volumes:` entry and this test fails.
+    """
+    for path in (WORKFLOWS / "flatpak.yml", WORKFLOWS / "publish-oci.yml"):
+        workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+        for name, job in workflow["jobs"].items():
+            uses_builder = any(str(s.get("uses", "")).startswith("flatpak/flatpak-github-actions/flatpak-builder@")
+                               for s in job.get("steps", []))
+            if uses_builder:
+                assert "/var/lib/flatpak" in job["container"].get("volumes", []), f"{path.name}:{name}"

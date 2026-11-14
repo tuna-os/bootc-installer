@@ -89,6 +89,9 @@ jobs:
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:${{ inputs.flatpak-builder-image }}
       options: --privileged
+      # See flatpak.yml: the runtimes must not sit in an overlay layer.
+      volumes:
+        - /var/lib/flatpak
     steps:
       - uses: actions/checkout@v7.0.1
         with:
