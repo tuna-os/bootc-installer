@@ -275,11 +275,11 @@
       "name": "13-cancelled",
       "png": "docs/screenshots/13-cancelled.png",
       "rendered": true,
-      "colours": 203,
-      "flat": 0.9648333333333333,
-      "ink": 0.0125,
-      "stddev": 0.06889365344625271,
-      "sha256": "4c4ca122ff95553bb70c2ed208c34174be8f106f8afcd815a222356352b62f89",
+      "colours": 200,
+      "flat": 0.9649,
+      "ink": 0.012466666666666666,
+      "stddev": 0.06892338031392593,
+      "sha256": "2745b5f24c71014652248a54758a3aa38444155991c4e7411992b1b7d696b1e1",
       "text_excerpt": "Step 9 of 9 \u00b7 Done \u2013 Installation cancelled You stopped the installer. The disk can be in an incomplete state: start the installer again before you use it. Close Close"
     },
     {
@@ -307,7 +307,7 @@
     133012,
     59132,
     86158,
-    152439
+    152431
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
