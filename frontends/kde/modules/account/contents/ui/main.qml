@@ -118,10 +118,12 @@ TunaComponents.SetupModule {
                     label: qsTr("Password")
                     text: InstallerController.userPassword
 
-                    onTextChanged: {
-                        showPasswordQuality = text.length > 0;
-                        InstallerController.userPassword = text;
-                    }
+                    // Nothing else in the handler: the pinned Kirigami Addons
+                    // (v1.7.0) has no password-quality property, and a
+                    // statement naming one throws a ReferenceError that ended
+                    // the handler before this line. The recipe then carried no
+                    // password and fisherman left the account locked.
+                    onTextChanged: InstallerController.userPassword = text
                 }
 
                 FormCard.FormPasswordFieldDelegate {
