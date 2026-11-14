@@ -174,11 +174,11 @@
       "name": "account",
       "png": "docs/screenshots/04-account.png",
       "rendered": true,
-      "colours": 251,
-      "flat": 0.6966535678642715,
-      "ink": 0.29721806387225547,
-      "stddev": 0.07536962871657688,
-      "sha256": "c98ddb55bf7a9e37f75588b43914c4c2587b942bd72fea2ff4ba8c54766630d0",
+      "colours": 283,
+      "flat": 0.6994604540918163,
+      "ink": 0.2959549650698603,
+      "stddev": 0.0753053156274033,
+      "sha256": "1e6c99aa0322a120f2eb2beec34b442b53128b267e46fd40429c974a3a281058",
       "text_excerpt": "Step 4 of 7 \u00b7 User Account\nUser Account\nCreate the account you will sign in with. It can also administer this computer.\nAlex Example\nFull name (optional)\nFull name (optional)\nAlex Example\nalex\nUsername\nUsername\nalex\nPassword\nPassword\nShow P"
     },
     {
@@ -251,8 +251,8 @@
   "transition_pixels": [
     15076,
     10270,
-    10482,
-    12054,
+    10044,
+    11521,
     11976,
     14387,
     12760,
