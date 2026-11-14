@@ -60,7 +60,7 @@ Python GUI  →  wizard finals  →  Processor  →  recipe.json
                                                     ↓
                                     fisherman (Go, runs as root via pkexec)
                                          ↓
-                                    9-step disk install
+                                    disk install pipeline
 ```
 
 ### GUI: GNOME (GTK4/Adwaita)
@@ -68,6 +68,8 @@ Python GUI  →  wizard finals  →  Processor  →  recipe.json
 Single variant: `org.bootcinstaller.Installer`. Entry point: `main.py`. Blueprint `.blp` files live in `gtk/`.
 
 ### fisherman Install Pipeline
+
+The recipe sets which stages run: encryption, a data disk and TPM2 enrolment each add a stage. The [fisherman README](https://github.com/tuna-os/fisherman#readme) has the full stage table. This table shows the core stages.
 
 | Step | Action |
 |------|--------|
