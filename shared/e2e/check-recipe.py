@@ -170,6 +170,35 @@ def shared_catalog_failures(catalog, explicit=None):
     return []
 
 
+def credential_failures(frontend, recipe, credentials):
+    """Problems with the secrets the driver typed (shared/e2e/test-credentials.json).
+
+    Every field listed for the frontend is a value its driver types into the
+    wizard, so the recipe must carry it. A frontend whose account page never
+    copies the typed password into the recipe (bootc-installer#397: a QML
+    handler threw before the assignment) writes an empty `user.password`,
+    fisherman leaves the account locked (`name:!:`), and the greeter rejects
+    the right password. Nothing else in this script sees it: an empty password
+    is a valid recipe. No message holds a secret value."""
+    failures = []
+    for name in sorted((credentials or {}).get(frontend, {})):
+        block, _, key = name.partition(".")
+        section = recipe.get(block)
+        value = section.get(key) if isinstance(section, dict) else None
+        # The password belongs to an account, the passphrase to a LUKS
+        # root: a recipe with neither has nothing to carry (the account
+        # rule above judges whether it needs one).
+        if block == "user" and not (isinstance(section, dict) and section.get("username")):
+            continue
+        if block == "encryption" and not (isinstance(section, dict)
+                                          and str(section.get("type", "")).startswith(("luks", "tpm2-luks"))):
+            continue
+        if not isinstance(value, str) or not value:
+            failures.append(
+                f"{name}: the {frontend} driver types it, but the recipe has no {name}")
+    return failures
+
+
 _ABSENT = object()
 
 
@@ -374,6 +403,10 @@ def main(argv=None):
     if catalog is not None and not extras:
         print(f"extras: {recipe.get('extras', 'no key')!r}, as the catalog says")
     failures.extend(extras)
+    try:
+        failures.extend(credential_failures(frontend, recipe, _publish().load_credentials()))
+    except (OSError, KeyError, ValueError) as error:
+        failures.append(f"test credentials: {error}")
 
     with open(path, "rb") as fh:
         raw = fh.read()
