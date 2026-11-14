@@ -42,10 +42,21 @@ jobs:
           persist-credentials: false
 
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6.8
+        id: build
+        continue-on-error: true
         with:
           bundle: org.bootcinstaller.Installer.flatpak
           manifest-path: flatpak/org.bootcinstaller.Installer.json
           cache-key: flatpak-builder-production-${{ github.sha }}
+          upload-artifact: false
+
+      # Second attempt: see the devel job.
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6.8
+        if: steps.build.outcome == 'failure'
+        with:
+          bundle: org.bootcinstaller.Installer.flatpak
+          manifest-path: flatpak/org.bootcinstaller.Installer.json
+          cache-key: flatpak-builder-production-retry-${{ github.sha }}
           upload-artifact: false
 
       - uses: actions/upload-artifact@v7.0.2
@@ -76,11 +87,23 @@ jobs:
           persist-credentials: false
 
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6.8
+        id: build
+        continue-on-error: true
         with:
           arch: aarch64
           bundle: org.bootcinstaller.Installer-aarch64.flatpak
           manifest-path: flatpak/org.bootcinstaller.Installer.json
           cache-key: flatpak-builder-production-aarch64-${{ github.sha }}
+          upload-artifact: false
+
+      # Second attempt: see the devel job.
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6.8
+        if: steps.build.outcome == 'failure'
+        with:
+          arch: aarch64
+          bundle: org.bootcinstaller.Installer-aarch64.flatpak
+          manifest-path: flatpak/org.bootcinstaller.Installer.json
+          cache-key: flatpak-builder-production-aarch64-retry-${{ github.sha }}
           upload-artifact: false
 
       - uses: actions/upload-artifact@v7.0.2
@@ -103,11 +126,27 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
+      # The runtime update inside the builder container fails now and then with
+      # "Failed to update org.gnome.Sdk: Invalid cross-device link" (flatpak's
+      # ostree pull across the container's overlay and tmp mounts; dev run
+      # 43596692490 stopped the promotion of every later commit on it). A
+      # second attempt finds the runtimes already pulled. A real build error
+      # fails again and fails the job.
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6.8
+        id: build
+        continue-on-error: true
         with:
           bundle: org.bootcinstaller.Installer.Devel.flatpak
           manifest-path: flatpak/org.bootcinstaller.Installer.Devel.json
           cache-key: flatpak-builder-devel-${{ github.sha }}
+          upload-artifact: false
+
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6.8
+        if: steps.build.outcome == 'failure'
+        with:
+          bundle: org.bootcinstaller.Installer.Devel.flatpak
+          manifest-path: flatpak/org.bootcinstaller.Installer.Devel.json
+          cache-key: flatpak-builder-devel-retry-${{ github.sha }}
           upload-artifact: false
 
       - uses: actions/upload-artifact@v7.0.2

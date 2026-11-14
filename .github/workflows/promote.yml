@@ -81,11 +81,6 @@ on:
 
 permissions: {}
 
-# One promotion at a time, and never cancel one that is mid-push.
-concurrency:
-  group: promote-dev-to-prod
-  cancel-in-progress: false
-
 env:
   DEV_BRANCH: dev
   PROD_BRANCH: prod
@@ -125,8 +120,50 @@ env:
   SOAK_MINUTES: "30"
 
 jobs:
+  # Most firings are not the last to finish: a workflow_run for a commit whose
+  # other checks are still running can decide nothing. They used to queue in
+  # the gate's concurrency group behind a gate asleep in its soak, and GitHub
+  # keeps one pending run per group, so every push cancelled the run it
+  # displaced (dozens of red-looking `cancelled` Promote runs). This job runs
+  # outside the group and ends those firings at once, green.
+  triage:
+    name: Triage
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      checks: read
+    outputs:
+      proceed: ${{ steps.t.outputs.proceed }}
+    steps:
+      - id: t
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "workflow_run" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          pending=$(gh api --paginate -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100" \
+            --jq '.check_runs[] | select(.status != "completed") | .name' \
+            | grep -v -E '^(Triage|Gate|Promote)\b' || true)
+          if [ -n "$pending" ]; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "not the last check to finish on ${HEAD_SHA}; still running: $(echo "$pending" | tr '\n' ',' | sed 's/,$//')"
+            exit 0
+          fi
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+
   gate:
     name: Gate
+    needs: triage
+    if: needs.triage.outputs.proceed == 'true'
+    # One promotion decision at a time. Never cancel the one asleep in its soak.
+    concurrency:
+      group: promote-dev-to-prod
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -291,6 +328,12 @@ jobs:
     name: Promote
     needs: gate
     if: needs.gate.outputs.promote == 'true'
+    # Never cancel a push to prod in flight. Its own group: the gate's group
+    # is held for the whole soak sleep and must not queue this job behind a
+    # later gate.
+    concurrency:
+      group: promote-dev-to-prod-push
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     permissions:
       contents: write

@@ -77,6 +77,21 @@ A firing that finds checks still running after the soak exits green with the
 reason in the job summary. Only the last workflow to finish on a commit sees
 "everything complete", and that firing promotes.
 
+A `triage` job runs first. It ends a firing at once when that firing is not
+the last check to finish on its commit. Only the firings that can decide
+something enter the gate's concurrency group.
+
+GitHub keeps one pending run per group and cancels the run it displaces.
+The group once covered the whole workflow. Each push to `dev` then cancelled
+the firings that queued behind a gate asleep in its soak.
+`tests/unit/test_promote_gate.py` holds the new layout.
+
+Every `flatpak-builder` step in `flatpak.yml` and `publish-oci.yml` runs
+twice at most. The builder container sometimes fails with `Failed to update
+org.gnome.Sdk: Invalid cross-device link`. One such failure on a `dev` commit
+stops every later promotion, because the gate needs `Build (devel)` green.
+If it fails twice, rerun the failed jobs with `gh run rerun <id> --failed`.
+
 `prod` is created by the first successful promotion. Nothing needs to exist
 beforehand.
 

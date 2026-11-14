@@ -97,12 +97,25 @@ jobs:
 
       # `arch` is required on the arm runner: the action's default is the
       # literal x86_64, not the runner's architecture (see flatpak.yml).
+      # Retried once: the runtime update fails now and then with "Failed to
+      # update org.gnome.Sdk: Invalid cross-device link" (see flatpak.yml).
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6.8
+        id: build
+        continue-on-error: true
         with:
           arch: ${{ matrix.arch }}
           bundle: ${{ inputs.app-id }}-${{ matrix.arch }}.flatpak
           manifest-path: ${{ inputs.manifest-path }}
           cache-key: flatpak-builder-${{ inputs.frontend }}-${{ matrix.arch }}-${{ github.sha }}
+          upload-artifact: false
+
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6.8
+        if: steps.build.outcome == 'failure'
+        with:
+          arch: ${{ matrix.arch }}
+          bundle: ${{ inputs.app-id }}-${{ matrix.arch }}.flatpak
+          manifest-path: ${{ inputs.manifest-path }}
+          cache-key: flatpak-builder-${{ inputs.frontend }}-${{ matrix.arch }}-retry-${{ github.sha }}
           upload-artifact: false
 
       - name: Export OCI

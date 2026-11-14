@@ -251,3 +251,61 @@ def test_every_unfiltered_workflow_has_a_required_check():
 def test_release_doc_names_this_test():
     text = (REPO / "docs" / "RELEASE.md").read_text(encoding="utf-8")
     assert "tests/unit/test_promote_gate.py" in text
+
+
+def _promote():
+    return yaml.safe_load(PROMOTE.read_text(encoding="utf-8"))
+
+
+def test_gate_firings_that_cannot_decide_never_queue_in_the_soak_group():
+    """GitHub keeps one pending run per concurrency group and cancels the one
+    it displaces. With the group on the whole workflow, every push to dev
+    cancelled dozens of Promote runs behind the gate asleep in its soak. The
+    group belongs on the gate job, behind a triage job that ends the firings
+    which are not the last check to finish.
+
+    Falsification: put `concurrency:` back at the top of promote.yml, or drop
+    `needs: triage` from the gate, and this test fails.
+    """
+    workflow = _promote()
+    assert "concurrency" not in workflow, "a workflow-level group queues every firing"
+    jobs = workflow["jobs"]
+    assert "concurrency" not in jobs["triage"]
+    assert jobs["gate"]["needs"] == "triage"
+    assert jobs["gate"]["concurrency"]["cancel-in-progress"] is False
+    assert jobs["promote"]["concurrency"]["cancel-in-progress"] is False
+    assert jobs["gate"]["concurrency"]["group"] != jobs["promote"]["concurrency"]["group"]
+
+
+def _builder_steps(path):
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    for name, job in workflow["jobs"].items():
+        steps = job.get("steps", [])
+        for index, step in enumerate(steps):
+            # The retry step carries an `if:`; it is the second half of a pair.
+            if "if" not in step and str(step.get("uses", "")).startswith(
+                    "flatpak/flatpak-github-actions/flatpak-builder@"):
+                yield name, steps, index
+
+
+def test_every_flatpak_builder_step_is_retried_once():
+    """The builder container fails now and then with "Failed to update
+    org.gnome.Sdk: Invalid cross-device link" (dev run 43596692490: it kept
+    every later dev commit from promoting). Each builder step carries an id
+    and continue-on-error, and the next step runs the same build again when
+    the first failed.
+
+    Falsification: delete a retry step or its `if:` and this test fails.
+    """
+    found = 0
+    for path in (WORKFLOWS / "flatpak.yml", WORKFLOWS / "publish-oci.yml"):
+        for job, steps, index in _builder_steps(path):
+            first, second = steps[index], steps[index + 1]
+            where = f"{path.name}:{job}"
+            assert first.get("continue-on-error") is True and first.get("id"), where
+            assert second["uses"] == first["uses"], where
+            assert second["if"] == f"steps.{first['id']}.outcome == 'failure'", where
+            for key in ("arch", "bundle", "manifest-path", "upload-artifact"):
+                assert second["with"].get(key) == first["with"].get(key), (where, key)
+            found += 1
+    assert found == 4, "flatpak.yml has three builder jobs and publish-oci.yml one"
