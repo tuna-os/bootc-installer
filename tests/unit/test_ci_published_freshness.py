@@ -101,9 +101,15 @@ def test_parse_tolerates_a_subject_without_a_sha():
 def test_touches_mirrors_release_yml():
     paths = ["frontends/kde/main.qml", "docs/x.md", "README.md", "AGENTS.md",
              "bootc_installer/main.py", "fisherman", "shared/recipe/x.json"]
-    assert pf.touches("kde", paths) == ["frontends/kde/main.qml"]
+    # Falsification: with the old rule a fisherman pin bump touched only gnome,
+    # so release.yml skipped Publish (xfce) after tuna-os/fisherman#484 and the
+    # live overlay kept the old XFCE bundle.
+    assert pf.touches("kde", paths) == ["frontends/kde/main.qml", "fisherman"]
     assert pf.touches("gnome", paths) == ["bootc_installer/main.py", "fisherman", "shared/recipe/x.json"]
-    assert pf.touches("niri", paths) == []
+    assert pf.touches("niri", paths) == ["fisherman"]
+    for frontend in ("kde", "cosmic", "niri", "xfce"):
+        assert pf.touches(frontend, ["fisherman"]) == ["fisherman"]
+        assert pf.touches(frontend, ["fisherman-notes.md"]) == []
 
 
 # ── verdicts ──────────────────────────────────────────────────────────────
