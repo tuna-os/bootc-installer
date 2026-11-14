@@ -179,6 +179,7 @@ private slots:
     void connectivityTriesTheImageRegistryFirst();
     // #300
     void qmlStringsGoThroughQsTr();
+    void qmlNamesNoPropertyTheAddonsPinLacks();
     void shippedCatalogLoadsAndTranslates();
     void confirmPageListsNoLocaleRows();
 
@@ -3133,6 +3134,47 @@ void BackendTest::qmlStringsGoThroughQsTr()
              qPrintable(QStringLiteral("wrap these in qsTr() (#300):\n  ") + problems.join(QStringLiteral("\n  "))));
     // Not vacuous: the pages do have strings, and they are wrapped.
     QVERIFY2(translated > 50, qPrintable(QStringLiteral("only %1 qsTr() calls").arg(translated)));
+}
+
+// FormPasswordFieldDelegate.showPasswordQuality exists from Kirigami Addons
+// 1.8.0. The Flatpak pins 1.7.0, where a handler that names it throws a
+// ReferenceError before its next statement: the account step's handler then
+// never copied the typed password into the recipe, and every installed
+// account was locked (yellowfin:kde, strict run 43528634848).
+static bool namesPropertyMissingBefore(const QString &qml, const QString &property,
+                                       int pinnedMajor, int pinnedMinor, int sinceMajor, int sinceMinor)
+{
+    const bool has = pinnedMajor > sinceMajor || (pinnedMajor == sinceMajor && pinnedMinor >= sinceMinor);
+    return !has && qml.contains(property);
+}
+
+void BackendTest::qmlNamesNoPropertyTheAddonsPinLacks()
+{
+    // The check finds what it is for.
+    QVERIFY(namesPropertyMissingBefore(QStringLiteral("onTextChanged: { showPasswordQuality = true; }"),
+                                       QStringLiteral("showPasswordQuality"), 1, 7, 1, 8));
+    QVERIFY(!namesPropertyMissingBefore(QStringLiteral("onTextChanged: { showPasswordQuality = true; }"),
+                                        QStringLiteral("showPasswordQuality"), 1, 8, 1, 8));
+    QVERIFY(!namesPropertyMissingBefore(QStringLiteral("onTextChanged: x = text"),
+                                        QStringLiteral("showPasswordQuality"), 1, 7, 1, 8));
+
+    const QByteArray manifest = readFixture(QStringLiteral(KDE_SOURCE_DIR "/flatpak/org.tunaos.InstallerKde.json"));
+    const QRegularExpression pin(QStringLiteral(R"("name":\s*"kirigami-addons".*?"tag":\s*"v(\d+)\.(\d+))"),
+                                 QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch m = pin.match(QString::fromUtf8(manifest));
+    QVERIFY2(m.hasMatch(), "the Flatpak manifest pins no kirigami-addons tag");
+    const int major = m.captured(1).toInt();
+    const int minor = m.captured(2).toInt();
+
+    QStringList problems;
+    for (const QString &path : qmlSources()) {
+        if (namesPropertyMissingBefore(QString::fromUtf8(readFixture(path)), QStringLiteral("showPasswordQuality"),
+                                       major, minor, 1, 8))
+            problems << QDir(QStringLiteral(KDE_SOURCE_DIR)).relativeFilePath(path);
+    }
+    QVERIFY2(problems.isEmpty(),
+             qPrintable(QStringLiteral("showPasswordQuality needs Kirigami Addons 1.8; the Flatpak pins %1.%2: ")
+                            .arg(major).arg(minor) + problems.join(QStringLiteral(", "))));
 }
 
 void BackendTest::cancelAsksFirstInTheQml()

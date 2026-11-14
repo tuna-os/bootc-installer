@@ -95,10 +95,8 @@ TunaComponents.SetupModule {
 
                     label: qsTr("Passphrase")
 
-                    onTextChanged: {
-                        showPasswordQuality = text.length > 0;
-                        root.commitPassphrase();
-                    }
+                    // See the account step: v1.7.0 has no password-quality property.
+                    onTextChanged: root.commitPassphrase()
                 }
 
                 FormCard.FormPasswordFieldDelegate {
