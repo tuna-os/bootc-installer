@@ -336,5 +336,51 @@ class OneCatalogForTheFiveDrivers(unittest.TestCase):
         self.assertEqual(check.shared_catalog_failures(own, "/tmp/own.json"), [])
 
 
+class TypedSecretsReachTheRecipe(unittest.TestCase):
+    """The driver types a password; the recipe must carry it (#397).
+
+    Falsification: delete the `credential_failures` loop body (or its call in
+    main) and test_empty_password_is_a_failure fails; revert bootc-installer
+    a5396bbe's QML fix and the KDE e2e job fails with this message.
+    """
+
+    CREDS = {"kde": {"user.password": "pw", "encryption.passphrase": "luks"},
+             "gnome": {"user.password": {"sha512_crypt": "pw"}},
+             "cosmic": {}}
+
+    def test_empty_password_is_a_failure(self):
+        recipe = {"user": {"username": "u", "password": ""},
+                  "encryption": {"type": "luks-passphrase", "passphrase": "luks"}}
+        failures = check.credential_failures("kde", recipe, self.CREDS)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("user.password", failures[0])
+
+    def test_a_recipe_with_no_account_and_no_luks_has_nothing_to_carry(self):
+        self.assertEqual(check.credential_failures("kde", {}, self.CREDS), [])
+        plain = {"user": {"username": "", "password": ""}, "encryption": {"type": "none"}}
+        self.assertEqual(check.credential_failures("kde", plain, self.CREDS), [])
+
+    def test_missing_secrets_of_an_account_and_a_luks_root_are_failures(self):
+        recipe = {"user": {"username": "u"}, "encryption": {"type": "tpm2-luks-passphrase"}}
+        self.assertEqual(len(check.credential_failures("kde", recipe, self.CREDS)), 2)
+
+    def test_a_typed_secret_passes_plain_or_crypt(self):
+        plain = {"user": {"username": "u", "password": "pw"},
+                 "encryption": {"type": "luks-passphrase", "passphrase": "luks"}}
+        self.assertEqual(check.credential_failures("kde", plain, self.CREDS), [])
+        crypt = {"user": {"username": "u", "password": "$6$salt$hash"}}
+        self.assertEqual(check.credential_failures("gnome", crypt, self.CREDS), [])
+
+    def test_a_frontend_that_types_nothing_is_not_judged(self):
+        self.assertEqual(check.credential_failures("cosmic", {}, self.CREDS), [])
+        self.assertEqual(check.credential_failures("niri", {}, self.CREDS), [])
+
+    def test_the_message_holds_no_secret(self):
+        recipe = {"user": {"username": "u", "password": ""},
+                  "encryption": {"type": "luks-passphrase", "passphrase": ""}}
+        for line in check.credential_failures("kde", recipe, self.CREDS):
+            self.assertNotIn("pw", line.replace("password", ""))
+
+
 if __name__ == "__main__":
     unittest.main()
