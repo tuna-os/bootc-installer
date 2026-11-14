@@ -97,7 +97,7 @@ The image catalog lives in [`fisherman/data/images.json`](https://github.com/tun
 
 | Component | Language | Role |
 |---|---|---|
-| `fisherman/fisherman/` | Go | Root-level CLI; reads JSON recipe, executes 9-step disk install pipeline |
+| `fisherman/fisherman/` | Go | Root-level CLI; reads JSON recipe, executes the disk install pipeline |
 | `bootc_installer/` | Python | GTK4/Adwaita GUI; collects user choices, writes recipe JSON, drives fisherman |
 
 See [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) for deeper architecture documentation.

@@ -10,9 +10,9 @@ bootc-installer is the org's install front door: the monorepo for every
 TunaOS / Bluefin installer frontend. Five frontends (GNOME at the root; KDE,
 COSMIC, Niri and XFCE under `frontends/`) render one shared screen contract
 and write one shared recipe for the `fisherman` Go backend, which executes the
-9-step pipeline (partition → format → LUKS → mount → `bootc install` →
-post-install → Windows migration → finalize) on both the systemd-boot/UKI stack
-(Dakota) and the GRUB2 stack (Bluefin, Bluefin-LTS, Bazzite).
+install pipeline (partition → format → LUKS → mount → `bootc install` →
+post-install → finalize) on both the systemd-boot/UKI stack (Dakota) and the
+GRUB2 stack (Bluefin, Bluefin-LTS, Bazzite). The recipe sets which stages run.
 
 ---
 
@@ -99,7 +99,7 @@ larger: the monorepo consolidation.
 - `shared/` is the only copy of the recipe schema and parity report.
 - Per-frontend roadmaps either folded into this file or rewritten for the
   monorepo.
-- Windows-migration QA matrix shipped; recovery and rollback path documented.
+- Recovery and rollback path documented.
 
 ---
 
@@ -221,7 +221,7 @@ duplicate them.
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md). PRs target
 `dev`; `prod` is only ever written by promotion. Good entry points: the
 non-GTK browser harnesses (#103, #104), folding the vendored KDE and COSMIC
-copies into `shared/`, and the Windows-migration QA fixtures.
+copies into `shared/`.
 
 ## Roadmap governance
 
