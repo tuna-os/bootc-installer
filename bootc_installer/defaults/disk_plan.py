@@ -55,6 +55,19 @@ def var_disk_offered(image_finals, filesystem) -> bool:
     return filesystem != "zfs"
 
 
+def disk_page_ready(system_disk_chosen, hostname_ok, var_disk_on, var_disk_chosen) -> bool:
+    """Whether the disk page may move on (Use Entire Disk, Next).
+
+    It needs a system disk and a hostname fisherman accepts. With "Use a
+    separate data disk" on, it also needs the data disk: without one the
+    page used to advance and install with no /var disk at all, the user's
+    choice silently dropped (#407, projectbluefin/dakota#1886).
+    """
+    if not (system_disk_chosen and hostname_ok):
+        return False
+    return var_disk_chosen if var_disk_on else True
+
+
 def build_disk_finals(
     partition_recipe: dict | None,
     filesystem: str,
