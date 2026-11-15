@@ -69,6 +69,7 @@ bootc_installer/utils/host_actions.py
 bootc_installer/utils/i18n.py
 bootc_installer/utils/icons.py
 bootc_installer/utils/image_finals.py
+bootc_installer/utils/live_keyboard.py
 bootc_installer/utils/phone_companion.py
 bootc_installer/utils/processor.py
 bootc_installer/utils/recipe.py

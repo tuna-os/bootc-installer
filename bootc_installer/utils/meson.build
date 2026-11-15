@@ -16,6 +16,7 @@ sources = [
   'fisherman_session.py',
   'host.py',
   'host_actions.py',
+  'live_keyboard.py',
   'field_check.py',
   'copy.py',
   'sha512crypt.py',

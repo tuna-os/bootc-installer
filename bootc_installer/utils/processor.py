@@ -96,6 +96,14 @@ def region_fields(merged: dict) -> dict:
             fields["keyboard"] = {"layout": layout}
             if isinstance(variant, str) and variant:
                 fields["keyboard"]["variant"] = variant
+    if "keyboard" not in fields:
+        # No keyboard step chose one: the layout the passphrase was typed
+        # in, so the prompt at boot reads it the same way (#411).
+        typed = merged.get("passphrase_keyboard")
+        if isinstance(typed, dict) and isinstance(typed.get("layout"), str) and typed["layout"]:
+            fields["keyboard"] = {"layout": typed["layout"]}
+            if isinstance(typed.get("variant"), str) and typed["variant"]:
+                fields["keyboard"]["variant"] = typed["variant"]
     timezone = merged.get("timezone")
     if isinstance(timezone, str) and timezone.strip():
         fields["timezone"] = timezone.strip()
