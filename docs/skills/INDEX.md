@@ -28,5 +28,5 @@ separately. Do not list them here.
 - **Fisherman is a separate git repo** (`tuna-os/fisherman`). Commit there first, then update the submodule pointer in this repo.
 - **Dev loop**: `./run-dev.sh` — builds via `flatpak run org.flatpak.Builder --ccache` into `_build/`, runs with `flatpak-builder --run` (no user/system install). `/app/bin` not in PATH by default; use `/app/bin/bootc-installer`.
 - **Debug log (in `--run` mode)**: `~/.var/app/org.bootcinstaller.Installer.Devel/cache/bootc-installer/installer-debug.log`
-- **Branch protection**: no classic branch protection on `dev` — uses repository rulesets. Remove via `gh api --method DELETE repos/org/repo/rulesets/<id>`.
+- **Branch protection**: no classic branch protection on `dev` — the `tier-a: required checks` ruleset gates every merge. Never delete or loosen it to land a change; open a PR and get its checks green.
 - **composefs-native layout**: writable `/etc` = `state/deploy/<HASH>/etc/`, writable `/var` = `state/os/default/var/`. Never write to `$TARGET/etc/` or `$TARGET/var/` for post-install state — those are orphan ghost dirs. See PITFALLS.md for full details.
