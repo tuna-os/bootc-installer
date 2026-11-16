@@ -173,8 +173,8 @@ class BootcDefaultEncryption(Adw.Bin):
             payload = {"use_encryption": True, "type": selected}
             if needs_passphrase_for(selected):
                 payload["encryption_key"] = self.encryption_pass_entry.get_text()
-            else:
-                payload["encryption_key"] = ""
+                return self.__with_typed_layout({"encryption": payload})
+            payload["encryption_key"] = ""
             return {"encryption": payload}
         use_enc = self.use_encryption_switch.get_active()
         if not use_enc:
@@ -182,13 +182,24 @@ class BootcDefaultEncryption(Adw.Bin):
         passphrase = self.encryption_pass_entry.get_text()
         use_tpm2 = self.has_tpm2 and self.tpm2_switch.get_active()
         enc_type = "tpm2-luks-passphrase" if use_tpm2 else "luks-passphrase"
-        return {
+        return self.__with_typed_layout({
             "encryption": {
                 "use_encryption": True,
                 "type": enc_type,
                 "encryption_key": passphrase,
             }
-        }
+        })
+
+    @staticmethod
+    def __with_typed_layout(finals):
+        """Add the live session's layout, the one the passphrase is typed
+        in. The recipe uses it only when no keyboard step chose a layout
+        (#411, processor.region_fields)."""
+        from bootc_installer.utils.live_keyboard import active_layout
+        layout = active_layout()
+        if layout:
+            finals["passphrase_keyboard"] = layout
+        return finals
 
     def __choice_label(self, window, enc_type):
         # The shared copy key for the type (encryption_<type>_label), so the

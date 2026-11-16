@@ -16,7 +16,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: vanilla-installer\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-15 23:39+0000\n"
+"POT-Creation-Date: 2026-11-16 01:00+0000\n"
 "PO-Revision-Date: 2024-01-13 18:18+0000\n"
 "Last-Translator: Ettore Atalan <atalanttore@googlemail.com>\n"
 "Language-Team: German <https://hosted.weblate.org/projects/vanilla-os/"
@@ -177,7 +177,7 @@ msgid "Disk Encryption"
 msgstr "Geräteverschlüsselung"
 
 #: bootc_installer/gtk/default-encryption.blp:39
-#: bootc_installer/defaults/encryption.py:211
+#: bootc_installer/defaults/encryption.py:222
 #, fuzzy
 msgid "Choose how to protect the data on your disk."
 msgstr "Wählen Sie, wie Vanilla OS auf Ihrem Laufwerk installiert werden soll."
@@ -324,7 +324,7 @@ msgstr "Änderungen bestätigen"
 
 #: bootc_installer/gtk/dialog-disk-confirm.blp:17
 #: bootc_installer/gtk/progress.blp:328
-#: bootc_installer/windows/main_window.py:656
+#: bootc_installer/windows/main_window.py:662
 msgid "Cancel"
 msgstr "Abbrechen"
 
@@ -526,21 +526,21 @@ msgid ""
 "There is no other disk. Turn off “Use a separate data disk” to continue."
 msgstr ""
 
-#: bootc_installer/defaults/encryption.py:204
-#: bootc_installer/defaults/encryption.py:210
+#: bootc_installer/defaults/encryption.py:215
+#: bootc_installer/defaults/encryption.py:221
 #, fuzzy
 msgid "Encryption type"
 msgstr "Geräteverschlüsselung"
 
-#: bootc_installer/defaults/encryption.py:308
+#: bootc_installer/defaults/encryption.py:319
 msgid "Weak \\u2014 make it longer or more complex"
 msgstr ""
 
-#: bootc_installer/defaults/encryption.py:313
+#: bootc_installer/defaults/encryption.py:324
 msgid "Fair \\u2014 consider making it longer"
 msgstr ""
 
-#: bootc_installer/defaults/encryption.py:318
+#: bootc_installer/defaults/encryption.py:329
 msgid "Strong passphrase"
 msgstr ""
 
@@ -1044,53 +1044,53 @@ msgstr "Passe die Vanilla OS-Installation an."
 msgid "fisherman did not accept the recipe."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:651
+#: bootc_installer/windows/main_window.py:657
 #, fuzzy
 msgid "Exit Installer?"
 msgstr "Installieren"
 
-#: bootc_installer/windows/main_window.py:652
+#: bootc_installer/windows/main_window.py:658
 msgid ""
 "An installation is in progress. If you exit now, the installer stops it, and "
 "the disk can be left without a system that starts."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:654
+#: bootc_installer/windows/main_window.py:660
 #, fuzzy
 msgid "Any progress will be lost."
 msgstr "Es wird kein Protokoll gespeichert."
 
-#: bootc_installer/windows/main_window.py:657
+#: bootc_installer/windows/main_window.py:663
 msgid "Exit"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:680
+#: bootc_installer/windows/main_window.py:686
 #, fuzzy
 msgid "Cancel the installation?"
 msgstr "Installation bestätigen"
 
-#: bootc_installer/windows/main_window.py:681
+#: bootc_installer/windows/main_window.py:687
 msgid ""
 "The installer stops the work on the disk. The disk can be left without a "
 "system that starts."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:684
+#: bootc_installer/windows/main_window.py:690
 #, fuzzy
 msgid "Continue Installation"
 msgstr "Installation bestätigen"
 
-#: bootc_installer/windows/main_window.py:685
+#: bootc_installer/windows/main_window.py:691
 #, fuzzy
 msgid "Cancel Installation"
 msgstr "Installation bestätigen"
 
-#: bootc_installer/windows/main_window.py:745
+#: bootc_installer/windows/main_window.py:751
 msgid ""
 "The installation storage configuration is invalid. Check the system recipe."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:754
+#: bootc_installer/windows/main_window.py:760
 msgid "No installation disk is selected. Go back and choose a disk."
 msgstr ""
 
