@@ -41,12 +41,15 @@ class RunAsync(threading.Thread):
         self.source_id = None
         assert threading.current_thread() is threading.main_thread()
 
-        super(RunAsync, self).__init__(target=self.__target, args=args, kwargs=kwargs)
+        # Always a daemon: no job may keep the process alive after the
+        # application quits (#410).
+        kwargs.pop("daemon", None)
+        super(RunAsync, self).__init__(target=self.__target, args=args, kwargs=kwargs,
+                                       daemon=True)
 
         self.task_func = task_func
 
         self.callback = callback if callback else lambda r, e: None
-        self.daemon = kwargs.pop("daemon", True)
 
         self.start()
 

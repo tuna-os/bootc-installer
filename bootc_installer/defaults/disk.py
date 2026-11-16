@@ -408,7 +408,7 @@ class BootcDefaultDisk(Adw.Bin):
         return "xfs"
 
     def __on_btn_exit_clicked(self, button):
-        self.__window.get_application().quit()
+        self.__window.quit_application()
 
     def should_show(self, context: dict) -> bool:
         # Skip only when exactly one disk was found and pre-selected. With

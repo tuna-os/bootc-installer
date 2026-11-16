@@ -171,7 +171,10 @@ class BootcDefaultTimezone(Adw.Bin):
                     return
             self.__update_next()
 
-        thread = threading.Thread(target=get_location, args=(timezone_verify_callback,))
+        # Daemon: a GeoIP request that hangs must not keep the process,
+        # and with it the window, alive after Exit (#410).
+        thread = threading.Thread(target=get_location, args=(timezone_verify_callback,),
+                                  daemon=True)
         thread.start()
 
     def test_auto_advance(self):
