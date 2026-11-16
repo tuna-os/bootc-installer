@@ -338,7 +338,7 @@ class TestBootcDefaultTimezone(unittest.TestCase):
         with patch.object(self.mod, "get_location", side_effect=_fake_get_location), patch.object(
             self.mod.threading,
             "Thread",
-            side_effect=lambda target, args: _FakeThread(target, args),
+            side_effect=lambda target, args, **kw: _FakeThread(target, args),
         ):
             obj.timezone_verify(idx=3)
 
@@ -361,7 +361,7 @@ class TestBootcDefaultTimezone(unittest.TestCase):
 
         with patch.object(self.mod, "get_location", side_effect=_fake_get_location), patch.object(
             self.mod.threading, "Thread",
-            side_effect=lambda target, args: _FakeThread(target, args),
+            side_effect=lambda target, args, **kw: _FakeThread(target, args),
         ):
             obj.timezone_verify(idx=3)
 
@@ -383,7 +383,7 @@ class TestBootcDefaultTimezone(unittest.TestCase):
 
         with patch.object(self.mod, "get_location", side_effect=lambda cb: cb(guess)), \
                 patch.object(self.mod.threading, "Thread",
-                             side_effect=lambda target, args: _FakeThread(target, args)):
+                             side_effect=lambda target, args, **kw: _FakeThread(target, args)):
             obj.timezone_verify(idx=3)
 
         rome.select_button.set_active.assert_called_once_with(True)
@@ -412,7 +412,7 @@ class TestBootcDefaultTimezone(unittest.TestCase):
         with patch.object(self.mod, "get_location", side_effect=_fake_get_location), patch.object(
             self.mod.threading,
             "Thread",
-            side_effect=lambda target, args: _FakeThread(target, args),
+            side_effect=lambda target, args, **kw: _FakeThread(target, args),
         ):
             obj.timezone_verify(idx=1)
 

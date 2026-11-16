@@ -507,6 +507,61 @@ class TestQuit:
         assert flow.sessions[0].terminated == 1
         flow.app.quit.assert_called_once()
 
+    def _record_exit_order(self, flow):
+        """What quit() finds: whether the window is still on screen. The
+        "destroy" signal is no witness: it waits for the last reference,
+        and the test holds one (see BootcWindow.destroy)."""
+        events = []
+
+        def _quit(*args):
+            if flow.window in flow.app.get_windows() or flow.window.get_mapped():
+                events.append("window still open")
+            else:
+                events.append("destroy")
+            events.append("quit")
+
+        flow.app.quit.side_effect = _quit
+        return events
+
+    def test_exit_destroys_the_window_before_the_application_quits(self, flow):
+        """#410. quit() only makes app.run() return; the window stayed on
+        screen, unresponsive, while Python waited for a thread."""
+        flow.visit_confirm()
+        events = self._record_exit_order(flow)
+        flow.window.close()
+        _pump()
+        assert events == []
+
+        flow.dialog().emit("response", "exit")
+        _pump()
+
+        assert events == ["destroy", "quit"]
+        assert flow.window not in flow.app.get_windows()
+
+    def test_exit_during_an_install_destroys_the_window_too(self, flow):
+        flow.visit_confirm()
+        flow.click_install()
+        events = self._record_exit_order(flow)
+        flow.app.activate_action("quit", None)
+        _pump()
+
+        flow.dialog().emit("response", "exit")
+        _pump()
+
+        assert flow.sessions[0].terminated == 1
+        assert events == ["destroy", "quit"]
+
+    def test_quit_on_a_finished_install_destroys_the_window(self, flow):
+        flow.visit_confirm()
+        flow.click_install()
+        flow.finish(0)
+        events = self._record_exit_order(flow)
+
+        flow.app.activate_action("quit", None)
+        _pump()
+
+        assert events == ["destroy", "quit"]
+
     def test_quit_on_a_finished_install_needs_no_question(self, flow):
         flow.visit_confirm()
         flow.click_install()

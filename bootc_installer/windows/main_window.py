@@ -645,7 +645,7 @@ class BootcWindow(Adw.ApplicationWindow):
     def __on_exit_clicked(self, *args):
         running = self.install_running()
         if self.__is_done() and not running:
-            self.get_application().quit()
+            self.quit_application()
             return
         dialog = Adw.AlertDialog(
             heading=_("Exit Installer?"),
@@ -665,7 +665,17 @@ class BootcWindow(Adw.ApplicationWindow):
             # Terminate fisherman if it's still running to avoid orphaned
             # root processes and partially-written disk state.
             self.__view_progress.terminate()
-            self.get_application().quit()
+            self.quit_application()
+
+    def quit_application(self):
+        """Destroy the window, then quit. quit() only makes app.run()
+        return; Python then waits for any thread still running before
+        the process ends, and the window stayed on screen, unresponsive,
+        until it did (#410)."""
+        app = self.get_application()
+        self.destroy()
+        if app is not None:
+            app.quit()
 
     def request_cancel_install(self, *args):
         """The progress page's Cancel button: ask first, then stop the
