@@ -36,7 +36,8 @@
         {
           "type": "git",
           "url": "https://github.com/CLIUtils/CLI11.git",
-          "tag": "v2.4.2"
+          "tag": "v2.4.2",
+          "commit": "6c7b07a878ad834957b98d0f9ce1dbe0cb204fc9"
         }
       ]
     },
@@ -60,7 +61,8 @@
         {
           "type": "git",
           "url": "https://git.outfoxxed.me/quickshell/quickshell.git",
-          "tag": "v0.2.1"
+          "tag": "v0.2.1",
+          "commit": "a1a150fab00a93ea983aaca5df55304bc837f51b"
         }
       ]
     },
