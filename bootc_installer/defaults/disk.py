@@ -36,6 +36,7 @@ from bootc_installer.defaults import disk_host
 from bootc_installer.defaults.disk_plan import (
     build_auto_partition_recipe,
     build_disk_finals,
+    disk_page_ready,
     filesystem_options,
     var_disk_offered,
 )
@@ -392,7 +393,9 @@ class BootcDefaultDisk(Adw.Bin):
         """Enable Next only when a partition recipe exists, the fs tool is
         present and fisherman knows no problem with the hostname."""
         ok = (self.__partition_recipe is not None and self.__fs_tool_ok
-              and self.hostname_check.ok)
+              and disk_page_ready(True, self.hostname_check.ok,
+                                  self.var_disk_switch.get_active(),
+                                  self.__var_disk_selected is not None))
         self.btn_next.set_visible(ok)
         self.btn_next.set_sensitive(ok)
 
@@ -454,7 +457,7 @@ class BootcDefaultDisk(Adw.Bin):
         self.__use_virtual_disk = True
         self.__selected_disks = []
         self.__selected_disks_sum = 0
-        self.btn_auto.set_sensitive(True)
+        self.__update_action_buttons()
         if self.__virtual_check is not None:
             self.__virtual_check.set_active(True)
         logger.info("Virtual disk selected")
@@ -549,8 +552,11 @@ class BootcDefaultDisk(Adw.Bin):
         self.confirm_partition_changes()
 
     def __update_action_buttons(self):
-        self.btn_auto.set_sensitive(len(self.__selected_disks) == 1
-                                    and self.hostname_check.ok)
+        system_disk = len(self.__selected_disks) == 1 or self.__use_virtual_disk
+        self.btn_auto.set_sensitive(disk_page_ready(
+            system_disk, self.hostname_check.ok,
+            self.var_disk_switch.get_active(), self.__var_disk_selected is not None))
+        self.__update_next_button()
 
     def on_disk_entry_toggled(self, widget, disk):
         self.__use_virtual_disk = False
@@ -573,6 +579,7 @@ class BootcDefaultDisk(Adw.Bin):
             self.group_var_disks.set_visible(False)
             self.group_var_disk_existing.set_visible(False)
             self.__var_disk_selected = None
+        self.__update_action_buttons()
 
     def __rebuild_var_disk_picker(self):
         """Repopulate group_var_disks excluding the currently selected system disk."""
@@ -592,6 +599,13 @@ class BootcDefaultDisk(Adw.Bin):
             entry = BootcDefaultDiskEntry(self, d, role="var")
             self.group_var_disks.add(entry)
             self.__var_registry_disks.append(entry)
+        # Say why the page cannot go on until a data disk is chosen, or
+        # that there is none to choose (#407).
+        self.group_var_disks.set_description(
+            _("Select the disk for /var, or turn off “Use a separate data disk”.")
+            if self.__var_registry_disks else
+            _("There is no other disk. Turn off “Use a separate data disk” to continue."))
+        self.__update_action_buttons()
 
     def on_var_disk_entry_toggled(self, widget, disk):
         """Called by BootcDefaultDiskEntry when role='var' and user toggles it."""
@@ -601,6 +615,7 @@ class BootcDefaultDisk(Adw.Bin):
         else:
             self.__var_disk_selected = None
             self.group_var_disk_existing.set_visible(False)
+        self.__update_action_buttons()
 
     def __check_var_disk_existing(self, disk):
         """Detect existing filesystem on disk and show the keep/format toggle.

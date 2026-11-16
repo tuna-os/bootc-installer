@@ -70,26 +70,6 @@ template $BootcDefaultDisk: Adw.Bin {
         Adw.PreferencesGroup group_disks {}
 
         Adw.PreferencesGroup {
-          Box {
-            halign: center;
-            spacing: 10;
-
-            Button btn_auto {
-              label: _("Use Entire Disk");
-              margin-top: 20;
-              halign: center;
-              sensitive: false;
-
-              styles [
-                "pill",
-                "suggested-action",
-              ]
-            }
-
-          }
-        }
-
-        Adw.PreferencesGroup {
           title: _("System");
 
           Adw.ComboRow filesystem_row {
@@ -143,6 +123,28 @@ template $BootcDefaultDisk: Adw.Bin {
               valign: center;
               active: true;
             }
+          }
+        }
+
+        // Last on the page: it moves on at once, so every setting above it
+        // has been passed over first (#408, projectbluefin/dakota#1885).
+        Adw.PreferencesGroup {
+          Box {
+            halign: center;
+            spacing: 10;
+
+            Button btn_auto {
+              label: _("Use Entire Disk");
+              margin-top: 20;
+              halign: center;
+              sensitive: false;
+
+              styles [
+                "pill",
+                "suggested-action",
+              ]
+            }
+
           }
         }
       }

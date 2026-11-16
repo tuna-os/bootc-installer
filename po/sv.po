@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: vanilla-installer\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 10:12+0000\n"
+"POT-Creation-Date: 2026-11-15 23:39+0000\n"
 "PO-Revision-Date: 2023-12-29 16:06+0000\n"
 "Last-Translator: bittin1ddc447d824349b2 <bittin@reimu.nl>\n"
 "Language-Team: Swedish <https://hosted.weblate.org/projects/vanilla-os/"
@@ -22,7 +22,7 @@ msgstr ""
 
 #: data/org.bootcinstaller.Installer.appdata.xml.in:6
 #: data/org.bootcinstaller.Installer.desktop.in:3
-#: bootc_installer/gtk/window.blp:7 bootc_installer/windows/main_window.py:609
+#: bootc_installer/gtk/window.blp:7 bootc_installer/windows/main_window.py:616
 #, fuzzy
 msgid "bootc Installer"
 msgstr "Installera inte"
@@ -49,13 +49,13 @@ msgstr "Bekräfta installation"
 msgid "Summary"
 msgstr ""
 
-#: bootc_installer/gtk/confirm.blp:75
+#: bootc_installer/gtk/confirm.blp:83
 #: bootc_installer/gtk/default-welcome.blp:23
-#: bootc_installer/views/confirm.py:458
+#: bootc_installer/views/confirm.py:487
 msgid "Install"
 msgstr "Installera"
 
-#: bootc_installer/gtk/confirm.blp:94
+#: bootc_installer/gtk/confirm.blp:102
 #, fuzzy
 msgid "Selected image"
 msgstr "Välj en disk"
@@ -108,59 +108,59 @@ msgstr ""
 "Välj den disk där du vill installera Vanilla OS. Alternativt kan du välja en "
 "eller flera diskar att konfigurera manuellt."
 
-#: bootc_installer/gtk/default-disk.blp:78
-msgid "Use Entire Disk"
-msgstr "Använd Hela Disken"
-
-#: bootc_installer/gtk/default-disk.blp:93
+#: bootc_installer/gtk/default-disk.blp:73
 msgid "System"
 msgstr ""
 
-#: bootc_installer/gtk/default-disk.blp:96
+#: bootc_installer/gtk/default-disk.blp:76
 msgid "Root Filesystem"
 msgstr ""
 
-#: bootc_installer/gtk/default-disk.blp:111
+#: bootc_installer/gtk/default-disk.blp:91
 msgid "Device Name"
 msgstr ""
 
-#: bootc_installer/gtk/default-disk.blp:112
+#: bootc_installer/gtk/default-disk.blp:92
 msgid "Choose a unique name to identify this computer on your network."
 msgstr ""
 
-#: bootc_installer/gtk/default-disk.blp:115
+#: bootc_installer/gtk/default-disk.blp:95
 #: bootc_installer/utils/phone_companion.py:144
-#: bootc_installer/views/confirm.py:326
+#: bootc_installer/views/confirm.py:355
 #, fuzzy
 msgid "Hostname"
 msgstr "användarnamn"
 
-#: bootc_installer/gtk/default-disk.blp:120
+#: bootc_installer/gtk/default-disk.blp:100
 msgid "Data disk (/var) — optional"
 msgstr ""
 
-#: bootc_installer/gtk/default-disk.blp:121
+#: bootc_installer/gtk/default-disk.blp:101
 msgid ""
 "Use a second disk for home directories, applications, and containers. You "
 "can reinstall the OS without losing your data."
 msgstr ""
 
-#: bootc_installer/gtk/default-disk.blp:124
+#: bootc_installer/gtk/default-disk.blp:104
 msgid "Use a separate data disk"
 msgstr ""
 
-#: bootc_installer/gtk/default-disk.blp:129
+#: bootc_installer/gtk/default-disk.blp:109
 #, fuzzy
 msgid "Select data disk"
 msgstr "Välj en disk"
 
-#: bootc_installer/gtk/default-disk.blp:137
+#: bootc_installer/gtk/default-disk.blp:117
 msgid "Keep existing data"
 msgstr ""
 
-#: bootc_installer/gtk/default-disk.blp:138
+#: bootc_installer/gtk/default-disk.blp:118
 msgid "Mount the disk as-is — files in /var will be preserved"
 msgstr ""
+
+#: bootc_installer/gtk/default-disk.blp:137
+msgid "Use Entire Disk"
+msgstr "Använd Hela Disken"
 
 #: bootc_installer/gtk/default-encryption.blp:38
 #, fuzzy
@@ -234,7 +234,7 @@ msgstr "Sök efter tangentbordslayouter"
 
 #: bootc_installer/gtk/default-language.blp:37
 #: bootc_installer/gtk/widget-language.blp:13
-#: bootc_installer/views/confirm.py:220
+#: bootc_installer/views/confirm.py:249
 msgid "Language"
 msgstr "Språk"
 
@@ -314,7 +314,7 @@ msgstr "Bekräfta ändringar"
 
 #: bootc_installer/gtk/dialog-disk-confirm.blp:17
 #: bootc_installer/gtk/progress.blp:328
-#: bootc_installer/windows/main_window.py:649
+#: bootc_installer/windows/main_window.py:656
 msgid "Cancel"
 msgstr "Avbryt"
 
@@ -446,38 +446,38 @@ msgstr ""
 msgid "Installer requires an active internet connection"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:111
+#: bootc_installer/defaults/disk.py:113
 msgid "Entire disk will be used."
 msgstr "Hela disken kommer att användas."
 
-#: bootc_installer/defaults/disk.py:115
+#: bootc_installer/defaults/disk.py:117
 #, python-format
 msgid "LVM volume group: %s"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:116
+#: bootc_installer/defaults/disk.py:118
 #, fuzzy
 msgid "Volume group will be removed."
 msgstr "Ingen logg kommer att lagras."
 
-#: bootc_installer/defaults/disk.py:120
+#: bootc_installer/defaults/disk.py:122
 #, python-format
 msgid "LVM physical volume: %s"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:121
+#: bootc_installer/defaults/disk.py:123
 msgid "Physical volume will be removed."
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:187
+#: bootc_installer/defaults/disk.py:189
 msgid "Could not detect disks"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:190
+#: bootc_installer/defaults/disk.py:192
 msgid "No disks detected"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:192
+#: bootc_installer/defaults/disk.py:194
 msgid ""
 "Connect a disk of at least 50 GiB to install to. Nothing can be installed "
 "until one is available."
@@ -485,25 +485,34 @@ msgstr ""
 
 #. ZFS is experimental in fisherman (no VM test boots it): the
 #. branding copy says so.
-#: bootc_installer/defaults/disk.py:331
+#: bootc_installer/defaults/disk.py:348
 msgid "Btrfs (with subvolumes)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:366
+#: bootc_installer/defaults/disk.py:384
 msgid "Install the \"{}\" package on the host to use this filesystem"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:369
+#: bootc_installer/defaults/disk.py:387
 msgid "Missing host tool: \"{}\" — install the \"{}\" package"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:447
+#: bootc_installer/defaults/disk.py:467
 msgid "Virtual disk (for VMs / testing)"
 msgstr ""
 
-#: bootc_installer/defaults/disk.py:449
+#: bootc_installer/defaults/disk.py:469
 #, python-format
 msgid "Creates a %s disk image and attaches it as a loop device"
+msgstr ""
+
+#: bootc_installer/defaults/disk.py:605
+msgid "Select the disk for /var, or turn off “Use a separate data disk”."
+msgstr ""
+
+#: bootc_installer/defaults/disk.py:607
+msgid ""
+"There is no other disk. Turn off “Use a separate data disk” to continue."
 msgstr ""
 
 #: bootc_installer/defaults/encryption.py:204
@@ -772,60 +781,60 @@ msgstr "Recept är ingen ordbok"
 msgid "Step {step_key} is not a dictionary"
 msgstr "Steg {step} är ingen ordbok"
 
-#: bootc_installer/views/confirm.py:95
+#: bootc_installer/views/confirm.py:96
 #, fuzzy
 msgid "will be erased"
 msgstr "Ingen logg kommer att lagras."
 
-#: bootc_installer/views/confirm.py:95
+#: bootc_installer/views/confirm.py:96
 msgid "kept, its data is not erased"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:114
+#: bootc_installer/views/confirm.py:131
 #, python-brace-format
 msgid "{first} and {second}"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:228
+#: bootc_installer/views/confirm.py:257
 msgid "Keyboard"
 msgstr "Tangentbord"
 
-#: bootc_installer/views/confirm.py:234
+#: bootc_installer/views/confirm.py:263
 #, fuzzy
 msgid "Time zone"
 msgstr "Tidszon"
 
-#: bootc_installer/views/confirm.py:246
+#: bootc_installer/views/confirm.py:275
 msgid "Users"
 msgstr "Användare"
 
-#: bootc_installer/views/confirm.py:257
+#: bootc_installer/views/confirm.py:286
 msgid "/var disk"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:270 bootc_installer/views/confirm.py:298
+#: bootc_installer/views/confirm.py:299 bootc_installer/views/confirm.py:327
 msgid "Target disk"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:279
+#: bootc_installer/views/confirm.py:308
 msgid "Filesystem"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:319
+#: bootc_installer/views/confirm.py:348
 #, fuzzy
 msgid "Encryption"
 msgstr "Kryptering av enhet"
 
-#: bootc_installer/views/confirm.py:347 bootc_installer/views/confirm.py:355
-#: bootc_installer/views/confirm.py:373 bootc_installer/views/confirm.py:391
+#: bootc_installer/views/confirm.py:376 bootc_installer/views/confirm.py:384
+#: bootc_installer/views/confirm.py:402 bootc_installer/views/confirm.py:420
 msgid "Image"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:399
+#: bootc_installer/views/confirm.py:428
 msgid "Updates follow"
 msgstr ""
 
-#: bootc_installer/views/confirm.py:416
+#: bootc_installer/views/confirm.py:445
 msgid "Graphics"
 msgstr ""
 
@@ -840,7 +849,7 @@ msgstr ""
 #. A second disk for /var that is formatted is named too (#313): in
 #. the same sentence, or in a sentence of its own after the
 #. removable-drive line, which is about one disk.
-#: bootc_installer/views/confirm.py:433
+#: bootc_installer/views/confirm.py:462
 msgid "All data on this disk will be erased. This cannot be undone."
 msgstr ""
 
@@ -1000,77 +1009,77 @@ msgstr ""
 msgid "Log not available."
 msgstr "Inte tillgänglig"
 
-#: bootc_installer/windows/main_window.py:549
+#: bootc_installer/windows/main_window.py:556
 #, python-brace-format
 msgid "The recipe file {path} cannot be read: {error}"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:554
+#: bootc_installer/windows/main_window.py:561
 #, python-brace-format
 msgid "The recipe file {path} is not valid JSON: {error}"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:557
+#: bootc_installer/windows/main_window.py:564
 #, python-brace-format
 msgid "The recipe file {path} does not hold a JSON object."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:575
+#: bootc_installer/windows/main_window.py:582
 #, fuzzy
 msgid "The recipe names no installation disk."
 msgstr "Justera din Vanilla OS installation."
 
-#: bootc_installer/windows/main_window.py:595
+#: bootc_installer/windows/main_window.py:602
 msgid "fisherman did not accept the recipe."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:644
+#: bootc_installer/windows/main_window.py:651
 #, fuzzy
 msgid "Exit Installer?"
 msgstr "Installera"
 
-#: bootc_installer/windows/main_window.py:645
+#: bootc_installer/windows/main_window.py:652
 msgid ""
 "An installation is in progress. If you exit now, the installer stops it, and "
 "the disk can be left without a system that starts."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:647
+#: bootc_installer/windows/main_window.py:654
 #, fuzzy
 msgid "Any progress will be lost."
 msgstr "Ingen logg kommer att lagras."
 
-#: bootc_installer/windows/main_window.py:650
+#: bootc_installer/windows/main_window.py:657
 msgid "Exit"
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:673
+#: bootc_installer/windows/main_window.py:680
 #, fuzzy
 msgid "Cancel the installation?"
 msgstr "Bekräfta installation"
 
-#: bootc_installer/windows/main_window.py:674
+#: bootc_installer/windows/main_window.py:681
 msgid ""
 "The installer stops the work on the disk. The disk can be left without a "
 "system that starts."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:677
+#: bootc_installer/windows/main_window.py:684
 #, fuzzy
 msgid "Continue Installation"
 msgstr "Bekräfta installation"
 
-#: bootc_installer/windows/main_window.py:678
+#: bootc_installer/windows/main_window.py:685
 #, fuzzy
 msgid "Cancel Installation"
 msgstr "Bekräfta installation"
 
-#: bootc_installer/windows/main_window.py:733
+#: bootc_installer/windows/main_window.py:745
 msgid ""
 "The installation storage configuration is invalid. Check the system recipe."
 msgstr ""
 
-#: bootc_installer/windows/main_window.py:742
+#: bootc_installer/windows/main_window.py:754
 msgid "No installation disk is selected. Go back and choose a disk."
 msgstr ""
 
