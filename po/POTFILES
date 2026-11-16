@@ -73,7 +73,6 @@ bootc_installer/utils/phone_companion.py
 bootc_installer/utils/processor.py
 bootc_installer/utils/recipe.py
 bootc_installer/utils/run_async.py
-bootc_installer/utils/sha512crypt.py
 bootc_installer/utils/user_step.py
 bootc_installer/views/__init__.py
 bootc_installer/views/confirm.py

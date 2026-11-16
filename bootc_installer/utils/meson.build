@@ -18,7 +18,6 @@ sources = [
   'host_actions.py',
   'field_check.py',
   'copy.py',
-  'sha512crypt.py',
   'user_step.py',
   'i18n.py',
 ]

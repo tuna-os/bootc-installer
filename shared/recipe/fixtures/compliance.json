@@ -30,7 +30,7 @@
         "account": {
           "username": "jo",
           "fullname": "Jo Example",
-          "password": "$6$complianceSalt$.k5nqXXa/wAZhE9txmBdwDVRyCX2pGv.op1CFKv/87ObcYu6qyJQiYgvaet5Ny5dPdDDEqT14GJ3hwDfMmOR/1"
+          "password": "Jo typed th1s $ecret, wörtlich"
         },
         "locale": "de_DE.UTF-8",
         "keyboard": {"layout": "de"},
@@ -53,7 +53,7 @@
         "user": {
           "username": "jo",
           "fullname": "Jo Example",
-          "password": "$6$complianceSalt$.k5nqXXa/wAZhE9txmBdwDVRyCX2pGv.op1CFKv/87ObcYu6qyJQiYgvaet5Ny5dPdDDEqT14GJ3hwDfMmOR/1",
+          "password": "Jo typed th1s $ecret, wörtlich",
           "groups": ["wheel", "sudo", "docker", "incus-admin", "libvirt", "dialout"]
         }
       }
