@@ -65,3 +65,21 @@ def restart_ignoring(*checks: str, program: str = "vanilla-installer",
     if not result.started:
         logger.error("%s", result.describe())
     return result.started
+
+
+def host_opens_web_links(executor: HostExecutor | None = None) -> bool:
+    """Whether the host has an application for `https:` links.
+
+    The About dialog's Website goes through the OpenURI portal, which
+    offers the host's handlers. A live session with none showed an empty
+    "Open With" dialog (#409, projectbluefin/dakota#1883), so the dialog
+    leaves the link out then. `gio mime` prints the default and the
+    registered handlers as .desktop IDs, or none. When the host cannot
+    answer, the link stays: most hosts have a browser.
+    """
+    result = (executor or default_executor()).run(
+        ["gio", "mime", "x-scheme-handler/https"], scope=Scope.HOST, timeout=3)
+    if not result.ok:
+        logger.info("Cannot ask the host for an https handler: %s", result.describe())
+        return True
+    return ".desktop" in result.stdout

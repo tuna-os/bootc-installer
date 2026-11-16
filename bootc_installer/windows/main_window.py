@@ -618,7 +618,13 @@ class BootcWindow(Adw.ApplicationWindow):
             license_type=Gtk.License.GPL_3_0,
         )
         if b.get("home_url"):
-            kwargs["website"] = b["home_url"]
+            from bootc_installer.utils.host_actions import host_opens_web_links
+            if host_opens_web_links():
+                kwargs["website"] = b["home_url"]
+            else:
+                # No application can open it (#409): show the address, which
+                # the user can type on another device, not a dead link.
+                kwargs["comments"] = b["home_url"]
         if b.get("vendor"):
             kwargs["developer_name"] = b["vendor"]
         dialog = Adw.AboutDialog(**kwargs)

@@ -85,3 +85,27 @@ class TestWindowsCallTheActions(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHostOpensWebLinks(unittest.TestCase):
+    """#409: the About dialog offers Website only when the host can open it."""
+
+    def test_asks_the_host_with_a_short_timeout(self):
+        ex = FakeExecutor([{"returncode": 0, "stdout":
+            "Default application for “x-scheme-handler/https”: org.mozilla.firefox.desktop\n"}])
+        self.assertTrue(host_actions.host_opens_web_links(ex))
+        kind, cmd, scope, timeout, argv = ex.calls[0]
+        self.assertEqual(argv, ["flatpak-spawn", "--host", "gio", "mime", "x-scheme-handler/https"])
+        self.assertIs(scope, Scope.HOST)
+        self.assertEqual(timeout, 3)
+
+    def test_no_handler_means_no_link(self):
+        # What a live session with no browser prints (projectbluefin/dakota#1883).
+        ex = FakeExecutor([{"returncode": 0,
+                            "stdout": "No default applications for “x-scheme-handler/https”\n"}])
+        self.assertFalse(host_actions.host_opens_web_links(ex))
+
+    def test_a_host_that_cannot_answer_keeps_the_link(self):
+        for answer in (FAIL, MISSING):
+            with self.subTest(answer=answer):
+                self.assertTrue(host_actions.host_opens_web_links(FakeExecutor([answer])))
