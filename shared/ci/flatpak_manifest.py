@@ -10,7 +10,10 @@ use this module so that they see the same modules and paths.
     python3 shared/ci/flatpak_manifest.py <manifest>...   # check local paths
 
 The command exits non-zero when a module include, a `dir` or `file` source or
-a source include does not exist where flatpak-builder looks for it.
+a source include does not exist where flatpak-builder looks for it, or when a
+`git` source does not name a `commit`. A tag or branch can be moved upstream,
+so the build would fetch other code; flatpak-builder refuses a checkout whose
+commit differs from the pinned one (#398).
 """
 
 from __future__ import annotations
@@ -117,12 +120,38 @@ def missing_paths(path):
     return problems
 
 
+def _sources(path):
+    """(module name, source) for every source, with source includes read."""
+    for module, base in walk(path):
+        for source in module.get("sources") or []:
+            if isinstance(source, str):
+                included = _read(os.path.normpath(os.path.join(base, source)))
+                for item in included if isinstance(included, list) else [included]:
+                    yield module.get("name", "?"), item
+            else:
+                yield module.get("name", "?"), source
+
+
+def unpinned_git(path):
+    """Messages for each `git` source of the manifest that names no commit."""
+    try:
+        sources = list(_sources(path))
+    except ManifestError as e:
+        return [str(e)]
+    return [f"{path}: module {name}: git source {source.get('url')} names no commit"
+            for name, source in sources
+            if isinstance(source, dict) and source.get("type") == "git" and not source.get("commit")]
+
+
 def main(argv=None):
     paths = sys.argv[1:] if argv is None else argv
     if not paths:
         print("usage: flatpak_manifest.py <manifest>...", file=sys.stderr)
         return 2
-    problems = [p for path in paths for p in missing_paths(path)]
+    problems = []
+    for path in paths:
+        # Pins are read only once every include resolves.
+        problems += missing_paths(path) or unpinned_git(path)
     for problem in problems:
         print(f"::error::{problem}", file=sys.stderr)
     return 1 if problems else 0

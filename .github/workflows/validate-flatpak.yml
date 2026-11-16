@@ -54,7 +54,8 @@ jobs:
       # A module named by path (shared/flatpak/go.json) and every local
       # source resolve against the file that names them. flatpak-builder
       # reads each manifest with its includes, and flatpak_manifest.py checks
-      # that each module include, `dir` and `file` source exists there.
+      # that each module include, `dir` and `file` source exists there and
+      # that each `git` source is pinned to a commit.
       - name: Resolve module includes and local sources
         run: |
           set -euo pipefail
