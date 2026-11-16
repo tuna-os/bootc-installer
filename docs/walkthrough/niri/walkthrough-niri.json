@@ -187,11 +187,11 @@
       "name": "05-encryption",
       "png": "docs/screenshots/05-encryption.png",
       "rendered": true,
-      "colours": 518,
-      "flat": 0.4216,
-      "ink": 0.20116666666666666,
-      "stddev": 0.11965789715750128,
-      "sha256": "425995d1bb87614fee28012fcd810f1f0255b687a9675c8cbeec9e29475a2d55",
+      "colours": 521,
+      "flat": 0.4215333333333333,
+      "ink": 0.2012,
+      "stddev": 0.11963561917385698,
+      "sha256": "55a09312f3353721083d7d22cf240b2b35c01a656957598b3c65edd60703ee0a",
       "text_excerpt": "Step 5 of 9 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
@@ -275,11 +275,11 @@
       "name": "13-cancelled",
       "png": "docs/screenshots/13-cancelled.png",
       "rendered": true,
-      "colours": 200,
-      "flat": 0.9649,
-      "ink": 0.012466666666666666,
-      "stddev": 0.06892338031392593,
-      "sha256": "2745b5f24c71014652248a54758a3aa38444155991c4e7411992b1b7d696b1e1",
+      "colours": 203,
+      "flat": 0.9648333333333333,
+      "ink": 0.0125,
+      "stddev": 0.06889365344625271,
+      "sha256": "f36dd679be8eb325b635187634c8c58cd0140a7609a0a59afd8423729b3e4fdf",
       "text_excerpt": "Step 9 of 9 \u00b7 Done \u2013 Installation cancelled You stopped the installer. The disk can be in an incomplete state: start the installer again before you use it. Close Close"
     },
     {
@@ -298,8 +298,8 @@
     143775,
     173889,
     74304,
-    99790,
-    241980,
+    99780,
+    241998,
     132357,
     84670,
     266722,
@@ -307,7 +307,7 @@
     133012,
     59132,
     86158,
-    152431
+    152439
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
