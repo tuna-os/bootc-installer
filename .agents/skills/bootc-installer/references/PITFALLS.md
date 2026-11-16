@@ -372,17 +372,14 @@ but is no longer load-bearing now that `DefaultDeploymentDir` has the glob fallb
 This repo uses GitHub **repository rulesets** (not classic branch protection). The REST API endpoint is different:
 
 ```bash
-# List rulesets
-gh api repos/tuna-os/bootc-installer/rulesets
-
-# Delete a ruleset (removes all its rules including required status checks)
-gh api --method DELETE repos/tuna-os/bootc-installer/rulesets/<id>
+# What dev requires right now
+gh api repos/tuna-os/bootc-installer/rules/branches/dev
 
 # Classic branch protection (does NOT apply here — returns 404)
 gh api repos/tuna-os/bootc-installer/branches/dev/protection
 ```
 
-If direct pushes to `dev` are blocked with "2 of 2 required status checks expected", the block comes from a ruleset, not classic protection. Delete the ruleset to allow direct pushes.
+The `tier-a: required checks` ruleset requires the unit, UI, build, `Recipe compliance` and every `E2E (...)` check on each PR to `dev`, so `dev` stays green and `promote.yml` can move `prod`. A direct push to `dev` that is refused with "N of N required status checks expected" is the ruleset doing its job: open a PR instead. Never delete or loosen the ruleset to land a change. Bots that must push to `dev` use `.github/actions/push-to-dev` (a deploy key, the ruleset's bypass).
 
 ---
 
