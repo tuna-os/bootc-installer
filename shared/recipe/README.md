@@ -170,10 +170,13 @@ catalog fixture, to `../account/groups.json` and to the schema. It sends
 each expected recipe to `fisherman validate --json --partial -` when
 `FISHERMAN_BIN` names a binary.
 
-The password of the account is a complete crypt(3) hash. GNOME sends a hash
-without a change, and it hashes a password in plain text. The other four
-frontends send the password as the person typed it. Thus a password in
-plain text gives two recipes, and the fixture does not test that case.
+The password of the account is plain text, as the person typed it. Every
+frontend sends it without a change: fisherman owns its encoding (#395).
+fisherman hashes plain text itself. It takes a value as a hash only when
+the value is a complete crypt(3) setting. `fisherman validate` refuses
+other values that start with `$`, from all five frontends. The fixture
+password has a `$`, a space and a non-ASCII letter, so a frontend that
+changes the text fails the test.
 
 The `Recipe compliance` workflow runs the five tests and the fisherman
 check, and its last job fails when one frontend writes a different recipe.

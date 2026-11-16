@@ -178,7 +178,7 @@ class FishermanSession:
                 stdin.close()
             except OSError:
                 pass
-            # The recipe holds the LUKS passphrase and the password hash.
+            # The recipe holds the LUKS passphrase and the account password.
             # fisherman has it now; this process has no more use for it.
             self._recipe = None
 

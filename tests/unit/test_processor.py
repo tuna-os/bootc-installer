@@ -246,18 +246,17 @@ class TestUserSpec:
         r = _load(path)
         assert r["user"]["username"] == "alice"
         assert r["user"]["fullname"] == "Alice Smith"
-        # Plaintext must never reach the recipe: fisherman would then hash it
-        # itself via chpasswd's PAM path, which fails on composefs targets.
-        assert r["user"]["password"] != "pass1"
-        assert r["user"]["password"].startswith("$6$")
+        # Sent as typed, like the other four frontends: fisherman owns the
+        # encoding and hashes plaintext itself, also on composefs (#395).
+        assert r["user"]["password"] == "pass1"
         assert r["user"]["groups"] == ["wheel"]
 
     def test_empty_user_when_not_provided(self):
         path = Processor.gen_install_recipe("log", _auto_finals(), _SYS_RECIPE)
         r = _load(path)
         assert r["user"]["username"] == ""
-        # No password requested: stays empty, not a hash of "" (fisherman
-        # treats "" as "leave the account unset").
+        # No password requested: stays empty (fisherman treats "" as
+        # "leave the account unset").
         assert r["user"]["password"] == ""
 
     def test_user_groups_default_empty(self):
@@ -284,8 +283,9 @@ class TestUserSpec:
         assert r["user"]["groups"] == ["wheel"]
 
     def test_already_hashed_password_passed_through(self):
-        # A companion config may already supply a crypt(3) hash. Re-hashing
-        # it would make the literal hash text the account's real password.
+        # A companion config may already supply a crypt(3) hash. It goes
+        # through unchanged; fisherman writes a complete crypt setting with
+        # `chpasswd -e` (#395).
         prehashed = "$6$abcdsalt$" + "x" * 86
         user = {"username": "carol", "password": prehashed}
         path = Processor.gen_install_recipe("log", _auto_finals(user=user), _SYS_RECIPE)
@@ -293,93 +293,19 @@ class TestUserSpec:
         assert r["user"]["password"] == prehashed
 
 
-class TestHashUserPassword:
-    """#79: the recipe carries a "$6$" hash, never the typed password."""
+class TestPasswordAsTyped:
+    """#395: fisherman owns the encoding of user.password. The recipe
+    carries the password exactly as the person typed it."""
 
-    def _verify(self, hashed, password):
-        from bootc_installer.utils.sha512crypt import sha512_crypt
-        parts = hashed.split("$")
-        assert hashed.startswith("$6$") and len(parts) == 4, hashed
-        assert sha512_crypt(password, parts[2]) == hashed
+    def test_any_typed_password_is_passed_through(self):
+        for typed in ("hunter2", "$uperSecret", "$6$", "a\nb", "pässwörd 日本語 🙂"):
+            user = {"username": "dave", "password": typed}
+            path = Processor.gen_install_recipe("log", _auto_finals(user=user), _SYS_RECIPE)
+            assert _load(path)["user"]["password"] == typed
 
-    def test_empty_password_untouched(self):
-        from bootc_installer.utils.processor import _hash_user_password
-        assert _hash_user_password("") == ""
-
-    def test_plaintext_is_hashed_and_verifies(self):
-        from bootc_installer.utils.processor import _hash_user_password
-        self._verify(_hash_user_password("hunter2"), "hunter2")
-
-    def test_a_typed_password_starting_with_dollar_is_hashed(self):
-        """fisherman writes any "$"-prefixed value verbatim, so passing this
-        through would leave an account nobody can log in to."""
-        from bootc_installer.utils.processor import _hash_user_password
-        for typed in ("$uperSecret", "$6$", "$6$salt$hash", "$y$j9T$salt$hash"):
-            hashed = _hash_user_password(typed)
-            assert hashed != typed
-            self._verify(hashed, typed)
-
-    def test_a_complete_crypt_hash_passes_through(self):
-        from bootc_installer.utils.processor import _hash_user_password
-        from bootc_installer.utils.sha512crypt import sha512_crypt
-        for hashed in (sha512_crypt("x", "abcdsalt"),
-                       "$6$rounds=10000$saltstringsaltst$OW1/O6BYHV6BcXZu8QVeXbDWra3Oeqh0sbHbbMCVNSnCM/UrjmM0Dp8vOuZeHBy/YTBmSK6H9qs/y3RnOaw5v.",
-                       "$y$j9T$F5Jx5fExrKuPp53xLKQ..1$X3DX6M94c7o.9agCG9G317fhZg9SqC.5i5rd.RhAtQ7"):
-            assert _hash_user_password(hashed) == hashed
-
-    def test_newline_and_unicode_passwords_hash_in_full(self):
-        from bootc_installer.utils.processor import _hash_user_password
-        for pw in ("a\nb", "pässwörd 日本語 🙂"):
-            self._verify(_hash_user_password(pw), pw)
-
-    def test_two_calls_use_different_salts(self):
-        from bootc_installer.utils.processor import _hash_user_password
-        assert _hash_user_password("hunter2") != _hash_user_password("hunter2")
-
-    def test_needs_neither_crypt_nor_openssl(self, monkeypatch):
-        """The flatpak's Python (3.13+) has no `crypt`, and no openssl CLI is
-        assumed."""
-        import shutil
-        monkeypatch.setitem(sys.modules, "crypt", None)
-        monkeypatch.setattr(shutil, "which", lambda *_a, **_k: None)
-        from bootc_installer.utils.processor import _hash_user_password
-        self._verify(_hash_user_password("hunter2"), "hunter2")
-
-
-class TestSha512Crypt:
-    """utils/sha512crypt.py against Drepper's published test vectors."""
-
-    VECTORS = [
-        ("Hello world!", "saltstring", None,
-         "$6$saltstring$svn8UoSVapNtMuq1ukKS4tPQd8iKwSMHWjl/O817G3uBnIFNjnQJuesI68u4OTLiBFdcbYEdFCoEOfaS35inz1"),
-        ("Hello world!", "saltstringsaltstring", 10000,
-         "$6$rounds=10000$saltstringsaltst$OW1/O6BYHV6BcXZu8QVeXbDWra3Oeqh0sbHbbMCVNSnCM/UrjmM0Dp8vOuZeHBy/YTBmSK6H9qs/y3RnOaw5v."),
-        ("This is just a test", "toolongsaltstring", 5000,
-         "$6$rounds=5000$toolongsaltstrin$lQ8jolhgVRVhY4b5pZKaysCLi0QBxGoNeKQzQ3glMhwllF7oGDZxUhx1yxdYcz/e1JSbq3y6JMxxl8audkUEm0"),
-        ("a very much longer text to encrypt.  This one even stretches over morethan one line.",
-         "anotherlongsaltstring", 1400,
-         "$6$rounds=1400$anotherlongsalts$POfYwTEok97VWcjxIiSOjiykti.o/pQs.wPvMxQ6Fm7I6IoYN3CmLs66x9t0oSwbtEW7o7UmJEiDwGqd8p4ur1"),
-        ("we have a short salt string but not a short password", "short", 77777,
-         "$6$rounds=77777$short$WuQyW2YR.hBNpjjRhpYD/ifIw05xdfeEyQoMxIXbkvr0gge1a1x3yRULJ5CCaUeOxFmtlcGZelFl5CxtgfiAc0"),
-        ("the minimum number is still observed", "roundstoolow", 10,
-         "$6$rounds=1000$roundstoolow$kUMsbe306n21p9R.FRkW3IGn.S9NPN0x50YhH1xhLsPuWGsUSklZt58jaTfF4ZEQpyUNGc0dqbpBYYBaHHrsX."),
-    ]
-
-    @pytest.mark.parametrize("password,salt,rounds,want", VECTORS)
-    def test_spec_vectors(self, password, salt, rounds, want):
-        from bootc_installer.utils.sha512crypt import sha512_crypt
-        assert sha512_crypt(password, salt, rounds) == want
-
-    def test_matches_openssl_when_present(self):
-        import shutil
-        import subprocess as _subprocess
-        if shutil.which("openssl") is None:
-            pytest.skip("openssl not available")
-        from bootc_installer.utils.sha512crypt import sha512_crypt
-        for pw in ("correct horse", "$uperSecret", "pässwörd"):
-            want = _subprocess.run(["openssl", "passwd", "-6", "-salt", "abcdefgh", "-stdin"],
-                                   input=pw, capture_output=True, text=True, check=True).stdout.strip()
-            assert sha512_crypt(pw, "abcdefgh") == want
+    def test_the_frontend_has_no_hasher(self):
+        import importlib.util
+        assert importlib.util.find_spec("bootc_installer.utils.sha512crypt") is None
 
 
 class TestUnifiedStorage:
@@ -916,7 +842,7 @@ class TestFindNvidiaImgref:
 
 
 class TestNoRecipeFile:
-    """The recipe holds the LUKS passphrase and the password hash; it goes to
+    """The recipe holds the LUKS passphrase and the account password; it goes to
     `fisherman -` on stdin and is never written to disk (fisherman#276)."""
 
     def test_no_file_is_written_in_or_out_of_a_flatpak(self, monkeypatch, tmp_path):

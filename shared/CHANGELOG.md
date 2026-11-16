@@ -18,6 +18,23 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-16: fisherman owns the encoding of the account password
+
+- Changed: `recipe/fixtures/compliance.json` has a plain text account
+  password, not a crypt(3) hash. All five frontends send `user.password`
+  as the person typed it, and fisherman hashes it (#395). The Recipe
+  compliance gate now checks that path. A frontend that hashes, trims or
+  otherwise changes the password fails the gate.
+- Changed: GNOME no longer hashes the password before it writes the
+  recipe, and `bootc_installer/utils/sha512crypt.py` is gone. GNOME now
+  acts like the other four: `fisherman validate` refuses a typed password
+  that starts with `$` and is not a complete crypt setting.
+- Changed: the E2E test credential of GNOME is plain text. `e2e/publish.py`
+  has no crypt markers. This is CI tooling, not a contract file.
+
+Contracts version: `2.1.0`
+Contracts sha256: `296c129b036469bde537a6d623492c0a0b1e8c58107b652dc38b85a6c44c9a38`
+
 ## 2026-11-13: fisherman has no Windows data migration
 
 - Removed: `recipe/fisherman-recipe.schema.json` has no `slurp` and no

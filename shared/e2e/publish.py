@@ -35,20 +35,11 @@ fails on a schema property whose name looks like a secret and is not here.
 import argparse
 import fnmatch
 import json
-import importlib.util
 import os
-import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CREDENTIALS = os.path.join(HERE, "test-credentials.json")
-# The GNOME frontend sends the account password as a SHA-512 crypt string
-# with a random salt. Its redacted copy keeps the "$6$[rounds=N$]salt$"
-# prefix in the marker: the salt is not secret, and with it the VM job can
-# make the same string again from the driver's test password.
-CRYPT = re.compile(r"^(\$6\$(?:rounds=(\d+)\$)?([^$]{0,16})\$)[./0-9A-Za-z]{86}$")
-SHA512_CRYPT = os.path.join(HERE, "..", "..", "bootc_installer", "utils", "sha512crypt.py")
-
 # (block, key): the recipe fields that hold a secret.
 SECRET_FIELDS = (("encryption", "passphrase"), ("user", "password"))
 MARKER = "<redacted>"
@@ -87,23 +78,9 @@ AUDIT_SUFFIXES = (".png", ".gif", ".json", ".md")
 LOG_CAP = 4 * 1024 * 1024
 
 
-def field_marker(block, key, crypt_prefix=""):
-    """The marker that takes the place of one secret in a redacted recipe.
-    A crypt string keeps its "$6$...$" prefix (the salt), never the hash."""
-    suffix = f":{crypt_prefix}" if crypt_prefix else ""
-    return f"{MARKER[:-1]}:{block}.{key}{suffix}>"
-
-
-def _sha512_crypt(password, prefix):
-    """The crypt string of password with the salt and rounds of prefix."""
-    spec = importlib.util.spec_from_file_location("_e2e_sha512crypt", SHA512_CRYPT)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    match = re.match(r"^\$6\$(?:rounds=(\d+)\$)?([^$]{0,16})\$$", prefix)
-    if not match:
-        raise ValueError("the marker's crypt prefix is not a $6$ salt")
-    rounds = int(match.group(1)) if match.group(1) else None
-    return module.sha512_crypt(password, match.group(2), rounds)
+def field_marker(block, key):
+    """The marker that takes the place of one secret in a redacted recipe."""
+    return f"{MARKER[:-1]}:{block}.{key}>"
 
 
 def secret_values(recipe):
@@ -167,9 +144,7 @@ def redact_bytes(raw):
             raise ValueError(f"{name}: its JSON string is in the recipe {count} times, "
                              "so it cannot be redacted by position")
         block, key = name.split(".")
-        crypt = CRYPT.match(value)
-        marker = field_marker(block, key, crypt.group(1) if crypt else "")
-        out = out.replace(token, json.dumps(marker).encode())
+        out = out.replace(token, json.dumps(field_marker(block, key)).encode())
     for name, value in secrets.items():
         if value.encode() in out:
             raise ValueError(f"{name}: its value is also in another field of the recipe")
@@ -192,30 +167,14 @@ def restore_bytes(redacted, frontend, credentials):
     out = redacted
     for block, key in SECRET_FIELDS:
         name = f"{block}.{key}"
-        pattern = re.compile(re.escape(json.dumps(field_marker(block, key))[:-2]).encode()
-                             + rb'(?::([^"\\]*))?>"')
-        found = pattern.search(out)
-        if not found:
+        token = json.dumps(field_marker(block, key)).encode()
+        at = out.find(token)
+        if at < 0:
             continue
         if name not in known:
             raise ValueError(f"{name}: test-credentials.json has no value for {frontend!r}")
-        value = known[name]
-        prefix = found.group(1).decode() if found.group(1) else ""
-        if isinstance(value, dict):
-            if not prefix:
-                raise ValueError(f"{name}: test-credentials.json gives a crypt password "
-                                 f"for {frontend!r}, but the recipe holds plain text")
-            value = _sha512_crypt(value["sha512_crypt"], prefix)
-        elif prefix:
-            raise ValueError(f"{name}: the recipe holds a crypt string, but "
-                             f"test-credentials.json gives plain text for {frontend!r}")
-        out = out[:found.start()] + json.dumps(value).encode() + out[found.end():]
+        out = out[:at] + json.dumps(known[name]).encode() + out[at + len(token):]
     return out
-
-
-def credential_text(value):
-    """The text a driver types for a credentials entry (plain or crypt)."""
-    return value["sha512_crypt"] if isinstance(value, dict) else value
 
 
 def _matches(name, patterns):
@@ -280,7 +239,7 @@ def audit_failures(directories, credentials=None):
             credentials = load_credentials()
         except (OSError, ValueError, KeyError):
             credentials = {}
-    known = sorted({credential_text(v) for fields in credentials.values()
+    known = sorted({v for fields in credentials.values()
                     for v in fields.values() if v},
                    key=len, reverse=True)
     secret_keys = {key for _block, key in SECRET_FIELDS}

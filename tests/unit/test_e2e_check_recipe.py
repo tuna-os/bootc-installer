@@ -345,7 +345,7 @@ class TypedSecretsReachTheRecipe(unittest.TestCase):
     """
 
     CREDS = {"kde": {"user.password": "pw", "encryption.passphrase": "luks"},
-             "gnome": {"user.password": {"sha512_crypt": "pw"}},
+             "gnome": {"user.password": "pw"},
              "cosmic": {}}
 
     def test_empty_password_is_a_failure(self):
