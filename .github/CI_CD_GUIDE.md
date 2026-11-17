@@ -37,9 +37,16 @@ feature/xyz ──PR──▶ dev ──promote.yml (all checks green + soak)─
 | `screenshots-xfce.yml` | `Screenshots (xfce)` | Same for `frontends/xfce` (GTK3 under Xvfb), plus its pytest suite. |
 | `ci-niri.yml` | `Go backend (niri)` | gofmt / vet / build / test for `frontends/niri/installer`. |
 | `cargo-sources-cosmic.yml` | `cargo-sources matches Cargo.lock (cosmic)` | Offline cargo vendoring stays in sync with `Cargo.lock`. |
+| `cargo-test-cosmic.yml` | `Cargo Tests (cosmic)` | `cargo test` for `frontends/cosmic`. The tests open no window; the e2e test is `#[ignore]`d and runs from `e2e.yml`. |
 | `e2e.yml` | `E2E (gnome)`, `E2E (kde)`, `E2E (cosmic)`, `E2E (niri)`, `E2E (xfce)`, `E2E (install <frontend>)` | The gate that proves the installers work: each frontend drives its real backend launch path to Done against the real fisherman's validation, then the recipe it produced is installed onto a loop disk and booted in QEMU. See `shared/e2e/README.md`. |
+| `recipe-compliance.yml` | `Recipe compliance (gnome)`, `(kde)`, `(cosmic)`, `(niri)`, `(xfce)`, `Recipe compliance` | Drives each case in `shared/recipe/fixtures/compliance.json` through the recipe builder of each frontend and compares the recipes byte for byte. The GNOME job also sends each expected recipe to `fisherman validate --json --partial`. No path filter. `Recipe compliance` is in `REQUIRED_CHECKS`. See `shared/recipe/README.md`. |
+| `browser-walkthrough.yml` | `Browser walkthrough (gnome)`, `(xfce)`, `(niri)` | Playwright walks every wizard page in a browser: GNOME and XFCE through GTK Broadway, Niri as a WebAssembly build. The `niri` leg is advisory (`continue-on-error`). See `shared/browser/README.md`. |
+| `wasm-kde.yml` | `Build KDE frontend for wasm` | Build check: compiles `frontends/kde` with Qt for WebAssembly and Emscripten. Nothing is served yet. |
+| `wasm-cosmic.yml` | `COSMIC wasm check (advisory)` | Compiles `frontends/cosmic` for `wasm32-unknown-unknown` against the forks pinned in `frontends/cosmic/web/cargo-patch.toml`. Advisory: not in `REQUIRED_CHECKS`, and on `dev` the job stays green with a warning. |
+| `sbom.yml` | `SBOM (<frontend>)` | SPDX SBOM of the Flatpak of each frontend. A dry run on PRs and `dev` pushes that change an SBOM input. `release.yml` calls it and attaches the files to the release. |
 | `validate-flatpak.yml` | `Validate Flatpak manifests` | GNOME manifests are well-formed with required fields. |
 | `actionlint.yml` | `actionlint` | Workflow syntax. |
+| `actions-security.yml` | `lockfile`, `zizmor` | `gh actions-lock --verify` against `.github/workflows/actions.lock`, and the zizmor security lint of the workflows. Runs on every PR. See `docs/RELEASE.md`, "Action pinning". |
 | `ste.yml` | `ste` | Simplified Technical English over every `.md`, budget in `.ste-budget` (a ratchet; the monorepo budget is the sum of the five repos'). |
 | `nightly.yml` | — | Weekly test sweep of `dev` and `prod`. |
 | `drop-bot-review-requests.yml` | — | Stops CODEOWNERS review requests on bot PRs. |
@@ -49,6 +56,12 @@ feature/xyz ──PR──▶ dev ──promote.yml (all checks green + soak)─
 | Workflow | What |
 |---|---|
 | `walkthrough.yml` | After any screenshot job on `dev` (and daily): downloads the latest green `gui-screenshots-<frontend>` artifact of every frontend, runs `shared/walkthrough/aggregate.py`, commits `docs/walkthrough/`. |
+
+### Monitoring
+
+| Workflow | Trigger | What |
+|---|---|---|
+| `published-freshness.yml` | daily 07:23 UTC; manual | Checks that the tuna-os Flatpak remote serves each frontend from the build that `prod` last released (`shared/ci/published_freshness.py`). When a frontend is stale, the job fails and opens or updates one issue labelled `published-freshness`. It closes that issue when all frontends match again. |
 
 ### Promotion and release
 
