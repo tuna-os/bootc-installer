@@ -37,10 +37,12 @@ on the actual `dev` commit, never the PR's.
 | `ci-niri.yml`, `cargo-sources-cosmic.yml` | frontend-specific checks | when relevant |
 | `e2e.yml` | every frontend drives its real backend path to Done, and the recipe each produced is installed by fisherman and booted in a VM | every push |
 | `validate-flatpak.yml` | each GNOME Flatpak manifest is valid JSON with an app id, a runtime and a command | every push |
+| `recipe-compliance.yml` | the five frontends write the same recipe for each case in `shared/recipe/fixtures/compliance.json`. Its `Recipe compliance` job is in `REQUIRED_CHECKS` | every push |
 | `cargo-test-cosmic.yml` | COSMIC frontend `cargo test` | when the COSMIC sources changed |
 | `browser-walkthrough.yml`, `wasm-kde.yml` | GNOME, XFCE and Niri advance in a browser; the KDE frontend compiles for WebAssembly | when that frontend changed |
 | `wasm-cosmic.yml` | advisory: the COSMIC frontend compiles for WebAssembly against the pinned tuna-os forks. It never blocks promotion | when the COSMIC frontend changed |
 | `actionlint.yml` | the workflow files pass actionlint | when a workflow changed |
+| `actions-security.yml` | `.github/workflows/actions.lock` agrees with the workflows, and zizmor finds no problem (see "Action pinning") | every push |
 | `sbom.yml` | each frontend's SPDX SBOM builds and passes the release check (dry run: a run artifact only) | when an SBOM input changed |
 | `ste.yml` | the Markdown prose stays in the `.ste-budget` | when a Markdown file changed |
 | `walkthrough.yml` | cross-frontend parity page regenerates | after any screenshot job |
