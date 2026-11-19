@@ -1,0 +1,3 @@
+# Intended exceptions for tests/unit/test_doc_references.py.
+# Format: <reference exactly as written> | <one-line reason>
+# Lines starting with # and blank lines are ignored.
