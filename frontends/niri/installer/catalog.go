@@ -597,7 +597,7 @@ func thisMachine() (Machine, ProbeFacts) {
 
 // catalogAnswer is what `catalog` prints for the QML Source step.
 func catalogAnswer(catalog Catalog, used string, skipped []string, brandingDefaultImage string,
-	m Machine, liveImage string) map[string]any {
+	m Machine, liveImage string, operatorRecipe []byte) map[string]any {
 	for i := range catalog.Leaves {
 		catalog.Leaves[i].Recipe = recipeFragment(catalog.Leaves[i], m)
 	}
@@ -615,10 +615,68 @@ func catalogAnswer(catalog Catalog, used string, skipped []string, brandingDefau
 		"live_leaf":                nil,
 		"live_needs_user_creation": needsUserCreation(catalog.Leaves, liveImage),
 	}
-	if leaf := findLeaf(catalog.Leaves, liveImage); leaf != nil {
+	if leaf := liveLeaf(findLeaf(catalog.Leaves, liveImage), liveImage, operatorRecipe); leaf != nil {
+		leaf.Recipe = recipeFragment(*leaf, m)
 		answer["live_leaf"] = *leaf
 	}
 	return answer
+}
+
+// liveLeaf is the leaf "install this system" applies on live media: the
+// catalog's leaf for the running image, with the layout the ISO builder
+// probed from that image written over it. The operator recipe's
+// (<etc>/bootc-installer/recipe.json) `bootloader`, `composeFsBackend` and
+// `filesystem` win when set, an explicit false included; a key that is
+// missing, empty or of the wrong type keeps the leaf's value. A filesystem
+// is then the one choice. With no catalog leaf the running image is its own
+// update target. nil when neither says anything.
+//
+// No tunaOS ISO ships a catalog, so composefs-native marlin:niri went down
+// bootc's ostree path and fisherman stopped with "bootupd is required for
+// ostree-based installs" (tunaOS strict run, iso-builder 44501081152). Same
+// rule as COSMIC (image_catalog.rs live_leaf), KDE (#354) and XFCE (#343).
+func liveLeaf(catalogLeaf *CatalogLeaf, live string, operatorRecipe []byte) *CatalogLeaf {
+	var doc map[string]any
+	if operatorRecipe != nil && json.Unmarshal(operatorRecipe, &doc) != nil {
+		doc = nil
+	}
+	text := func(key string) (string, bool) {
+		v, ok := doc[key].(string)
+		return v, ok && v != ""
+	}
+	bootloader, hasBootloader := text("bootloader")
+	filesystem, hasFilesystem := text("filesystem")
+	composefs, hasComposefs := doc["composeFsBackend"].(bool)
+	if catalogLeaf == nil && !hasBootloader && !hasFilesystem && !hasComposefs {
+		return nil
+	}
+	var leaf CatalogLeaf
+	if catalogLeaf != nil {
+		leaf = *catalogLeaf
+	} else {
+		leaf = CatalogLeaf{Imgref: live, ImageType: "bootc"}
+	}
+	if hasBootloader {
+		leaf.Bootloader = bootloader
+	}
+	if hasComposefs {
+		leaf.Composefs = composefs
+	}
+	if hasFilesystem {
+		leaf.Filesystem = filesystem
+		leaf.Filesystems = []string{filesystem}
+	}
+	return &leaf
+}
+
+// operatorRecipe is <etc>/bootc-installer/recipe.json, or nil.
+func readOperatorRecipe() []byte {
+	_, file := sharedGroups()
+	data, err := os.ReadFile(hostEtc(inFlatpak()) + "/" + file)
+	if err != nil {
+		return nil
+	}
+	return data
 }
 
 // catalogMain is the `catalog` subcommand.
@@ -628,7 +686,7 @@ func catalogMain() {
 		fmt.Fprintf(os.Stderr, "catalog: skipped %s\n", reason)
 	}
 	machine, facts := thisMachine()
-	answer := catalogAnswer(catalog, used, skipped, resolveBranding().DefaultImage, machine, facts.LiveImage)
+	answer := catalogAnswer(catalog, used, skipped, resolveBranding().DefaultImage, machine, facts.LiveImage, readOperatorRecipe())
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(answer); err != nil {

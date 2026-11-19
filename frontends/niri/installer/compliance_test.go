@@ -181,7 +181,7 @@ func TestRecipeCompliance(t *testing.T) {
 				t.Fatal(err)
 			}
 			// The Source step's data: the `catalog` answer for this machine.
-			answer := catalogAnswer(catalog, "", nil, "", ch.Machine, "")
+			answer := catalogAnswer(catalog, "", nil, "", ch.Machine, "", nil)
 			var leaf *CatalogLeaf
 			for i, l := range answer["leaves"].([]CatalogLeaf) {
 				if l.Imgref == ch.Image {

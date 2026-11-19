@@ -253,7 +253,7 @@ func TestSharedCatalogLiveImage(t *testing.T) {
 	}
 	for _, c := range want.LiveImage {
 		m := Machine{IsLive: c.LiveImage != "", OfflineImages: []string{c.LiveImage}}
-		doc := asJSON(t, catalogAnswer(catalog, "", nil, "", m, c.LiveImage))
+		doc := asJSON(t, catalogAnswer(catalog, "", nil, "", m, c.LiveImage, nil))
 		var got *string
 		if leaf, ok := doc["live_leaf"].(map[string]any); ok {
 			imgref, _ := leaf["imgref"].(string)
@@ -499,7 +499,7 @@ func TestCatalogWithoutAFileIsEmpty(t *testing.T) {
 	if used != "" || len(catalog.Leaves) != 0 || len(skipped) != 0 {
 		t.Errorf("used %q, leaves %v, skipped %v", used, catalog.Leaves, skipped)
 	}
-	raw, _ := json.Marshal(catalogAnswer(catalog, used, skipped, "", Machine{OfflineImages: []string{}}, ""))
+	raw, _ := json.Marshal(catalogAnswer(catalog, used, skipped, "", Machine{OfflineImages: []string{}}, "", nil))
 	if !strings.Contains(string(raw), `"leaves":[]`) || !strings.Contains(string(raw), `"skipped":[]`) {
 		t.Errorf("the QML needs arrays, never null: %s", raw)
 	}
