@@ -74,7 +74,7 @@ func runValidate(stdin io.Reader, stdout, stderr io.Writer) int {
 
 // runValidateWith is runValidate with the command given (tests).
 func runValidateWith(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	recipe, err := io.ReadAll(io.LimitReader(stdin, 1<<20))
+	recipe, err := readOneJSON(stdin, 1<<20)
 	if err != nil {
 		fmt.Fprintf(stderr, "read recipe: %v\n", err)
 		return 2
