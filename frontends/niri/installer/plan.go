@@ -296,7 +296,7 @@ func firstLine(s string) string {
 // no plan can be had it exits 2 with the reason on stderr, and the QML
 // shows no plan.
 func runPlanCmd(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	recipe, err := io.ReadAll(io.LimitReader(stdin, 1<<20))
+	recipe, err := readOneJSON(stdin, 1<<20)
 	if err != nil {
 		fmt.Fprintf(stderr, "read recipe: %v\n", err)
 		return 2

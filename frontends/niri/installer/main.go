@@ -200,7 +200,7 @@ func main() {
 		// than argv so it never shows up in /proc/PID/cmdline (world-readable
 		// on Linux). The QML frontend writes it with Quickshell's
 		// Process.write().
-		recipeJSON, err := io.ReadAll(os.Stdin)
+		recipeJSON, err := readOneJSON(os.Stdin, 1<<20)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "read recipe: %v\n", err)
 			os.Exit(1)

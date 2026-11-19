@@ -27,7 +27,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -371,7 +370,7 @@ func sessionGetMain() {
 }
 
 func sessionSetMain() {
-	data, err := io.ReadAll(io.LimitReader(os.Stdin, 1<<16))
+	data, err := readOneJSON(os.Stdin, 1<<16)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "read settings: %v\n", err)
 		os.Exit(1)
