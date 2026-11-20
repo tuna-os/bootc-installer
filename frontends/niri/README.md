@@ -35,17 +35,23 @@ tuna-installer-niri/
 ```bash
 cd installer
 go build -o tuna-installer-niri .
-./tuna-installer-niri discover-disks     # the disks `fisherman probe --json` offers
-./tuna-installer-niri install '{...}'     # run fisherman with a JSON recipe
+./tuna-installer-niri discover-disks         # the disks `fisherman probe --json` offers
+./tuna-installer-niri install < recipe.json  # pipes the recipe on to `fisherman -`
 ```
+
+`install` reads the recipe as one JSON document on stdin, never from argv:
+the recipe can hold the LUKS passphrase, and argv is world-readable in
+`/proc/PID/cmdline`.
 
 ### QML frontend
 
-Requires [Quickshell](https://quickshell.org/):
+Requires [Quickshell](https://quickshell.org/). From `frontends/niri`:
 
 ```bash
-quickshell ui/installer.qml
+TUNA_BACKEND=$PWD/installer/tuna-installer-niri quickshell -p ui/installer.qml
 ```
+
+Without `TUNA_BACKEND` the QML runs `tuna-installer-backend` from `PATH`.
 
 ## Workflow
 
