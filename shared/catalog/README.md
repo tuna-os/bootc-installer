@@ -203,8 +203,17 @@ account. `false` is for an image that makes the account at first boot.
   is the leaf of that image. A leaf whose `imgref` is the reference comes
   first.
 - If no leaf has that reference, the answer is `true`.
-- The same leaf gives the layout of an install from live media:
-  `bootloader`, `composefs` and `filesystem`.
+- The layout of an install from live media comes from the operator recipe,
+  `<etc>/bootc-installer/recipe.json`, and then from the same leaf. The
+  recipe keys are `bootloader`, `composeFsBackend` and `filesystem`. The
+  leaf keys are `bootloader`, `composefs` and `filesystem`. A key that the
+  operator recipe sets wins, `"composeFsBackend": false` included. A key
+  that is missing or empty keeps the value of the leaf. When the operator
+  recipe sets `filesystem`, that filesystem is the one choice. Without a
+  leaf, the operator recipe alone gives the layout. COSMIC, KDE and niri
+  apply this rule. XFCE reads the layout from the operator recipe only.
+  GNOME applies the
+  [live-media storage adapter](../recipe/README.md#gnome-live-media-storage-adapter).
 
 `expected.json` gives the cases as `live_image`.
 
