@@ -119,8 +119,8 @@ The user fields are empty because Dakota has its own setup at first boot.
 |---|---|---|
 | `disk` | string | The block device for the install, for example `"/dev/sda"`. fisherman erases this disk. |
 | `filesystem` | string | The root file system: `"xfs"`, `"ext4"`, `"btrfs"` or `"zfs"`. `"zfs"` is experimental and needs `experimental`. |
-| `experimental` | array | The experimental features that you accept. The only value is `"zfs"`. No VM test installs ZFS and starts the result. |
-| `btrfsSubvolumes` | bool | Make the `@`, `@home` and `@snapshots` subvolumes. Only for btrfs. |
+| `experimental` | array | The experimental features that you accept: `"zfs"` for the `"zfs"` file system, and `"bootc_store_reuse"` for `sourceReuse` (refer to [`shared/recipe/README.md`](../../shared/recipe/README.md#install-from-the-bootc-storage-of-this-computer)). fisherman refuses other values. No required VM test covers these features. |
+| `btrfsSubvolumes` | bool | Put the root in a `@` subvolume, with zstd compression. fisherman makes no other subvolume. Only for btrfs. |
 | `encryption.type` | string | `"none"`, `"luks-passphrase"`, `"tpm2-luks"` or `"tpm2-luks-passphrase"`. |
 | `encryption.passphrase` | string | Necessary for `luks-passphrase` and `tpm2-luks-passphrase`. |
 | `image` | string | The OCI image to install. podman pulls it. |
