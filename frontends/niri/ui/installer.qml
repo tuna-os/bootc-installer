@@ -1492,6 +1492,7 @@ ApplicationWindow {
         case 4: encryptionPage.next(); break
         case 5: if (root.accountReady) flowNext(); break
         case 6: if (root.canInstall) startInstall(); break
+        case 9: flowNext(); break
         }
     }
     function back() {
@@ -2858,6 +2859,58 @@ ApplicationWindow {
                             // Held until the key is acknowledged.
                             enabled: !root.recoveryKeyPending
                             onClicked: rebootProc.running = true
+                        }
+                    }
+                }
+            }
+            // Page 9: Intel RST — a disk is missing because the firmware
+            // hides it. Warns and continues to the disk list; it never
+            // blocks (gnome-setup parity).
+            Item {
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width, 520)
+                    spacing: Theme.spacingL
+                    StyledText {
+                        objectName: "rstTitle"
+                        text: qsTr("Intel RST is on")
+                        font.pixelSize: Theme.fontSizeXLarge
+                        font.weight: Theme.fontWeightMedium
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    DankCard {
+                        Layout.fillWidth: true
+                        //: Firmware setting that hides disks from the installer
+                        title: qsTr("Some disks may be missing")
+                        StyledText {
+                            width: parent.width
+                            //: Intel RST explanation on the RST page
+                            text: qsTr("This computer uses Intel RST (RAID or VMD mode), which hides NVMe disks from the installer. Switch the storage mode to AHCI in the firmware settings to see every disk. You can also continue with the disks listed.")
+                            color: Theme.surfaceVariantText
+                            wrapMode: Text.WordWrap
+                        }
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.spacingM
+                        DankButton {
+                            objectName: "rstPowerButton"
+                            text: qsTr("Power off")
+                            tonal: true
+                            onClicked: poweroffProc.running = true
+                        }
+                        DankButton {
+                            objectName: "rstFirmwareButton"
+                            text: qsTr("Firmware setup")
+                            tonal: true
+                            onClicked: firmwareProc.running = true
+                        }
+                        Item { Layout.fillWidth: true }
+                        DankButton {
+                            objectName: "rstContinueButton"
+                            text: qsTr("Continue")
+                            onClicked: root.flowNext()
                         }
                     }
                 }
