@@ -444,9 +444,13 @@ def main():
                 # confirm page shows that the picks reach the recipe (#292).
                 # The last of each list: what the lists hold depends on the
                 # runner (localectl, or the built-in fallback).
-                identity.locale_expander.set_expanded(True)
-                for combo in (identity.lang_combo, identity.kb_combo, identity.tz_combo):
-                    combo.set_active(len(combo.get_model()) - 1)
+                for key, page_name in (("locale", "language"),
+                                      ("keyboard_layout", "keyboard"),
+                                      ("timezone", "timezone")):
+                    page = win.pages[page_name]
+                    values = page.values()
+                    if values:
+                        setattr(win.region, key, values[-1])
             elif name == "progress":
                 _seed_progress(win.pages["progress"])
             elif name == "done":

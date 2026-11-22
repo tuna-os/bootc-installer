@@ -326,6 +326,83 @@ def unmet_requirements():
     return fisherman_probe.unmet_requirements(result) if result else []
 
 
+def release_info():
+    """(release_type, experiment): os-release RELEASE_TYPE and EXPERIMENT.
+
+    SETUP_OVERRIDE_OS_RELEASE_TYPE and SETUP_OVERRIDE_OS_EXPERIMENT win,
+    as in gnome-setup: the capture and tests can stage a pre-release
+    without rewriting the host's os-release. Absent keys are ""."""
+    release_type = os.environ.get("SETUP_OVERRIDE_OS_RELEASE_TYPE", "")
+    experiment = os.environ.get("SETUP_OVERRIDE_OS_EXPERIMENT", "")
+    if release_type or experiment:
+        return release_type, experiment
+    values = {}
+    for path in ("/run/host/etc/os-release", "/etc/os-release",
+                 "/run/host/usr/lib/os-release", "/usr/lib/os-release"):
+        try:
+            with open(path, encoding="utf-8") as handle:
+                text = handle.read()
+        except OSError:
+            continue
+        for line in text.splitlines():
+            key, _sep, value = line.partition("=")
+            values.setdefault(key.strip(),
+                              value.strip().strip("\"'"))
+        break
+    return values.get("RELEASE_TYPE", ""), values.get("EXPERIMENT", "")
+
+
+def show_prerelease():
+    """Whether the disclaimer page shows: RELEASE_TYPE is pre-release or
+    experiment. Unknown, stable and lts values count as stable."""
+    release_type, _experiment = release_info()
+    return release_type in ("pre-release", "experiment")
+
+
+EULA_ENV = "BOOTC_INSTALLER_EULA"
+EULA_PATHS = ("/usr/share/doc/tuna-installer/eula.xml",
+              "/usr/share/tuna-installer/eula.xml",
+              "/app/share/tuna-installer/eula.xml")
+
+
+def find_eula():
+    """The EULA file path, or "": $BOOTC_INSTALLER_EULA wins (tests point it
+    at a fixture), then the packaged candidates. gnome-setup reads
+    $PKGDATADIR/eula.xml; the native path is still an open spec question,
+    so every candidate is probed."""
+    override = os.environ.get(EULA_ENV, "")
+    if override:
+        return override if os.path.isfile(override) else ""
+    for path in EULA_PATHS:
+        if os.path.isfile(path):
+            return path
+    return ""
+
+
+def rst_detected():
+    """Whether Intel RST (or VMD remapping) hides disks: the daemon's Probe
+    intel_rst on the daemon backend, a sysfs glob on the recipe backend
+    (gnome-setup's ahci remapped_nvme check). Never raises."""
+    if backend() == "daemon":
+        try:
+            reply = get_daemon().probe()
+        except daemon_client.DaemonError:
+            return False
+        return bool((reply.get("intelRst") or {}).get("detected"))
+    try:
+        import glob as _glob
+        for path in _glob.glob("/sys/bus/pci/devices/*/remapped_nvme"):
+            try:
+                with open(path, encoding="utf-8") as handle:
+                    if int(handle.read().strip()) > 0:
+                        return True
+            except (OSError, ValueError):
+                continue
+    except Exception:  # noqa: BLE001 - a gate must never break the wizard
+        return False
+    return False
+
+
 def requirements_warning():
     """The welcome page's warning text, or "" when every requirement is met."""
     unmet = unmet_requirements()

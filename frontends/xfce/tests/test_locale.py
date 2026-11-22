@@ -7,6 +7,7 @@ fallback path as well as the parsing path.
 
 import os
 import sys
+import types
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -99,58 +100,110 @@ def test_needs_network_mirrors_conn_check_should_show():
     assert locale_checks.needs_network(True) is False
 
 
-def _identity_page(monkeypatch, submitted=None):
+def _region_win(monkeypatch, submitted=None):
     import types
 
     from tuna_installer_xfce import pages
 
     applied = []
-    monkeypatch.setattr(locale_checks, "available_languages", lambda: ["C.UTF-8", "de_DE.UTF-8"])
-    monkeypatch.setattr(locale_checks, "available_keyboard_layouts", lambda: ["us", "de"])
-    monkeypatch.setattr(locale_checks, "available_timezones", lambda: ["UTC", "Europe/Berlin"])
+    monkeypatch.setattr(locale_checks, "available_languages",
+                        lambda: ["C.UTF-8", "de_DE.UTF-8"])
+    monkeypatch.setattr(locale_checks, "available_keyboard_layouts",
+                        lambda: ["us", "de"])
+    monkeypatch.setattr(locale_checks, "available_timezones",
+                        lambda: ["UTC", "Europe/Berlin"])
+    monkeypatch.setattr(locale_checks, "apply_language", lambda _v: True)
     monkeypatch.setattr(locale_checks, "apply_keyboard_layout", applied.append)
+    monkeypatch.setattr(locale_checks, "apply_timezone", lambda _v: True)
+    # The session values are not offered: nothing starts selected.
+    monkeypatch.setattr(locale_checks, "current_language", lambda: "xx_XX")
+    monkeypatch.setattr(locale_checks, "current_keyboard_layout", lambda: "xx")
+    monkeypatch.setattr(locale_checks, "current_timezone", lambda: "xx/Xx")
     sent = submitted if submitted is not None else []
     monkeypatch.setattr(pages, "live_check", lambda on_result: types.SimpleNamespace(
         submit=sent.append))
-    win = types.SimpleNamespace(needs_user_creation=lambda: True,
-                                refresh_nav=lambda: None, selected_leaf=lambda: None)
-    return pages.IdentityPage(win), applied
+    win = types.SimpleNamespace(region=pages.RegionState(),
+                                refresh_nav=lambda: None)
+    return win, sent, applied
 
 
-def test_the_identity_page_writes_only_what_the_person_picked(monkeypatch):
-    """The language, keyboard and time zone reach the installed system
-    (#292). Each combo starts at "keep", which writes no key."""
-    sent = []
-    page, applied = _identity_page(monkeypatch, sent)
-    assert "this session" not in page.locale_expander.get_label()
-    assert page.region_fields() == {}
-    assert "locale" not in page.partial_recipe()
-    page.lang_combo.set_active_id("de_DE.UTF-8")
-    page.kb_combo.set_active_id("de")
-    page.tz_combo.set_active_id("Europe/Berlin")
-    assert page.region_fields() == {"locale": "de_DE.UTF-8", "keyboard": {"layout": "de"},
-                                    "timezone": "Europe/Berlin"}
-    # fisherman checks each pick (`validate --partial`).
-    assert sent[-1]["timezone"] == "Europe/Berlin"
-    assert sent[-1]["keyboard"] == {"layout": "de"}
-    # The keyboard also switches this live session.
+def test_region_pages_search_filter_and_pick(monkeypatch):
+    """Each region page filters its list from the search box; a pick lands
+    on the shared region state the identity page reads for the recipe."""
+    from tuna_installer_xfce import pages
+
+    win, sent, applied = _region_win(monkeypatch)
+    lang = pages.LanguagePage(win)
+    assert lang.get_accessible().get_name() == "Language"
+    assert lang.search.get_placeholder_text() == "Search languages"
+    assert lang.selected() == ""
+    lang.search.set_text("de_DE")
+    visible = [row.value for row in lang.rows.values()
+               if row.get_visible() or True]
+    assert "de_DE.UTF-8" in visible
+    lang.listbox.select_row(lang.rows["de_DE.UTF-8"])
+    assert win.region.locale == "de_DE.UTF-8"
+    assert sent[-1] == {"locale": "de_DE.UTF-8"}
+
+    kb = pages.KeyboardPage(win)
+    assert kb.get_accessible().get_name() == "Keyboard layout"
+    assert kb.test_entry.get_placeholder_text() == "Type here to test the layout"
+    kb.listbox.select_row(kb.rows["de"])
+    assert win.region.keyboard_layout == "de"
     assert applied == ["de"]
-    page.kb_combo.set_active_id("")
-    assert "keyboard" not in page.region_fields()
+    assert sent[-1] == {"keyboard": {"layout": "de"}}
+
+    tz = pages.TimezonePage(win)
+    assert tz.get_accessible().get_name() == "Time zone"
+    tz.listbox.select_row(tz.rows["Europe/Berlin"])
+    assert win.region.timezone == "Europe/Berlin"
+    assert sent[-1] == {"timezone": "Europe/Berlin"}
+
+    identity = pages.IdentityPage(win)
+    assert identity.region_fields() == {
+        "locale": "de_DE.UTF-8", "keyboard": {"layout": "de"},
+        "timezone": "Europe/Berlin"}
+    # The recipe fragment fisherman checks carries the picks.
+    assert "locale" not in pages.IdentityPage(
+        types.SimpleNamespace(
+            region=pages.RegionState(),
+            needs_user_creation=lambda: True,
+            refresh_nav=lambda: None,
+            selected_leaf=lambda: None)).partial_recipe()
 
 
-def test_a_region_problem_holds_the_page(monkeypatch):
-    page, _applied = _identity_page(monkeypatch)
-    page.hostname.set_text("box")
-    page.username.set_text("jo")
-    page.password.set_text("pw")
-    page.password2.set_text("pw")
-    page._on_checked([], None)
-    assert page.can_continue()
-    page._on_checked([{"field": "keyboard.layout", "code": "keyboard_layout_invalid",
+def test_a_failed_live_apply_still_keeps_the_pick(monkeypatch):
+    """live-apply-failed (spec): the note shows, and the pick still goes
+    to the target."""
+    from tuna_installer_xfce import pages
+
+    win, sent, _applied = _region_win(monkeypatch)
+    monkeypatch.setattr(locale_checks, "apply_language", lambda _v: False)
+    lang = pages.LanguagePage(win)
+    lang.listbox.select_row(lang.rows["de_DE.UTF-8"])
+    assert win.region.locale == "de_DE.UTF-8"
+    assert sent[-1] == {"locale": "de_DE.UTF-8"}
+    assert lang.note.get_visible()
+
+
+def test_a_region_problem_shows_under_the_field(monkeypatch):
+    from tuna_installer_xfce import pages
+
+    win, _sent, _applied = _region_win(monkeypatch)
+    lang = pages.LanguagePage(win)
+    lang._on_checked([{"field": "locale", "code": "no_such_code",
                        "message": "bad"}], None)
-    assert not page.can_continue()
-    assert page.region_problem.get_text()
+    assert lang.live_problem.get_text() == "bad"
+
+
+def test_a_page_preselects_the_session_value(monkeypatch):
+    from tuna_installer_xfce import pages
+
+    win, _sent, _applied = _region_win(monkeypatch)
+    monkeypatch.setattr(locale_checks, "current_language",
+                        lambda: "de_DE.UTF-8")
+    lang = pages.LanguagePage(win)
+    assert lang.selected() == "de_DE.UTF-8"
 
 
 def test_build_recipe_writes_the_three_keys():

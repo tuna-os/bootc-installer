@@ -9,6 +9,11 @@ import gi
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, GLib, Gtk, Pango
+try:
+    gi.require_version("Atspi", "2.0")
+    from gi.repository import Atspi  # noqa: E402
+except (ValueError, ImportError):
+    Atspi = None
 
 from bootc_shared import completion  # noqa: E402
 from bootc_shared import plan as install_plan  # noqa: E402
@@ -138,6 +143,357 @@ class Page(Gtk.Box):
     def on_enter(self):
         pass
 
+    def should_show(self):
+        """Whether the wizard stops here. Pages with nothing to say (an
+        unneeded network check, a stable release's disclaimer) return
+        False, and the window walks past them in both directions."""
+        return True
+
+
+def a11y_name(widget, name):
+    """The AT-SPI accessible name for a widget (screens.yaml,
+    "accessibility"). GTK3 widgets expose good defaults for plain widgets;
+    page roots and action buttons get the spec's exact names so the e2e
+    harness can classify the page from its text."""
+    accessible = widget.get_accessible()
+    if accessible is not None:
+        accessible.set_name(name)
+    return widget
+
+
+class RegionState:
+    """The installed system's language, keyboard layout and time zone, as
+    the three region pages pick them. "" means keep the image's own value
+    (core.region_fields writes no key for it). The window owns one, and the
+    identity page reads it; bare test doubles get an unshared one."""
+    def __init__(self, locale="", keyboard_layout="", timezone="",
+                 autologin=False):
+        self.locale = locale
+        self.keyboard_layout = keyboard_layout
+        self.timezone = timezone
+        self.autologin = autologin
+
+
+class SearchListPage(Page):
+    """A page that picks one value from a searchable list (language,
+    keyboard, time zone). The SearchEntry filters the ListBox rows; one
+    click selects. Blocking is false: a failed live apply shows a note,
+    and the pick still reaches the target."""
+    search_placeholder = ""
+    a11y_page_name = ""
+    a11y_search_name = ""
+
+    def __init__(self, win):
+        super().__init__(win)
+        a11y_name(self, self.a11y_page_name)
+        self.search = Gtk.SearchEntry()
+        self.search.set_placeholder_text(self.search_placeholder)
+        a11y_name(self.search, self.a11y_search_name)
+        self.search.connect("search-changed", self._on_search)
+        self.pack_start(self.search, False, False, 0)
+        self.listbox = Gtk.ListBox()
+        self.listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self.listbox.set_filter_func(self._filter)
+        scroll = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
+        scroll.add(self.listbox)
+        self.pack_start(scroll, True, True, 0)
+        self.rows = {}
+        for value in self.values():
+            row = Gtk.ListBoxRow()
+            row.value = value
+            row.add(Gtk.Label(label=value, xalign=0))
+            self.listbox.add(row)
+            self.rows[value] = row
+        self.listbox.connect("row-selected", self._on_selected)
+        self.note = _warn_row("")
+        self.note.set_no_show_all(True)
+        self.pack_start(self.note, False, False, 0)
+        self.live_problem = problem_label()
+        self.pack_start(self.live_problem, False, False, 0)
+        self.check = live_check(self._on_checked)
+        current = self.current()
+        if current in self.rows:
+            self.listbox.select_row(self.rows[current])
+
+    def values(self):
+        return []
+
+    def current(self):
+        return ""
+
+    def pick(self, value):
+        pass
+
+    def fragment(self):
+        return {}
+
+    def _filter(self, row):
+        needle = self.search.get_text().strip().casefold()
+        return needle in getattr(row, "value", "").casefold()
+
+    def _on_search(self, _entry):
+        self.listbox.invalidate_filter()
+
+    def _on_selected(self, _box, row):
+        if row is not None:
+            self.pick(getattr(row, "value", ""))
+            self.check.submit(self.fragment())
+            self.win.refresh_nav()
+
+    def _note(self, text):
+        self.note.get_children()[1].set_text(text)
+        self.note.set_visible(bool(text))
+
+    def selected(self):
+        row = self.listbox.get_selected_row()
+        return getattr(row, "value", "") if row is not None else ""
+
+    def _on_checked(self, problems, error):
+        show_problem(self.live_problem, (problems or [None])[0])
+        refresh = getattr(self.win, "refresh_nav", None)
+        if refresh is not None:
+            refresh()
+
+
+class LanguagePage(SearchListPage):
+    title = _("Language")
+    a11y_page_name = _("Language")
+    a11y_search_name = _("Search languages")
+    search_placeholder = _("Search languages")
+
+    def values(self):
+        return locale_checks.available_languages()
+
+    def current(self):
+        return locale_checks.current_language()
+
+    def pick(self, value):
+        self.win.region.locale = value
+        if not locale_checks.apply_language(value):
+            self._note(_("The live session could not switch to {value}; "
+                         "the installed system still uses it.").format(value=value))
+        else:
+            self._note("")
+
+    def fragment(self):
+        return {"locale": self.win.region.locale}
+
+
+class KeyboardPage(SearchListPage):
+    title = _("Keyboard layout")
+    a11y_page_name = _("Keyboard layout")
+    a11y_search_name = _("Search keyboards")
+    search_placeholder = _("Search keyboards")
+
+    def __init__(self, win):
+        super().__init__(win)
+        self.test_entry = Gtk.Entry()
+        self.test_entry.set_placeholder_text(_("Type here to test the layout"))
+        self.pack_start(self.test_entry, False, False, 0)
+        self.test_entry.show()
+
+    def values(self):
+        return locale_checks.available_keyboard_layouts()
+
+    def current(self):
+        return locale_checks.current_keyboard_layout()
+
+    def pick(self, value):
+        self.win.region.keyboard_layout = value
+        locale_checks.apply_keyboard_layout(value)
+
+    def fragment(self):
+        layout = self.win.region.keyboard_layout
+        return {"keyboard": {"layout": layout}} if layout else {}
+
+
+class TimezonePage(SearchListPage):
+    title = _("Time zone")
+    a11y_page_name = _("Time zone")
+    a11y_search_name = _("Search time zones")
+    search_placeholder = _("Search time zones")
+
+    def __init__(self, win):
+        super().__init__(win)
+        hint = Gtk.Label(xalign=0)
+        hint.set_line_wrap(True)
+        hint.set_text(_("Pick the closest city. The installer never detects "
+                        "the location; the choice stays on this computer."))
+        hint.get_style_context().add_class("dim-label")
+        self.pack_start(hint, False, False, 0)
+        hint.show()
+
+    def values(self):
+        return locale_checks.available_timezones()
+
+    def current(self):
+        return locale_checks.current_timezone()
+
+    def pick(self, value):
+        self.win.region.timezone = value
+        if not locale_checks.apply_timezone(value):
+            self._note(_("The live session clock could not change; "
+                         "the installed system still uses {value}.").format(value=value))
+        else:
+            self._note("")
+
+    def fragment(self):
+        return {"timezone": self.win.region.timezone}
+
+
+class NetworkPage(Page):
+    title = _("Network")
+
+    def __init__(self, win):
+        super().__init__(win)
+        a11y_name(self, _("Network"))
+        self.status = _warn_row("")
+        self.pack_start(self.status, False, False, 0)
+        bar = Gtk.Box(spacing=8)
+        bar.set_halign(Gtk.Align.END)
+        self.settings_btn = a11y_name(
+            Gtk.Button(label=_("Network settings")), _("Network settings"))
+        self.settings_btn.connect("clicked", self._on_settings)
+        bar.pack_start(self.settings_btn, False, False, 0)
+        self.recheck_btn = a11y_name(
+            Gtk.Button(label=_("Recheck")), _("Recheck"))
+        self.recheck_btn.connect("clicked", lambda *_a: self.on_enter())
+        bar.pack_start(self.recheck_btn, False, False, 0)
+        self.pack_start(bar, False, False, 0)
+        self.online = True
+
+    def should_show(self):
+        describe = getattr(self.win, "describe_connectivity", None)
+        if describe is None:
+            return True
+        try:
+            needs, _offline = describe()
+        except Exception:  # noqa: BLE001 - never trap the wizard on a check
+            return True
+        return bool(needs)
+
+    def on_enter(self):
+        self._set(True, _("Checking network connection…"))
+        image = ""
+        source = getattr(self.win, "source_and_target", None)
+        if callable(source):
+            try:
+                image = (source()[0] or "")
+            except Exception:  # noqa: BLE001 - the check answers, not raises
+                image = ""
+        if core.dry_run():
+            self._set(True, "")
+            return
+
+        def probe():
+            ok = locale_checks.has_connectivity(imgref=image)
+            GLib.idle_add(self._done, ok)
+
+        threading.Thread(target=probe, daemon=True).start()
+
+    def _done(self, ok):
+        self._set(ok, "" if ok else _(
+            "No network connection. Connect, then press Recheck."))
+        refresh = getattr(self.win, "refresh_nav", None)
+        if refresh is not None:
+            refresh()
+        return False
+
+    def _on_settings(self, *_args):
+        if not core.open_network_settings():
+            self._set(False, _(
+                "No network settings tool was found. Connect with the "
+                "panel's network icon, then press Recheck."))
+
+    def _set(self, ok, message):
+        self.online = ok
+        if message:
+            self.status.get_children()[1].set_text(message)
+        self.status.set_visible(bool(message))
+
+    def can_continue(self):
+        return self.online
+
+
+class PrereleasePage(Page):
+    title = _("Disclaimer")
+
+    def __init__(self, win):
+        super().__init__(win)
+        a11y_name(self, _("Disclaimer"))
+        _release, experiment = core.release_info()
+        body = Gtk.Label(xalign=0)
+        body.set_line_wrap(True)
+        if experiment:
+            body.set_text(experiment)
+        else:
+            body.set_text(_(
+                "This is pre-release software. It may break, and it may "
+                "lose data. Do not install it on a computer that matters."))
+        self.pack_start(body, False, False, 0)
+
+    def should_show(self):
+        return core.show_prerelease()
+
+
+class EulaPage(Page):
+    title = _("Terms of use")
+
+    def __init__(self, win):
+        super().__init__(win)
+        a11y_name(self, _("Terms of use"))
+        scroll = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
+        self.text = Gtk.TextView(editable=False)
+        self.text.get_buffer().set_text(self._load())
+        scroll.add(self.text)
+        self.pack_start(scroll, True, True, 0)
+        self.accept = Gtk.CheckButton(
+            label=_("I have read and accept the Terms of Use"))
+        self.accept.connect("toggled", lambda *_a: self.win.refresh_nav())
+        self.pack_start(self.accept, False, False, 0)
+
+    def should_show(self):
+        return bool(core.find_eula())
+
+    def _load(self):
+        path = core.find_eula()
+        try:
+            with open(path, encoding="utf-8") as handle:
+                return handle.read()
+        except OSError:
+            return _("The terms could not be loaded.")
+
+    def can_continue(self):
+        return self.accept.get_active()
+
+
+class RstPage(Page):
+    title = _("Intel RST")
+
+    def __init__(self, win):
+        super().__init__(win)
+        a11y_name(self, _("Intel RST"))
+        alert = _warn_row(_(
+            "This computer uses Intel RST (RAID mode). Linux cannot see "
+            "disks behind it. Switch the storage to AHCI in the firmware "
+            "settings, then continue."))
+        if Atspi is not None:
+            alert.get_accessible().set_role(Atspi.Role.ALERT)
+        self.pack_start(alert, False, False, 0)
+        bar = Gtk.Box(spacing=8)
+        bar.set_halign(Gtk.Align.END)
+        self.off_btn = Gtk.Button(label=_("Power off"))
+        self.off_btn.connect(
+            "clicked", lambda *_a: core.host_run(["systemctl", "poweroff"]))
+        bar.pack_start(self.off_btn, False, False, 0)
+        self.pack_start(bar, False, False, 0)
+
+    def should_show(self):
+        try:
+            return bool(core.rst_detected())
+        except Exception:  # noqa: BLE001 - a gate must never trap the wizard
+            return False
+
 
 class WelcomePage(Page):
     # Flavour text is branding copy (shared/branding): the product's own
@@ -146,6 +502,7 @@ class WelcomePage(Page):
 
     def __init__(self, win):
         super().__init__(win)
+        a11y_name(self, _("Welcome"))
         self.logo = product_logo(core.BRANDING.logo, core.IN_FLATPAK)
         self.pack_start(self.logo, False, False, 0)
         self.reorder_child(self.logo, 0)
@@ -162,6 +519,13 @@ class WelcomePage(Page):
             "any disk until you confirm on the final step.").format(
                 product=core.PRODUCT_NAME))
         self.pack_start(body, False, False, 0)
+        # Try or install (spec `try-or-install`): trying quits the wizard
+        # and leaves the live session running; installing walks on.
+        self.try_btn = a11y_name(Gtk.Button(
+            label=_("Try {product}").format(product=core.PRODUCT_NAME)),
+            _("Try {product}").format(product=core.PRODUCT_NAME))
+        self.try_btn.connect("clicked", self._on_try)
+        self.pack_start(self.try_btn, False, False, 0)
         # A first-run tour of the catalog's image families (tour.py), shown
         # where a newcomer actually waits. Below-minimum machines never
         # reach this page: the app shows a blocking RAM/CPU/UEFI gate
@@ -171,6 +535,12 @@ class WelcomePage(Page):
         self.tour = tour.TourCarousel()
         self.pack_start(self.tour, False, False, 0)
         self.tour.set_slides(tour.slides_from_catalog(core.load_catalog().roots))
+
+    def _on_try(self, *_args):
+        """End the wizard; the live session keeps running."""
+        application = self.get_toplevel().get_application()
+        if application is not None:
+            application.quit()
 
 
 class SourcePage(Page):
@@ -512,12 +882,18 @@ class IdentityPage(Page):
 
     def __init__(self, win):
         super().__init__(win)
+        a11y_name(self, _("Account"))
+        # The installed system's language, keyboard and time zone live on
+        # the window (RegionState): the region pages own the controls, this
+        # page only reads the picks for the recipe.
+        self.region = getattr(win, "region", None) or RegionState()
         grid = Gtk.Grid(column_spacing=12, row_spacing=6)
         # Seeded from the selected image's default_hostname, else the
         # branding's (on_enter), until the person types one.
         self._hostname_edited = False
         self._hostname_syncing = False
         self.hostname = Gtk.Entry(text=core.BRANDING.default_hostname)
+        a11y_name(self.hostname, _("Hostname"))
         self.hostname.connect("changed", self._on_hostname_changed)
         grid.attach(Gtk.Label(label=_("Hostname"), xalign=0), 0, 0, 1, 1)
         grid.attach(self.hostname, 1, 0, 1, 1)
@@ -548,30 +924,21 @@ class IdentityPage(Page):
         self.user_frame.add(ug)
         self.pack_start(self.user_frame, False, False, 0)
 
-        # Language, keyboard layout and time zone of the installed system:
-        # the recipe's `locale`, `keyboard.layout` and `timezone` (#292).
-        # Each combo starts at "keep", which writes no key: the image keeps
-        # its own value. A pick goes into the recipe, and fisherman checks
-        # it (`validate --partial`). The keyboard pick also switches this
-        # live session (setxkbmap), so the passphrase and the password typed
-        # next are the ones the person means.
-        loc = Gtk.Expander(label=_("Language, keyboard and time zone"))
-        locbox = Gtk.Grid(column_spacing=12, row_spacing=6, margin=6)
-        self.lang_combo = self._region_combo(locale_checks.available_languages())
-        self.kb_combo = self._region_combo(locale_checks.available_keyboard_layouts())
-        self.tz_combo = self._region_combo(locale_checks.available_timezones())
-        for row, (label, combo) in enumerate(((_("Language"), self.lang_combo),
-                                              (_("Keyboard"), self.kb_combo),
-                                              (_("Time zone"), self.tz_combo))):
-            locbox.attach(Gtk.Label(label=label, xalign=0), 0, row, 1, 1)
-            locbox.attach(combo, 1, row, 1, 1)
-            combo.connect("changed", self._on_region_changed)
-        self.kb_combo.connect("changed", self._on_keyboard_changed)
-        self.region_problem = problem_label()
-        locbox.attach(self.region_problem, 1, 3, 1, 1)
-        loc.add(locbox)
-        self.locale_expander = loc
-        self.pack_start(loc, False, False, 0)
+        # The region pages (language, keyboard, time zone) own the controls;
+        # this page shows what they picked. The recipe's `locale`,
+        # `keyboard.layout` and `timezone` (#292) come from self.region.
+        self.region_summary = Gtk.Label(xalign=0)
+        self.region_summary.set_line_wrap(True)
+        self.region_summary.get_style_context().add_class("dim-label")
+        self.pack_start(self.region_summary, False, False, 0)
+        # Automatic sign-in (spec account inputs): the daemon stores it
+        # over ConfigureTarget. The recipe schema has no such key, so the
+        # box shows on the daemon backend only.
+        self.autologin = Gtk.CheckButton(label=_("Sign in automatically"))
+        self.autologin.set_no_show_all(True)
+        self.autologin.connect(
+            "toggled", self._on_autologin_toggled)
+        self.pack_start(self.autologin, False, False, 0)
 
         # The hostname and username rules are fisherman's
         # (`fisherman validate --json --partial -`). The hostname used to be
@@ -586,53 +953,41 @@ class IdentityPage(Page):
         partial = {"hostname": self.hostname.get_text()}
         if self.win.needs_user_creation():
             partial["user"] = {"username": self.username.get_text()}
-        partial.update(self.region_fields())
+        if core.backend() == "daemon":
+            partial["autologin"] = self.region.autologin
         return partial
 
     def region_choices(self):
         """The picks as build_recipe() takes them: "" for "keep"."""
-        return {"locale": self.lang_combo.get_active_id() or "",
-                "keyboard_layout": self.kb_combo.get_active_id() or "",
-                "timezone": self.tz_combo.get_active_id() or ""}
+        return {"locale": self.region.locale,
+                "keyboard_layout": self.region.keyboard_layout,
+                "timezone": self.region.timezone}
 
     def region_fields(self):
         """The recipe's `locale`, `keyboard` and `timezone`: only the ones
         the person picked."""
         return core.region_fields(**self.region_choices())
 
+    def _describe_region(self):
+        """One line naming the region picks; "keep" where nothing was picked."""
+        keep = _("Keep the image's setting")
+        return _("Language: {language}; Keyboard: {keyboard}; "
+                 "Time zone: {timezone}").format(
+            language=self.region.locale or keep,
+            keyboard=self.region.keyboard_layout or keep,
+            timezone=self.region.timezone or keep)
+
     def _on_checked(self, problems, error):
         problems = problems or []
         self.problems = {f: next((p for p in problems if p.get("field") == f), None)
                          for f in ("hostname", "user.username")}
-        # The first problem with a picked value: locale, keyboard.*, timezone.
-        self.problems["region"] = next(
-            (p for p in problems if core.is_region_field(p.get("field", ""))), None)
         show_problem(self.hostname_problem, self.problems["hostname"])
         show_problem(self.username_problem, self.problems["user.username"])
-        show_problem(self.region_problem, self.problems["region"])
         self.win.refresh_nav()
 
-    KEEP = _("Keep the image's setting")
-
-    @classmethod
-    def _region_combo(cls, values):
-        """A combo of `values` whose first row, the active one, is "keep":
-        id "", which writes no key."""
-        combo = Gtk.ComboBoxText()
-        combo.append("", cls.KEEP)
-        for value in values:
-            combo.append(value, value)
-        combo.set_active_id("")
-        return combo
-
-    def _on_region_changed(self, *_args):
+    def _on_autologin_toggled(self, _button):
+        self.region.autologin = self.autologin.get_active()
         self.check.submit(self.partial_recipe())
-        self.win.refresh_nav()
-
-    def _on_keyboard_changed(self, combo):
-        layout = combo.get_active_id()
-        if layout:
-            locale_checks.apply_keyboard_layout(layout)
 
     def passwords_match(self):
         return self.password.get_text() == self.password2.get_text()
@@ -664,12 +1019,13 @@ class IdentityPage(Page):
     def on_enter(self):
         self.seed_hostname()
         self.user_frame.set_visible(self.win.needs_user_creation())
+        self.region_summary.set_text(self._describe_region())
+        show = core.backend() == "daemon"
+        self.autologin.set_visible(show)
         self.check.submit(self.partial_recipe())
 
     def can_continue(self):
         if self.problems.get("hostname") is not None:
-            return False
-        if self.problems.get("region") is not None:
             return False
         if self.win.needs_user_creation():
             # A user is required for this image (needs_user_creation), and
@@ -1380,5 +1736,6 @@ class DonePage(Page):
                     "\n\nFull log: {path}").format(log=log_tail, path=core.install_log_path())]))
 
 
-PAGE_ORDER = ["welcome", "source", "destination", "setup", "identity",
-              "confirm", "progress", "done"]
+PAGE_ORDER = ["welcome", "language", "keyboard", "timezone", "network",
+              "prerelease", "eula", "source", "rst", "destination", "setup",
+              "identity", "confirm", "progress", "done"]

@@ -22,12 +22,41 @@ from .pages import (
     ConfirmPage,
     DestinationPage,
     DonePage,
+    EulaPage,
     IdentityPage,
+    KeyboardPage,
+    LanguagePage,
+    NetworkPage,
+    PrereleasePage,
     ProgressPage,
+    RegionState,
+    RstPage,
     SetupPage,
     SourcePage,
+    TimezonePage,
     WelcomePage,
 )
+
+
+# The shared flow's stable screen id for each wizard page (shared/flow/
+# screens.yaml, "order"). The readiness stamp reports these as `page=`.
+# `source` is this frontend's own catalog page: the spec has no id for it.
+SPEC_IDS = {
+    "welcome": "try-or-install", "language": "language",
+    "keyboard": "keyboard", "timezone": "timezone", "network": "network",
+    "prerelease": "prerelease", "eula": "eula", "source": "source",
+    "rst": "rst", "destination": "disk", "wipe": "wipe-or-free",
+    "setup": "encryption", "identity": "account", "confirm": "confirm",
+    "progress": "install", "recovery": "recovery-key", "handoff": "handoff",
+    "done": "done",
+}
+
+
+def spec_page(name):
+    """The shared-flow screen id for an internal page name."""
+    return SPEC_IDS.get(name, "unknown")
+
+
 from .trawlline import TrawlLine
 
 
@@ -147,11 +176,16 @@ class InstallerWindow(Gtk.ApplicationWindow):
         # its own Close and Restart now row (DonePage).
         self.nav = nav
 
+        self.region = RegionState()
         self.pages = {
-            "welcome": WelcomePage(self), "source": SourcePage(self),
-            "destination": DestinationPage(self), "setup": SetupPage(self),
-            "identity": IdentityPage(self), "confirm": ConfirmPage(self),
-            "progress": ProgressPage(self), "done": DonePage(self),
+            "welcome": WelcomePage(self), "language": LanguagePage(self),
+            "keyboard": KeyboardPage(self), "timezone": TimezonePage(self),
+            "network": NetworkPage(self), "prerelease": PrereleasePage(self),
+            "eula": EulaPage(self), "source": SourcePage(self),
+            "rst": RstPage(self), "destination": DestinationPage(self),
+            "setup": SetupPage(self), "identity": IdentityPage(self),
+            "confirm": ConfirmPage(self), "progress": ProgressPage(self),
+            "done": DonePage(self),
         }
         for name in PAGE_ORDER:
             self.stack.add_named(self.pages[name], name)
@@ -166,7 +200,13 @@ class InstallerWindow(Gtk.ApplicationWindow):
             GLib.idle_add(self._start_autoinstall, autoinstall_recipe)
 
     def go(self, delta):
-        self._enter(self.index + delta)
+        step = 1 if delta > 0 else -1
+        i = self.index + step
+        while 0 <= i < len(PAGE_ORDER):
+            if self.pages[PAGE_ORDER[i]].should_show():
+                break
+            i += step
+        self._enter(max(0, min(len(PAGE_ORDER) - 1, i)))
 
     def _enter(self, i):
         self.index = max(0, min(len(PAGE_ORDER) - 1, i))
@@ -575,7 +615,7 @@ class InstallerApp(Gtk.Application):
             win = (self.get_active_window()
                    or InstallerWindow(self,
                                       autoinstall_recipe=self._autoinstall_recipe))
-            readiness.arm(win, APP_ID, page_getter=lambda: PAGE_ORDER[win.index])
+            readiness.arm(win, APP_ID, page_getter=lambda: spec_page(PAGE_ORDER[win.index]))
             win.present()
             return
         # Below-minimum machines never see the wizard: a blocking gate
@@ -591,7 +631,7 @@ class InstallerApp(Gtk.Application):
             win.present()
             return
         win = self.get_active_window() or InstallerWindow(self)
-        readiness.arm(win, APP_ID, page_getter=lambda: PAGE_ORDER[win.index])
+        readiness.arm(win, APP_ID, page_getter=lambda: spec_page(PAGE_ORDER[win.index]))
         win.present()
 
 
