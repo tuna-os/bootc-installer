@@ -27,6 +27,8 @@ mod preflight;
 mod tour;
 mod fishermand;
 mod i18n;
+#[cfg(all(test, unix))]
+mod fishermand_mock_tests;
 #[cfg(test)]
 mod recipe_compliance;
 
