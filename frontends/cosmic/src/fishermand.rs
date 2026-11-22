@@ -534,13 +534,16 @@ fn map_encryption_type(enc_type: &str) -> &str {
 /// reply. The mock's gate ids are `ram`, `cpu`, `firmware`; the wizard's
 /// gates are `ram`, `cpu`, `uefi` (`hardware::gate_for`).
 pub fn daemon_probe_to_facts(probe: &Value, gates: &Value) -> Result<crate::probe::Facts, String> {
-    let disks = probe
+    let eligible: Vec<&Value> = probe
         .get("disks")
         .and_then(Value::as_array)
         .map(Vec::as_slice)
         .unwrap_or(&[])
         .iter()
         .filter(|d| d.get("eligible").and_then(Value::as_bool) == Some(true))
+        .collect();
+    let disks = eligible
+        .iter()
         .map(|d| {
             let str_of = |key: &str| d.get(key).and_then(Value::as_str).unwrap_or("").to_string();
             let model = str_of("model");
@@ -560,6 +563,30 @@ pub fn daemon_probe_to_facts(probe: &Value, gates: &Value) -> Result<crate::prob
                 size_label: str_of("sizeLabel"),
                 transport_label: str_of("transport"),
                 removable: d.get("removable").and_then(Value::as_bool).unwrap_or(false),
+            }
+        })
+        .collect();
+    // Same order as `disks`: the wipe-or-free page pairs them by index.
+    let disk_data = eligible
+        .iter()
+        .map(|d| {
+            let data = d.get("existingData");
+            let has_data = data
+                .map(|e| {
+                    e.get("hasPartitionTable").and_then(Value::as_bool).unwrap_or(false)
+                        || e.get("hasLuks").and_then(Value::as_bool).unwrap_or(false)
+                        || !e
+                            .get("operatingSystems")
+                            .and_then(Value::as_array)
+                            .map(Vec::as_slice)
+                            .unwrap_or(&[])
+                            .is_empty()
+                })
+                .unwrap_or(false);
+            crate::probe::DiskData {
+                has_data,
+                free_bytes: d.get("freeBytes").and_then(Value::as_u64).unwrap_or(0),
+                minimal_bytes: d.get("minimalSizeBytes").and_then(Value::as_u64).unwrap_or(0),
             }
         })
         .collect();
@@ -595,6 +622,11 @@ pub fn daemon_probe_to_facts(probe: &Value, gates: &Value) -> Result<crate::prob
             .to_string(),
         // The daemon's Probe has no offline stores yet.
         offline_images: Vec::new(),
+        intel_rst: probe
+            .pointer("/intelRst/detected")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        disk_data,
         raw: serde_json::to_string(probe).map_err(|e| format!("cannot reserialize Probe: {e}"))?,
     })
 }
@@ -866,6 +898,34 @@ mod tests {
         assert_eq!(facts.live_image, "ghcr.io/tuna-os/mock:live");
         // The wizard's gate name for firmware is uefi.
         assert_eq!(facts.unmet, vec!["uefi".to_string()]);
+        assert!(!facts.intel_rst);
+        // disk_data parallels disks: one entry, no data on a fresh disk.
+        assert_eq!(facts.disk_data.len(), 1);
+        assert!(!facts.disk_data[0].has_data);
+    }
+
+    #[test]
+    fn daemon_probe_with_rst_and_data_maps_both() {
+        let probe = serde_json::json!({
+            "protocolVersion": 1,
+            "disks": [
+                {"path": "/dev/nvme0n1", "sizeLabel": "477 GiB", "model": "NVMe",
+                 "vendor": "Mockware", "transport": "nvme", "removable": false, "eligible": true,
+                 "freeBytes": 100, "minimalSizeBytes": 200,
+                 "existingData": {"hasPartitionTable": true, "partitions": [],
+                     "operatingSystems": ["Windows"], "hasLuks": false}}
+            ],
+            "tpm": {"present": false, "version": "", "usable": false},
+            "intelRst": {"detected": true, "affectedDisks": ["/dev/nvme0n1"]},
+            "live": {"isLive": false}
+        });
+        let gates = serde_json::json!({"gates": []});
+        let facts = daemon_probe_to_facts(&probe, &gates).unwrap();
+        assert!(facts.intel_rst);
+        assert_eq!(facts.disk_data.len(), 1);
+        assert!(facts.disk_data[0].has_data);
+        assert_eq!(facts.disk_data[0].free_bytes, 100);
+        assert_eq!(facts.disk_data[0].minimal_bytes, 200);
     }
 
     #[test]

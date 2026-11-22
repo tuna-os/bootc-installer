@@ -104,6 +104,7 @@ fn mock_happy_probe_maps_to_wizard_facts() {
     assert_eq!(facts.disks[0].path, "/dev/nvme0n1");
     assert!(facts.tpm_usable);
     assert!(facts.unmet.is_empty());
+    assert!(!facts.intel_rst);
 }
 
 #[test]
@@ -157,6 +158,10 @@ fn mock_rst_probe_reports_intel_rst() {
     let mut conn = mock.connect();
     let probe = fishermand::probe(&mut conn).unwrap();
     assert_eq!(probe["intelRst"]["detected"], Value::Bool(true));
+    // The wizard's facts carry the flag; the RST page shows while set.
+    let gates = fishermand::requirements(&mut conn).unwrap();
+    let facts = fishermand::daemon_probe_to_facts(&probe, &gates).unwrap();
+    assert!(facts.intel_rst);
 }
 
 #[test]

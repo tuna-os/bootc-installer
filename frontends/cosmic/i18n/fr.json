@@ -1,4 +1,5 @@
 {
+  "A disk may be missing from the list.": "",
   "Account": "",
   "Any progress will be lost.": "",
   "Back": "Retour",
@@ -31,6 +32,7 @@
   "Full name": "",
   "Image": "",
   "Installing": "",
+  "Intel RST": "",
   "Keep going": "",
   "Keyboard": "Clavier",
   "Language": "Langue",
@@ -79,6 +81,7 @@
   "The last screen before anything is written.": "",
   "This computer does not meet a requirement.": "",
   "This computer meets the requirements.": "",
+  "This computer uses Intel RST (RAID mode). Linux cannot see the solid-state disk until the firmware setting changes from RAID to AHCI. Continue to the disk list, or power off and change the setting first.": "",
   "Time zone": "",
   "Tour": "",
   "Type it again": "",

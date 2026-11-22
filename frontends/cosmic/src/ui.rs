@@ -164,6 +164,13 @@ pub mod copy {
     pub const NETWORK_TITLE: &str = "Network";
     pub const NETWORK_SUBTITLE: &str = "The installer needs the network to fetch images.";
     pub const NETWORK_CHECKING: &str = "Checking the connection\u{2026}";
+    // Intel RST (screens.yaml `rst`): warns and continues, never blocks.
+    // Next still goes to the disk list, which misses the hidden disk.
+    pub const RST_TITLE: &str = "Intel RST";
+    pub const RST_SUBTITLE: &str = "A disk may be missing from the list.";
+    pub const RST_BODY: &str = "This computer uses Intel RST (RAID mode). Linux cannot see \
+        the solid-state disk until the firmware setting changes from RAID to AHCI. \
+        Continue to the disk list, or power off and change the setting first.";
     pub const NETWORK_ONLINE: &str = "Connected.";
     pub const NETWORK_OFFLINE: &str =
         "No internet connection. The installer requires an active internet connection.";
@@ -381,6 +388,17 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 t.push(tr(CONTINUE));
             }
             t
+        }
+        Page::Rst => {
+            vec![
+                tr(RST_TITLE),
+                tr(RST_SUBTITLE),
+                tr(RST_BODY),
+                tr(REQUIREMENTS_POWER_OFF),
+                tr(REQUIREMENTS_FIRMWARE),
+                tr(BACK),
+                tr(CONTINUE),
+            ]
         }
         Page::Options => {
             let choices = available_encryption_choices(app.has_tpm());
@@ -777,6 +795,7 @@ pub fn view(app: &TunaInstaller) -> Element<'_, Message> {
         Page::Keyboard => keyboard(app),
         Page::Timezone => timezone(app),
         Page::Network => network(app),
+        Page::Rst => rst(app),
         Page::DiskSelect => disk_select(app),
         Page::Options => options(app),
         Page::Account => account(app),
@@ -1292,6 +1311,35 @@ fn network(app: &TunaInstaller) -> Element<'_, Message> {
             (app.net_online() == Some(true))
                 .then_some((tr(CONTINUE), Message::NextPage, false)),
         ),
+    )
+}
+
+/// Intel RST (screens.yaml `rst`): a warning, not a gate. The hidden disk
+/// stays missing from the disk list; Next continues anyway. Power off and
+/// firmware setup offer the way out through the BIOS setting.
+fn rst(_app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    let body = widget::column::with_children(vec![
+        widget::text::body(tr(RST_BODY)).into(),
+        widget::row::with_children(vec![
+            widget::button::standard(tr(REQUIREMENTS_POWER_OFF))
+                .on_press(Message::PowerOff)
+                .into(),
+            widget::button::standard(tr(REQUIREMENTS_FIRMWARE))
+                .on_press(Message::FirmwareSetup)
+                .into(),
+        ])
+        .spacing(spacing.space_s)
+        .into(),
+    ])
+    .spacing(spacing.space_s)
+    .height(Length::Fill);
+
+    page_frame(
+        tr(RST_TITLE),
+        tr(RST_SUBTITLE),
+        body.into(),
+        nav_row(Some(Message::BackPage), Some((tr(CONTINUE), Message::NextPage, false))),
     )
 }
 

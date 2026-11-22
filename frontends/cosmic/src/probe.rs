@@ -40,9 +40,28 @@ pub struct Facts {
     /// are fisherman's: a recipe that leaves additionalImageStores out gets
     /// them.
     pub offline_images: Vec<String>,
+    /// Intel RST/VMD remaps the NVMe disk (`intelRst.detected`). The legacy
+    /// probe reports no such fact: always false on that path, so the RST
+    /// page is daemon-only.
+    pub intel_rst: bool,
+    /// One entry per disk in [`Facts::disks`], same order: whether the disk
+    /// holds data and how much free space it has. The wipe-or-free page
+    /// reads this. Empty on the legacy path.
+    pub disk_data: Vec<DiskData>,
     /// The probe's own output, for the objects that this struct does not
     /// hold (`bootc_store`, which offers the install source of #267).
     pub raw: String,
+}
+
+/// What the wipe-or-free page needs about one eligible disk.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct DiskData {
+    /// The disk holds a partition table, an OS, or LUKS.
+    pub has_data: bool,
+    /// Bytes still free on the disk.
+    pub free_bytes: u64,
+    /// Bytes the install needs at minimum.
+    pub minimal_bytes: u64,
 }
 
 /// Parses probe output.
@@ -113,6 +132,10 @@ pub fn parse(json: &str) -> Result<Facts, String> {
         is_live,
         live_image,
         offline_images,
+        // The legacy probe reports neither: the RST page stays skipped and
+        // the wipe page has no data to show on this path.
+        intel_rst: false,
+        disk_data: Vec::new(),
         raw: json.to_string(),
     })
 }
