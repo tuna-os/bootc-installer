@@ -1,0 +1,529 @@
+# The shared installer flow: 18 screens, one stable id each.
+# Spec for tuna-os/bootc-installer#442. Reference: hanthor/gnome-setup, branch
+# `utah` (src/page/**, data/pages.conf). Daemon: tuna-os/fisherman#512.
+#
+# Names below that start with io.tunaos.Fisherman are the names in
+# fisherman#512. Their field names are proposals until the daemon lands.
+# `gnome_setup` says what the reference does today, read from its source.
+# `frontends` says what each frontend in this repository has today, read from
+# frontends/<name> (code first, DESIGN.md second: DESIGN.md is stale in places).
+spec_version: 1
+
+interfaces:
+  - name: io.systemd.SysInstall
+    socket: /run/systemd/io.systemd.SysInstall
+    calls: [ListCandidateDevices, Run]
+    note: Compatible with systemd. gnome-setup uses it unchanged.
+  - name: io.systemd.CryptEnroll
+    socket: /run/systemd/io.systemd.CryptEnroll
+    calls: [MakeRecoveryKey, Enroll, ListSlots]
+  - name: io.systemd.Shutdown
+    socket: /run/systemd/io.systemd.Shutdown
+    calls: [Reboot, PowerOff, SoftReboot]
+  - name: io.tunaos.Fisherman
+    socket: unset  # fisherman#512 does not name it yet; clients take a path.
+    calls: [Requirements, Probe, Validate, ConfigureTarget, Install, Handoff, Cancel]
+  - name: org.varlink.service
+    calls: [GetInfo, GetInterfaceDescription]
+
+# The order a frontend shows the screens. A screen that has nothing to show is
+# skipped, never shown blank.
+order:
+  - requirements
+  - try-or-install
+  - language
+  - keyboard
+  - timezone
+  - network
+  - prerelease
+  - eula
+  - rst
+  - disk
+  - wipe-or-free
+  - encryption
+  - account
+  - confirm
+  - install
+  - recovery-key
+  - handoff
+  - done
+
+# Disk status, from SysInstall `fit` and `currentSizeBytes`. gnome-setup maps
+# them in src/interfaces/sysinstall.rs (Disk::from_candidate_device).
+disk_status:
+  empty: fit=enough_free_space and currentSizeBytes=0. Plain confirm.
+  data-detected: fit=enough_free_space and data present. Show wipe-or-free.
+  insufficient-free-space: fit=insufficient_free_space. Forced erase, with a countdown.
+  conflicting-label: fit=conflicting_disk_label_present. Forced erase, with a countdown.
+  too-small: fit=disk_too_small. Listed as unusable, with the minimum size. Not selectable.
+
+screens:
+  - id: requirements
+    title: Requirements
+    required_for_harness: false
+    kind: page
+    applies_when: Requirements reports an unmet gate.
+    skip_when: No gate is unmet.
+    blocking: partly
+    inputs: []
+    outputs: [{ignore: "[ram, cpu] when the user continues anyway"}]
+    varlink: [io.tunaos.Fisherman.Requirements]
+    gates:
+      ram: {fatal: false, actions: [continue-anyway, power-off]}
+      cpu: {fatal: false, actions: [continue-anyway, power-off]}
+      uefi: {fatal: true, actions: [power-off, firmware-setup]}
+    failure_states: [requirements-soft, requirements-fatal]
+    accessibility: {name: Requirements, buttons: [Continue anyway, Power off, Firmware setup]}
+    gnome_setup: {status: absent, note: "No such page. The GNOME frontend in this repo has BootcRamWindow, BootcCpuWindow and BootcUnsupportedWindow."}
+    frontends:
+      kde: {status: partial, note: "A gate on the welcome module, not a page. RAM and CPU hold Next until a tick. No UEFI offers only power off."}
+      cosmic: {status: have, note: "Page `requirements`, one card per gate. Already matches this spec."}
+      niri: {status: partial, note: "Warning on the welcome page and a gate dialog."}
+      xfce: {status: partial, note: "Gate windows (RAM, CPU, UEFI) before the wizard opens."}
+
+  - id: try-or-install
+    title: Try or install
+    required_for_harness: true
+    kind: page
+    applies_when: The wizard runs on live media.
+    skip_when: Never on live media.
+    blocking: false
+    inputs: [os-release NAME, os-release LOGO, "os-release LOGO-dark when the theme is dark"]
+    outputs: [{choice: "try | install"}]
+    varlink: []
+    actions:
+      try: Ends the wizard process. The live session keeps running.
+      install: Goes to the next screen.
+    failure_states: []
+    accessibility: {name: Welcome, buttons: ["Try <product>", Install now]}
+    gnome_setup:
+      status: present
+      note: >-
+        WelcomePage serves both `try-or-install` and `installer-welcome`. Try quits the app.
+        Copy differs when XDG_SESSION_CLASS=user. In gnome-setup this page comes after
+        language, keyboard, prerelease and eula.
+    frontends:
+      kde: {status: missing, note: "The welcome module introduces the install. It has no Try action."}
+      cosmic: {status: partial, note: "`welcome` introduces the product. It has no Try action."}
+      niri: {status: missing, note: "Welcome page, no Try action."}
+      xfce: {status: missing, note: "WelcomePage, no Try action."}
+
+  - id: language
+    title: Language
+    required_for_harness: false
+    kind: page
+    applies_when: Always.
+    skip_when: Never.
+    blocking: false
+    inputs: [locale list, search text]
+    outputs: [{locale: "e.g. de_DE.UTF-8"}]
+    varlink: [io.tunaos.Fisherman.ConfigureTarget]
+    host_calls: [org.freedesktop.locale1.SetLocale]
+    note: >-
+      gnome-setup sets the live session through systemd-localed and lets
+      systemd-sysinstall copy it (copyLocale). Native frontends send it to ConfigureTarget.
+      The list must work for a non-Latin locale.
+    failure_states: [live-apply-failed]
+    accessibility: {name: Language, search_field: Search languages}
+    gnome_setup: {status: present, note: "Search box, list, empty state `No Results Found`. A multilingual welcome carousel above the list."}
+    frontends:
+      kde: {status: partial, note: "Combo box in `Region & language` on the welcome module. The recipe carries `locale`. DESIGN.md says nothing applies it: stale."}
+      cosmic: {status: have, note: "Page `language`. Changes the live session with localectl and fills the recipe."}
+      niri: {status: have, note: "Part of the Session step. Applies to the live session and fills the recipe."}
+      xfce: {status: partial, note: "Combo box in an expander on the identity page. Starts at `keep`."}
+
+  - id: keyboard
+    title: Keyboard layout
+    required_for_harness: false
+    kind: page
+    applies_when: Always.
+    skip_when: Never.
+    blocking: false
+    inputs: [XKB layout and variant list, search text]
+    outputs: [{keyboard: "layout, variant"}]
+    varlink: [io.tunaos.Fisherman.ConfigureTarget]
+    host_calls: [org.freedesktop.locale1.SetX11Keyboard]
+    note: gnome-setup has no test field. Add one in a native frontend if the toolkit gives it cheaply.
+    failure_states: [live-apply-failed]
+    accessibility: {name: Keyboard layout, search_field: Search keyboards}
+    gnome_setup: {status: present, note: "Search box and list. No test field, unlike the text of #442."}
+    frontends:
+      kde: {status: partial, note: "Combo box on the welcome module."}
+      cosmic: {status: have, note: "Page `keyboard`, XKB layout."}
+      niri: {status: have, note: "Part of the Session step."}
+      xfce: {status: partial, note: "Combo box in the identity page expander."}
+
+  - id: timezone
+    title: Time zone
+    required_for_harness: false
+    kind: page
+    applies_when: Always.
+    skip_when: Never.
+    blocking: false
+    inputs: [zone list, "optional location detection the user can decline"]
+    outputs: [{timezone: "e.g. Europe/Berlin"}]
+    varlink: [io.tunaos.Fisherman.ConfigureTarget]
+    host_calls: [org.freedesktop.timedate1.SetTimezone]
+    failure_states: [live-apply-failed]
+    accessibility: {name: Time zone}
+    gnome_setup: {status: absent, note: "Listed in pages.conf. No page exists: the loader warns `unsupported page` and drops it."}
+    frontends:
+      kde: {status: partial, note: "Combo box on the welcome module."}
+      cosmic: {status: have, note: "Page `timezone`."}
+      niri: {status: have, note: "Part of the Session step."}
+      xfce: {status: partial, note: "Combo box in the identity page expander."}
+
+  - id: network
+    title: Network
+    required_for_harness: false
+    kind: page
+    applies_when: The image needs a download.
+    skip_when: The medium is complete offline, or the install copies this computer's system.
+    blocking: true
+    inputs: []
+    outputs: []
+    varlink: []
+    host_calls: ["the desktop's own network tool"]
+    note: The check runs in the frontend (shared/network). The daemon does not check the network.
+    failure_states: [offline]
+    accessibility: {name: Network, buttons: [Network settings, Recheck]}
+    gnome_setup: {status: absent, note: "Listed in pages.conf. No page exists."}
+    frontends:
+      kde: {status: partial, note: "NetworkGate on the welcome module and on confirm, with a Network settings action."}
+      cosmic: {status: have, note: "Page `network`. Skipped on live media and when the system copy is offered."}
+      niri: {status: have, note: "Network card in the Session step, with Network settings and Recheck."}
+      xfce: {status: partial, note: "Gate on the confirm page."}
+
+  - id: prerelease
+    title: Disclaimer
+    required_for_harness: false
+    kind: page
+    applies_when: os-release RELEASE_TYPE is `pre-release` or `experiment`.
+    skip_when: RELEASE_TYPE is `stable`, `lts` or unset. An unknown value counts as stable.
+    blocking: false
+    inputs: ["os-release RELEASE_TYPE", "os-release EXPERIMENT (text, for experiment)"]
+    outputs: []
+    varlink: []
+    failure_states: []
+    accessibility: {name: Disclaimer}
+    gnome_setup: {status: present, note: "Title `Disclaimer`. gnome-setup also reads SETUP_OVERRIDE_OS_RELEASE_TYPE and SETUP_OVERRIDE_OS_EXPERIMENT for tests."}
+    frontends:
+      kde: {status: missing, note: ""}
+      cosmic: {status: missing, note: ""}
+      niri: {status: missing, note: ""}
+      xfce: {status: missing, note: ""}
+
+  - id: eula
+    title: Terms of use
+    required_for_harness: false
+    kind: page
+    applies_when: The image ships an AppStream component with an `agreement` of type `eula`.
+    skip_when: No such file.
+    blocking: true
+    inputs: ["AppStream agreement sections (paragraphs, ordered and unordered lists)"]
+    outputs: [{accepted: bool}]
+    varlink: []
+    note: >-
+      gnome-setup reads $PKGDATADIR/eula.xml. The path for the native frontends is an open
+      question. Next stays off until the user ticks the box.
+    failure_states: [eula-unreadable]
+    accessibility: {name: Terms of use, checkbox: I have read and accept the Terms of Use}
+    gnome_setup: {status: present, note: "A checkbox `I have read and accept the Terms of Use` gates Next. No decline path."}
+    frontends:
+      kde: {status: missing, note: ""}
+      cosmic: {status: missing, note: ""}
+      niri: {status: missing, note: ""}
+      xfce: {status: missing, note: ""}
+
+  - id: rst
+    title: Intel RST
+    required_for_harness: false
+    kind: page
+    applies_when: Probe reports Intel RST or VMD remapped NVMe.
+    skip_when: No remapped NVMe.
+    blocking: false
+    inputs: []
+    outputs: []
+    varlink: [io.tunaos.Fisherman.Probe]
+    note: >-
+      The page comes BEFORE `disk`: it explains why a disk can be missing from the list.
+      gnome-setup does not block. Next goes to the disk list. #442 says block: see open questions.
+      gnome-setup detects it with a sysfs glob (ahci remapped_nvme > 0). The daemon should do it.
+    failure_states: [rst-present]
+    accessibility: {name: Intel RST, role: alert}
+    gnome_setup: {status: present, note: "Page `Intel RST`, role alert, Next continues to disk select."}
+    frontends:
+      kde: {status: missing, note: ""}
+      cosmic: {status: missing, note: ""}
+      niri: {status: missing, note: ""}
+      xfce: {status: missing, note: ""}
+
+  - id: disk
+    title: Disk
+    required_for_harness: true
+    kind: page
+    applies_when: Always.
+    skip_when: Never.
+    blocking: true
+    inputs: ["disk rows: vendor, model, size, node, status", "hot plug stream"]
+    outputs: [{disk: "/dev/..."}]
+    varlink: [io.tunaos.Fisherman.Probe, io.systemd.SysInstall.ListCandidateDevices]
+    rows: >-
+      Row title is `<vendor> <model> <size>`. The size comes from a toolkit formatter and holds a
+      no-break space: compare with shared/client normalize_size_text. Unusable disks sit in a
+      second list with the minimum size.
+    failure_states: [no-usable-disk, disk-too-small, probe-failed]
+    accessibility: {name: Disk selection, row_name: "<vendor> <model> <size>", extra_buttons: [Power off]}
+    gnome_setup: {status: present, note: "Page `Disk Selection`. Empty state `No Usable Disks Detected` offers Power off (its handler is a todo!())."}
+    frontends:
+      kde: {status: have, note: "Module `disk`, list from fisherman probe."}
+      cosmic: {status: have, note: "Page `disk`."}
+      niri: {status: have, note: "Step `Disk`."}
+      xfce: {status: have, note: "DestinationPage."}
+
+  - id: wipe-or-free
+    title: Existing data found
+    required_for_harness: false
+    kind: page
+    applies_when: The chosen disk has status data-detected.
+    skip_when: Any other status.
+    blocking: true
+    inputs: [disk]
+    outputs: [{erase: "bool; false means install into free space"}]
+    varlink: []
+    note: >-
+      Default is `Install to Free Space`. `Use Entire Disk` leads to the destructive dialog.
+      For insufficient-free-space and conflicting-label there is no choice: gnome-setup shows
+      a dialog with a three second countdown on the erase button.
+    failure_states: [insufficient-free-space]
+    accessibility: {name: Existing data found, radios: [Install to Free Space, Use Entire Disk]}
+    gnome_setup: {status: present, note: "Page `Existing Data Found`, two radio rows, button `Start Installation`."}
+    frontends:
+      kde: {status: missing, note: "The confirm card lists the devices that are erased. No choice."}
+      cosmic: {status: missing, note: ""}
+      niri: {status: missing, note: ""}
+      xfce: {status: missing, note: ""}
+
+  - id: encryption
+    title: Disk encryption
+    required_for_harness: false
+    kind: page
+    applies_when: No TPM 2.0 is present. The page asks for a disk passphrase, twice.
+    skip_when: A TPM 2.0 is present. The disk is sealed to PCR 7 with no prompt, and confirm says so.
+    blocking: true
+    inputs: [passphrase, confirmation]
+    outputs: [{passphrase: secret, never logged}]
+    varlink: [io.tunaos.Fisherman.Validate, io.tunaos.Fisherman.Install, io.systemd.CryptEnroll.Enroll]
+    note: >-
+      gnome-setup asks AFTER the install (`disk-passphrase`) and enrols with CryptEnroll.Enroll,
+      unlocking with the empty password that SysInstall set. A native frontend asks BEFORE
+      confirm and passes it to Install. Whether the daemon keeps an unencrypted choice is open.
+    failure_states: [no-tpm, passphrase-mismatch, passphrase-enroll-failed]
+    accessibility: {name: Disk encryption, fields: [Passphrase, Confirm passphrase]}
+    gnome_setup: {status: present, note: "Page `Disk Passphrase`, only when /sys/class/tpm has no TPM 2. Comes after the install, before the recovery key."}
+    frontends:
+      kde: {status: partial, note: "One module with four choices (none, passphrase, TPM, TPM and passphrase). TPM rows hide without a TPM."}
+      cosmic: {status: partial, note: "Inside the `options` page with hostname and filesystem."}
+      niri: {status: have, note: "Step `Encryption`, same four choices."}
+      xfce: {status: have, note: "SetupPage, titled `Disk encryption`."}
+
+  - id: account
+    title: Account
+    required_for_harness: false
+    kind: page
+    applies_when: The desktop has no first-boot tool that creates the user, and the image does not make its own user.
+    skip_when: plasma-setup or cosmic-initial-setup owns it, or needs_user_creation is false.
+    blocking: true
+    inputs: [full name, user name, password twice with reveal, hostname, auto-login]
+    outputs: [{user: object}, {hostname: string}]
+    varlink: [io.tunaos.Fisherman.Validate, io.tunaos.Fisherman.ConfigureTarget]
+    failure_states: [validation-failed]
+    accessibility: {name: Account, fields: [Full name, User name, Password, Confirm password, Hostname]}
+    gnome_setup: {status: absent, note: "Not in gnome-setup. `user` is listed in pages.conf and not built. gnome-initial-setup owns it on GNOME."}
+    frontends:
+      kde: {status: have, note: "Module `account`."}
+      cosmic: {status: have, note: "Page `account`."}
+      niri: {status: have, note: "Step `Account`."}
+      xfce: {status: have, note: "IdentityPage."}
+
+  - id: confirm
+    title: Confirm
+    required_for_harness: true
+    kind: page
+    applies_when: Always.
+    skip_when: Never.
+    blocking: true
+    inputs: [every choice]
+    outputs: [{confirmed: bool}]
+    varlink: [io.tunaos.Fisherman.Validate]
+    note: >-
+      The one destructive button. The daemon refuses an install that no frontend confirmed.
+      gnome-setup has no page: it asks in a dialog (three kinds: plain, erase, forced erase
+      with a three second countdown).
+    failure_states: [validation-failed]
+    accessibility: {name: Confirm, destructive_button: "Erase and Install | Install"}
+    gnome_setup: {status: partial, note: "A dialog `Begin Installation?`, not a page."}
+    frontends:
+      kde: {status: have, note: "Module `confirm` with a plan card."}
+      cosmic: {status: have, note: "Page `confirm`."}
+      niri: {status: have, note: "Step `Confirm`."}
+      xfce: {status: have, note: "ConfirmPage."}
+
+  - id: install
+    title: Installing
+    required_for_harness: true
+    kind: page
+    applies_when: After confirm.
+    skip_when: Never.
+    blocking: true
+    inputs: ["progress stream: phase or step id, percent, cancellable"]
+    outputs: []
+    varlink: [io.tunaos.Fisherman.Install, io.systemd.SysInstall.Run, io.tunaos.Fisherman.Cancel]
+    note: >-
+      Streaming call with `more`. The last reply has empty parameters. Phases from SysInstall:
+      validate_block_device, load_credentials, encrypt_credentials, install_partitions,
+      mount_partitions, install_kernel, install_bootloader, unmount_partitions. Only
+      install_partitions has a percent. A frontend ignores a phase it does not know.
+      Cancel goes over a second connection and only while `cancellable` is true.
+    failure_states: [device-lost, repart-error, cancelled, daemon-unreachable]
+    accessibility: {name: Installing, progress_bar: Installation progress, buttons: [Cancel]}
+    gnome_setup: {status: partial, note: "Page `Installing`. No cancel. A failure shows `Installation Failed` and the error text, with no next action."}
+    frontends:
+      kde: {status: have, note: "Module `progress`. Cancel asks first."}
+      cosmic: {status: have, note: "Page `installing`. Cancel asks first."}
+      niri: {status: have, note: "Step `Installing`. Cancel asks first."}
+      xfce: {status: have, note: "ProgressPage. Cancel asks first."}
+
+  - id: recovery-key
+    title: Recovery key
+    required_for_harness: true
+    kind: page
+    applies_when: The disk is encrypted.
+    skip_when: Never under the daemon.
+    blocking: true
+    inputs: [recovery key]
+    outputs: [{saved: "bool, the user ticked the box"}]
+    varlink: [io.systemd.CryptEnroll.MakeRecoveryKey, io.systemd.CryptEnroll.Enroll]
+    note: >-
+      gnome-setup makes the key when the page opens and enrols it when the user presses Done.
+      The key is a text label. Its accessible name is the key itself: match it by shape (see the
+      test contract). A QR button opens a dialog with the code. The key never reaches a log.
+    failure_states: [recovery-key-failed]
+    accessibility:
+      name: Recovery key
+      key: "text label, value is the key, shape 8 groups of 8 letters"
+      buttons: ["Show QR Code for Recovery Key", Done]
+      checkbox: I backed up my recovery key
+    gnome_setup: {status: present, note: "Page `Back Up Recovery Key`. If MakeRecoveryKey fails, gnome-setup logs a warning and shows an empty key with no error."}
+    frontends:
+      kde: {status: partial, note: "Panel on the done module: key, copy button, ack checkbox. No QR. Not its own screen."}
+      cosmic: {status: partial, note: "Panel on the done page. No QR. libcosmic has a `qr_code` feature."}
+      niri: {status: partial, note: "Panel on the done page. No QR."}
+      xfce: {status: partial, note: "On the done page. Restart now stays off until the user acknowledges."}
+
+  - id: handoff
+    title: Handoff
+    required_for_harness: false
+    kind: page
+    applies_when: After the install and the recovery key.
+    skip_when: Never.
+    blocking: false
+    inputs: ["handoff mode from Probe: migrate | soft-reboot | reboot"]
+    outputs: []
+    varlink: [io.tunaos.Fisherman.Handoff, io.systemd.Shutdown.SoftReboot, io.systemd.Shutdown.Reboot]
+    modes:
+      migrate: "btrfs cells. The live session becomes the installed system. Nothing restarts. Data of the live session stays."
+      soft-reboot: "EL10 cells. Userspace restarts into the copy. Data of the live session does not carry over."
+      reboot: "Fallback. A full restart."
+    failure_states: [handoff-failed]
+    accessibility: {name: Handoff, buttons: [Continue, Not now]}
+    gnome_setup: {status: absent, note: "None. The done page offers Reboot (io.systemd.Shutdown.Reboot) and, in a session, `Not Now`."}
+    frontends:
+      kde: {status: missing, note: ""}
+      cosmic: {status: missing, note: ""}
+      niri: {status: missing, note: ""}
+      xfce: {status: missing, note: ""}
+
+  - id: done
+    title: Done
+    required_for_harness: true
+    kind: page
+    applies_when: The install ended.
+    skip_when: Never.
+    blocking: false
+    inputs: [result]
+    outputs: []
+    varlink: [io.systemd.Shutdown.Reboot, io.systemd.Shutdown.PowerOff]
+    states:
+      installed: Restart, or `Not now` while in the live session.
+      cancelled: Says the disk is unchanged or not. Offers Try again and Close.
+      failed: Says why, whether the disk changed, and the log path. Offers Try again and Close.
+    failure_states: [reboot-failed]
+    accessibility: {name: Done, buttons: [Restart, Not now, Try again, Close]}
+    gnome_setup: {status: partial, note: "Only `Installation Complete!` with Reboot and `Not Now`. No cancelled or failed state, no retry."}
+    frontends:
+      kde: {status: have, note: "Module `done`: installed, cancelled, failed. Restart."}
+      cosmic: {status: have, note: "Page `done`: three states."}
+      niri: {status: have, note: "Page `Done`: three states."}
+      xfce: {status: have, note: "DonePage: Close, Restart now."}
+
+# Failure states. `varlink` is the error name the client sees.
+failure_states:
+  requirements-soft: {varlink: "", shows: "Which gate. Continue anyway.", next: [continue-anyway, power-off]}
+  requirements-fatal: {varlink: "", shows: "UEFI missing.", next: [power-off, firmware-setup]}
+  live-apply-failed: {varlink: "", shows: "A note. The pick still goes to the target.", next: [continue]}
+  offline: {varlink: "", shows: "No connection.", next: [network-settings, recheck]}
+  eula-unreadable: {varlink: "", shows: "The terms cannot load.", next: [power-off]}
+  rst-present: {varlink: "", shows: "Intel RST explanation.", next: [continue, power-off, firmware-setup]}
+  no-usable-disk: {varlink: io.systemd.SysInstall.NoCandidateDevices, shows: "No disk.", next: [power-off, rescan]}
+  disk-too-small: {varlink: io.systemd.SysInstall.DiskTooSmall, shows: "Minimum and actual size.", next: [choose-another]}
+  insufficient-free-space: {varlink: io.systemd.SysInstall.InsufficientFreeSpace, shows: "Free space needed.", next: [erase-disk, choose-another]}
+  probe-failed: {varlink: "", shows: "The daemon did not list disks.", next: [retry]}
+  no-tpm: {varlink: "", shows: "Not a failure. Asks for a passphrase.", next: [continue]}
+  passphrase-mismatch: {varlink: "", shows: "The two entries differ.", next: [edit]}
+  passphrase-enroll-failed: {varlink: "io.systemd.CryptEnroll.PasswordIncorrect or PasswordRequired", shows: "The passphrase could not be set.", next: [retry]}
+  validation-failed: {varlink: org.varlink.service.InvalidParameter, shows: "The field with the problem.", next: [edit]}
+  device-lost: {varlink: io.tunaos.Fisherman.DeviceLost, shows: "The disk went away. Says if it changed.", next: [try-again, close]}
+  repart-error: {varlink: io.tunaos.Fisherman.RepartFailed, shows: "The partition step failed. Says if it changed.", next: [try-again, close]}
+  cancelled: {varlink: io.tunaos.Fisherman.Cancelled, shows: "Cancelled. Says if the disk changed.", next: [try-again, close]}
+  daemon-unreachable: {varlink: "", shows: "fishermand does not answer.", next: [retry, power-off]}
+  recovery-key-failed: {varlink: io.systemd.CryptEnroll errors, shows: "No key. Do not continue without one.", next: [retry]}
+  handoff-failed: {varlink: io.tunaos.Fisherman.HandoffFailed, shows: "The handoff failed.", next: [reboot, close]}
+  reboot-failed: {varlink: "io.systemd.Shutdown.BlockedByInhibitor or AlreadyInProgress", shows: "Cannot restart.", next: [retry, close]}
+
+# Scenarios that the mock daemon (tuna-os/fisherman) must offer. A frontend test
+# starts the mock with one name and drives the screens in `reaches`.
+mock_scenarios:
+  happy-tpm: {reaches: [try-or-install, language, keyboard, timezone, disk, confirm, install, recovery-key, handoff, done], note: "Empty disk, TPM 2."}
+  happy-no-tpm: {reaches: [encryption], note: "As happy-tpm, with no TPM."}
+  existing-data: {reaches: [wipe-or-free], note: "A disk with data and free space."}
+  no-free-space: {reaches: [disk, confirm], note: "Status insufficient-free-space."}
+  conflicting-label: {reaches: [disk, confirm], note: "Status conflicting-label."}
+  disk-too-small: {reaches: [disk], note: "One usable and one too small disk."}
+  no-disks: {reaches: [disk], note: "NoCandidateDevices."}
+  hotplug: {reaches: [disk], note: "A disk arrives and one leaves while the list is open."}
+  rst-present: {reaches: [rst], note: "Probe reports Intel RST."}
+  requirements-ram: {reaches: [requirements], note: "RAM gate, soft."}
+  requirements-cpu: {reaches: [requirements], note: "CPU gate, soft."}
+  requirements-uefi: {reaches: [requirements], note: "No UEFI, fatal."}
+  offline-complete: {reaches: [network], note: "Network is skipped."}
+  online-required: {reaches: [network], note: "Network is shown."}
+  validation-errors: {reaches: [account, confirm], note: "Validate returns machine-readable errors."}
+  device-lost: {reaches: [install, done], note: "Disk vanishes at 40 percent."}
+  repart-error: {reaches: [install, done], note: "Repart fails at the partition phase."}
+  cancel-mid-install: {reaches: [install, done], note: "Cancel works while cancellable. After that it is refused."}
+  recovery-key-error: {reaches: [recovery-key], note: "MakeRecoveryKey fails."}
+  passphrase-enroll-error: {reaches: [encryption], note: "Enroll returns PasswordIncorrect."}
+  handoff-migrate: {reaches: [handoff], note: "Mode migrate."}
+  handoff-soft-reboot: {reaches: [handoff], note: "Mode soft-reboot."}
+  handoff-error: {reaches: [handoff], note: "Handoff fails."}
+  slow: {reaches: [install], note: "Progress at a fixed slow rate, for screenshots."}
+
+# Test contract. See README.md, "Test contract".
+test_contract:
+  stable_page_id: "Every frontend reports `page=<screen id>` in the readiness stamp."
+  classify_from_text: "Poll the AT-SPI text of the window. Test failure before done."
+  match_buttons_by: "role=button and sensitive; prefer the node in the topmost dialog."
+  secret_values: "Match by shape, never by the name `Recovery Key`."
+  input: "Dump the tree in the guest. Click from the host with QMP input-send-event on a USB tablet."
+  recovery_key_shape: "^[a-z]{6,10}(-[a-z]{6,10}){7}$"

@@ -1,0 +1,27 @@
+{
+  "$comment": "Cases for the size helper (projectbluefin/utah#1437). Each language reads this file. `input` is what a toolkit shows (GLib g_format_size puts U+00A0 between number and unit; some locales use U+202F). `normalized` is what the harness compares. `bytes` is null when the text is not a size.",
+  "protocol_version": 1,
+  "cases": [
+    {"name": "plain", "input": "500 GB", "normalized": "500 GB", "bytes": 500000000000},
+    {"name": "nbsp", "input": "500.1\u00a0GB", "normalized": "500.1 GB", "bytes": 500100000000},
+    {"name": "narrow-nbsp", "input": "1.0\u202fTB", "normalized": "1.0 TB", "bytes": 1000000000000},
+    {"name": "thin-space", "input": "64\u2009GB", "normalized": "64 GB", "bytes": 64000000000},
+    {"name": "figure-space", "input": "8\u2007GB", "normalized": "8 GB", "bytes": 8000000000},
+    {"name": "ideographic-space", "input": "8\u3000GB", "normalized": "8 GB", "bytes": 8000000000},
+    {"name": "no-space", "input": "512GB", "normalized": "512GB", "bytes": 512000000000},
+    {"name": "surrounding-space", "input": "\u00a0\u00a0250.0\u202fGB\u00a0", "normalized": "250.0 GB", "bytes": 250000000000},
+    {"name": "mixed-run", "input": "250\u00a0\u202f GB", "normalized": "250 GB", "bytes": 250000000000},
+    {"name": "iec", "input": "931.5\u00a0GiB", "normalized": "931.5 GiB", "bytes": 1000190509056},
+    {"name": "kb-lowercase-k", "input": "100\u00a0kB", "normalized": "100 kB", "bytes": 100000},
+    {"name": "bytes", "input": "42\u00a0bytes", "normalized": "42 bytes", "bytes": 42},
+    {"name": "byte-singular", "input": "1\u00a0byte", "normalized": "1 byte", "bytes": 1},
+    {"name": "decimal-comma", "input": "1,5\u202fTB", "normalized": "1,5 TB", "bytes": 1500000000000},
+    {"name": "thousands-comma", "input": "1,500\u00a0MB", "normalized": "1,500 MB", "bytes": 1500000000},
+    {"name": "zero-width-and-bidi", "input": "\u200e500\u200b\u00a0GB\u200f", "normalized": "500 GB", "bytes": 500000000000},
+    {"name": "inside-a-row", "input": "Samsung\u00a0SSD 990 PRO 1.0\u202fTB", "normalized": "Samsung SSD 990 PRO 1.0 TB", "bytes": null},
+    {"name": "not-a-size", "input": "Unknown\u00a0Disk", "normalized": "Unknown Disk", "bytes": null},
+    {"name": "empty", "input": "", "normalized": "", "bytes": null},
+    {"name": "unit-only", "input": "GB", "normalized": "GB", "bytes": null},
+    {"name": "negative-is-not-a-size", "input": "-5 GB", "normalized": "-5 GB", "bytes": null}
+  ]
+}

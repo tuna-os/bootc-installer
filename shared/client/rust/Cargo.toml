@@ -1,0 +1,9 @@
+[package]
+name = "varlink-thin"
+version = "0.1.0"
+edition = "2021"
+description = "A thin Varlink client example: JSON over a UNIX socket"
+publish = false
+
+[dependencies]
+serde_json = "1"

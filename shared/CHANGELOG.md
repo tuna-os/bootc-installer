@@ -18,6 +18,22 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-22: shared installer flow spec and Varlink client examples
+
+- Added: `flow/screens.yaml`, the spec of 18 shared screens, with their ids,
+  skip rules, Varlink calls, failure states, accessibility names, the test
+  contract and the scenarios of the mock daemon (#442). `flow/README.md`
+  explains it, and lists the gaps of each frontend.
+- Added: `flow/installer-screens.proposed.yaml`, the proposed content of
+  tunaOS `tests/installer-screens.yaml`. It keeps the six old ids as aliases.
+- Added: `client/`, thin Varlink clients for Python, Go, Qt 6 C++ and Rust,
+  and the size helper with `fixtures/sizes.json` (projectbluefin/utah#1437).
+- No frontend uses any of this yet. The four native ports (#443 to #446)
+  adopt it. The daemon API of fisherman#512 is not final.
+
+Contracts version: `2.2.0`
+Contracts sha256: `95e5fc88e43900d3dabf2c066a0d5c47c906647b820723381bd972efcdb95a3a`
+
 ## 2026-11-16: fisherman owns the encoding of the account password
 
 - Changed: `recipe/fixtures/compliance.json` has a plain text account
