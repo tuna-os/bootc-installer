@@ -360,7 +360,11 @@ ApplicationWindow {
     // above, and matching the names the other frontends use so the tunaOS
     // screen contract reads one vocabulary rather than five.
     function pageSlug(i) {
-        const slugs = ["welcome", "session", "source", "disk", "encryption", "account", "confirm", "installing", "done"]
+        // The welcome page serves two screen ids (gnome-setup's WelcomePage
+        // does the same): try-or-install on live media, installer-welcome
+        // ("welcome" here) anywhere else.
+        const slugs = [root.isLive ? "try-or-install" : "welcome", "session", "source", "disk",
+            "encryption", "account", "confirm", "installing", "done"]
         return (i >= 0 && i < slugs.length) ? slugs[i] : "unknown"
     }
     // Encryption was previously hardcoded to "none" in the recipe with no UI,
@@ -1537,11 +1541,35 @@ ApplicationWindow {
                     // the gate dialog below covers this page until each
                     // unmet requirement is accepted or the host powers
                     // off. No inline warning — a warning is not a gate.
+                    // try-or-install: on live media the wizard offers Try
+                    // (quit into the live session) and Install now; off live
+                    // media there is nothing to try, and one button continues.
+                    RowLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.topMargin: Theme.spacingS
+                        spacing: Theme.spacingM
+                        visible: root.isLive
+                        DankButton {
+                            objectName: "tryButton"
+                            //: Try the live system without installing
+                            text: qsTr("Try %1").arg(root.productName)
+                            tonal: true
+                            onClicked: Qt.quit()
+                        }
+                        DankButton {
+                            objectName: "installNowButton"
+                            //: Start the install from the live system
+                            text: qsTr("Install now")
+                            buttonHeight: Theme.buttonHeightM
+                            onClicked: root.advance()
+                        }
+                    }
                     DankButton {
                         text: root.text("welcome_button")
                         buttonHeight: Theme.buttonHeightM
                         Layout.alignment: Qt.AlignHCenter
                         Layout.topMargin: Theme.spacingS
+                        visible: !root.isLive
                         onClicked: root.advance()
                     }
                 }
