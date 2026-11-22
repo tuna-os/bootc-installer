@@ -651,6 +651,15 @@ int main(int argc, char *argv[])
         qputenv("BOOTC_INSTALLER_FAKE_PROBE", PROBE_FIXTURE_FILE);
     }
 
+    // A pre-release with terms, so the disclaimer and the terms of use
+    // render: the fixtures under tests/testdata, overridable per run.
+    if (qEnvironmentVariableIsEmpty("TUNA_OS_RELEASE_FILE")) {
+        qputenv("TUNA_OS_RELEASE_FILE", CAPTURE_TESTDATA_DIR "/os-release-experiment");
+    }
+    if (qEnvironmentVariableIsEmpty("TUNA_EULA_FILE")) {
+        qputenv("TUNA_EULA_FILE", CAPTURE_TESTDATA_DIR "/eula-agreement.xml");
+    }
+
     QQmlApplicationEngine engine;
     engine.loadFromModule("org.tunaos.installer"_L1, "Main"_L1);
     if (engine.rootObjects().isEmpty()) {
@@ -698,7 +707,7 @@ int main(int argc, char *argv[])
     controller->setPassphrase(u"correct horse battery staple"_s);
     // The account step's fields, so it and the confirm step show a real
     // account. The confirmation field belongs to the page, not the
-    // controller; the 04-account frame below types into it.
+    // controller; the 09-account frame below types into it.
     const QString captureUsername = u"alex"_s;
     const QString capturePassword = u"account password 42"_s;
     controller->setUsername(captureUsername);
@@ -721,25 +730,28 @@ int main(int argc, char *argv[])
     settle(700);
 
     // Numbers follow the shared flow (shared/flow/screens.yaml): 01 is the
-    // first screen, 14 the last. Slots 03-05, 07 and 12-13 belong to screens
-    // a later commit adds; their numbers stay reserved so nothing renumbers
-    // again. The wizard indices shift as modules land; the names do not.
+    // first screen, 14 the last. Slots 05, 07 and 13 belong to the RST,
+    // wipe-or-free and handoff screens a later commit adds; their numbers
+    // stay reserved so nothing renumbers again. The wizard indices shift as
+    // modules land; the names do not.
     const QVector<QPair<int, QString>> steps = {
         {0, u"01-tryorinstall"_s},
         {1, u"02-welcome"_s},
-        {2, u"06-disk"_s},
-        {3, u"08-encryption"_s},
-        {4, u"09-account"_s},
-        {5, u"10-confirm"_s},
-        {6, u"11-install"_s},
-        {7, u"14-done"_s},
+        {2, u"03-prerelease"_s},
+        {3, u"04-eula"_s},
+        {4, u"06-disk"_s},
+        {5, u"08-encryption"_s},
+        {6, u"09-account"_s},
+        {7, u"10-confirm"_s},
+        {8, u"11-install"_s},
+        {9, u"14-done"_s},
         // The done page again, as a TPM install leaves it. Same step, other
         // state -- not a step of its own.
-        {7, u"12-recovery"_s},
+        {9, u"12-recovery"_s},
         // The install page again, with the question Cancel asks (#299),
         // then the done page as a cancelled install leaves it.
-        {6, u"15-cancel-confirm"_s},
-        {7, u"16-cancelled"_s},
+        {8, u"15-cancel-confirm"_s},
+        {9, u"16-cancelled"_s},
     };
 
     QObject *cancelDialog = nullptr;
@@ -940,7 +952,7 @@ int main(int argc, char *argv[])
                 return 1;
             }
         }
-        if (step.second == u"09-cancel-confirm"_s) {
+        if (step.second == u"15-cancel-confirm"_s) {
             // Closed again, so the next frame is the done page alone.
             if (cancelDialog)
                 QMetaObject::invokeMethod(cancelDialog, "close");

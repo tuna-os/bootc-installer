@@ -20,6 +20,8 @@ Kirigami Addons, `org.kde.desktop` Qt Quick Controls style). See
 |---|---|
 | ![Try or install](screenshots/01-tryorinstall.png) | **Try or install** — the first screen on live media: keep the live session, or install now. Skipped off live media. |
 | ![Welcome](screenshots/02-welcome.png) | **Welcome** — what the wizard is about to do, with the region and language pickers, the hardware gates and the connectivity check. |
+| ![Disclaimer](screenshots/03-prerelease.png) | **Disclaimer** — only when os-release calls the product a pre-release or an experiment: the EXPERIMENT text, or a generic pre-release warning. Never holds Next. |
+| ![Terms of use](screenshots/04-eula.png) | **Terms of use** — the AppStream agreement sections the image ships. Skipped when there is no EULA file; a file that cannot load shows an error with only power off. Next stays off until the box is ticked. |
 | ![Target disk](screenshots/06-disk.png) | **Target disk** — the disks `fisherman probe --json` offers, one FormCard radio per disk: the model (the path when unknown), then the path, fisherman's size label and the bus. Re-probed every time the step becomes current, so hotplugged media appear. |
 | ![Disk encryption](screenshots/08-encryption.png) | **Disk encryption** — `none`, `luks-passphrase`, and (only when fisherman reports a usable TPM 2.0) `tpm2-luks` and `tpm2-luks-passphrase`. The passphrase fields appear only for the options that take one. |
 | ![User account](screenshots/09-account.png) | **User account** — username, optional full name and the password typed twice: the recipe's `user` block, with the groups of `shared/account/groups.json`. Next is held until both are filled, the passwords match and `fisherman validate --json --partial -` has no problem with the username (shown under the field in the `validate_username_*` copy). The capture asserts Next is held before the second typing and released after it. |
@@ -30,7 +32,7 @@ Kirigami Addons, `org.kde.desktop` Qt Quick Controls style). See
 | ![Cancel question](screenshots/15-cancel-confirm.png) | **Cancel** — the install step asks before it stops an install. The capture clicks Cancel and makes sure that the question opens. |
 | ![Cancelled](screenshots/16-cancelled.png) | **Cancelled** — the done step after a confirmed cancel or fisherman exit code 130. The heading is the copy key `done_cancelled_title`. |
 
-Slots 03-05, 07 and 13 belong to the prerelease, EULA, RST, wipe-or-free and handoff screens, which land in later commits; their numbers stay reserved. The recovery-key screen lands as 12-recoverykey and retires the 12-recovery done-state frame.
+Slots 05, 07 and 13 belong to the RST, wipe-or-free and handoff screens, which land in later commits; their numbers stay reserved. The recovery-key screen lands as 12-recoverykey and retires the 12-recovery done-state frame.
 
 Every step's header shows "Step N of M · name" and one dot per step.
 

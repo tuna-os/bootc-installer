@@ -173,6 +173,14 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Disclaimer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terms of Use</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Target Disk</source>
         <translation type="unfinished"></translation>
     </message>
@@ -221,6 +229,13 @@
     <name>daemon</name>
     <message>
         <source>the installer daemon did not answer</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>eula</name>
+    <message>
+        <source>the terms of use cannot be read</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -383,6 +398,26 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Terms of use</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Power off</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>I have read and accept the Terms of Use</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disclaimer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This copy of %1 is a pre-release. It may break, and its behaviour may change before the final release.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Cancel</source>
         <translation>Annuler</translation>
     </message>
@@ -436,10 +471,6 @@
     </message>
     <message>
         <source>This computer does not meet the requirements, but install anyway</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Power off</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

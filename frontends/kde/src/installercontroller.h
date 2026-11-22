@@ -26,6 +26,8 @@ class QProcess;
 #include <QVariantMap>
 #include "imagecatalog.h"
 #include "daemonclient.h"
+#include "eula.h"
+#include "osrelease.h"
 #include "plan.h"
 #include "recipe.h"
 #include "sourcecheck.h"
@@ -171,6 +173,21 @@ class InstallerController : public QObject
     Q_PROPERTY(bool keyboardChosen READ keyboardChosen NOTIFY regionChanged)
     Q_PROPERTY(bool timezoneChosen READ timezoneChosen NOTIFY regionChanged)
 
+    // Whether os-release calls this product a pre-release or an experiment
+    // (shared/flow/screens.yaml `prerelease`). Shown on its own screen with
+    // the EXPERIMENT text. CONSTANT: the file cannot change under a running
+    // installer.
+    Q_PROPERTY(bool isPrerelease READ isPrerelease CONSTANT)
+    Q_PROPERTY(QString experimentText READ experimentText CONSTANT)
+    // The terms of use (shared/flow/screens.yaml `eula`): the file's
+    // agreement sections, or empty when the image ships none. The screen
+    // holds Next until the box is ticked.
+    Q_PROPERTY(bool eulaAvailable READ eulaAvailable CONSTANT)
+    // The terms file exists but cannot be shown (shared/flow eula-unreadable):
+    // the page shows the error and offers only power off. Empty otherwise.
+    Q_PROPERTY(QString eulaError READ eulaError CONSTANT)
+    Q_PROPERTY(QVariantList eulaSections READ eulaSections CONSTANT)
+    Q_PROPERTY(bool eulaAccepted READ eulaAccepted WRITE setEulaAccepted NOTIFY eulaChanged)
     // The product name, resolved ONCE at startup from the branding contract
     // (src/branding.h: branding.json, then os-release, then neutral). Every
     // user-visible string reads this; nothing names a product. CONSTANT: the
@@ -380,6 +397,14 @@ public:
     QString localeName() const { return m_recipe.locale; }
     bool keyboardChosen() const { return !m_recipe.keyboardLayout.isEmpty(); }
     bool timezoneChosen() const { return !m_recipe.timezone.isEmpty(); }
+    bool isPrerelease() const { return m_isPrerelease; }
+    QString experimentText() const { return m_experimentText; }
+    bool eulaAvailable() const { return m_eula.ok && !m_eula.sections.isEmpty(); }
+    QVariantList eulaSections() const { return eula::toVariant(m_eula); }
+    bool eulaAccepted() const { return m_eulaAccepted; }
+    QString eulaError() const { return m_eulaPath.isEmpty() ? QString() : m_eula.error; }
+    bool eulaFileFound() const { return !m_eulaPath.isEmpty(); }
+    void setEulaAccepted(bool v);
     // The fields as a partial recipe for `validate --json --partial -`.
     QByteArray partialRecipe() const;
     // Takes in fisherman's answer (validate --json stdout). Public for tests.
@@ -543,6 +568,7 @@ Q_SIGNALS:
     void daemonFactsChanged();
     void continueAnywayChanged();
     void regionChanged();
+    void eulaChanged();
     void onlineChanged();
     void logChanged();
     void logPathChanged();
@@ -658,6 +684,12 @@ private:
     double m_postPullBase = -1.0;
     bool m_hasTpm = false;
     QStringList m_unmet;
+    // os-release at startup: a pre-release disclaimer and the terms of use.
+    bool m_isPrerelease = false;
+    QString m_experimentText;
+    eula::Document m_eula;
+    QString m_eulaPath;
+    bool m_eulaAccepted = false;
     // fishermand's answers on the daemon backend (Requirements and Probe).
     // Empty on the recipe backend.
     fishermand::Requirements m_daemonReqs;

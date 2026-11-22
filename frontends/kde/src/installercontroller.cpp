@@ -67,6 +67,14 @@ InstallerController::InstallerController(QObject *parent)
     m_recipe.liveMode = facts.isLive;
     m_liveImage = facts.liveImage;
     m_probeOutput = facts.raw;
+    // os-release at startup (src/osrelease.h): a pre-release disclaimer and
+    // its EXPERIMENT text. The terms of use (src/eula.h): the agreement
+    // sections, or nothing when the image ships none.
+    const QHash<QString, QString> osRelease = osrelease::read();
+    m_isPrerelease = osrelease::isPrerelease(osRelease);
+    m_experimentText = osrelease::experimentText(osRelease);
+    m_eulaPath = eula::findFile();
+    m_eula = eula::read(m_eulaPath);
 
     // Product identity per shared/branding/README.md: branding.json, then
     // os-release, then neutral. Nothing in this frontend names a product.
@@ -518,12 +526,26 @@ bool InstallerController::stepSkipped(const QString &stepId) const
     // off it there is no live session to try.
     if (stepId == QLatin1String("try-or-install"))
         return !m_recipe.liveMode;
+    // The disclaimer only when os-release calls this a pre-release or an
+    // experiment; the terms only when the image ships them.
+    if (stepId == QLatin1String("prerelease"))
+        return !m_isPrerelease;
+    if (stepId == QLatin1String("eula"))
+        return !eulaFileFound();
     // The account step when the selected image creates its own first user
     // (needs_user_creation, the GNOME image step and XFCE IdentityPage
     // rule).
     if (stepId == QLatin1String("account"))
         return !m_needsUser;
     return false;
+}
+
+void InstallerController::setEulaAccepted(bool v)
+{
+    if (m_eulaAccepted == v)
+        return;
+    m_eulaAccepted = v;
+    Q_EMIT eulaChanged();
 }
 
 QStringList InstallerController::selectedDiskOperatingSystems() const

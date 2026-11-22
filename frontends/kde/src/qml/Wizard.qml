@@ -53,6 +53,8 @@ Kirigami.Page {
 
         ListElement { stepId: "try-or-install"; name: qsTr("Try or Install");   url: "modules/tryorinstall/main.qml" }
         ListElement { stepId: "welcome";    name: qsTr("Welcome");               url: "modules/welcome/main.qml" }
+        ListElement { stepId: "prerelease"; name: qsTr("Disclaimer");            url: "modules/prerelease/main.qml" }
+        ListElement { stepId: "eula";       name: qsTr("Terms of Use");          url: "modules/eula/main.qml" }
         ListElement { stepId: "disk";       name: qsTr("Target Disk");           url: "modules/disk/main.qml" }
         ListElement { stepId: "encryption"; name: qsTr("Disk Encryption");       url: "modules/encryption/main.qml" }
         ListElement { stepId: "account";    name: qsTr("User Account");          url: "modules/account/main.qml" }

@@ -14,20 +14,22 @@ pattern: each screen is a `SetupModule` under
 the user may continue; the wizard owns navigation, headings, and the shared
 Back and Next buttons.
 
-The eight modules are (step ids of shared/flow/screens.yaml, in order; the
+The ten modules are (step ids of shared/flow/screens.yaml, in order; the
 directory drops the dashes where the id has them):
 
 1. `try-or-install` (`modules/tryorinstall`)
 2. `welcome` (the folded language, keyboard, time zone and network cluster)
-3. `disk`
-4. `encryption`
-5. `account`
-6. `confirm`
-7. `install` (`modules/progress`)
-8. `done`
+3. `prerelease`
+4. `eula`
+5. `disk`
+6. `encryption`
+7. `account`
+8. `confirm`
+9. `install` (`modules/progress`)
+10. `done`
 
-Slots 03-05, 07, 12 and 13 stay reserved for the prerelease, EULA, RST,
-wipe-or-free, recovery-key and handoff screens of later commits.
+Slots 05, 07, 12 and 13 stay reserved for the RST, wipe-or-free, recovery-key
+and handoff screens of later commits.
 
 The wizard uses slide transitions between modules instead of `SwipeView`,
 matching KISS's behaviour during window resizing. Do not put backend work in a

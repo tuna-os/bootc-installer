@@ -49,6 +49,10 @@ set(BACKEND_SOURCES
     src/fisherman.h
     src/daemonclient.cpp
     src/daemonclient.h
+    src/osrelease.cpp
+    src/osrelease.h
+    src/eula.cpp
+    src/eula.h
     src/account.cpp
     src/account.h
     src/branding.cpp
@@ -107,7 +111,7 @@ qt_add_library(tunainstallerapp STATIC)
 # Each step lives at modules/<name>/contents/ui/main.qml, the KISS layout, and
 # is aliased into the QML module resource as modules/<name>/main.qml so that
 # Wizard.qml can resolve it with a plain relative URL.
-set(STEP_MODULES tryorinstall welcome disk encryption account confirm progress done)
+set(STEP_MODULES tryorinstall welcome prerelease eula disk encryption account confirm progress done)
 set(STEP_QML_FILES)
 foreach(step ${STEP_MODULES})
     set(src "modules/${step}/contents/ui/main.qml")
@@ -193,6 +197,8 @@ if(BUILD_CAPTURE)
     # laptop, the fixture every frontend's capture reads.
     target_compile_definitions(tuna-installer-capture PRIVATE
         PROBE_FIXTURE_FILE="${TUNA_SHARED_DIR}/probe/fixtures/laptop.json"
+        # This frontend's own fixtures (a pre-release os-release and a EULA).
+        CAPTURE_TESTDATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/testdata"
         # The themed logo shared/walkthrough/capture-branding.json names; see
         # the icon search path in tests/capture.cpp.
         CAPTURE_ICON_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../data/icons/hicolor/scalable/apps")
@@ -220,6 +226,8 @@ if(BUILD_TESTING)
         src/offline.cpp
         src/fisherman.cpp
         src/daemonclient.cpp
+        src/osrelease.cpp
+        src/eula.cpp
         src/account.cpp
         src/readiness.cpp
         src/redact.cpp
@@ -250,6 +258,8 @@ if(BUILD_TESTING)
         SHARED_GROUPS_FILE="${TUNA_SHARED_DIR}/account/groups.json"
         # The QML the strings lint reads (tests/test_backend.cpp, #300).
         KDE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        # This frontend's own fixtures (os-release, EULA).
+        KDE_TESTDATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/testdata"
         VALIDATE_GOLDENS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../fisherman/fisherman/cmd/fisherman/testdata/validate"
         PLAN_GOLDENS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../fisherman/fisherman/cmd/fisherman/testdata/plan")
     # Qt6::Quick is needed to compile readiness.cpp: armStamp() takes a

@@ -1,6 +1,8 @@
 #include "offline.h"
 #include "fisherman.h"
 #include "daemonclient.h"
+#include "eula.h"
+#include "osrelease.h"
 #include "account.h"
 #include "imagecatalog.h"
 #include "region.h"
@@ -277,6 +279,14 @@ private slots:
     // ask instead of blank screens.
     void wizardStepsFollowTheSharedFlow();
     void wizardSkipsStepsWithNothingToShow();
+    // os-release (shared/flow/screens.yaml `prerelease`) and the terms of
+    // use (`eula`): the readers of src/osrelease.h and src/eula.h, and the
+    // controller facts and skip rules over them.
+    void osreleasePrereleaseRules();
+    void osreleaseReadsAFile();
+    void eulaAgreementSections();
+    void eulaPlainTextAndFailures();
+    void releaseFactsDriveSkips();
 };
 
 void BackendTest::recipeDefaults()
@@ -4019,6 +4029,8 @@ void BackendTest::daemonClientReadsUnaryCalls()
     QCOMPARE(probe.disks.at(0).existingData.operatingSystems, wantOs);
     QVERIFY(!probe.tpmUsable);
     QVERIFY(probe.isLive);
+    // No handoff object from the peer: the ruling default is reboot.
+    QCOMPARE(probe.handoffMode, QStringLiteral("reboot"));
 
     peerThread->wait(15000);
     QVERIFY(peerOk.load());
@@ -4193,6 +4205,8 @@ void BackendTest::wizardStepsFollowTheSharedFlow()
     const QStringList want{
         QStringLiteral("try-or-install"),
         QStringLiteral("welcome"),
+        QStringLiteral("prerelease"),
+        QStringLiteral("eula"),
         QStringLiteral("disk"),
         QStringLiteral("encryption"),
         QStringLiteral("account"),
@@ -4233,6 +4247,205 @@ void BackendTest::wizardSkipsStepsWithNothingToShow()
     InstallerController installed;
     QVERIFY(installed.stepSkipped(QStringLiteral("try-or-install")));
     qunsetenv(probe::FAKE_ENV);
+}
+
+void BackendTest::osreleasePrereleaseRules()
+{
+    const QHash<QString, QString> stable{{QStringLiteral("RELEASE_TYPE"), QStringLiteral("stable")}};
+    QVERIFY(!osrelease::isPrerelease(stable));
+    const QHash<QString, QString> lts{{QStringLiteral("RELEASE_TYPE"), QStringLiteral("lts")}};
+    QVERIFY(!osrelease::isPrerelease(lts));
+    const QHash<QString, QString> unset;
+    QVERIFY(!osrelease::isPrerelease(unset));
+    const QHash<QString, QString> unknown{{QStringLiteral("RELEASE_TYPE"), QStringLiteral("rolling")}};
+    QVERIFY(!osrelease::isPrerelease(unknown));
+    const QHash<QString, QString> pre{{QStringLiteral("RELEASE_TYPE"), QStringLiteral("pre-release")}};
+    QVERIFY(osrelease::isPrerelease(pre));
+    const QHash<QString, QString> experiment{{QStringLiteral("RELEASE_TYPE"), QStringLiteral("experiment")}};
+    QVERIFY(osrelease::isPrerelease(experiment));
+    const QHash<QString, QString> upper{{QStringLiteral("RELEASE_TYPE"), QStringLiteral("Pre-Release")}};
+    QVERIFY(osrelease::isPrerelease(upper));
+    QVERIFY(osrelease::experimentText(experiment).isEmpty());
+    const QHash<QString, QString> noted{
+        {QStringLiteral("RELEASE_TYPE"), QStringLiteral("experiment")},
+        {QStringLiteral("EXPERIMENT"), QStringLiteral("Nothing here is stable.")},
+    };
+    QCOMPARE(osrelease::experimentText(noted), QStringLiteral("Nothing here is stable."));
+
+    // gnome-setup's test hooks win over the file, like on GNOME.
+    const QByteArray oldType = qgetenv("SETUP_OVERRIDE_OS_RELEASE_TYPE");
+    const QByteArray oldExperiment = qgetenv("SETUP_OVERRIDE_OS_EXPERIMENT");
+    qputenv("SETUP_OVERRIDE_OS_RELEASE_TYPE", QByteArray("experiment"));
+    QVERIFY(osrelease::isPrerelease(stable));
+    qputenv("SETUP_OVERRIDE_OS_EXPERIMENT", QByteArray("Harness text."));
+    QCOMPARE(osrelease::experimentText(stable), QStringLiteral("Harness text."));
+    if (!oldType.isEmpty())
+        qputenv("SETUP_OVERRIDE_OS_RELEASE_TYPE", oldType);
+    else
+        qunsetenv("SETUP_OVERRIDE_OS_RELEASE_TYPE");
+    if (!oldExperiment.isEmpty())
+        qputenv("SETUP_OVERRIDE_OS_EXPERIMENT", oldExperiment);
+    else
+        qunsetenv("SETUP_OVERRIDE_OS_EXPERIMENT");
+}
+
+void BackendTest::osreleaseReadsAFile()
+{
+    const QString testdata = QString::fromUtf8(KDE_TESTDATA_DIR);
+    const QByteArray oldFile = qgetenv(osrelease::FILE_ENV);
+    qputenv(osrelease::FILE_ENV, testdata.toUtf8() + "/os-release-experiment");
+    const QHash<QString, QString> experiment = osrelease::read();
+    QVERIFY(osrelease::isPrerelease(experiment));
+    QVERIFY(osrelease::experimentText(experiment).contains(QStringLiteral("experiment")));
+    qputenv(osrelease::FILE_ENV, testdata.toUtf8() + "/os-release-stable");
+    const QHash<QString, QString> stable = osrelease::read();
+    QVERIFY(!osrelease::isPrerelease(stable));
+    qputenv(osrelease::FILE_ENV, QByteArray("/nonexistent/os-release"));
+    QVERIFY(osrelease::read().isEmpty());
+    if (!oldFile.isEmpty())
+        qputenv(osrelease::FILE_ENV, oldFile);
+    else
+        qunsetenv(osrelease::FILE_ENV);
+}
+
+void BackendTest::eulaAgreementSections()
+{
+    // TUNA_EULA_FILE wins over the shared path, for tests and demos.
+    const QString testdata = QString::fromUtf8(KDE_TESTDATA_DIR);
+    const QByteArray oldFile = qgetenv(eula::FILE_ENV);
+    qputenv(eula::FILE_ENV, (testdata + QStringLiteral("/eula-agreement.xml")).toUtf8());
+    QCOMPARE(eula::findFile(), testdata + QStringLiteral("/eula-agreement.xml"));
+    const eula::Document document = eula::read(eula::findFile());
+    QVERIFY(document.ok);
+    QVERIFY(document.error.isEmpty());
+    QCOMPARE(document.sections.size(), 2);
+    QCOMPARE(document.sections.at(0).heading, QStringLiteral("Use of this system"));
+    QCOMPARE(document.sections.at(0).blocks.size(), 3);
+    QVERIFY(document.sections.at(0).blocks.at(0).kind == eula::Block::Kind::Paragraph);
+    QCOMPARE(document.sections.at(0).blocks.at(0).text,
+             QStringLiteral("Do not use this experiment for anything important."));
+    QVERIFY(document.sections.at(0).blocks.at(2).kind == eula::Block::Kind::List);
+    QVERIFY(!document.sections.at(0).blocks.at(2).ordered);
+    const QStringList wantItems{QStringLiteral("File bugs when it breaks."),
+                                QStringLiteral("Keep backups of anything you keep.")};
+    QCOMPARE(document.sections.at(0).blocks.at(2).items, wantItems);
+    QCOMPARE(document.sections.at(1).heading, QStringLiteral("Updates"));
+    QVERIFY(document.sections.at(1).blocks.at(1).ordered);
+    // The QML shape: headings with paragraph and list blocks.
+    const QVariantList sections = eula::toVariant(document);
+    QCOMPARE(sections.size(), 2);
+    const QVariantMap first = sections.at(0).toMap();
+    QCOMPARE(first.value(QStringLiteral("heading")).toString(), QStringLiteral("Use of this system"));
+    const QVariantList blocks = first.value(QStringLiteral("blocks")).toList();
+    QCOMPARE(blocks.size(), 3);
+    QCOMPARE(blocks.at(2).toMap().value(QStringLiteral("kind")).toString(), QStringLiteral("ul"));
+    if (!oldFile.isEmpty())
+        qputenv(eula::FILE_ENV, oldFile);
+    else
+        qunsetenv(eula::FILE_ENV);
+}
+
+void BackendTest::eulaPlainTextAndFailures()
+{
+    const QString testdata = QString::fromUtf8(KDE_TESTDATA_DIR);
+    const eula::Document plain = eula::read(testdata + QStringLiteral("/eula-plain.txt"));
+    QVERIFY(plain.ok);
+    QCOMPARE(plain.sections.size(), 1);
+    QVERIFY(plain.sections.at(0).heading.isEmpty());
+    QCOMPARE(plain.sections.at(0).blocks.size(), 2);
+    QCOMPARE(plain.sections.at(0).blocks.at(1).text,
+             QStringLiteral("Please read them carefully before you install."));
+
+    // No path is no file, not an error: the page is skipped.
+    const eula::Document none = eula::read(QString());
+    QVERIFY(!none.ok);
+    QVERIFY(none.error.isEmpty());
+    // A missing or broken file is eula-unreadable: the page shows it.
+    const eula::Document missing = eula::read(QStringLiteral("/nonexistent/eula.xml"));
+    QVERIFY(!missing.ok);
+    QVERIFY(!missing.error.isEmpty());
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString noAgreement = dir.filePath(QStringLiteral("other.xml"));
+    QFile other(noAgreement);
+    QVERIFY(other.open(QIODevice::WriteOnly));
+    other.write("<component><agreement type=\"privacy\"><agreement_section>"
+                "<name>Other</name><p>Not terms.</p></agreement_section>"
+                "</agreement></component>");
+    other.close();
+    QVERIFY(!eula::read(noAgreement).ok);
+    const QString broken = dir.filePath(QStringLiteral("broken.xml"));
+    QFile bad(broken);
+    QVERIFY(bad.open(QIODevice::WriteOnly));
+    bad.write("<component><agreement type=\"eula\"><p>Unclosed.");
+    bad.close();
+    QVERIFY(!eula::read(broken).ok);
+}
+
+void BackendTest::releaseFactsDriveSkips()
+{
+    const QString testdata = QString::fromUtf8(KDE_TESTDATA_DIR);
+    const QByteArray oldRelease = qgetenv(osrelease::FILE_ENV);
+    const QByteArray oldEula = qgetenv(eula::FILE_ENV);
+    const QByteArray oldFake = qgetenv(probe::FAKE_ENV);
+    qputenv(probe::FAKE_ENV,
+            QDir(QStringLiteral(PROBE_FIXTURES_DIR)).filePath(QStringLiteral("laptop.json")).toUtf8());
+    // A pre-release with terms: both screens show.
+    qputenv(osrelease::FILE_ENV, (testdata + QStringLiteral("/os-release-experiment")).toUtf8());
+    qputenv(eula::FILE_ENV, (testdata + QStringLiteral("/eula-agreement.xml")).toUtf8());
+    InstallerController c;
+    QVERIFY(c.isPrerelease());
+    QVERIFY(c.experimentText().contains(QStringLiteral("experiment")));
+    QVERIFY(c.eulaFileFound());
+    QVERIFY(c.eulaAvailable());
+    QVERIFY(c.eulaError().isEmpty());
+    QCOMPARE(c.eulaSections().size(), 2);
+    QVERIFY(!c.stepSkipped(QStringLiteral("prerelease")));
+    QVERIFY(!c.stepSkipped(QStringLiteral("eula")));
+    QVERIFY(!c.eulaAccepted());
+    QSignalSpy accepted(&c, &InstallerController::eulaChanged);
+    c.setEulaAccepted(true);
+    QVERIFY(c.eulaAccepted());
+    QCOMPARE(accepted.count(), 1);
+    c.setEulaAccepted(true);
+    QCOMPARE(accepted.count(), 1);
+    // Stable without terms: both screens skip.
+    qputenv(osrelease::FILE_ENV, (testdata + QStringLiteral("/os-release-stable")).toUtf8());
+    qputenv(eula::FILE_ENV, QByteArray("/nonexistent/eula.xml"));
+    InstallerController d;
+    QVERIFY(!d.isPrerelease());
+    QVERIFY(d.experimentText().isEmpty());
+    QVERIFY(!d.eulaFileFound());
+    QVERIFY(!d.eulaAvailable());
+    QVERIFY(d.stepSkipped(QStringLiteral("prerelease")));
+    QVERIFY(d.stepSkipped(QStringLiteral("eula")));
+    // A terms file that cannot load is not a skip: the page shows the error
+    // and offers only power off.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString broken = dir.filePath(QStringLiteral("broken.xml"));
+    QFile bad(broken);
+    QVERIFY(bad.open(QIODevice::WriteOnly));
+    bad.write("<component><agreement type=\"eula\"><p>Unclosed.");
+    bad.close();
+    qputenv(eula::FILE_ENV, broken.toUtf8());
+    InstallerController brokenEula;
+    QVERIFY(brokenEula.eulaFileFound());
+    QVERIFY(!brokenEula.eulaAvailable());
+    QVERIFY(!brokenEula.eulaError().isEmpty());
+    QVERIFY(!brokenEula.stepSkipped(QStringLiteral("eula")));
+    if (!oldRelease.isEmpty())
+        qputenv(osrelease::FILE_ENV, oldRelease);
+    else
+        qunsetenv(osrelease::FILE_ENV);
+    if (!oldEula.isEmpty())
+        qputenv(eula::FILE_ENV, oldEula);
+    else
+        qunsetenv(eula::FILE_ENV);
+    if (!oldFake.isEmpty())
+        qputenv(probe::FAKE_ENV, oldFake);
+    else
+        qunsetenv(probe::FAKE_ENV);
 }
 
 QTEST_APPLESS_MAIN(BackendTest)

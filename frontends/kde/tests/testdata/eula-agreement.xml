@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="operating-system">
+  <agreement type="eula">
+    <agreement_section>
+      <name>Use of this system</name>
+      <p>Do not use this experiment for anything important.</p>
+      <p>You agree to the following:</p>
+      <ul>
+        <li>File bugs when it breaks.</li>
+        <li>Keep backups of anything you keep.</li>
+      </ul>
+    </agreement_section>
+    <agreement_section>
+      <name>Updates</name>
+      <p>Updates arrive automatically.</p>
+      <ol>
+        <li>First the base system.</li>
+        <li>Then the applications.</li>
+      </ol>
+    </agreement_section>
+  </agreement>
+</component>
