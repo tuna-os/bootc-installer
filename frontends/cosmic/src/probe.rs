@@ -48,6 +48,12 @@ pub struct Facts {
     /// holds data and how much free space it has. The wipe-or-free page
     /// reads this. Empty on the legacy path.
     pub disk_data: Vec<DiskData>,
+    /// The daemon's handoff mode (`handoff.mode`: migrate, soft-reboot or
+    /// reboot). A missing field means reboot (ruling on #442). The handoff
+    /// page reads this; the install calls `Handoff` with no mode.
+    pub handoff_mode: String,
+    /// Why the daemon chose that mode (`handoff.reason`).
+    pub handoff_reason: String,
     /// The probe's own output, for the objects that this struct does not
     /// hold (`bootc_store`, which offers the install source of #267).
     pub raw: String,
@@ -142,10 +148,13 @@ pub fn parse(json: &str) -> Result<Facts, String> {
         is_live,
         live_image,
         offline_images,
-        // The legacy probe reports neither: the RST page stays skipped and
-        // the wipe page has no data to show on this path.
+        // The legacy probe reports neither: the RST page stays skipped, the
+        // wipe page has no data to show, and the handoff falls back to a
+        // reboot on this path.
         intel_rst: false,
         disk_data: Vec::new(),
+        handoff_mode: "reboot".to_string(),
+        handoff_reason: String::new(),
         raw: json.to_string(),
     })
 }

@@ -235,7 +235,9 @@ mod transport {
     }
 
     #[allow(clippy::too_many_arguments)]
-    // The language/keyboard/timezone/account pages will call this.
+    // The language/keyboard/timezone/account pages will call this. The
+    // optional privacy object (e.g. `{"locationServices": bool}`) goes
+    // only when the user changed it; callers pass None otherwise.
     #[allow(dead_code)]
     pub fn configure_target(
         conn: &mut Connection,
@@ -245,6 +247,7 @@ mod transport {
         keymap: Option<&str>,
         time_zone: Option<&str>,
         autologin: Option<bool>,
+        privacy: Option<Value>,
     ) -> Result<Value, Error> {
         let mut params = serde_json::Map::new();
         if let Some(user) = user {
@@ -256,6 +259,7 @@ mod transport {
             ("keymap", keymap.map(Value::from)),
             ("timeZone", time_zone.map(Value::from)),
             ("autologin", autologin.map(Value::from)),
+            ("privacy", privacy),
         ] {
             if let Some(value) = value {
                 params.insert(key.into(), value);
@@ -631,6 +635,17 @@ pub fn daemon_probe_to_facts(probe: &Value, gates: &Value) -> Result<crate::prob
             .and_then(Value::as_bool)
             .unwrap_or(false),
         disk_data,
+        handoff_mode: match probe.pointer("/handoff/mode").and_then(Value::as_str) {
+            // The daemon decides; a missing or unknown field means reboot.
+            Some("migrate") => "migrate".to_string(),
+            Some("soft-reboot") => "soft-reboot".to_string(),
+            _ => "reboot".to_string(),
+        },
+        handoff_reason: probe
+            .pointer("/handoff/reason")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
         raw: serde_json::to_string(probe).map_err(|e| format!("cannot reserialize Probe: {e}"))?,
     })
 }
@@ -957,6 +972,30 @@ mod tests {
         assert_eq!(config["encryption"]["passphrase"], Value::from("secret"));
         // No daemon field: dropped, not sent.
         assert!(config.get("filesystem").is_none());
+    }
+
+    #[test]
+    fn daemon_probe_handoff_defaults_to_reboot() {
+        // The daemon decides the mode; a missing or unknown field means
+        // reboot, and the install calls Handoff with no mode.
+        let gates = serde_json::json!({"gates": []});
+        let bare = serde_json::json!({"protocolVersion": 1, "disks": []});
+        let facts = daemon_probe_to_facts(&bare, &gates).unwrap();
+        assert_eq!(facts.handoff_mode, "reboot");
+        assert!(facts.handoff_reason.is_empty());
+        let soft = serde_json::json!({
+            "protocolVersion": 1, "disks": [],
+            "handoff": {"mode": "soft-reboot", "reason": "EL10 cells restart userspace"},
+        });
+        let facts = daemon_probe_to_facts(&soft, &gates).unwrap();
+        assert_eq!(facts.handoff_mode, "soft-reboot");
+        assert_eq!(facts.handoff_reason, "EL10 cells restart userspace");
+        let weird = serde_json::json!({
+            "protocolVersion": 1, "disks": [],
+            "handoff": {"mode": "hyperdrive"},
+        });
+        let facts = daemon_probe_to_facts(&weird, &gates).unwrap();
+        assert_eq!(facts.handoff_mode, "reboot");
     }
 
 }

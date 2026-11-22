@@ -26,6 +26,7 @@ mod hardware;
 mod preflight;
 mod tour;
 mod fishermand;
+mod eula;
 mod i18n;
 #[cfg(all(test, unix))]
 mod fishermand_mock_tests;
@@ -141,10 +142,16 @@ pub enum Page {
     /// Connectivity preflight (network.py / conn_check.py). Skipped on
     /// live media: an offline install needs no network.
     Network,
+    /// The medium is a pre-release or experiment (screens.yaml
+    /// `prerelease`). A disclaimer, never a gate.
+    Prerelease,
+    /// The image ships terms of use (screens.yaml `eula`). The accept box
+    /// gates Next. Skipped without a EULA file on the medium.
+    Eula,
     /// Intel RST/VMD hides the NVMe disk. Warns and continues to the disk
     /// list; it does not block (screens.yaml `rst`). Shown only while the
     /// daemon reports `intelRst.detected`: the legacy probe has no such
-    /// fact. Prerelease and eula slot before this when they land.
+    /// fact.
     Rst,
     DiskSelect,
     /// The chosen disk holds data with room to spare (screens.yaml
@@ -166,7 +173,7 @@ pub enum Page {
 impl Page {
     /// Wizard order. Also the capture order, so a new page cannot be added
     /// without appearing in the walkthrough.
-    pub const ORDER: [Page; 16] = [
+    pub const ORDER: [Page; 18] = [
         Page::Requirements,
         Page::TryOrInstall,
         Page::Image,
@@ -174,6 +181,8 @@ impl Page {
         Page::Keyboard,
         Page::Timezone,
         Page::Network,
+        Page::Prerelease,
+        Page::Eula,
         Page::Rst,
         Page::DiskSelect,
         Page::WipeOrFree,
@@ -194,6 +203,8 @@ impl Page {
             Page::Keyboard => "keyboard",
             Page::Timezone => "timezone",
             Page::Network => "network",
+            Page::Prerelease => "prerelease",
+            Page::Eula => "eula",
             Page::Rst => "rst",
             Page::DiskSelect => "disk",
             Page::WipeOrFree => "wipe-or-free",
@@ -218,6 +229,8 @@ impl Page {
             Page::Keyboard => copy::KEYBOARD_TITLE,
             Page::Timezone => copy::TIMEZONE_TITLE,
             Page::Network => copy::NETWORK_TITLE,
+            Page::Prerelease => copy::PRERELEASE_TITLE,
+            Page::Eula => copy::EULA_TITLE,
             Page::Rst => copy::RST_TITLE,
             Page::DiskSelect => copy::DISK_TITLE,
             Page::WipeOrFree => copy::WIPE_TITLE,
@@ -403,6 +416,8 @@ pub enum Message {
     TogglePasswordVisible,
     /// The done page's "I have saved my recovery key" box.
     RecoveryAckToggled(bool),
+    /// The EULA page's accept box. Gates Continue on that page.
+    EulaAccepted(bool),
     /// Put the recovery key on the clipboard.
     CopyRecoveryKey,
     StartInstall,
@@ -571,6 +586,16 @@ pub struct TunaInstaller {
     /// One entry per disk in `disks`, same order: data and free space. The
     /// wipe-or-free page reads this. Empty on the legacy path.
     disk_data: Vec<probe::DiskData>,
+    /// The daemon's handoff mode and reason (`handoff.mode`, `handoff.reason`
+    /// of the Probe reply). Missing means reboot. The handoff page reads this.
+    handoff_mode: String,
+    handoff_reason: String,
+    /// The EULA text for this medium (`eula::load`). `None` skips the page;
+    /// an unreadable file sets `eula_error` and shows the failure state.
+    eula_text: Option<String>,
+    eula_error: bool,
+    /// The user ticked the terms box. Gates Continue on the EULA page.
+    eula_accepted: bool,
     /// Whether a probe answer (or failure) has arrived yet.
     probed: bool,
     /// `Some` only in capture mode. Its presence is also the hard interlock
@@ -771,6 +796,21 @@ impl TunaInstaller {
     pub fn disk_data(&self) -> &[probe::DiskData] {
         &self.disk_data
     }
+    pub fn eula_text(&self) -> Option<&str> {
+        self.eula_text.as_deref()
+    }
+    pub fn eula_error(&self) -> bool {
+        self.eula_error
+    }
+    pub fn eula_accepted(&self) -> bool {
+        self.eula_accepted
+    }
+    pub fn handoff_mode(&self) -> &str {
+        &self.handoff_mode
+    }
+    pub fn handoff_reason(&self) -> &str {
+        &self.handoff_reason
+    }
     pub fn probed(&self) -> bool {
         self.probed
     }
@@ -899,6 +939,11 @@ impl TunaInstaller {
                 self.live_image.is_none() && !source_check::offers_reuse(self.probe_output.as_deref())
             }
             Page::Account => self.account_required(),
+            // A pre-release or experiment medium only (os-release).
+            Page::Prerelease => branding::is_prerelease(&branding::release_facts().0),
+            // A EULA file on the medium, readable or not (the unreadable
+            // file is the eula-unreadable failure state, not a skip).
+            Page::Eula => self.eula_text.is_some() || self.eula_error,
             // The daemon reports Intel RST; the legacy probe has no such
             // fact, so the page never shows on that path.
             Page::Rst => self.intel_rst,
@@ -939,6 +984,8 @@ impl TunaInstaller {
                 self.unmet = facts.unmet;
                 self.intel_rst = facts.intel_rst;
                 self.disk_data = facts.disk_data;
+                self.handoff_mode = facts.handoff_mode;
+                self.handoff_reason = facts.handoff_reason;
                 // Live media is fisherman's answer. This used to be a
                 // `bootc status` of our own plus /run/ostree-live and
                 // /proc/cmdline, read inside the Flatpak sandbox.
@@ -1394,6 +1441,9 @@ impl cosmic::Application for TunaInstaller {
         let selected_image = catalog.default_index(&default_image);
         let image_preselected =
             selected_image.is_some() || (catalog.leaves.is_empty() && !default_image.is_empty());
+        // The EULA is static per medium: read once, up front. A file that
+        // exists but does not read is the eula-unreadable state.
+        let eula = eula::load();
         let mut app = Self {
             core,
             page: Page::TryOrInstall,
@@ -1434,6 +1484,11 @@ impl cosmic::Application for TunaInstaller {
             disk_error: None,
             intel_rst: false,
             disk_data: Vec::new(),
+            handoff_mode: "reboot".to_string(),
+            handoff_reason: String::new(),
+            eula_text: eula.as_ref().and_then(|r| r.as_ref().ok().cloned()),
+            eula_error: matches!(eula, Some(Err(_))),
+            eula_accepted: false,
             probed: false,
             capture: flags.capture,
             catalog,
@@ -1952,6 +2007,10 @@ impl cosmic::Application for TunaInstaller {
                 self.recovery_ack = v;
                 Task::none()
             }
+            Message::EulaAccepted(v) => {
+                self.eula_accepted = v;
+                Task::none()
+            }
             Message::CopyRecoveryKey => {
                 cosmic::iced::clipboard::write(self.progress.recovery_key.clone())
             }
@@ -2428,8 +2487,8 @@ mod tests {
 
     #[test]
     fn rst_joins_the_shared_flow() {
-        // screens.yaml `rst`: title, slug, and position between network
-        // and disk (prerelease and eula slot before it when they land).
+        // screens.yaml `rst`: title, slug, and position after prerelease
+        // and eula, before disk.
         assert_eq!(Page::Rst.slug(), "rst");
         assert_eq!(Page::Rst.title(), crate::ui::copy::RST_TITLE);
         let order: Vec<&str> = Page::ORDER.iter().map(|p| p.slug()).collect();
@@ -2450,6 +2509,22 @@ mod tests {
         let wipe = order.iter().position(|s| *s == "wipe-or-free").unwrap();
         let options = order.iter().position(|s| *s == "options").unwrap();
         assert!(disk < wipe && wipe < options, "{order:?}");
+    }
+
+    #[test]
+    fn prerelease_and_eula_join_the_shared_flow() {
+        // screens.yaml `prerelease` and `eula`: stable ids between network
+        // and rst. The a11y names are the page titles.
+        assert_eq!(Page::Prerelease.slug(), "prerelease");
+        assert_eq!(Page::Prerelease.title(), crate::ui::copy::PRERELEASE_TITLE);
+        assert_eq!(Page::Eula.slug(), "eula");
+        assert_eq!(Page::Eula.title(), crate::ui::copy::EULA_TITLE);
+        let order: Vec<&str> = Page::ORDER.iter().map(|p| p.slug()).collect();
+        let network = order.iter().position(|s| *s == "network").unwrap();
+        let prerelease = order.iter().position(|s| *s == "prerelease").unwrap();
+        let eula = order.iter().position(|s| *s == "eula").unwrap();
+        let rst = order.iter().position(|s| *s == "rst").unwrap();
+        assert!(network < prerelease && prerelease < eula && eula < rst, "{order:?}");
     }
 
     use super::*;
@@ -2849,7 +2924,9 @@ mod tests {
         assert!(at(Page::Language) < at(Page::Keyboard));
         assert!(at(Page::Keyboard) < at(Page::Timezone));
         assert!(at(Page::Timezone) < at(Page::Network));
-        assert!(at(Page::Network) < at(Page::Rst));
+        assert!(at(Page::Network) < at(Page::Prerelease));
+        assert!(at(Page::Prerelease) < at(Page::Eula));
+        assert!(at(Page::Eula) < at(Page::Rst));
         assert!(at(Page::Rst) < at(Page::DiskSelect));
         assert!(at(Page::DiskSelect) < at(Page::WipeOrFree));
         assert!(at(Page::WipeOrFree) < at(Page::Options));
@@ -2858,7 +2935,7 @@ mod tests {
         assert!(at(Page::Tour) < at(Page::Confirm));
         assert!(at(Page::Confirm) < at(Page::Installing));
         assert!(at(Page::Installing) < at(Page::Done));
-        assert_eq!(order.len(), 16);
+        assert_eq!(order.len(), 18);
         assert!(!order.iter().any(|p| p.slug() == "companion"));
     }
 

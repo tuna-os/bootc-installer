@@ -105,6 +105,8 @@ fn mock_happy_probe_maps_to_wizard_facts() {
     assert!(facts.tpm_usable);
     assert!(facts.unmet.is_empty());
     assert!(!facts.intel_rst);
+    // The mock sends no handoff field: the fallback is a reboot.
+    assert_eq!(facts.handoff_mode, "reboot");
 }
 
 #[test]

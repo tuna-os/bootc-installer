@@ -188,6 +188,15 @@ pub mod copy {
     pub const NETWORK_RECHECK: &str = "Recheck";
     // Opens the desktop's own tool on the host (#301).
     pub const NETWORK_SETTINGS: &str = "Network settings";
+    // Pre-release disclaimer (screens.yaml `prerelease`): never a gate.
+    pub const PRERELEASE_TITLE: &str = "Disclaimer";
+    pub const PRERELEASE_SUBTITLE: &str = "This image is not a final release.";
+    pub const PRERELEASE_BODY: &str = "Do not use it for important data.";
+    // Terms of use (screens.yaml `eula`): the accept box gates Next.
+    pub const EULA_TITLE: &str = "Terms of use";
+    pub const EULA_SUBTITLE: &str = "Read and accept the terms to continue.";
+    pub const EULA_ACCEPT: &str = "I have read and accept the Terms of Use";
+    pub const EULA_UNREADABLE: &str = "The terms cannot load.";
 
     // Tour carousel (views/tour.py).
     pub const TOUR_TITLE: &str = "Tour";
@@ -397,6 +406,31 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             t.push(tr(NETWORK_RECHECK));
             t.push(tr(BACK));
             if app.net_online() == Some(true) {
+                t.push(tr(CONTINUE));
+            }
+            t
+        }
+        Page::Prerelease => {
+            let facts = crate::branding::release_facts();
+            let mut t = vec![tr(PRERELEASE_TITLE), tr(PRERELEASE_SUBTITLE), tr(PRERELEASE_BODY)];
+            if !facts.1.is_empty() {
+                t.push(facts.1.clone());
+            }
+            t.push(tr(BACK));
+            t.push(tr(CONTINUE));
+            t
+        }
+        Page::Eula => {
+            let mut t = vec![tr(EULA_TITLE), tr(EULA_SUBTITLE)];
+            if app.eula_error() {
+                t.push(tr(EULA_UNREADABLE));
+                t.push(tr(REQUIREMENTS_POWER_OFF));
+            } else {
+                t.extend(app.eula_text().unwrap_or_default().lines().map(str::to_string));
+                t.push(tr(EULA_ACCEPT));
+            }
+            t.push(tr(BACK));
+            if !app.eula_error() && app.eula_accepted() {
                 t.push(tr(CONTINUE));
             }
             t
@@ -819,6 +853,8 @@ pub fn view(app: &TunaInstaller) -> Element<'_, Message> {
         Page::Keyboard => keyboard(app),
         Page::Timezone => timezone(app),
         Page::Network => network(app),
+        Page::Prerelease => prerelease(app),
+        Page::Eula => eula(app),
         Page::Rst => rst(app),
         Page::DiskSelect => disk_select(app),
         Page::WipeOrFree => wipe_or_free(app),
@@ -1430,6 +1466,73 @@ fn wipe_row(
     .align_y(Alignment::Center)
     .spacing(space_s);
     widget::mouse_area(item).on_press(Message::WipeSelected(mode)).into()
+}
+
+/// Pre-release disclaimer (screens.yaml `prerelease`): information only,
+/// never a gate. The experiment text rides along when os-release names one.
+fn prerelease(_app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    let facts = crate::branding::release_facts();
+    let mut parts: Vec<Element<'_, Message>> = vec![widget::text::body(tr(PRERELEASE_BODY)).into()];
+    if !facts.1.is_empty() {
+        parts.push(widget::text::body(facts.1.clone()).into());
+    }
+    let body = widget::column::with_children(parts)
+        .spacing(spacing.space_s)
+        .height(Length::Fill);
+
+    page_frame(
+        tr(PRERELEASE_TITLE),
+        tr(PRERELEASE_SUBTITLE),
+        body.into(),
+        nav_row(Some(Message::BackPage), Some((tr(CONTINUE), Message::NextPage, false))),
+    )
+}
+
+/// Terms of use (screens.yaml `eula`): the accept box gates Next. An
+/// unreadable file is the `eula-unreadable` failure state: no Continue,
+/// power off instead.
+fn eula(app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    if app.eula_error() {
+        let body = widget::column::with_children(vec![
+            widget::text::body(tr(EULA_UNREADABLE)).into(),
+            widget::button::standard(tr(REQUIREMENTS_POWER_OFF))
+                .on_press(Message::PowerOff)
+                .into(),
+        ])
+        .spacing(spacing.space_s)
+        .height(Length::Fill);
+        return page_frame(
+            tr(EULA_TITLE),
+            tr(EULA_SUBTITLE),
+            body.into(),
+            nav_row(Some(Message::BackPage), None),
+        );
+    }
+    let text = app.eula_text().unwrap_or_default().to_string();
+    let body = widget::column::with_children(vec![
+        widget::scrollable(widget::text::body(text))
+            .height(Length::Fill)
+            .into(),
+        widget::checkbox(app.eula_accepted())
+            .label(tr(EULA_ACCEPT))
+            .on_toggle(Message::EulaAccepted)
+            .into(),
+    ])
+    .spacing(spacing.space_s)
+    .height(Length::Fill);
+
+    page_frame(
+        tr(EULA_TITLE),
+        tr(EULA_SUBTITLE),
+        body.into(),
+        nav_row(
+            Some(Message::BackPage),
+            app.eula_accepted()
+                .then_some((tr(CONTINUE), Message::NextPage, false)),
+        ),
+    )
 }
 
 /// Tour carousel (views/tour.py): the selected image's slides, one per

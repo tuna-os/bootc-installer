@@ -291,6 +291,45 @@ fn unquote_shell(v: &str) -> String {
     }
 }
 
+/// The os-release release facts for the prerelease page (screens.yaml
+/// `prerelease`): `(RELEASE_TYPE, EXPERIMENT)`. Read once from the first
+/// readable host os-release, like [`resolve`]. Test overrides ride
+/// `SETUP_OVERRIDE_OS_RELEASE_TYPE` and `SETUP_OVERRIDE_OS_EXPERIMENT`,
+/// the same names gnome-setup reads.
+static RELEASE_FACTS: std::sync::LazyLock<(String, String)> =
+    std::sync::LazyLock::new(load_release_facts);
+
+pub fn release_facts() -> &'static (String, String) {
+    &RELEASE_FACTS
+}
+
+fn load_release_facts() -> (String, String) {
+    let text = std::env::var("SETUP_OVERRIDE_OS_RELEASE_TYPE")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .map(|v| format!("RELEASE_TYPE={v}"))
+        .or_else(|| {
+            OS_RELEASE_PATHS
+                .iter()
+                .find_map(|p| std::fs::read_to_string(p).ok())
+        })
+        .unwrap_or_default();
+    let mut map = parse_os_release(&text);
+    let experiment = std::env::var("SETUP_OVERRIDE_OS_EXPERIMENT").unwrap_or_default();
+    if !experiment.is_empty() {
+        map.insert("EXPERIMENT".into(), experiment);
+    }
+    let release_type = map.remove("RELEASE_TYPE").unwrap_or_default();
+    let experiment = map.remove("EXPERIMENT").unwrap_or_default();
+    (release_type, experiment)
+}
+
+/// Whether RELEASE_TYPE shows the prerelease page. Stable, lts, unset and
+/// unknown values count as stable (screens.yaml `prerelease`).
+pub fn is_prerelease(release_type: &str) -> bool {
+    matches!(release_type.trim().to_lowercase().as_str(), "pre-release" | "experiment")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -433,5 +472,17 @@ mod tests {
         assert_eq!(m["ID"], "plain");
         assert_eq!(m["EMPTY"], "");
         assert!(!m.contains_key("NOEQ"));
+    }
+
+    #[test]
+    fn only_prerelease_types_show_the_page() {
+        // screens.yaml `prerelease`: stable, lts, unset and unknown values
+        // count as stable.
+        for t in ["pre-release", "experiment", " pre-release ", "EXPERIMENT"] {
+            assert!(is_prerelease(t), "{t:?}");
+        }
+        for t in ["", "stable", "lts", "beta", "unknown"] {
+            assert!(!is_prerelease(t), "{t:?}");
+        }
     }
 }
