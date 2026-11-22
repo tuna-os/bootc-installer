@@ -172,6 +172,14 @@ pub mod copy {
         the solid-state disk until the firmware setting changes from RAID to AHCI. \
         Continue to the disk list, or power off and change the setting first.";
     pub const NETWORK_ONLINE: &str = "Connected.";
+    // Existing data (screens.yaml `wipe-or-free`): free space is the
+    // default, whole-disk erase is the destructive choice.
+    pub const WIPE_TITLE: &str = "Existing data found";
+    pub const WIPE_SUBTITLE: &str = "This disk already holds data.";
+    pub const WIPE_FREE_SPACE: &str = "Install to Free Space";
+    pub const WIPE_FREE_SPACE_HINT: &str = "Keeps what is there and uses the free space.";
+    pub const WIPE_ERASE: &str = "Use Entire Disk";
+    pub const WIPE_ERASE_HINT: &str = "Erases everything on this disk.";
     pub const NETWORK_OFFLINE: &str =
         "No internet connection. The installer requires an active internet connection.";
     pub const NETWORK_RECHECK: &str = "Recheck";
@@ -396,6 +404,18 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 tr(RST_BODY),
                 tr(REQUIREMENTS_POWER_OFF),
                 tr(REQUIREMENTS_FIRMWARE),
+                tr(BACK),
+                tr(CONTINUE),
+            ]
+        }
+        Page::WipeOrFree => {
+            vec![
+                tr(WIPE_TITLE),
+                tr(WIPE_SUBTITLE),
+                tr(WIPE_FREE_SPACE),
+                tr(WIPE_FREE_SPACE_HINT),
+                tr(WIPE_ERASE),
+                tr(WIPE_ERASE_HINT),
                 tr(BACK),
                 tr(CONTINUE),
             ]
@@ -797,6 +817,7 @@ pub fn view(app: &TunaInstaller) -> Element<'_, Message> {
         Page::Network => network(app),
         Page::Rst => rst(app),
         Page::DiskSelect => disk_select(app),
+        Page::WipeOrFree => wipe_or_free(app),
         Page::Options => options(app),
         Page::Account => account(app),
         Page::Tour => tour_page(app),
@@ -1341,6 +1362,70 @@ fn rst(_app: &TunaInstaller) -> Element<'_, Message> {
         body.into(),
         nav_row(Some(Message::BackPage), Some((tr(CONTINUE), Message::NextPage, false))),
     )
+}
+
+/// Existing data (screens.yaml `wipe-or-free`): the chosen disk holds data
+/// with room to spare. Free space is the default; whole-disk erase is the
+/// destructive choice. The install reads `installMode` from the choice.
+fn wipe_or_free(app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    let current = Some(app.install_mode());
+    // One row per choice, spelled out: the strings lint holds each
+    // constant to a literal `tr(CONST)` call.
+    let free = wipe_row(
+        spacing.space_xxxs,
+        spacing.space_s,
+        tr(WIPE_FREE_SPACE),
+        tr(WIPE_FREE_SPACE_HINT),
+        crate::InstallMode::FreeSpace,
+        current,
+    );
+    let erase = wipe_row(
+        spacing.space_xxxs,
+        spacing.space_s,
+        tr(WIPE_ERASE),
+        tr(WIPE_ERASE_HINT),
+        crate::InstallMode::Erase,
+        current,
+    );
+    let mut list = widget::list_column().style(cosmic::theme::Container::List);
+    list = list.add(free);
+    list = list.add(erase);
+    let body = widget::column::with_children(vec![list.into_element()])
+        .spacing(spacing.space_s)
+        .height(Length::Fill);
+
+    page_frame(
+        tr(WIPE_TITLE),
+        tr(WIPE_SUBTITLE),
+        body.into(),
+        nav_row(Some(Message::BackPage), Some((tr(CONTINUE), Message::NextPage, false))),
+    )
+}
+
+/// One wipe-or-free radio row: the choice label, its hint, and the radio.
+/// The whole row is clickable, like the image and disk rows.
+fn wipe_row(
+    space_xxxs: u16,
+    space_s: u16,
+    label: String,
+    hint: String,
+    mode: crate::InstallMode,
+    current: Option<crate::InstallMode>,
+) -> Element<'static, Message> {
+    let item = widget::row::with_children(vec![
+        widget::column::with_children(vec![
+            widget::text::body(label).into(),
+            widget::text::caption(hint).into(),
+        ])
+        .spacing(space_xxxs)
+        .width(Length::Fill)
+        .into(),
+        widget::radio(widget::text::body(""), mode, current, Message::WipeSelected).into(),
+    ])
+    .align_y(Alignment::Center)
+    .spacing(space_s);
+    widget::mouse_area(item).on_press(Message::WipeSelected(mode)).into()
 }
 
 /// Tour carousel (views/tour.py): the selected image's slides, one per

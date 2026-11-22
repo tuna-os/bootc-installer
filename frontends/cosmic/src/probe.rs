@@ -64,6 +64,16 @@ pub struct DiskData {
     pub minimal_bytes: u64,
 }
 
+impl DiskData {
+    /// screens.yaml `data-detected`: the disk holds data and keeps enough
+    /// free space for a free-space install. Then the wipe-or-free page
+    /// offers the choice; without free space the confirm asks for a
+    /// forced erase instead.
+    pub fn data_detected(&self) -> bool {
+        self.has_data && self.free_bytes >= self.minimal_bytes
+    }
+}
+
 /// Parses probe output.
 pub fn parse(json: &str) -> Result<Facts, String> {
     let root: serde_json::Value = serde_json::from_str(json)
@@ -310,5 +320,17 @@ mod tests {
         let argv = fisherman(Use::Probe, false).unwrap();
         assert_eq!(argv[1..], ["probe", "--json"]);
         assert!(!argv.iter().any(|a| a == "pkexec" || a == "sudo"));
+    }
+
+    #[test]
+    fn data_detected_needs_data_and_room() {
+        let data = DiskData { has_data: true, free_bytes: 200, minimal_bytes: 100 };
+        assert!(data.data_detected());
+        // Data but no room: the confirm asks for a forced erase instead.
+        let tight = DiskData { has_data: true, free_bytes: 50, minimal_bytes: 100 };
+        assert!(!tight.data_detected());
+        // A fresh disk goes straight to confirm.
+        let fresh = DiskData::default();
+        assert!(!fresh.data_detected());
     }
 }

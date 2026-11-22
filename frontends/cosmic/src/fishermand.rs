@@ -477,15 +477,19 @@ pub fn apply_install_event(
 
 /// The install's daemon `Config` from the recipe (IDL `Config`).
 ///
-/// Only fields the daemon owns: disk, encryption, user, hostname. The
-/// image, filesystem, bootloader and Flatpaks stay in the recipe for the
-/// legacy path: the daemon partitions and configures, it does not fetch an
-/// image. Groups have no daemon field yet, so the account's groups travel
-/// only through `ConfigureTarget` once the daemon names one.
-pub fn daemon_config(recipe: &crate::Recipe) -> Value {
+/// Only fields the daemon owns: disk, encryption, user, hostname, and
+/// the wipe-or-free choice as `installMode`. The image, filesystem,
+/// bootloader and Flatpaks stay in the recipe for the legacy path: the
+/// daemon partitions and configures, it does not fetch an image. Groups
+/// have no daemon field yet, so the account's groups travel only through
+/// `ConfigureTarget` once the daemon names one.
+pub fn daemon_config(recipe: &crate::Recipe, install_mode: Option<crate::InstallMode>) -> Value {
     let mut config = serde_json::Map::new();
     if !recipe.disk.is_empty() {
         config.insert("disk".into(), Value::from(recipe.disk.clone()));
+    }
+    if let Some(mode) = install_mode {
+        config.insert("installMode".into(), Value::from(mode.daemon_name()));
     }
     let mut encryption = serde_json::Map::new();
     encryption.insert(
@@ -857,8 +861,9 @@ mod tests {
         recipe.encryption.enc_type = "tpm2-luks-passphrase".into();
         recipe.encryption.passphrase = "secret".into();
         recipe.user = crate::model::user_block("alex", "Alex Example", "pw", &["wheel".into()]);
-        let config = daemon_config(&recipe);
+        let config = daemon_config(&recipe, Some(crate::InstallMode::Erase));
         assert_eq!(config["disk"], Value::from("/dev/nvme0n1"));
+        assert_eq!(config["installMode"], Value::from("erase"));
         assert_eq!(config["encryption"]["type"], Value::from("tpm2_luks_passphrase"));
         assert_eq!(config["encryption"]["passphrase"], Value::from("secret"));
         assert_eq!(config["user"]["username"], Value::from("alex"));

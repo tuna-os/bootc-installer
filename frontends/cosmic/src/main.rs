@@ -102,6 +102,23 @@ pub struct Flags {
     pub capture: Option<capture::Capture>,
 }
 
+/// The wipe-or-free choice (screens.yaml `wipe-or-free`): install into the
+/// free space, or erase the whole disk. The daemon's `Install` config calls
+/// these `free_space` and `erase`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InstallMode {
+    FreeSpace,
+    Erase,
+}
+
+impl InstallMode {
+    pub const fn daemon_name(self) -> &'static str {
+        match self {
+            InstallMode::FreeSpace => "free_space",
+            InstallMode::Erase => "erase",
+        }
+    }
+}
 // ---------------------------------------------------------------- pages ----
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -128,6 +145,10 @@ pub enum Page {
     /// fact. Prerelease and eula slot before this when they land.
     Rst,
     DiskSelect,
+    /// The chosen disk holds data with room to spare (screens.yaml
+    /// `wipe-or-free`). Offers free-space install or whole-disk erase.
+    /// Daemon-only: the legacy path always erases and has no data facts.
+    WipeOrFree,
     Options,
     /// Username, full name and password: the recipe's `user` block.
     /// Conditional: skipped when the selected image (or a custom URL)
@@ -143,7 +164,7 @@ pub enum Page {
 impl Page {
     /// Wizard order. Also the capture order, so a new page cannot be added
     /// without appearing in the walkthrough.
-    pub const ORDER: [Page; 15] = [
+    pub const ORDER: [Page; 16] = [
         Page::Requirements,
         Page::Welcome,
         Page::Image,
@@ -153,6 +174,7 @@ impl Page {
         Page::Network,
         Page::Rst,
         Page::DiskSelect,
+        Page::WipeOrFree,
         Page::Options,
         Page::Account,
         Page::Tour,
@@ -172,6 +194,7 @@ impl Page {
             Page::Network => "network",
             Page::Rst => "rst",
             Page::DiskSelect => "disk",
+            Page::WipeOrFree => "wipe-or-free",
             Page::Options => "options",
             Page::Account => "account",
             Page::Tour => "tour",
@@ -195,6 +218,7 @@ impl Page {
             Page::Network => copy::NETWORK_TITLE,
             Page::Rst => copy::RST_TITLE,
             Page::DiskSelect => copy::DISK_TITLE,
+            Page::WipeOrFree => copy::WIPE_TITLE,
             Page::Options => copy::OPTIONS_TITLE,
             Page::Account => copy::ACCOUNT_SECTION,
             Page::Tour => copy::TOUR_TITLE,
@@ -344,6 +368,9 @@ pub enum Message {
     NextPage,
     BackPage,
     SelectDisk(usize),
+    /// The wipe-or-free choice for the selected disk (free space is the
+    /// default while unset). A new disk resets it.
+    WipeSelected(InstallMode),
     /// `fisherman probe --json` answered (shared/probe/README.md).
     Probed(Result<probe::Facts, String>),
     /// `fisherman validate --json --partial` answered for check number `.0`
@@ -493,6 +520,9 @@ pub struct TunaInstaller {
     recipe: Recipe,
     disks: Vec<DiskInfo>,
     selected_disk: Option<usize>,
+    /// The wipe-or-free choice for the selected disk. Unset until the user
+    /// visits the page; the install reads free-space then, the safe default.
+    install_mode: Option<InstallMode>,
     install_log: String,
     /// The install's position, parsed from fisherman's protocol
     /// (shared/progress/README.md). Before this the install page showed an
@@ -867,8 +897,27 @@ impl TunaInstaller {
             // fact, so the page never shows on that path.
             Page::Rst => self.intel_rst,
             Page::Tour => !self.tour_slides().is_empty(),
+            Page::WipeOrFree => self.wipe_visible(),
             _ => true,
         }
+    }
+
+    /// Whether the selected disk holds data with room to spare
+    /// (screens.yaml `data-detected`). Daemon-only: the legacy probe has
+    /// no data facts and that path always erases.
+    pub fn wipe_visible(&self) -> bool {
+        if !fishermand::use_daemon() {
+            return false;
+        }
+        match self.selected_disk {
+            Some(i) => self.disk_data.get(i).map(|d| d.data_detected()).unwrap_or(false),
+            None => false,
+        }
+    }
+
+    /// The wipe-or-free choice, defaulting to free space while unset.
+    pub fn install_mode(&self) -> InstallMode {
+        self.install_mode.unwrap_or(InstallMode::FreeSpace)
     }
 
     /// Takes in a probe answer: the disks, TPM, requirements and live media
@@ -1356,6 +1405,7 @@ impl cosmic::Application for TunaInstaller {
             plan: None,
             recipe,
             selected_disk: None,
+            install_mode: None,
             disks: Vec::new(),
             install_log: String::new(),
             progress: progress::Progress::new(branding::name()),
@@ -1787,7 +1837,14 @@ impl cosmic::Application for TunaInstaller {
                 if let Some(disk) = self.disks.get(idx) {
                     self.selected_disk = Some(idx);
                     self.recipe.disk = disk.path.clone();
+                    // A new disk has no choice yet; free space is the
+                    // default until the user visits the page.
+                    self.install_mode = None;
                 }
+                Task::none()
+            }
+            Message::WipeSelected(mode) => {
+                self.install_mode = Some(mode);
                 Task::none()
             }
             Message::Probed(result) => {
@@ -1919,7 +1976,7 @@ impl cosmic::Application for TunaInstaller {
                     // over Varlink, events stream back. No wrapper, no pid.
                     // The plan binding is a legacy concept: the daemon
                     // validates the config itself.
-                    let config = fishermand::daemon_config(&self.recipe);
+                    let config = fishermand::daemon_config(&self.recipe, Some(self.install_mode()));
                     return Task::stream(
                         Self::stream_daemon_install(config).map(cosmic::action::app),
                     );
@@ -2357,6 +2414,19 @@ mod tests {
         assert!(network < rst && rst < disk, "{order:?}");
     }
 
+    #[test]
+    fn wipe_or_free_joins_the_shared_flow() {
+        // screens.yaml `wipe-or-free`: title, slug, and position between
+        // disk and options. The a11y name is the page title.
+        assert_eq!(Page::WipeOrFree.slug(), "wipe-or-free");
+        assert_eq!(Page::WipeOrFree.title(), crate::ui::copy::WIPE_TITLE);
+        let order: Vec<&str> = Page::ORDER.iter().map(|p| p.slug()).collect();
+        let disk = order.iter().position(|s| *s == "disk").unwrap();
+        let wipe = order.iter().position(|s| *s == "wipe-or-free").unwrap();
+        let options = order.iter().position(|s| *s == "options").unwrap();
+        assert!(disk < wipe && wipe < options, "{order:?}");
+    }
+
     use super::*;
 
     #[test]
@@ -2756,13 +2826,14 @@ mod tests {
         assert!(at(Page::Timezone) < at(Page::Network));
         assert!(at(Page::Network) < at(Page::Rst));
         assert!(at(Page::Rst) < at(Page::DiskSelect));
-        assert!(at(Page::DiskSelect) < at(Page::Options));
+        assert!(at(Page::DiskSelect) < at(Page::WipeOrFree));
+        assert!(at(Page::WipeOrFree) < at(Page::Options));
         assert!(at(Page::Options) < at(Page::Account));
         assert!(at(Page::Account) < at(Page::Tour));
         assert!(at(Page::Tour) < at(Page::Confirm));
         assert!(at(Page::Confirm) < at(Page::Installing));
         assert!(at(Page::Installing) < at(Page::Done));
-        assert_eq!(order.len(), 15);
+        assert_eq!(order.len(), 16);
         assert!(!order.iter().any(|p| p.slug() == "companion"));
     }
 

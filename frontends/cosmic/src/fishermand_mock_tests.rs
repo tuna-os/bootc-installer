@@ -149,6 +149,11 @@ fn mock_existing_data_probe_keeps_both_disks() {
     let data = &nvme["existingData"];
     assert_eq!(data["hasPartitionTable"], Value::Bool(true));
     assert!(!data["operatingSystems"].as_array().unwrap().is_empty());
+    // The wizard pairs data with its disk by index; the NVMe offers the
+    // wipe-or-free choice.
+    let nvme_idx = facts.disks.iter().position(|d| d.path == "/dev/nvme0n1").unwrap();
+    assert!(facts.disk_data[nvme_idx].has_data);
+    assert!(facts.disk_data[nvme_idx].data_detected());
 }
 
 #[test]
@@ -277,4 +282,11 @@ fn mock_tight_space_probe_still_lists_the_disk() {
     let probe = fishermand::probe(&mut conn).unwrap();
     let facts = fishermand::daemon_probe_to_facts(&probe, &gates).unwrap();
     assert!(!facts.disks.is_empty());
+    // The NVMe holds data without room: no choice there, the confirm asks
+    // for a forced erase instead. The foreign-label disk keeps room, so it
+    // still offers the wipe-or-free choice.
+    let nvme = facts.disks.iter().position(|d| d.path == "/dev/nvme0n1").unwrap();
+    assert!(facts.disk_data[nvme].has_data);
+    assert!(!facts.disk_data[nvme].data_detected());
+    assert!(facts.disk_data.iter().any(|d| d.data_detected()));
 }
