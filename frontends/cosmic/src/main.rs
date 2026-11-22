@@ -126,7 +126,9 @@ pub enum Page {
     /// Blocking hardware gates (CPU/RAM/unsupported firmware). Shown only
     /// while a gate stands; GNOME opens a dedicated window instead.
     Requirements,
-    Welcome,
+    /// Try the live session or install now (screens.yaml `try-or-install`).
+    /// Try quits the wizard; the live session keeps running.
+    TryOrInstall,
     /// Image catalog (image.py / XFCE SourcePage). Skipped on live media
     /// and when the catalog offers fewer than two leaves.
     Image,
@@ -166,7 +168,7 @@ impl Page {
     /// without appearing in the walkthrough.
     pub const ORDER: [Page; 16] = [
         Page::Requirements,
-        Page::Welcome,
+        Page::TryOrInstall,
         Page::Image,
         Page::Language,
         Page::Keyboard,
@@ -186,7 +188,7 @@ impl Page {
     pub const fn slug(self) -> &'static str {
         match self {
             Page::Requirements => "requirements",
-            Page::Welcome => "welcome",
+            Page::TryOrInstall => "try-or-install",
             Page::Image => "image",
             Page::Language => "language",
             Page::Keyboard => "keyboard",
@@ -210,7 +212,7 @@ impl Page {
         use ui::copy;
         match self {
             Page::Requirements => copy::REQUIREMENTS_TITLE,
-            Page::Welcome => copy::PAGE_WELCOME,
+            Page::TryOrInstall => copy::PAGE_WELCOME,
             Page::Image => copy::IMAGE_TITLE,
             Page::Language => copy::LANGUAGE_TITLE,
             Page::Keyboard => copy::KEYBOARD_TITLE,
@@ -473,6 +475,10 @@ pub enum Message {
     /// no handling: the machine is going down. Errors go to the log.
     DaemonShutdownDone(Result<(), String>),
     Quit,
+    /// The live-session choice (screens.yaml `try-or-install`): quit the
+    /// wizard with success so the session keeps running. Unlike Quit, the
+    /// exit code is always zero: nothing failed.
+    TrySystem,
     /// The done page's Restart: `systemctl reboot` on the host.
     Reboot,
     /// The done page's store link.
@@ -971,7 +977,7 @@ impl TunaInstaller {
         // on the first page, the gates come first. Once the user has moved
         // on, the probe stays out of their way.
         if !self.capturing()
-            && self.page == Page::Welcome
+            && self.page == Page::TryOrInstall
             && !hardware::blocking_gates(&self.unmet, &self.hw_overrides).is_empty()
         {
             self.page = Page::Requirements;
@@ -1390,7 +1396,7 @@ impl cosmic::Application for TunaInstaller {
             selected_image.is_some() || (catalog.leaves.is_empty() && !default_image.is_empty());
         let mut app = Self {
             core,
-            page: Page::Welcome,
+            page: Page::TryOrInstall,
             live_image: None,
             problems: Vec::new(),
             validate_seq: 0,
@@ -2032,6 +2038,14 @@ impl cosmic::Application for TunaInstaller {
             Message::Quit => {
                 std::process::exit(i32::from(!self.install_ok));
             }
+            Message::TrySystem => {
+                // The capture harness walks pages without pressing buttons;
+                // quitting from it would kill the walkthrough run.
+                if self.capturing() {
+                    return Task::none();
+                }
+                std::process::exit(0);
+            }
             Message::OpenUrl(url) => {
                 let argv = offline::host_command(&["xdg-open", &url]);
                 if let Some((program, args)) = argv.split_first() {
@@ -2399,6 +2413,17 @@ mod tests {
     fn override_makes_all_four_choices_available() {
         assert_eq!(super::available_encryption_choices(false).len(), 2);
         assert_eq!(super::available_encryption_choices(true).len(), 4);
+    }
+
+    #[test]
+    fn try_or_install_joins_the_shared_flow() {
+        // screens.yaml `try-or-install`: the stable id, right after the
+        // requirements gate. The a11y name stays Welcome (PAGE_WELCOME).
+        assert_eq!(Page::TryOrInstall.slug(), "try-or-install");
+        assert_eq!(Page::TryOrInstall.title(), crate::ui::copy::PAGE_WELCOME);
+        let order: Vec<&str> = Page::ORDER.iter().map(|p| p.slug()).collect();
+        assert_eq!(order[0], "requirements");
+        assert_eq!(order[1], "try-or-install");
     }
 
     #[test]
@@ -2818,8 +2843,8 @@ mod tests {
         let at = |p: Page| order.iter().position(|q| *q == p).unwrap();
         // Preflight runs before the disk page; the tour runs after the
         // account and before the summary. No phone companion (#293).
-        assert!(at(Page::Requirements) < at(Page::Welcome));
-        assert!(at(Page::Welcome) < at(Page::Image));
+        assert!(at(Page::Requirements) < at(Page::TryOrInstall));
+        assert!(at(Page::TryOrInstall) < at(Page::Image));
         assert!(at(Page::Image) < at(Page::Language));
         assert!(at(Page::Language) < at(Page::Keyboard));
         assert!(at(Page::Keyboard) < at(Page::Timezone));

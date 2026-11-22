@@ -38,6 +38,9 @@ pub mod copy {
         "Welcome. This assistant will guide you through installing {product} onto this computer.";
     pub const WELCOME_CAPTION: &str = "You will choose a target disk and a few options, and create \
          your account. Nothing is written to any disk until you confirm on the last step.";
+    /// The live-session choice (screens.yaml `try-or-install`): quits the
+    /// wizard, the session keeps running. `{product}` fills in the view.
+    pub const TRY_SYSTEM: &str = "Try {product}";
 
     pub const DISK_TITLE: &str = "Select a disk";
     pub const DISK_SUBTITLE: &str = "Everything on the disk you pick will be erased.";
@@ -288,7 +291,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             }
             t
         }
-        Page::Welcome => {
+        Page::TryOrInstall => {
             let mut t = vec![t_line("welcome_title"), with_product(&tr(WELCOME_BODY))];
             let sub = t_line("welcome_subtitle");
             if !sub.is_empty() {
@@ -297,6 +300,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             t.push(tr(WELCOME_CAPTION));
             t.extend(crate::probe::requirements_lines(app.unmet()));
             t.push(t_line("welcome_button"));
+            t.push(with_product(&tr(TRY_SYSTEM)));
             t
         }
         Page::DiskSelect => {
@@ -809,7 +813,7 @@ pub fn view(app: &TunaInstaller) -> Element<'_, Message> {
     }
     let content: Element<Message> = match app.page() {
         Page::Requirements => requirements(app),
-        Page::Welcome => welcome(app),
+        Page::TryOrInstall => welcome(app),
         Page::Image => image_page(app),
         Page::Language => language(app),
         Page::Keyboard => keyboard(app),
@@ -1571,6 +1575,8 @@ pub fn source_reuse_text(progress: &crate::progress::Progress) -> Vec<String> {
         .collect()
 }
 
+/// The live-session choice (screens.yaml `try-or-install`): Try quits the
+/// wizard and the session keeps running, Install goes to the next screen.
 fn welcome(app: &TunaInstaller) -> Element<'_, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
 
@@ -1605,11 +1611,22 @@ fn welcome(app: &TunaInstaller) -> Element<'_, Message> {
         .width(Length::Fill);
 
     let next = t_line("welcome_button");
+    let footer = widget::row::with_children(vec![
+        widget::button::standard(with_product(&tr(TRY_SYSTEM)))
+            .on_press(Message::TrySystem)
+            .into(),
+        widget::space::horizontal().into(),
+        widget::button::suggested(next)
+            .on_press(Message::NextPage)
+            .into(),
+    ])
+    .align_y(Alignment::Center)
+    .spacing(spacing.space_s);
     widget::column::with_children(vec![
         widget::space::vertical().into(),
         hero.into(),
         widget::space::vertical().into(),
-        nav_row(None, Some((next, Message::NextPage, false))),
+        footer.into(),
     ])
     .spacing(spacing.space_m)
     .height(Length::Fill)
