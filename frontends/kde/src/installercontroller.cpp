@@ -32,12 +32,33 @@ InstallerController::InstallerController(QObject *parent)
     m_validateTimer.setInterval(300);
     connect(&m_validateTimer, &QTimer::timeout, this, &InstallerController::runValidate);
 
-    // TPM 2.0 and the minimum requirements are fisherman's answers
-    // (`fisherman probe --json`, shared/probe/README.md), read once. The
-    // disk step runs the probe again when it opens, for hotplugged disks.
-    // A capture points BOOTC_INSTALLER_FAKE_PROBE at a fixture with a
-    // usable TPM, so the TPM choices show on a runner without one.
-    const probe::Result facts = probe::run();
+    // TPM 2.0, the minimum requirements, RST and live media are fisherman's
+    // answers, read once. The disk step runs the probe again when it opens,
+    // for hotplugged disks. A capture points BOOTC_INSTALLER_FAKE_PROBE at
+    // a fixture with a usable TPM, so the TPM choices show on a runner
+    // without one.
+    //
+    // The recipe backend runs `fisherman probe --json`
+    // (shared/probe/README.md). The daemon backend (TUNA_INSTALLER_BACKEND
+    // =daemon) asks fishermand's Requirements and Probe over Varlink
+    // instead, and keeps the full answers for the rst and wipe-or-free
+    // pages (tuna-os/fisherman#512). Legacy tools and captures keep the
+    // recipe path: nothing here changes when the variable is unset.
+    probe::Result facts;
+    if (fishermand::backend() == fishermand::Backend::Daemon) {
+        fishermand::Client client(fishermand::socketPath());
+        m_daemonReqs = fishermand::fetchRequirements(client);
+        m_daemonProbe = fishermand::fetchProbe(client);
+        facts = fishermand::probeResult(m_daemonProbe);
+        if (m_daemonReqs.ok)
+            facts.unmet = fishermand::unmetFromGates(m_daemonReqs.gates);
+        if (!m_daemonReqs.ok || !m_daemonProbe.ok) {
+            m_daemonUnreachable = true;
+            m_daemonError = !m_daemonProbe.ok ? m_daemonProbe.error : m_daemonReqs.error;
+        }
+    } else {
+        facts = probe::run();
+    }
     m_hasTpm = facts.tpmUsable;
     m_unmet = facts.unmet;
     // Live media is fisherman's answer (probe's `live`). This used to be a
@@ -46,6 +67,7 @@ InstallerController::InstallerController(QObject *parent)
     m_recipe.liveMode = facts.isLive;
     m_liveImage = facts.liveImage;
     m_probeOutput = facts.raw;
+
     // Product identity per shared/branding/README.md: branding.json, then
     // os-release, then neutral. Nothing in this frontend names a product.
     m_branding = branding::resolve();
@@ -469,6 +491,34 @@ QString InstallerController::requirementsWarning() const
     }
     lines.removeAll(QString());
     return lines.join(QLatin1Char('\n'));
+}
+
+void InstallerController::refreshDaemonFacts()
+{
+    if (fishermand::backend() != fishermand::Backend::Daemon)
+        return;
+    fishermand::Client client(fishermand::socketPath());
+    m_daemonReqs = fishermand::fetchRequirements(client);
+    m_daemonProbe = fishermand::fetchProbe(client);
+    const probe::Result facts = fishermand::probeResult(m_daemonProbe);
+    m_hasTpm = facts.tpmUsable;
+    m_unmet = m_daemonReqs.ok ? fishermand::unmetFromGates(m_daemonReqs.gates) : facts.unmet;
+    m_recipe.liveMode = facts.isLive;
+    m_liveImage = facts.liveImage;
+    m_probeOutput = facts.raw;
+    m_daemonUnreachable = !m_daemonReqs.ok || !m_daemonProbe.ok;
+    m_daemonError = !m_daemonProbe.ok ? m_daemonProbe.error : m_daemonReqs.error;
+    Q_EMIT factsChanged();
+    Q_EMIT daemonFactsChanged();
+}
+
+QStringList InstallerController::selectedDiskOperatingSystems() const
+{
+    for (const fishermand::Disk &disk : m_daemonProbe.disks) {
+        if (disk.path == m_recipe.disk)
+            return disk.existingData.operatingSystems;
+    }
+    return {};
 }
 
 void InstallerController::setDisk(const QString &v)

@@ -25,6 +25,7 @@ class QProcess;
 #include <QVariantList>
 #include <QVariantMap>
 #include "imagecatalog.h"
+#include "daemonclient.h"
 #include "plan.h"
 #include "recipe.h"
 #include "sourcecheck.h"
@@ -73,23 +74,38 @@ class InstallerController : public QObject
     Q_PROPERTY(QStringList catalogDescs READ catalogDescs NOTIFY catalogChanged)
     Q_PROPERTY(int catalogIndex READ catalogIndex NOTIFY catalogChanged)
 
-    // fisherman's tpm.usable from `fisherman probe --json`
-    // (shared/probe/README.md). TPM options are hidden, not disabled, when
-    // false: offering them on a machine without one only fails later, at
-    // install time. False when the probe failed.
-    Q_PROPERTY(bool hasTpm READ hasTpm CONSTANT)
-    // fisherman's system.unmet ("ram", "cpu", "uefi"), and the welcome
-    // step's warning built from the requirements_* copy keys; empty when
-    // every requirement is met or the probe failed. A warning, not a gate —
-    // except the two blocking cases below, which mirror the GNOME cpu/ram
-    // windows (continue anyway) and the unsupported window (power off).
-    Q_PROPERTY(QStringList unmetRequirements READ unmetRequirements CONSTANT)
-    Q_PROPERTY(QString requirementsWarning READ requirementsWarning CONSTANT)
+    // fisherman's tpm.usable from the probe (shared/probe/README.md): the
+    // recipe backend runs `fisherman probe --json`, the daemon backend asks
+    // fishermand's Probe. TPM options are hidden, not disabled, when false:
+    // offering them on a machine without one only fails later, at install
+    // time. False when the probe failed.
+    Q_PROPERTY(bool hasTpm READ hasTpm NOTIFY factsChanged)
+    // fisherman's unmet requirements ("ram", "cpu", "uefi": the daemon
+    // names the firmware gate "firmware"), and the welcome step's warning
+    // built from the requirements_* copy keys; empty when every requirement
+    // is met or the probe failed. A warning, not a gate — except the two
+    // blocking cases below, which mirror the GNOME cpu/ram windows (continue
+    // anyway) and the unsupported window (power off).
+    Q_PROPERTY(QStringList unmetRequirements READ unmetRequirements NOTIFY factsChanged)
+    Q_PROPERTY(QString requirementsWarning READ requirementsWarning NOTIFY factsChanged)
     // True when the machine did not boot UEFI: like BootcUnsupportedWindow,
     // there is no continue path, only powering off.
-    Q_PROPERTY(bool requirementsFatal READ requirementsFatal CONSTANT)
+    Q_PROPERTY(bool requirementsFatal READ requirementsFatal NOTIFY factsChanged)
     // True when any requirement is unmet (ram, cpu or uefi).
-    Q_PROPERTY(bool requirementsBlocking READ requirementsBlocking CONSTANT)
+    Q_PROPERTY(bool requirementsBlocking READ requirementsBlocking NOTIFY factsChanged)
+    // The fishermand backend (TUNA_INSTALLER_BACKEND=daemon): facts come
+    // from Requirements and Probe over Varlink instead of the `fisherman`
+    // subprocess (tuna-os/fisherman#512). Unset keeps the recipe path.
+    Q_PROPERTY(bool daemonBackend READ daemonBackend CONSTANT)
+    // Intel RST, as fishermand's Probe reports it: hidden NVMe disks and a
+    // firmware setting to change. Always false on the recipe backend: the
+    // legacy probe does not report it.
+    Q_PROPERTY(bool rstDetected READ rstDetected NOTIFY daemonFactsChanged)
+    Q_PROPERTY(QStringList rstAffectedDisks READ rstAffectedDisks NOTIFY daemonFactsChanged)
+    // The daemon did not answer. The disk step shows the reason and offers
+    // a retry (refreshDaemonFacts); only power off is offered otherwise.
+    Q_PROPERTY(bool daemonUnreachable READ daemonUnreachable NOTIFY daemonFactsChanged)
+    Q_PROPERTY(QString daemonError READ daemonError NOTIFY daemonFactsChanged)
     // The user's explicit override for the non-fatal gates. Starts false:
     // an unmet CPU/RAM requirement holds the welcome step until it is set.
     Q_PROPERTY(bool continueAnyway READ continueAnyway WRITE setContinueAnyway NOTIFY continueAnywayChanged)
@@ -98,11 +114,11 @@ class InstallerController : public QObject
     // a TPM; what each is called comes from encryptionLabel/Description.
     Q_PROPERTY(QStringList encryptionTypes READ encryptionTypes CONSTANT)
 
-    // fisherman's probe: the host booted from live media (live.is_live), and
-    // the booted image. On live media the recipe leaves `image` empty and
-    // fisherman installs the running system.
-    Q_PROPERTY(bool isLive READ isLive CONSTANT)
-    Q_PROPERTY(QString liveImage READ liveImage CONSTANT)
+    // fisherman's probe: the host booted from live media (live.is_live on
+    // either backend), and the booted image. On live media the recipe leaves
+    // `image` empty and fisherman installs the running system.
+    Q_PROPERTY(bool isLive READ isLive NOTIFY factsChanged)
+    Q_PROPERTY(QString liveImage READ liveImage NOTIFY factsChanged)
 
     // Region & language preflight (the GNOME language/keyboard/timezone
     // steps, folded into the welcome step to keep the seven-module shape).
@@ -304,6 +320,20 @@ public:
     QString requirementsWarning() const;
     bool requirementsFatal() const { return m_unmet.contains(QStringLiteral("uefi")); }
     bool requirementsBlocking() const { return !m_unmet.isEmpty(); }
+    // The fishermand backend (see the daemonBackend property). The daemon
+    // facts below are empty on the recipe backend.
+    bool daemonBackend() const { return fishermand::backend() == fishermand::Backend::Daemon; }
+    bool rstDetected() const { return m_daemonProbe.rstDetected; }
+    QStringList rstAffectedDisks() const { return m_daemonProbe.rstAffectedDisks; }
+    bool daemonUnreachable() const { return m_daemonUnreachable; }
+    QString daemonError() const { return m_daemonError; }
+    // Re-asks Requirements and Probe (daemon backend only; a no-op on the
+    // recipe backend). The disk step's retry calls this, then refreshes.
+    Q_INVOKABLE void refreshDaemonFacts();
+    // The daemon facts for the wipe-or-free page: what the chosen disk
+    // already holds. Empty when the backend is the recipe or the disk is
+    // unknown.
+    Q_INVOKABLE QStringList selectedDiskOperatingSystems() const;
     bool continueAnyway() const { return m_continueAnyway; }
     void setContinueAnyway(bool v);
     bool needsUserCreation() const { return m_needsUser; }
@@ -505,6 +535,8 @@ public:
 Q_SIGNALS:
     void recipeChanged();
     void catalogChanged();
+    void factsChanged();
+    void daemonFactsChanged();
     void continueAnywayChanged();
     void regionChanged();
     void onlineChanged();
@@ -622,6 +654,12 @@ private:
     double m_postPullBase = -1.0;
     bool m_hasTpm = false;
     QStringList m_unmet;
+    // fishermand's answers on the daemon backend (Requirements and Probe).
+    // Empty on the recipe backend.
+    fishermand::Requirements m_daemonReqs;
+    fishermand::Probe m_daemonProbe;
+    bool m_daemonUnreachable = false;
+    QString m_daemonError;
     QString m_productName;
     QString m_logoSource;
     QString m_welcomeImageSource;
