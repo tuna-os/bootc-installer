@@ -182,10 +182,14 @@ func recipeEncryptionType(t string) (string, error) {
 }
 
 // recipeToConfig maps a full recipe to the daemon's Config. The recipe has
-// no install mode yet (the wizard always erases until wipe-or-free lands),
-// so the mode is erase. Filesystem, image and store keys have no Config
+// no install mode (the shared schema is another session's), so the wipe
+// page's choice travels beside it and lands here as mode: "erase" or
+// "free_space". Filesystem, image and store keys have no Config
 // counterpart: the daemon owns the disk path, not the OS payload.
-func recipeToConfig(recipe Recipe) (daemonConfig, error) {
+func recipeToConfig(recipe Recipe, mode string) (daemonConfig, error) {
+	if mode != "erase" && mode != "free_space" {
+		return daemonConfig{}, fmt.Errorf("unknown install mode %q", mode)
+	}
 	encType, err := recipeEncryptionType(recipe.Encryption.Type)
 	if err != nil {
 		return daemonConfig{}, err
@@ -194,8 +198,7 @@ func recipeToConfig(recipe Recipe) (daemonConfig, error) {
 	if recipe.Disk != "" {
 		cfg.Disk = &recipe.Disk
 	}
-	erase := "erase"
-	cfg.InstallMode = &erase
+	cfg.InstallMode = &mode
 	enc := daemonEncryption{Type: encType}
 	if recipe.Encryption.Passphrase != "" {
 		pp := recipe.Encryption.Passphrase
@@ -496,17 +499,44 @@ func translateInstallStream(w io.Writer, events []daemonInstallEvent) daemonInst
 	return result
 }
 
+// parseInstallInput reads the `install` stdin: either a bare recipe (the
+// legacy shape, and what the QML sends off the daemon path's wipe page —
+// always erase then) or {"recipe", "installMode"} from the wipe page.
+// The mode is the daemon's name: "erase" or "free_space".
+func parseInstallInput(input string) (Recipe, string, error) {
+	var envelope struct {
+		Recipe      json.RawMessage `json:"recipe"`
+		InstallMode string          `json:"installMode"`
+	}
+	if err := json.Unmarshal([]byte(input), &envelope); err == nil && len(envelope.Recipe) > 0 {
+		mode := envelope.InstallMode
+		if mode == "" {
+			mode = "erase"
+		}
+		recipe, err := decodeRecipe(envelope.Recipe)
+		if err != nil {
+			return Recipe{}, "", err
+		}
+		return recipe, mode, nil
+	}
+	recipe, err := decodeRecipe([]byte(input))
+	if err != nil {
+		return Recipe{}, "", err
+	}
+	return recipe, "erase", nil
+}
+
 // runDaemonInstall maps the recipe to a Config, streams Install, and exits
 // the way the recipe path does: 0 for done, 130 for cancelled (the code the
 // QML reads as the cancel, ui/progress.js installOutcome), 1 for failed.
 func runDaemonInstall(recipeJSON string) {
-	recipe, err := decodeRecipe([]byte(recipeJSON))
+	recipe, mode, err := parseInstallInput(recipeJSON)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "invalid recipe: %v\n", err)
 		os.Exit(1)
 	}
 	normalizeRecipe(&recipe, resolveBranding().ID, accountGroups())
-	cfg, err := recipeToConfig(recipe)
+	cfg, err := recipeToConfig(recipe, mode)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "invalid recipe: %v\n", err)
 		os.Exit(1)

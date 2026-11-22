@@ -81,7 +81,7 @@ func fullRecipe() Recipe {
 }
 
 func TestRecipeToConfig(t *testing.T) {
-	cfg, err := recipeToConfig(fullRecipe())
+	cfg, err := recipeToConfig(fullRecipe(), "erase")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestRecipeToConfig(t *testing.T) {
 }
 
 func TestRecipeToConfigMinimal(t *testing.T) {
-	cfg, err := recipeToConfig(Recipe{Encryption: Encryption{Type: "none"}})
+	cfg, err := recipeToConfig(Recipe{Encryption: Encryption{Type: "none"}}, "free_space")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,6 +115,48 @@ func TestRecipeToConfigMinimal(t *testing.T) {
 	}
 	if cfg.Encryption == nil || cfg.Encryption.Type != "none" || cfg.Encryption.Passphrase != nil {
 		t.Errorf("encryption: %+v", cfg.Encryption)
+	}
+}
+func TestRecipeToConfigMode(t *testing.T) {
+	cfg, err := recipeToConfig(Recipe{Encryption: Encryption{Type: "none"}}, "free_space")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.InstallMode == nil || *cfg.InstallMode != "free_space" {
+		t.Errorf("installMode: %+v", cfg.InstallMode)
+	}
+	if _, err := recipeToConfig(Recipe{Encryption: Encryption{Type: "none"}}, "wipe"); err == nil {
+		t.Error("unknown install mode: no error")
+	}
+}
+
+func TestParseInstallInput(t *testing.T) {
+	raw, _ := json.Marshal(fullRecipe())
+	recipe, mode, err := parseInstallInput(string(raw))
+	if err != nil || mode != "erase" {
+		t.Fatalf("bare recipe: mode %q, err %v", mode, err)
+	}
+	if recipe.Disk != "dev-nvme" {
+		t.Errorf("bare recipe disk: %q", recipe.Disk)
+	}
+	envelope, _ := json.Marshal(map[string]any{
+		"recipe": json.RawMessage(raw), "installMode": "free_space"})
+	recipe, mode, err = parseInstallInput(string(envelope))
+	if err != nil || mode != "free_space" {
+		t.Fatalf("envelope: mode %q, err %v", mode, err)
+	}
+	if recipe.Disk != "dev-nvme" {
+		t.Errorf("envelope recipe disk: %q", recipe.Disk)
+	}
+	bad, mode, err := parseInstallInput(`{"recipe": {}, "installMode": "wipe"}`)
+	if err != nil {
+		t.Fatalf("envelope parses, the mode fails later: %v", err)
+	}
+	if _, err := recipeToConfig(bad, mode); err == nil {
+		t.Error("bad envelope mode: no error")
+	}
+	if _, _, err := parseInstallInput(`not json`); err == nil {
+		t.Error("garbage: no error")
 	}
 }
 

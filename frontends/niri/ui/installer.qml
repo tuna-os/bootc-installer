@@ -336,7 +336,20 @@ ApplicationWindow {
     property int currentPage: 0
     // The confirm page asks fisherman about the selected source (#266) on
     // each visit; the done page reads nothing back from the new system.
-    onCurrentPageChanged: if (root.currentPage === 6) root.startSourceCheck()
+    onCurrentPageChanged: {
+        if (root.currentPage === 6) root.startSourceCheck()
+        if (root.currentPage === 10) root.enterWipe()
+    }
+    // The wipe page's per-visit state: free space is the default where it
+    // fits, the whole disk where it does not, and the destructive choice
+    // waits out a three second countdown.
+    property int wipeCountdown: 0
+    readonly property bool wipeTight: root.selectedDisk.has_data === true
+        && (root.selectedDisk.free_bytes || 0) < (root.selectedDisk.minimal_bytes || 0)
+    function enterWipe() {
+        root.installMode = root.wipeTight ? "erase" : "free_space"
+        root.wipeCountdown = root.wipeTight ? 3 : 0
+    }
     readonly property var pageNames: [qsTr("Welcome"), qsTr("Session"), qsTr("Source"), qsTr("Disk"),
         qsTr("Encryption"), qsTr("Account"), qsTr("Confirm"), qsTr("Installing"), qsTr("Done"),
         qsTr("Intel RST"), qsTr("Existing data"), qsTr("Disclaimer"), qsTr("Terms of use"),
@@ -394,6 +407,10 @@ ApplicationWindow {
     // Encryption was previously hardcoded to "none" in the recipe with no UI,
     // so every install came out unencrypted (tuna-os/tunaOS#734).
     property string encType: "none"
+    // The wipe page's choice: "free_space" keeps the disk's data where it
+    // fits, "erase" takes the whole disk. The daemon reads it from the
+    // install envelope; the legacy path always erases.
+    property string installMode: "erase"
     // The encryption choices in display order, with needs_passphrase and
     // needs_tpm2: fisherman's data/encryption-choices.json, which the backend
     // embeds and `detect` reports (tests/unit/test_encryption_choices.py).
@@ -1344,7 +1361,13 @@ ApplicationWindow {
         // Bound to the disk that the plan on the confirm page showed:
         // fisherman refuses the install if another device is now at that
         // path (disk_identity_mismatch). No plan of this visit: unbound.
-        root.pendingRecipe = JSON.stringify(PlanJs.bind(root.buildRecipe(), root.planView))
+        const bound = PlanJs.bind(root.buildRecipe(), root.planView)
+        // The wipe page's choice travels beside the recipe, never in it:
+        // the shared recipe schema is exact, and the legacy backend would
+        // choke on the extra key. The daemon reads the envelope.
+        root.pendingRecipe = root.daemonMode
+            ? JSON.stringify({ recipe: bound, installMode: root.installMode })
+            : JSON.stringify(bound)
         installProc.running = true
         // The recipe is fed over stdin on Process.started — never argv, so
         // the LUKS passphrase does not leak via /proc/PID/cmdline. See
@@ -1493,6 +1516,7 @@ ApplicationWindow {
         case 5: if (root.accountReady) flowNext(); break
         case 6: if (root.canInstall) startInstall(); break
         case 9: flowNext(); break
+        case 10: flowNext(); break
         }
     }
     function back() {
@@ -2910,6 +2934,76 @@ ApplicationWindow {
                         DankButton {
                             objectName: "rstContinueButton"
                             text: qsTr("Continue")
+                            onClicked: root.flowNext()
+                        }
+                    }
+                }
+            }
+            // Page 10: wipe-or-free — the chosen disk already holds data.
+            // Free space fits the install: choose. Too tight: only the
+            // whole disk, behind a three second countdown.
+            Item {
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width, 520)
+                    spacing: Theme.spacingM
+                    StyledText {
+                        objectName: "wipeTitle"
+                        text: qsTr("Existing data found")
+                        font.pixelSize: Theme.fontSizeXLarge
+                        font.weight: Theme.fontWeightMedium
+                    }
+                    StyledText {
+                        objectName: "wipeBody"
+                        text: root.wipeTight
+                            ? qsTr("%1 holds data and its free space is below what the install needs. Using the entire disk erases everything on it.").arg(root.selectedDisk.path || "")
+                            : qsTr("%1 holds data with room to spare. Install into the free space, or use the entire disk and erase everything on it.").arg(root.selectedDisk.path || "")
+                        color: Theme.surfaceVariantText
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.groupedListGap
+                        DankListItem {
+                            objectName: "wipeFreeRow"
+                            Layout.fillWidth: true
+                            firstInGroup: true
+                            lastInGroup: false
+                            primaryText: qsTr("Install to Free Space")
+                            secondaryText: qsTr("Keeps the data on the disk.")
+                            enabled: !root.wipeTight
+                            isSelected: root.installMode === "free_space"
+                            onClicked: root.installMode = "free_space"
+                        }
+                        DankListItem {
+                            objectName: "wipeEraseRow"
+                            Layout.fillWidth: true
+                            firstInGroup: false
+                            lastInGroup: true
+                            primaryText: qsTr("Use Entire Disk")
+                            secondaryText: qsTr("Erases everything on the disk.")
+                            isSelected: root.installMode === "erase"
+                            onClicked: root.installMode = "erase"
+                        }
+                    }
+                    Timer {
+                        id: wipeTimer
+                        interval: 1000
+                        repeat: true
+                        running: root.currentPage === 10 && root.wipeTight && root.wipeCountdown > 0
+                        onTriggered: root.wipeCountdown--
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        DankButton { text: qsTr("Back"); tonal: true; onClicked: root.back() }
+                        Item { Layout.fillWidth: true }
+                        DankButton {
+                            objectName: "wipeContinueButton"
+                            text: root.wipeTight && root.wipeCountdown > 0
+                                ? qsTr("Erase and Install (%1)").arg(root.wipeCountdown)
+                                : qsTr("Continue")
+                            enabled: root.installMode === "free_space" || root.wipeCountdown <= 0
                             onClicked: root.flowNext()
                         }
                     }
