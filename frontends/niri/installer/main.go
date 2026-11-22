@@ -277,6 +277,9 @@ func detectEnvironment() {
 		facts = ProbeFacts{OfflineImages: []string{}}
 	}
 	result := map[string]any{
+		// Which path answers: the QML routes the handoff and the key fetch
+		// through it.
+		"daemon": useDaemon(),
 		// probe's live.is_live: only then may the recipe leave `image`
 		// empty, which installs the running system.
 		"isLive": facts.IsLive,

@@ -338,13 +338,36 @@ ApplicationWindow {
     // each visit; the done page reads nothing back from the new system.
     onCurrentPageChanged: if (root.currentPage === 6) root.startSourceCheck()
     readonly property var pageNames: [qsTr("Welcome"), qsTr("Session"), qsTr("Source"), qsTr("Disk"),
-        qsTr("Encryption"), qsTr("Account"), qsTr("Confirm"), qsTr("Installing"), qsTr("Done")]
+        qsTr("Encryption"), qsTr("Account"), qsTr("Confirm"), qsTr("Installing"), qsTr("Done"),
+        qsTr("Intel RST"), qsTr("Existing data"), qsTr("Disclaimer"), qsTr("Terms of use"),
+        qsTr("Recovery key"), qsTr("Handoff")]
 
     // The pages the user actually steps through. The account page drops
     // out when the catalog leaf says the image creates its own user
     // (XFCE's needs_user_creation, bootc_installer/defaults/image.py),
-    // instead of asking for an account fisherman would then ignore.
-    readonly property var flowPages: root.needsUserCreation ? [0, 1, 2, 3, 4, 5, 6, 7, 8] : [0, 1, 2, 3, 4, 6, 7, 8]
+    // instead of asking for an account fisherman would then ignore. The
+    // conditional screens drop out when they have nothing to show — a
+    // skipped screen is never shown blank. New screen slots go at the end
+    // (9 and up): the 0-8 indices are referenced all over this file.
+    function flowList() {
+        const pages = [0, 1, 2]
+        if (root.showPrerelease) pages.push(11)
+        if (root.showEula) pages.push(12)
+        if (root.showRst) pages.push(9)
+        pages.push(3)
+        if (root.showWipe) pages.push(10)
+        pages.push(4)
+        if (root.needsUserCreation) pages.push(5)
+        pages.push(6, 7)
+        // Post-install screens join the flow once the install has ended:
+        // the back button and the step dots then cover the whole journey.
+        if (root.installEnded) {
+            if (root.showRecoveryScreen) pages.push(13)
+            if (root.showHandoffScreen) pages.push(14)
+        }
+        pages.push(8)
+        return pages
+    }
     readonly property int flowPos: Math.max(0, root.flowPages.indexOf(root.currentPage))
     readonly property int flowCount: root.flowPages.length
     function flowNext() {
@@ -364,7 +387,8 @@ ApplicationWindow {
         // does the same): try-or-install on live media, installer-welcome
         // ("welcome" here) anywhere else.
         const slugs = [root.isLive ? "try-or-install" : "welcome", "session", "source", "disk",
-            "encryption", "account", "confirm", "installing", "done"]
+            "encryption", "account", "confirm", "installing", "done",
+            "rst", "wipe-or-free", "prerelease", "eula", "recovery-key", "handoff"]
         return (i >= 0 && i < slugs.length) ? slugs[i] : "unknown"
     }
     // Encryption was previously hardcoded to "none" in the recipe with no UI,
@@ -396,6 +420,20 @@ ApplicationWindow {
     property var disks: []
     property bool disksProbed: false
     property string diskError: ""
+    // Conditional screens (shared/flow/screens.yaml). Each is skipped when
+    // it has nothing to show, never shown blank.
+    property bool intelRst: false
+    property string releaseType: "stable"
+    property string experimentText: ""
+    property var eulaInfo: ({})
+    readonly property bool showPrerelease: root.releaseType === "pre-release"
+        || root.releaseType === "experiment"
+    readonly property bool showEula: root.eulaInfo.present === true
+    readonly property bool showRst: root.intelRst
+    // wipe-or-free: the chosen disk carries data. has_data comes from the
+    // daemon's Probe; the legacy probe never reports it, so the page is
+    // daemon-only until fisherman learns the fields.
+    readonly property bool showWipe: root.selectedDisk.has_data === true
     // The welcome page's warning: requirements_title, then a line per item.
     readonly property string requirementsWarning: {
         const keys = { ram: "requirements_ram", cpu: "requirements_cpu", uefi: "requirements_uefi" }
@@ -434,6 +472,22 @@ ApplicationWindow {
     property bool cancelOpen: false
     property bool cancelRequested: false
     property bool installCancelled: false
+    // Post-install screens. The recovery screen shows after a successful
+    // encrypted install; the handoff screen after that on the daemon path
+    // (the legacy recipe path has no Handoff call and jumps to done).
+    readonly property bool installEnded: root.installSuccess || root.installCancelled
+        || root.installError !== null
+    readonly property bool showRecoveryScreen: root.installEnded && root.installSuccess
+        && root.encType !== "none"
+    readonly property bool showHandoffScreen: root.installEnded && root.installSuccess
+        && root.daemonMode
+    function postInstallPage() {
+        if (root.showRecoveryScreen) return 13
+        if (root.showHandoffScreen) return 14
+        return 8
+    }
+    // The daemon path flag and the recovery-key fetch state live with the
+    // backend processes below (daemonMode, recoveryKeyProc, handoffProc).
     function confirmCancel() {
         root.cancelOpen = false
         if (!installProc.running)
@@ -448,8 +502,14 @@ ApplicationWindow {
         root.installSuccess = outcome === "succeeded"
         root.installCancelled = outcome === "cancelled"
         root.cancelOpen = false
-        root.currentPage = 8
+        // The recovery commit routes an encrypted daemon install through
+        // the key fetch first; until then the stream's key (legacy) or no
+        // key lands here.
+        root.currentPage = root.postInstallPage()
     }
+    // The backend path: the daemon answers Varlink, the legacy path shells
+    // out to fisherman. `detect` reports which one is driving.
+    property bool daemonMode: false
     // The key fisherman emits once, after TPM enrolment (#129). The
     // "recovery_key" case in renderEvent used to format a log line and keep
     // nothing, so after the install there was nothing left to show.
@@ -809,6 +869,7 @@ ApplicationWindow {
     Component.onCompleted: {
         root.catalog = I18n.createCatalog(root, Qt.resolvedUrl("installer.qml"))
         detectProc.running = true
+        eulaProc.running = true
     }
 
     // Readiness stamp — see ../installer/readiness.go.
@@ -865,6 +926,10 @@ ApplicationWindow {
                     root.liveImage = facts.liveImage || ""
                     root.hasTpm = facts.hasTpm === true
                     root.unmet = facts.unmet || []
+                    root.daemonMode = facts.daemon === true
+                    root.intelRst = facts.intelRst === true
+                    root.releaseType = facts.releaseType || "stable"
+                    root.experimentText = facts.experiment || ""
                     if (facts.offlineImages) root.offlineImages = facts.offlineImages
                     if (facts.logPath !== undefined) root.logPath = facts.logPath
                     if (facts.encryptionChoices) root.encryptionChoices = facts.encryptionChoices
@@ -1007,6 +1072,18 @@ ApplicationWindow {
                     root.catalogError = qsTr("Could not read the image catalog.")
                 }
                 root.catalogLoaded = true
+            }
+        }
+    }
+    // The image's terms of use (`eula` subcommand). No file is not an
+    // answer the page skips on; the page shows only when present is true.
+    Process {
+        id: eulaProc
+        command: [root.backendBin, "eula"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { root.eulaInfo = JSON.parse(text) || ({}) }
+                catch (e) { root.eulaInfo = ({}) }
             }
         }
     }
@@ -1418,7 +1495,11 @@ ApplicationWindow {
         }
     }
     function back() {
-        if (currentPage >= 1 && currentPage <= 6) flowBack()
+        // The install, recovery, handoff and done pages have their own way
+        // out; every other page steps back through the flow, skipping the
+        // screens that have nothing to show.
+        if (root.flowPos > 0 && root.currentPage !== 7 && root.currentPage !== 8
+            && root.currentPage !== 13 && root.currentPage !== 14) flowBack()
     }
     Shortcut {
         sequence: "Return"
@@ -2787,7 +2868,7 @@ ApplicationWindow {
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.spacingL
-            visible: root.currentPage <= 6
+            visible: root.currentPage !== 7 && root.currentPage !== 8
             Repeater {
                 model: [
                     { key: "Enter", shown: qsTr("Enter"), what: root.currentPage === 6 ? root.text("confirm_button") : qsTr("Continue") },
