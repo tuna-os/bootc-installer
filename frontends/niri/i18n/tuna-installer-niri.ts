@@ -63,11 +63,47 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Intel RST</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Existing data</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disclaimer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terms of use</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recovery key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Handoff</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Could not read the image catalog.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Some settings may not reach the installed system.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>No network settings tool was found. Use the network menu of your desktop.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The recovery key could not be made. Do not continue without one.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The handoff failed. Restart to boot the installed system, or close and start over.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -100,6 +136,14 @@
     </message>
     <message>
         <source>This wizard will guide you through installing %1 onto your computer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install now</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -148,6 +192,22 @@
     </message>
     <message>
         <source>Recheck</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Privacy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Location services</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Let the installed system detect its location for the time zone.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This installer sends nothing anywhere. It only dials the image registry to test a download.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -387,6 +447,126 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Intel RST is on</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some disks may be missing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This computer uses Intel RST (RAID or VMD mode), which hides NVMe disks from the installer. Switch the storage mode to AHCI in the firmware settings to see every disk. You can also continue with the disks listed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Firmware setup</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Existing data found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 holds data and its free space is below what the install needs. Using the entire disk erases everything on it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 holds data with room to spare. Install into the free space, or use the entire disk and erase everything on it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install to Free Space</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keeps the data on the disk.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use Entire Disk</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Erases everything on the disk.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Erase and Install (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Before you install</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This image is an experiment: %1. It can break, and it can lose data.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This image is a pre-release. It can break, and it can lose data.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>License agreement</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The terms of use could not be loaded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>I have read and accept the Terms of Use</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Back Up Recovery Key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Retry</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show QR Code for Recovery Key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Handoff failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Welcome to your new system</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install finished</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Handing the installed system over…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The live session has become the installed system. Data from this session carries over.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restart now to boot into the installed copy. Data from this session does not carry over.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restart now to boot into the installed system.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restart</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not now</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Enter</source>
         <translation type="unfinished"></translation>
     </message>
@@ -407,19 +587,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Firmware setup</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Power</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Shut down this computer</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Restart</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -452,6 +624,10 @@
     </message>
     <message>
         <source>%1 / %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recovery Key QR Code</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
