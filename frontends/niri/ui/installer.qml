@@ -382,6 +382,7 @@ ApplicationWindow {
         pages.push(8)
         return pages
     }
+    readonly property var flowPages: root.flowList()
     readonly property int flowPos: Math.max(0, root.flowPages.indexOf(root.currentPage))
     readonly property int flowCount: root.flowPages.length
     function flowNext() {
@@ -3324,7 +3325,66 @@ ApplicationWindow {
                         visible: root.recoveryKey === "" && !recoveryKeyProc.running
                         onClicked: root.startRecoveryFetch()
                     }
-            PUT @recoverypanel
+                    // Recovery key (#129). A panel rather than a dialog, as
+                    // on the other frontends: a dialog is dismissed and then
+                    // the key is gone, while this stays on screen for as long
+                    // as it takes to write down.
+                    ColumnLayout {
+                        visible: root.installSuccess && root.recoveryKey !== ""
+                        Layout.fillWidth: true
+                        Layout.topMargin: Theme.spacingM
+                        spacing: Theme.spacingS
+                        StyledText {
+                            text: root.text("recovery_key_title")
+                            font.pixelSize: Theme.fontSizeLarge
+                            font.weight: Theme.fontWeightMedium
+                            horizontalAlignment: Text.AlignHCenter
+                            Layout.fillWidth: true
+                        }
+                        StyledText {
+                            text: root.text("recovery_key_body")
+                            color: Theme.surfaceVariantText
+                            wrapMode: Text.WordWrap
+                            horizontalAlignment: Text.AlignHCenter
+                            Layout.fillWidth: true
+                        }
+                        StyledText {
+                            objectName: "recoveryKeyLabel"
+                            text: root.recoveryKey
+                            font.family: Theme.monoFontFamily
+                            horizontalAlignment: Text.AlignHCenter
+                            Layout.fillWidth: true
+                        }
+                        // Plain Qt Quick has no clipboard object; a hidden
+                        // TextEdit is the standard way to reach one.
+                        TextEdit {
+                            id: recoveryClip
+                            visible: false
+                            text: root.recoveryKey
+                        }
+                        RowLayout {
+                            Layout.alignment: Qt.AlignHCenter
+                            spacing: Theme.spacingM
+                            DankButton {
+                                text: root.text("recovery_key_copy")
+                                tonal: true
+                                onClicked: {
+                                    recoveryClip.selectAll()
+                                    recoveryClip.copy()
+                                    recoveryClip.deselect()
+                                }
+                            }
+                            DankButton {
+                                objectName: "recoveryAckButton"
+                                text: (root.recoveryAck ? "\u2713  " : "")
+                                    + root.text("recovery_key_ack")
+                                tonal: !root.recoveryAck
+                                checkable: true
+                                checked: root.recoveryAck
+                                onToggled: root.recoveryAck = checked
+                            }
+                        }
+                    }
                     DankButton {
                         objectName: "recoveryQrButton"
                         text: qsTr("Show QR Code for Recovery Key")
