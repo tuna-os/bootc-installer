@@ -158,6 +158,12 @@ pub enum Page {
     /// `wipe-or-free`). Offers free-space install or whole-disk erase.
     /// Daemon-only: the legacy path always erases and has no data facts.
     WipeOrFree,
+    /// How the disk is locked (screens.yaml `encryption`). The passphrase,
+    /// twice, when the choice carries one. Skipped in daemon mode with a
+    /// usable TPM: the disk seals to PCR 7 with no prompt.
+    Encryption,
+    /// The legacy filesystem page. Daemon mode skips it: the daemon owns
+    /// the filesystem per base image.
     Options,
     /// Username, full name and password: the recipe's `user` block.
     /// Conditional: skipped when the selected image (or a custom URL)
@@ -173,7 +179,7 @@ pub enum Page {
 impl Page {
     /// Wizard order. Also the capture order, so a new page cannot be added
     /// without appearing in the walkthrough.
-    pub const ORDER: [Page; 18] = [
+    pub const ORDER: [Page; 19] = [
         Page::Requirements,
         Page::TryOrInstall,
         Page::Image,
@@ -186,6 +192,7 @@ impl Page {
         Page::Rst,
         Page::DiskSelect,
         Page::WipeOrFree,
+        Page::Encryption,
         Page::Options,
         Page::Account,
         Page::Tour,
@@ -208,6 +215,7 @@ impl Page {
             Page::Rst => "rst",
             Page::DiskSelect => "disk",
             Page::WipeOrFree => "wipe-or-free",
+            Page::Encryption => "encryption",
             Page::Options => "options",
             Page::Account => "account",
             Page::Tour => "tour",
@@ -234,6 +242,7 @@ impl Page {
             Page::Rst => copy::RST_TITLE,
             Page::DiskSelect => copy::DISK_TITLE,
             Page::WipeOrFree => copy::WIPE_TITLE,
+            Page::Encryption => copy::OPTIONS_DISK_ENCRYPTION,
             Page::Options => copy::OPTIONS_TITLE,
             Page::Account => copy::ACCOUNT_SECTION,
             Page::Tour => copy::TOUR_TITLE,
@@ -764,10 +773,13 @@ impl TunaInstaller {
     }
     /// Whether Continue is live on the account page: a username and a
     /// password typed the same twice (this frontend's rules), and no
-    /// fisherman problem with the username.
+    /// fisherman problem with the username or the hostname.
     pub fn account_ok(&self) -> bool {
         account_complete(&self.username, &self.password, &self.password_confirm)
-            && !self.problems.iter().any(|p| is_account_field(&p.field))
+            && !self
+                .problems
+                .iter()
+                .any(|p| is_account_field(&p.field) || p.field == "hostname")
     }
     /// The recipe's `user` block, from the account page's fields.
     fn sync_user(&mut self) {
@@ -949,6 +961,10 @@ impl TunaInstaller {
             Page::Rst => self.intel_rst,
             Page::Tour => !self.tour_slides().is_empty(),
             Page::WipeOrFree => self.wipe_visible(),
+            // Daemon mode owns the filesystem per base image: the legacy
+            // filesystem page has nothing to ask there.
+            Page::Options => !fishermand::use_daemon(),
+            Page::Encryption => self.encryption_visible(),
             _ => true,
         }
     }
@@ -971,6 +987,28 @@ impl TunaInstaller {
         self.install_mode.unwrap_or(InstallMode::FreeSpace)
     }
 
+    /// Whether the encryption page shows (screens.yaml `encryption`): in
+    /// daemon mode only without a usable TPM (with one the disk seals to
+    /// PCR 7 with no prompt). The legacy path always asks.
+    pub fn encryption_visible(&self) -> bool {
+        if fishermand::use_daemon() {
+            !self.has_tpm
+        } else {
+            true
+        }
+    }
+
+    /// The encryption type the install uses in daemon mode with a usable
+    /// TPM: the disk seals to PCR 7 with no prompt, so an untouched `none`
+    /// becomes `tpm2-luks`. Anything picked stays.
+    pub fn daemon_sealed_type(has_tpm: bool, enc_type: &str) -> &str {
+        if has_tpm && enc_type == "none" {
+            "tpm2-luks"
+        } else {
+            enc_type
+        }
+    }
+
     /// Takes in a probe answer: the disks, TPM, requirements and live media
     /// together.
     fn apply_probe(&mut self, result: Result<probe::Facts, String>) {
@@ -981,6 +1019,13 @@ impl TunaInstaller {
             Ok(facts) => {
                 self.disk_error = None;
                 self.has_tpm = facts.tpm_usable;
+                // Daemon mode with a usable TPM seals to PCR 7 with no
+                // prompt: the encryption page stays skipped, so the
+                // untouched default must already say `tpm2-luks`.
+                if fishermand::use_daemon() {
+                    let sealed = Self::daemon_sealed_type(facts.tpm_usable, &self.recipe.encryption.enc_type);
+                    self.recipe.encryption.enc_type = sealed.to_string();
+                }
                 self.unmet = facts.unmet;
                 self.intel_rst = facts.intel_rst;
                 self.disk_data = facts.disk_data;
@@ -1039,29 +1084,44 @@ impl TunaInstaller {
             .find(|p| p.field == field || p.field.starts_with(&format!("{field}.")))
     }
 
-    /// Whether the Options page is allowed to advance: fisherman knows no
-    /// problem with the hostname, the filesystem or the encryption choice
-    /// (an empty passphrase is `encryption_passphrase_required`). The rules
-    /// are fisherman's; a check that could not run blocks nothing, because
-    /// the install runs the same rules before it touches a disk.
+    /// Whether the encryption page is allowed to advance: fisherman knows
+    /// no problem with the encryption choice (an empty passphrase is
+    /// `encryption_passphrase_required`). Later pages' problems do not
+    /// block this one. The rules are fisherman's; a check that could not
+    /// run blocks nothing, because the install runs the same rules before
+    /// it touches a disk.
     pub fn encryption_ok(&self) -> bool {
-        // The username is the account page's, the region picks are
-        // Confirm's: each holds its own page, not this one.
         !self
             .problems
             .iter()
-            .any(|p| !is_account_field(&p.field) && !is_region_field(&p.field))
+            .any(|p| p.field == "encryption" || p.field.starts_with("encryption."))
     }
 
-    /// Whether Continue is live on the Options page: fisherman's rules
+    /// Whether the legacy filesystem page is allowed to advance: no
+    /// fisherman problem with the filesystem choice.
+    pub fn filesystem_ok(&self) -> bool {
+        !self
+            .problems
+            .iter()
+            .any(|p| p.field == "filesystem" || p.field == "btrfsSubvolumes")
+    }
+
+    /// Whether Continue is live on the encryption page: fisherman's rules
     /// (`encryption_ok`) and the passphrase confirmation, the one rule of
     /// this frontend. A mismatch is caught here, while it can be fixed,
     /// not at the first boot.
-    pub fn options_ok(&self) -> bool {
+    pub fn encryption_page_ok(&self) -> bool {
         self.encryption_ok() && self.passphrases_match()
     }
 
-    /// Asks fisherman about the options page after a pause in the typing,
+    /// Whether Continue is live on the legacy Options page, which now
+    /// holds only the filesystem choice. The hostname moved to the
+    /// account page, the encryption to its own page.
+    pub fn options_ok(&self) -> bool {
+        self.filesystem_ok()
+    }
+
+    /// Asks fisherman about the typed fields after a pause in the typing,
     /// off the UI thread. Never in capture mode: nothing shells out there.
     fn check_fields(&mut self) -> Task<Message> {
         if self.capturing() {
@@ -2527,6 +2587,30 @@ mod tests {
         assert!(network < prerelease && prerelease < eula && eula < rst, "{order:?}");
     }
 
+    #[test]
+    fn encryption_joins_the_shared_flow() {
+        // screens.yaml `encryption`: stable id between wipe-or-free and
+        // options. The title reuses the disk-encryption copy; the a11y
+        // name is the page title.
+        assert_eq!(Page::Encryption.slug(), "encryption");
+        assert_eq!(Page::Encryption.title(), crate::ui::copy::OPTIONS_DISK_ENCRYPTION);
+        let order: Vec<&str> = Page::ORDER.iter().map(|p| p.slug()).collect();
+        let wipe = order.iter().position(|s| *s == "wipe-or-free").unwrap();
+        let encryption = order.iter().position(|s| *s == "encryption").unwrap();
+        let options = order.iter().position(|s| *s == "options").unwrap();
+        assert!(wipe < encryption && encryption < options, "{order:?}");
+    }
+
+    #[test]
+    fn daemon_seal_applies_only_to_an_untouched_none() {
+        // With a usable TPM the install seals to PCR 7; anything the user
+        // could have picked stays.
+        assert_eq!(TunaInstaller::daemon_sealed_type(true, "none"), "tpm2-luks");
+        assert_eq!(TunaInstaller::daemon_sealed_type(true, "luks-passphrase"), "luks-passphrase");
+        assert_eq!(TunaInstaller::daemon_sealed_type(true, "tpm2-luks-passphrase"), "tpm2-luks-passphrase");
+        assert_eq!(TunaInstaller::daemon_sealed_type(false, "none"), "none");
+    }
+
     use super::*;
 
     #[test]
@@ -2929,13 +3013,14 @@ mod tests {
         assert!(at(Page::Eula) < at(Page::Rst));
         assert!(at(Page::Rst) < at(Page::DiskSelect));
         assert!(at(Page::DiskSelect) < at(Page::WipeOrFree));
-        assert!(at(Page::WipeOrFree) < at(Page::Options));
+        assert!(at(Page::WipeOrFree) < at(Page::Encryption));
+        assert!(at(Page::Encryption) < at(Page::Options));
         assert!(at(Page::Options) < at(Page::Account));
         assert!(at(Page::Account) < at(Page::Tour));
         assert!(at(Page::Tour) < at(Page::Confirm));
         assert!(at(Page::Confirm) < at(Page::Installing));
         assert!(at(Page::Installing) < at(Page::Done));
-        assert_eq!(order.len(), 18);
+        assert_eq!(order.len(), 19);
         assert!(!order.iter().any(|p| p.slug() == "companion"));
     }
 

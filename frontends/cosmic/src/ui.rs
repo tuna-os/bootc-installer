@@ -56,6 +56,7 @@ pub mod copy {
     pub const OPTIONS_FILESYSTEM: &str = "Filesystem";
     pub const OPTIONS_ENCRYPTION: &str = "Encryption";
     pub const OPTIONS_DISK_ENCRYPTION: &str = "Disk encryption";
+    pub const ENCRYPTION_SUBTITLE: &str = "Choose how the disk is locked.";
     pub const OPTIONS_PASSPHRASE: &str = "Passphrase";
     pub const OPTIONS_PASSPHRASE_HINT: &str = "Required to unlock at boot";
     pub const OPTIONS_PASSPHRASE_CONFIRM: &str = "Confirm passphrase";
@@ -459,24 +460,35 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             ]
         }
         Page::Options => {
-            let choices = available_encryption_choices(app.has_tpm());
-            let current = choices.iter().find(|c| **c == recipe.encryption.enc_type);
+            // The legacy filesystem page: hostname moved to the account
+            // page, encryption to its own page.
             let mut t = vec![
                 tr(OPTIONS_TITLE),
                 tr(OPTIONS_SUBTITLE),
                 tr(OPTIONS_SYSTEM),
-                tr(OPTIONS_HOSTNAME),
-                recipe.hostname.clone(),
-            ];
-            if let Some(p) = app.problem("hostname") {
-                t.push(p.render());
-            }
-            t.extend([
                 tr(OPTIONS_FILESYSTEM),
                 recipe.filesystem.clone(),
+            ];
+            for field in ["filesystem", "btrfsSubvolumes"] {
+                if let Some(p) = app.problem(field) {
+                    t.push(p.render());
+                }
+            }
+            t.push(tr(BACK));
+            if app.options_ok() {
+                t.push(tr(CONTINUE));
+            }
+            t
+        }
+        Page::Encryption => {
+            let choices = available_encryption_choices(app.has_tpm());
+            let current = choices.iter().find(|c| **c == recipe.encryption.enc_type);
+            let mut t = vec![
+                tr(OPTIONS_DISK_ENCRYPTION),
+                tr(ENCRYPTION_SUBTITLE),
                 tr(OPTIONS_ENCRYPTION),
                 tr(OPTIONS_DISK_ENCRYPTION),
-            ]);
+            ];
             if let Some(c) = current {
                 t.push(encryption_text(c, "_label"));
                 t.push(encryption_text(c, "_description"));
@@ -490,19 +502,18 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                     t.push(tr(OPTIONS_PASSPHRASE_MISMATCH));
                 }
             }
-            for field in ["encryption", "filesystem", "btrfsSubvolumes"] {
-                if let Some(p) = app.problem(field) {
-                    t.push(p.render());
-                }
+            if let Some(p) = app.problem("encryption") {
+                t.push(p.render());
             }
             t.push(tr(BACK));
-            if app.options_ok() {
+            if app.encryption_page_ok() {
                 t.push(tr(CONTINUE));
             }
             t
         }
         Page::Account => {
-            // The field labels and the username; never the password.
+            // The field labels, the username and the hostname; never the
+            // password.
             let mut t = vec![
                 tr(ACCOUNT_TITLE),
                 tr(ACCOUNT_SUBTITLE),
@@ -511,6 +522,10 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 app.username().to_string(),
             ];
             if let Some(p) = app.problem("user") {
+                t.push(p.render());
+            }
+            t.extend([tr(OPTIONS_SYSTEM), tr(OPTIONS_HOSTNAME), recipe.hostname.clone()]);
+            if let Some(p) = app.problem("hostname") {
                 t.push(p.render());
             }
             t.push(tr(ACCOUNT_FULLNAME));
@@ -858,6 +873,7 @@ pub fn view(app: &TunaInstaller) -> Element<'_, Message> {
         Page::Rst => rst(app),
         Page::DiskSelect => disk_select(app),
         Page::WipeOrFree => wipe_or_free(app),
+        Page::Encryption => encryption(app),
         Page::Options => options(app),
         Page::Account => account(app),
         Page::Tour => tour_page(app),
@@ -1795,6 +1811,9 @@ fn confirm_mismatch(app: &TunaInstaller) -> bool {
     !app.passphrase_confirm().is_empty() && !app.passphrases_match()
 }
 
+/// The legacy filesystem page: the only installer question without a
+/// shared screen id. Daemon mode skips it (the daemon owns the filesystem
+/// per base image), so this is the recipe path's page.
 fn options(app: &TunaInstaller) -> Element<'_, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
     let recipe = app.recipe();
@@ -1804,6 +1823,41 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
     let fs_choices = app.filesystem_choices();
     let fs_index = fs_choices.iter().position(|f| *f == recipe.filesystem);
     let fs_labels: Vec<String> = fs_choices.iter().map(|f| filesystem_label(f)).collect();
+
+    // fisherman's problem with the choice, under the field.
+    let mut fs_item = widget::settings::item::builder(tr(OPTIONS_FILESYSTEM));
+    if let Some(p) = app.problem("filesystem").or_else(|| app.problem("btrfsSubvolumes")) {
+        fs_item = fs_item.description(p.render());
+    }
+    let system = widget::settings::section()
+        .title(tr(OPTIONS_SYSTEM))
+        .add(fs_item.control(widget::dropdown(fs_labels, fs_index, Message::FilesystemChanged)));
+
+    let body = widget::scrollable(
+        widget::settings::view_column(vec![system.into()]).spacing(spacing.space_m),
+    )
+    .height(Length::Fill);
+
+    page_frame(
+        tr(OPTIONS_TITLE),
+        tr(OPTIONS_SUBTITLE),
+        body.into(),
+        nav_row(
+            Some(Message::BackPage),
+            // Blocked while fisherman reports a problem with the choice,
+            // so it can never reach Confirm/Install and only then be
+            // rejected (tunaOS#734).
+            app.options_ok()
+                .then_some((tr(CONTINUE), Message::NextPage, false)),
+        ),
+    )
+}
+
+/// How the disk is locked (screens.yaml `encryption`): the choice, and the
+/// passphrase twice when the choice carries one.
+fn encryption(app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    let recipe = app.recipe();
 
     // tunaOS#734: this list is `has_tpm`-filtered, same set XFCE offers on
     // this hardware, and `idx` below is a position in it — NOT in the full
@@ -1826,30 +1880,10 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
     // passphrase is acceptable is fisherman's answer (`encryption_ok()`).
     let needs_passphrase = crate::validate::needs_passphrase(&recipe.encryption.enc_type);
 
-    // fisherman's hostname rule, in the copy's words, under the field.
-    let mut hostname_item = widget::settings::item::builder(tr(OPTIONS_HOSTNAME));
-    if let Some(p) = app.problem("hostname") {
-        hostname_item = hostname_item.description(p.render());
-    }
-    let system = widget::settings::section()
-        .title(tr(OPTIONS_SYSTEM))
-        .add(
-            hostname_item.control(
-                widget::text_input(branding::get().default_hostname.as_str(), &recipe.hostname)
-                    .on_input(Message::HostnameChanged)
-                    .width(Length::Fixed(260.0)),
-            ),
-        )
-        .add(widget::settings::item(
-            tr(OPTIONS_FILESYSTEM),
-            widget::dropdown(fs_labels, fs_index, Message::FilesystemChanged),
-        ));
-
-    // fisherman's problem with the choice (an empty passphrase, LUKS on
-    // ZFS) replaces the description while it stands.
-    let enc_description = ["encryption", "filesystem", "btrfsSubvolumes"]
-        .iter()
-        .find_map(|f| app.problem(f))
+    // fisherman's problem with the choice (an empty passphrase) replaces
+    // the description while it stands.
+    let enc_description = app
+        .problem("encryption")
         .map_or(enc_description, |p| p.render());
     let mut security = widget::settings::section().title(tr(OPTIONS_ENCRYPTION)).add(
         widget::settings::item::builder(tr(OPTIONS_DISK_ENCRYPTION))
@@ -1907,21 +1941,20 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
     }
 
     let body = widget::scrollable(
-        widget::settings::view_column(vec![system.into(), security.into()])
-            .spacing(spacing.space_m),
+        widget::settings::view_column(vec![security.into()]).spacing(spacing.space_m),
     )
     .height(Length::Fill);
 
     page_frame(
-        tr(OPTIONS_TITLE),
-        tr(OPTIONS_SUBTITLE),
+        tr(OPTIONS_DISK_ENCRYPTION),
+        tr(ENCRYPTION_SUBTITLE),
         body.into(),
         nav_row(
             Some(Message::BackPage),
-            // Blocked while fisherman reports a problem with the page (an
-            // empty passphrase, a bad hostname), so it can never reach
-            // Confirm/Install and only then be rejected (tunaOS#734).
-            app.options_ok()
+            // Blocked while fisherman reports a problem with the choice (an
+            // empty passphrase), so it can never reach Confirm/Install and
+            // only then be rejected (tunaOS#734).
+            app.encryption_page_ok()
                 .then_some((tr(CONTINUE), Message::NextPage, false)),
         ),
     )
@@ -1934,6 +1967,7 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
 /// (`validate --json --partial`, shown through `validate_username_*`).
 fn account(app: &TunaInstaller) -> Element<'_, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
+    let recipe = app.recipe();
 
     let mut username_item = widget::settings::item::builder(tr(ACCOUNT_USERNAME));
     if let Some(p) = app.problem("user") {
@@ -1942,6 +1976,12 @@ fn account(app: &TunaInstaller) -> Element<'_, Message> {
     let mut confirm_item = widget::settings::item::builder(tr(ACCOUNT_PASSWORD_CONFIRM));
     if app.password_mismatch() {
         confirm_item = confirm_item.description(tr(ACCOUNT_PASSWORD_MISMATCH));
+    }
+    // The hostname lives on the account page (screens.yaml lists it among
+    // the account inputs): the name this computer gets on the network.
+    let mut hostname_item = widget::settings::item::builder(tr(OPTIONS_HOSTNAME));
+    if let Some(p) = app.problem("hostname") {
+        hostname_item = hostname_item.description(p.render());
     }
 
     let section = widget::settings::section()
@@ -1982,9 +2022,16 @@ fn account(app: &TunaInstaller) -> Element<'_, Message> {
                 .width(Length::Fixed(260.0)),
             ),
         );
+    let system = widget::settings::section().title(tr(OPTIONS_SYSTEM)).add(
+        hostname_item.control(
+            widget::text_input(branding::get().default_hostname.as_str(), &recipe.hostname)
+                .on_input(Message::HostnameChanged)
+                .width(Length::Fixed(260.0)),
+        ),
+    );
 
     let body = widget::scrollable(
-        widget::settings::view_column(vec![section.into()]).spacing(spacing.space_m),
+        widget::settings::view_column(vec![system.into(), section.into()]).spacing(spacing.space_m),
     )
     .height(Length::Fill);
 

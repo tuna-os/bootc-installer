@@ -297,7 +297,7 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                 // the fields a needs_passphrase type adds (the KDE capture
                 // shows the same state). Masked on screen; the text report
                 // carries the field labels, never the value.
-                Page::Options => {
+                Page::Encryption => {
                     app.recipe.encryption.enc_type = "luks-passphrase".into();
                     app.recipe.encryption.passphrase = CAPTURE_PASSPHRASE.into();
                     app.passphrase_confirm = CAPTURE_PASSPHRASE.into();
@@ -519,10 +519,10 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
             // A needs_passphrase choice must bring both fields with it,
             // and a matching pair must leave Continue live. Neither is
             // visible to a pixel histogram.
-            if page == Some(Page::Options) {
+            if page == Some(Page::Encryption) {
                 for label in [tr(copy::OPTIONS_PASSPHRASE), tr(copy::OPTIONS_PASSPHRASE_CONFIRM)] {
                     if !has(label.clone()) {
-                        eprintln!("capture: options page with a passphrase choice has no {label:?} field");
+                        eprintln!("capture: encryption page with a passphrase choice has no {label:?} field");
                         std::process::exit(2);
                     }
                 }
@@ -530,7 +530,7 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                     eprintln!("capture: the passphrase leaked into the page text");
                     std::process::exit(2);
                 }
-                if !app.options_ok() {
+                if !app.encryption_page_ok() {
                     eprintln!("capture: Continue is held although both passphrases match");
                     std::process::exit(2);
                 }
@@ -543,6 +543,7 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                 for label in [
                     tr(copy::ACCOUNT_USERNAME),
                     tr(copy::ACCOUNT_FULLNAME),
+                    tr(copy::OPTIONS_HOSTNAME),
                     tr(copy::ACCOUNT_PASSWORD),
                     tr(copy::ACCOUNT_PASSWORD_CONFIRM),
                 ] {
