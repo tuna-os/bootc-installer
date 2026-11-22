@@ -104,6 +104,9 @@ mod transport {
     /// parameters may carry secrets.
     #[derive(Debug)]
     pub enum Error {
+        /// Callers match on the name today; the recovery-key and handoff
+        /// pages will read the details. Kept, not logged, by design.
+        #[allow(dead_code)]
         Varlink { name: String, parameters: Value },
         Transport(String),
     }
@@ -208,7 +211,11 @@ mod transport {
     // ------------------------------------------------ typed daemon calls ----
 
     const FISHERMAN: &str = "io.tunaos.Fisherman";
+    // The disk page wires ListCandidateDevices, the recovery-key page wires
+    // CryptEnroll. Allowed until those screen commits land.
+    #[allow(dead_code)]
     const SYSINSTALL: &str = "io.systemd.SysInstall";
+    #[allow(dead_code)]
     const CRYPTENROLL: &str = "io.systemd.CryptEnroll";
     const SHUTDOWN: &str = "io.systemd.Shutdown";
 
@@ -228,6 +235,8 @@ mod transport {
     }
 
     #[allow(clippy::too_many_arguments)]
+    // The language/keyboard/timezone/account pages will call this.
+    #[allow(dead_code)]
     pub fn configure_target(
         conn: &mut Connection,
         user: Option<Value>,
@@ -270,6 +279,8 @@ mod transport {
         )
     }
 
+    // The handoff page wires this.
+    #[allow(dead_code)]
     pub fn handoff(conn: &mut Connection, mode: Option<&str>) -> Result<Value, Error> {
         let mut params = serde_json::Map::new();
         if let Some(mode) = mode {
@@ -283,6 +294,8 @@ mod transport {
     }
 
     /// Candidate disks without subscription: one stream, ends by itself.
+    // The disk page wires this.
+    #[allow(dead_code)]
     pub fn list_candidate_devices(conn: &mut Connection) -> Result<Vec<Value>, Error> {
         let mut devices = Vec::new();
         conn.call_more(
@@ -296,6 +309,8 @@ mod transport {
         Ok(devices)
     }
 
+    // The recovery-key page wires this.
+    #[allow(dead_code)]
     pub fn make_recovery_key(conn: &mut Connection) -> Result<String, Error> {
         let reply = conn.call(&format!("{CRYPTENROLL}.MakeRecoveryKey"), json!({}))?;
         reply
@@ -321,6 +336,8 @@ mod transport {
         Ok(())
     }
 
+    // The handoff page wires this (EL10 soft-reboot).
+    #[allow(dead_code)]
     pub fn soft_reboot(conn: &mut Connection, skip_inhibitors: bool) -> Result<(), Error> {
         conn.call(
             &format!("{SHUTDOWN}.SoftReboot"),
@@ -458,6 +475,171 @@ pub fn apply_install_event(
     }
 }
 
+/// The install's daemon `Config` from the recipe (IDL `Config`).
+///
+/// Only fields the daemon owns: disk, encryption, user, hostname. The
+/// image, filesystem, bootloader and Flatpaks stay in the recipe for the
+/// legacy path: the daemon partitions and configures, it does not fetch an
+/// image. Groups have no daemon field yet, so the account's groups travel
+/// only through `ConfigureTarget` once the daemon names one.
+pub fn daemon_config(recipe: &crate::Recipe) -> Value {
+    let mut config = serde_json::Map::new();
+    if !recipe.disk.is_empty() {
+        config.insert("disk".into(), Value::from(recipe.disk.clone()));
+    }
+    let mut encryption = serde_json::Map::new();
+    encryption.insert(
+        "type".into(),
+        Value::from(map_encryption_type(&recipe.encryption.enc_type)),
+    );
+    if !recipe.encryption.passphrase.is_empty() {
+        encryption.insert(
+            "passphrase".into(),
+            Value::from(recipe.encryption.passphrase.clone()),
+        );
+    }
+    config.insert("encryption".into(), Value::Object(encryption));
+    if let Some(user) = &recipe.user {
+        let mut u = serde_json::Map::new();
+        u.insert("username".into(), Value::from(user.username.clone()));
+        if !user.fullname.is_empty() {
+            u.insert("fullName".into(), Value::from(user.fullname.clone()));
+        }
+        if !user.password.is_empty() {
+            u.insert("password".into(), Value::from(user.password.clone()));
+        }
+        config.insert("user".into(), Value::Object(u));
+    }
+    if !recipe.hostname.is_empty() {
+        config.insert("hostname".into(), Value::from(recipe.hostname.clone()));
+    }
+    Value::Object(config)
+}
+
+/// The recipe's encryption names are fisherman's encryption-choices.json
+/// names (shared/recipe); the daemon's `Encryption.type` is `(none,
+/// luks_passphrase, tpm2_luks, tpm2_luks_passphrase)`. Unknown names pass
+/// through: the daemon's `Validate` owns the error, not this map.
+fn map_encryption_type(enc_type: &str) -> &str {
+    match enc_type {
+        "none" => "none",
+        "luks-passphrase" => "luks_passphrase",
+        "tpm2-luks" => "tpm2_luks",
+        "tpm2-luks-passphrase" => "tpm2_luks_passphrase",
+        other => other,
+    }
+}
+
+/// `probe::Facts` from a daemon `Probe` reply plus its `Requirements`
+/// reply. The mock's gate ids are `ram`, `cpu`, `firmware`; the wizard's
+/// gates are `ram`, `cpu`, `uefi` (`hardware::gate_for`).
+pub fn daemon_probe_to_facts(probe: &Value, gates: &Value) -> Result<crate::probe::Facts, String> {
+    let disks = probe
+        .get("disks")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+        .iter()
+        .filter(|d| d.get("eligible").and_then(Value::as_bool) == Some(true))
+        .map(|d| {
+            let str_of = |key: &str| d.get(key).and_then(Value::as_str).unwrap_or("").to_string();
+            let model = str_of("model");
+            let vendor = str_of("vendor");
+            let title = match (vendor.is_empty(), model.is_empty()) {
+                (false, false) => format!("{vendor} {model}"),
+                (false, true) => vendor,
+                _ => {
+                    let path = str_of("path");
+                    if model.is_empty() { path } else { model.clone() }
+                }
+            };
+            crate::model::DiskInfo {
+                title,
+                path: str_of("path"),
+                model,
+                size_label: str_of("sizeLabel"),
+                transport_label: str_of("transport"),
+                removable: d.get("removable").and_then(Value::as_bool).unwrap_or(false),
+            }
+        })
+        .collect();
+    let unmet = gates
+        .get("gates")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+        .iter()
+        .filter(|g| g.get("ok").and_then(Value::as_bool) != Some(true))
+        .map(|g| match g.get("id").and_then(Value::as_str) {
+            Some("firmware") => "uefi".to_string(),
+            Some(id) => id.to_string(),
+            None => String::new(),
+        })
+        .filter(|id| !id.is_empty())
+        .collect();
+    Ok(crate::probe::Facts {
+        disks,
+        tpm_usable: probe
+            .pointer("/tpm/usable")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        unmet,
+        is_live: probe
+            .pointer("/live/isLive")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        live_image: probe
+            .pointer("/live/liveImage")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
+        // The daemon's Probe has no offline stores yet.
+        offline_images: Vec::new(),
+        raw: serde_json::to_string(probe).map_err(|e| format!("cannot reserialize Probe: {e}"))?,
+    })
+}
+
+/// The options page's problems from a daemon `Validate` reply. Same shape
+/// as `validate::Problem`, so the page renders them unchanged.
+pub fn daemon_problems(reply: &Value) -> Vec<crate::validate::Problem> {
+    reply
+        .get("errors")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+        .iter()
+        .filter_map(|e| serde_json::from_value(e.clone()).ok())
+        .collect()
+}
+
+/// The options page's partial recipe as a daemon `Config`: only the keys
+/// `Validate` owns (hostname, encryption, user, disk). The recipe's
+/// filesystem and image keys have no daemon field. Passphrases stay out of
+/// logs by the same rule as every other call here.
+pub fn daemon_config_from_partial(partial: &Value) -> Value {
+    let mut config = serde_json::Map::new();
+    for key in ["disk", "hostname"] {
+        if let Some(value) = partial.get(key) {
+            config.insert(key.into(), value.clone());
+        }
+    }
+    if let Some(enc) = partial.get("encryption").and_then(Value::as_object) {
+        let mut mapped = serde_json::Map::new();
+        if let Some(t) = enc.get("type").and_then(Value::as_str) {
+            mapped.insert("type".into(), Value::from(map_encryption_type(t)));
+        }
+        if let Some(p) = enc.get("passphrase") {
+            mapped.insert("passphrase".into(), p.clone());
+        }
+        config.insert("encryption".into(), Value::Object(mapped));
+    }
+    if let Some(user) = partial.get("user") {
+        config.insert("user".into(), user.clone());
+    }
+    Value::Object(config)
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -570,7 +752,7 @@ mod tests {
     #[test]
     fn wire_format_round_trips_against_a_scripted_peer() {
         use std::io::{BufRead, BufReader, Write};
-        use std::os::unix::net::{UnixListener, UnixStream};
+        use std::os::unix::net::UnixListener;
 
         let dir = std::env::temp_dir().join(format!("fishermand-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -634,4 +816,82 @@ mod tests {
         peer.join().unwrap();
         std::fs::remove_dir_all(&dir).ok();
     }
+
+    #[test]
+    fn recipe_maps_to_daemon_config_without_image_fields() {
+        let mut recipe = crate::Recipe::default();
+        recipe.disk = "/dev/nvme0n1".into();
+        recipe.hostname = "tuna".into();
+        recipe.encryption.enc_type = "tpm2-luks-passphrase".into();
+        recipe.encryption.passphrase = "secret".into();
+        recipe.user = crate::model::user_block("alex", "Alex Example", "pw", &["wheel".into()]);
+        let config = daemon_config(&recipe);
+        assert_eq!(config["disk"], Value::from("/dev/nvme0n1"));
+        assert_eq!(config["encryption"]["type"], Value::from("tpm2_luks_passphrase"));
+        assert_eq!(config["encryption"]["passphrase"], Value::from("secret"));
+        assert_eq!(config["user"]["username"], Value::from("alex"));
+        assert_eq!(config["hostname"], Value::from("tuna"));
+        // The daemon partitions and configures; it never fetches an image.
+        assert!(config.get("image").is_none());
+        assert!(config.get("filesystem").is_none());
+        assert!(config.get("flatpaks").is_none());
+    }
+
+    #[test]
+    fn daemon_probe_maps_to_wizard_facts() {
+        let probe = serde_json::json!({
+            "protocolVersion": 1,
+            "disks": [
+                {"path": "/dev/nvme0n1", "sizeLabel": "476.9 GiB", "model": "Mock NVMe 512",
+                 "vendor": "Mockware", "transport": "nvme", "removable": false, "eligible": true},
+                {"path": "/dev/sdb", "sizeLabel": "8 GiB", "model": "Mock USB Stick",
+                 "vendor": "Mockware", "transport": "usb", "removable": true, "eligible": false}
+            ],
+            "tpm": {"present": true, "version": "2.0", "usable": true},
+            "intelRst": {"detected": false},
+            "live": {"isLive": true, "liveImage": "ghcr.io/tuna-os/mock:live"}
+        });
+        let gates = serde_json::json!({"gates": [
+            {"id": "ram", "ok": true},
+            {"id": "cpu", "ok": true},
+            {"id": "firmware", "ok": false}
+        ]});
+        let facts = daemon_probe_to_facts(&probe, &gates).unwrap();
+        // Only eligible disks reach the wizard, in the daemon's order.
+        assert_eq!(facts.disks.len(), 1);
+        assert_eq!(facts.disks[0].path, "/dev/nvme0n1");
+        assert_eq!(facts.disks[0].title, "Mockware Mock NVMe 512");
+        assert!(facts.tpm_usable);
+        assert!(facts.is_live);
+        assert_eq!(facts.live_image, "ghcr.io/tuna-os/mock:live");
+        // The wizard's gate name for firmware is uefi.
+        assert_eq!(facts.unmet, vec!["uefi".to_string()]);
+    }
+
+    #[test]
+    fn daemon_validate_problems_render_on_the_page() {
+        let reply = serde_json::json!({"valid": false, "errors": [
+            {"field": "hostname", "code": "hostname_invalid_char", "message": "bad"}
+        ]});
+        let problems = daemon_problems(&reply);
+        assert_eq!(problems.len(), 1);
+        assert_eq!(problems[0].field, "hostname");
+        assert_eq!(problems[0].code, "hostname_invalid_char");
+    }
+
+    #[test]
+    fn partial_recipe_maps_to_daemon_config() {
+        let partial = serde_json::json!({
+            "hostname": "tuna",
+            "filesystem": "btrfs",
+            "encryption": {"type": "luks-passphrase", "passphrase": "secret"},
+        });
+        let config = daemon_config_from_partial(&partial);
+        assert_eq!(config["hostname"], Value::from("tuna"));
+        assert_eq!(config["encryption"]["type"], Value::from("luks_passphrase"));
+        assert_eq!(config["encryption"]["passphrase"], Value::from("secret"));
+        // No daemon field: dropped, not sent.
+        assert!(config.get("filesystem").is_none());
+    }
+
 }

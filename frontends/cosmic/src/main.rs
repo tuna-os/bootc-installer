@@ -425,6 +425,16 @@ pub enum Message {
     InstallLine(String),
     /// The wrapper's exit code, or `None` when a signal ended it.
     InstallFinished(Result<Option<i32>, String>),
+    /// One fishermand `Install` event, only in daemon mode
+    /// (`TUNA_USE_FISHERMAND=1`). The update loop folds it into the
+    /// progress state; the terminal event ends the install.
+    DaemonEvent(serde_json::Value),
+    /// The daemon's answer to `Cancel`, only in daemon mode. `Ok` needs no
+    /// handling: the running Install stream ends with the cancelled event.
+    DaemonCancelDone(Result<(), String>),
+    /// A daemon Shutdown call answered, only in daemon mode. `Ok` needs
+    /// no handling: the machine is going down. Errors go to the log.
+    DaemonShutdownDone(Result<(), String>),
     Quit,
     /// The done page's Restart: `systemctl reboot` on the host.
     Reboot,
@@ -566,6 +576,31 @@ pub struct TunaInstaller {
 }
 
 impl TunaInstaller {
+    /// The install ended, from the wrapper's exit (`InstallFinished`) or
+    /// from a daemon terminal event (`DaemonEvent`). One path so the done
+    /// page cannot drift between backends.
+    fn finish_install(&mut self, result: Result<Option<i32>, String>) {
+        self.page = Page::Done;
+        self.installing = false;
+        self.show_cancel_dialog = false;
+        match result {
+            Ok(code) => {
+                let outcome = install_outcome(code, self.cancel_confirmed);
+                self.install_ok = outcome == Outcome::Succeeded;
+                self.install_cancelled = outcome == Outcome::Cancelled;
+                let how = code.map_or("a signal".to_string(), |c| format!("code {c}"));
+                self.install_log
+                    .push_str(&format!("\n=== fisherman exited with {how} ===\n"));
+            }
+            Err(e) => {
+                self.install_ok = false;
+                self.install_cancelled = false;
+                self.install_log.push_str(&format!("\n=== Error: {e} ===\n"));
+            }
+        }
+        offline::persist_install_log(&self.install_log, &self.progress.recovery_key);
+    }
+
     pub fn page(&self) -> Page {
         self.page
     }
@@ -913,6 +948,27 @@ impl TunaInstaller {
             {
                 map.extend(fragment);
             }
+        }
+        // Daemon mode: the same fields as a daemon Config, answered by
+        // `Validate(config, partial)`. Problems render unchanged.
+        #[cfg(not(target_arch = "wasm32"))]
+        if fishermand::use_daemon() {
+            let config = fishermand::daemon_config_from_partial(&partial);
+            return Task::perform(
+                async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                    tokio::task::spawn_blocking(move || {
+                        let mut conn = fishermand::connect("io.tunaos.Fisherman")
+                            .map_err(|e| format!("cannot reach fishermand: {e}"))?;
+                        let reply = fishermand::validate(&mut conn, config, true)
+                            .map_err(|e| e.to_string())?;
+                        Ok(fishermand::daemon_problems(&reply))
+                    })
+                    .await
+                    .map_err(|e| format!("Task join error: {e}"))?
+                },
+                move |r| cosmic::action::app(Message::Validated(seq, r)),
+            );
         }
         Task::perform(
             async move {
@@ -1471,6 +1527,24 @@ impl cosmic::Application for TunaInstaller {
                 }
             }
             Message::PowerOff => {
+                // Daemon mode: the daemon's Shutdown interface owns power
+                // state, so the mock's inhibitor scenario is testable.
+                #[cfg(not(target_arch = "wasm32"))]
+                if fishermand::use_daemon() {
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(|| {
+                                let mut conn = fishermand::connect("io.systemd.Shutdown")
+                                    .map_err(|e| format!("cannot reach fishermand: {e}"))?;
+                                fishermand::power_off(&mut conn, false)
+                                    .map_err(|e| e.to_string())
+                            })
+                            .await
+                            .map_err(|e| format!("Task join error: {e}"))?
+                        },
+                        |r| cosmic::action::app(Message::DaemonShutdownDone(r)),
+                    );
+                }
                 spawn_host(&hardware::poweroff_command());
                 Task::none()
             }
@@ -1615,6 +1689,31 @@ impl cosmic::Application for TunaInstaller {
             }
             Message::ConfirmCancelInstall => {
                 self.show_cancel_dialog = false;
+                // Daemon mode: `Cancel` goes over a second connection, as
+                // the spec requires; the running Install stream then ends
+                // with the cancelled event. Only while an install runs.
+                #[cfg(not(target_arch = "wasm32"))]
+                if fishermand::use_daemon() {
+                    if self.installing {
+                        self.cancel_confirmed = true;
+                        return Task::perform(
+                            async move {
+                                tokio::task::spawn_blocking(|| {
+                                    let mut conn = fishermand::connect(
+                                        "io.tunaos.Fisherman",
+                                    )
+                                    .map_err(|e| e.to_string())?;
+                                    fishermand::cancel(&mut conn).map_err(|e| e.to_string())?;
+                                    Ok(())
+                                })
+                                .await
+                                .map_err(|e| format!("Task join error: {e}"))?
+                            },
+                            |r| cosmic::action::app(Message::DaemonCancelDone(r)),
+                        );
+                    }
+                    return Task::none();
+                }
                 // The wrapper leads its own process group, so the signal
                 // reaches the whole install and not this process. fisherman
                 // then cleans up (unmounts, closes LUKS) and the wrapper
@@ -1625,6 +1724,16 @@ impl cosmic::Application for TunaInstaller {
                     if hardware::terminate_process_group(pid).is_ok() {
                         self.cancel_confirmed = true;
                     }
+                }
+                Task::none()
+            }
+            Message::DaemonCancelDone(result) => {
+                if let Err(e) = result {
+                    // The install still runs: say so in the log and let the
+                    // user try again. The stream stays open.
+                    self.cancel_confirmed = false;
+                    self.install_log
+                        .push_str(&format!("\n=== Cancel failed: {e} ===\n"));
                 }
                 Task::none()
             }
@@ -1776,6 +1885,16 @@ impl cosmic::Application for TunaInstaller {
                 self.show_cancel_dialog = false;
                 self.progress.reset();
                 let recipe = self.bound_install_recipe();
+                if fishermand::use_daemon() {
+                    // The daemon owns the install: config and confirmed go
+                    // over Varlink, events stream back. No wrapper, no pid.
+                    // The plan binding is a legacy concept: the daemon
+                    // validates the config itself.
+                    let config = fishermand::daemon_config(&self.recipe);
+                    return Task::stream(
+                        Self::stream_daemon_install(config).map(cosmic::action::app),
+                    );
+                }
                 let pid_slot = self.install_pid.clone();
                 let live = self.live_image.is_some();
                 Task::stream(Self::stream_fisherman(recipe, pid_slot, live).map(cosmic::action::app))
@@ -1790,26 +1909,39 @@ impl cosmic::Application for TunaInstaller {
                 Task::none()
             }
             Message::InstallFinished(result) => {
-                self.page = Page::Done;
-                self.installing = false;
-                self.show_cancel_dialog = false;
-                match result {
-                    Ok(code) => {
-                        let outcome = install_outcome(code, self.cancel_confirmed);
-                        self.install_ok = outcome == Outcome::Succeeded;
-                        self.install_cancelled = outcome == Outcome::Cancelled;
-                        let how = code.map_or("a signal".to_string(), |c| format!("code {c}"));
-                        self.install_log
-                            .push_str(&format!("\n=== fisherman exited with {how} ===\n"));
+                self.finish_install(result);
+                Task::none()
+            }
+            Message::DaemonEvent(event) => {
+                // Daemon mode only: fold one Install event into the
+                // progress state. The terminal event ends the install
+                // through the same finish path as the wrapper's exit.
+                match fishermand::apply_install_event(
+                    &mut self.progress,
+                    &mut self.install_log,
+                    &event,
+                ) {
+                    fishermand::Terminal::Continue => Task::none(),
+                    fishermand::Terminal::Complete => {
+                        self.finish_install(Ok(Some(0)));
+                        Task::none()
                     }
-                    Err(e) => {
-                        self.install_ok = false;
-                        self.install_cancelled = false;
-                        self.install_log.push_str(&format!("\n=== Error: {e} ===\n"));
+                    fishermand::Terminal::Cancelled => {
+                        self.cancel_confirmed = true;
+                        self.finish_install(Ok(Some(130)));
+                        Task::none()
+                    }
+                    fishermand::Terminal::Failed => {
+                        let reason = self
+                            .progress
+                            .error
+                            .as_ref()
+                            .map(|e| e.code.clone())
+                            .unwrap_or_else(|| "install failed".to_string());
+                        self.finish_install(Err(reason));
+                        Task::none()
                     }
                 }
-                offline::persist_install_log(&self.install_log, &self.progress.recovery_key);
-                Task::none()
             }
             Message::Quit => {
                 std::process::exit(i32::from(!self.install_ok));
@@ -1822,9 +1954,34 @@ impl cosmic::Application for TunaInstaller {
                 Task::none()
             }
             Message::Reboot => {
+                #[cfg(not(target_arch = "wasm32"))]
+                if fishermand::use_daemon() {
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(|| {
+                                let mut conn = fishermand::connect("io.systemd.Shutdown")
+                                    .map_err(|e| format!("cannot reach fishermand: {e}"))?;
+                                fishermand::reboot(&mut conn, false)
+                                    .map_err(|e| e.to_string())
+                            })
+                            .await
+                            .map_err(|e| format!("Task join error: {e}"))?
+                        },
+                        |r| cosmic::action::app(Message::DaemonShutdownDone(r)),
+                    );
+                }
                 let argv = offline::host_command(&["systemctl", "reboot"]);
                 if let Some((program, args)) = argv.split_first() {
                     let _ = std::process::Command::new(program).args(args).spawn();
+                }
+                Task::none()
+            }
+            Message::DaemonShutdownDone(result) => {
+                // The machine state is unchanged: log and let the user
+                // retry. The done page shows the log on failure.
+                if let Err(e) = result {
+                    self.install_log
+                        .push_str(&format!("\n=== Shutdown failed: {e} ===\n"));
                 }
                 Task::none()
             }
@@ -1857,6 +2014,21 @@ impl TunaInstaller {
     /// `fisherman probe --json`, off the UI thread (shared/probe/README.md).
     #[cfg(not(target_arch = "wasm32"))]
     async fn probe() -> Result<probe::Facts, String> {
+        if fishermand::use_daemon() {
+            // One blocking round trip per interface: Requirements for the
+            // gates, Probe for the disks. A daemon answer replaces the
+            // subprocess answer one for one; apply_probe cannot tell them
+            // apart.
+            return tokio::task::spawn_blocking(|| {
+                let mut conn = fishermand::connect("io.tunaos.Fisherman")
+                    .map_err(|e| format!("cannot reach fishermand: {e}"))?;
+                let probe = fishermand::probe(&mut conn).map_err(|e| e.to_string())?;
+                let gates = fishermand::requirements(&mut conn).map_err(|e| e.to_string())?;
+                fishermand::daemon_probe_to_facts(&probe, &gates)
+            })
+            .await
+            .map_err(|e| format!("Task join error: {e}"))?;
+        }
         tokio::task::spawn_blocking(probe::run)
             .await
             .map_err(|e| format!("Task join error: {e}"))?
@@ -1968,12 +2140,64 @@ impl TunaInstaller {
         })
     }
 
+    /// The daemon install: `Install(config, confirmed)` streams events over
+    /// Varlink. The blocking socket lives on a worker thread; each event
+    /// crosses to the UI as it arrives, so the bar moves while the install
+    /// runs. A second connection carries `Cancel` (ConfirmCancelInstall).
+    /// Never in capture mode: the StartInstall arm refuses that first.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn stream_daemon_install(config: serde_json::Value) -> impl Stream<Item = Message> {
+        cosmic::iced::stream::channel(64, async move |mut output| {
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+            let worker = tokio::task::spawn_blocking(move || {
+                let mut conn = match fishermand::connect("io.tunaos.Fisherman") {
+                    Ok(conn) => conn,
+                    Err(e) => {
+                        let _ = tx.send(Message::InstallFinished(Err(format!(
+                            "cannot reach fishermand: {e}"
+                        ))));
+                        return;
+                    }
+                };
+                if let Err(e) =
+                    fishermand::install(&mut conn, config, true, |event| {
+                        tx.send(Message::DaemonEvent(event)).is_ok()
+                    })
+                {
+                    // The stream broke before the terminal event: a dropped
+                    // connection cancels the install on the daemon side.
+                    let _ = tx.send(Message::InstallFinished(Err(e.to_string())));
+                }
+            });
+            while let Some(msg) = rx.recv().await {
+                if output.send(msg).await.is_err() {
+                    break;
+                }
+            }
+            let _ = worker.await;
+        })
+    }
+
     /// A browser build never starts fisherman: it has no host (#105).
     #[cfg(target_arch = "wasm32")]
     fn stream_fisherman(
         _recipe: serde_json::Value,
         _pid_slot: std::sync::Arc<std::sync::Mutex<Option<u32>>>,
         _live: bool,
+    ) -> impl Stream<Item = Message> {
+        cosmic::iced::stream::channel(1, async move |mut output| {
+            let _ = output
+                .send(Message::InstallFinished(Err(
+                    "A browser build cannot install.".to_string(),
+                )))
+                .await;
+        })
+    }
+
+    /// A browser build has no daemon either: same shape, fails closed.
+    #[cfg(target_arch = "wasm32")]
+    fn stream_daemon_install(
+        _config: serde_json::Value,
     ) -> impl Stream<Item = Message> {
         cosmic::iced::stream::channel(1, async move |mut output| {
             let _ = output
