@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/skip2/go-qrcode"
 	"tuna-installer-niri/varlink"
 )
 
@@ -654,7 +655,9 @@ func daemonConfigureTarget(stdin map[string]any, stdout io.Writer) int {
 
 // daemonRecoveryKey makes a recovery key and enrols it for node, unlocking
 // with the install's passphrase ("" when the install sealed to TPM only).
-// Prints {"key": ...}. Exit 1 means the recovery-key-failed state.
+// Prints {"key", "qr": {"size", "cells"}}: the key and its QR matrix for
+// the recovery screen's code dialog. Exit 1 means the recovery-key-failed
+// state.
 func daemonRecoveryKey(stdin map[string]any, stdout io.Writer) int {
 	node, _ := stdin["node"].(string)
 	unlock, _ := stdin["unlock_password"].(string)
@@ -689,9 +692,32 @@ func daemonRecoveryKey(stdin map[string]any, stdout io.Writer) int {
 		fmt.Fprintf(os.Stderr, "fishermand Enroll: %v\n", err)
 		return 1
 	}
-	out, _ := json.Marshal(map[string]any{"key": made.RecoveryKey})
+	out, _ := json.Marshal(map[string]any{"key": made.RecoveryKey, "qr": recoveryQR(made.RecoveryKey)})
 	fmt.Fprintln(stdout, string(out))
 	return 0
+}
+
+// recoveryQR encodes the key as a QR grid for the QML dialog: size N and
+// N*N cells row by row, 1 for a dark module. A key the encoder refuses
+// (never seen) yields no grid, and the dialog stays hidden.
+func recoveryQR(key string) map[string]any {
+	code, err := qrcode.New(key, qrcode.Medium)
+	if err != nil {
+		return nil
+	}
+	bitmap := code.Bitmap()
+	size := len(bitmap)
+	cells := make([]int, 0, size*size)
+	for _, row := range bitmap {
+		for _, dark := range row {
+			if dark {
+				cells = append(cells, 1)
+			} else {
+				cells = append(cells, 0)
+			}
+		}
+	}
+	return map[string]any{"size": size, "cells": cells}
 }
 
 // daemonHandoff hands the installed system over. Prints the daemon's answer

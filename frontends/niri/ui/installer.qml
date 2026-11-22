@@ -521,10 +521,14 @@ ApplicationWindow {
         root.installSuccess = outcome === "succeeded"
         root.installCancelled = outcome === "cancelled"
         root.cancelOpen = false
-        // The recovery commit routes an encrypted daemon install through
-        // the key fetch first; until then the stream's key (legacy) or no
-        // key lands here.
-        root.currentPage = root.postInstallPage()
+        // On the daemon path an encrypted install fetches its recovery key
+        // first (the Install stream carries none); the fetch lands on the
+        // recovery screen, key or key error. The legacy path already holds
+        // the key from the stream. Anything else lands on done.
+        if (root.installSuccess && root.daemonMode && root.encType !== "none")
+            root.startRecoveryFetch()
+        else
+            root.currentPage = root.postInstallPage()
     }
     // The backend path: the daemon answers Varlink, the legacy path shells
     // out to fisherman. `detect` reports which one is driving.
@@ -534,6 +538,23 @@ ApplicationWindow {
     // nothing, so after the install there was nothing left to show.
     property string recoveryKey: ""
     property bool recoveryAck: false
+    // The daemon path fetches the key after the install (the Install stream
+    // carries none) and its QR grid with it. An error keeps the page on a
+    // retry; the key never reaches a log.
+    property var recoveryQr: ({})
+    readonly property int recoveryQrSize: root.recoveryQr.size || 0
+    property string recoveryKeyError: ""
+    property string pendingRecovery: ""
+    property bool qrOpen: false
+    function startRecoveryFetch() {
+        if (recoveryKeyProc.running) return
+        root.recoveryKeyError = ""
+        root.pendingRecovery = JSON.stringify({
+            node: root.selectedDisk.path || "",
+            unlock_password: root.passphrase || ""
+        })
+        recoveryKeyProc.running = true
+    }
     // Restart is held while an unacknowledged key is on screen: leaving the
     // done page is what ends the chance to read it. A failed install enrolled
     // nothing, and a non-TPM install was never given a key, so neither is held.
@@ -1209,6 +1230,38 @@ ApplicationWindow {
         id: cancelProc
         command: [root.backendBin, "cancel"]
     }
+    // The recovery key after a daemon install (`recovery-key`): the node
+    // and the unlock password on stdin, {"key", "qr"} on stdout. An error
+    // keeps the recovery screen on its retry; the key never reaches a log.
+    Process {
+        id: recoveryKeyProc
+        command: [root.backendBin, "recovery-key"]
+        stdinEnabled: true
+        onStarted: {
+            recoveryKeyProc.write(root.pendingRecovery)
+            root.pendingRecovery = ""
+        }
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let answer = null
+                try { answer = JSON.parse(text) } catch (e) { answer = null }
+                if (answer && answer.key) {
+                    root.recoveryKey = answer.key
+                    root.recoveryQr = answer.qr || ({})
+                    root.recoveryKeyError = ""
+                } else {
+                    root.recoveryKeyError = qsTr("The recovery key could not be made. Do not continue without one.")
+                }
+                root.currentPage = root.postInstallPage()
+            }
+        }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (root.recoveryKey === "")
+                    root.recoveryKeyError = qsTr("The recovery key could not be made. Do not continue without one.")
+            }
+        }
+    }
 
     // Power actions on the host (dialog_poweroff parity): systemctl
     // through flatpak-spawn when sandboxed, never in this runtime.
@@ -1358,6 +1411,11 @@ ApplicationWindow {
         root.cancelRequested = false
         root.installCancelled = false
         root.cancelOpen = false
+        root.recoveryKey = ""
+        root.recoveryQr = ({})
+        root.recoveryAck = false
+        root.recoveryKeyError = ""
+        root.qrOpen = false
         currentPage = 7
         installProc.command = [root.backendBin, "install"]
         // Bound to the disk that the plan on the confirm page showed:
@@ -1521,6 +1579,7 @@ ApplicationWindow {
         case 10: flowNext(); break
         case 11: flowNext(); break
         case 12: if (root.eulaAccepted) flowNext(); break
+        case 13: if (root.recoveryKey !== "" && root.recoveryAck) flowNext(); break
         }
     }
     function back() {
@@ -2799,66 +2858,6 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         onLinkActivated: link => Qt.openUrlExternally(link)
                     }
-                    // Recovery key (#129). A panel rather than a dialog, as
-                    // on the other frontends: a dialog is dismissed and then
-                    // the key is gone, while this stays on screen for as long
-                    // as it takes to write down.
-                    ColumnLayout {
-                        visible: root.installSuccess && root.recoveryKey !== ""
-                        Layout.fillWidth: true
-                        Layout.topMargin: Theme.spacingM
-                        spacing: Theme.spacingS
-                        StyledText {
-                            text: root.text("recovery_key_title")
-                            font.pixelSize: Theme.fontSizeLarge
-                            font.weight: Theme.fontWeightMedium
-                            horizontalAlignment: Text.AlignHCenter
-                            Layout.fillWidth: true
-                        }
-                        StyledText {
-                            text: root.text("recovery_key_body")
-                            color: Theme.surfaceVariantText
-                            wrapMode: Text.WordWrap
-                            horizontalAlignment: Text.AlignHCenter
-                            Layout.fillWidth: true
-                        }
-                        StyledText {
-                            objectName: "recoveryKeyLabel"
-                            text: root.recoveryKey
-                            font.family: Theme.monoFontFamily
-                            horizontalAlignment: Text.AlignHCenter
-                            Layout.fillWidth: true
-                        }
-                        // Plain Qt Quick has no clipboard object; a hidden
-                        // TextEdit is the standard way to reach one.
-                        TextEdit {
-                            id: recoveryClip
-                            visible: false
-                            text: root.recoveryKey
-                        }
-                        RowLayout {
-                            Layout.alignment: Qt.AlignHCenter
-                            spacing: Theme.spacingM
-                            DankButton {
-                                text: root.text("recovery_key_copy")
-                                tonal: true
-                                onClicked: {
-                                    recoveryClip.selectAll()
-                                    recoveryClip.copy()
-                                    recoveryClip.deselect()
-                                }
-                            }
-                            DankButton {
-                                objectName: "recoveryAckButton"
-                                text: (root.recoveryAck ? "\u2713  " : "")
-                                    + root.text("recovery_key_ack")
-                                tonal: !root.recoveryAck
-                                checkable: true
-                                checked: root.recoveryAck
-                                onToggled: root.recoveryAck = checked
-                            }
-                        }
-                    }
                     // Tour (views/tour.py parity): the leaf's carousel, if it
                     // ships one. A panel would strand the slides after the
                     // window closes; the overlay keeps Close one tap away.
@@ -3119,6 +3118,60 @@ ApplicationWindow {
                             text: qsTr("Continue")
                             visible: root.eulaInfo.unreadable !== true
                             enabled: root.eulaAccepted
+                            onClicked: root.flowNext()
+                        }
+                    }
+                }
+            }
+            // Page 13: recovery-key — the disk is encrypted, so the wizard
+            // shows the key on its own screen and holds Continue until the
+            // user ticks the acknowledgement. A QR button opens the code
+            // dialog; a failed fetch offers a retry instead of a key.
+            Item {
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width, 520)
+                    spacing: Theme.spacingM
+                    StyledText {
+                        objectName: "recoveryTitle"
+                        text: qsTr("Back Up Recovery Key")
+                        font.pixelSize: Theme.fontSizeXLarge
+                        font.weight: Theme.fontWeightMedium
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    StyledText {
+                        objectName: "recoveryError"
+                        text: root.recoveryKeyError
+                        color: Theme.error
+                        visible: text !== ""
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    DankButton {
+                        objectName: "recoveryRetryButton"
+                        text: qsTr("Retry")
+                        Layout.alignment: Qt.AlignHCenter
+                        visible: root.recoveryKey === "" && !recoveryKeyProc.running
+                        onClicked: root.startRecoveryFetch()
+                    }
+            PUT @recoverypanel
+                    DankButton {
+                        objectName: "recoveryQrButton"
+                        text: qsTr("Show QR Code for Recovery Key")
+                        tonal: true
+                        Layout.alignment: Qt.AlignHCenter
+                        visible: root.recoveryQrSize > 0
+                        onClicked: root.qrOpen = true
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Item { Layout.fillWidth: true }
+                        DankButton {
+                            objectName: "recoveryContinueButton"
+                            text: qsTr("Continue")
+                            enabled: root.recoveryKey !== "" && root.recoveryAck
                             onClicked: root.flowNext()
                         }
                     }
@@ -3386,6 +3439,53 @@ ApplicationWindow {
                     text: qsTr("Close")
                     tonal: true
                     onClicked: root.tourOpen = false
+                }
+            }
+        }
+    }
+    // The recovery key as a QR code, for a phone camera. The grid comes
+    // from the backend's `recovery-key` answer; the quiet zone is part of
+    // it, and the white card adds the rest of the margin.
+    Rectangle {
+        objectName: "recoveryQrOverlay"
+        anchors.fill: parent
+        visible: root.qrOpen && root.recoveryQrSize > 0
+        color: Theme.withAlpha(Theme.surface, 0.85)
+        z: 14
+        MouseArea { anchors.fill: parent; onClicked: root.qrOpen = false }
+        DankCard {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - Theme.spacingXL * 2, 420)
+            title: qsTr("Recovery Key QR Code")
+            Column {
+                width: parent.width
+                spacing: Theme.spacingM
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: Math.min(320, parent.width)
+                    height: width
+                    color: "white"
+                    Grid {
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        columns: root.recoveryQrSize
+                        Repeater {
+                            model: root.recoveryQr.cells || []
+                            Rectangle {
+                                required property int modelData
+                                required property int index
+                                width: parent.width / root.recoveryQrSize
+                                height: width
+                                color: modelData === 1 ? "black" : "white"
+                            }
+                        }
+                    }
+                }
+                DankButton {
+                    objectName: "recoveryQrDoneButton"
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: qsTr("Done")
+                    onClicked: root.qrOpen = false
                 }
             }
         }

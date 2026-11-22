@@ -159,6 +159,33 @@ func TestParseInstallInput(t *testing.T) {
 		t.Error("garbage: no error")
 	}
 }
+func TestRecoveryQRGrid(t *testing.T) {
+	key := "firguvuh-cfclrvjn-kenfevun-kbunfgfc-nkebjtcn-cfdkrfgj-kitefifu-litfbtbn"
+	grid := recoveryQR(key)
+	if grid == nil {
+		t.Fatal("no grid for a real key")
+	}
+	size, _ := grid["size"].(int)
+	cells, _ := grid["cells"].([]int)
+	if size < 21 || len(cells) != size*size {
+		t.Fatalf("size %d, %d cells", size, len(cells))
+	}
+	dark := 0
+	for _, c := range cells {
+		dark += c
+	}
+	if dark == 0 || dark == len(cells) {
+		t.Error("grid is blank or solid")
+	}
+	// The bitmap carries its quiet zone: white corners, and the finder
+	// square starts at (4, 4).
+	if cells[0] != 0 || cells[size-1] != 0 || cells[(size-1)*size] != 0 {
+		t.Error("no quiet zone in the corners")
+	}
+	if cells[4*size+4] != 1 {
+		t.Error("no finder square at (4, 4)")
+	}
+}
 
 func TestFragmentToConfig(t *testing.T) {
 	frag := map[string]any{
