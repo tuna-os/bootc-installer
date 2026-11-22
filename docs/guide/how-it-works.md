@@ -67,18 +67,23 @@ Thus a frontend reads the percentage from fisherman and does not count steps.
 
 ## Fast first boot
 
-fisherman does these tasks during each install.
-You do not have to do anything.
+fisherman can do these tasks after the install.
+Some tasks are only for live media.
+Some tasks are only for a desktop image: the recipe key `extras`, or the entry of the image in the catalog, turns them on.
+An image that is not in a catalog gets no `extras` task.
+Refer to [Recipes](recipes.md) for the keys.
 
-| Task | What it does |
-|---|---|
-| **Bluetooth** | Copies `/var/lib/bluetooth` to the new OS. Paired devices connect again at first boot. |
-| **Wi-Fi** | Copies the NetworkManager `.nmconnection` files. Saved networks connect again at first boot. |
-| **Audio names** | Adds WirePlumber rules that give ALSA devices names that people can read. The rules also hide S/PDIF and Pro Audio sinks. |
-| **Live audio** | Applies the same audio rules to the live session immediately. |
-| **OEM hardware** | Finds ASUS, Framework and TUXEDO hardware. Then it adds the correct brew packages for first boot. |
-| **Caches** | Makes the font, icon, pixbuf, GIO, ldconfig, man-db and Flatpak caches before first boot. Without this step, first boot is 30 seconds slower or more. |
-| **Printers** | Enables `cups-browsed`, `avahi-daemon` and `ipp-usb`. USB printers and AirPrint work immediately. |
+| Task | When | What it does |
+|---|---|---|
+| **Bluetooth** | `copyBluetoothPairings`. No key: only on live media | Copies `/var/lib/bluetooth` to the new OS. Paired devices connect again at first boot. |
+| **Wi-Fi** | `copyNetworkProfiles`. No key: only on live media | Copies the NetworkManager `.nmconnection` files. Saved networks connect again at first boot. |
+| **Audio names** | `extras.audioNames` | Adds WirePlumber rules that give ALSA devices names that people can read. The rules also hide S/PDIF and Pro Audio sinks. |
+| **Live audio** | `extras.audioNames`, on live media | Applies the same audio rules to the live session immediately. |
+| **OEM hardware** | `extras.oemSetup` | Finds ASUS and Framework hardware. Then it adds the correct brew packages for the first login. |
+| **Printers** | `extras.printServices` | Enables `cups-browsed`, `avahi-daemon` and `ipp-usb` when the image has them. USB printers and AirPrint work immediately. |
+
+fisherman does not make caches in the new OS.
+The image must have its font, icon, schema and linker caches.
 
 ## Windows data
 
