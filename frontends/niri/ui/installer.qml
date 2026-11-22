@@ -863,6 +863,41 @@ ApplicationWindow {
     readonly property var timezoneModel: root.withCurrent(root.timezoneList, root.timezoneName)
     property string pendingSession: ""
     property var sentSession: ({})
+    // ConfigureTarget for the installed system (daemon path only): the
+    // session and account steps store their picks there as well as in the
+    // live session and the recipe. A failure warns and moves on — the
+    // daemon re-validates everything at Install time.
+    property string pendingConfigure: ""
+    property string configureWarning: ""
+    function runConfigure(picks) {
+        if (configureProc.running) return
+        root.configureWarning = ""
+        root.pendingConfigure = JSON.stringify(picks)
+        configureProc.running = true
+    }
+    // The installed system gets the effective region: the user's edits over
+    // the session's values, plus the location toggle (privacy page below).
+    function regionTarget() {
+        const picks = root.regionPicks()
+        return {
+            locale: picks.locale || root.localeName,
+            keymap: picks.keyboard || root.keyboardLayout,
+            timeZone: picks.timezone || root.timezoneName,
+            locationServices: root.locationEnabled
+        }
+    }
+    function applyAccount() {
+        if (!root.accountReady || configureProc.running) return
+        if (!root.daemonMode) { root.flowNext(); return }
+        root.runConfigure({
+            hostname: root.hostname,
+            user: {
+                username: root.username,
+                fullname: root.fullname,
+                password: root.userPassword
+            }
+        })
+    }
     // What the user changed: a field whose text is not empty and is not the
     // value the session has now. Applied to the session only on live media.
     function sessionChanges() {
@@ -871,6 +906,10 @@ ApplicationWindow {
     // The region values the installed system gets: the user's changes, on
     // any host. Kept when Continue leaves the step (installRegion).
     property var installRegion: ({})
+    // Location services for the installed system (privacy card). Off until
+    // the user asks; ConfigureTarget has no field for it yet, so the daemon
+    // ignores the key and the toggle documents the intent.
+    property bool locationEnabled: false
     function regionPicks() {
         const changes = {}
         const fields = { keyboard: [keyCombo.editText, root.keyboardLayout],
@@ -1199,10 +1238,39 @@ ApplicationWindow {
                 if (sent.locale) root.localeName = sent.locale
                 if (sent.timezone) root.timezoneName = sent.timezone
             }
-            root.flowNext()
+            // The installed system gets the same values through
+            // ConfigureTarget (daemon path); otherwise move on.
+            if (root.daemonMode) root.runConfigure(root.regionTarget())
+            else root.flowNext()
         }
     }
 
+    // Storing the session and account picks for the installed system
+    // (`configure-target`). Best effort like `session-set`: an error warns
+    // on the page and the wizard moves on.
+    Process {
+        id: configureProc
+        command: [root.backendBin, "configure-target"]
+        stdinEnabled: true
+        onStarted: {
+            configureProc.write(root.pendingConfigure)
+            root.pendingConfigure = ""
+        }
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let answer = null
+                try { answer = JSON.parse(text) } catch (e) { answer = null }
+                if (!answer || answer.configured !== true) {
+                    root.configureWarning = qsTr("Some settings may not reach the installed system.")
+                }
+            }
+        }
+        onExited: (code, status) => {
+            if (code !== 0 && root.configureWarning === "")
+                root.configureWarning = qsTr("Some settings may not reach the installed system.")
+            root.flowNext()
+        }
+    }
     // Connectivity for the selected image (`netcheck <image>`), after a
     // pause so a walk down the list does not start a check per row.
     Timer {
@@ -1477,14 +1545,17 @@ ApplicationWindow {
     // move on and run nothing. Otherwise `session-set` gets the changed
     // fields on stdin, and its exit moves on.
     function applySession() {
-        if (sessionSetProc.running)
+        if (sessionSetProc.running || configureProc.running)
             return
         root.installRegion = root.regionPicks()
         root.checkFields()
         const changes = root.sessionChanges()
         if (Object.keys(changes).length === 0) {
             root.sessionFailed = false
-            root.flowNext()
+            // Nothing to apply to the session, but the installed system
+            // still gets the effective values (daemon path).
+            if (root.daemonMode) root.runConfigure(root.regionTarget())
+            else root.flowNext()
             return
         }
         root.sentSession = changes
@@ -1612,7 +1683,7 @@ ApplicationWindow {
         case 2: chooseAndNext(); break
         case 3: if (selectedDisk.path !== undefined) flowNext(); break
         case 4: encryptionPage.next(); break
-        case 5: if (root.accountReady) flowNext(); break
+        case 5: root.applyAccount(); break
         case 6: if (root.canInstall) startInstall(); break
         case 9: flowNext(); break
         case 10: flowNext(); break
@@ -1890,6 +1961,35 @@ ApplicationWindow {
                         }
                     }
                 }
+                // Privacy: location services for the installed system. The
+                // toggle travels with the region in ConfigureTarget; the
+                // installer itself reports nothing anywhere.
+                DankCard {
+                    Layout.fillWidth: true
+                    title: qsTr("Privacy")
+                    Column {
+                        width: parent.width
+                        spacing: Theme.spacingS
+                        DankListItem {
+                            objectName: "privacyLocationRow"
+                            width: parent.width
+                            firstInGroup: true
+                            lastInGroup: true
+                            primaryText: qsTr("Location services")
+                            secondaryText: qsTr("Let the installed system detect its location for the time zone.")
+                            isSelected: root.locationEnabled
+                            onClicked: root.locationEnabled = !root.locationEnabled
+                        }
+                        StyledText {
+                            text: qsTr("This installer sends nothing anywhere. It only dials the image registry to test a download.")
+                            color: Theme.surfaceVariantText
+                            font.pixelSize: Theme.fontSizeSmall
+                            wrapMode: Text.Wrap
+                            width: parent.width
+                        }
+                    }
+                }
+
 
                 // A setting that could not be applied: a warning, and the
                 // wizard has already moved on. Shown here for a user who
@@ -1897,6 +1997,15 @@ ApplicationWindow {
                 StyledText {
                     objectName: "sessionWarning"
                     text: root.sessionWarning
+                    color: Theme.warning
+                    visible: text !== ""
+                    font.pixelSize: Theme.fontSizeSmall
+                    wrapMode: Text.Wrap
+                    Layout.fillWidth: true
+                }
+                StyledText {
+                    objectName: "configureWarning"
+                    text: root.configureWarning
                     color: Theme.warning
                     visible: text !== ""
                     font.pixelSize: Theme.fontSizeSmall
@@ -1913,7 +2022,7 @@ ApplicationWindow {
                     DankButton {
                         objectName: "sessionNextButton"
                         text: qsTr("Continue")
-                        enabled: !sessionSetProc.running
+                        enabled: !sessionSetProc.running && !configureProc.running
                         onClicked: root.applySession()
                     }
                 }
@@ -2398,8 +2507,17 @@ ApplicationWindow {
                     }
                 }
 
-                Item { Layout.fillHeight: true }
+                StyledText {
+                    objectName: "accountConfigureWarning"
+                    text: root.configureWarning
+                    color: Theme.warning
+                    visible: text !== ""
+                    font.pixelSize: Theme.fontSizeSmall
+                    wrapMode: Text.Wrap
+                    Layout.fillWidth: true
+                }
 
+                Item { Layout.fillHeight: true }
                 RowLayout {
                     Layout.fillWidth: true
                     DankButton { text: qsTr("Back"); tonal: true; onClicked: root.back() }
@@ -2407,7 +2525,7 @@ ApplicationWindow {
                     DankButton {
                         objectName: "accountNextButton"
                         text: qsTr("Continue")
-                        enabled: root.accountReady
+                        enabled: root.accountReady && !configureProc.running
                         onClicked: root.advance()
                     }
                 }

@@ -622,7 +622,7 @@ func daemonConfigureTarget(stdin map[string]any, stdout io.Writer) int {
 			params["user"] = nu
 		}
 	}
-	for _, k := range []string{"hostname", "locale", "keymap", "timeZone", "timezone", "autologin"} {
+	for _, k := range []string{"hostname", "locale", "keymap", "timeZone", "timezone", "autologin", "locationServices"} {
 		if v, ok := stdin[k]; ok && v != nil {
 			if k == "timezone" {
 				params["timeZone"] = v

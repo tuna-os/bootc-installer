@@ -517,6 +517,11 @@ func TestDaemonConfigureTarget(t *testing.T) {
 		"user":     map[string]any{"username": "tuna", "fullname": "Tuna User", "password": "s3cr3t"},
 		"hostname": "niri-box",
 		"timezone": "Europe/Berlin",
+		"locale":   "de_DE.UTF-8",
+		"keymap":   "de",
+		// The privacy toggle: the daemon has no field for it yet and
+		// ignores it, but the key must cross for when it learns one.
+		"locationServices": true,
 	}, &out)
 	if code != 0 {
 		t.Fatalf("code %d: %s", code, out.String())
@@ -533,6 +538,9 @@ func TestDaemonConfigureTarget(t *testing.T) {
 	}
 	if _, ok := gotParams["timezone"]; ok {
 		t.Errorf("lowercase timezone must not cross: %v", gotParams)
+	}
+	if gotParams["locationServices"] != true {
+		t.Errorf("location toggle must cross: %v", gotParams)
 	}
 }
 
