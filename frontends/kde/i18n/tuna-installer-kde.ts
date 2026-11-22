@@ -165,6 +165,10 @@
 <context>
     <name>Wizard</name>
     <message>
+        <source>Try or Install</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Welcome</source>
         <translation type="unfinished"></translation>
     </message>
@@ -210,6 +214,13 @@
     </message>
     <message>
         <source>Next</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>daemon</name>
+    <message>
+        <source>the installer daemon did not answer</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -397,6 +408,22 @@
     </message>
     <message>
         <source>Step %1 of %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Welcome</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try %1 without changing this computer, or install it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install now</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

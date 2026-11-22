@@ -272,6 +272,11 @@ private slots:
     void daemonBackendSelection();
     void daemonClientReadsUnaryCalls();
     void daemonBackendDrivesControllerFacts();
+    // The wizard walks the shared flow (shared/flow/screens.yaml): stable
+    // step ids in the spec's order, with skips for steps with nothing to
+    // ask instead of blank screens.
+    void wizardStepsFollowTheSharedFlow();
+    void wizardSkipsStepsWithNothingToShow();
 };
 
 void BackendTest::recipeDefaults()
@@ -4170,6 +4175,64 @@ void BackendTest::daemonBackendDrivesControllerFacts()
         qunsetenv("TUNA_FISHERMAN_SOCKET");
     if (!oldFake.isEmpty())
         qputenv(probe::FAKE_ENV, oldFake);
+}
+
+void BackendTest::wizardStepsFollowTheSharedFlow()
+{
+    // The step ids of src/qml/Wizard.qml, in order: the stable screen ids
+    // of shared/flow/screens.yaml. A rename or a reorder fails here first,
+    // before the harness classifies a page it no longer knows.
+    QFile wizard(QStringLiteral(KDE_SOURCE_DIR "/src/qml/Wizard.qml"));
+    QVERIFY(wizard.open(QIODevice::ReadOnly));
+    const QString text = QString::fromUtf8(wizard.readAll());
+    QStringList ids;
+    QRegularExpression stepRe(QStringLiteral("stepId:\\s*\"([^\"]+)\""));
+    auto matches = stepRe.globalMatch(text);
+    while (matches.hasNext())
+        ids << matches.next().captured(1);
+    const QStringList want{
+        QStringLiteral("try-or-install"),
+        QStringLiteral("welcome"),
+        QStringLiteral("disk"),
+        QStringLiteral("encryption"),
+        QStringLiteral("account"),
+        QStringLiteral("confirm"),
+        QStringLiteral("install"),
+        QStringLiteral("done"),
+    };
+    QCOMPARE(ids, want);
+}
+
+void BackendTest::wizardSkipsStepsWithNothingToShow()
+{
+    qunsetenv(imagecatalog::IMAGES_ENV);
+    const QString laptop = QDir(QStringLiteral(PROBE_FIXTURES_DIR)).filePath(QStringLiteral("laptop.json"));
+    qputenv(probe::FAKE_ENV, laptop.toLocal8Bit());
+    InstallerController live;
+    QVERIFY(!live.stepSkipped(QStringLiteral("try-or-install")));
+    QVERIFY(!live.stepSkipped(QStringLiteral("disk")));
+    QVERIFY(!live.stepSkipped(QStringLiteral("account")));
+    QVERIFY(!live.stepSkipped(QStringLiteral("no-such-step")));
+
+    // The beta leaf creates its own first user: no account step.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QFile manifest(dir.filePath(QStringLiteral("images.json")));
+    QVERIFY(manifest.open(QIODevice::WriteOnly));
+    manifest.write(catalogFixture());
+    manifest.close();
+    qputenv(imagecatalog::IMAGES_ENV, dir.filePath(QStringLiteral("images.json")).toUtf8());
+    InstallerController cataloged;
+    cataloged.selectCatalogImage(1);
+    QVERIFY(cataloged.stepSkipped(QStringLiteral("account")));
+    qunsetenv(imagecatalog::IMAGES_ENV);
+
+    // Off live media there is no live session to try.
+    const QString container = QDir(QStringLiteral(PROBE_FIXTURES_DIR)).filePath(QStringLiteral("container.json"));
+    qputenv(probe::FAKE_ENV, container.toLocal8Bit());
+    InstallerController installed;
+    QVERIFY(installed.stepSkipped(QStringLiteral("try-or-install")));
+    qunsetenv(probe::FAKE_ENV);
 }
 
 QTEST_APPLESS_MAIN(BackendTest)

@@ -14,15 +14,20 @@ pattern: each screen is a `SetupModule` under
 the user may continue; the wizard owns navigation, headings, and the shared
 Back and Next buttons.
 
-The seven modules are:
+The eight modules are (step ids of shared/flow/screens.yaml, in order; the
+directory drops the dashes where the id has them):
 
-1. `welcome`
-2. `disk`
-3. `encryption`
-4. `account`
-5. `confirm`
-6. `progress`
-7. `done`
+1. `try-or-install` (`modules/tryorinstall`)
+2. `welcome` (the folded language, keyboard, time zone and network cluster)
+3. `disk`
+4. `encryption`
+5. `account`
+6. `confirm`
+7. `install` (`modules/progress`)
+8. `done`
+
+Slots 03-05, 07, 12 and 13 stay reserved for the prerelease, EULA, RST,
+wipe-or-free, recovery-key and handoff screens of later commits.
 
 The wizard uses slide transitions between modules instead of `SwipeView`,
 matching KISS's behaviour during window resizing. Do not put backend work in a
@@ -64,7 +69,8 @@ the process exit status or actionable backend output.
 
 ## GNOME parity notes
 
-The wizard keeps its seven modules; the GNOME steps that have no module here
+New screens arrive as their own modules with the shared flow's step ids
+(try-or-install first); the GNOME steps that still have no module here
 are folded into the existing ones rather than added as new steps:
 
 - The **image catalog** is on the **disk** step. The contract is

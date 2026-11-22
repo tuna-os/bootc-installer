@@ -512,6 +512,20 @@ void InstallerController::refreshDaemonFacts()
     Q_EMIT daemonFactsChanged();
 }
 
+bool InstallerController::stepSkipped(const QString &stepId) const
+{
+    // try-or-install runs on live media only (shared/flow/screens.yaml):
+    // off it there is no live session to try.
+    if (stepId == QLatin1String("try-or-install"))
+        return !m_recipe.liveMode;
+    // The account step when the selected image creates its own first user
+    // (needs_user_creation, the GNOME image step and XFCE IdentityPage
+    // rule).
+    if (stepId == QLatin1String("account"))
+        return !m_needsUser;
+    return false;
+}
+
 QStringList InstallerController::selectedDiskOperatingSystems() const
 {
     for (const fishermand::Disk &disk : m_daemonProbe.disks) {

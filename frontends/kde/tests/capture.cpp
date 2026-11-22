@@ -1,8 +1,8 @@
 // Renders every wizard step to PNG for docs/gui-walkthrough.md and the README.
 //
-// Reuses the real QML module — the same Wizard.qml and the same seven step
-// modules the installer loads — so the images document the shipped UI rather
-// than a replica. Only main.cpp is swapped.
+// Reuses the real QML module — the same Wizard.qml and step modules as the
+// installer — so the images document the shipped UI rather than a replica.
+// Only main.cpp is swapped.
 //
 // Qt's offscreen platform plugin plus the software scenegraph backend means no
 // X server, no compositor and no GPU: this runs in a plain container. It does
@@ -106,7 +106,7 @@ namespace {
 //
 // So the two classes are not measuring the same thing and cannot share a floor:
 //
-//   hero (01-welcome, 06-done) — icon + heading + prose centred on a flat page.
+//   hero (01-tryorinstall, 02-welcome, 14-done) — icon + heading + prose centred on a flat page.
 //       Vertical extent is a function of font metrics. Floor set against the
 //       7.0% now measured on the sparsest, which still leaves >2x margin over
 //       a module that drew nothing (0.0%).
@@ -137,7 +137,7 @@ constexpr int MIN_STEP_TEXT = 10;
 // card step reclassify itself as a hero page and pass.
 bool isHeroStep(const QString &name)
 {
-    return name == u"01-welcome"_s || name == u"07-done"_s || name == u"10-cancelled"_s;
+    return name == u"01-tryorinstall"_s || name == u"02-welcome"_s || name == u"14-done"_s || name == u"16-cancelled"_s;
 }
 
 void settle(int ms)
@@ -383,7 +383,7 @@ bool progressBarIsDrawn(QQuickWindow *window, const QImage &image, QTextStream &
         bar = window->findChild<QQuickItem *>(u"installProgressBar"_s);
     if (!bar) {
         out << "FAIL: no item named installProgressBar in the visual tree "
-               "of the progress step\n";
+               "of the install step\n";
         return false;
     }
     out << "    bar: " << bar->width() << "x" << bar->height()
@@ -473,13 +473,13 @@ QRect stepContentRect(QQuickWindow *window, const QImage &image)
 //
 // A single finished-install fixture put "\u2713 Installation complete!" in the
 // log on the PROGRESS screen, and the parity report duly credited the `done`
-// screen to 05-progress (keyword "complete"). That is the phantom-row failure
+// screen to 11-install (keyword "complete"). That is the phantom-row failure
 // the screen spec's comments are entirely about — a screen credited to a frame
 // that is not it — and here the harness manufactured it itself, by showing a
 // progress screen an install that had already ended.
 //
-// It also made a misleading documentation image: 05-progress is meant to show
-// an install UNDER WAY. So the progress screen gets a log that stops mid-run,
+// It also made a misleading documentation image: 11-install is meant to show
+// an install UNDER WAY. So the install screen gets a log that stops mid-run,
 // and the finished log is loaded just before the done screen is captured.
 // fisherman's real transcript (shared/progress/dry-run-transcript.ndjson),
 // split at the same point: newline-delimited JSON, one event per line, which
@@ -720,21 +720,26 @@ int main(int argc, char *argv[])
     window->show();
     settle(700);
 
+    // Numbers follow the shared flow (shared/flow/screens.yaml): 01 is the
+    // first screen, 14 the last. Slots 03-05, 07 and 12-13 belong to screens
+    // a later commit adds; their numbers stay reserved so nothing renumbers
+    // again. The wizard indices shift as modules land; the names do not.
     const QVector<QPair<int, QString>> steps = {
-        {0, u"01-welcome"_s},
-        {1, u"02-disk"_s},
-        {2, u"03-encryption"_s},
-        {3, u"04-account"_s},
-        {4, u"05-confirm"_s},
-        {5, u"06-progress"_s},
-        {6, u"07-done"_s},
+        {0, u"01-tryorinstall"_s},
+        {1, u"02-welcome"_s},
+        {2, u"06-disk"_s},
+        {3, u"08-encryption"_s},
+        {4, u"09-account"_s},
+        {5, u"10-confirm"_s},
+        {6, u"11-install"_s},
+        {7, u"14-done"_s},
         // The done page again, as a TPM install leaves it. Same step, other
         // state -- not a step of its own.
-        {6, u"08-recovery"_s},
-        // The progress page again, with the question Cancel asks (#299),
+        {7, u"12-recovery"_s},
+        // The install page again, with the question Cancel asks (#299),
         // then the done page as a cancelled install leaves it.
-        {5, u"09-cancel-confirm"_s},
-        {6, u"10-cancelled"_s},
+        {6, u"15-cancel-confirm"_s},
+        {7, u"16-cancelled"_s},
     };
 
     QObject *cancelDialog = nullptr;
@@ -743,15 +748,15 @@ int main(int argc, char *argv[])
         out << "  -> " << step.second << "\n";
         out.flush();
 
-        // The install "finishes" between the progress and done screens, which
+        // The install "finishes" between the install and done screens, which
         // is the only ordering under which each screen shows what it is for.
-        if (step.second == u"07-done"_s) {
+        if (step.second == u"14-done"_s) {
             controller->loadDemoState(
                 QString::fromUtf8(kFixtureLogRunning)
                     + QString::fromUtf8(kFixtureLogFinished),
                 0);
         }
-        if (step.second == u"08-recovery"_s) {
+        if (step.second == u"12-recovery"_s) {
             controller->loadDemoState(
                 QString::fromUtf8(kFixtureLogRunning)
                     + QString::fromUtf8(kFixtureLogFinished)
@@ -763,10 +768,10 @@ int main(int argc, char *argv[])
             }
         }
 
-        if (step.second == u"09-cancel-confirm"_s) {
+        if (step.second == u"15-cancel-confirm"_s) {
             controller->loadDemoState(QString::fromUtf8(kFixtureLogRunning), 0);
         }
-        if (step.second == u"10-cancelled"_s) {
+        if (step.second == u"16-cancelled"_s) {
             // 130 is fisherman's exit code for a cancelled install.
             controller->loadDemoState(QString::fromUtf8(kFixtureLogRunning), 130);
             if (!controller->cancelled()) {
@@ -785,7 +790,7 @@ int main(int argc, char *argv[])
         // reaches it (its clicked() signal); the question must open, and
         // the frame shows it. No install runs here, so nothing is stopped
         // either way: the point is that a click alone opens a question.
-        if (step.second == u"09-cancel-confirm"_s) {
+        if (step.second == u"15-cancel-confirm"_s) {
             QQuickItem *cancel = findItemByName(window->contentItem(), u"cancelInstallButton"_s);
             // A popup is no item of the visual tree; it is declared next to
             // the button, so it is a QObject child of the button's row.
@@ -793,7 +798,7 @@ int main(int argc, char *argv[])
                 ? cancel->parentItem()->findChild<QObject *>(u"cancelConfirmDialog"_s) : nullptr;
             cancelDialog = dialog;
             if (!cancel || !dialog) {
-                out << "FAIL: the progress step has no cancelInstallButton or cancelConfirmDialog\n";
+                out << "FAIL: the install step has no cancelInstallButton or cancelConfirmDialog\n";
                 return 1;
             }
             if (dialog->property("visible").toBool()) {
@@ -818,7 +823,7 @@ int main(int argc, char *argv[])
         // strand the user before the confirm step, and one that never held
         // it would install with a mistyped password. The frame is taken
         // after the second typing, so it shows a form ready to go on.
-        if (step.second == u"04-account"_s) {
+        if (step.second == u"09-account"_s) {
             QQuickItem *next = findItemByName(window->contentItem(), u"nextButton"_s);
             QQuickItem *username = findItemByName(window->contentItem(), u"accountUsername"_s);
             QQuickItem *confirm = findItemByName(window->contentItem(), u"accountPasswordConfirm"_s);
@@ -860,11 +865,11 @@ int main(int argc, char *argv[])
             out << "FAIL: could not locate the step content area for " << step.second << "\n";
             return 1;
         }
-        if (step.second == u"06-progress"_s && !progressBarIsDrawn(window, image, out))
+        if (step.second == u"11-install"_s && !progressBarIsDrawn(window, image, out))
             return 1;
         // The last page before the disk is written says who will sign in,
         // and never the password.
-        if (step.second == u"05-confirm"_s) {
+        if (step.second == u"10-confirm"_s) {
             const QString shown = itemText(window->contentItem());
             if (!shown.contains(captureUsername)) {
                 out << "FAIL: the confirm step does not show the account's username\n";
@@ -886,7 +891,7 @@ int main(int argc, char *argv[])
         // defaults, and an assertion that only looked for the KEY passed it.
         // KDE compiles copy-defaults.json in (branding.cpp), so this should
         // hold -- which is why it is worth asserting rather than assuming.
-        if (step.second == u"08-recovery"_s) {
+        if (step.second == u"12-recovery"_s) {
             const QString shown = itemText(window->contentItem());
             if (!shown.contains(controller->recoveryKey())) {
                 out << "FAIL: the recovery key is not in the rendered text -- "
@@ -944,7 +949,7 @@ int main(int argc, char *argv[])
         // The cancelled page: its heading is the branding copy key, it is
         // not the failure page, and it offers no restart into a system that
         // is not there.
-        if (step.second == u"10-cancelled"_s) {
+        if (step.second == u"16-cancelled"_s) {
             QQuickItem *heading = findItemByName(window->contentItem(), u"doneHeading"_s);
             QQuickItem *restart = findItemByName(window->contentItem(), u"doneRestartButton"_s);
             const QString title = controller->text(u"done_cancelled_title"_s);
@@ -963,7 +968,7 @@ int main(int argc, char *argv[])
         }
         // The confirm page lists what the install does, the language,
         // keyboard and time zone included: the recipe carries them (#292).
-        if (step.second == u"05-confirm"_s) {
+        if (step.second == u"10-confirm"_s) {
             const QString shown = itemText(window->contentItem());
             for (const auto &row : {u"Language"_s, u"Keyboard"_s, u"Time zone"_s}) {
                 if (!shown.contains(row)) {
@@ -973,7 +978,7 @@ int main(int argc, char *argv[])
             }
         }
         // More than one filesystem to choose from: the disk step asks.
-        if (step.second == u"02-disk"_s) {
+        if (step.second == u"06-disk"_s) {
             QQuickItem *fs = findItemByName(window->contentItem(), u"filesystemCombo"_s);
             if (controller->filesystemChoices().size() > 1 && (!fs || !fs->isVisible())) {
                 out << "FAIL: the disk step does not offer the filesystem choices (#287)\n";
@@ -985,7 +990,7 @@ int main(int argc, char *argv[])
         f.hero = isHeroStep(step.second);
         // The step the wizard is CURRENTLY showing only. Wizard.goToStep sets
         // `item.visible = (i === index)` on every module, and itemText() skips
-        // invisible items, so this cannot collect the other five steps' text
+        // invisible items, so this cannot collect the other steps' text
         // and credit every screen on every frame.
         f.text = itemText(window->contentItem());
         findings.append(f);

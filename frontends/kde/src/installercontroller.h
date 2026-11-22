@@ -334,6 +334,10 @@ public:
     // already holds. Empty when the backend is the recipe or the disk is
     // unknown.
     Q_INVOKABLE QStringList selectedDiskOperatingSystems() const;
+    // Whether the wizard lands on a step: steps with nothing to ask are
+    // skipped but stay in the model (shared/flow/screens.yaml). The wizard
+    // calls this per step; the backend tests pin every rule.
+    Q_INVOKABLE bool stepSkipped(const QString &stepId) const;
     bool continueAnyway() const { return m_continueAnyway; }
     void setContinueAnyway(bool v);
     bool needsUserCreation() const { return m_needsUser; }

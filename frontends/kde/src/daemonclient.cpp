@@ -10,10 +10,9 @@ namespace fishermand
 
 namespace
 {
-QString trError(const char *text)
-{
-    return QCoreApplication::translate("daemon", text);
-}
+// The one user-facing daemon error (the disk step shows it with a retry).
+// lupdate only extracts a literal source text, so the call sites below
+// pass it inline instead of through a helper.
 } // namespace
 
 Backend backend()
@@ -126,7 +125,7 @@ Requirements fetchRequirements(Client &client)
     Requirements out;
     const Reply reply = client.call(QStringLiteral("io.tunaos.Fisherman.Requirements"), {});
     if (reply.transportFailed) {
-        out.error = trError("the installer daemon did not answer");
+        out.error = QCoreApplication::translate("daemon", "the installer daemon did not answer");
         return out;
     }
     if (!reply.error.isEmpty()) {
@@ -155,7 +154,7 @@ Probe fetchProbe(Client &client)
     Probe out;
     const Reply reply = client.call(QStringLiteral("io.tunaos.Fisherman.Probe"), {});
     if (reply.transportFailed) {
-        out.error = trError("the installer daemon did not answer");
+        out.error = QCoreApplication::translate("daemon", "the installer daemon did not answer");
         return out;
     }
     if (!reply.error.isEmpty()) {
