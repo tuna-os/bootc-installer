@@ -22,6 +22,10 @@ func TestHandoffPage(t *testing.T) {
 		`if (root.currentPage === 14) root.startHandoff()`,
 		`command: [root.backendBin, "handoff"]`,
 		`answer.sessionKeepsRunning === true`,
+		// The page matches Probe's handoff hint: migrate, soft-reboot,
+		// or reboot when the hint is missing.
+		`root.handoffMode = facts.handoffMode || "reboot"`,
+		`root.handoffMode === "soft_reboot"`,
 		`if (root.showHandoffScreen) pages.push(14)`,
 		`case 14: if (root.handoffKeepsRunning && root.handoffError === "") Qt.quit(); break`,
 	} {

@@ -58,3 +58,10 @@ func TestEulaPathsPreferEnv(t *testing.T) {
 		t.Errorf("got %v", got)
 	}
 }
+
+func TestEulaPathIsShared(t *testing.T) {
+	t.Setenv(eulaEnv, "")
+	if got := eulaPaths(); len(got) != 1 || got[0] != "/usr/share/tuna-installer/eula.xml" {
+		t.Errorf("every frontend reads one path: got %v", got)
+	}
+}

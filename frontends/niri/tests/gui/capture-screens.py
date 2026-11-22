@@ -60,13 +60,24 @@ PAGES = [
     ("13-cancelled", 8, "The end of an install that the user cancelled."),
     ("14-offline", 2, "An image that needs a download, and no network: "
                       "Continue is held."),
+    ("15-rst", 9, "Intel RST hides a disk: warn and continue."),
+    ("16-wipe", 10, "The disk holds data: free space or whole disk."),
+    ("17-prerelease", 11, "The image is a pre-release."),
+    ("18-eula", 12, "The terms of use, gated on the accept tick."),
+    ("19-recovery", 13, "The recovery key on its own screen."),
+    ("20-handoff", 14, "Hand the installed system over."),
+    ("21-qr", 13, "The recovery key as a QR code."),
 ]
 
 # The button that leaves each step, by frame.
 NEXT_BUTTONS = {"02-session": "sessionNextButton", "03-source": "sourceNextButton",
                 "04-disk": "diskNextButton", "05-encryption": "encryptionNextButton",
                 "06-account": "accountNextButton", "07-confirm": "confirmInstallButton",
-                "14-offline": "sourceNextButton"}
+                "14-offline": "sourceNextButton",
+                "16-wipe": "wipeContinueButton",
+                "17-prerelease": "prereleaseContinueButton",
+                "18-eula": "eulaContinueButton",
+                "19-recovery": "recoveryContinueButton"}
 
 # The account page's fields, filled the way a user would leave them: the
 # account frame shows them, and the confirm frame names the user. Neutral

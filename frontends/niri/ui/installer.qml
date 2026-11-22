@@ -539,6 +539,10 @@ ApplicationWindow {
     property bool handoffStarted: false
     property bool handoffKeepsRunning: false
     property string handoffError: ""
+    // The mode the daemon will take (Probe's handoff hint, read by
+    // detect): migrate, soft_reboot or reboot. The page matches the mode.
+    property string handoffMode: "reboot"
+    property string handoffReason: ""
     function startHandoff() {
         if (handoffProc.running || (root.handoffStarted && root.handoffError === "")) return
         root.handoffError = ""
@@ -876,15 +880,18 @@ ApplicationWindow {
         configureProc.running = true
     }
     // The installed system gets the effective region: the user's edits over
-    // the session's values, plus the location toggle (privacy page below).
+    // the session's values. The privacy object travels only when the user
+    // touched the toggle (supervisor ruling: default false, send on change).
     function regionTarget() {
         const picks = root.regionPicks()
-        return {
+        const target = {
             locale: picks.locale || root.localeName,
             keymap: picks.keyboard || root.keyboardLayout,
-            timeZone: picks.timezone || root.timezoneName,
-            locationServices: root.locationEnabled
+            timeZone: picks.timezone || root.timezoneName
         }
+        if (root.locationTouched)
+            target.privacy = { locationServices: root.locationEnabled }
+        return target
     }
     function applyAccount() {
         if (!root.accountReady || configureProc.running) return
@@ -907,9 +914,10 @@ ApplicationWindow {
     // any host. Kept when Continue leaves the step (installRegion).
     property var installRegion: ({})
     // Location services for the installed system (privacy card). Off until
-    // the user asks; ConfigureTarget has no field for it yet, so the daemon
-    // ignores the key and the toggle documents the intent.
+    // the user asks; ConfigureTarget takes a privacy object with
+    // locationServices for it, sent only when the toggle was touched.
     property bool locationEnabled: false
+    property bool locationTouched: false
     function regionPicks() {
         const changes = {}
         const fields = { keyboard: [keyCombo.editText, root.keyboardLayout],
@@ -1020,8 +1028,9 @@ ApplicationWindow {
                     root.unmet = facts.unmet || []
                     root.daemonMode = facts.daemon === true
                     root.intelRst = facts.intelRst === true
+                    root.handoffMode = facts.handoffMode || "reboot"
+                    root.handoffReason = facts.handoffReason || ""
                     root.releaseType = facts.releaseType || "stable"
-                    root.experimentText = facts.experiment || ""
                     if (facts.offlineImages) root.offlineImages = facts.offlineImages
                     if (facts.logPath !== undefined) root.logPath = facts.logPath
                     if (facts.encryptionChoices) root.encryptionChoices = facts.encryptionChoices
@@ -1523,6 +1532,7 @@ ApplicationWindow {
         root.handoffStarted = false
         root.handoffKeepsRunning = false
         root.handoffError = ""
+        root.locationTouched = false
         currentPage = 7
         installProc.command = [root.backendBin, "install"]
         // Bound to the disk that the plan on the confirm page showed:
@@ -1978,7 +1988,7 @@ ApplicationWindow {
                             primaryText: qsTr("Location services")
                             secondaryText: qsTr("Let the installed system detect its location for the time zone.")
                             isSelected: root.locationEnabled
-                            onClicked: root.locationEnabled = !root.locationEnabled
+                            onClicked: { root.locationEnabled = !root.locationEnabled; root.locationTouched = true }
                         }
                         StyledText {
                             text: qsTr("This installer sends nothing anywhere. It only dials the image registry to test a download.")
@@ -3358,11 +3368,12 @@ ApplicationWindow {
                     StyledText {
                         objectName: "handoffBody"
                         text: root.handoffError !== "" ? root.handoffError
-                            : root.handoffStarted
-                            ? (root.handoffKeepsRunning
-                                ? qsTr("The live session has become the installed system. Data from this session carries over.")
-                                : qsTr("Restart now to boot into the installed system."))
-                            : qsTr("Handing the installed system over…")
+                            : !root.handoffStarted ? qsTr("Handing the installed system over…")
+                            : root.handoffMode === "migrate"
+                            ? qsTr("The live session has become the installed system. Data from this session carries over.")
+                            : root.handoffMode === "soft_reboot"
+                            ? qsTr("Restart now to boot into the installed copy. Data from this session does not carry over.")
+                            : qsTr("Restart now to boot into the installed system.")
                         color: root.handoffError !== "" ? Theme.error : Theme.surfaceVariantText
                         wrapMode: Text.WordWrap
                         horizontalAlignment: Text.AlignHCenter

@@ -5,10 +5,10 @@ package main
 //
 // Both are read from the host, not from fisherman, so they work on either
 // backend path. The os-release search reuses branding.go's host-first
-// paths; TUNA_OS_RELEASE points at one file for tests. The EULA lookup
-// follows gnome-setup ($PKGDATADIR/eula.xml): TUNA_EULA_FILE, then the
-// installed data directory. No file means no eula page — the spec's EULA
-// path is an open question, and "no file, no page" matches gnome-setup.
+// paths; TUNA_OS_RELEASE points at one file for tests. The EULA path is
+// one for every frontend (supervisor ruling on #442):
+// /usr/share/tuna-installer/eula.xml, or TUNA_EULA_FILE. No file means no
+// eula page.
 
 import (
 	"encoding/json"
@@ -64,10 +64,9 @@ func eulaPaths() []string {
 	if p := os.Getenv(eulaEnv); p != "" {
 		return []string{p}
 	}
-	return []string{
-		"/app/share/tuna-installer-niri/eula.xml",
-		"/usr/share/tuna-installer-niri/eula.xml",
-	}
+	// One shared path for every frontend (supervisor ruling on #442):
+	// the AppStream agreement file of type eula.
+	return []string{"/usr/share/tuna-installer/eula.xml"}
 }
 
 // eulaMain is the `eula` subcommand: {"present": bool, "text": ...} for the

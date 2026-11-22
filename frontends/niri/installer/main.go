@@ -293,6 +293,10 @@ func detectEnvironment() {
 		"hasTpm": err == nil && facts.TPMUsable,
 		// The daemon's intelRst.detected: the rst page shows when true.
 		"intelRst": err == nil && facts.IntelRst,
+		// The mode the daemon will take at handoff (Probe's handoff hint):
+		// migrate, soft_reboot or reboot. The page matches the mode.
+		"handoffMode":   facts.HandoffMode,
+		"handoffReason": facts.HandoffReason,
 		// os-release RELEASE_TYPE: "pre-release" and "experiment" show the
 		// prerelease page; anything else skips it.
 		"releaseType": osReleaseType(),

@@ -125,6 +125,12 @@ type daemonLive struct {
 	LiveImage *string `json:"liveImage"`
 }
 
+// daemonHandoffInfo is Probe's handoff hint: which mode the daemon will
+// take, and why. Absent or unknown means reboot.
+type daemonHandoffInfo struct {
+	Mode   string  `json:"mode"`
+	Reason *string `json:"reason"`
+}
 type daemonProblem struct {
 	Field   string `json:"field"`
 	Code    string `json:"code"`
@@ -303,17 +309,28 @@ func daemonProbeFacts() (ProbeFacts, error) {
 		return ProbeFacts{}, fmt.Errorf("fishermand Requirements: %v", err)
 	}
 	var probe struct {
-		ProtocolVersion int            `json:"protocolVersion"`
-		Disks           []daemonDisk   `json:"disks"`
-		Tpm             daemonTpm      `json:"tpm"`
-		IntelRst        daemonIntelRst `json:"intelRst"`
-		Live            daemonLive     `json:"live"`
+		ProtocolVersion int                `json:"protocolVersion"`
+		Disks           []daemonDisk       `json:"disks"`
+		Tpm             daemonTpm          `json:"tpm"`
+		IntelRst        daemonIntelRst     `json:"intelRst"`
+		Live            daemonLive         `json:"live"`
+		Handoff         *daemonHandoffInfo `json:"handoff"`
 	}
 	if err := conn.Call("io.tunaos.Fisherman.Probe", nil, &probe); err != nil {
 		return ProbeFacts{}, fmt.Errorf("fishermand Probe: %v", err)
 	}
 	facts := ProbeFacts{Disks: []ProbeDisk{}, TPMUsable: probe.Tpm.Usable,
-		Unmet: []string{}, OfflineImages: []string{}}
+		Unmet: []string{}, OfflineImages: []string{},
+		HandoffMode: "reboot"}
+	if probe.Handoff != nil {
+		switch probe.Handoff.Mode {
+		case "migrate", "soft_reboot", "reboot":
+			facts.HandoffMode = probe.Handoff.Mode
+			if probe.Handoff.Reason != nil {
+				facts.HandoffReason = *probe.Handoff.Reason
+			}
+		}
+	}
 	for _, g := range req.Gates {
 		if g.OK {
 			continue
@@ -622,7 +639,14 @@ func daemonConfigureTarget(stdin map[string]any, stdout io.Writer) int {
 			params["user"] = nu
 		}
 	}
-	for _, k := range []string{"hostname", "locale", "keymap", "timeZone", "timezone", "autologin", "locationServices"} {
+	// Privacy is a nested object with locationServices (default false);
+	// the QML sends it only when the user touched the toggle.
+	if privacy, ok := stdin["privacy"].(map[string]any); ok {
+		if ls, ok := privacy["locationServices"].(bool); ok {
+			params["privacy"] = map[string]any{"locationServices": ls}
+		}
+	}
+	for _, k := range []string{"hostname", "locale", "keymap", "timeZone", "timezone", "autologin"} {
 		if v, ok := stdin[k]; ok && v != nil {
 			if k == "timezone" {
 				params["timeZone"] = v

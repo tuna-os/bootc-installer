@@ -68,6 +68,11 @@ type ProbeFacts struct {
 	// IntelRst: the daemon's Probe says Intel RST/VMD hides an NVMe disk.
 	// The legacy probe never reports it. The rst page shows when true.
 	IntelRst bool
+	// HandoffMode: the mode the daemon will take (Probe's handoff hint):
+	// migrate, soft_reboot or reboot. Missing or unknown means reboot.
+	HandoffMode string
+	// HandoffReason is why the daemon picked the mode, for the page.
+	HandoffReason string
 	// Raw is the probe's own output, for the objects this struct does not
 	// hold (bootc_store, which offers the install source of #267).
 	Raw []byte
@@ -110,7 +115,8 @@ func parseProbe(data []byte) (ProbeFacts, error) {
 		return ProbeFacts{}, fmt.Errorf("fisherman probe protocol_version %s is not %d", v, probeProtocolVersion)
 	}
 	facts := ProbeFacts{Disks: []ProbeDisk{}, TPMUsable: raw.TPM.Usable, Unmet: []string{},
-		IsLive: raw.Live.IsLive, OfflineImages: []string{}, Raw: data}
+		IsLive: raw.Live.IsLive, OfflineImages: []string{}, Raw: data,
+		HandoffMode: "reboot"}
 	if raw.Live.IsLive {
 		facts.LiveImage = raw.Live.LiveImage
 	}

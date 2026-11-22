@@ -23,10 +23,12 @@ func TestConfigureTargetWiring(t *testing.T) {
 		`hostname: root.hostname`,
 		`username: root.username`,
 		`case 5: root.applyAccount(); break`,
-		// Privacy: the location toggle travels with the region.
+		// Privacy: the toggle travels in a privacy object, only when
+		// the user touched it.
 		`objectName: "privacyLocationRow"`,
 		`qsTr("Location services")`,
-		`locationServices: root.locationEnabled`,
+		`target.privacy = { locationServices: root.locationEnabled }`,
+		`root.locationTouched = true`,
 	} {
 		if !strings.Contains(qml, want) {
 			t.Errorf("installer.qml has no %q", want)

@@ -400,6 +400,10 @@ func TestDaemonProbeFacts(t *testing.T) {
 		facts.Disks[0].TransportLabel != "NVMe" || facts.Disks[0].Title != "M" {
 		t.Errorf("disks: %+v", facts.Disks)
 	}
+	// No handoff hint in this Probe: the mode falls back to reboot.
+	if facts.HandoffMode != "reboot" || facts.HandoffReason != "" {
+		t.Errorf("handoff: mode %q reason %q", facts.HandoffMode, facts.HandoffReason)
+	}
 }
 
 func TestDaemonProbeFactsRstAndData(t *testing.T) {
@@ -430,6 +434,37 @@ func TestDaemonProbeFactsRstAndData(t *testing.T) {
 	d := facts.Disks[0]
 	if !d.HasData || d.FreeBytes != 100 || d.MinimalBytes != 10 || !d.IntelRst {
 		t.Errorf("disk detail lost: %+v", d)
+	}
+}
+
+func TestDaemonProbeFactsHandoff(t *testing.T) {
+	probe := func(handoff string) ProbeFacts {
+		sock := scriptedPeer(t, map[string][]string{
+			"io.tunaos.Fisherman.Requirements": {reply(
+				`{"meetsRequirements":true,"gates":[]}`, false)},
+			"io.tunaos.Fisherman.Probe": {reply(
+				`{"protocolVersion":1,"disks":[],"tpm":{"present":true,"version":"2.0","usable":true},`+
+					`"intelRst":{"detected":false,"affectedDisks":[]},"live":{"isLive":true},`+
+					handoff+`}`, false)},
+		})
+		withDaemonSocket(t, sock)
+		facts, err := daemonProbeFacts()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return facts
+	}
+	got := probe(`"handoff":{"mode":"migrate","reason":"btrfs seed"}`)
+	if got.HandoffMode != "migrate" || got.HandoffReason != "btrfs seed" {
+		t.Errorf("hint: mode %q reason %q", got.HandoffMode, got.HandoffReason)
+	}
+	got = probe(`"handoff":{"mode":"soft_reboot"}`)
+	if got.HandoffMode != "soft_reboot" || got.HandoffReason != "" {
+		t.Errorf("no reason: mode %q reason %q", got.HandoffMode, got.HandoffReason)
+	}
+	got = probe(`"handoff":{"mode":"hyperloop"}`)
+	if got.HandoffMode != "reboot" {
+		t.Errorf("unknown mode: got %q, want reboot", got.HandoffMode)
 	}
 }
 
@@ -519,9 +554,9 @@ func TestDaemonConfigureTarget(t *testing.T) {
 		"timezone": "Europe/Berlin",
 		"locale":   "de_DE.UTF-8",
 		"keymap":   "de",
-		// The privacy toggle: the daemon has no field for it yet and
-		// ignores it, but the key must cross for when it learns one.
-		"locationServices": true,
+		// The privacy object travels as one; the QML sends it only when
+		// the user touched the toggle.
+		"privacy": map[string]any{"locationServices": true},
 	}, &out)
 	if code != 0 {
 		t.Fatalf("code %d: %s", code, out.String())
@@ -539,8 +574,12 @@ func TestDaemonConfigureTarget(t *testing.T) {
 	if _, ok := gotParams["timezone"]; ok {
 		t.Errorf("lowercase timezone must not cross: %v", gotParams)
 	}
-	if gotParams["locationServices"] != true {
-		t.Errorf("location toggle must cross: %v", gotParams)
+	privacy, _ := gotParams["privacy"].(map[string]any)
+	if privacy["locationServices"] != true {
+		t.Errorf("privacy object must cross: %v", gotParams)
+	}
+	if _, ok := gotParams["locationServices"]; ok {
+		t.Errorf("bare locationServices must not cross: %v", gotParams)
 	}
 }
 
