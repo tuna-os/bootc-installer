@@ -55,7 +55,9 @@ Kirigami.Page {
         ListElement { stepId: "welcome";    name: qsTr("Welcome");               url: "modules/welcome/main.qml" }
         ListElement { stepId: "prerelease"; name: qsTr("Disclaimer");            url: "modules/prerelease/main.qml" }
         ListElement { stepId: "eula";       name: qsTr("Terms of Use");          url: "modules/eula/main.qml" }
+        ListElement { stepId: "rst";        name: qsTr("Intel RST");             url: "modules/rst/main.qml" }
         ListElement { stepId: "disk";       name: qsTr("Target Disk");           url: "modules/disk/main.qml" }
+        ListElement { stepId: "wipe-or-free"; name: qsTr("Existing Data");       url: "modules/wipefree/main.qml" }
         ListElement { stepId: "encryption"; name: qsTr("Disk Encryption");       url: "modules/encryption/main.qml" }
         ListElement { stepId: "account";    name: qsTr("User Account");          url: "modules/account/main.qml" }
         ListElement { stepId: "confirm";    name: qsTr("Confirm Installation");  url: "modules/confirm/main.qml" }
@@ -393,9 +395,11 @@ Kirigami.Page {
 
                 // Hidden while fisherman runs (the install step advances
                 // itself) and on steps whose content navigates: try-or-install
-                // carries its own Try and Install now buttons.
+                // carries its own Try and Install now buttons, wipe-or-free
+                // its own choice buttons.
                 visible: root.currentStepId !== "install"
                     && root.currentStepId !== "try-or-install"
+                    && root.currentStepId !== "wipe-or-free"
 
                 readonly property bool isWelcome: root.currentStepId === "welcome"
 

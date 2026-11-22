@@ -17,6 +17,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLocale>
 #include <QMetaObject>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -61,6 +62,11 @@ InstallerController::InstallerController(QObject *parent)
     }
     m_hasTpm = facts.tpmUsable;
     m_unmet = facts.unmet;
+    // A usable TPM seals the daemon install to PCR 7 with no prompt: the
+    // encryption page is skipped, so the type is set here. The recipe
+    // backend keeps `none` and its four choices.
+    if (fishermand::backend() == fishermand::Backend::Daemon && m_hasTpm)
+        m_recipe.encryption.type = QStringLiteral("tpm2-luks");
     // Live media is fisherman's answer (probe's `live`). This used to be a
     // `bootc status` of our own plus /run/ostree-live and /proc/cmdline,
     // read inside the Flatpak sandbox.
@@ -510,6 +516,8 @@ void InstallerController::refreshDaemonFacts()
     m_daemonProbe = fishermand::fetchProbe(client);
     const probe::Result facts = fishermand::probeResult(m_daemonProbe);
     m_hasTpm = facts.tpmUsable;
+    if (m_hasTpm && m_recipe.encryption.type == QLatin1String("none"))
+        m_recipe.encryption.type = QStringLiteral("tpm2-luks");
     m_unmet = m_daemonReqs.ok ? fishermand::unmetFromGates(m_daemonReqs.gates) : facts.unmet;
     m_recipe.liveMode = facts.isLive;
     m_liveImage = facts.liveImage;
@@ -532,6 +540,18 @@ bool InstallerController::stepSkipped(const QString &stepId) const
         return !m_isPrerelease;
     if (stepId == QLatin1String("eula"))
         return !eulaFileFound();
+    // Intel RST hides disks: the page explains it before the disk list.
+    // The legacy probe does not report it, so the page is daemon-only.
+    if (stepId == QLatin1String("rst"))
+        return !rstDetected();
+    // Existing data with room to spare: the choice of free space or erase.
+    // The recipe backend keeps its erase behaviour and skips the choice.
+    if (stepId == QLatin1String("wipe-or-free"))
+        return !(daemonBackend() && selectedDiskHasData());
+    // With a usable TPM the daemon seals to PCR 7 with no prompt
+    // (shared/flow `encryption`); the recipe backend keeps its four choices.
+    if (stepId == QLatin1String("encryption"))
+        return daemonBackend() && m_hasTpm;
     // The account step when the selected image creates its own first user
     // (needs_user_creation, the GNOME image step and XFCE IdentityPage
     // rule).
@@ -548,13 +568,54 @@ void InstallerController::setEulaAccepted(bool v)
     Q_EMIT eulaChanged();
 }
 
-QStringList InstallerController::selectedDiskOperatingSystems() const
+const fishermand::Disk *InstallerController::selectedDaemonDisk() const
 {
+    // The daemon probe's row for the chosen disk; null on the recipe backend
+    // or before any disk is chosen.
     for (const fishermand::Disk &disk : m_daemonProbe.disks) {
         if (disk.path == m_recipe.disk)
-            return disk.existingData.operatingSystems;
+            return &disk;
     }
-    return {};
+    return nullptr;
+}
+
+QStringList InstallerController::selectedDiskOperatingSystems() const
+{
+    const fishermand::Disk *disk = selectedDaemonDisk();
+    return disk ? disk->existingData.operatingSystems : QStringList();
+}
+
+bool InstallerController::selectedDiskHasData() const
+{
+    const fishermand::Disk *disk = selectedDaemonDisk();
+    return disk
+        && (disk->existingData.hasPartitionTable || disk->existingData.hasLuks
+            || !disk->existingData.operatingSystems.isEmpty());
+}
+
+bool InstallerController::selectedDiskForceErase() const
+{
+    const fishermand::Disk *disk = selectedDaemonDisk();
+    return selectedDiskHasData() && disk->freeBytes >= 0 && disk->minimalSizeBytes > 0
+        && disk->freeBytes < disk->minimalSizeBytes;
+}
+
+QString InstallerController::selectedDiskFreeSpace() const
+{
+    const fishermand::Disk *disk = selectedDaemonDisk();
+    if (!disk || disk->freeBytes < 0)
+        return {};
+    return QLocale().formattedDataSize(disk->freeBytes);
+}
+
+void InstallerController::setInstallMode(const QString &v)
+{
+    if (v != QLatin1String("erase") && v != QLatin1String("free_space"))
+        return;
+    if (m_installMode == v)
+        return;
+    m_installMode = v;
+    Q_EMIT installModeChanged();
 }
 
 void InstallerController::setDisk(const QString &v)

@@ -22,7 +22,9 @@ Kirigami Addons, `org.kde.desktop` Qt Quick Controls style). See
 | ![Welcome](screenshots/02-welcome.png) | **Welcome** — what the wizard is about to do, with the region and language pickers, the hardware gates and the connectivity check. |
 | ![Disclaimer](screenshots/03-prerelease.png) | **Disclaimer** — only when os-release calls the product a pre-release or an experiment: the EXPERIMENT text, or a generic pre-release warning. Never holds Next. |
 | ![Terms of use](screenshots/04-eula.png) | **Terms of use** — the AppStream agreement sections the image ships. Skipped when there is no EULA file; a file that cannot load shows an error with only power off. Next stays off until the box is ticked. |
+| ![Intel RST](screenshots/05-rst.png) | **Intel RST** — the firmware hides NVMe disks behind RST or RAID: warn and continue to the disk list, with power off for a firmware change. Skipped when nothing is remapped (the legacy probe never reports it). |
 | ![Target disk](screenshots/06-disk.png) | **Target disk** — the disks `fisherman probe --json` offers, one FormCard radio per disk: the model (the path when unknown), then the path, fisherman's size label and the bus. Re-probed every time the step becomes current, so hotplugged media appear. |
+| ![Existing data](screenshots/07-wipefree.png) | **Existing data** — the chosen disk holds data: install to free space, or erase the disk. When the free space cannot fit the install, erasing is the only path, with a countdown on the button. Daemon-only; the recipe backend keeps its erase behaviour and skips the choice. |
 | ![Disk encryption](screenshots/08-encryption.png) | **Disk encryption** — `none`, `luks-passphrase`, and (only when fisherman reports a usable TPM 2.0) `tpm2-luks` and `tpm2-luks-passphrase`. The passphrase fields appear only for the options that take one. |
 | ![User account](screenshots/09-account.png) | **User account** — username, optional full name and the password typed twice: the recipe's `user` block, with the groups of `shared/account/groups.json`. Next is held until both are filled, the passwords match and `fisherman validate --json --partial -` has no problem with the username (shown under the field in the `validate_username_*` copy). The capture asserts Next is held before the second typing and released after it. |
 | ![Confirm](screenshots/10-confirm.png) | **Confirm** — the recipe as it will be written (including the username, never the password), and the only button in the app that starts an install. |
@@ -32,7 +34,7 @@ Kirigami Addons, `org.kde.desktop` Qt Quick Controls style). See
 | ![Cancel question](screenshots/15-cancel-confirm.png) | **Cancel** — the install step asks before it stops an install. The capture clicks Cancel and makes sure that the question opens. |
 | ![Cancelled](screenshots/16-cancelled.png) | **Cancelled** — the done step after a confirmed cancel or fisherman exit code 130. The heading is the copy key `done_cancelled_title`. |
 
-Slots 05, 07 and 13 belong to the RST, wipe-or-free and handoff screens, which land in later commits; their numbers stay reserved. The recovery-key screen lands as 12-recoverykey and retires the 12-recovery done-state frame.
+Slot 13 belongs to the handoff screen, which lands in a later commit; its number stays reserved. The recovery-key screen lands as 12-recoverykey and retires the 12-recovery done-state frame.
 
 Every step's header shows "Step N of M · name" and one dot per step.
 

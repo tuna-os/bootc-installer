@@ -58,7 +58,7 @@ Install now, Done, Continue) instead of the shared Back and Next buttons.
 `src/qml/Wizard.qml` drives them with hand-rolled slide animations rather than
 a `SwipeView`. `src/components/setupmodule.h` is deliberately a near-copy of
 KDE KISS's `SetupModule`, so the shape is upstream's — follow it when adding a
-Steps (step ids of shared/flow/screens.yaml): try-or-install → welcome → prerelease → eula → disk → encryption → account → confirm → install (`modules/progress`) → done. A step that has nothing to ask is skipped by `InstallerController.stepSkipped()`, never blank.
+Steps (step ids of shared/flow/screens.yaml): try-or-install → welcome → prerelease → eula → rst → disk → wipe-or-free → encryption → account → confirm → install (`modules/progress`) → done. A step that has nothing to ask is skipped by `InstallerController.stepSkipped()`, never blank.
 
 The disk step shows the image catalog when a manifest is there and the host
 is not live media. `../../shared/catalog/README.md` is the contract for the

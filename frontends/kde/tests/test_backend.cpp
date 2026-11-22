@@ -100,6 +100,24 @@ QByteArray scriptedProbe()
                       "\"live\":{\"isLive\":true,\"liveImage\":\"ghcr.io/example/os:stable\"}}}")
            + '\0';
 }
+
+// Probe with a usable TPM and no remapped disks: an empty NVMe disk, ready
+// for a sealed install with no passphrase page.
+QByteArray scriptedProbeTpm()
+{
+    return QByteArray("{\"parameters\":{\"protocolVersion\":1,\"disks\":[{"
+                      "\"path\":\"/dev/nvme0n1\",\"sizeBytes\":512110190592,"
+                      "\"sizeLabel\":\"476.9 GiB\",\"model\":\"Mock NVMe 512\","
+                      "\"vendor\":\"Mockware\",\"transport\":\"nvme\","
+                      "\"removable\":false,\"eligible\":true,\"freeBytes\":512110190592,"
+                      "\"minimalSizeBytes\":21474836480,\"intelRst\":false,"
+                      "\"existingData\":{\"hasPartitionTable\":false,"
+                      "\"partitions\":[],\"operatingSystems\":[],\"hasLuks\":false}}],"
+                      "\"tpm\":{\"present\":true,\"version\":\"2.0\",\"usable\":true},"
+                      "\"intelRst\":{\"detected\":false,\"affectedDisks\":[]},"
+                      "\"live\":{\"isLive\":true,\"liveImage\":\"ghcr.io/example/os:stable\"}}}")
+           + '\0';
+}
 } // namespace
 
 class BackendTest : public QObject
@@ -287,6 +305,11 @@ private slots:
     void eulaAgreementSections();
     void eulaPlainTextAndFailures();
     void releaseFactsDriveSkips();
+    // The RST, wipe-or-free and encryption skip rules with their controller
+    // facts (src/installercontroller.h): daemon Probe rows, the install
+    // mode choice and the TPM-sealed default.
+    void wizardSkipsRstWipeAndEncryption();
+    void wipeChoiceDefaultsToFreeSpace();
 };
 
 void BackendTest::recipeDefaults()
@@ -4207,7 +4230,9 @@ void BackendTest::wizardStepsFollowTheSharedFlow()
         QStringLiteral("welcome"),
         QStringLiteral("prerelease"),
         QStringLiteral("eula"),
+        QStringLiteral("rst"),
         QStringLiteral("disk"),
+        QStringLiteral("wipe-or-free"),
         QStringLiteral("encryption"),
         QStringLiteral("account"),
         QStringLiteral("confirm"),
@@ -4446,6 +4471,169 @@ void BackendTest::releaseFactsDriveSkips()
         qputenv(probe::FAKE_ENV, oldFake);
     else
         qunsetenv(probe::FAKE_ENV);
+}
+
+void BackendTest::wizardSkipsRstWipeAndEncryption()
+{
+    // No usable TPM: the encryption page shows, RST warns, and the wipe
+    // choice follows the chosen disk's data.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("fisherman.sock"));
+    const QList<QByteArray> replies{scriptedRequirements(), scriptedProbe()};
+    std::atomic<bool> peerOk = true;
+    std::atomic<int> served = 0;
+    QThread *peerThread = QThread::create([&, path] {
+        QLocalServer server;
+        if (!server.listen(path)) {
+            peerOk = false;
+            return;
+        }
+        for (int i = 0; i < 2; i++) {
+            if (!server.waitForNewConnection(10000)) {
+                peerOk = false;
+                return;
+            }
+            QScopedPointer<QLocalSocket> peer(server.nextPendingConnection());
+            if (peer.isNull()) {
+                peerOk = false;
+                return;
+            }
+            QByteArray request;
+            while (!request.contains('\0')) {
+                if (!peer->waitForReadyRead(10000)) {
+                    peerOk = false;
+                    return;
+                }
+                request += peer->readAll();
+            }
+            peer->write(replies.at(i));
+            if (!peer->waitForBytesWritten(10000)) {
+                peerOk = false;
+                return;
+            }
+            peer->disconnectFromServer();
+            served++;
+        }
+    });
+    peerThread->start();
+    QVERIFY(pollScriptedPeer(path));
+    const QByteArray oldBackend = qgetenv("TUNA_INSTALLER_BACKEND");
+    const QByteArray oldSocket = qgetenv("TUNA_FISHERMAN_SOCKET");
+    const QByteArray oldFake = qgetenv(probe::FAKE_ENV);
+    qputenv("TUNA_INSTALLER_BACKEND", QByteArray("daemon"));
+    qputenv("TUNA_FISHERMAN_SOCKET", path.toLocal8Bit());
+    qunsetenv(probe::FAKE_ENV);
+    InstallerController c;
+    peerThread->wait(15000);
+    QVERIFY(peerOk.load());
+    QCOMPARE(served.load(), 2);
+    peerThread->deleteLater();
+
+    QVERIFY(!c.stepSkipped(QStringLiteral("rst")));
+    c.setDisk(QStringLiteral("/dev/sdb"));
+    QVERIFY(!c.stepSkipped(QStringLiteral("wipe-or-free")));
+    QVERIFY(!c.selectedDiskForceErase());
+    QVERIFY(!c.selectedDiskFreeSpace().isEmpty());
+    const QStringList wantSystems{QStringLiteral("Windows")};
+    QCOMPARE(c.selectedDiskOperatingSystems(), wantSystems);
+    c.setDisk(QStringLiteral("/dev/sdc"));
+    QVERIFY(c.stepSkipped(QStringLiteral("wipe-or-free")));
+    QVERIFY(c.selectedDiskOperatingSystems().isEmpty());
+    c.setDisk(QStringLiteral("/dev/unknown"));
+    QVERIFY(c.stepSkipped(QStringLiteral("wipe-or-free")));
+    QVERIFY(!c.stepSkipped(QStringLiteral("encryption")));
+    QCOMPARE(c.recipe().encryption.type, QStringLiteral("none"));
+
+    // A usable TPM: the daemon seals to PCR 7 with no prompt.
+    const QList<QByteArray> tpmReplies{scriptedRequirements(), scriptedProbeTpm()};
+    const QString tpmPath = dir.filePath(QStringLiteral("tpm.sock"));
+    std::atomic<bool> tpmOk = true;
+    QThread *tpmThread = QThread::create([&, tpmPath] {
+        QLocalServer server;
+        if (!server.listen(tpmPath)) {
+            tpmOk = false;
+            return;
+        }
+        for (int i = 0; i < 2; i++) {
+            if (!server.waitForNewConnection(10000)) {
+                tpmOk = false;
+                return;
+            }
+            QScopedPointer<QLocalSocket> peer(server.nextPendingConnection());
+            if (peer.isNull()) {
+                tpmOk = false;
+                return;
+            }
+            QByteArray request;
+            while (!request.contains('\0')) {
+                if (!peer->waitForReadyRead(10000)) {
+                    tpmOk = false;
+                    return;
+                }
+                request += peer->readAll();
+            }
+            peer->write(tpmReplies.at(i));
+            if (!peer->waitForBytesWritten(10000)) {
+                tpmOk = false;
+                return;
+            }
+            peer->disconnectFromServer();
+        }
+    });
+    tpmThread->start();
+    QVERIFY(pollScriptedPeer(tpmPath));
+    qputenv("TUNA_FISHERMAN_SOCKET", tpmPath.toLocal8Bit());
+    InstallerController sealed;
+    tpmThread->wait(15000);
+    QVERIFY(tpmOk.load());
+    tpmThread->deleteLater();
+    QVERIFY(sealed.stepSkipped(QStringLiteral("encryption")));
+    QCOMPARE(sealed.recipe().encryption.type, QStringLiteral("tpm2-luks"));
+    // No remapped disks there: no RST page either.
+    QVERIFY(sealed.stepSkipped(QStringLiteral("rst")));
+
+    // The recipe backend keeps its four choices and its erase behaviour:
+    // wipe-or-free and RST skip, encryption shows even with a TPM.
+    qunsetenv("TUNA_INSTALLER_BACKEND");
+    qunsetenv("TUNA_FISHERMAN_SOCKET");
+    qputenv(probe::FAKE_ENV,
+            QDir(QStringLiteral(PROBE_FIXTURES_DIR)).filePath(QStringLiteral("laptop.json")).toUtf8());
+    InstallerController legacy;
+    QVERIFY(legacy.hasTpm());
+    QVERIFY(!legacy.stepSkipped(QStringLiteral("encryption")));
+    QCOMPARE(legacy.recipe().encryption.type, QStringLiteral("none"));
+    QVERIFY(legacy.stepSkipped(QStringLiteral("rst")));
+    legacy.setDisk(QStringLiteral("/dev/nvme0n1"));
+    QVERIFY(legacy.stepSkipped(QStringLiteral("wipe-or-free")));
+
+    if (!oldBackend.isEmpty())
+        qputenv("TUNA_INSTALLER_BACKEND", oldBackend);
+    else
+        qunsetenv("TUNA_INSTALLER_BACKEND");
+    if (!oldSocket.isEmpty())
+        qputenv("TUNA_FISHERMAN_SOCKET", oldSocket);
+    else
+        qunsetenv("TUNA_FISHERMAN_SOCKET");
+    if (!oldFake.isEmpty())
+        qputenv(probe::FAKE_ENV, oldFake);
+    else
+        qunsetenv(probe::FAKE_ENV);
+}
+
+void BackendTest::wipeChoiceDefaultsToFreeSpace()
+{
+    InstallerController c;
+    QCOMPARE(c.installMode(), QStringLiteral("free_space"));
+    QSignalSpy changed(&c, &InstallerController::installModeChanged);
+    c.setInstallMode(QStringLiteral("erase"));
+    QCOMPARE(c.installMode(), QStringLiteral("erase"));
+    QCOMPARE(changed.count(), 1);
+    c.setInstallMode(QStringLiteral("erase"));
+    QCOMPARE(changed.count(), 1);
+    c.setInstallMode(QStringLiteral("bogus"));
+    QCOMPARE(c.installMode(), QStringLiteral("erase"));
+    QCOMPARE(changed.count(), 1);
 }
 
 QTEST_APPLESS_MAIN(BackendTest)

@@ -104,6 +104,19 @@ class InstallerController : public QObject
     // legacy probe does not report it.
     Q_PROPERTY(bool rstDetected READ rstDetected NOTIFY daemonFactsChanged)
     Q_PROPERTY(QStringList rstAffectedDisks READ rstAffectedDisks NOTIFY daemonFactsChanged)
+    // Wipe-or-free (shared/flow/screens.yaml): what the daemon probe says
+    // about the chosen disk. False on the recipe backend, which knows no
+    // prior data and keeps its erase behaviour.
+    Q_PROPERTY(bool selectedDiskHasData READ selectedDiskHasData NOTIFY recipeChanged)
+    // The chosen disk cannot fit the install in its free space: Install
+    // erases it, with a countdown on the button.
+    Q_PROPERTY(bool selectedDiskForceErase READ selectedDiskForceErase NOTIFY recipeChanged)
+    // The chosen disk's free space in the toolkit's own formatting, or ""
+    // when the probe did not say.
+    Q_PROPERTY(QString selectedDiskFreeSpace READ selectedDiskFreeSpace NOTIFY recipeChanged)
+    // erase or free_space (shared/flow `wipe-or-free`). The daemon Install
+    // gets it; the recipe backend ignores it. Starts at free space.
+    Q_PROPERTY(QString installMode READ installMode WRITE setInstallMode NOTIFY installModeChanged)
     // The daemon did not answer. The disk step shows the reason and offers
     // a retry (refreshDaemonFacts); only power off is offered otherwise.
     Q_PROPERTY(bool daemonUnreachable READ daemonUnreachable NOTIFY daemonFactsChanged)
@@ -351,6 +364,11 @@ public:
     // already holds. Empty when the backend is the recipe or the disk is
     // unknown.
     Q_INVOKABLE QStringList selectedDiskOperatingSystems() const;
+    bool selectedDiskHasData() const;
+    bool selectedDiskForceErase() const;
+    QString selectedDiskFreeSpace() const;
+    QString installMode() const { return m_installMode; }
+    void setInstallMode(const QString &v);
     // Whether the wizard lands on a step: steps with nothing to ask are
     // skipped but stay in the model (shared/flow/screens.yaml). The wizard
     // calls this per step; the backend tests pin every rule.
@@ -566,6 +584,7 @@ Q_SIGNALS:
     void catalogChanged();
     void factsChanged();
     void daemonFactsChanged();
+    void installModeChanged();
     void continueAnywayChanged();
     void regionChanged();
     void eulaChanged();
@@ -601,6 +620,8 @@ private:
     void runValidate();
     // Everything a catalog leaf decides except the image itself.
     void applyLeaf(const imagecatalog::Leaf &leaf);
+    // The daemon probe's row for the chosen disk; null when unknown.
+    const fishermand::Disk *selectedDaemonDisk() const;
     void signalInstallGroup(int signal);
 
     Recipe m_recipe;
@@ -684,6 +705,8 @@ private:
     double m_postPullBase = -1.0;
     bool m_hasTpm = false;
     QStringList m_unmet;
+    // erase or free_space (shared/flow `wipe-or-free`). Starts at free space.
+    QString m_installMode = QStringLiteral("free_space");
     // os-release at startup: a pre-release disclaimer and the terms of use.
     bool m_isPrerelease = false;
     QString m_experimentText;

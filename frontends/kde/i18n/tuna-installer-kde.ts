@@ -181,7 +181,15 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Intel RST</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Target Disk</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Existing Data</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -446,6 +454,22 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Intel RST</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Intel RST is on</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This computer hides its NVMe disk behind Intel RST. The disk list on the next step cannot show a disk the system cannot see. To install to the hidden disk, switch the firmware from RST or RAID to AHCI first, then start the installer again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hidden disks: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Welcome</source>
         <translation type="unfinished"></translation>
     </message>
@@ -479,6 +503,38 @@
     </message>
     <message>
         <source>The installed system uses these settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Existing data found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is already on %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 already holds data.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 free.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The free space cannot fit the install. Installing erases the whole disk.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install to Free Space</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Erase and Install</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Erase and Install (%1)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

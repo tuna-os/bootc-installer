@@ -730,28 +730,29 @@ int main(int argc, char *argv[])
     settle(700);
 
     // Numbers follow the shared flow (shared/flow/screens.yaml): 01 is the
-    // first screen, 14 the last. Slots 05, 07 and 13 belong to the RST,
-    // wipe-or-free and handoff screens a later commit adds; their numbers
-    // stay reserved so nothing renumbers again. The wizard indices shift as
-    // modules land; the names do not.
+    // first screen, 14 the last. Slot 13 belongs to the handoff screen a
+    // later commit adds; its number stays reserved so nothing renumbers
+    // again. The wizard indices shift as modules land; the names do not.
     const QVector<QPair<int, QString>> steps = {
         {0, u"01-tryorinstall"_s},
         {1, u"02-welcome"_s},
         {2, u"03-prerelease"_s},
         {3, u"04-eula"_s},
-        {4, u"06-disk"_s},
-        {5, u"08-encryption"_s},
-        {6, u"09-account"_s},
-        {7, u"10-confirm"_s},
-        {8, u"11-install"_s},
-        {9, u"14-done"_s},
+        {4, u"05-rst"_s},
+        {5, u"06-disk"_s},
+        {6, u"07-wipefree"_s},
+        {7, u"08-encryption"_s},
+        {8, u"09-account"_s},
+        {9, u"10-confirm"_s},
+        {10, u"11-install"_s},
+        {11, u"14-done"_s},
         // The done page again, as a TPM install leaves it. Same step, other
         // state -- not a step of its own.
-        {9, u"12-recovery"_s},
+        {11, u"12-recovery"_s},
         // The install page again, with the question Cancel asks (#299),
         // then the done page as a cancelled install leaves it.
-        {8, u"15-cancel-confirm"_s},
-        {9, u"16-cancelled"_s},
+        {10, u"15-cancel-confirm"_s},
+        {11, u"16-cancelled"_s},
     };
 
     QObject *cancelDialog = nullptr;

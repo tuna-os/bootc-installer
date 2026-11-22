@@ -111,7 +111,7 @@ qt_add_library(tunainstallerapp STATIC)
 # Each step lives at modules/<name>/contents/ui/main.qml, the KISS layout, and
 # is aliased into the QML module resource as modules/<name>/main.qml so that
 # Wizard.qml can resolve it with a plain relative URL.
-set(STEP_MODULES tryorinstall welcome prerelease eula disk encryption account confirm progress done)
+set(STEP_MODULES tryorinstall welcome prerelease eula rst disk wipefree encryption account confirm progress done)
 set(STEP_QML_FILES)
 foreach(step ${STEP_MODULES})
     set(src "modules/${step}/contents/ui/main.qml")
