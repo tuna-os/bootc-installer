@@ -14,6 +14,7 @@ from bootc_shared import plan as install_plan
 from bootc_shared import probe as fisherman_probe
 from bootc_shared import validate as fisherman_validate
 
+from tuna_installer_xfce import daemon as daemon_client
 from tuna_installer_xfce.i18n import _
 
 IN_FLATPAK = os.path.exists("/.flatpak-info")
@@ -140,6 +141,48 @@ def fisherman_command(purpose, *, in_flatpak=None, live=None, host_path=None):
     return fisherman_host.command(purpose, in_flatpak=in_flatpak, live=bool(live),
                                   host_path=host_path)
 
+BACKEND_ENV = "BOOTC_INSTALLER_BACKEND"
+_BACKEND_ARG = {"name": "recipe"}
+_daemon_cache = {}
+
+
+def set_backend(name):
+    """Pick the install backend: "recipe" (the legacy fisherman CLI, the
+    default until the daemon ships) or "daemon" (fishermand over Varlink).
+    Unknown names fail. Clears the probe and daemon caches, so a switch
+    never serves the other backend's answers."""
+    if name not in ("recipe", "daemon"):
+        raise ValueError(f"unknown backend {name!r}: want recipe or daemon")
+    _BACKEND_ARG["name"] = name
+    _probe_cache.clear()
+    _daemon_cache.clear()
+
+
+def backend():
+    """The install backend in force: $BOOTC_INSTALLER_BACKEND wins over the
+    --backend flag (set_backend), so harnesses can force one without
+    touching the launch line. Unknown values fail."""
+    env = os.environ.get(BACKEND_ENV, "")
+    if env:
+        if env not in ("recipe", "daemon"):
+            raise ValueError(
+                f"unknown backend {env!r} in ${BACKEND_ENV}: want recipe or daemon")
+        return env
+    return _BACKEND_ARG["name"]
+
+
+def get_daemon():
+    """The fishermand client for the configured sockets, built once."""
+    if "daemon" not in _daemon_cache:
+        _daemon_cache["daemon"] = daemon_client.Daemon()
+    return _daemon_cache["daemon"]
+
+
+def reset_daemon():
+    """Forget the daemon client and the probe: tests switch backends."""
+    _daemon_cache.clear()
+    _probe_cache.clear()
+
 
 def validate_argv():
     """`fisherman validate --json --partial -` for the pages' live checks. A
@@ -171,20 +214,51 @@ _probe_cache = {}
 
 
 def probe(refresh=False):
-    """(result, error): the probe result, or None and the reason it failed."""
+    """(result, error): the probe result, or None and the reason it failed.
+
+    On the daemon backend this is fishermand's Probe, translated to the
+    legacy shape (daemon.probe_to_legacy) so every reader keeps working;
+    Requirements gates become system.unmet."""
     if refresh or "answer" not in _probe_cache:
-        try:
-            _probe_cache["answer"] = (
-                fisherman_probe.run(fisherman_command("probe")), None)
-        except (fisherman_probe.ProbeError, StageError) as exc:
-            _probe_cache["answer"] = (None, str(exc))
+        if backend() == "daemon":
+            _probe_cache["answer"] = _daemon_probe()
+        else:
+            try:
+                _probe_cache["answer"] = (
+                    fisherman_probe.run(fisherman_command("probe")), None)
+            except (fisherman_probe.ProbeError, StageError) as exc:
+                _probe_cache["answer"] = (None, str(exc))
     return _probe_cache["answer"]
+
+
+def _daemon_probe():
+    """(result, error) from fishermand. A failed Requirements still yields
+    the disks, with no unmet gates; a failed Probe fails the whole call."""
+    try:
+        daemon = get_daemon()
+    except daemon_client.DaemonError as exc:
+        return None, str(exc)
+    try:
+        reply = daemon.probe()
+    except daemon_client.DaemonError as exc:
+        return None, str(exc)
+    try:
+        gates = daemon.requirements().get("gates") or []
+    except daemon_client.DaemonError:
+        gates = []
+    return daemon_client.probe_to_legacy(reply, gates), None
 
 
 def probe_source(args):
     """`fisherman probe --json` for the selected source (#266): `args` is
     bootc_shared.source_check.probe_args(). The result, or None when it
-    failed. Not cached: a reply belongs to one selection."""
+    failed. Not cached: a reply belongs to one selection.
+
+    Always None on the daemon backend: image references and bootc storage
+    are recipe-pipeline concepts with no daemon field in IDL v1, so the
+    confirm page shows no source rows and nothing blocks."""
+    if backend() == "daemon":
+        return None
     try:
         return fisherman_probe.run(fisherman_command("probe") + list(args))
     except (fisherman_probe.ProbeError, StageError):
@@ -197,7 +271,12 @@ def request_plan(recipe):
     why fisherman could not be asked. Unprivileged, recipe on stdin, never
     on argv. Waits up to install_plan.TIMEOUT_SECONDS, so call it off the
     UI thread. An older fisherman has no plan command: that is an error
-    here, and the confirm page then works as it did before plans."""
+    here, and the confirm page then works as it did before plans.
+
+    Always (None, reason) on the daemon backend: fishermand tracks the
+    disk itself, so there is no plan to bind with diskIdentity."""
+    if backend() == "daemon":
+        return None, "fishermand has no install plan"
     try:
         return install_plan.run(fisherman_command("plan"), recipe), None
     except (install_plan.PlanError, StageError) as exc:
@@ -711,6 +790,9 @@ def recipe_problems(recipe):
     fisherman cannot be asked the recipe starts: the install runs the same
     rules before it touches a disk.
     """
+    if backend() == "daemon":
+        return _daemon_recipe_problems(recipe)
+
     if not isinstance(recipe.get("disk"), str) or not recipe["disk"].strip():
         return [_("The recipe names no installation disk.")]
     try:
@@ -719,6 +801,60 @@ def recipe_problems(recipe):
         return []
     lines = [fisherman_validate.render(problem, BRANDING.text)
              for problem in fisherman_validate.problems(result)]
+    lines = [line for line in lines if line]
+    if not lines and result.get("valid") is False:
+        lines = [_("fisherman did not accept the recipe.")]
+    return lines
+
+
+def daemon_fragment_errors(fragment):
+    """The Validate + ConfigureTarget problems for one page's partial
+    fragment (hostname, user, encryption, locale, keyboard, timezone), as
+    error dicts (field/code/message). Unmentioned keys are not sent: the
+    daemon checks only the fields present in partial mode. A daemon that
+    cannot be reached raises fisherman_validate.ValidateError, which
+    LiveCheck reports as "could not run" without holding Next."""
+    fragment = dict(fragment or {})
+    try:
+        daemon = get_daemon()
+        config = daemon_client.recipe_to_config(fragment)
+        if "encryption" not in fragment:
+            config.pop("encryption", None)
+        target = daemon_client.recipe_to_target(fragment)
+        errors = list(daemon.validate(config, partial=True).get("errors") or [])
+        if target:
+            errors += list(daemon.configure_target(**target).get("errors") or [])
+    except daemon_client.DaemonError as exc:
+        raise fisherman_validate.ValidateError(str(exc)) from exc
+    return [error for error in errors if isinstance(error, dict)]
+
+
+def daemon_live_runner():
+    """A LiveCheck runner (command, fragment) for the daemon backend: the
+    daemon's problems in the {"errors": [...]} shape that
+    fisherman_validate.problems() reads. The pages' live_check() uses it
+    instead of the fisherman subprocess when the daemon backend is on."""
+    return lambda _command, fragment: {"errors": daemon_fragment_errors(fragment)}
+
+
+def _daemon_recipe_problems(recipe):
+    """recipe_problems() on the daemon backend: full Validate of the
+    translated config plus ConfigureTarget for the account/locale picks.
+    An unreachable daemon yields [], as on the recipe path: the install
+    runs the same rules before it touches a disk."""
+    if not isinstance((recipe or {}).get("disk"), str) or not recipe["disk"].strip():
+        return [_("The recipe names no installation disk.")]
+    try:
+        daemon = get_daemon()
+        config = daemon_client.recipe_to_config(recipe)
+        target = daemon_client.recipe_to_target(recipe)
+        result = daemon.validate(config, partial=False)
+        errors = list(result.get("errors") or [])
+        if target:
+            errors += list(daemon.configure_target(**target).get("errors") or [])
+    except daemon_client.DaemonError:
+        return []
+    lines = [fisherman_validate.render(problem, BRANDING.text) for problem in errors]
     lines = [line for line in lines if line]
     if not lines and result.get("valid") is False:
         lines = [_("fisherman did not accept the recipe.")]

@@ -31,7 +31,16 @@ ENCRYPTION_TYPES = tuple(c["type"] for c in core.ENCRYPTION_CHOICES)
 
 def live_check(on_result):
     """`fisherman validate --json --partial -` for one page: debounced, off
-    the UI thread, answered on it (shared/recipe/README.md)."""
+    the UI thread, answered on it (shared/recipe/README.md).
+
+    On the daemon backend the same debounce drives fishermand's Validate
+    and ConfigureTarget instead of the fisherman subprocess
+    (core.daemon_live_runner)."""
+    if core.backend() == "daemon":
+        return fisherman_validate.LiveCheck(
+            None, on_result, timeout_add=GLib.timeout_add,
+            source_remove=GLib.source_remove, idle_add=GLib.idle_add,
+            runner=core.daemon_live_runner())
     return fisherman_validate.LiveCheck(
         core.validate_argv(), on_result, timeout_add=GLib.timeout_add,
         source_remove=GLib.source_remove, idle_add=GLib.idle_add)

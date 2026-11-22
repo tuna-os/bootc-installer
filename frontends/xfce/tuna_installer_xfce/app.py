@@ -618,10 +618,31 @@ def parse_argv(argv):
     return autoinstall, rest
 
 
+def parse_backend(argv):
+    """(backend_or_None, rest): split --backend=daemon|recipe out before
+    GTK sees the argv. Unknown values fail here, not mid-wizard. Kept out
+    of parse_argv so its (autoinstall, rest) contract does not change."""
+    chosen = None
+    rest = []
+    for arg in argv:
+        if arg.startswith("--backend="):
+            chosen = arg.split("=", 1)[1]
+            if chosen not in ("recipe", "daemon"):
+                raise SystemExit(
+                    f"error: --backend wants recipe or daemon, got {chosen!r}")
+        else:
+            rest.append(arg)
+    return chosen, rest
+
+
 def main(argv=None):
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     prog = sys.argv[0] if argv is None else "tuna-installer-xfce"
-    autoinstall, rest = parse_argv(sys.argv[1:] if argv is None else argv)
+    raw = sys.argv[1:] if argv is None else argv
+    chosen, raw = parse_backend(raw)
+    if chosen is not None:
+        core.set_backend(chosen)
+    autoinstall, rest = parse_argv(raw)
     # run() takes a full argv (program name first); the --autoinstall pair
     # stays out of it so GTK never sees an option it does not know.
     InstallerApp(autoinstall_recipe=autoinstall).run([prog] + rest)
