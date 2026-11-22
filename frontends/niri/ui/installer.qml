@@ -339,6 +339,7 @@ ApplicationWindow {
     onCurrentPageChanged: {
         if (root.currentPage === 6) root.startSourceCheck()
         if (root.currentPage === 10) root.enterWipe()
+        if (root.currentPage === 14) root.startHandoff()
     }
     // The wipe page's per-visit state: free space is the default where it
     // fits, the whole disk where it does not, and the destructive choice
@@ -533,6 +534,18 @@ ApplicationWindow {
     // The backend path: the daemon answers Varlink, the legacy path shells
     // out to fisherman. `detect` reports which one is driving.
     property bool daemonMode: false
+    // The handoff call after an install. Once per install: startHandoff
+    // refuses a second run while one is in flight or done.
+    property bool handoffStarted: false
+    property bool handoffKeepsRunning: false
+    property string handoffError: ""
+    function startHandoff() {
+        if (handoffProc.running || (root.handoffStarted && root.handoffError === "")) return
+        root.handoffError = ""
+        root.handoffKeepsRunning = false
+        root.handoffStarted = true
+        handoffProc.running = true
+    }
     // The key fisherman emits once, after TPM enrolment (#129). The
     // "recovery_key" case in renderEvent used to format a log line and keep
     // nothing, so after the install there was nothing left to show.
@@ -1262,6 +1275,29 @@ ApplicationWindow {
             }
         }
     }
+    // The handoff call after the install (`handoff`, no mode: the daemon
+    // picks migrate, soft-reboot or reboot). The answer decides the page:
+    // Continue quits into a kept session, Restart boots the new system.
+    Process {
+        id: handoffProc
+        command: [root.backendBin, "handoff"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let answer = null
+                try { answer = JSON.parse(text) } catch (e) { answer = null }
+                if (answer && answer.started === true) {
+                    root.handoffKeepsRunning = answer.sessionKeepsRunning === true
+                    root.handoffError = ""
+                } else {
+                    root.handoffError = qsTr("The handoff failed. Restart to boot the installed system, or close and start over.")
+                }
+            }
+        }
+        onExited: (code, status) => {
+            if (code !== 0 && root.handoffError === "")
+                root.handoffError = qsTr("The handoff failed. Restart to boot the installed system, or close and start over.")
+        }
+    }
 
     // Power actions on the host (dialog_poweroff parity): systemctl
     // through flatpak-spawn when sandboxed, never in this runtime.
@@ -1416,6 +1452,9 @@ ApplicationWindow {
         root.recoveryAck = false
         root.recoveryKeyError = ""
         root.qrOpen = false
+        root.handoffStarted = false
+        root.handoffKeepsRunning = false
+        root.handoffError = ""
         currentPage = 7
         installProc.command = [root.backendBin, "install"]
         // Bound to the disk that the plan on the confirm page showed:
@@ -1580,6 +1619,7 @@ ApplicationWindow {
         case 11: flowNext(); break
         case 12: if (root.eulaAccepted) flowNext(); break
         case 13: if (root.recoveryKey !== "" && root.recoveryAck) flowNext(); break
+        case 14: if (root.handoffKeepsRunning && root.handoffError === "") Qt.quit(); break
         }
     }
     function back() {
@@ -3173,6 +3213,71 @@ ApplicationWindow {
                             text: qsTr("Continue")
                             enabled: root.recoveryKey !== "" && root.recoveryAck
                             onClicked: root.flowNext()
+                        }
+                    }
+                }
+            }
+            // Page 14: handoff — the install is done, and the daemon hands
+            // the new system over. The call runs once on entry, with no
+            // mode: the daemon picks migrate, soft-reboot or reboot. When
+            // the session keeps running, Continue quits into it; otherwise
+            // Restart boots the new system and Not now drops to done.
+            Item {
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width, 520)
+                    spacing: Theme.spacingL
+                    StyledText {
+                        objectName: "handoffTitle"
+                        text: root.handoffError !== "" ? qsTr("Handoff failed")
+                            : root.handoffKeepsRunning ? qsTr("Welcome to your new system")
+                            : qsTr("Install finished")
+                        font.pixelSize: Theme.fontSizeXLarge
+                        font.weight: Theme.fontWeightMedium
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    StyledText {
+                        objectName: "handoffBody"
+                        text: root.handoffError !== "" ? root.handoffError
+                            : root.handoffStarted
+                            ? (root.handoffKeepsRunning
+                                ? qsTr("The live session has become the installed system. Data from this session carries over.")
+                                : qsTr("Restart now to boot into the installed system."))
+                            : qsTr("Handing the installed system over…")
+                        color: root.handoffError !== "" ? Theme.error : Theme.surfaceVariantText
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    RowLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        spacing: Theme.spacingM
+                        DankButton {
+                            objectName: "handoffRetryButton"
+                            text: qsTr("Retry")
+                            tonal: true
+                            visible: root.handoffError !== ""
+                            onClicked: root.startHandoff()
+                        }
+                        DankButton {
+                            objectName: "handoffRebootButton"
+                            text: qsTr("Restart")
+                            visible: root.handoffError !== "" || (root.handoffStarted && !root.handoffKeepsRunning)
+                            onClicked: rebootProc.running = true
+                        }
+                        DankButton {
+                            objectName: "handoffNotNowButton"
+                            text: qsTr("Not now")
+                            tonal: true
+                            visible: root.handoffError !== "" || (root.handoffStarted && !root.handoffKeepsRunning)
+                            onClicked: { root.currentPage = 8 }
+                        }
+                        DankButton {
+                            objectName: "handoffContinueButton"
+                            text: qsTr("Continue")
+                            visible: root.handoffError === "" && root.handoffStarted && root.handoffKeepsRunning
+                            onClicked: Qt.quit()
                         }
                     }
                 }
