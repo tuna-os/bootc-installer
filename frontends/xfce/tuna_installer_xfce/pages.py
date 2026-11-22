@@ -463,13 +463,22 @@ class EulaPage(Page):
         a11y_name(self, _("Terms of use"))
         scroll = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
         self.text = Gtk.TextView(editable=False)
-        self.text.get_buffer().set_text(self._load())
+        self.loaded, text = self._load()
+        self.text.get_buffer().set_text(text)
         scroll.add(self.text)
         self.pack_start(scroll, True, True, 0)
         self.accept = Gtk.CheckButton(
             label=_("I have read and accept the Terms of Use"))
         self.accept.connect("toggled", lambda *_a: self.win.refresh_nav())
+        # eula-unreadable (spec): nothing to accept, so the only way out
+        # is Power off.
+        self.accept.set_visible(self.loaded)
         self.pack_start(self.accept, False, False, 0)
+        self.off_btn = Gtk.Button(label=_("Power off"))
+        self.off_btn.connect(
+            "clicked", lambda *_a: core.host_run(["systemctl", "poweroff"]))
+        self.off_btn.set_visible(not self.loaded)
+        self.pack_start(self.off_btn, False, False, 0)
 
     def should_show(self):
         return bool(core.find_eula())
@@ -478,9 +487,9 @@ class EulaPage(Page):
         path = core.find_eula()
         try:
             with open(path, encoding="utf-8") as handle:
-                return handle.read()
+                return True, handle.read()
         except OSError:
-            return _("The terms could not be loaded.")
+            return False, _("The terms could not be loaded.")
 
     def can_continue(self):
         return self.accept.get_active()

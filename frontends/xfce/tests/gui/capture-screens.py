@@ -547,6 +547,8 @@ def main():
                                         "acknowledgement"])
         # The done page a third time: after a confirmed Cancel (or fisherman
         # exit code 130). Its heading is the copy key done_cancelled_title.
+        win.index = PAGE_ORDER.index("done")
+        win.stack.set_visible_child_name("done")
         win.pages["done"].set_result(False, "", cancelled=True)
         win.refresh_nav()
         finding = capture(win, painter, "cancelled",

@@ -23,6 +23,9 @@ msgstr ""
 msgid "{product} Installer"
 msgstr ""
 
+msgid "lost the daemon"
+msgstr ""
+
 msgid "The recipe names no installation disk."
 msgstr ""
 
@@ -89,7 +92,57 @@ msgstr ""
 msgid "Cancel installation"
 msgstr ""
 
+msgid "Erase the whole disk?"
+msgstr ""
+
+msgid "Erase everything"
+msgstr ""
+
+#, python-brace-format
+msgid "Everything on {disk} will be erased, and this cannot be undone."
+msgstr ""
+
+msgid "the selected disk"
+msgstr ""
+
+#, python-brace-format
+msgid "Erase everything ({left})"
+msgstr ""
+
+msgid "Language"
+msgstr ""
+
+msgid "Search languages"
+msgstr ""
+
+msgid "Keyboard layout"
+msgstr ""
+
+msgid "Search keyboards"
+msgstr ""
+
+msgid "Time zone"
+msgstr ""
+
+msgid "Search time zones"
+msgstr ""
+
+msgid "Network"
+msgstr ""
+
+msgid "Disclaimer"
+msgstr ""
+
+msgid "Terms of use"
+msgstr ""
+
+msgid "Intel RST"
+msgstr ""
+
 msgid "What do you want to install?"
+msgstr ""
+
+msgid "Existing data found"
 msgstr ""
 
 msgid "Disk encryption"
@@ -98,19 +151,49 @@ msgstr ""
 msgid "Name this computer"
 msgstr ""
 
-msgid "Keep the image's setting"
-msgstr ""
-
 msgid "No network connection. The selected image must be downloaded. Open Network settings to connect, then press Recheck; or go back and choose an image marked [available offline]."
 msgstr ""
 
 msgid "No network settings tool was found on this system. Connect with the network icon of the panel, then press Recheck."
 msgstr ""
 
+msgid "Recovery key"
+msgstr ""
+
+msgid "Done"
+msgstr ""
+
+msgid "Handoff"
+msgstr ""
+
 msgid "Show"
 msgstr ""
 
+msgid "Keep the image's setting"
+msgstr ""
+
 msgid "Hide"
+msgstr ""
+
+msgid "Type here to test the layout"
+msgstr ""
+
+msgid "Pick the closest city. The installer never detects the location; the choice stays on this computer."
+msgstr ""
+
+msgid "Network settings"
+msgstr ""
+
+msgid "Recheck"
+msgstr ""
+
+msgid "Checking network connection…"
+msgstr ""
+
+msgid "This computer uses Intel RST (RAID mode). Linux cannot see disks behind it. Switch the storage to AHCI in the firmware settings, then continue."
+msgstr ""
+
+msgid "Welcome"
 msgstr ""
 
 msgid "Search images"
@@ -120,13 +203,88 @@ msgstr ""
 msgid "Where should {product} be installed?"
 msgstr ""
 
+msgid "Disk selection"
+msgstr ""
+
+msgid "Use Entire Disk"
+msgstr ""
+
+msgid "a partitioned disk"
+msgstr ""
+
+msgid "Passphrase"
+msgstr ""
+
+msgid "Confirm passphrase"
+msgstr ""
+
+msgid "Account"
+msgstr ""
+
+msgid "Hostname"
+msgstr ""
+
+msgid "User name"
+msgstr ""
+
+msgid "Full name"
+msgstr ""
+
+msgid "Password"
+msgstr ""
+
+msgid "Confirm password"
+msgstr ""
+
 msgid "The passwords do not match."
 msgstr ""
 
-msgid "Checking network connection…"
+msgid "Confirm"
+msgstr ""
+
+msgid "Installing"
+msgstr ""
+
+msgid "Installation progress"
+msgstr ""
+
+msgid "Scan this code into a password manager, then write the key down too."
+msgstr ""
+
+msgid "Show QR Code for Recovery Key"
+msgstr ""
+
+msgid "Not now"
+msgstr ""
+
+msgid "Continue"
+msgstr ""
+
+msgid "The system is installed. The live session becomes the installed system: nothing restarts, and what is open stays open."
+msgstr ""
+
+msgid "Allow apps to determine the location"
+msgstr ""
+
+msgid "No network connection. Connect, then press Recheck."
+msgstr ""
+
+msgid "No network settings tool was found. Connect with the panel's network icon, then press Recheck."
+msgstr ""
+
+msgid "This is pre-release software. It may break, and it may lose data. Do not install it on a computer that matters."
+msgstr ""
+
+msgid "I have read and accept the Terms of Use"
 msgstr ""
 
 msgid "Choose an image to continue."
+msgstr ""
+
+msgid "Rescan"
+msgstr ""
+
+msgid "Install to Free Space"
 msgstr ""
 
 msgid "Advanced"
@@ -138,13 +296,11 @@ msgstr ""
 msgid "Your account"
 msgstr ""
 
-msgid "Language, keyboard and time zone"
+msgid "Sign in automatically"
 msgstr ""
 
-msgid "Network settings"
-msgstr ""
-
-msgid "Recheck"
+#, python-brace-format
+msgid "Language: {language}; Keyboard: {keyboard}; Time zone: {timezone}"
 msgstr ""
 
 msgid "this live system"
@@ -159,13 +315,25 @@ msgstr ""
 msgid "Encryption"
 msgstr ""
 
-msgid "Hostname"
-msgstr ""
-
 msgid "Image"
 msgstr ""
 
+msgid "Recovery key QR code"
+msgstr ""
+
+msgid "The system is installed. Continuing restarts userspace into it; the live session's files do not carry over."
+msgstr ""
+
+msgid "The system is installed. Continuing restarts the computer into it; remove the install media when asked."
+msgstr ""
+
+msgid "Try again"
+msgstr ""
+
 msgid "View install log"
+msgstr ""
+
+msgid "The terms could not be loaded."
 msgstr ""
 
 #, python-brace-format
@@ -175,40 +343,24 @@ msgid ""
 "You'll choose what to install and where; nothing is written to any disk until you confirm on the final step."
 msgstr ""
 
+#, python-brace-format
+msgid "Try {product}"
+msgstr ""
+
 msgid "(this system)"
 msgstr ""
 
 msgid "No image catalog found and this is not a live system. Check that fisherman's images.json is installed."
 msgstr ""
 
-msgid "Passphrase"
+msgid "No disk of at least 50 GiB was found. Connect one to install to."
 msgstr ""
 
-msgid "Confirm"
+#, python-brace-format
+msgid "{title} holds {found}. Keep it and install into the free space, or erase the whole disk."
 msgstr ""
 
 msgid "Username"
-msgstr ""
-
-msgid "Full name"
-msgstr ""
-
-msgid "Password"
-msgstr ""
-
-msgid "Confirm password"
-msgstr ""
-
-msgid "Language"
-msgstr ""
-
-msgid "Keyboard"
-msgstr ""
-
-msgid "Time zone"
-msgstr ""
-
-msgid "the selected disk"
 msgstr ""
 
 msgid "Updates from"
@@ -217,10 +369,18 @@ msgstr ""
 msgid "User"
 msgstr ""
 
+msgid "Keyboard"
+msgstr ""
+
 msgid "Restart now"
 msgstr ""
 
-msgid "No disk of at least 50 GiB was found. Connect one to install to."
+#, python-brace-format
+msgid "The live session could not switch to {value}; the installed system still uses it."
+msgstr ""
+
+#, python-brace-format
+msgid "The live session clock could not change; the installed system still uses {value}."
 msgstr ""
 
 #, python-brace-format
@@ -234,6 +394,29 @@ msgid ""
 "Full log: {path}"
 msgstr ""
 
+msgid "[available offline]"
+msgstr ""
+
+#, python-brace-format
+msgid "Could not detect disks: {error}"
+msgstr ""
+
+msgid "The key could not be enrolled. Try again."
+msgstr ""
+
+msgid "Cannot restart right now. Try again."
+msgstr ""
+
+#, python-brace-format
+msgid "{title} ({path}) — needs at least {minimum}"
+msgstr ""
+
+msgid "No recovery key. Do not continue without one."
+msgstr ""
+
+msgid "The handoff failed."
+msgstr ""
+
 #, python-brace-format
 msgid ""
 "The last lines of the install log:\n"
@@ -241,13 +424,6 @@ msgid ""
 "{log}\n"
 "\n"
 "Full log: {path}"
-msgstr ""
-
-msgid "[available offline]"
-msgstr ""
-
-#, python-brace-format
-msgid "Could not detect disks: {error}"
 msgstr ""
 
 #, python-brace-format

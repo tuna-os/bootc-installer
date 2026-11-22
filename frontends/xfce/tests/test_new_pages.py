@@ -136,6 +136,18 @@ class TestEulaPage:
         assert page.can_continue()
         assert page.get_accessible().get_name() == "Terms of use"
 
+    def test_unreadable_eula_offers_power_off(self, monkeypatch, tmp_path):
+        eula = tmp_path / "eula.xml"
+        eula.write_text("Terms.")
+        eula.chmod(0)
+        monkeypatch.setenv(core.EULA_ENV, str(eula))
+        page = pages.EulaPage(types.SimpleNamespace(
+            refresh_nav=lambda: None))
+        assert page.should_show() is True
+        assert not page.can_continue()
+        assert page.off_btn.get_visible()
+        assert not page.accept.get_visible()
+
 
 class TestRstPage:
     def test_no_rst_skips(self, monkeypatch):
