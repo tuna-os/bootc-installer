@@ -327,6 +327,7 @@ func daemonProbeFacts() (ProbeFacts, error) {
 	if probe.Live.LiveImage != nil {
 		facts.LiveImage = *probe.Live.LiveImage
 	}
+	facts.IntelRst = probe.IntelRst.Detected
 	for _, d := range probe.Disks {
 		if !d.Eligible {
 			continue
@@ -335,10 +336,15 @@ func daemonProbeFacts() (ProbeFacts, error) {
 		if title == "" {
 			title = d.Path
 		}
+		ed := d.ExistingData
 		facts.Disks = append(facts.Disks, ProbeDisk{
 			Path: d.Path, Title: title, Model: d.Model,
 			SizeLabel: d.SizeLabel, TransportLabel: transportLabel(d.Transport),
 			Removable: d.Removable,
+			HasData: ed.HasPartitionTable || len(ed.Partitions) > 0 ||
+				len(ed.OperatingSystems) > 0 || ed.HasLuks,
+			FreeBytes: d.FreeBytes, MinimalBytes: d.MinimalSizeBytes,
+			IntelRst: d.IntelRst,
 		})
 	}
 	return facts, nil

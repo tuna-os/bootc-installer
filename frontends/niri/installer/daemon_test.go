@@ -333,6 +333,37 @@ func TestDaemonProbeFacts(t *testing.T) {
 	}
 }
 
+func TestDaemonProbeFactsRstAndData(t *testing.T) {
+	sock := scriptedPeer(t, map[string][]string{
+		"io.tunaos.Fisherman.Requirements": {reply(
+			`{"meetsRequirements":true,"gates":[]}`, false)},
+		"io.tunaos.Fisherman.Probe": {reply(
+			`{"protocolVersion":1,"disks":[`+
+				`{"path":"/dev/nvme0n1","sizeBytes":1,"sizeLabel":"476.9 GiB","model":"M","vendor":"V",`+
+				`"transport":"nvme","removable":false,"eligible":true,"freeBytes":100,"minimalSizeBytes":10,`+
+				`"intelRst":true,"existingData":{"hasPartitionTable":true,"partitionTableType":"gpt",`+
+				`"partitions":[{"path":"/dev/nvme0n1p1","sizeBytes":5}],"operatingSystems":["Windows 11"],"hasLuks":false}}],`+
+				`"tpm":{"present":true,"version":"2.0","usable":true},`+
+				`"intelRst":{"detected":true,"mode":"vmd","affectedDisks":["/dev/nvme0n1"]},`+
+				`"live":{"isLive":true}}`, false)},
+	})
+	withDaemonSocket(t, sock)
+	facts, err := daemonProbeFacts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !facts.IntelRst {
+		t.Error("IntelRst not carried")
+	}
+	if len(facts.Disks) != 1 {
+		t.Fatalf("disks: %+v", facts.Disks)
+	}
+	d := facts.Disks[0]
+	if !d.HasData || d.FreeBytes != 100 || d.MinimalBytes != 10 || !d.IntelRst {
+		t.Errorf("disk detail lost: %+v", d)
+	}
+}
+
 func TestDaemonValidate(t *testing.T) {
 	sock := scriptedPeer(t, map[string][]string{
 		"io.tunaos.Fisherman.Validate": {reply(
