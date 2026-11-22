@@ -25,6 +25,7 @@ mod image_catalog;
 mod hardware;
 mod preflight;
 mod tour;
+mod fishermand;
 mod i18n;
 #[cfg(test)]
 mod recipe_compliance;

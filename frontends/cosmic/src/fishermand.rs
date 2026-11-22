@@ -1,0 +1,637 @@
+//! fishermand daemon client (Varlink) with the legacy subprocess path intact.
+//!
+//! Backend: tuna-os/fisherman#512, `docs/FISHERMAND.md` on branch
+//! `feat/fishermand-mock`. Flow ids: `shared/flow/screens.yaml`. The framing
+//! follows `shared/client/rust`; it is vendored here instead of a path
+//! dependency so the wasm build (`--no-default-features --features web`)
+//! gains no Unix-only dependency and `Cargo.lock` stays untouched.
+//!
+//! Switch: `TUNA_USE_FISHERMAND=1` talks to the daemon. Anything else keeps
+//! the recipe + `fisherman -` subprocess (`offline::fisherman_argv`), so
+//! nothing regresses until the daemon ships.
+//!
+//! Sockets: the daemon serves every interface on every socket. One socket
+//! path per interface keeps gnome-setup compatibility. `FISHERMAN_SOCKET_DIR`
+//! moves all four; `TUNA_FISHERMAND_SOCKET` points every call at one socket
+//! (tests, mock daemon with `--socket-dir`).
+//!
+//! Secrets: passphrases and recovery keys pass through `parameters`. This
+//! module never logs a request or a reply, and `Error`'s `Display` shows the
+//! error name only (see `redact` for the log path).
+
+use serde_json::{json, Value};
+
+/// Talk to fishermand when `TUNA_USE_FISHERMAND=1`, else the subprocess.
+pub fn use_daemon() -> bool {
+    std::env::var("TUNA_USE_FISHERMAND").as_deref() == Ok("1")
+}
+
+/// The spec screen id (shared/flow/screens.yaml) to mock-daemon scenario
+/// name (docs/FISHERMAND.md `--list-scenarios`). PR #447 names scenarios
+/// after screens (`happy-tpm`); PR #513 names them after facts (`happy`).
+/// Where they differ, the daemon's real name wins.
+pub fn scenario_alias(name: &str) -> &str {
+    match name {
+        "happy-tpm" => "happy",
+        "happy-no-tpm" => "no-tpm",
+        "rst-present" => "rst",
+        "cancel-mid-install" => "cancel",
+        _ => name,
+    }
+}
+
+/// Default socket paths, one per interface (FISHERMAND.md socket table).
+pub fn default_socket_path(interface: &str) -> &'static str {
+    match interface {
+        "io.systemd.SysInstall" => "/run/systemd/io.systemd.SysInstall",
+        "io.systemd.CryptEnroll" => "/run/systemd/io.systemd.CryptEnroll",
+        "io.systemd.Shutdown" => "/run/systemd/io.systemd.Shutdown",
+        "io.tunaos.Fisherman" => "/run/fisherman/io.tunaos.Fisherman",
+        _ => "/run/fisherman/io.tunaos.Fisherman",
+    }
+}
+
+/// Resolve the socket for `interface`, with the test overrides applied.
+pub fn socket_path_with(
+    interface: &str,
+    socket_dir: Option<&str>,
+    single: Option<&str>,
+) -> String {
+    if let Some(single) = single.filter(|s| !s.is_empty()) {
+        return single.to_string();
+    }
+    if let Some(dir) = socket_dir.filter(|s| !s.is_empty()) {
+        let leaf = default_socket_path(interface)
+            .rsplit('/')
+            .next()
+            .unwrap_or(interface);
+        return format!("{dir}/{leaf}");
+    }
+    default_socket_path(interface).to_string()
+}
+
+/// Resolve the socket for `interface` from the environment.
+pub fn socket_path(interface: &str) -> String {
+    socket_path_with(
+        interface,
+        std::env::var("FISHERMAN_SOCKET_DIR").ok().as_deref(),
+        std::env::var("TUNA_FISHERMAND_SOCKET").ok().as_deref(),
+    )
+}
+
+/// A recovery key is 8 groups of 6 to 10 lowercase letters joined by `-`
+/// (screens.yaml `recovery_key_shape`; the daemon emits 8 of 8). Match by
+/// shape, never by a node named `Recovery Key` (shared/flow README test
+/// contract).
+pub fn is_recovery_key_shape(s: &str) -> bool {
+    let groups: Vec<&str> = s.split('-').collect();
+    groups.len() == 8
+        && groups.iter().all(|g| {
+            (6..=10).contains(&g.len()) && g.bytes().all(|b| b.is_ascii_lowercase())
+        })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+mod transport {
+    use super::*;
+    use std::fmt;
+    use std::io::{BufRead, BufReader, Write};
+    use std::os::unix::net::UnixStream;
+    use std::path::Path;
+
+    /// The service answered with an error reply. Holds the parameters so a
+    /// caller can read error details, but `Display` shows the name only:
+    /// parameters may carry secrets.
+    #[derive(Debug)]
+    pub enum Error {
+        Varlink { name: String, parameters: Value },
+        Transport(String),
+    }
+
+    impl fmt::Display for Error {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Error::Varlink { name, .. } => write!(f, "{name}"),
+                Error::Transport(e) => write!(f, "transport: {e}"),
+            }
+        }
+    }
+
+    impl std::error::Error for Error {}
+
+    impl From<std::io::Error> for Error {
+        fn from(e: std::io::Error) -> Self {
+            Error::Transport(e.to_string())
+        }
+    }
+
+    /// One Varlink connection. One call at a time; open a second connection
+    /// to cancel a running install.
+    pub struct Connection {
+        writer: UnixStream,
+        reader: BufReader<UnixStream>,
+    }
+
+    impl Connection {
+        pub fn connect(path: impl AsRef<Path>) -> Result<Self, Error> {
+            let stream = UnixStream::connect(path)?;
+            Ok(Self {
+                reader: BufReader::new(stream.try_clone()?),
+                writer: stream,
+            })
+        }
+
+        fn send(&mut self, request: Value) -> Result<(), Error> {
+            let mut wire =
+                serde_json::to_vec(&request).map_err(|e| Error::Transport(e.to_string()))?;
+            wire.push(0);
+            self.writer.write_all(&wire)?;
+            Ok(())
+        }
+
+        /// Read one NUL-terminated reply. Returns (parameters, continues).
+        fn receive(&mut self) -> Result<(Value, bool), Error> {
+            let mut raw = Vec::new();
+            let n = self.reader.read_until(0, &mut raw)?;
+            if n == 0 || raw.last() != Some(&0) {
+                return Err(Error::Transport("the service closed the connection".into()));
+            }
+            raw.pop();
+            let message: serde_json::Map<String, Value> = serde_json::from_slice(&raw)
+                .map_err(|_| Error::Transport("a message is not a JSON object".into()))?;
+            let parameters = message
+                .get("parameters")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
+            if let Some(name) = message.get("error").and_then(Value::as_str) {
+                return Err(Error::Varlink {
+                    name: name.to_string(),
+                    parameters,
+                });
+            }
+            let continues = message
+                .get("continues")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            Ok((parameters, continues))
+        }
+
+        /// A call with one reply.
+        pub fn call(&mut self, method: &str, parameters: Value) -> Result<Value, Error> {
+            self.send(json!({ "method": method, "parameters": parameters }))?;
+            Ok(self.receive()?.0)
+        }
+
+        /// A streaming call. `on_reply` runs for every reply, the last one
+        /// included. Return `false` to stop early; drop the connection after.
+        pub fn call_more(
+            &mut self,
+            method: &str,
+            parameters: Value,
+            mut on_reply: impl FnMut(Value) -> bool,
+        ) -> Result<(), Error> {
+            self.send(json!({ "method": method, "parameters": parameters, "more": true }))?;
+            loop {
+                let (reply, continues) = self.receive()?;
+                if !on_reply(reply) || !continues {
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    /// Open the socket for `interface`.
+    pub fn connect(interface: &str) -> Result<Connection, Error> {
+        Connection::connect(super::socket_path(interface))
+    }
+
+    // ------------------------------------------------ typed daemon calls ----
+
+    const FISHERMAN: &str = "io.tunaos.Fisherman";
+    const SYSINSTALL: &str = "io.systemd.SysInstall";
+    const CRYPTENROLL: &str = "io.systemd.CryptEnroll";
+    const SHUTDOWN: &str = "io.systemd.Shutdown";
+
+    pub fn requirements(conn: &mut Connection) -> Result<Value, Error> {
+        conn.call(&format!("{FISHERMAN}.Requirements"), json!({}))
+    }
+
+    pub fn probe(conn: &mut Connection) -> Result<Value, Error> {
+        conn.call(&format!("{FISHERMAN}.Probe"), json!({}))
+    }
+
+    pub fn validate(conn: &mut Connection, config: Value, partial: bool) -> Result<Value, Error> {
+        conn.call(
+            &format!("{FISHERMAN}.Validate"),
+            json!({ "config": config, "partial": partial }),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn configure_target(
+        conn: &mut Connection,
+        user: Option<Value>,
+        hostname: Option<&str>,
+        locale: Option<&str>,
+        keymap: Option<&str>,
+        time_zone: Option<&str>,
+        autologin: Option<bool>,
+    ) -> Result<Value, Error> {
+        let mut params = serde_json::Map::new();
+        if let Some(user) = user {
+            params.insert("user".into(), user);
+        }
+        for (key, value) in [
+            ("hostname", hostname.map(Value::from)),
+            ("locale", locale.map(Value::from)),
+            ("keymap", keymap.map(Value::from)),
+            ("timeZone", time_zone.map(Value::from)),
+            ("autologin", autologin.map(Value::from)),
+        ] {
+            if let Some(value) = value {
+                params.insert(key.into(), value);
+            }
+        }
+        conn.call(&format!("{FISHERMAN}.ConfigureTarget"), Value::Object(params))
+    }
+
+    /// Stream install events. `on_event` sees every reply, the terminal one
+    /// included; return `false` to stop early.
+    pub fn install(
+        conn: &mut Connection,
+        config: Value,
+        confirmed: bool,
+        on_event: impl FnMut(Value) -> bool,
+    ) -> Result<(), Error> {
+        conn.call_more(
+            &format!("{FISHERMAN}.Install"),
+            json!({ "config": config, "confirmed": confirmed }),
+            on_event,
+        )
+    }
+
+    pub fn handoff(conn: &mut Connection, mode: Option<&str>) -> Result<Value, Error> {
+        let mut params = serde_json::Map::new();
+        if let Some(mode) = mode {
+            params.insert("mode".into(), Value::from(mode));
+        }
+        conn.call(&format!("{FISHERMAN}.Handoff"), Value::Object(params))
+    }
+
+    pub fn cancel(conn: &mut Connection) -> Result<Value, Error> {
+        conn.call(&format!("{FISHERMAN}.Cancel"), json!({}))
+    }
+
+    /// Candidate disks without subscription: one stream, ends by itself.
+    pub fn list_candidate_devices(conn: &mut Connection) -> Result<Vec<Value>, Error> {
+        let mut devices = Vec::new();
+        conn.call_more(
+            &format!("{SYSINSTALL}.ListCandidateDevices"),
+            json!({}),
+            |reply| {
+                devices.push(reply);
+                true
+            },
+        )?;
+        Ok(devices)
+    }
+
+    pub fn make_recovery_key(conn: &mut Connection) -> Result<String, Error> {
+        let reply = conn.call(&format!("{CRYPTENROLL}.MakeRecoveryKey"), json!({}))?;
+        reply
+            .get("recoveryKey")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .ok_or_else(|| Error::Transport("MakeRecoveryKey missed recoveryKey".into()))
+    }
+
+    pub fn reboot(conn: &mut Connection, skip_inhibitors: bool) -> Result<(), Error> {
+        conn.call(
+            &format!("{SHUTDOWN}.Reboot"),
+            json!({ "skipInhibitors": skip_inhibitors }),
+        )?;
+        Ok(())
+    }
+
+    pub fn power_off(conn: &mut Connection, skip_inhibitors: bool) -> Result<(), Error> {
+        conn.call(
+            &format!("{SHUTDOWN}.PowerOff"),
+            json!({ "skipInhibitors": skip_inhibitors }),
+        )?;
+        Ok(())
+    }
+
+    pub fn soft_reboot(conn: &mut Connection, skip_inhibitors: bool) -> Result<(), Error> {
+        conn.call(
+            &format!("{SHUTDOWN}.SoftReboot"),
+            json!({ "skipInhibitors": skip_inhibitors }),
+        )?;
+        Ok(())
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use transport::*;
+
+/// The browser build has no daemon and no sockets (#105). Same names, so
+/// callers keep one code path; every call fails closed.
+#[cfg(target_arch = "wasm32")]
+pub mod stub {
+    use super::Value;
+
+    #[derive(Debug)]
+    pub enum Error {
+        Transport(String),
+    }
+
+    impl std::fmt::Display for Error {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Error::Transport(e) => write!(f, "transport: {e}"),
+            }
+        }
+    }
+
+    impl std::error::Error for Error {}
+
+    pub struct Connection;
+
+    pub fn connect(_interface: &str) -> Result<Connection, Error> {
+        Err(Error::Transport("no daemon in a browser build".into()))
+    }
+
+    macro_rules! unavailable {
+        ($($name:ident($($arg:tt)*) -> $ret:ty;)*) => {
+            $(pub fn $name($($arg)*) -> Result<$ret, Error> {
+                Err(Error::Transport("no daemon in a browser build".into()))
+            })*
+        };
+    }
+
+    unavailable! {
+        requirements(_conn: &mut Connection) -> Value;
+        probe(_conn: &mut Connection) -> Value;
+        validate(_conn: &mut Connection, _config: Value, _partial: bool) -> Value;
+        handoff(_conn: &mut Connection, _mode: Option<&str>) -> Value;
+        cancel(_conn: &mut Connection) -> Value;
+        list_candidate_devices(_conn: &mut Connection) -> Vec<Value>;
+        make_recovery_key(_conn: &mut Connection) -> String;
+        reboot(_conn: &mut Connection, _skip: bool) -> ();
+        power_off(_conn: &mut Connection, _skip: bool) -> ();
+        soft_reboot(_conn: &mut Connection, _skip: bool) -> ();
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub use stub::*;
+
+/// How one daemon install event moves the install page. The last reply of
+/// the stream carries a terminal event; a dropped connection cancels.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Terminal {
+    Continue,
+    Complete,
+    Cancelled,
+    Failed,
+}
+
+/// Fold one `Install` event into the progress state and the log.
+///
+/// Event shape: FISHERMAND.md install table (`event`, `stepId`,
+/// `stepIndex`, `totalSteps`, `overallPct`, `message`, `reason`,
+/// `nextAction`). The recovery key never arrives here: gnome-setup makes it
+/// when the recovery page opens (`CryptEnroll.MakeRecoveryKey`).
+pub fn apply_install_event(
+    progress: &mut crate::progress::Progress,
+    log: &mut String,
+    event: &Value,
+) -> Terminal {
+    let str_of = |key: &str| event.get(key).and_then(Value::as_str).unwrap_or("");
+    match str_of("event") {
+        "step_started" | "progress" | "step_finished" => {
+            if let Some(index) = event.get("stepIndex").and_then(Value::as_u64) {
+                progress.step = index.saturating_add(1);
+            }
+            if let Some(total) = event.get("totalSteps").and_then(Value::as_u64) {
+                progress.total_steps = total;
+            }
+            if let Some(pct) = event.get("overallPct").and_then(Value::as_u64) {
+                progress.fraction = (pct.min(100) as f32) / 100.0;
+            }
+            let id = str_of("stepId");
+            if !id.is_empty() {
+                progress.step_id = id.to_string();
+                progress.step_name = id.to_string();
+            }
+            let message = str_of("message");
+            if !message.is_empty() {
+                log.push_str(&message);
+                log.push('\n');
+            }
+            Terminal::Continue
+        }
+        "warning" => {
+            let message = str_of("message");
+            if !message.is_empty() {
+                log.push_str(&message);
+                log.push('\n');
+            }
+            Terminal::Continue
+        }
+        "cancelled" => Terminal::Cancelled,
+        "complete" => {
+            progress.fraction = 1.0;
+            Terminal::Complete
+        }
+        "failed" => {
+            progress.error = Some(crate::progress::InstallError {
+                message: str_of("message").to_string(),
+                code: str_of("reason").to_string(),
+                field: String::new(),
+                step_id: str_of("stepId").to_string(),
+                disk_changed: None,
+                cleanup: None,
+            });
+            Terminal::Failed
+        }
+        _ => Terminal::Continue,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn daemon_switch_defaults_to_legacy_subprocess() {
+        // The switch is opt-in: an unset or other value keeps the recipe
+        // path, so nothing regresses until the daemon ships.
+        assert!(!socket_path_with("io.tunaos.Fisherman", None, None).is_empty());
+        assert_eq!(
+            socket_path_with("io.tunaos.Fisherman", None, None),
+            "/run/fisherman/io.tunaos.Fisherman"
+        );
+        assert_eq!(
+            socket_path_with(
+                "io.systemd.SysInstall",
+                Some("/tmp/mock"),
+                None
+            ),
+            "/tmp/mock/io.systemd.SysInstall"
+        );
+        assert_eq!(
+            socket_path_with("io.tunaos.Fisherman", Some("/tmp/mock"), Some("/tmp/one.sock")),
+            "/tmp/one.sock"
+        );
+    }
+
+    #[test]
+    fn spec_names_map_to_real_mock_scenario_names() {
+        // PR #447 names scenarios after screens, PR #513 after facts.
+        assert_eq!(scenario_alias("happy-tpm"), "happy");
+        assert_eq!(scenario_alias("happy-no-tpm"), "no-tpm");
+        assert_eq!(scenario_alias("rst-present"), "rst");
+        assert_eq!(scenario_alias("cancel-mid-install"), "cancel");
+        // Identity for the rest: existing-data, device-lost, repart-error.
+        assert_eq!(scenario_alias("device-lost"), "device-lost");
+        assert_eq!(scenario_alias("existing-data"), "existing-data");
+        assert_eq!(scenario_alias("repart-error"), "repart-error");
+    }
+
+    #[test]
+    fn recovery_key_shape_matches_daemon_format() {
+        // The daemon emits 8 groups of 8 lowercase letters (FISHERMAND.md);
+        // the shared contract allows 6 to 10 (screens.yaml).
+        assert!(is_recovery_key_shape("mktardcw-nnhufnbx-kwnvoixz-ahhhuahf-xqwqwqwq-yzqwqwqw-abcqwqwq-defqwqwq"));
+        assert!(is_recovery_key_shape("mktard-nnhufn-bxkwvo-oixzah-hhuahf-xqwqwq-yzqwqw-abcpqw"));
+        assert!(!is_recovery_key_shape("Recovery Key"));
+        assert!(!is_recovery_key_shape("mkta-rdcw"));
+        // The capture fixture's 4-letter groups are synthetic, never
+        // emitted: the shape must not match them.
+        assert!(!is_recovery_key_shape("mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf"));
+        assert!(!is_recovery_key_shape("MKTAQWCD-NNHUQWCD-FNBXQWCD-KWNVQWCD-OIXZQWCD-AHHHQWCD-UAHFQWCD-XQWQQWCD"));
+    }
+
+    #[test]
+    fn install_events_move_progress_and_end_cleanly() {
+        let mut progress = crate::progress::Progress::new("product");
+        let mut log = String::new();
+        let started = serde_json::json!({
+            "event": "step_started", "stepId": "partition",
+            "stepIndex": 1, "totalSteps": 9, "overallPct": 11,
+        });
+        assert_eq!(apply_install_event(&mut progress, &mut log, &started), Terminal::Continue);
+        assert_eq!(progress.step, 2);
+        assert_eq!(progress.total_steps, 9);
+        assert_eq!(progress.step_id, "partition");
+
+        let failed = serde_json::json!({
+            "event": "failed", "stepId": "install_os", "reason": "device_lost",
+            "message": "the disk went away", "nextAction": "retry",
+        });
+        assert_eq!(apply_install_event(&mut progress, &mut log, &failed), Terminal::Failed);
+        let error = progress.error.as_ref().expect("failed sets the error");
+        assert_eq!(error.code, "device_lost");
+        assert_eq!(error.step_id, "install_os");
+
+        let mut done = crate::progress::Progress::new("product");
+        let mut done_log = String::new();
+        let complete = serde_json::json!({ "event": "complete", "overallPct": 100 });
+        assert_eq!(
+            apply_install_event(&mut done, &mut done_log, &complete),
+            Terminal::Complete
+        );
+        assert_eq!(done.fraction, 1.0);
+
+        let cancelled = serde_json::json!({ "event": "cancelled" });
+        assert_eq!(
+            apply_install_event(&mut done, &mut done_log, &cancelled),
+            Terminal::Cancelled
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn error_display_shows_the_name_only() {
+        // Parameters may carry secrets: they must never reach a log line.
+        let error = Error::Varlink {
+            name: "InvalidConfig".to_string(),
+            parameters: serde_json::json!({
+                "errors": [],
+                "passphrase": "correct horse battery staple",
+            }),
+        };
+        let shown = error.to_string();
+        assert!(shown.contains("InvalidConfig"));
+        assert!(!shown.contains("correct horse"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wire_format_round_trips_against_a_scripted_peer() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::os::unix::net::{UnixListener, UnixStream};
+
+        let dir = std::env::temp_dir().join(format!("fishermand-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("daemon.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+
+        // A scripted peer: one single-reply call, one two-reply stream, one
+        // error reply. Each message ends with NUL, like the real daemon.
+        let peer = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut frame = |want_continues: bool| {
+                let mut raw = Vec::new();
+                reader.read_until(0, &mut raw).unwrap();
+                raw.pop();
+                let request: Value = serde_json::from_slice(&raw).unwrap();
+                let method = request["method"].as_str().unwrap().to_string();
+                let reply = if method.ends_with("Requirements") {
+                    serde_json::json!({ "parameters": { "meetsRequirements": true } })
+                } else if method.ends_with("Cancel") {
+                    serde_json::json!({ "error": "NotInstalled", "parameters": {} })
+                } else {
+                    serde_json::json!({ "parameters": { "overallPct": 50 }, "continues": want_continues })
+                };
+                let mut wire = serde_json::to_vec(&reply).unwrap();
+                wire.push(0);
+                stream.write_all(&wire).unwrap();
+                // The stream's last reply carries no `continues` flag.
+                if want_continues {
+                    let last = serde_json::json!({ "parameters": { "overallPct": 100 } });
+                    let mut wire = serde_json::to_vec(&last).unwrap();
+                    wire.push(0);
+                    stream.write_all(&wire).unwrap();
+                }
+            };
+            frame(false);
+            frame(true);
+            frame(false);
+        });
+
+        let mut conn = Connection::connect(&path).unwrap();
+        let gates = requirements(&mut conn).unwrap();
+        assert_eq!(gates["meetsRequirements"], Value::Bool(true));
+
+        let mut seen = 0;
+        install(
+            &mut conn,
+            serde_json::json!({}),
+            true,
+            |reply| {
+                seen += 1;
+                reply["overallPct"].is_number()
+            },
+        )
+        .unwrap();
+        assert_eq!(seen, 2);
+
+        let error = cancel(&mut conn).unwrap_err();
+        assert_eq!(error.to_string(), "NotInstalled");
+
+        peer.join().unwrap();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+}
