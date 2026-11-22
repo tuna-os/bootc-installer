@@ -411,6 +411,8 @@ ApplicationWindow {
     // fits, "erase" takes the whole disk. The daemon reads it from the
     // install envelope; the legacy path always erases.
     property string installMode: "erase"
+    // The eula page's tick. Kept for the run once given.
+    property bool eulaAccepted: false
     // The encryption choices in display order, with needs_passphrase and
     // needs_tpm2: fisherman's data/encryption-choices.json, which the backend
     // embeds and `detect` reports (tests/unit/test_encryption_choices.py).
@@ -1517,6 +1519,8 @@ ApplicationWindow {
         case 6: if (root.canInstall) startInstall(); break
         case 9: flowNext(); break
         case 10: flowNext(); break
+        case 11: flowNext(); break
+        case 12: if (root.eulaAccepted) flowNext(); break
         }
     }
     function back() {
@@ -3004,6 +3008,117 @@ ApplicationWindow {
                                 ? qsTr("Erase and Install (%1)").arg(root.wipeCountdown)
                                 : qsTr("Continue")
                             enabled: root.installMode === "free_space" || root.wipeCountdown <= 0
+                            onClicked: root.flowNext()
+                        }
+                    }
+                }
+            }
+            // Page 11: prerelease — os-release calls this build a
+            // pre-release or an experiment. Information only.
+            Item {
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width, 520)
+                    spacing: Theme.spacingL
+                    StyledText {
+                        objectName: "prereleaseTitle"
+                        text: qsTr("Disclaimer")
+                        font.pixelSize: Theme.fontSizeXLarge
+                        font.weight: Theme.fontWeightMedium
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    DankCard {
+                        Layout.fillWidth: true
+                        title: qsTr("Before you install")
+                        StyledText {
+                            width: parent.width
+                            text: root.releaseType === "experiment" && root.experimentText !== ""
+                                ? qsTr("This image is an experiment: %1. It can break, and it can lose data.").arg(root.experimentText)
+                                : qsTr("This image is a pre-release. It can break, and it can lose data.")
+                            color: Theme.surfaceVariantText
+                            wrapMode: Text.WordWrap
+                        }
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        DankButton { text: qsTr("Back"); tonal: true; onClicked: root.back() }
+                        Item { Layout.fillWidth: true }
+                        DankButton {
+                            objectName: "prereleaseContinueButton"
+                            text: qsTr("Continue")
+                            onClicked: root.flowNext()
+                        }
+                    }
+                }
+            }
+            // Page 12: eula — the image's terms of use. Continue stays off
+            // until the box is ticked; an unreadable file ends in power off.
+            Item {
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width, 520)
+                    spacing: Theme.spacingM
+                    StyledText {
+                        objectName: "eulaTitle"
+                        text: qsTr("Terms of use")
+                        font.pixelSize: Theme.fontSizeXLarge
+                        font.weight: Theme.fontWeightMedium
+                    }
+                    DankCard {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        title: qsTr("License agreement")
+                        Flickable {
+                            width: parent.width
+                            height: Math.min(320, parent.height)
+                            clip: true
+                            contentWidth: width
+                            contentHeight: eulaText.implicitHeight
+                            boundsBehavior: Flickable.StopAtBounds
+                            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                            StyledText {
+                                id: eulaText
+                                objectName: "eulaText"
+                                width: parent.width
+                                text: root.eulaInfo.unreadable === true
+                                    ? qsTr("The terms of use could not be loaded.")
+                                    : (root.eulaInfo.text || "")
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                    }
+                    DankButton {
+                        objectName: "eulaAckButton"
+                        text: (root.eulaAccepted ? "\u2713  " : "")
+                            + qsTr("I have read and accept the Terms of Use")
+                        tonal: !root.eulaAccepted
+                        checkable: true
+                        checked: root.eulaAccepted
+                        visible: root.eulaInfo.unreadable !== true
+                        onToggled: root.eulaAccepted = checked
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        DankButton {
+                            objectName: "eulaPowerButton"
+                            text: qsTr("Power off")
+                            tonal: true
+                            visible: root.eulaInfo.unreadable === true
+                            onClicked: poweroffProc.running = true
+                        }
+                        DankButton {
+                            text: qsTr("Back")
+                            tonal: true
+                            visible: root.eulaInfo.unreadable !== true
+                            onClicked: root.back()
+                        }
+                        Item { Layout.fillWidth: true }
+                        DankButton {
+                            objectName: "eulaContinueButton"
+                            text: qsTr("Continue")
+                            visible: root.eulaInfo.unreadable !== true
+                            enabled: root.eulaAccepted
                             onClicked: root.flowNext()
                         }
                     }
