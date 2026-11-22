@@ -119,6 +119,11 @@ func firmwareMain() {
 }
 
 func cancelMain() {
+	// No wrapper process group exists on the daemon path: Cancel goes over
+	// a second Varlink connection while the install runs.
+	if useDaemon() {
+		os.Exit(daemonCancel())
+	}
 	cancelInstall()
 }
 

@@ -138,6 +138,11 @@ func runProbe() (ProbeFacts, error) {
 		}
 		return parseProbe(data)
 	}
+	// The daemon answers Requirements and Probe over Varlink; the recipe
+	// path shells out to `fisherman probe`.
+	if useDaemon() {
+		return daemonProbeFacts()
+	}
 	fisherman, err := resolveFisherman()
 	if err != nil {
 		return ProbeFacts{}, err

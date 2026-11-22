@@ -158,6 +158,9 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  source-check       Check the selected image (request JSON on stdin) with fisherman probe --json --source")
 		fmt.Fprintln(os.Stderr, "  install            Run fisherman with the recipe JSON read from stdin")
 		fmt.Fprintln(os.Stderr, "  cancel             Stop a running install (the progress page's Cancel, the window's close)")
+		fmt.Fprintln(os.Stderr, "  configure-target   Store account, locale, keymap, time zone and autologin (JSON on stdin) in the target")
+		fmt.Fprintln(os.Stderr, "  recovery-key       Make and enrol a recovery key (JSON {node, unlock_password} on stdin)")
+		fmt.Fprintln(os.Stderr, "  handoff [mode]     Hand the installed system over (migrate, soft_reboot, reboot)")
 		fmt.Fprintln(os.Stderr, "  log-path           Print the persistent install log file dialog_output.py shows")
 		fmt.Fprintln(os.Stderr, "  validate           Check a partial recipe from stdin with fisherman validate --json --partial")
 		fmt.Fprintln(os.Stderr, "  plan               Report what an install of the recipe on stdin changes (fisherman plan --json -)")
@@ -193,6 +196,15 @@ func main() {
 		networkSettingsMain()
 	case "cancel":
 		cancelMain()
+	case "configure-target":
+		// The account and region picks as one JSON object on stdin.
+		configureTargetMain()
+	case "recovery-key":
+		// {node, unlock_password} on stdin; prints {"key"}.
+		recoveryKeyMain()
+	case "handoff":
+		// handoff [mode]; prints the daemon's answer.
+		handoffMain()
 	case "log-path":
 		logPathMain()
 	case "install":
@@ -368,6 +380,11 @@ func exitCodeOf(err error) int {
 }
 
 func runInstall(recipeJSON string) {
+	// The daemon translates its Install stream into the same JSON lines the
+	// QML parses, and exits 0/130/1 for done/cancelled/failed.
+	if useDaemon() {
+		runDaemonInstall(recipeJSON)
+	}
 	if len(recipeJSON) == 0 {
 		fmt.Fprintln(os.Stderr, "invalid recipe: empty")
 		os.Exit(1)
