@@ -359,17 +359,14 @@ def show_prerelease():
     return release_type in ("pre-release", "experiment")
 
 
-EULA_ENV = "BOOTC_INSTALLER_EULA"
-EULA_PATHS = ("/usr/share/doc/tuna-installer/eula.xml",
-              "/usr/share/tuna-installer/eula.xml",
-              "/app/share/tuna-installer/eula.xml")
+EULA_ENV = "TUNA_EULA_FILE"
+EULA_PATHS = ("/usr/share/tuna-installer/eula.xml",)
 
 
 def find_eula():
-    """The EULA file path, or "": $BOOTC_INSTALLER_EULA wins (tests point it
-    at a fixture), then the packaged candidates. gnome-setup reads
-    $PKGDATADIR/eula.xml; the native path is still an open spec question,
-    so every candidate is probed."""
+    """The EULA file path, or "": $TUNA_EULA_FILE wins (tests point it at
+    a fixture), else the one shared path every frontend reads (AppStream
+    agreement type=eula). No file skips the page."""
     override = os.environ.get(EULA_ENV, "")
     if override:
         return override if os.path.isfile(override) else ""
@@ -728,6 +725,59 @@ def candidate_disks():
     if result is None:
         return [], error
     return fisherman_probe.render_disks(result), None
+
+
+FORCED_FITS = ("insufficient_free_space", "conflicting_disk_label_present")
+
+
+def daemon_disk_view():
+    """(rows, error) for the disk page on the daemon backend: Probe disks
+    joined with the SysInstall fit, in the daemon's order.
+
+    Each row carries the legacy render keys (path, title, size_label,
+    transport_label, removable) plus fit, minimal_size_bytes, free_bytes
+    and existing_data for the wipe-or-free page and the forced-erase
+    dialog. A NoCandidateDevices error is not a failure: the page shows
+    the empty state with Power off."""
+    try:
+        daemon = get_daemon()
+    except daemon_client.DaemonError as exc:
+        return [], str(exc)
+    try:
+        reply = daemon.probe()
+    except daemon_client.DaemonError as exc:
+        return [], str(exc)
+    fits = {}
+    try:
+        for device in daemon.list_candidates():
+            if device.get("node"):
+                fits[device["node"]] = device
+    except daemon_client.DaemonError as exc:
+        if "NoCandidateDevices" not in str(exc):
+            return [], str(exc)
+    rows = []
+    for disk in reply.get("disks") or []:
+        path = disk.get("path", "")
+        vendor = (disk.get("vendor") or "").strip()
+        model = (disk.get("model") or "").strip()
+        title = " ".join(part for part in (vendor, model) if part) or path
+        transport = disk.get("transport") or ""
+        candidate = fits.get(path) or {}
+        fit = candidate.get("fit") or (
+            "enough_free_space" if disk.get("eligible") else "")
+        eligible = bool(disk.get("eligible")) and fit == "enough_free_space"
+        rows.append({
+            "path": path, "title": title, "model": model,
+            "size_label": disk.get("sizeLabel", ""),
+            "transport_label": daemon_client.TRANSPORT_LABELS.get(
+                transport, transport.upper()),
+            "removable": bool(disk.get("removable")),
+            "eligible": eligible, "fit": fit,
+            "minimal_size_bytes": disk.get("minimalSizeBytes", 0),
+            "free_bytes": disk.get("freeBytes", 0),
+            "existing_data": disk.get("existingData") or {},
+        })
+    return rows, None
 
 
 # --- recipe -------------------------------------------------------------------

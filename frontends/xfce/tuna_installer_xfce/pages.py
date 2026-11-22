@@ -22,7 +22,7 @@ from bootc_shared import redact  # noqa: E402
 from bootc_shared import source_check  # noqa: E402
 from bootc_shared import validate as fisherman_validate  # noqa: E402
 
-from . import core, gates, locale as locale_checks
+from . import core, daemon as daemon_client, gates, locale as locale_checks
 from . import tour
 from .i18n import _
 from .logo import product_logo
@@ -167,11 +167,14 @@ class RegionState:
     (core.region_fields writes no key for it). The window owns one, and the
     identity page reads it; bare test doubles get an unshared one."""
     def __init__(self, locale="", keyboard_layout="", timezone="",
-                 autologin=False):
+                 autologin=False, location_services=None):
         self.locale = locale
         self.keyboard_layout = keyboard_layout
         self.timezone = timezone
         self.autologin = autologin
+        # None until the person touches the location switch: ConfigureTarget
+        # only hears about location services when they changed it.
+        self.location_services = location_services
 
 
 class SearchListPage(Page):
@@ -322,6 +325,14 @@ class TimezonePage(SearchListPage):
         hint.get_style_context().add_class("dim-label")
         self.pack_start(hint, False, False, 0)
         hint.show()
+        # Location services for the installed system (ConfigureTarget
+        # privacy.locationServices, default false). Off until the person
+        # touches it: the daemon only hears about a changed choice.
+        self.location_check = Gtk.CheckButton(
+            label=_("Allow apps to determine the location"))
+        self.location_check.connect("toggled", self._on_location_toggled)
+        self.pack_start(self.location_check, False, False, 0)
+        self.location_check.show()
 
     def values(self):
         return locale_checks.available_timezones()
@@ -337,8 +348,16 @@ class TimezonePage(SearchListPage):
         else:
             self._note("")
 
+    def _on_location_toggled(self, _button):
+        self.win.region.location_services = self.location_check.get_active()
+        self.check.submit(self.fragment())
+
     def fragment(self):
-        return {"timezone": self.win.region.timezone}
+        picked = {"timezone": self.win.region.timezone}
+        changed = self.win.region.location_services
+        if changed is not None:
+            picked["privacy"] = {"locationServices": bool(changed)}
+        return picked
 
 
 class NetworkPage(Page):
@@ -667,6 +686,7 @@ class DestinationPage(Page):
 
     def __init__(self, win):
         super().__init__(win)
+        a11y_name(self, _("Disk selection"))
         self.radios = []
         self.listbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.pack_start(self.listbox, False, False, 0)
@@ -678,6 +698,14 @@ class DestinationPage(Page):
         for child in self.listbox.get_children():
             self.listbox.remove(child)
         self.radios = []
+        if core.backend() == "daemon":
+            self._enter_daemon()
+        else:
+            self._enter_recipe()
+        self.listbox.show_all()
+        self._update_warning()
+
+    def _enter_recipe(self):
         group = None
         disks, error = core.candidate_disks()
         for disk in disks:
@@ -688,12 +716,64 @@ class DestinationPage(Page):
             self.listbox.pack_start(radio, False, False, 4)
             self.radios.append(radio)
         if not disks:
+            self._empty_state(error)
+
+    def _enter_daemon(self):
+        from bootc_shared import probe as fisherman_probe
+
+        group = None
+        rows, error = core.daemon_disk_view()
+        for row in rows:
+            if row["eligible"]:
+                radio = Gtk.RadioButton.new_with_label_from_widget(
+                    group, disk_label(row))
+                group = group or radio
+                radio.disk = row
+                radio.connect("toggled", self._update_warning)
+                self.listbox.pack_start(radio, False, False, 4)
+                self.radios.append(radio)
+            else:
+                # Unusable disks sit in the list with the minimum size
+                # (spec disk rows): visible, never selectable.
+                minimum = fisherman_probe.format_size(
+                    row["minimal_size_bytes"] or 0)
+                dim = Gtk.Label(xalign=0)
+                dim.set_markup(GLib.markup_escape_text(
+                    _("{title} ({path}) — needs at least {minimum}").format(
+                        title=row["title"], path=row["path"],
+                        minimum=minimum)))
+                dim.set_sensitive(False)
+                self.listbox.pack_start(dim, False, False, 4)
+        if not self.radios:
+            self._empty_state(error)
+
+    def _empty_state(self, error):
+        if error:
             self.listbox.pack_start(_warn_row(
-                _("Could not detect disks: {error}").format(error=error) if error else
+                _("Could not detect disks: {error}").format(error=error)),
+                False, False, 4)
+        else:
+            self.listbox.pack_start(_warn_row(
                 _("No disk of at least 50 GiB was found. Connect one to install to.")),
                 False, False, 4)
-        self.listbox.show_all()
-        self._update_warning()
+        bar = Gtk.Box(spacing=8)
+        bar.set_halign(Gtk.Align.END)
+        rescan = Gtk.Button(label=_("Rescan"))
+        rescan.connect("clicked", lambda *_a: self.on_enter())
+        bar.pack_start(rescan, False, False, 0)
+        power = Gtk.Button(label=_("Power off"))
+        power.connect("clicked", self._on_power_off)
+        bar.pack_start(power, False, False, 0)
+        self.listbox.pack_start(bar, False, False, 4)
+
+    def _on_power_off(self, *_args):
+        if core.backend() == "daemon":
+            try:
+                core.get_daemon().shutdown("poweroff")
+                return
+            except Exception:  # noqa: BLE001 - fall back to the host command
+                pass
+        core.host_run(["systemctl", "poweroff"])
 
     def _update_warning(self, *_args):
         d = self.selected_disk()
@@ -713,6 +793,64 @@ class DestinationPage(Page):
         return None
 
 
+class WipePage(Page):
+    title = _("Existing data found")
+
+    def __init__(self, win):
+        super().__init__(win)
+        a11y_name(self, _("Existing data found"))
+        self.detail = Gtk.Label(xalign=0)
+        self.detail.set_line_wrap(True)
+        self.pack_start(self.detail, False, False, 0)
+        self.free_radio = Gtk.RadioButton(label=_("Install to Free Space"))
+        self.free_radio.connect("toggled", self._on_choice)
+        self.pack_start(self.free_radio, False, False, 0)
+        self.wipe_radio = Gtk.RadioButton.new_with_label_from_widget(
+            self.free_radio, _("Use Entire Disk"))
+        self.wipe_radio.connect("toggled", self._on_choice)
+        self.pack_start(self.wipe_radio, False, False, 0)
+
+    def disk(self):
+        select = getattr(self.win.pages.get("destination"), "selected_disk",
+                         None)
+        return select() if callable(select) else None
+
+    def should_show(self):
+        # Daemon-only: the recipe probe has no existing-data facts, so the
+        # legacy path keeps its erase warning on the disk page instead.
+        if core.backend() != "daemon":
+            return False
+        disk = self.disk()
+        if not disk:
+            return False
+        existing = disk.get("existing_data") or {}
+        has_data = bool(existing.get("operatingSystems")
+                        or existing.get("partitions")
+                        or existing.get("hasLuks")
+                        or existing.get("hasPartitionTable"))
+        if not has_data:
+            return False
+        minimal = disk.get("minimal_size_bytes") or 0
+        return (disk.get("free_bytes") or 0) >= minimal > 0
+
+    def on_enter(self):
+        disk = self.disk() or {}
+        systems = ", ".join(
+            (disk.get("existing_data") or {}).get("operatingSystems") or [])
+        found = systems or _("a partitioned disk")
+        self.detail.set_text(
+            _("{title} holds {found}. Keep it and install into the free "
+              "space, or erase the whole disk.").format(
+                title=disk.get("title", ""), found=found))
+        (self.wipe_radio if getattr(self.win, "install_mode", "erase") == "erase"
+         else self.free_radio).set_active(True)
+        self._on_choice()
+
+    def _on_choice(self, *_args):
+        mode = "erase" if self.wipe_radio.get_active() else "free_space"
+        self.win.install_mode = mode
+
+
 FILESYSTEMS = core.FILESYSTEMS
 
 
@@ -725,6 +863,7 @@ class SetupPage(Page):
 
     def __init__(self, win):
         super().__init__(win)
+        a11y_name(self, _("Disk encryption"))
         self.has_tpm = core.has_tpm()
 
         self.enc_radios = []
@@ -748,6 +887,8 @@ class SetupPage(Page):
         grid = Gtk.Grid(column_spacing=12, row_spacing=6, margin_top=6)
         self.pass1 = password_entry()
         self.pass2 = password_entry()
+        a11y_name(self.pass1, _("Passphrase"))
+        a11y_name(self.pass2, _("Confirm passphrase"))
         for e in (self.pass1, self.pass2):
             e.connect("changed", self._sync)
         grid.attach(Gtk.Label(label=_("Passphrase"), xalign=0), 0, 0, 1, 1)
@@ -909,6 +1050,10 @@ class IdentityPage(Page):
         # entry made an account nobody could sign in to (#295).
         self.password = password_entry()
         self.password2 = password_entry()
+        a11y_name(self.username, _("User name"))
+        a11y_name(self.fullname, _("Full name"))
+        a11y_name(self.password, _("Password"))
+        a11y_name(self.password2, _("Confirm password"))
         for i, (lbl, entry) in enumerate(((_("Username"), self.username),
                                           (_("Full name"), self.fullname),
                                           (_("Password"), self.password),
@@ -1042,6 +1187,7 @@ class ConfirmPage(Page):
 
     def __init__(self, win):
         super().__init__(win)
+        a11y_name(self, _("Confirm"))
         # confirm_subtitle and confirm_body are the product's own lines
         # (a quote, a tagline); empty in the neutral defaults, so hidden.
         self.subtitle = Gtk.Label(xalign=0)
@@ -1418,15 +1564,42 @@ class ConfirmPage(Page):
         return (self.net_ok and not self.source_blocked
                 and not (self.reuse_selected and self.reuse_problems))
 
+    def forced_erase(self):
+        """Whether Next must pass the countdown dialog: a forced fit
+        (insufficient free space, a foreign disk label) on the daemon
+        backend. The recipe backend never knows the fit, so Next installs
+        as before."""
+        if core.backend() != "daemon":
+            return False
+        destination = (self.win.pages or {}).get("destination")
+        select = getattr(destination, "selected_disk", None)
+        selected = select() if callable(select) else None
+        return (selected or {}).get("fit") in core.FORCED_FITS
+
+    def confirm_advance(self):
+        """Run the forced-erase countdown dialog; False stays on confirm."""
+        if not self.forced_erase():
+            return True
+        destination = (self.win.pages or {}).get("destination")
+        select = getattr(destination, "selected_disk", None)
+        selected = select() if callable(select) else None
+        dialog = gates.CountdownEraseDialog(
+            self.get_toplevel(), (selected or {}).get("path", ""))
+        response = dialog.run()
+        dialog.destroy()
+        return response == Gtk.ResponseType.OK
+
 
 class ProgressPage(Page):
     title = core.BRANDING.text("progress_title")
 
     def __init__(self, win):
         super().__init__(win)
+        a11y_name(self, _("Installing"))
         self.steplabel = Gtk.Label(xalign=0)
         self.pack_start(self.steplabel, False, False, 0)
         self.bar = Gtk.ProgressBar(show_text=True)
+        a11y_name(self.bar, _("Installation progress"))
         self.pack_start(self.bar, False, False, 0)
         # progress_note ("Do not power off the computer.") -- the one warning
         # that matters while the disk is being written. Empty hides it.
@@ -1465,6 +1638,7 @@ class ProgressPage(Page):
         actions = Gtk.Box(spacing=8)
         actions.set_halign(Gtk.Align.END)
         self.cancel_btn = Gtk.Button(label=_("Cancel"))
+        a11y_name(self.cancel_btn, _("Cancel"))
         self.cancel_btn.connect("clicked", self._on_cancel)
         actions.pack_start(self.cancel_btn, False, False, 0)
         self.pack_end(actions, False, False, 0)
@@ -1567,9 +1741,243 @@ class ProgressPage(Page):
         return False  # navigation unlocked by install completion
 
 
+class RecoveryKeyDialog(Gtk.Dialog):
+    """The QR code for the recovery key (spec recovery-key): a dialog over
+    the recovery-key page, drawn from the qrcode matrix onto a DrawingArea
+    with cairo. No image files, no Pillow: get_matrix() is pure Python."""
+
+    def __init__(self, parent, key):
+        super().__init__(title=_("Recovery key QR code"), transient_for=parent,
+                         modal=True)
+        self.set_default_size(300, 330)
+        box = self.get_content_area()
+        box.set_spacing(8)
+        box.set_margin_top(12)
+        box.set_margin_bottom(12)
+        box.set_margin_start(12)
+        box.set_margin_end(12)
+        label = Gtk.Label(xalign=0)
+        label.set_line_wrap(True)
+        label.set_text(_("Scan this code into a password manager, then "
+                         "write the key down too."))
+        box.pack_start(label, False, False, 0)
+        self.area = Gtk.DrawingArea()
+        self.area.set_size_request(240, 240)
+        self.area.connect("draw", self._on_draw, key)
+        box.pack_start(self.area, True, True, 0)
+        close = self.add_button(_("Close"), Gtk.ResponseType.CLOSE)
+        close.grab_default()
+        self.show_all()
+
+    @staticmethod
+    def _on_draw(area, cairo_context, key):
+        import qrcode
+
+        box = qrcode.QRCode(border=1)
+        box.add_data(key)
+        box.make()
+        rows = box.get_matrix()
+        width = area.get_allocated_width()
+        height = area.get_allocated_height()
+        cell = min(width, height) / max(len(rows), 1)
+        cairo_context.set_source_rgb(1, 1, 1)
+        cairo_context.paint()
+        cairo_context.set_source_rgb(0, 0, 0)
+        for y, line in enumerate(rows):
+            for x, dark in enumerate(line):
+                if dark:
+                    cairo_context.rectangle(x * cell, y * cell, cell, cell)
+                    cairo_context.fill()
+        return False
+
+
+def qr_available():
+    """Whether the QR dialog can render (the qrcode module is installed)."""
+    try:
+        import qrcode  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+class RecoveryPage(Page):
+    title = _("Recovery key")
+    next_label = _("Done")
+
+    def __init__(self, win):
+        super().__init__(win)
+        a11y_name(self, _("Recovery key"))
+        self.body = Gtk.Label(xalign=0)
+        self.body.set_line_wrap(True)
+        self.body.set_text(core.BRANDING.text("recovery_key_body"))
+        self.pack_start(self.body, False, False, 0)
+        self.key_label = Gtk.Label(xalign=0, selectable=True)
+        self.key_label.set_line_wrap(True)
+        self.key_label.modify_font(Pango.FontDescription("monospace 11"))
+        self.pack_start(self.key_label, False, False, 0)
+        row = Gtk.Box(spacing=8)
+        self.copy_btn = Gtk.Button(
+            label=core.BRANDING.text("recovery_key_copy"))
+        a11y_name(self.copy_btn, core.BRANDING.text("recovery_key_copy"))
+        self.copy_btn.connect("clicked", self._on_copy)
+        row.pack_start(self.copy_btn, False, False, 0)
+        self.qr_btn = Gtk.Button(
+            label=_("Show QR Code for Recovery Key"))
+        a11y_name(self.qr_btn, _("Show QR Code for Recovery Key"))
+        self.qr_btn.connect("clicked", self._on_qr)
+        row.pack_start(self.qr_btn, False, False, 0)
+        self.pack_start(row, False, False, 0)
+        self.ack = Gtk.CheckButton(
+            label=core.BRANDING.text("recovery_key_ack"))
+        self.ack.connect("toggled", self._on_ack)
+        self.pack_start(self.ack, False, False, 0)
+        self.error_label = problem_label()
+        self.pack_start(self.error_label, False, False, 0)
+        self.key = ""
+
+    def encrypted(self):
+        setup = self.win.pages.get("setup")
+        enc_type = setup.enc_type() if setup is not None else "none"
+        return enc_type != "none"
+
+    def should_show(self):
+        try:
+            return bool(self.encrypted())
+        except Exception:  # noqa: BLE001 - bare doubles may lack the page
+            return True
+
+    def on_enter(self):
+        self.key = ""
+        self.ack.set_active(False)
+        show_problem(self.error_label, None)
+        if core.backend() == "daemon":
+            try:
+                self.key = core.get_daemon().make_recovery_key()
+            except Exception as exc:  # noqa: BLE001 - recovery-key-failed
+                show_problem(self.error_label, {
+                    "code": "", "message": str(exc) or _(
+                        "No recovery key. Do not continue without one.")})
+                self.key = ""
+        else:
+            progress = self.win.pages.get("progress")
+            self.key = progress.recovery_key() if progress else ""
+        self.key_label.set_text(self.key)
+        self.qr_btn.set_visible(bool(self.key) and qr_available())
+        refresh = getattr(self.win, "refresh_nav", None)
+        if refresh is not None:
+            refresh()
+
+    def on_leave(self):
+        """Enrol the key before leaving (daemon): gnome-setup enrols on
+        Done. False keeps the wizard here with the error shown."""
+        if core.backend() != "daemon" or not self.key:
+            return True
+        disk = ""
+        destination = self.win.pages.get("destination")
+        selected = destination.selected_disk() if destination else None
+        if selected:
+            disk = selected.get("path", "")
+        try:
+            core.get_daemon().enroll_recovery_key(disk, self.key)
+        except Exception as exc:  # noqa: BLE001 - the key is shown; retry
+            show_problem(self.error_label, {
+                "code": "", "message": str(exc) or _(
+                    "The key could not be enrolled. Try again.")})
+            return False
+        return True
+
+    def _on_copy(self, *_args):
+        clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+        clipboard.set_text(self.key_label.get_text(), -1)
+
+    def _on_qr(self, *_args):
+        dialog = RecoveryKeyDialog(self.get_toplevel(), self.key)
+        dialog.run()
+        dialog.destroy()
+
+    def _on_ack(self, _check):
+        refresh = getattr(self.win, "refresh_nav", None)
+        if refresh is not None:
+            refresh()
+
+    def can_continue(self):
+        # No key (recovery-key-failed) never advances: the spec forbids
+        # continuing without one.
+        return bool(self.key) and self.ack.get_active()
+
+
+class HandoffPage(Page):
+    title = _("Handoff")
+
+    def __init__(self, win):
+        super().__init__(win)
+        a11y_name(self, _("Handoff"))
+        self.body = Gtk.Label(xalign=0)
+        self.body.set_line_wrap(True)
+        self.pack_start(self.body, False, False, 0)
+        bar = Gtk.Box(spacing=8)
+        bar.set_halign(Gtk.Align.END)
+        self.not_now_btn = a11y_name(Gtk.Button(label=_("Not now")), _("Not now"))
+        self.not_now_btn.connect("clicked", lambda *_a: self.win.go(+1))
+        bar.pack_start(self.not_now_btn, False, False, 0)
+        self.continue_btn = a11y_name(
+            Gtk.Button(label=_("Continue")), _("Continue"))
+        self.continue_btn.connect("clicked", self._on_continue)
+        bar.pack_start(self.continue_btn, False, False, 0)
+        self.pack_start(bar, False, False, 0)
+        self.handoff_error = problem_label()
+        self.pack_start(self.handoff_error, False, False, 0)
+
+    def on_enter(self):
+        mode, reason = self.handoff_mode()
+        self.body.set_text(self.mode_text(mode, reason))
+        show_problem(self.handoff_error, None)
+
+    def handoff_mode(self):
+        """(mode, reason): the daemon's Probe decides; missing means reboot
+        on either backend."""
+        if core.backend() != "daemon":
+            return "reboot", ""
+        try:
+            info = daemon_client.probe_handoff(core.get_daemon().probe())
+        except daemon_client.DaemonError:
+            return "reboot", ""
+        return info["mode"], info["reason"]
+
+    @staticmethod
+    def mode_text(mode, reason):
+        if mode == "migrate":
+            text = _("The system is installed. The live session becomes "
+                       "the installed system: nothing restarts, and what is "
+                       "open stays open.")
+        elif mode == "soft_reboot":
+            text = _("The system is installed. Continuing restarts userspace "
+                       "into it; the live session's files do not carry over.")
+        else:
+            text = _("The system is installed. Continuing restarts the "
+                       "computer into it; remove the install media when asked.")
+        return text + (" " + reason if reason else "")
+
+    def _on_continue(self, *_args):
+        if core.backend() == "daemon":
+            try:
+                result = core.get_daemon().handoff()
+            except Exception as exc:  # noqa: BLE001 - handoff-failed
+                show_problem(self.handoff_error, {
+                    "code": "", "message": str(exc) or _(
+                        "The handoff failed.")})
+                return
+            self.win.handoff_result = result
+        self.win.go(+1)
+
+    def can_continue(self):
+        return True
+
+
 class DonePage(Page):
     def __init__(self, win):
         super().__init__(win)
+        a11y_name(self, _("Done"))
         self.logo = product_logo(core.BRANDING.logo, core.IN_FLATPAK)
         self.logo.hide()
         self.pack_start(self.logo, False, False, 0)
@@ -1586,60 +1994,60 @@ class DonePage(Page):
                                         label=core.BRANDING.text("store_label"))
         self.store_btn.set_no_show_all(True)
         self.pack_start(self.store_btn, False, False, 0)
-        # Recovery key (#129). fisherman emits it once, after TPM enrolment,
-        # and for a tpm2-luks install it is the only way back into the disk
-        # if the TPM state changes. Writing it to the log pane was the
-        # mitigation; the log scrolls and nothing pauses, so a user could
-        # reach this page and reboot having never seen it.
+        # The key lived here as a panel; it has its own screen now
+        # (RecoveryPage), which gates Done on the acknowledgement.
         #
-        # This is a panel rather than the modal #129 suggested: a dialog is
-        # dismissed and then the key is gone, while this keeps it on screen
-        # for as long as it takes to write down. The gate is on the reboot
-        # button, which is the action that ends the chance to read it.
-        self.recovery_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        self.recovery_box.set_no_show_all(True)
-        self.recovery_title = _page_title("")
-        self.recovery_box.pack_start(self.recovery_title, False, False, 0)
-        self.recovery_body = Gtk.Label(xalign=0)
-        self.recovery_body.set_line_wrap(True)
-        self.recovery_box.pack_start(self.recovery_body, False, False, 0)
-        self.recovery_key_label = Gtk.Label(xalign=0, selectable=True)
-        self.recovery_key_label.set_line_wrap(True)
-        self.recovery_key_label.modify_font(Pango.FontDescription("monospace 11"))
-        self.recovery_box.pack_start(self.recovery_key_label, False, False, 0)
-        self.recovery_copy_btn = Gtk.Button(
-            label=core.BRANDING.text("recovery_key_copy"))
-        self.recovery_copy_btn.connect("clicked", self.__on_copy)
-        self.recovery_box.pack_start(self.recovery_copy_btn, False, False, 0)
-        self.recovery_ack = Gtk.CheckButton(
-            label=core.BRANDING.text("recovery_key_ack"))
-        self.recovery_ack.connect("toggled", self.__on_ack)
-        self.recovery_box.pack_start(self.recovery_ack, False, False, 0)
-        self.pack_start(self.recovery_box, False, False, 8)
-
         # The page's own action row, where the wizard's Back/Next bar sits on
-        # every other page (the window hides that bar here): Close, and
-        # Restart now -- held while a recovery key is unacknowledged.
+        # every other page (the window hides that bar here). Try again shows
+        # on a failed or cancelled install; Not now on an installed one.
         # Power off opens the poweroff dialog (gates.py, mirroring GNOME's
         # dialog_poweroff.py); View install log opens the persistent log
         # with a Copy button (mirroring dialog_output.py) and shows only
         # on failure, when there is something to diagnose.
         actions = Gtk.Box(spacing=8)
+        self.try_btn = Gtk.Button(label=_("Try again"))
+        self.try_btn.connect("clicked", self._on_try_again)
+        self.try_btn.set_no_show_all(True)
         self.reboot_btn = Gtk.Button(label=core.BRANDING.text("done_restart") or _("Restart now"))
         self.reboot_btn.get_style_context().add_class("suggested-action")
-        self.reboot_btn.connect("clicked", lambda *_args: core.host_run(["systemctl", "reboot"]))
+        self.reboot_btn.connect("clicked", self._on_reboot)
         self.poweroff_btn = Gtk.Button(label=_("Power off"))
         self.poweroff_btn.connect("clicked", self.__on_poweroff)
         self.log_btn = Gtk.Button(label=_("View install log"))
         self.log_btn.connect("clicked", self.__on_view_log)
         self.log_btn.set_no_show_all(True)
+        self.not_now_btn = Gtk.Button(label=_("Not now"))
+        self.not_now_btn.connect("clicked", self.__on_close)
+        self.not_now_btn.set_no_show_all(True)
         self.close_btn = Gtk.Button(label=_("Close"))
         self.close_btn.connect("clicked", self.__on_close)
         actions.pack_end(self.reboot_btn, False, False, 0)
         actions.pack_end(self.poweroff_btn, False, False, 0)
         actions.pack_end(self.log_btn, False, False, 0)
+        actions.pack_end(self.try_btn, False, False, 0)
+        actions.pack_end(self.not_now_btn, False, False, 0)
         actions.pack_end(self.close_btn, False, False, 0)
         self.pack_end(actions, False, False, 0)
+        self.reboot_error = problem_label()
+        self.pack_start(self.reboot_error, False, False, 0)
+
+    def _on_try_again(self, *_args):
+        """Back to confirm: the person adjusts the plan and installs again."""
+        self.win._enter(PAGE_ORDER.index("confirm"))
+
+    def _on_reboot(self, *_args):
+        # reboot-failed (spec done): the error shows inline with a retry
+        # (this button), instead of stranding the page.
+        show_problem(self.reboot_error, None)
+        try:
+            if core.backend() == "daemon":
+                core.get_daemon().shutdown("reboot")
+            else:
+                core.host_run(["systemctl", "reboot"])
+        except Exception as exc:  # noqa: BLE001 - reboot-failed
+            show_problem(self.reboot_error, {
+                "code": "", "message": str(exc) or _(
+                    "Cannot restart right now. Try again.")})
 
     def __on_poweroff(self, *_args):
         dialog = gates.PoweroffDialog(self.get_toplevel())
@@ -1656,40 +2064,7 @@ class DonePage(Page):
         if isinstance(top, Gtk.Window):
             top.close()
 
-    def __on_copy(self, *_args):
-        clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
-        clipboard.set_text(self.recovery_key_label.get_text(), -1)
-
-    def __on_ack(self, check):
-        self.reboot_btn.set_sensitive(check.get_active())
-
-    def show_recovery_key(self, key):
-        """Reveal the panel and gate reboot behind the acknowledgement.
-
-        No key means no panel and no gate: a non-TPM install must not be
-        asked to tick a box about a key it was never given.
-        """
-        key = (key or "").strip()
-        self.recovery_box.set_visible(bool(key))
-        if not key:
-            self.reboot_btn.set_sensitive(True)
-            return
-        self.recovery_title.set_markup("<big><b>" + GLib.markup_escape_text(
-            core.BRANDING.text("recovery_key_title")) + "</b></big>")
-        self.recovery_body.set_text(core.BRANDING.text("recovery_key_body"))
-        self.recovery_key_label.set_text(key)
-        self.recovery_ack.set_active(False)
-        self.reboot_btn.set_sensitive(False)
-        # show_all() is a no-op while no_show_all is set -- that flag exists
-        # to stop the window's own show_all() revealing the panel on a
-        # non-TPM install. Lift it for this one call, or the box appears with
-        # none of its children in it: the capture drew an empty panel and the
-        # key never reached the screen.
-        self.recovery_box.set_no_show_all(False)
-        self.recovery_box.show_all()
-        self.recovery_box.set_no_show_all(True)
-
-    def set_result(self, ok, log_tail, recovery_key="", cancelled=False, receipt=None,
+    def set_result(self, ok, log_tail, cancelled=False, receipt=None,
                    error=None):
         """Show how the install ended: installed, cancelled or failed.
 
@@ -1700,9 +2075,10 @@ class DonePage(Page):
         check, and never that the new system started. `error` is the
         progress page's error(): a failure says whether the disk was
         changed, and when the cleanup failed or timed out
-        (tuna-os/fisherman#449)."""
-        # Only a finished install enrolled a TPM, so only it has a key.
-        self.show_recovery_key(recovery_key if ok else "")
+        (tuna-os/fisherman#449).
+
+        The recovery key is not shown here: RecoveryPage owns that screen,
+        and gates Done on the acknowledgement."""
         self.logo.set_visible(ok and self.logo.get_pixbuf() is not None)
         self.result = "installed" if ok else ("cancelled" if cancelled else "failed")
         if ok:
@@ -1715,11 +2091,16 @@ class DonePage(Page):
                 *completion.receipt_text(receipt, core.BRANDING.text)) if line))
             self.store_btn.set_visible(bool(core.BRANDING.store_url))
             self.reboot_btn.show()
+            self.reboot_btn.set_sensitive(True)
             self.log_btn.set_visible(False)
+            self.try_btn.set_visible(False)
+            self.not_now_btn.set_visible(True)
             return
         self.store_btn.set_visible(False)
         self.reboot_btn.hide()
+        self.not_now_btn.set_visible(False)
         self.log_btn.set_visible(True)
+        self.try_btn.set_visible(True)
         if cancelled:
             self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
                 core.BRANDING.text("done_cancelled_title")) + "</b></big>")
@@ -1737,5 +2118,6 @@ class DonePage(Page):
 
 
 PAGE_ORDER = ["welcome", "language", "keyboard", "timezone", "network",
-              "prerelease", "eula", "source", "rst", "destination", "setup",
-              "identity", "confirm", "progress", "done"]
+              "prerelease", "eula", "source", "rst", "destination", "wipe",
+              "setup", "identity", "confirm", "progress", "recovery",
+              "handoff", "done"]

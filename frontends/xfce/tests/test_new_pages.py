@@ -167,3 +167,44 @@ class TestRstPage:
 
         monkeypatch.setattr(core, "get_daemon", fail)
         assert core.rst_detected() is False
+
+
+class TestHandoffPage:
+    def test_recipe_backend_reboots(self, monkeypatch, win):
+        monkeypatch.setattr(core, "backend", lambda: "recipe")
+        page = pages.HandoffPage(win)
+        assert page.get_accessible().get_name() == "Handoff"
+        assert page.handoff_mode() == ("reboot", "")
+        page.on_enter()
+        assert "restarts the computer" in page.body.get_text()
+
+    def test_daemon_mode_comes_from_probe(self, monkeypatch, win):
+        monkeypatch.setattr(core, "backend", lambda: "daemon")
+        daemon = types.SimpleNamespace(probe=lambda: {
+            "handoff": {"mode": "migrate", "reason": "btrfs seed"}})
+        monkeypatch.setattr(core, "get_daemon", lambda: daemon)
+        page = pages.HandoffPage(win)
+        assert page.handoff_mode() == ("migrate", "btrfs seed")
+        page.on_enter()
+        assert "becomes the installed system" in page.body.get_text()
+        assert "btrfs seed" in page.body.get_text()
+
+    def test_continue_calls_handoff_without_a_mode(self, monkeypatch, win):
+        monkeypatch.setattr(core, "backend", lambda: "daemon")
+        calls = []
+
+        class FakeDaemon:
+            def probe(self):
+                return {}
+
+            def handoff(self, mode=None):
+                calls.append(mode)
+                return {"mode": "migrate", "started": True}
+
+        monkeypatch.setattr(core, "get_daemon", FakeDaemon)
+        win.go = lambda delta: calls.append(("go", delta))
+        page = pages.HandoffPage(win)
+        page._on_continue()
+        assert calls[0] is None, "the daemon decides the mode"
+        assert win.handoff_result["mode"] == "migrate"
+        assert calls[-1] == ("go", +1)

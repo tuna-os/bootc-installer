@@ -206,6 +206,19 @@ def test_a_page_preselects_the_session_value(monkeypatch):
     assert lang.selected() == "de_DE.UTF-8"
 
 
+def test_location_services_are_sent_only_when_changed(monkeypatch):
+    from tuna_installer_xfce import pages
+
+    win, sent, _applied = _region_win(monkeypatch)
+    tz = pages.TimezonePage(win)
+    tz.listbox.select_row(tz.rows["Europe/Berlin"])
+    assert sent[-1] == {"timezone": "Europe/Berlin"}
+    tz.location_check.set_active(True)
+    assert win.region.location_services is True
+    assert sent[-1] == {"timezone": "Europe/Berlin",
+                        "privacy": {"locationServices": True}}
+
+
 def test_build_recipe_writes_the_three_keys():
     from tuna_installer_xfce import core
 

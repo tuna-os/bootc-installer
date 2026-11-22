@@ -255,6 +255,12 @@ def recipe_to_target(recipe):
         choices["keymap"] = keyboard["layout"]
     if recipe.get("timezone"):
         choices["timeZone"] = recipe["timezone"]
+    privacy = recipe.get("privacy") or {}
+    if isinstance(privacy, dict) and "locationServices" in privacy:
+        choices["privacy"] = {
+            "locationServices": bool(privacy["locationServices"])}
+    if recipe.get("autologin"):
+        choices["autologin"] = True
     return choices
 
 
@@ -324,7 +330,22 @@ def probe_to_legacy(probe_reply, gates=()):
                                        .get("detected")),
                       "affected_disks": list((probe_reply.get("intelRst") or {})
                                             .get("affectedDisks") or [])},
+        "handoff": probe_handoff(probe_reply),
     }
+
+
+HANDOFF_MODES = ("migrate", "soft_reboot", "reboot")
+
+
+def probe_handoff(probe_reply):
+    """The handoff mode for the handoff page, as {"mode", "reason"}: the
+    daemon decides the mode and reports it in Probe. A missing or unknown
+    field means reboot."""
+    raw = (probe_reply or {}).get("handoff") or {}
+    mode = str(raw.get("mode") or "reboot").replace("-", "_")
+    if mode not in HANDOFF_MODES:
+        mode = "reboot"
+    return {"mode": mode, "reason": raw.get("reason") or ""}
 
 
 def daemon_event_to_line(event):

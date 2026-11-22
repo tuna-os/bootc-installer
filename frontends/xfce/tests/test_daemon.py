@@ -94,6 +94,29 @@ class TestRecipeToTarget:
     def test_empty_recipe_sends_nothing(self):
         assert daemon.recipe_to_target({}) == {}
 
+    def test_privacy_travels_only_when_changed(self):
+        assert "privacy" not in daemon.recipe_to_target({"locale": "de_DE.UTF-8"})
+        target = daemon.recipe_to_target({"privacy": {"locationServices": True}})
+        assert target["privacy"] == {"locationServices": True}
+        target = daemon.recipe_to_target({"privacy": {"locationServices": False}})
+        assert target["privacy"] == {"locationServices": False}
+
+
+class TestProbeHandoff:
+    def test_missing_handoff_means_reboot(self):
+        assert daemon.probe_handoff({}) == {"mode": "reboot", "reason": ""}
+        assert daemon.probe_to_legacy(PROBE)["handoff"] == {
+            "mode": "reboot", "reason": ""}
+
+    def test_daemon_mode_reaches_the_page(self):
+        reply = dict(PROBE, handoff={"mode": "migrate", "reason": "btrfs seed"})
+        assert daemon.probe_to_legacy(reply)["handoff"] == {
+            "mode": "migrate", "reason": "btrfs seed"}
+
+    def test_unknown_mode_means_reboot(self):
+        assert daemon.probe_handoff(
+            {"handoff": {"mode": "hyperloop"}})["mode"] == "reboot"
+
 
 # ─── legacy shape ────────────────────────────────────────────────────────
 
