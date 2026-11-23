@@ -126,6 +126,14 @@ constexpr double MIN_INK_ROWS_HERO = 0.03;   // vs 0.070 measured; 0.0 when noth
 constexpr double MIN_INK_COLS_HERO = 0.15;   // vs 0.380
 constexpr double MIN_INK_ROWS_CARD = 0.20;   // vs 0.427
 constexpr double MIN_INK_COLS_CARD = 0.35;   // vs 0.539
+// The four steps added by the shared-flow port paint a narrower card than the
+// original form steps. Measured on run 45171262964: prerelease 22.4/33.5,
+// eula 25.4/31.4, rst 17.2/53.9, wipe-or-free 14.1/19.2 (rows/cols %). Their
+// colours (187-248) and visible text already fail a blank screen; the card
+// floors were calibrated on the older 42.7/53.9 pages. Floor each class at
+// ~half its sparsest measured page, keeping >2x margin over a blank module.
+constexpr double MIN_INK_ROWS_SPARSE = 0.07;  // vs 0.141
+constexpr double MIN_INK_COLS_SPARSE = 0.10;  // vs 0.192
 
 // A step that rendered has a heading at minimum. Length rather than mere
 // non-emptiness so a stray single glyph cannot satisfy it.
@@ -138,6 +146,14 @@ constexpr int MIN_STEP_TEXT = 10;
 bool isHeroStep(const QString &name)
 {
     return name == u"01-tryorinstall"_s || name == u"02-welcome"_s || name == u"14-done"_s || name == u"16-cancelled"_s;
+}
+
+// The port's narrower card steps. Explicit by capture name, for the same
+// reason as the hero list: a step that drew nothing must not be able to
+// reclassify itself as sparse and pass.
+bool isSparseCardStep(const QString &name)
+{
+    return name == u"03-prerelease"_s || name == u"04-eula"_s || name == u"05-rst"_s || name == u"07-wipefree"_s;
 }
 
 void settle(int ms)
@@ -1013,11 +1029,13 @@ int main(int argc, char *argv[])
     for (auto &f : findings) {
         // The class is printed so the numbers can be read against the floors
         // that were actually applied to them, rather than against each other.
-        const double minRows = f.hero ? MIN_INK_ROWS_HERO : MIN_INK_ROWS_CARD;
-        const double minCols = f.hero ? MIN_INK_COLS_HERO : MIN_INK_COLS_CARD;
+        const bool sparse = isSparseCardStep(f.name);
+        const QString klass = f.hero ? u"hero"_s : sparse ? u"sparse"_s : u"card"_s;
+        const double minRows = f.hero ? MIN_INK_ROWS_HERO : sparse ? MIN_INK_ROWS_SPARSE : MIN_INK_ROWS_CARD;
+        const double minCols = f.hero ? MIN_INK_COLS_HERO : sparse ? MIN_INK_COLS_SPARSE : MIN_INK_COLS_CARD;
         out << QStringLiteral("  %1  %2  colours %3  ink %4%  rows %5%  cols %6%\n")
                    .arg(f.name, -14)
-                   .arg(f.hero ? u"hero"_s : u"card"_s)
+                   .arg(klass)
                    .arg(f.colours, 6)
                    .arg(f.ink * 100, 6, 'f', 2)
                    .arg(f.inkRows * 100, 5, 'f', 1)
@@ -1027,10 +1045,10 @@ int main(int argc, char *argv[])
             stepFailures << QStringLiteral("%1: %2 distinct colours — did not render").arg(f.name).arg(f.colours);
         if (f.inkRows < minRows)
             stepFailures << QStringLiteral("%1: content on only %2% of rows, below the %3% floor for a %4 step (blank screen)")
-                                .arg(f.name).arg(f.inkRows * 100, 0, 'f', 1).arg(minRows * 100, 0, 'f', 1).arg(f.hero ? u"hero"_s : u"card"_s);
+                                .arg(f.name).arg(f.inkRows * 100, 0, 'f', 1).arg(minRows * 100, 0, 'f', 1).arg(klass);
         if (f.inkCols < minCols)
             stepFailures << QStringLiteral("%1: content on only %2% of columns, below the %3% floor for a %4 step (blank screen)")
-                                .arg(f.name).arg(f.inkCols * 100, 0, 'f', 1).arg(minCols * 100, 0, 'f', 1).arg(f.hero ? u"hero"_s : u"card"_s);
+                                .arg(f.name).arg(f.inkCols * 100, 0, 'f', 1).arg(minCols * 100, 0, 'f', 1).arg(klass);
         if (f.ink < MIN_INK)
             stepFailures << QStringLiteral("%1: %2% ink — nothing drawn").arg(f.name).arg(f.ink * 100, 0, 'f', 2);
         // Semantic backstop. Independent of every pixel ratio above and of the
