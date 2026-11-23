@@ -34,10 +34,15 @@ struct Mock {
 
 impl Mock {
     fn start(scenario: &str) -> Self {
+        // Unique per spawn: tests run in parallel and one scenario (happy)
+        // serves several tests, so a shared dir would race socket binds.
+        static SPAWNS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = SPAWNS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let dir: PathBuf = std::env::temp_dir().join(format!(
-            "cosmic-mock-{}-{}",
+            "cosmic-mock-{}-{}-{}",
             scenario,
-            std::process::id()
+            std::process::id(),
+            n
         ));
         std::fs::create_dir_all(&dir).unwrap();
         let child = Command::new(mock_bin())
@@ -291,4 +296,33 @@ fn mock_tight_space_probe_still_lists_the_disk() {
     assert!(facts.disk_data[nvme].has_data);
     assert!(!facts.disk_data[nvme].data_detected());
     assert!(facts.disk_data.iter().any(|d| d.data_detected()));
+}
+
+#[test]
+#[ignore]
+fn mock_recovery_key_makes_and_enrols() {
+    // The recovery-key page flow: install, MakeRecoveryKey when the page
+    // opens, then Enroll on Done with the install passphrase as the unlock
+    // password. Happy seals with TPM and no passphrase, so the unlock
+    // password is empty. A volume only exists after an install.
+    let mock = Mock::start("happy");
+    let mut install_conn = mock.connect();
+    let mut last = None;
+    fishermand::install(&mut install_conn, happy_config("/dev/nvme0n1"), true, |event| {
+        last = Some(event);
+        true
+    })
+    .unwrap();
+    assert_eq!(
+        last.expect("install streams events")["event"],
+        Value::from("complete")
+    );
+    let mut conn = mock.connect();
+    let key = fishermand::make_recovery_key(&mut conn).unwrap();
+    // The harness matches the key by shape, eight groups of letters.
+    assert!(fishermand::is_recovery_key_shape(&key), "{key}");
+    let reply =
+        fishermand::enroll_recovery(&mut conn, "/dev/nvme0n1", &key, "").unwrap();
+    assert_eq!(reply["state"], Value::from("enrolled"));
+    assert_eq!(reply["recoveryKey"], Value::from(key.as_str()));
 }

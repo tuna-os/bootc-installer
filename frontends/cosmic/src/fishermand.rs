@@ -313,8 +313,6 @@ mod transport {
         Ok(devices)
     }
 
-    // The recovery-key page wires this.
-    #[allow(dead_code)]
     pub fn make_recovery_key(conn: &mut Connection) -> Result<String, Error> {
         let reply = conn.call(&format!("{CRYPTENROLL}.MakeRecoveryKey"), json!({}))?;
         reply
@@ -322,6 +320,26 @@ mod transport {
             .and_then(Value::as_str)
             .map(str::to_string)
             .ok_or_else(|| Error::Transport("MakeRecoveryKey missed recoveryKey".into()))
+    }
+
+    /// Enrol a recovery key into the installed volume (screens.yaml
+    /// `recovery-key`): the key made when the page opened, unlocked with
+    /// the install passphrase (empty when the disk sealed to PCR 7).
+    pub fn enroll_recovery(
+        conn: &mut Connection,
+        node: &str,
+        recovery_key: &str,
+        unlock_password: &str,
+    ) -> Result<Value, Error> {
+        conn.call(
+            &format!("{CRYPTENROLL}.Enroll"),
+            json!({
+                "node": node,
+                "mechanism": "recovery",
+                "recoveryKey": recovery_key,
+                "unlockPassword": unlock_password,
+            }),
+        )
     }
 
     pub fn reboot(conn: &mut Connection, skip_inhibitors: bool) -> Result<(), Error> {

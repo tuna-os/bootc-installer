@@ -198,6 +198,13 @@ pub mod copy {
     pub const EULA_SUBTITLE: &str = "Read and accept the terms to continue.";
     pub const EULA_ACCEPT: &str = "I have read and accept the Terms of Use";
     pub const EULA_UNREADABLE: &str = "The terms cannot load.";
+    // Back up the recovery key (screens.yaml `recovery-key`): its own
+    // screen with a QR code. Done enrols the key, then leaves the page.
+    pub const RECOVERY_TITLE: &str = "Recovery key";
+    pub const RECOVERY_SUBTITLE: &str = "Write it down now. The installer will not show it again.";
+    pub const RECOVERY_QR_BUTTON: &str = "Show QR Code for Recovery Key";
+    pub const RECOVERY_DONE: &str = "Done";
+    pub const RECOVERY_LOADING: &str = "Loading the recovery key…";
 
     // Tour carousel (views/tour.py).
     pub const TOUR_TITLE: &str = "Tour";
@@ -246,6 +253,47 @@ fn encryption_text(enc_type: &str, suffix: &str) -> String {
 
 fn with_product(s: &str) -> String {
     s.replace("{product}", branding::name())
+}
+
+/// The recovery key as QR pixels: `(width, height, RGBA)`, or `None` when
+/// the key does not encode. Pure, so tests pin it; the update loop renders
+/// the handle once per key arrival, never per frame.
+pub fn qr_rgba(key: &str) -> Option<(u32, u32, Vec<u8>)> {
+    use qrcode::{Color, QrCode};
+    if key.is_empty() {
+        return None;
+    }
+    let code = QrCode::new(key.as_bytes()).ok()?;
+    let modules = code.width();
+    if modules == 0 {
+        return None;
+    }
+    // A quiet zone the scanners need, then ~320 px across: scannable
+    // without dominating the dialog.
+    const QUIET: usize = 4;
+    let side = modules + QUIET * 2;
+    let scale = (320 / side).max(2);
+    let px = side * scale;
+    let mut rgba = Vec::with_capacity(px * px * 4);
+    for oy in 0..px {
+        let my = oy / scale;
+        for ox in 0..px {
+            let mx = ox / scale;
+            let dark = mx >= QUIET
+                && mx < QUIET + modules
+                && my >= QUIET
+                && my < QUIET + modules
+                && code[(mx - QUIET, my - QUIET)] == Color::Dark;
+            let v = if dark { 0 } else { 255 };
+            rgba.extend_from_slice(&[v, v, v, 255]);
+        }
+    }
+    Some((px as u32, px as u32, rgba))
+}
+
+/// The recovery key as a QR image for the dialog.
+pub fn qr_handle(key: &str) -> Option<cosmic::widget::image::Handle> {
+    qr_rgba(key).map(|(w, h, rgba)| cosmic::widget::image::Handle::from_rgba(w, h, rgba))
 }
 
 /// The strings the current page shows, in reading order.
@@ -651,6 +699,35 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             },
             tr(DONE_COPY_LOG),
         ],
+        Page::RecoveryKey => {
+            // The key itself goes in: the harness matches it by shape,
+            // never by a node named `Recovery Key`.
+            let mut t = vec![
+                tr(RECOVERY_TITLE),
+                tr(RECOVERY_SUBTITLE),
+                t_line("recovery_key_title"),
+                t_line("recovery_key_body"),
+            ];
+            if let Some(error) = app.recovery_error() {
+                t.push(error.to_string());
+                t.push(tr(BACK));
+                t.push(tr(RECOVERY_DONE));
+                return t;
+            }
+            if app.progress.recovery_key.is_empty() {
+                t.push(tr(RECOVERY_LOADING));
+            } else {
+                t.push(app.progress.recovery_key.clone());
+                t.push(t_line("recovery_key_copy"));
+                t.push(tr(RECOVERY_QR_BUTTON));
+                t.push(t_line("recovery_key_ack"));
+            }
+            t.push(tr(BACK));
+            if !app.progress.recovery_key.is_empty() && app.recovery_ack && !app.recovery_enrolling() {
+                t.push(tr(RECOVERY_DONE));
+            }
+            t
+        }
         Page::Done => {
             let (title, detail) = done_copy(app);
             let mut t = vec![title, detail];
@@ -659,16 +736,8 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             }
             if app.install_ok() {
                 t.extend(app.receipt_lines());
-                // The recovery panel, when there is a key (#129). The key
-                // itself goes in too: the capture asserts on it, and a
-                // panel drawn without it is the failure worth catching.
-                if !app.progress.recovery_key.is_empty() {
-                    t.push(t_line("recovery_key_title"));
-                    t.push(t_line("recovery_key_body"));
-                    t.push(app.progress.recovery_key.clone());
-                    t.push(t_line("recovery_key_copy"));
-                    t.push(t_line("recovery_key_ack"));
-                }
+                // The key lives on its own page now; done keeps the receipt
+                // and the restart offer.
                 if !branding::get().store_url.is_empty() {
                     t.push(t_line("store_label"));
                 }
@@ -879,6 +948,7 @@ pub fn view(app: &TunaInstaller) -> Element<'_, Message> {
         Page::Tour => tour_page(app),
         Page::Confirm => confirm(app),
         Page::Installing => installing(app),
+        Page::RecoveryKey => recovery(app),
         Page::Done => done(app),
     };
 
@@ -1960,6 +2030,111 @@ fn encryption(app: &TunaInstaller) -> Element<'_, Message> {
     )
 }
 
+/// Back up the recovery key (screens.yaml `recovery-key`): the key as a
+/// text label (matched by shape, never by a node named `Recovery Key`),
+/// a QR dialog, and an acknowledgement box that gates Done. Daemon mode
+/// enrols the key when Done is pressed; the legacy install enrols it
+/// while writing the disk.
+fn recovery(app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    let key = app.progress.recovery_key.clone();
+    if let Some(error) = app.recovery_error() {
+        // The recovery-key-failed state: no key, do not continue without
+        // one. Back or Done retries through the page entry.
+        let body = widget::column::with_children(vec![
+            widget::text::body(error.to_string()).into(),
+            widget::button::standard(tr(RECOVERY_DONE))
+                .on_press(Message::RecoveryDone)
+                .into(),
+        ])
+        .spacing(spacing.space_s)
+        .height(Length::Fill);
+        return page_frame(
+            tr(RECOVERY_TITLE),
+            tr(RECOVERY_SUBTITLE),
+            body.into(),
+            nav_row(Some(Message::BackPage), None),
+        );
+    }
+    let mut parts: Vec<Element<'_, Message>> = Vec::new();
+    if key.is_empty() {
+        parts.push(widget::text::body(tr(RECOVERY_LOADING)).into());
+    } else {
+        parts.push(widget::text::monotext(key.clone()).into());
+        parts.push(
+            widget::row::with_children(vec![
+                widget::button::standard(t_line("recovery_key_copy"))
+                    .on_press(Message::CopyRecoveryKey)
+                    .into(),
+                widget::button::standard(tr(RECOVERY_QR_BUTTON))
+                    .on_press(Message::ToggleQrDialog)
+                    .into(),
+            ])
+            .spacing(spacing.space_s)
+            .into(),
+        );
+        parts.push(
+            widget::checkbox(app.recovery_ack)
+                .label(t_line("recovery_key_ack"))
+                .on_toggle(Message::RecoveryAckToggled)
+                .into(),
+        );
+    }
+    let body = widget::column::with_children(parts)
+        .spacing(spacing.space_s)
+        .height(Length::Fill);
+
+    let done_live = !key.is_empty() && app.recovery_ack && !app.recovery_enrolling();
+    page_frame(
+        tr(RECOVERY_TITLE),
+        tr(RECOVERY_SUBTITLE),
+        body.into(),
+        nav_row(
+            Some(Message::BackPage),
+            done_live.then_some((tr(RECOVERY_DONE), Message::RecoveryDone, false)),
+        ),
+    )
+}
+
+/// The recovery key's QR dialog: the code large, the key below it for
+/// transcription, Close to go back to the page.
+pub fn qr_dialog(app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    let key = app.progress.recovery_key.clone();
+    let mut children: Vec<Element<'_, Message>> = Vec::new();
+    if let Some(handle) = app.qr_code() {
+        children.push(widget::image(handle).into());
+    }
+    children.push(widget::text::monotext(key).into());
+    let body = widget::column::with_children(children)
+        .spacing(spacing.space_s)
+        .align_x(Alignment::Center)
+        .width(Length::Fill)
+        .height(Length::Fill);
+    widget::container(
+        widget::column::with_children(vec![
+            widget::text::title2(tr(RECOVERY_QR_BUTTON)).into(),
+            widget::divider::horizontal::default().into(),
+            body.into(),
+            widget::divider::horizontal::default().into(),
+            widget::row::with_children(vec![
+                widget::space::horizontal().into(),
+                widget::button::suggested(tr(DONE_CLOSE))
+                    .on_press(Message::ToggleQrDialog)
+                    .into(),
+            ])
+            .align_y(Alignment::Center)
+            .into(),
+        ])
+        .spacing(spacing.space_s)
+        .height(Length::Fill),
+    )
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .padding(spacing.space_l)
+    .into()
+}
+
 /// The account the installed system is created with: the recipe's `user`
 /// block. Shown unless the image on record makes its own first user
 /// (`needs_user_creation: false` in the catalog). Continue waits for a username and a
@@ -2367,35 +2542,9 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
         .align_x(Alignment::Center)
         .width(Length::Fill);
 
-    // The recovery key (#129). fisherman emits it once, after TPM enrolment,
-    // and for a tpm2-luks install it is the only way back into the disk if
-    // the TPM state changes. It used to go to the log pane and nowhere else:
-    // the log scrolls, nothing pauses, and a user could reach this page and
-    // restart having never seen it.
-    //
-    // A panel rather than a dialog, for the same reason XFCE uses one: a
-    // dialog is dismissed and then the key is gone, while this stays on
-    // screen for as long as it takes to write down.
-    let key = app.progress.recovery_key.clone();
-    let show_recovery = app.install_ok() && !key.is_empty();
-    let recovery: Option<Element<'_, Message>> = show_recovery.then(|| {
-        widget::column::with_children(vec![
-            widget::text::title4(t_line("recovery_key_title")).into(),
-            widget::text::body(t_line("recovery_key_body")).into(),
-            widget::text::monotext(key.clone()).into(),
-            widget::button::standard(t_line("recovery_key_copy"))
-                .on_press(Message::CopyRecoveryKey)
-                .into(),
-            widget::checkbox(app.recovery_ack)
-                .label(t_line("recovery_key_ack"))
-                .on_toggle(Message::RecoveryAckToggled)
-                .into(),
-        ])
-        .spacing(spacing.space_xs)
-        .align_x(Alignment::Center)
-        .width(Length::Fill)
-        .into()
-    });
+    // The recovery key lives on its own page now (screens.yaml
+    // `recovery-key`): by the time done shows, the user acknowledged it
+    // there. Restart still waits out `recovery_key_pending`, defensively.
 
     // Restart is the primary action after a successful install (the same
     // as the other frontends); Close stays available either way.
@@ -2435,15 +2584,12 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
         .into()
     };
 
-    let mut children: Vec<Element<'_, Message>> = vec![
+    let children: Vec<Element<'_, Message>> = vec![
         widget::space::vertical().into(),
         hero.into(),
+        widget::space::vertical().into(),
+        actions,
     ];
-    if let Some(panel) = recovery {
-        children.push(panel);
-    }
-    children.push(widget::space::vertical().into());
-    children.push(actions);
 
     widget::column::with_children(children)
         .spacing(spacing.space_m)
@@ -2538,6 +2684,26 @@ mod tests {
         assert_eq!(encryption_text("none", "_label"), "No encryption");
         // fisherman reads "" as none; so does the summary.
         assert_eq!(encryption_text("", "_label"), "No encryption");
+    }
+
+    #[test]
+    fn recovery_qr_is_deterministic_and_key_shaped() {
+        use super::qr_rgba;
+        // Eight groups of eight lowercase letters, like the daemon's.
+        let key = "mktardcw-nnhufnbx-kwnvoixz-ahhhuahf-xqwqwqwq-yzqwqwqw-abcqwqwq-defqwqwq";
+        let (w, h, first) = qr_rgba(key).expect("key renders");
+        assert!(w >= 200 && w == h);
+        assert_eq!(first.len(), (w as usize) * (h as usize) * 4);
+        let (_, _, second) = qr_rgba(key).expect("key renders");
+        assert_eq!(first, second);
+        // Opaque black and white only.
+        assert!(first.chunks_exact(4).all(|p| {
+            (p[0] == 0 || p[0] == 255) && p[0] == p[1] && p[1] == p[2] && p[3] == 255
+        }));
+        let other = qr_rgba("nnhufnbx-kwnvoixz-ahhhuahf-xqwqwqwq-yzqwqwqw-abcqwqwq-defqwqwq-mktardcw")
+            .expect("key renders");
+        assert_ne!(first, other.2);
+        assert!(qr_rgba("").is_none());
     }
 
     /// The production part of a source file: everything before its tests.

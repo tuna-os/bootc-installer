@@ -173,13 +173,17 @@ pub enum Page {
     Tour,
     Confirm,
     Installing,
+    /// The LUKS recovery key (screens.yaml `recovery-key`): its own
+    /// screen with a QR code, shown when the disk is encrypted. The key
+    /// enrols when the user presses Done.
+    RecoveryKey,
     Done,
 }
 
 impl Page {
     /// Wizard order. Also the capture order, so a new page cannot be added
     /// without appearing in the walkthrough.
-    pub const ORDER: [Page; 19] = [
+    pub const ORDER: [Page; 20] = [
         Page::Requirements,
         Page::TryOrInstall,
         Page::Image,
@@ -198,6 +202,7 @@ impl Page {
         Page::Tour,
         Page::Confirm,
         Page::Installing,
+        Page::RecoveryKey,
         Page::Done,
     ];
 
@@ -221,6 +226,7 @@ impl Page {
             Page::Tour => "tour",
             Page::Confirm => "confirm",
             Page::Installing => "installing",
+            Page::RecoveryKey => "recovery-key",
             Page::Done => "done",
         }
     }
@@ -248,6 +254,7 @@ impl Page {
             Page::Tour => copy::TOUR_TITLE,
             Page::Confirm => copy::PAGE_CONFIRM,
             Page::Installing => copy::PAGE_INSTALLING,
+            Page::RecoveryKey => copy::RECOVERY_TITLE,
             Page::Done => copy::PAGE_DONE,
         }
     }
@@ -423,8 +430,18 @@ pub enum Message {
     PasswordChanged(String),
     PasswordConfirmChanged(String),
     TogglePasswordVisible,
-    /// The done page's "I have saved my recovery key" box.
+    /// The recovery-key page's "I have saved my recovery key" box.
     RecoveryAckToggled(bool),
+    /// The daemon's answer to MakeRecoveryKey, only in daemon mode. The
+    /// legacy key arrives with the install stream instead.
+    RecoveryKeyLoaded(Result<String, String>),
+    /// The recovery-key page's Done: enrols the key, then advances.
+    RecoveryDone,
+    /// The daemon's answer to the recovery Enroll. `Ok` advances; `Err`
+    /// stays on the page with a retry.
+    RecoveryEnrolled(Result<(), String>),
+    /// Open or close the recovery key's QR dialog.
+    ToggleQrDialog,
     /// The EULA page's accept box. Gates Continue on that page.
     EulaAccepted(bool),
     /// Put the recovery key on the clipboard.
@@ -580,9 +597,18 @@ pub struct TunaInstaller {
     /// The password typed a second time. Never in the recipe.
     password_confirm: String,
     password_hidden: bool,
-    /// Ticked by the user on the done page once they have written the
-    /// recovery key down. It gates Restart (#129).
+    /// Ticked by the user on the recovery-key page once they have written
+    /// the recovery key down. It gates that page's Done (#129).
     recovery_ack: bool,
+    /// The QR dialog is open over the recovery-key page.
+    show_qr_dialog: bool,
+    /// The recovery key's QR code, rendered once when the key arrives.
+    qr_code: Option<cosmic::widget::image::Handle>,
+    /// Why the recovery key is missing or would not enrol. Retry stays
+    /// available; the key never reaches the log.
+    recovery_error: Option<String>,
+    /// A CryptEnroll call is in flight; Done stays dead meanwhile.
+    recovery_enrolling: bool,
     /// fisherman's `tpm.usable`. Gates the two `tpm2-*` encryption choices.
     has_tpm: bool,
     /// fisherman's `system.unmet`: the welcome page warns about each one.
@@ -683,6 +709,14 @@ impl TunaInstaller {
                 self.install_cancelled = false;
                 self.install_log.push_str(&format!("\n=== Error: {e} ===\n"));
             }
+        }
+        // An encrypted install lands on the recovery-key page first; the
+        // failed and cancelled installs go straight to done.
+        if self.recovery_key_visible() {
+            self.page = Page::RecoveryKey;
+            // Daemon mode makes the key on entry (on_enter_page); the
+            // legacy key already arrived with the install stream.
+            self.qr_code = crate::ui::qr_handle(&self.progress.recovery_key);
         }
         offline::persist_install_log(&self.install_log, &self.progress.recovery_key);
     }
@@ -822,6 +856,18 @@ impl TunaInstaller {
     }
     pub fn handoff_reason(&self) -> &str {
         &self.handoff_reason
+    }
+    pub fn show_qr_dialog(&self) -> bool {
+        self.show_qr_dialog
+    }
+    pub fn qr_code(&self) -> Option<cosmic::widget::image::Handle> {
+        self.qr_code.clone()
+    }
+    pub fn recovery_error(&self) -> Option<&str> {
+        self.recovery_error.as_deref()
+    }
+    pub fn recovery_enrolling(&self) -> bool {
+        self.recovery_enrolling
     }
     pub fn probed(&self) -> bool {
         self.probed
@@ -965,8 +1011,26 @@ impl TunaInstaller {
             // filesystem page has nothing to ask there.
             Page::Options => !fishermand::use_daemon(),
             Page::Encryption => self.encryption_visible(),
+            Page::RecoveryKey => self.recovery_key_visible(),
             _ => true,
         }
+    }
+
+    /// Whether the recovery-key page shows (screens.yaml `recovery-key`):
+    /// the install finished ok and the disk is encrypted. Daemon mode
+    /// makes the key on entry; the legacy key arrives with the install
+    /// stream, so an empty one skips the page.
+    pub fn recovery_key_visible(&self) -> bool {
+        if self.installing || !self.install_ok {
+            return false;
+        }
+        if self.recipe.encryption.enc_type == "none" {
+            return false;
+        }
+        if fishermand::use_daemon() {
+            return true;
+        }
+        !self.progress.recovery_key.is_empty()
     }
 
     /// Whether the selected disk holds data with room to spare
@@ -1250,6 +1314,29 @@ impl TunaInstaller {
                 Task::none()
             }
             Page::Confirm => Task::batch([self.check_source(), self.check_plan()]),
+            Page::RecoveryKey => {
+                // Daemon mode makes the key when the page opens (gnome
+                // makes it here and enrols it on Done). The legacy key
+                // already arrived with the install stream. Never in
+                // capture mode: nothing shells out there.
+                #[cfg(not(target_arch = "wasm32"))]
+                if fishermand::use_daemon() && !self.capturing() {
+                    self.recovery_error = None;
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(|| {
+                                let mut conn = fishermand::connect("io.systemd.CryptEnroll")
+                                    .map_err(|e| format!("cannot reach fishermand: {e}"))?;
+                                fishermand::make_recovery_key(&mut conn).map_err(|e| e.to_string())
+                            })
+                            .await
+                            .map_err(|e| format!("Task join error: {e}"))?
+                        },
+                        |r| cosmic::action::app(Message::RecoveryKeyLoaded(r)),
+                    );
+                }
+                Task::none()
+            }
             _ => Task::none(),
         }
     }
@@ -1538,6 +1625,10 @@ impl cosmic::Application for TunaInstaller {
             password_confirm: String::new(),
             password_hidden: true,
             recovery_ack: false,
+            show_qr_dialog: false,
+            qr_code: None,
+            recovery_error: None,
+            recovery_enrolling: false,
             // Until the probe answers: no TPM choices, no warning.
             has_tpm: false,
             unmet: Vec::new(),
@@ -2067,6 +2158,71 @@ impl cosmic::Application for TunaInstaller {
                 self.recovery_ack = v;
                 Task::none()
             }
+            Message::RecoveryKeyLoaded(result) => {
+                match result {
+                    Ok(key) => {
+                        // The QR renders once, here, so no frame pays the
+                        // encoder cost. The key itself never reaches the log.
+                        self.progress.recovery_key = key;
+                        self.qr_code = crate::ui::qr_handle(&self.progress.recovery_key);
+                        self.recovery_error = None;
+                    }
+                    Err(e) => {
+                        self.recovery_error = Some(e);
+                    }
+                }
+                Task::none()
+            }
+            Message::RecoveryDone => {
+                // Daemon mode enrols the key before leaving the page; the
+                // legacy path enrols during the install itself.
+                #[cfg(not(target_arch = "wasm32"))]
+                if fishermand::use_daemon() {
+                    if self.recovery_enrolling {
+                        return Task::none();
+                    }
+                    let key = self.progress.recovery_key.clone();
+                    if key.is_empty() {
+                        // No key yet (MakeRecoveryKey failed or is still
+                        // running): run the page entry again instead of
+                        // enrolling nothing.
+                        return self.on_enter_page(Page::RecoveryKey);
+                    }
+                    self.recovery_enrolling = true;
+                    self.recovery_error = None;
+                    let disk = self.recipe.disk.clone();
+                    let passphrase = self.recipe.encryption.passphrase.clone();
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(move || {
+                                let mut conn = fishermand::connect("io.systemd.CryptEnroll")
+                                    .map_err(|e| format!("cannot reach fishermand: {e}"))?;
+                                fishermand::enroll_recovery(&mut conn, &disk, &key, &passphrase)
+                                    .map(|_| ())
+                                    .map_err(|e| e.to_string())
+                            })
+                            .await
+                            .map_err(|e| format!("Task join error: {e}"))?
+                        },
+                        |r| cosmic::action::app(Message::RecoveryEnrolled(r)),
+                    );
+                }
+                self.advance().1
+            }
+            Message::RecoveryEnrolled(result) => {
+                self.recovery_enrolling = false;
+                match result {
+                    Ok(()) => self.advance().1,
+                    Err(e) => {
+                        self.recovery_error = Some(e);
+                        Task::none()
+                    }
+                }
+            }
+            Message::ToggleQrDialog => {
+                self.show_qr_dialog = !self.show_qr_dialog;
+                Task::none()
+            }
             Message::EulaAccepted(v) => {
                 self.eula_accepted = v;
                 Task::none()
@@ -2222,6 +2378,10 @@ impl cosmic::Application for TunaInstaller {
         // The cancel dialog asks before a half-written disk is abandoned.
         if self.show_cancel_dialog {
             return ui::cancel_confirm(self);
+        }
+        // The QR dialog replaces the recovery-key page until it closes.
+        if self.show_qr_dialog {
+            return ui::qr_dialog(self);
         }
         ui::view(self)
     }
@@ -2609,6 +2769,19 @@ mod tests {
         assert_eq!(TunaInstaller::daemon_sealed_type(true, "luks-passphrase"), "luks-passphrase");
         assert_eq!(TunaInstaller::daemon_sealed_type(true, "tpm2-luks-passphrase"), "tpm2-luks-passphrase");
         assert_eq!(TunaInstaller::daemon_sealed_type(false, "none"), "none");
+    }
+
+    #[test]
+    fn recovery_key_joins_the_shared_flow() {
+        // screens.yaml `recovery-key`: stable id between installing and
+        // done. The a11y name is the page title.
+        assert_eq!(Page::RecoveryKey.slug(), "recovery-key");
+        assert_eq!(Page::RecoveryKey.title(), crate::ui::copy::RECOVERY_TITLE);
+        let order: Vec<&str> = Page::ORDER.iter().map(|p| p.slug()).collect();
+        let installing = order.iter().position(|s| *s == "installing").unwrap();
+        let recovery = order.iter().position(|s| *s == "recovery-key").unwrap();
+        let done = order.iter().position(|s| *s == "done").unwrap();
+        assert!(installing < recovery && recovery < done, "{order:?}");
     }
 
     use super::*;
@@ -3019,8 +3192,9 @@ mod tests {
         assert!(at(Page::Account) < at(Page::Tour));
         assert!(at(Page::Tour) < at(Page::Confirm));
         assert!(at(Page::Confirm) < at(Page::Installing));
-        assert!(at(Page::Installing) < at(Page::Done));
-        assert_eq!(order.len(), 19);
+        assert!(at(Page::Installing) < at(Page::RecoveryKey));
+        assert!(at(Page::RecoveryKey) < at(Page::Done));
+        assert_eq!(order.len(), 20);
         assert!(!order.iter().any(|p| p.slug() == "companion"));
     }
 
