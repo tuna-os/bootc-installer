@@ -14,6 +14,12 @@ NAME = "Example Remix"
 
 def prepare(directory):
     directory.mkdir(parents=True, exist_ok=True)
+    # The checkout keeps screenshots from earlier runs. Page numbering moves
+    # when a page joins the flow, so an old NN-done.png would sit beside the
+    # new one and the frame() lookup would find two instead of one.
+    for stale in directory.glob("[0-9][0-9]-*.png"):
+        stale.unlink()
+    (directory / "texts.json").unlink(missing_ok=True)
     logo = directory / "logo with spaces #1.png"
     Image.new("RGB", (120, 60), COLOR).save(logo)
     fixture = Path(__file__).resolve().parents[3] / "shared/branding/fixtures/fork-branding.json"
