@@ -656,7 +656,9 @@ pub fn daemon_probe_to_facts(probe: &Value, gates: &Value) -> Result<crate::prob
         handoff_mode: match probe.pointer("/handoff/mode").and_then(Value::as_str) {
             // The daemon decides; a missing or unknown field means reboot.
             Some("migrate") => "migrate".to_string(),
-            Some("soft-reboot") => "soft-reboot".to_string(),
+            // The frozen Handoff enum spells this with an underscore on the
+            // wire (fisherman/internal/handoff: ModeSoftReboot).
+            Some("soft_reboot") => "soft_reboot".to_string(),
             _ => "reboot".to_string(),
         },
         handoff_reason: probe
@@ -1003,10 +1005,10 @@ mod tests {
         assert!(facts.handoff_reason.is_empty());
         let soft = serde_json::json!({
             "protocolVersion": 1, "disks": [],
-            "handoff": {"mode": "soft-reboot", "reason": "EL10 cells restart userspace"},
+            "handoff": {"mode": "soft_reboot", "reason": "EL10 cells restart userspace"},
         });
         let facts = daemon_probe_to_facts(&soft, &gates).unwrap();
-        assert_eq!(facts.handoff_mode, "soft-reboot");
+        assert_eq!(facts.handoff_mode, "soft_reboot");
         assert_eq!(facts.handoff_reason, "EL10 cells restart userspace");
         let weird = serde_json::json!({
             "protocolVersion": 1, "disks": [],

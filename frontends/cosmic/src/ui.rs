@@ -205,6 +205,17 @@ pub mod copy {
     pub const RECOVERY_QR_BUTTON: &str = "Show QR Code for Recovery Key";
     pub const RECOVERY_DONE: &str = "Done";
     pub const RECOVERY_LOADING: &str = "Loading the recovery key…";
+    // Hand the system over (screens.yaml `handoff`): what carries over
+    // depends on the mode the daemon reported. Continue hands over; Not
+    // now leaves it for the done page's Restart.
+    pub const HANDOFF_TITLE: &str = "Handoff";
+    pub const HANDOFF_MIGRATE: &str = "This session becomes your installed system. Your files stay as they are. Nothing restarts.";
+    pub const HANDOFF_SOFT_REBOOT: &str = "The system restarts into the installed copy without a full reboot. This session ends: save your work first.";
+    pub const HANDOFF_REBOOT: &str = "The computer restarts into the installed system.";
+    pub const HANDOFF_CONTINUE: &str = "Continue";
+    pub const HANDOFF_NOT_NOW: &str = "Not now";
+    pub const HANDOFF_FAILED: &str = "The handoff failed.";
+    pub const HANDOFF_CLOSE: &str = "Close";
 
     // Tour carousel (views/tour.py).
     pub const TOUR_TITLE: &str = "Tour";
@@ -728,6 +739,30 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             }
             t
         }
+        Page::Handoff => {
+            let mut t = vec![tr(HANDOFF_TITLE), tr(HANDOFF_REBOOT)];
+            if let Some(error) = app.handoff_error() {
+                t.push(tr(HANDOFF_FAILED));
+                t.push(error.to_string());
+                t.push(tr(HANDOFF_CLOSE));
+                t.push(t_line("done_restart"));
+            } else {
+                match app.handoff_mode() {
+                    "migrate" => t.push(tr(HANDOFF_MIGRATE)),
+                    "soft_reboot" => t.push(tr(HANDOFF_SOFT_REBOOT)),
+                    _ => {}
+                }
+                if !app.handoff_reason().is_empty() {
+                    t.push(app.handoff_reason().to_string());
+                }
+                t.push(tr(HANDOFF_NOT_NOW));
+                if !app.handoff_calling() {
+                    t.push(tr(HANDOFF_CONTINUE));
+                }
+            }
+            t.push(tr(BACK));
+            t
+        }
         Page::Done => {
             let (title, detail) = done_copy(app);
             let mut t = vec![title, detail];
@@ -949,6 +984,7 @@ pub fn view(app: &TunaInstaller) -> Element<'_, Message> {
         Page::Confirm => confirm(app),
         Page::Installing => installing(app),
         Page::RecoveryKey => recovery(app),
+        Page::Handoff => handoff(app),
         Page::Done => done(app),
     };
 
@@ -2133,6 +2169,68 @@ pub fn qr_dialog(app: &TunaInstaller) -> Element<'_, Message> {
     .height(Length::Fill)
     .padding(spacing.space_l)
     .into()
+}
+
+/// Hand the system over (screens.yaml `handoff`): the daemon's Probe
+/// chose the mode; the page says plainly what carries over. Continue
+/// hands over (Handoff with no mode in daemon mode, a restart on the
+/// legacy path); Not now leaves it for the done page's Restart. A failed
+/// handoff offers Reboot and Close.
+fn handoff(app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    if let Some(error) = app.handoff_error() {
+        let body = widget::column::with_children(vec![
+            widget::text::body(format!("{} {}", tr(HANDOFF_FAILED), error)).into(),
+            widget::row::with_children(vec![
+                widget::button::standard(tr(HANDOFF_CLOSE))
+                    .on_press(Message::NextPage)
+                    .into(),
+                widget::button::suggested(t_line("done_restart"))
+                    .on_press(Message::Reboot)
+                    .into(),
+            ])
+            .spacing(spacing.space_s)
+            .into(),
+        ])
+        .spacing(spacing.space_s)
+        .height(Length::Fill);
+        return page_frame(
+            tr(HANDOFF_TITLE),
+            tr(HANDOFF_REBOOT),
+            body.into(),
+            nav_row(Some(Message::BackPage), None),
+        );
+    }
+    let mode_text = match app.handoff_mode() {
+        "migrate" => tr(HANDOFF_MIGRATE),
+        "soft_reboot" => tr(HANDOFF_SOFT_REBOOT),
+        _ => tr(HANDOFF_REBOOT),
+    };
+    let mut parts: Vec<Element<'_, Message>> = vec![widget::text::body(mode_text).into()];
+    if !app.handoff_reason().is_empty() {
+        parts.push(widget::text::caption(app.handoff_reason().to_string()).into());
+    }
+    let body = widget::column::with_children(parts)
+        .spacing(spacing.space_s)
+        .height(Length::Fill);
+    let continue_button: Element<'_, Message> = if app.handoff_calling() {
+        widget::button::suggested(tr(HANDOFF_CONTINUE)).into()
+    } else {
+        widget::button::suggested(tr(HANDOFF_CONTINUE))
+            .on_press(Message::HandoffContinue)
+            .into()
+    };
+    let footer = widget::row::with_children(vec![
+        widget::button::standard(tr(HANDOFF_NOT_NOW))
+            .on_press(Message::NextPage)
+            .into(),
+        widget::space::horizontal().into(),
+        continue_button,
+    ])
+    .align_y(Alignment::Center)
+    .spacing(spacing.space_s);
+
+    page_frame(tr(HANDOFF_TITLE), tr(HANDOFF_REBOOT), body.into(), footer.into())
 }
 
 /// The account the installed system is created with: the recipe's `user`

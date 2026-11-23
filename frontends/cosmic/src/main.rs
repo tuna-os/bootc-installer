@@ -177,13 +177,16 @@ pub enum Page {
     /// screen with a QR code, shown when the disk is encrypted. The key
     /// enrols when the user presses Done.
     RecoveryKey,
+    /// Hand the installed system over (screens.yaml `handoff`): migrate,
+    /// soft-reboot, or reboot, as the daemon's Probe reported.
+    Handoff,
     Done,
 }
 
 impl Page {
     /// Wizard order. Also the capture order, so a new page cannot be added
     /// without appearing in the walkthrough.
-    pub const ORDER: [Page; 20] = [
+    pub const ORDER: [Page; 21] = [
         Page::Requirements,
         Page::TryOrInstall,
         Page::Image,
@@ -203,6 +206,7 @@ impl Page {
         Page::Confirm,
         Page::Installing,
         Page::RecoveryKey,
+        Page::Handoff,
         Page::Done,
     ];
 
@@ -227,6 +231,7 @@ impl Page {
             Page::Confirm => "confirm",
             Page::Installing => "installing",
             Page::RecoveryKey => "recovery-key",
+            Page::Handoff => "handoff",
             Page::Done => "done",
         }
     }
@@ -255,6 +260,7 @@ impl Page {
             Page::Confirm => copy::PAGE_CONFIRM,
             Page::Installing => copy::PAGE_INSTALLING,
             Page::RecoveryKey => copy::RECOVERY_TITLE,
+            Page::Handoff => copy::HANDOFF_TITLE,
             Page::Done => copy::PAGE_DONE,
         }
     }
@@ -442,6 +448,10 @@ pub enum Message {
     RecoveryEnrolled(Result<(), String>),
     /// Open or close the recovery key's QR dialog.
     ToggleQrDialog,
+    /// The handoff page's Continue: hand the system over, then Done.
+    HandoffContinue,
+    /// The daemon's answer to Handoff. `Ok` advances to Done.
+    HandoffDone(Result<serde_json::Value, String>),
     /// The EULA page's accept box. Gates Continue on that page.
     EulaAccepted(bool),
     /// Put the recovery key on the clipboard.
@@ -609,6 +619,10 @@ pub struct TunaInstaller {
     recovery_error: Option<String>,
     /// A CryptEnroll call is in flight; Done stays dead meanwhile.
     recovery_enrolling: bool,
+    /// The handoff call is in flight; Continue stays dead meanwhile.
+    handoff_calling: bool,
+    /// Why the handoff failed. The page then offers Reboot and Close.
+    handoff_error: Option<String>,
     /// fisherman's `tpm.usable`. Gates the two `tpm2-*` encryption choices.
     has_tpm: bool,
     /// fisherman's `system.unmet`: the welcome page warns about each one.
@@ -710,13 +724,16 @@ impl TunaInstaller {
                 self.install_log.push_str(&format!("\n=== Error: {e} ===\n"));
             }
         }
-        // An encrypted install lands on the recovery-key page first; the
-        // failed and cancelled installs go straight to done.
+        // An encrypted install lands on the recovery-key page first, then
+        // the handoff page. The failed and cancelled installs go straight
+        // to done.
         if self.recovery_key_visible() {
             self.page = Page::RecoveryKey;
             // Daemon mode makes the key on entry (on_enter_page); the
             // legacy key already arrived with the install stream.
             self.qr_code = crate::ui::qr_handle(&self.progress.recovery_key);
+        } else if self.install_ok {
+            self.page = Page::Handoff;
         }
         offline::persist_install_log(&self.install_log, &self.progress.recovery_key);
     }
@@ -869,6 +886,12 @@ impl TunaInstaller {
     pub fn recovery_enrolling(&self) -> bool {
         self.recovery_enrolling
     }
+    pub fn handoff_error(&self) -> Option<&str> {
+        self.handoff_error.as_deref()
+    }
+    pub fn handoff_calling(&self) -> bool {
+        self.handoff_calling
+    }
     pub fn probed(&self) -> bool {
         self.probed
     }
@@ -1012,6 +1035,9 @@ impl TunaInstaller {
             Page::Options => !fishermand::use_daemon(),
             Page::Encryption => self.encryption_visible(),
             Page::RecoveryKey => self.recovery_key_visible(),
+            // After a finished install only: failed and cancelled
+            // installs go straight to done.
+            Page::Handoff => self.install_ok && !self.installing,
             _ => true,
         }
     }
@@ -1629,6 +1655,8 @@ impl cosmic::Application for TunaInstaller {
             qr_code: None,
             recovery_error: None,
             recovery_enrolling: false,
+            handoff_calling: false,
+            handoff_error: None,
             // Until the probe answers: no TPM choices, no warning.
             has_tpm: false,
             unmet: Vec::new(),
@@ -2223,6 +2251,43 @@ impl cosmic::Application for TunaInstaller {
                 self.show_qr_dialog = !self.show_qr_dialog;
                 Task::none()
             }
+            Message::HandoffContinue => {
+                // Daemon mode: `Handoff` with no mode; the daemon decides
+                // (ruling on #442). The legacy path reboots directly.
+                #[cfg(not(target_arch = "wasm32"))]
+                if fishermand::use_daemon() {
+                    if self.handoff_calling {
+                        return Task::none();
+                    }
+                    self.handoff_calling = true;
+                    self.handoff_error = None;
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(|| {
+                                let mut conn = fishermand::connect("io.tunaos.Fisherman")
+                                    .map_err(|e| format!("cannot reach fishermand: {e}"))?;
+                                fishermand::handoff(&mut conn, None).map_err(|e| e.to_string())
+                            })
+                            .await
+                            .map_err(|e| format!("Task join error: {e}"))?
+                        },
+                        |r| cosmic::action::app(Message::HandoffDone(r)),
+                    );
+                }
+                // No daemon: the handoff is a plain restart.
+                Task::perform(async {}, |_| cosmic::action::app(Message::Reboot))
+            }
+            Message::HandoffDone(result) => {
+                self.handoff_calling = false;
+                match result {
+                    Ok(_reply) => self.advance().1,
+                    Err(e) => {
+                        // handoff-failed: say why, offer Reboot and Close.
+                        self.handoff_error = Some(e);
+                        Task::none()
+                    }
+                }
+            }
             Message::EulaAccepted(v) => {
                 self.eula_accepted = v;
                 Task::none()
@@ -2784,6 +2849,19 @@ mod tests {
         assert!(installing < recovery && recovery < done, "{order:?}");
     }
 
+    #[test]
+    fn handoff_joins_the_shared_flow() {
+        // screens.yaml `handoff`: stable id between recovery-key and done.
+        // The a11y name is the page title.
+        assert_eq!(Page::Handoff.slug(), "handoff");
+        assert_eq!(Page::Handoff.title(), crate::ui::copy::HANDOFF_TITLE);
+        let order: Vec<&str> = Page::ORDER.iter().map(|p| p.slug()).collect();
+        let recovery = order.iter().position(|s| *s == "recovery-key").unwrap();
+        let handoff = order.iter().position(|s| *s == "handoff").unwrap();
+        let done = order.iter().position(|s| *s == "done").unwrap();
+        assert!(recovery < handoff && handoff < done, "{order:?}");
+    }
+
     use super::*;
 
     #[test]
@@ -3193,8 +3271,9 @@ mod tests {
         assert!(at(Page::Tour) < at(Page::Confirm));
         assert!(at(Page::Confirm) < at(Page::Installing));
         assert!(at(Page::Installing) < at(Page::RecoveryKey));
-        assert!(at(Page::RecoveryKey) < at(Page::Done));
-        assert_eq!(order.len(), 20);
+        assert!(at(Page::RecoveryKey) < at(Page::Handoff));
+        assert!(at(Page::Handoff) < at(Page::Done));
+        assert_eq!(order.len(), 21);
         assert!(!order.iter().any(|p| p.slug() == "companion"));
     }
 
