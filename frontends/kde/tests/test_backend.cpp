@@ -4263,6 +4263,11 @@ void BackendTest::wizardSkipsStepsWithNothingToShow()
     manifest.write(catalogFixture());
     manifest.close();
     qputenv(imagecatalog::IMAGES_ENV, dir.filePath(QStringLiteral("images.json")).toUtf8());
+    // Catalog selection is deliberately a no-op on live media (the image is
+    // the running system). Exercise it off live media so the beta leaf's
+    // needs_user_creation=false actually applies.
+    qputenv(probe::FAKE_ENV,
+            QDir(QStringLiteral(PROBE_FIXTURES_DIR)).filePath(QStringLiteral("container.json")).toLocal8Bit());
     InstallerController cataloged;
     cataloged.selectCatalogImage(1);
     QVERIFY(cataloged.stepSkipped(QStringLiteral("account")));

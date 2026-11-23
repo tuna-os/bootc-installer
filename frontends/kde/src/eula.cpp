@@ -12,7 +12,10 @@ QString findFile()
     // One shared path for every frontend, TUNA_EULA_FILE winning for tests
     // and demos. No file skips the page.
     const QString override = qEnvironmentVariable(FILE_ENV);
-    if (!override.isEmpty())
+    // An override that names no file is not a shipped terms file: the page
+    // skips instead of showing a permanently unreadable EULA. A file that
+    // exists but is malformed still reaches the page, which shows the error.
+    if (!override.isEmpty() && QFile::exists(override))
         return override;
     const QString shared = QStringLiteral("/usr/share/tuna-installer/eula.xml");
     if (QFile::exists(shared))
