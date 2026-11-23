@@ -34,7 +34,7 @@ def frame(directory, page):
 
 def check(directory):
     texts = json.loads((directory / "texts.json").read_text())
-    for page in ["welcome", "done"]:
+    for page in ["try-or-install", "done"]:
         with Image.open(frame(directory, page)) as image:
             count = sum(
                 all(abs(value - expected) <= 2 for value, expected in zip(pixel, COLOR))
@@ -51,11 +51,11 @@ def self_test():
     with tempfile.TemporaryDirectory() as tmp:
         directory = Path(tmp)
         prepare(directory)
-        (directory / "texts.json").write_text(json.dumps({"welcome": NAME, "done": NAME}))
-        for filename in ["02-welcome.png", "14-done.png"]:
+        (directory / "texts.json").write_text(json.dumps({"try-or-install": NAME, "done": NAME}))
+        for filename in ["01-try-or-install.png", "21-done.png"]:
             Image.new("RGB", (64, 32), COLOR).save(directory / filename)
         check(directory)
-        for filename, page in [("02-welcome.png", "welcome"), ("14-done.png", "done")]:
+        for filename, page in [("01-try-or-install.png", "try-or-install"), ("21-done.png", "done")]:
             Image.new("RGB", (64, 32), "white").save(directory / filename)
             try:
                 check(directory)
@@ -64,7 +64,7 @@ def self_test():
             else:
                 raise AssertionError("pixel gate accepted a missing " + page + " logo")
             Image.new("RGB", (64, 32), COLOR).save(directory / filename)
-        (directory / "texts.json").write_text(json.dumps({"welcome": "Wrong OS", "done": NAME}))
+        (directory / "texts.json").write_text(json.dumps({"try-or-install": "Wrong OS", "done": NAME}))
         try:
             check(directory)
         except AssertionError as error:
