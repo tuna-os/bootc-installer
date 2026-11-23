@@ -126,6 +126,10 @@ struct Probe {
     QStringList rstAffectedDisks;
     bool isLive = false;
     QString liveImage;
+    // How the daemon will hand the installed system over (ruling on #512):
+    // migrate, soft_reboot or reboot. A missing field means reboot.
+    QString handoffMode;
+    QString handoffReason;
 };
 
 Requirements fetchRequirements(Client &client);

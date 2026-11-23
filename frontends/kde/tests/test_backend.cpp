@@ -17,6 +17,7 @@
 #include "redact.h"
 #include "sourcecheck.h"
 #include "translations.h"
+#include "qrcode.h"
 
 #include <QDir>
 #include <QFile>
@@ -310,6 +311,7 @@ private slots:
     // mode choice and the TPM-sealed default.
     void wizardSkipsRstWipeAndEncryption();
     void wipeChoiceDefaultsToFreeSpace();
+    void recoveryQrMatchesGoldens();
 };
 
 void BackendTest::recipeDefaults()
@@ -4634,6 +4636,26 @@ void BackendTest::wipeChoiceDefaultsToFreeSpace()
     c.setInstallMode(QStringLiteral("bogus"));
     QCOMPARE(c.installMode(), QStringLiteral("erase"));
     QCOMPARE(changed.count(), 1);
+}
+
+void BackendTest::recoveryQrMatchesGoldens()
+{
+    // The generator is deliberately narrow: byte mode, EC level M, versions
+    // 1-6. These goldens pin all six, including the automatic mask choice.
+    const QString path = QStringLiteral(KDE_TESTDATA_DIR) + QStringLiteral("/qr-goldens.json");
+    QFile file(path);
+    QVERIFY2(file.open(QIODevice::ReadOnly), qPrintable(path));
+    const QJsonArray cases = QJsonDocument::fromJson(file.readAll()).array();
+    QVERIFY(cases.size() >= 6);
+    for (const QJsonValue &value : cases) {
+        const QJsonObject item = value.toObject();
+        const QString name = item.value(QLatin1String("name")).toString();
+        const qrcode::Code code = qrcode::encode(item.value(QLatin1String("text")).toString());
+        QVERIFY2(code.ok, qPrintable(name));
+        QCOMPARE(code.version, item.value(QLatin1String("version")).toInt());
+        QCOMPARE(code.size, item.value(QLatin1String("size")).toInt());
+        QCOMPARE(code.rows(), item.value(QLatin1String("rows")).toVariant().toStringList());
+    }
 }
 
 QTEST_APPLESS_MAIN(BackendTest)

@@ -198,6 +198,14 @@ Probe fetchProbe(Client &client)
     const QJsonObject live = reply.parameters.value(QLatin1String("live")).toObject();
     out.isLive = live.value(QLatin1String("isLive")).toBool();
     out.liveImage = live.value(QLatin1String("liveImage")).toString();
+    // A missing handoff object means reboot (ruling on #512).
+    const QJsonObject handoff = reply.parameters.value(QLatin1String("handoff")).toObject();
+    out.handoffMode = handoff.value(QLatin1String("mode")).toString();
+    // The frozen Handoff enum spells this with an underscore on the wire
+    // (fisherman/internal/handoff: ModeSoftReboot).
+    if (out.handoffMode != QLatin1String("migrate") && out.handoffMode != QLatin1String("soft_reboot"))
+        out.handoffMode = QStringLiteral("reboot");
+    out.handoffReason = handoff.value(QLatin1String("reason")).toString();
     return out;
 }
 

@@ -75,6 +75,8 @@ set(BACKEND_SOURCES
     src/validate.h
     src/translations.cpp
     src/translations.h
+    src/qrcode.cpp
+    src/qrcode.h
 )
 
 # The data the five frontends share is compiled in from shared/, the one copy
@@ -242,6 +244,8 @@ if(BUILD_TESTING)
         # point readyReadStandardOutput uses.
         src/installercontroller.cpp
         src/translations.cpp
+        src/qrcode.cpp
+        src/qrcode.h
     )
     target_include_directories(tuna-installer-backend-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR})
     # The branding fixtures every frontend's resolver is judged by; the test
