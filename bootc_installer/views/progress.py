@@ -642,12 +642,11 @@ class BootcProgress(Gtk.Box):
         return False
 
     def _start_log_watcher(self):
-        """Begin tailing the fisherman log for JSON progress events.
+        """Begin reading fisherman's output for JSON progress events.
 
-        Polls until the file exists, then reads new data every 100ms.
-        GLib.io_add_watch does not work on regular files (only pipes/sockets),
-        so we use a timer-based poll instead. Reading itself is delegated to
-        the FishermanSession; this method only owns the GLib scheduling.
+        The FishermanSession reads the pipe on its own thread; this timer
+        takes the lines it has every 100ms, on the GLib main loop. This
+        method only owns the GLib scheduling.
         """
         self.__watcher_lines = 0
         logger.info("_start_log_watcher: scheduling try_open for %s", self.__session.log_path)

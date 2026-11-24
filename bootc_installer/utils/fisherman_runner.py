@@ -4,7 +4,7 @@ The rules are in bootc_shared.fisherman_host, which XFCE also uses: where
 the bundled fisherman is staged, how the stage is checked on the host, and
 the one argv for the probe, the validate checks and the install. This
 module is the GNOME half: the paths of this process, and the log file that
-the install's output goes to (the progress page tails that file).
+FishermanSession writes the install's output to, recovery key redacted.
 """
 
 import logging
@@ -57,8 +57,11 @@ def build_argv(
 
     fisherman reads the recipe from stdin (`fisherman -`, tuna-os/fisherman#276):
     the caller writes the JSON to the wrapper's stdin and closes it, so no
-    recipe file ever holds the passphrase or the user password. stdout and
-    stderr go to the log file, which the progress page tails.
+    recipe file ever holds the passphrase or the user password. With
+    `log_path`, stdout and stderr go to that file; with None the wrapper does
+    no redirection and they come back on the pipes, which is how
+    FishermanSession runs the install (#429). The default stays for callers
+    that still pass none.
 
     `use_sudo` is for live media outside a Flatpak, where the live user has
     passwordless sudo and may have no polkit agent; the command is then

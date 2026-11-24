@@ -3,9 +3,15 @@
 Owns everything about running the privileged fisherman helper that is not
 GTK: staging (delegated to fisherman_runner), argv construction (ditto),
 launching and polling the subprocess, handing it the recipe on stdin, and
-tailing its log file for new lines. No recipe file is written: fisherman
+reading its output from the stdout pipe. No recipe file is written: fisherman
 reads the recipe from stdin (`fisherman -`, tuna-os/fisherman#276), so the
 passphrase and the user password never touch the disk.
+
+fisherman's output comes back over a pipe, as in the other four frontends
+(#429). Each line goes through bootc_shared.redact.LogRedactor before it is
+written to the log file, so the TPM recovery key never reaches the disk. The
+progress page gets the line as fisherman wrote it: it reads the key from the
+`recovery_key` event for the recovery-key page.
 
 `bootc_installer.views.progress.BootcProgress` is the GTK consumer: it owns
 the widget state (progress bar, video, console) and the GLib timers that
@@ -21,8 +27,10 @@ interpret one.
 import json
 import logging
 import os
+import queue
 import signal
 import subprocess
+import threading
 
 from bootc_installer.utils import fisherman_runner
 
@@ -34,6 +42,7 @@ logger = logging.getLogger("Installer::FishermanSession")
 # here for the progress page and the log dialog.
 from bootc_shared.redact import (  # noqa: E402,F401
     REDACTED,
+    LogRedactor,
     read_log_redacted,
     redact_recovery_key,
     scrub_log_file,
@@ -73,8 +82,10 @@ class FishermanSession:
         self._popen = popen
 
         self.proc = None
-        self._log_file = None
-        self._log_linebuf = ""
+        # fisherman's output, line by line, as the reader thread took it
+        # from the pipe; read_new_lines() hands it to the caller.
+        self._lines = queue.Queue()
+        self._reader = None
 
     def stage(self) -> bool:
         """Copy fisherman to a host-visible location, if running in Flatpak."""
@@ -86,11 +97,10 @@ class FishermanSession:
         )
 
     def _reset_log_file(self):
-        """Remove any stale log so a fresh open always starts at position 0.
+        """Remove the log of an earlier run before this one writes its own.
 
-        bash's '>' redirect truncates an existing file, but a Python handle
-        opened before that truncation would still sit at the old EOF and
-        read() would return empty even though new content is present.
+        A log left by an older version can still hold a recovery key; it is
+        removed, not kept beside the new one.
         """
         try:
             os.unlink(self.log_path)
@@ -101,29 +111,27 @@ class FishermanSession:
             logger.error("Failed to delete stale log: %s", e)
 
     def _create_private_log(self):
-        """Create the log 0600 before bash's redirect opens it.
+        """Open the log for writing, created 0600 and empty; None when it
+        cannot be opened (the install still runs, with no log).
 
-        The `>` redirect in fisherman_runner.build_argv used to create the
-        file, so its mode followed the umask: 0644 under the usual 022,
-        readable by every local user. The log carries fisherman's full
-        output, including the TPM recovery key. bash's `>` truncates an
-        existing file without touching its mode, so creating it here first
-        is enough. Not done with `umask 077` in the bash wrapper: fisherman
-        inherits that umask and, as root, writes the target system's files.
-
-        O_NOFOLLOW refuses a symlink planted at the path; fchmod covers a
-        stale file that _reset_log_file() could not remove.
+        The log carries fisherman's output with the recovery key redacted,
+        and the user attaches it to bug reports: it is still nobody else's
+        to read. O_NOFOLLOW refuses a symlink planted at the path; fchmod
+        covers a stale file that _reset_log_file() could not remove.
         """
         flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
         try:
             fd = os.open(self.log_path, flags, 0o600)
         except OSError as e:
             logger.error("Could not create private log %s: %s", self.log_path, e)
-            return
+            return None
         try:
             os.fchmod(fd, 0o600)
-        finally:
+            return os.fdopen(fd, "w", encoding="utf-8")
+        except OSError as e:
+            logger.error("Could not open private log %s: %s", self.log_path, e)
             os.close(fd)
+            return None
 
     def launch(self):
         """Stage fisherman if needed, then start it. Returns argv used, or None on staging failure."""
@@ -131,21 +139,20 @@ class FishermanSession:
             return None
         os.makedirs(self._cache_dir, exist_ok=True)
         self._reset_log_file()
-        self._create_private_log()
+        log = self._create_private_log()
+        # No log_path: the wrapper does no redirection, and fisherman's
+        # stdout and stderr come back on the pipe below.
         argv = fisherman_runner.build_argv(
             in_flatpak=self._in_flatpak,
             use_sudo=self._use_sudo,
             host_path=self._host_path,
-            log_path=self.log_path,
+            log_path=None,
         )
         logger.info("Launching fisherman: %s", argv)
-        # bash handles writing stdout+stderr to the log file via shell
-        # redirection. Do NOT pass stdout= here — flatpak-spawn uses D-Bus,
-        # not a real pipe fd, so a Python-side pipe would never fill.
-        #
-        # stdin IS a pipe: it carries the recipe. flatpak-spawn forwards its
-        # stdin fd to the host bash, and bash, pkexec and sudo hand it on to
-        # fisherman, which reads to EOF.
+        # stdin, stdout and stderr are pipes. flatpak-spawn forwards its fds
+        # to the host bash, as for XFCE, and bash, pkexec and sudo hand them
+        # on to fisherman. stdin carries the recipe, and fisherman reads it
+        # to EOF. stderr joins stdout, so the lines keep their order.
         #
         # start_new_session: the wrapper (bash, or flatpak-spawn) leads its
         # own process group, which terminate() signals. Without it the
@@ -153,10 +160,50 @@ class FishermanSession:
         # killpg(getpgid(wrapper)) sent SIGTERM to the installer itself.
         # fisherman runs as root under pkexec, so the wrapper is all this
         # process can signal; fisherman cancels when its parent dies.
-        self.proc = self._popen(argv, stdin=subprocess.PIPE, start_new_session=True)
+        try:
+            self.proc = self._popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, start_new_session=True)
+        except BaseException:
+            if log is not None:
+                log.close()
+            raise
         logger.info("Fisherman PID: %s", self.proc.pid)
+        self._reader = threading.Thread(
+            target=self._read_output, args=(getattr(self.proc, "stdout", None), log),
+            name="fisherman-output", daemon=True)
+        self._reader.start()
         self._write_recipe()
         return argv
+
+    def _read_output(self, stream, log):
+        """The reader thread: each line of fisherman's output goes to the log
+        without the recovery key, and to the caller as fisherman wrote it.
+
+        Runs until fisherman closes its stdout. The log file is this
+        thread's alone, and it closes it.
+        """
+        redactor = LogRedactor()
+        try:
+            for raw in stream if stream is not None else ():
+                if isinstance(raw, bytes):
+                    raw = raw.decode("utf-8", errors="replace")
+                line = raw.rstrip("\n")
+                if log is not None:
+                    try:
+                        log.write(redactor.line(line) + "\n")
+                        log.flush()
+                    except (OSError, ValueError) as e:
+                        logger.error("Could not write to %s: %s", self.log_path, e)
+                        log = None
+                self._lines.put(line)
+        except (OSError, ValueError) as e:
+            logger.error("Could not read fisherman's output: %s", e)
+        finally:
+            if log is not None:
+                try:
+                    log.close()
+                except OSError:
+                    pass
 
     def _write_recipe(self):
         """Write the recipe to fisherman's stdin and close it.
@@ -189,55 +236,46 @@ class FishermanSession:
         return self.proc.poll()
 
     def open_log_for_tailing(self) -> bool:
-        """Try to open the log file for tailing. Returns False if it does not exist yet (retry)."""
-        if self._log_file is not None:
-            return True
-        if not os.path.exists(self.log_path):
-            return False
-        try:
-            self._log_file = open(self.log_path, "r")  # noqa: SIM115 - kept open across polls, closed in drain_remaining()
-            logger.info("Log watcher OPENED %s (pos=%d)", self.log_path, self._log_file.tell())
-            return True
-        except OSError as e:
-            logger.error("Log watcher open FAILED: %s", e)
-            return False
+        """Whether there is output to read: True once launch() has started
+        fisherman. The name is the one the progress page has always called."""
+        return self._reader is not None
+
+    def _take_lines(self) -> list[str]:
+        lines = []
+        while True:
+            try:
+                lines.append(self._lines.get_nowait())
+            except queue.Empty:
+                return lines
 
     def read_new_lines(self) -> list[str]:
-        """Read any newly-written complete lines from the log file.
+        """The complete lines fisherman has written since the last call, as
+        it wrote them (the recovery key included: the page needs it).
+        [] before launch() or when there is nothing new."""
+        return self._take_lines()
 
-        Incomplete trailing data is buffered until the next call. Returns []
-        if the log file is not open or has no new complete lines.
-        """
-        if self._log_file is None:
-            return []
-        new_text = self._log_file.read()
-        if not new_text:
-            return []
-        self._log_linebuf += new_text
-        lines = self._log_linebuf.split("\n")
-        self._log_linebuf = lines[-1]
-        return lines[:-1]
+    # How long drain_remaining() waits for fisherman's stdout to close.
+    DRAIN_TIMEOUT = 5.0
 
     def drain_remaining(self) -> list[str]:
-        """Read whatever is left (including a final unterminated line) and close the log.
+        """The lines left after fisherman exits, the last unterminated one
+        included; blank lines are dropped.
 
-        Call once after poll_process() reports the process has exited, to
-        pick up any bytes written between the last poll and process exit.
+        Call once after poll_process() reports the process has exited: the
+        exit can come before the reader thread has taken the last lines.
+        The wait is bounded, so a child of fisherman that keeps the pipe
+        open does not hold up the done page.
         """
-        lines = []
-        if self._log_file is not None:
-            remaining = self._log_file.read()
-            if remaining:
-                self._log_linebuf += remaining
-            combined = (self._log_linebuf + "\n").split("\n")
-            self._log_linebuf = ""
-            lines = [line for line in combined if line.strip()]
-            self._log_file.close()
-            self._log_file = None
-        return lines
+        if self._reader is not None:
+            self._reader.join(timeout=self.DRAIN_TIMEOUT)
+            if self._reader.is_alive():
+                logger.warning("fisherman's output is still open %.0fs after it exited",
+                               self.DRAIN_TIMEOUT)
+        return [line for line in self._take_lines() if line.strip()]
 
     def scrub_log(self, known_key: str = "") -> bool:
-        """Remove the recovery key from this session's log file."""
+        """Remove the recovery key from this session's log file. The session
+        writes the log redacted; this is for a log an older version left."""
         return scrub_log_file(self.log_path, known_key)
 
     # How long terminate() waits for the wrapper to exit after SIGTERM.

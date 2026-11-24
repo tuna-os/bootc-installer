@@ -118,7 +118,7 @@ bootc_installer/
 
 **Key data flows:**
 - `defaults/*.py` → `get_finals()` → `main_window.update_finals()` → `processor.py` → `recipe.json` → fisherman
-- `progress.py` tails the log file and feeds events to `bootc_shared.progress` (`shared/python/`) → `apply_progress_event()`
+- `FishermanSession` reads fisherman's stdout pipe and writes each line to the log with the recovery key redacted; `progress.py` feeds the lines to `bootc_shared.progress` (`shared/python/`) → `apply_progress_event()`
 - `utils/recipe.py` (`RecipeLoader`) loads `recipe.json` with override priority: `/etc/bootc-installer/` > `$XDG_CONFIG_HOME/bootc-installer/` > bundled GResource
 
 ---
