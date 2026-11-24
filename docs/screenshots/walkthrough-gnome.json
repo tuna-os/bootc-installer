@@ -193,8 +193,8 @@
       "colours": 290,
       "flat": 0.8548880105401845,
       "ink": 0.033122529644268775,
-      "stddev": 0.14987525708845464,
-      "sha256": "186b6dfa2cbd7fcdb2830106fb9d60cb72c24d58319d6394f994df0ed521b1d4",
+      "stddev": 0.1498782365375384,
+      "sha256": "d4670d54d4fc401f7b70a3463b7cb4c6182b661c2895e820d6e2b58081fe26fa",
       "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
     },
     {
@@ -223,11 +223,11 @@
       "name": "user",
       "png": "docs/screenshots/09-user.png",
       "rendered": true,
-      "colours": 327,
+      "colours": 326,
       "flat": 0.7092094861660079,
-      "ink": 0.0049934123847167325,
-      "stddev": 0.06024159663014559,
-      "sha256": "365506e44a098bd40e0ab2ea675d1f3b84b631c4ac439b550a6e178a9ccae167",
+      "ink": 0.013570487483530961,
+      "stddev": 0.070266240745752,
+      "sha256": "b52d6e903f2c99b5d89e65d000679c40e4fb3653cb7852936cb6f03e02b1dc7d",
       "text_excerpt": "Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Confirm Password Confirm Password"
     },
     {
@@ -236,9 +236,9 @@
       "rendered": true,
       "colours": 355,
       "flat": 0.557536231884058,
-      "ink": 0.010368906455862978,
-      "stddev": 0.06970893029619352,
-      "sha256": "57c17094d8f704b6b174d5790d3727d3650a81c98f476bf52ca612537da4bfd1",
+      "ink": 0.010382081686429512,
+      "stddev": 0.0696642309632504,
+      "sha256": "bbf6b68ba0e191c3a52d633e957946489119fca0abc6a236a6dd1ca516cbb9b7",
       "text_excerpt": "Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be undone. Summary Summary Target disk Samsung SSD 870 EVO 500GB (/dev/sda, 465.8 GiB) Target disk Samsung"
     },
     {
@@ -280,12 +280,12 @@
     27739,
     29291,
     27037,
-    70837,
-    63527,
+    70836,
+    63529,
     46736,
-    43789,
-    42528,
-    37436,
+    43788,
+    42519,
+    37423,
     38578,
     44391
   ],
