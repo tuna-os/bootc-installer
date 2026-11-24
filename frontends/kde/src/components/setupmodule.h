@@ -53,6 +53,10 @@ Q_SIGNALS:
     void contentItemChanged();
     void nextEnabledChanged();
     void cardWidthChanged();
+    // The step asks the wizard to advance: for steps whose action lives in
+    // the content (Try or Install now, Done, Continue) rather than the
+    // wizard's shared Back and Next buttons.
+    void advanceRequested();
 
 private:
     bool m_available = true;

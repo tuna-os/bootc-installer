@@ -25,6 +25,9 @@ class QProcess;
 #include <QVariantList>
 #include <QVariantMap>
 #include "imagecatalog.h"
+#include "daemonclient.h"
+#include "eula.h"
+#include "osrelease.h"
 #include "plan.h"
 #include "recipe.h"
 #include "sourcecheck.h"
@@ -73,23 +76,51 @@ class InstallerController : public QObject
     Q_PROPERTY(QStringList catalogDescs READ catalogDescs NOTIFY catalogChanged)
     Q_PROPERTY(int catalogIndex READ catalogIndex NOTIFY catalogChanged)
 
-    // fisherman's tpm.usable from `fisherman probe --json`
-    // (shared/probe/README.md). TPM options are hidden, not disabled, when
-    // false: offering them on a machine without one only fails later, at
-    // install time. False when the probe failed.
-    Q_PROPERTY(bool hasTpm READ hasTpm CONSTANT)
-    // fisherman's system.unmet ("ram", "cpu", "uefi"), and the welcome
-    // step's warning built from the requirements_* copy keys; empty when
-    // every requirement is met or the probe failed. A warning, not a gate —
-    // except the two blocking cases below, which mirror the GNOME cpu/ram
-    // windows (continue anyway) and the unsupported window (power off).
-    Q_PROPERTY(QStringList unmetRequirements READ unmetRequirements CONSTANT)
-    Q_PROPERTY(QString requirementsWarning READ requirementsWarning CONSTANT)
+    // fisherman's tpm.usable from the probe (shared/probe/README.md): the
+    // recipe backend runs `fisherman probe --json`, the daemon backend asks
+    // fishermand's Probe. TPM options are hidden, not disabled, when false:
+    // offering them on a machine without one only fails later, at install
+    // time. False when the probe failed.
+    Q_PROPERTY(bool hasTpm READ hasTpm NOTIFY factsChanged)
+    // fisherman's unmet requirements ("ram", "cpu", "uefi": the daemon
+    // names the firmware gate "firmware"), and the welcome step's warning
+    // built from the requirements_* copy keys; empty when every requirement
+    // is met or the probe failed. A warning, not a gate — except the two
+    // blocking cases below, which mirror the GNOME cpu/ram windows (continue
+    // anyway) and the unsupported window (power off).
+    Q_PROPERTY(QStringList unmetRequirements READ unmetRequirements NOTIFY factsChanged)
+    Q_PROPERTY(QString requirementsWarning READ requirementsWarning NOTIFY factsChanged)
     // True when the machine did not boot UEFI: like BootcUnsupportedWindow,
     // there is no continue path, only powering off.
-    Q_PROPERTY(bool requirementsFatal READ requirementsFatal CONSTANT)
+    Q_PROPERTY(bool requirementsFatal READ requirementsFatal NOTIFY factsChanged)
     // True when any requirement is unmet (ram, cpu or uefi).
-    Q_PROPERTY(bool requirementsBlocking READ requirementsBlocking CONSTANT)
+    Q_PROPERTY(bool requirementsBlocking READ requirementsBlocking NOTIFY factsChanged)
+    // The fishermand backend (TUNA_INSTALLER_BACKEND=daemon): facts come
+    // from Requirements and Probe over Varlink instead of the `fisherman`
+    // subprocess (tuna-os/fisherman#512). Unset keeps the recipe path.
+    Q_PROPERTY(bool daemonBackend READ daemonBackend CONSTANT)
+    // Intel RST, as fishermand's Probe reports it: hidden NVMe disks and a
+    // firmware setting to change. Always false on the recipe backend: the
+    // legacy probe does not report it.
+    Q_PROPERTY(bool rstDetected READ rstDetected NOTIFY daemonFactsChanged)
+    Q_PROPERTY(QStringList rstAffectedDisks READ rstAffectedDisks NOTIFY daemonFactsChanged)
+    // Wipe-or-free (shared/flow/screens.yaml): what the daemon probe says
+    // about the chosen disk. False on the recipe backend, which knows no
+    // prior data and keeps its erase behaviour.
+    Q_PROPERTY(bool selectedDiskHasData READ selectedDiskHasData NOTIFY recipeChanged)
+    // The chosen disk cannot fit the install in its free space: Install
+    // erases it, with a countdown on the button.
+    Q_PROPERTY(bool selectedDiskForceErase READ selectedDiskForceErase NOTIFY recipeChanged)
+    // The chosen disk's free space in the toolkit's own formatting, or ""
+    // when the probe did not say.
+    Q_PROPERTY(QString selectedDiskFreeSpace READ selectedDiskFreeSpace NOTIFY recipeChanged)
+    // erase or free_space (shared/flow `wipe-or-free`). The daemon Install
+    // gets it; the recipe backend ignores it. Starts at free space.
+    Q_PROPERTY(QString installMode READ installMode WRITE setInstallMode NOTIFY installModeChanged)
+    // The daemon did not answer. The disk step shows the reason and offers
+    // a retry (refreshDaemonFacts); only power off is offered otherwise.
+    Q_PROPERTY(bool daemonUnreachable READ daemonUnreachable NOTIFY daemonFactsChanged)
+    Q_PROPERTY(QString daemonError READ daemonError NOTIFY daemonFactsChanged)
     // The user's explicit override for the non-fatal gates. Starts false:
     // an unmet CPU/RAM requirement holds the welcome step until it is set.
     Q_PROPERTY(bool continueAnyway READ continueAnyway WRITE setContinueAnyway NOTIFY continueAnywayChanged)
@@ -98,11 +129,11 @@ class InstallerController : public QObject
     // a TPM; what each is called comes from encryptionLabel/Description.
     Q_PROPERTY(QStringList encryptionTypes READ encryptionTypes CONSTANT)
 
-    // fisherman's probe: the host booted from live media (live.is_live), and
-    // the booted image. On live media the recipe leaves `image` empty and
-    // fisherman installs the running system.
-    Q_PROPERTY(bool isLive READ isLive CONSTANT)
-    Q_PROPERTY(QString liveImage READ liveImage CONSTANT)
+    // fisherman's probe: the host booted from live media (live.is_live on
+    // either backend), and the booted image. On live media the recipe leaves
+    // `image` empty and fisherman installs the running system.
+    Q_PROPERTY(bool isLive READ isLive NOTIFY factsChanged)
+    Q_PROPERTY(QString liveImage READ liveImage NOTIFY factsChanged)
 
     // Region & language preflight (the GNOME language/keyboard/timezone
     // steps, folded into the welcome step to keep the seven-module shape).
@@ -155,6 +186,21 @@ class InstallerController : public QObject
     Q_PROPERTY(bool keyboardChosen READ keyboardChosen NOTIFY regionChanged)
     Q_PROPERTY(bool timezoneChosen READ timezoneChosen NOTIFY regionChanged)
 
+    // Whether os-release calls this product a pre-release or an experiment
+    // (shared/flow/screens.yaml `prerelease`). Shown on its own screen with
+    // the EXPERIMENT text. CONSTANT: the file cannot change under a running
+    // installer.
+    Q_PROPERTY(bool isPrerelease READ isPrerelease CONSTANT)
+    Q_PROPERTY(QString experimentText READ experimentText CONSTANT)
+    // The terms of use (shared/flow/screens.yaml `eula`): the file's
+    // agreement sections, or empty when the image ships none. The screen
+    // holds Next until the box is ticked.
+    Q_PROPERTY(bool eulaAvailable READ eulaAvailable CONSTANT)
+    // The terms file exists but cannot be shown (shared/flow eula-unreadable):
+    // the page shows the error and offers only power off. Empty otherwise.
+    Q_PROPERTY(QString eulaError READ eulaError CONSTANT)
+    Q_PROPERTY(QVariantList eulaSections READ eulaSections CONSTANT)
+    Q_PROPERTY(bool eulaAccepted READ eulaAccepted WRITE setEulaAccepted NOTIFY eulaChanged)
     // The product name, resolved ONCE at startup from the branding contract
     // (src/branding.h: branding.json, then os-release, then neutral). Every
     // user-visible string reads this; nothing names a product. CONSTANT: the
@@ -304,6 +350,29 @@ public:
     QString requirementsWarning() const;
     bool requirementsFatal() const { return m_unmet.contains(QStringLiteral("uefi")); }
     bool requirementsBlocking() const { return !m_unmet.isEmpty(); }
+    // The fishermand backend (see the daemonBackend property). The daemon
+    // facts below are empty on the recipe backend.
+    bool daemonBackend() const { return fishermand::backend() == fishermand::Backend::Daemon; }
+    bool rstDetected() const { return m_daemonProbe.rstDetected; }
+    QStringList rstAffectedDisks() const { return m_daemonProbe.rstAffectedDisks; }
+    bool daemonUnreachable() const { return m_daemonUnreachable; }
+    QString daemonError() const { return m_daemonError; }
+    // Re-asks Requirements and Probe (daemon backend only; a no-op on the
+    // recipe backend). The disk step's retry calls this, then refreshes.
+    Q_INVOKABLE void refreshDaemonFacts();
+    // The daemon facts for the wipe-or-free page: what the chosen disk
+    // already holds. Empty when the backend is the recipe or the disk is
+    // unknown.
+    Q_INVOKABLE QStringList selectedDiskOperatingSystems() const;
+    bool selectedDiskHasData() const;
+    bool selectedDiskForceErase() const;
+    QString selectedDiskFreeSpace() const;
+    QString installMode() const { return m_installMode; }
+    void setInstallMode(const QString &v);
+    // Whether the wizard lands on a step: steps with nothing to ask are
+    // skipped but stay in the model (shared/flow/screens.yaml). The wizard
+    // calls this per step; the backend tests pin every rule.
+    Q_INVOKABLE bool stepSkipped(const QString &stepId) const;
     bool continueAnyway() const { return m_continueAnyway; }
     void setContinueAnyway(bool v);
     bool needsUserCreation() const { return m_needsUser; }
@@ -346,6 +415,14 @@ public:
     QString localeName() const { return m_recipe.locale; }
     bool keyboardChosen() const { return !m_recipe.keyboardLayout.isEmpty(); }
     bool timezoneChosen() const { return !m_recipe.timezone.isEmpty(); }
+    bool isPrerelease() const { return m_isPrerelease; }
+    QString experimentText() const { return m_experimentText; }
+    bool eulaAvailable() const { return m_eula.ok && !m_eula.sections.isEmpty(); }
+    QVariantList eulaSections() const { return eula::toVariant(m_eula); }
+    bool eulaAccepted() const { return m_eulaAccepted; }
+    QString eulaError() const { return m_eulaPath.isEmpty() ? QString() : m_eula.error; }
+    bool eulaFileFound() const { return !m_eulaPath.isEmpty(); }
+    void setEulaAccepted(bool v);
     // The fields as a partial recipe for `validate --json --partial -`.
     QByteArray partialRecipe() const;
     // Takes in fisherman's answer (validate --json stdout). Public for tests.
@@ -505,8 +582,12 @@ public:
 Q_SIGNALS:
     void recipeChanged();
     void catalogChanged();
+    void factsChanged();
+    void daemonFactsChanged();
+    void installModeChanged();
     void continueAnywayChanged();
     void regionChanged();
+    void eulaChanged();
     void onlineChanged();
     void logChanged();
     void logPathChanged();
@@ -539,6 +620,8 @@ private:
     void runValidate();
     // Everything a catalog leaf decides except the image itself.
     void applyLeaf(const imagecatalog::Leaf &leaf);
+    // The daemon probe's row for the chosen disk; null when unknown.
+    const fishermand::Disk *selectedDaemonDisk() const;
     void signalInstallGroup(int signal);
 
     Recipe m_recipe;
@@ -622,6 +705,20 @@ private:
     double m_postPullBase = -1.0;
     bool m_hasTpm = false;
     QStringList m_unmet;
+    // erase or free_space (shared/flow `wipe-or-free`). Starts at free space.
+    QString m_installMode = QStringLiteral("free_space");
+    // os-release at startup: a pre-release disclaimer and the terms of use.
+    bool m_isPrerelease = false;
+    QString m_experimentText;
+    eula::Document m_eula;
+    QString m_eulaPath;
+    bool m_eulaAccepted = false;
+    // fishermand's answers on the daemon backend (Requirements and Probe).
+    // Empty on the recipe backend.
+    fishermand::Requirements m_daemonReqs;
+    fishermand::Probe m_daemonProbe;
+    bool m_daemonUnreachable = false;
+    QString m_daemonError;
     QString m_productName;
     QString m_logoSource;
     QString m_welcomeImageSource;

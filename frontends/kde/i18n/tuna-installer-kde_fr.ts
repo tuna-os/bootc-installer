@@ -165,11 +165,31 @@
 <context>
     <name>Wizard</name>
     <message>
+        <source>Try or Install</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Welcome</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Disclaimer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Terms of Use</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Intel RST</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Target Disk</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Existing Data</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -211,6 +231,20 @@
     <message>
         <source>Next</source>
         <translation>Suivant</translation>
+    </message>
+</context>
+<context>
+    <name>daemon</name>
+    <message>
+        <source>the installer daemon did not answer</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>eula</name>
+    <message>
+        <source>the terms of use cannot be read</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -372,6 +406,26 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Terms of use</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Power off</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>I have read and accept the Terms of Use</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disclaimer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This copy of %1 is a pre-release. It may break, and its behaviour may change before the final release.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Cancel</source>
         <translation>Annuler</translation>
     </message>
@@ -400,6 +454,38 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Intel RST</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Intel RST is on</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This computer hides its NVMe disk behind Intel RST. The disk list on the next step cannot show a disk the system cannot see. To install to the hidden disk, switch the firmware from RST or RAID to AHCI first, then start the installer again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hidden disks: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Welcome</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try %1 without changing this computer, or install it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install now</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>This wizard will guide you through installing %1 onto this computer.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -412,15 +498,43 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Power off</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Region &amp; language</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The installed system uses these settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Existing data found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is already on %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 already holds data.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 free.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The free space cannot fit the install. Installing erases the whole disk.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install to Free Space</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Erase and Install</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Erase and Install (%1)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
