@@ -152,17 +152,26 @@ if not core.dry_run():
     )
 
 CAPTIONS = {
-    "welcome": "What the assistant is about to do.",
+    "welcome": "Try the system or install it.",
+    "language": "Pick the installed system's language.",
+    "keyboard": "Pick the keyboard layout, and test it.",
+    "timezone": "Pick the time zone; nothing is detected.",
+    "network": "The install needs a download: get online.",
+    "prerelease": "Pre-release software says so.",
+    "eula": "The terms of use, when the image ships them.",
     "source": "Choose an image to install.",
+    "rst": "Intel RST hides disks: switch to AHCI.",
     "destination": "Choose the disk. Nothing is written yet.",
+    "wipe": "The disk has data: free space or the whole disk.",
     "setup": "Disk encryption; filesystem under Advanced.",
     "identity": "Your account and computer name.",
     "confirm": "The last screen before anything is written.",
     "progress": "The install, step by step.",
+    "recovery": "A TPM install: the recovery key, and Done held until it "
+                "is acknowledged.",
+    "handoff": "Hand the installed system over.",
     "done": "Finished — restart into the new system.",
     "cancelled": "A cancelled install: its own page, not the failure page.",
-    "recovery": "A TPM install: the recovery key, and reboot held until it "
-                "is acknowledged.",
 }
 
 # The recovery event is synthesised (no CI runner does a TPM install), but it
@@ -444,9 +453,13 @@ def main():
                 # confirm page shows that the picks reach the recipe (#292).
                 # The last of each list: what the lists hold depends on the
                 # runner (localectl, or the built-in fallback).
-                identity.locale_expander.set_expanded(True)
-                for combo in (identity.lang_combo, identity.kb_combo, identity.tz_combo):
-                    combo.set_active(len(combo.get_model()) - 1)
+                for key, page_name in (("locale", "language"),
+                                      ("keyboard_layout", "keyboard"),
+                                      ("timezone", "timezone")):
+                    page = win.pages[page_name]
+                    values = page.values()
+                    if values:
+                        setattr(win.region, key, values[-1])
             elif name == "progress":
                 _seed_progress(win.pages["progress"])
             elif name == "done":
@@ -510,25 +523,32 @@ def main():
             findings.append({"name": "recovery", "fatal":
                              "recovery_key event was not parsed"})
         else:
-            win.index = PAGE_ORDER.index("done")
-            win.stack.set_visible_child_name("done")
-            win.pages["done"].set_result(True, "", key)
+            win.index = PAGE_ORDER.index("recovery")
+            win.stack.set_visible_child_name("recovery")
+            recovery = win.pages["recovery"]
+            recovery.on_enter()
             win.refresh_nav()
             finding = capture(win, painter, "recovery",
                               f"{len(PAGE_ORDER) + 1:02d}-recovery.png",
-                              expect_back=False)
+                              expect_back=True)
             if finding is not None:
                 # The point of the frame: the key itself must be on screen,
-                # and reboot must still be held.
+                # and Done must still be held.
                 if key not in finding["text"]:
                     add_fatal(finding, ["the recovery key is not in the rendered "
-                                        "text; the panel did not draw"])
-                elif win.pages["done"].reboot_btn.get_sensitive():
-                    add_fatal(finding, ["reboot is live before the key was "
+                                        "text; the page did not draw"])
+                elif win.next_btn.get_sensitive():
+                    add_fatal(finding, ["Done is live before the key was "
                                         "acknowledged"])
-
+                recovery.ack.set_active(True)
+                win.refresh_nav()
+                if not win.next_btn.get_sensitive():
+                    add_fatal(finding, ["Done stays held after the "
+                                        "acknowledgement"])
         # The done page a third time: after a confirmed Cancel (or fisherman
         # exit code 130). Its heading is the copy key done_cancelled_title.
+        win.index = PAGE_ORDER.index("done")
+        win.stack.set_visible_child_name("done")
         win.pages["done"].set_result(False, "", cancelled=True)
         win.refresh_nav()
         finding = capture(win, painter, "cancelled",
