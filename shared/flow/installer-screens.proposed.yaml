@@ -1,0 +1,67 @@
+# PROPOSED replacement for tuna-os/tunaOS `tests/installer-screens.yaml`.
+# That file lives in another repository, so this copy is a proposal. Do not
+# read it as the live contract until tunaOS adopts it.
+#
+# What changes against the live file:
+#   - 18 screens, with the ids of shared/flow/screens.yaml (bootc-installer#442).
+#   - `aliases` keeps the six ids of the live file. scripts/installer-walkthrough.py
+#     and shared/walkthrough/parity_report.py read the old ids today. They keep
+#     working if they credit a screen for its id or any alias.
+#   - Required: try-or-install, disk, confirm, install, recovery-key, done.
+#     The live file requires welcome, disk and summary only.
+#   - The keywords of the six old screens are the live keywords, unchanged.
+#   - Keywords of new screens come from gnome-setup's own strings. No OCR run
+#     has measured them. Treat each `status: proposed` as untested.
+#
+# The rules of the live file hold: a keyword is a heading or a prompt, never a
+# bare noun, and never a product name.
+#
+# AT-SPI note: a frontend with AT-SPI is classified from the text of its
+# window, not from OCR. Keywords then match accessible text. See
+# shared/flow/README.md, "Test contract".
+screens:
+  - {id: requirements, title: Requirements, required: false, status: proposed,
+     keywords: ["minimum requirements", "does not meet"]}
+  - {id: try-or-install, aliases: [welcome], title: Try or install, required: true,
+     keywords: ["welcome", "get started", "let's get", "begin", "will guide you through",
+                "try or install", "install now"]}
+  - {id: language, title: Language, required: false, status: proposed,
+     keywords: ["search languages", "select a language", "choose your language"]}
+  - {id: keyboard, title: Keyboard layout, required: false, status: proposed,
+     keywords: ["search keyboards", "keyboard layout"]}
+  - {id: timezone, title: Time zone, required: false, status: proposed,
+     keywords: ["time zone", "select your time zone"]}
+  - {id: network, title: Network, required: false, status: proposed,
+     keywords: ["network settings", "no network connection"]}
+  - {id: prerelease, title: Disclaimer, required: false, status: proposed,
+     keywords: ["pre-release software", "experimental software", "disclaimer"]}
+  - {id: eula, title: Terms of use, required: false, status: proposed,
+     keywords: ["terms of use", "accept the terms"]}
+  - {id: rst, title: Intel RST, required: false, status: proposed,
+     keywords: ["intel rapid storage technology", "unsupported disk configuration"]}
+  - {id: disk, title: Disk / target selection, required: true,
+     keywords: ["select target disk", "select a disk", "choose the disk",
+                "available disks", "be installed", "destination", "install location",
+                "disk selection"]}
+  - {id: wipe-or-free, title: Existing data found, required: false, status: proposed,
+     keywords: ["existing data found", "install to free space", "use entire disk"]}
+  - {id: encryption, title: Disk encryption (LUKS), required: false,
+     keywords: ["disk encryption", "encrypt this disk", "enter passphrase",
+                "luks passphrase", "encryption passphrase", "choose a disk passphrase"]}
+  - {id: account, title: Account, required: false, status: proposed,
+     keywords: ["user account", "create your account"]}
+  - {id: confirm, aliases: [summary], title: Summary / confirm, required: true,
+     keywords: ["confirm installation", "review your choices", "summary",
+                "ready to install", "about to install", "begin installation"]}
+  - {id: install, title: Install progress, required: true,
+     keywords: ["installation progress", "copying files", "deploying", "please wait",
+                "writing image", "installing…", "partitioning", "installing image",
+                "do not power off", "copying partition", "installing bootloader"]}
+  - {id: recovery-key, title: Recovery key, required: true, status: proposed,
+     keywords: ["back up recovery key", "save your recovery key"]}
+  - {id: handoff, title: Handoff, required: false, status: proposed,
+     keywords: []}  # No frontend has the screen yet. Add text when the first one lands.
+  - {id: done, title: Finished / reboot, required: true,
+     keywords: ["installation complete", "installation finished", "is installed",
+                "has been installed", "remove the installation media",
+                "restart to boot", "reboot into"]}

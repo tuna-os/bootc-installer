@@ -97,6 +97,15 @@ the script skips the command and gives the name of the tool. The exit code
 is 1 when a command fails. With `--require-all`, a skip is also a failure.
 A new frontend adds its file, with the commands of its workflows.
 
+## `client/`
+
+Thin Varlink clients for the installer daemon, in Python, Go, Qt 6 C++ and
+Rust, and the size helper for no-break spaces (projectbluefin/utah#1437).
+`fixtures/sizes.json` holds the cases. `tests/unit/test_shared_client.py` runs
+the Python client and the cases. The Go, C++ and Rust tests run with their own
+tools. A new frontend copies the client of its language, and adds a test that
+reads `fixtures/sizes.json`. See [client/README.md](client/README.md).
+
 ## `completion/`
 
 How the done page tells an installed system from a verified start (#269),
@@ -138,6 +147,15 @@ in these files from `shared/flatpak/`, not from the manifest directory.
 `"../../../shared/flatpak/go.json"` and
 `"../../../shared/flatpak/fisherman.json"` to its `modules`, and sets
 `checkout-submodules` in its `ci/frontends.json` row.
+
+## `flow/`
+
+The shared installer flow: 18 screens with stable ids, when each shows, the
+Varlink call that each uses, the failure states, the test contract and the
+scenarios of the mock daemon. `screens.yaml` is the data.
+`tests/unit/test_shared_flow.py` holds it to its own README and to the
+proposed `installer-screens.proposed.yaml`. A new frontend reports the screen
+id as the page in its readiness stamp. See [flow/README.md](flow/README.md).
 
 ## `i18n/`
 
