@@ -154,7 +154,7 @@ const FIXTURE_CATALOG: &str =
 
 /// The frames after the page list: a page in another state, not a page of
 /// its own, so none of them is in `Page::ORDER`.
-const EXTRA_FRAMES: [&str; 4] = ["recovery", "cancel", "cancelled", "offline"];
+const EXTRA_FRAMES: [&str; 3] = ["cancel", "cancelled", "offline"];
 
 pub struct Capture {
     pub dir: PathBuf,
@@ -223,18 +223,6 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                 };
                 app.capture.as_mut().unwrap().index = index;
                 match extra {
-                    // The done page as a TPM install leaves it.
-                    "recovery" => {
-                        app.page = Page::Done;
-                        app.installing = false;
-                        app.install_ok = true;
-                        app.recovery_ack = false;
-                        app.progress.consume(FIXTURE_RECOVERY_EVENT);
-                        if app.progress.recovery_key.is_empty() {
-                            eprintln!("capture: the recovery_key event did not parse");
-                            std::process::exit(2);
-                        }
-                    }
                     // The progress page's Cancel was pressed: the question,
                     // through the page's own message. Nothing is signalled
                     // (there is no wrapper), and nothing would be before
@@ -293,11 +281,27 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                     app.installing = false;
                     app.install_ok = true;
                 }
+                Page::RecoveryKey => {
+                    // Through the parser, the way a real install feeds it,
+                    // so this screenshot exercises the live code path.
+                    app.installing = false;
+                    app.install_ok = true;
+                    app.progress.consume(FIXTURE_RECOVERY_EVENT);
+                    if app.progress.recovery_key.is_empty() {
+                        eprintln!("capture: the recovery_key event did not parse");
+                        std::process::exit(2);
+                    }
+                    app.qr_code = crate::ui::qr_handle(&app.progress.recovery_key);
+                    if app.qr_code.is_none() {
+                        eprintln!("capture: the fixture key did not render a QR code");
+                        std::process::exit(2);
+                    }
+                }
                 // A passphrase choice, typed twice, so the walkthrough shows
                 // the fields a needs_passphrase type adds (the KDE capture
                 // shows the same state). Masked on screen; the text report
                 // carries the field labels, never the value.
-                Page::Options => {
+                Page::Encryption => {
                     app.recipe.encryption.enc_type = "luks-passphrase".into();
                     app.recipe.encryption.passphrase = CAPTURE_PASSPHRASE.into();
                     app.passphrase_confirm = CAPTURE_PASSPHRASE.into();
@@ -436,21 +440,21 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
             // matrix stops reading "not measured".
             let text = crate::ui::page_text(app).join(" ");
 
-            // The recovery frame is the one screen where a correct-looking
-            // render can still be wrong: the panel can draw with the key
-            // missing, and Restart can be live before the key is
+            // The recovery-key frame is the one screen where a
+            // correct-looking render can still be wrong: the page can draw
+            // with the key missing, and Done can be live before the key is
             // acknowledged. Neither shows up in a pixel histogram.
-            if name == "recovery" {
+            if name == "recovery-key" {
                 let key = app.progress.recovery_key.clone();
                 if !text.contains(&key) {
                     eprintln!(
-                        "capture: the recovery key is not in the rendered text -- the panel did not draw (#129)"
+                        "capture: the recovery key is not in the rendered text -- the page did not draw it"
                     );
                     std::process::exit(2);
                 }
-                if !app.recovery_key_pending() {
+                if text.contains(&crate::i18n::tr(crate::ui::copy::RECOVERY_DONE)) {
                     eprintln!(
-                        "capture: Restart is live before the recovery key was acknowledged (#129)"
+                        "capture: Done is live before the recovery key was acknowledged"
                     );
                     std::process::exit(2);
                 }
@@ -519,10 +523,10 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
             // A needs_passphrase choice must bring both fields with it,
             // and a matching pair must leave Continue live. Neither is
             // visible to a pixel histogram.
-            if page == Some(Page::Options) {
+            if page == Some(Page::Encryption) {
                 for label in [tr(copy::OPTIONS_PASSPHRASE), tr(copy::OPTIONS_PASSPHRASE_CONFIRM)] {
                     if !has(label.clone()) {
-                        eprintln!("capture: options page with a passphrase choice has no {label:?} field");
+                        eprintln!("capture: encryption page with a passphrase choice has no {label:?} field");
                         std::process::exit(2);
                     }
                 }
@@ -530,7 +534,7 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                     eprintln!("capture: the passphrase leaked into the page text");
                     std::process::exit(2);
                 }
-                if !app.options_ok() {
+                if !app.encryption_page_ok() {
                     eprintln!("capture: Continue is held although both passphrases match");
                     std::process::exit(2);
                 }
@@ -543,6 +547,7 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                 for label in [
                     tr(copy::ACCOUNT_USERNAME),
                     tr(copy::ACCOUNT_FULLNAME),
+                    tr(copy::OPTIONS_HOSTNAME),
                     tr(copy::ACCOUNT_PASSWORD),
                     tr(copy::ACCOUNT_PASSWORD_CONFIRM),
                 ] {
