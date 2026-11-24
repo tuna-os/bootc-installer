@@ -1,5 +1,9 @@
-"""Headless contract tests for FishermanSession — no GTK, no real subprocess."""
+"""Headless contract tests for FishermanSession — no GTK; a real subprocess
+only where the test says so."""
+import io
+import json
 import os
+import pathlib
 import signal
 import subprocess
 import tempfile
@@ -68,7 +72,7 @@ class FishermanSessionLaunchTests(unittest.TestCase):
         session = self._session()
         session.launch()
         # The stale content is gone; launch() recreates the file empty (and
-        # 0600, see FishermanSessionLogModeTests) for bash's redirect.
+        # 0600, see FishermanSessionLogModeTests) and writes it itself.
         with open(self.log_path) as f:
             self.assertEqual(f.read(), "")
 
@@ -84,8 +88,8 @@ class FishermanSessionLaunchTests(unittest.TestCase):
 
 
 class FishermanSessionLogModeTests(unittest.TestCase):
-    """The log holds the TPM recovery key. bash's `>` used to create it, so
-    its mode followed the umask: 0644 under 022, world-readable."""
+    """bash's `>` used to create the log, so its mode followed the umask:
+    0644 under 022, world-readable. The session creates it 0600 itself."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -114,19 +118,12 @@ class FishermanSessionLogModeTests(unittest.TestCase):
         self._launch()
         self.assertEqual(self._mode(), 0o600)
 
-    def test_bash_redirect_keeps_the_0600_mode(self):
-        # What build_argv's command really does to the file, under the
-        # same 022 umask that used to make it 0644.
-        import subprocess
-
-        self._launch()
-        subprocess.run(
-            ["bash", "-c", 'umask 022; echo recovery >"$1" 2>&1', "--", self.log_path],
-            check=True,
-        )
-        self.assertEqual(self._mode(), 0o600)
-        with open(self.log_path) as f:
-            self.assertEqual(f.read(), "recovery\n")
+    def test_the_wrapper_does_not_redirect_to_the_log(self):
+        # #429: the wrapper's `>LOG` put fisherman's raw output, the key
+        # included, on disk. The output now comes back on the pipe.
+        argv = self._launch()
+        self.assertNotIn(">", argv[-1])
+        self.assertNotIn(self.log_path, " ".join(argv))
 
     def test_stale_world_readable_log_is_tightened(self):
         # _reset_log_file() cannot remove it (simulated): the mode is still
@@ -187,62 +184,137 @@ class FishermanSessionPollTests(unittest.TestCase):
         self.assertIsNone(session.poll_process())
 
 
-class FishermanSessionLogTailingTests(unittest.TestCase):
+def _piped_popen(output: bytes, poll_sequence=(0,)):
+    """A Popen stand-in whose stdout is `output`, then EOF."""
+    def popen(argv, **kw):
+        proc = _fake_popen(poll_sequence=poll_sequence)
+        proc.stdout = io.BytesIO(output)
+        return proc
+    return popen
+
+
+class FishermanSessionOutputTests(unittest.TestCase):
+    """fisherman's output comes back over the stdout pipe (#429); the session
+    hands each line to the caller and writes it to the log."""
+
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(__import__("shutil").rmtree, self.tmp, True)
         self.log_path = os.path.join(self.tmp, "fisherman-output.log")
-        self.session = FishermanSession(
-            _RECIPE,
-            log_path=self.log_path,
-            popen=lambda argv, **kw: _fake_popen(),
-        )
 
-    def test_open_log_for_tailing_false_until_file_exists(self):
-        self.assertFalse(self.session.open_log_for_tailing())
-        with open(self.log_path, "w"):
-            pass
-        self.assertTrue(self.session.open_log_for_tailing())
+    def _session(self, popen):
+        return FishermanSession(
+            _RECIPE, in_flatpak=False, stage_base=self.tmp, cache_dir=self.tmp,
+            host_path=os.path.join(self.tmp, "fisherman"), log_path=self.log_path,
+            popen=popen)
 
-    def test_open_log_for_tailing_is_idempotent(self):
-        with open(self.log_path, "w"):
-            pass
-        self.assertTrue(self.session.open_log_for_tailing())
-        self.assertTrue(self.session.open_log_for_tailing())
+    def test_the_output_is_read_from_a_stdout_pipe_with_stderr_joined(self):
+        popen = MagicMock(side_effect=lambda argv, **kw: _fake_popen())
+        self._session(popen).launch()
+        self.assertIs(popen.call_args.kwargs.get("stdout"), subprocess.PIPE)
+        self.assertIs(popen.call_args.kwargs.get("stderr"), subprocess.STDOUT)
 
-    def test_read_new_lines_returns_only_complete_lines(self):
-        with open(self.log_path, "w") as f:
-            f.write("line one\nline two\nunfinished")
-        self.session.open_log_for_tailing()
-        lines = self.session.read_new_lines()
-        self.assertEqual(lines, ["line one", "line two"])
+    def test_open_log_for_tailing_is_true_once_launched(self):
+        session = self._session(_piped_popen(b""))
+        self.assertFalse(session.open_log_for_tailing())
+        session.launch()
+        self.assertTrue(session.open_log_for_tailing())
+        self.assertTrue(session.open_log_for_tailing())
 
-    def test_read_new_lines_buffers_incomplete_line_across_calls(self):
-        with open(self.log_path, "w") as f:
-            f.write("partial")
-        self.session.open_log_for_tailing()
-        self.assertEqual(self.session.read_new_lines(), [])
-        with open(self.log_path, "a") as f:
-            f.write(" line\nnext\n")
-        self.assertEqual(self.session.read_new_lines(), ["partial line", "next"])
+    def test_lines_arrive_in_order_without_their_newline(self):
+        session = self._session(_piped_popen(b"line one\nline two\n"))
+        session.launch()
+        session._reader.join(timeout=5)
+        self.assertEqual(session.read_new_lines(), ["line one", "line two"])
+        self.assertEqual(session.read_new_lines(), [])
 
-    def test_read_new_lines_without_open_log_is_empty(self):
-        self.assertEqual(self.session.read_new_lines(), [])
+    def test_read_new_lines_without_launch_is_empty(self):
+        self.assertEqual(self._session(_piped_popen(b"")).read_new_lines(), [])
 
-    def test_drain_remaining_flushes_final_unterminated_line_and_closes(self):
-        with open(self.log_path, "w") as f:
-            f.write("first\n")
-        self.session.open_log_for_tailing()
-        self.session.read_new_lines()
-        with open(self.log_path, "a") as f:
-            f.write("final no newline")
-        lines = self.session.drain_remaining()
-        self.assertEqual(lines, ["final no newline"])
-        # Closed: a second drain returns nothing rather than erroring.
-        self.assertEqual(self.session.drain_remaining(), [])
+    def test_drain_remaining_returns_the_final_unterminated_line(self):
+        session = self._session(_piped_popen(b"first\n\nfinal no newline"))
+        session.launch()
+        self.assertEqual(session.drain_remaining(), ["first", "final no newline"])
+        # Nothing left: a second drain returns nothing rather than erroring.
+        self.assertEqual(session.drain_remaining(), [])
 
-    def test_drain_remaining_without_open_log_is_empty(self):
-        self.assertEqual(self.session.drain_remaining(), [])
+    def test_drain_remaining_without_launch_is_empty(self):
+        self.assertEqual(self._session(_piped_popen(b"")).drain_remaining(), [])
+
+    def test_the_log_holds_every_line(self):
+        session = self._session(_piped_popen(b"a\nb\n"))
+        session.launch()
+        session.drain_remaining()
+        with open(self.log_path) as f:
+            self.assertEqual(f.read(), "a\nb\n")
+
+    def test_the_install_runs_when_the_log_cannot_be_opened(self):
+        with patch.object(FishermanSession, "_create_private_log", return_value=None):
+            session = self._session(_piped_popen(b"step\n"))
+            self.assertIsNotNone(session.launch())
+        self.assertEqual(session.drain_remaining(), ["step"])
+
+
+_PROGRESS = pathlib.Path(__file__).resolve().parents[2] / "shared" / "progress"
+_KEY_SPEC = json.loads((_PROGRESS / "recovery-key-cases.json").read_text(encoding="utf-8"))
+_TRANSCRIPT = _PROGRESS / _KEY_SPEC["transcript"]
+
+
+class RecoveryKeyNeverReachesTheLogTests(unittest.TestCase):
+    """#429: the log used to be fisherman's transport, so the key was on disk
+    until scrub_log() ran. shared/progress/README.md ("Recovery key in a
+    log"): a frontend must not write the key to a log file."""
+
+    KEY = _KEY_SPEC["key"]
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, self.tmp, True)
+        self.log_path = os.path.join(self.tmp, "fisherman-output.log")
+
+    def _session(self, popen=None):
+        return FishermanSession(
+            _RECIPE, in_flatpak=False, stage_base=self.tmp, cache_dir=self.tmp,
+            host_path=os.path.join(self.tmp, "fisherman"), log_path=self.log_path,
+            popen=popen)
+
+    def _log(self):
+        with open(self.log_path, encoding="utf-8") as f:
+            return f.read()
+
+    def test_the_transcript_reaches_the_page_whole_and_the_log_redacted(self):
+        session = self._session(_piped_popen(_TRANSCRIPT.read_bytes()))
+        session.launch()
+        lines = session.drain_remaining()
+        self.assertEqual(lines, _TRANSCRIPT.read_text(encoding="utf-8").splitlines())
+        self.assertNotIn(self.KEY, self._log())
+        self.assertIn(_KEY_SPEC["redacted_event"], self._log())
+
+    def test_a_later_line_that_repeats_the_key_loses_it_too(self):
+        out = _TRANSCRIPT.read_bytes() + f"stderr: unlocked with {self.KEY}\n".encode()
+        session = self._session(_piped_popen(out))
+        session.launch()
+        session.drain_remaining()
+        self.assertNotIn(self.KEY, self._log())
+
+    def test_the_key_is_not_on_disk_while_the_install_still_runs(self):
+        # A real wrapper that prints the transcript and keeps running: the
+        # moment the old design left the key on disk, before any scrub.
+        argv = ["bash", "-c", f'cat "{_TRANSCRIPT}"; exec sleep 30']
+        with patch("bootc_installer.utils.fisherman_runner.build_argv", return_value=argv):
+            session = self._session()
+            session.launch()
+        self.addCleanup(session.terminate)
+        seen = []
+        deadline = __import__("time").monotonic() + 10
+        while not any('"recovery_key"' in line for line in seen):
+            self.assertLess(__import__("time").monotonic(), deadline, seen)
+            seen += session.read_new_lines()
+            __import__("time").sleep(0.01)
+        self.assertIsNone(session.poll_process())
+        self.assertIn(self.KEY, "\n".join(seen))
+        self.assertIn(_KEY_SPEC["redacted_event"], self._log())
+        self.assertNotIn(self.KEY, self._log())
 
 
 class FishermanSessionTerminateAndCleanupTests(unittest.TestCase):
@@ -358,7 +430,7 @@ class FishermanSessionStdinTests(unittest.TestCase):
         written = session.proc.stdin.write.call_args.args[0]
         self.assertEqual(__import__("json").loads(written), _RECIPE)
         session.proc.stdin.close.assert_called_once()
-        self.assertIn(" - >", argv[-1])
+        self.assertTrue(argv[-1].endswith(" -; exit $?"), argv[-1])
         self.assertNotIn("s3cret", " ".join(argv))
 
     def test_no_file_holds_the_recipe(self):
@@ -380,15 +452,13 @@ class FishermanSessionStdinTests(unittest.TestCase):
 
     def test_a_real_wrapper_reads_the_recipe_on_stdin(self):
         """The real bash wrapper, with the escalation replaced by `cat`:
-        what fisherman would read on stdin lands in the log."""
-        log = os.path.join(self.cache_dir, "fisherman-output.log")
+        what fisherman would read on stdin comes back on its stdout."""
         with patch("bootc_installer.utils.fisherman_runner.build_argv",
-                   return_value=["bash", "-c", f'cat - >"{log}" 2>&1; exit $?']):
+                   return_value=["bash", "-c", "cat -; exit $?"]):
             session = self._session(None)
             session.launch()
         self.assertEqual(session.proc.wait(timeout=10), 0)
-        with open(log) as fh:
-            self.assertEqual(__import__("json").load(fh), _RECIPE)
+        self.assertEqual(json.loads("".join(session.drain_remaining())), _RECIPE)
 
     def test_live_media_uses_sudo_and_an_installed_host_pkexec(self):
         argvs = {}
