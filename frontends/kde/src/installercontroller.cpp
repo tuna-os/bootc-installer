@@ -17,6 +17,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLocale>
 #include <QMetaObject>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -32,20 +33,55 @@ InstallerController::InstallerController(QObject *parent)
     m_validateTimer.setInterval(300);
     connect(&m_validateTimer, &QTimer::timeout, this, &InstallerController::runValidate);
 
-    // TPM 2.0 and the minimum requirements are fisherman's answers
-    // (`fisherman probe --json`, shared/probe/README.md), read once. The
-    // disk step runs the probe again when it opens, for hotplugged disks.
-    // A capture points BOOTC_INSTALLER_FAKE_PROBE at a fixture with a
-    // usable TPM, so the TPM choices show on a runner without one.
-    const probe::Result facts = probe::run();
+    // TPM 2.0, the minimum requirements, RST and live media are fisherman's
+    // answers, read once. The disk step runs the probe again when it opens,
+    // for hotplugged disks. A capture points BOOTC_INSTALLER_FAKE_PROBE at
+    // a fixture with a usable TPM, so the TPM choices show on a runner
+    // without one.
+    //
+    // The recipe backend runs `fisherman probe --json`
+    // (shared/probe/README.md). The daemon backend (TUNA_INSTALLER_BACKEND
+    // =daemon) asks fishermand's Requirements and Probe over Varlink
+    // instead, and keeps the full answers for the rst and wipe-or-free
+    // pages (tuna-os/fisherman#512). Legacy tools and captures keep the
+    // recipe path: nothing here changes when the variable is unset.
+    probe::Result facts;
+    if (fishermand::backend() == fishermand::Backend::Daemon) {
+        fishermand::Client client(fishermand::socketPath());
+        m_daemonReqs = fishermand::fetchRequirements(client);
+        m_daemonProbe = fishermand::fetchProbe(client);
+        facts = fishermand::probeResult(m_daemonProbe);
+        if (m_daemonReqs.ok)
+            facts.unmet = fishermand::unmetFromGates(m_daemonReqs.gates);
+        if (!m_daemonReqs.ok || !m_daemonProbe.ok) {
+            m_daemonUnreachable = true;
+            m_daemonError = !m_daemonProbe.ok ? m_daemonProbe.error : m_daemonReqs.error;
+        }
+    } else {
+        facts = probe::run();
+    }
     m_hasTpm = facts.tpmUsable;
     m_unmet = facts.unmet;
+    // A usable TPM seals the daemon install to PCR 7 with no prompt: the
+    // encryption page is skipped, so the type is set here. The recipe
+    // backend keeps `none` and its four choices.
+    if (fishermand::backend() == fishermand::Backend::Daemon && m_hasTpm)
+        m_recipe.encryption.type = QStringLiteral("tpm2-luks");
     // Live media is fisherman's answer (probe's `live`). This used to be a
     // `bootc status` of our own plus /run/ostree-live and /proc/cmdline,
     // read inside the Flatpak sandbox.
     m_recipe.liveMode = facts.isLive;
     m_liveImage = facts.liveImage;
     m_probeOutput = facts.raw;
+    // os-release at startup (src/osrelease.h): a pre-release disclaimer and
+    // its EXPERIMENT text. The terms of use (src/eula.h): the agreement
+    // sections, or nothing when the image ships none.
+    const QHash<QString, QString> osRelease = osrelease::read();
+    m_isPrerelease = osrelease::isPrerelease(osRelease);
+    m_experimentText = osrelease::experimentText(osRelease);
+    m_eulaPath = eula::findFile();
+    m_eula = eula::read(m_eulaPath);
+
     // Product identity per shared/branding/README.md: branding.json, then
     // os-release, then neutral. Nothing in this frontend names a product.
     m_branding = branding::resolve();
@@ -469,6 +505,117 @@ QString InstallerController::requirementsWarning() const
     }
     lines.removeAll(QString());
     return lines.join(QLatin1Char('\n'));
+}
+
+void InstallerController::refreshDaemonFacts()
+{
+    if (fishermand::backend() != fishermand::Backend::Daemon)
+        return;
+    fishermand::Client client(fishermand::socketPath());
+    m_daemonReqs = fishermand::fetchRequirements(client);
+    m_daemonProbe = fishermand::fetchProbe(client);
+    const probe::Result facts = fishermand::probeResult(m_daemonProbe);
+    m_hasTpm = facts.tpmUsable;
+    if (m_hasTpm && m_recipe.encryption.type == QLatin1String("none"))
+        m_recipe.encryption.type = QStringLiteral("tpm2-luks");
+    m_unmet = m_daemonReqs.ok ? fishermand::unmetFromGates(m_daemonReqs.gates) : facts.unmet;
+    m_recipe.liveMode = facts.isLive;
+    m_liveImage = facts.liveImage;
+    m_probeOutput = facts.raw;
+    m_daemonUnreachable = !m_daemonReqs.ok || !m_daemonProbe.ok;
+    m_daemonError = !m_daemonProbe.ok ? m_daemonProbe.error : m_daemonReqs.error;
+    Q_EMIT factsChanged();
+    Q_EMIT daemonFactsChanged();
+}
+
+bool InstallerController::stepSkipped(const QString &stepId) const
+{
+    // try-or-install runs on live media only (shared/flow/screens.yaml):
+    // off it there is no live session to try.
+    if (stepId == QLatin1String("try-or-install"))
+        return !m_recipe.liveMode;
+    // The disclaimer only when os-release calls this a pre-release or an
+    // experiment; the terms only when the image ships them.
+    if (stepId == QLatin1String("prerelease"))
+        return !m_isPrerelease;
+    if (stepId == QLatin1String("eula"))
+        return !eulaFileFound();
+    // Intel RST hides disks: the page explains it before the disk list.
+    // The legacy probe does not report it, so the page is daemon-only.
+    if (stepId == QLatin1String("rst"))
+        return !rstDetected();
+    // Existing data with room to spare: the choice of free space or erase.
+    // The recipe backend keeps its erase behaviour and skips the choice.
+    if (stepId == QLatin1String("wipe-or-free"))
+        return !(daemonBackend() && selectedDiskHasData());
+    // With a usable TPM the daemon seals to PCR 7 with no prompt
+    // (shared/flow `encryption`); the recipe backend keeps its four choices.
+    if (stepId == QLatin1String("encryption"))
+        return daemonBackend() && m_hasTpm;
+    // The account step when the selected image creates its own first user
+    // (needs_user_creation, the GNOME image step and XFCE IdentityPage
+    // rule).
+    if (stepId == QLatin1String("account"))
+        return !m_needsUser;
+    return false;
+}
+
+void InstallerController::setEulaAccepted(bool v)
+{
+    if (m_eulaAccepted == v)
+        return;
+    m_eulaAccepted = v;
+    Q_EMIT eulaChanged();
+}
+
+const fishermand::Disk *InstallerController::selectedDaemonDisk() const
+{
+    // The daemon probe's row for the chosen disk; null on the recipe backend
+    // or before any disk is chosen.
+    for (const fishermand::Disk &disk : m_daemonProbe.disks) {
+        if (disk.path == m_recipe.disk)
+            return &disk;
+    }
+    return nullptr;
+}
+
+QStringList InstallerController::selectedDiskOperatingSystems() const
+{
+    const fishermand::Disk *disk = selectedDaemonDisk();
+    return disk ? disk->existingData.operatingSystems : QStringList();
+}
+
+bool InstallerController::selectedDiskHasData() const
+{
+    const fishermand::Disk *disk = selectedDaemonDisk();
+    return disk
+        && (disk->existingData.hasPartitionTable || disk->existingData.hasLuks
+            || !disk->existingData.operatingSystems.isEmpty());
+}
+
+bool InstallerController::selectedDiskForceErase() const
+{
+    const fishermand::Disk *disk = selectedDaemonDisk();
+    return selectedDiskHasData() && disk->freeBytes >= 0 && disk->minimalSizeBytes > 0
+        && disk->freeBytes < disk->minimalSizeBytes;
+}
+
+QString InstallerController::selectedDiskFreeSpace() const
+{
+    const fishermand::Disk *disk = selectedDaemonDisk();
+    if (!disk || disk->freeBytes < 0)
+        return {};
+    return QLocale().formattedDataSize(disk->freeBytes);
+}
+
+void InstallerController::setInstallMode(const QString &v)
+{
+    if (v != QLatin1String("erase") && v != QLatin1String("free_space"))
+        return;
+    if (m_installMode == v)
+        return;
+    m_installMode = v;
+    Q_EMIT installModeChanged();
 }
 
 void InstallerController::setDisk(const QString &v)

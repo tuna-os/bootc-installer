@@ -2,8 +2,9 @@
 
 // Target-disk list, backing the disk step's ListView.
 //
-// The disks are fisherman's: `fisherman probe --json`, eligible disks only,
-// in fisherman's order, with fisherman's size labels (shared/probe/README.md).
+// The disks are fisherman's: eligible disks only, in fisherman's order,
+// with fisherman's size labels (shared/probe/README.md). The recipe backend
+// runs `fisherman probe --json`; the daemon backend asks fishermand's Probe.
 // Only the presentation is here.
 
 #include "probe.h"

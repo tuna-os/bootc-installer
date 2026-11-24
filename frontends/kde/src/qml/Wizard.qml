@@ -51,12 +51,17 @@ Kirigami.Page {
     ListModel {
         id: stepsModel
 
+        ListElement { stepId: "try-or-install"; name: qsTr("Try or Install");   url: "modules/tryorinstall/main.qml" }
         ListElement { stepId: "welcome";    name: qsTr("Welcome");               url: "modules/welcome/main.qml" }
+        ListElement { stepId: "prerelease"; name: qsTr("Disclaimer");            url: "modules/prerelease/main.qml" }
+        ListElement { stepId: "eula";       name: qsTr("Terms of Use");          url: "modules/eula/main.qml" }
+        ListElement { stepId: "rst";        name: qsTr("Intel RST");             url: "modules/rst/main.qml" }
         ListElement { stepId: "disk";       name: qsTr("Target Disk");           url: "modules/disk/main.qml" }
+        ListElement { stepId: "wipe-or-free"; name: qsTr("Existing Data");       url: "modules/wipefree/main.qml" }
         ListElement { stepId: "encryption"; name: qsTr("Disk Encryption");       url: "modules/encryption/main.qml" }
         ListElement { stepId: "account";    name: qsTr("User Account");          url: "modules/account/main.qml" }
         ListElement { stepId: "confirm";    name: qsTr("Confirm Installation");  url: "modules/confirm/main.qml" }
-        ListElement { stepId: "progress";   name: qsTr("Installing");            url: "modules/progress/main.qml" }
+        ListElement { stepId: "install";    name: qsTr("Installing");            url: "modules/progress/main.qml" }
         ListElement { stepId: "done";       name: qsTr("Finished");              url: "modules/done/main.qml" }
     }
 
@@ -99,14 +104,12 @@ Kirigami.Page {
         }
     }
 
-    // A step that has nothing to ask: the account step when the selected
-    // catalog image creates its own first user (needs_user_creation, the
-    // GNOME image step and XFCE IdentityPage rule). The step is never
-    // *landed on* by Next/Back, but it stays in the model — and reachable
-    // by goToStep — so the seven-module shape and the harness walk survive.
+    // A step that has nothing to ask is never *landed on* by Next/Back, but
+    // it stays in the model — and reachable by goToStep — so the step shape
+    // and the harness walk survive. The rules live in the controller
+    // (InstallerController.stepSkipped), where the backend tests pin them.
     function stepSkipped(index: int): bool {
-        return stepsModel.get(index).stepId === "account"
-            && !InstallerController.needsUserCreation;
+        return InstallerController.stepSkipped(stepsModel.get(index).stepId);
     }
 
     function requestNextPage(): void {
@@ -209,32 +212,31 @@ Kirigami.Page {
         stepHeading.opacity = 1;
     }
 
-    // The install runs on the progress step and hands over to the done step by
+    // The install runs on the install step and hands over to the done step by
     // itself — the same handover the Widgets wizard did in its finished() slot.
     Connections {
         target: InstallerController
 
         function onInstallCompleted(exitCode: int): void {
-            if (root.currentStepId === "progress") {
+            if (root.currentStepId === "install") {
                 root.requestNextPage();
             }
         }
     }
 
-    // Welcome and done are hero pages that carry their own heading
-    // ("Welcome to <product>", "<product> is installed"); a header title
-    // over them only repeated it. The step indicator still names them.
-    readonly property bool heroStep: currentStepId === "welcome" || currentStepId === "done"
+    // Try-or-install, welcome and done are hero pages that carry their own
+    // heading; a header title over them only repeated it. The step
+    // indicator still names them.
+    readonly property bool heroStep: currentStepId === "try-or-install" || currentStepId === "welcome" || currentStepId === "done"
 
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
-        // Step indicator: "Step N of 7 · Name" and one dot per step, the
+        // Step indicator: "Step N of M · Name" and one dot per step, the
         // way COSMIC's header and Niri's dots show it. The count is the
-        // model's: the shared six screens plus the account step, which the
-        // screen contract has no row for. Colours come from Kirigami.Theme,
-        // sizes from Kirigami.Units.
+        // model's, in the order of shared/flow/screens.yaml. Colours come
+        // from Kirigami.Theme, sizes from Kirigami.Units.
         RowLayout {
             objectName: "stepIndicator"
             spacing: Kirigami.Units.largeSpacing
@@ -361,9 +363,11 @@ Kirigami.Page {
                 leftPadding: Kirigami.Units.gridUnit
                 rightPadding: Kirigami.Units.gridUnit
 
-                // No going back once fisherman has been handed the disk.
+                // No going back once fisherman has been handed the disk, and
+                // none on the first step either (Back is already hidden
+                // there by currentIndex > 0).
                 visible: root.currentIndex > 0
-                    && root.currentStepId !== "progress"
+                    && root.currentStepId !== "install"
                     && root.currentStepId !== "done"
 
                 onClicked: root.requestPreviousPage()
@@ -389,8 +393,13 @@ Kirigami.Page {
                 LayoutMirroring.enabled: !isInstall && !isClose
                     && Qt.application.layoutDirection === Qt.LeftToRight
 
-                // Hidden while fisherman runs: the progress step advances itself.
-                visible: root.currentStepId !== "progress"
+                // Hidden while fisherman runs (the install step advances
+                // itself) and on steps whose content navigates: try-or-install
+                // carries its own Try and Install now buttons, wipe-or-free
+                // its own choice buttons.
+                visible: root.currentStepId !== "install"
+                    && root.currentStepId !== "try-or-install"
+                    && root.currentStepId !== "wipe-or-free"
 
                 readonly property bool isWelcome: root.currentStepId === "welcome"
 
@@ -449,6 +458,7 @@ Kirigami.Page {
                 return;
             }
             module = component.createObject(item) as TunaComponents.SetupModule;
+            module.advanceRequested.connect(() => root.requestNextPage());
             updateRootItems();
         }
 

@@ -1,0 +1,4 @@
+NAME="TunaOS"
+VERSION="42.0"
+ID=tunaos
+RELEASE_TYPE=stable
