@@ -88,6 +88,27 @@ def apply_keyboard_layout(layout):
         return False
     return out.returncode == 0
 
+def apply_language(language):
+    """Switch the live session to `language` (localectl set-locale).
+    Best-effort like apply_keyboard_layout: False, never an exception."""
+    try:
+        out = subprocess.run(["localectl", "set-locale", f"LANG={language}"],
+                             capture_output=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return out.returncode == 0
+
+
+def apply_timezone(zone):
+    """Switch the live session to `zone` (timedatectl set-timezone).
+    Best-effort: False, never an exception."""
+    try:
+        out = subprocess.run(["timedatectl", "set-timezone", zone],
+                             capture_output=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return out.returncode == 0
+
 
 def available_timezones():
     """Zone names from timedatectl, or the zoneinfo tree where the daemon is
