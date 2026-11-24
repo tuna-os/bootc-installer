@@ -64,6 +64,24 @@ var validateArgs = []string{"validate", "--json", "--partial", "-"}
 // (invalid); anything else means the check could not run, and is exit 2
 // with the reason on stderr, which the QML treats as "no answer".
 func runValidate(stdin io.Reader, stdout, stderr io.Writer) int {
+	if useDaemon() {
+		recipe, err := readOneJSON(stdin, 1<<20)
+		if err != nil {
+			fmt.Fprintf(stderr, "read recipe: %v\n", err)
+			return 2
+		}
+		var frag map[string]any
+		if err := json.Unmarshal(recipe, &frag); err != nil {
+			fmt.Fprintf(stderr, "read recipe: %v\n", err)
+			return 2
+		}
+		code, err := daemonValidate(frag, stdout)
+		if err != nil {
+			fmt.Fprintf(stderr, "fishermand: %v\n", err)
+			return 2
+		}
+		return code
+	}
 	fisherman, err := resolveFisherman()
 	if err != nil {
 		fmt.Fprintf(stderr, "%v\n", err)

@@ -336,15 +336,53 @@ ApplicationWindow {
     property int currentPage: 0
     // The confirm page asks fisherman about the selected source (#266) on
     // each visit; the done page reads nothing back from the new system.
-    onCurrentPageChanged: if (root.currentPage === 6) root.startSourceCheck()
+    onCurrentPageChanged: {
+        if (root.currentPage === 6) root.startSourceCheck()
+        if (root.currentPage === 10) root.enterWipe()
+        if (root.currentPage === 14) root.startHandoff()
+    }
+    // The wipe page's per-visit state: free space is the default where it
+    // fits, the whole disk where it does not, and the destructive choice
+    // waits out a three second countdown.
+    property int wipeCountdown: 0
+    readonly property bool wipeTight: root.selectedDisk.has_data === true
+        && (root.selectedDisk.free_bytes || 0) < (root.selectedDisk.minimal_bytes || 0)
+    function enterWipe() {
+        root.installMode = root.wipeTight ? "erase" : "free_space"
+        root.wipeCountdown = root.wipeTight ? 3 : 0
+    }
     readonly property var pageNames: [qsTr("Welcome"), qsTr("Session"), qsTr("Source"), qsTr("Disk"),
-        qsTr("Encryption"), qsTr("Account"), qsTr("Confirm"), qsTr("Installing"), qsTr("Done")]
+        qsTr("Encryption"), qsTr("Account"), qsTr("Confirm"), qsTr("Installing"), qsTr("Done"),
+        qsTr("Intel RST"), qsTr("Existing data"), qsTr("Disclaimer"), qsTr("Terms of use"),
+        qsTr("Recovery key"), qsTr("Handoff")]
 
     // The pages the user actually steps through. The account page drops
     // out when the catalog leaf says the image creates its own user
     // (XFCE's needs_user_creation, bootc_installer/defaults/image.py),
-    // instead of asking for an account fisherman would then ignore.
-    readonly property var flowPages: root.needsUserCreation ? [0, 1, 2, 3, 4, 5, 6, 7, 8] : [0, 1, 2, 3, 4, 6, 7, 8]
+    // instead of asking for an account fisherman would then ignore. The
+    // conditional screens drop out when they have nothing to show — a
+    // skipped screen is never shown blank. New screen slots go at the end
+    // (9 and up): the 0-8 indices are referenced all over this file.
+    function flowList() {
+        const pages = [0, 1, 2]
+        if (root.showPrerelease) pages.push(11)
+        if (root.showEula) pages.push(12)
+        if (root.showRst) pages.push(9)
+        pages.push(3)
+        if (root.showWipe) pages.push(10)
+        pages.push(4)
+        if (root.needsUserCreation) pages.push(5)
+        pages.push(6, 7)
+        // Post-install screens join the flow once the install has ended:
+        // the back button and the step dots then cover the whole journey.
+        if (root.installEnded) {
+            if (root.showRecoveryScreen) pages.push(13)
+            if (root.showHandoffScreen) pages.push(14)
+        }
+        pages.push(8)
+        return pages
+    }
+    readonly property var flowPages: root.flowList()
     readonly property int flowPos: Math.max(0, root.flowPages.indexOf(root.currentPage))
     readonly property int flowCount: root.flowPages.length
     function flowNext() {
@@ -360,12 +398,23 @@ ApplicationWindow {
     // above, and matching the names the other frontends use so the tunaOS
     // screen contract reads one vocabulary rather than five.
     function pageSlug(i) {
-        const slugs = ["welcome", "session", "source", "disk", "encryption", "account", "confirm", "installing", "done"]
+        // The welcome page serves two screen ids (gnome-setup's WelcomePage
+        // does the same): try-or-install on live media, installer-welcome
+        // ("welcome" here) anywhere else.
+        const slugs = [root.isLive ? "try-or-install" : "welcome", "session", "source", "disk",
+            "encryption", "account", "confirm", "installing", "done",
+            "rst", "wipe-or-free", "prerelease", "eula", "recovery-key", "handoff"]
         return (i >= 0 && i < slugs.length) ? slugs[i] : "unknown"
     }
     // Encryption was previously hardcoded to "none" in the recipe with no UI,
     // so every install came out unencrypted (tuna-os/tunaOS#734).
     property string encType: "none"
+    // The wipe page's choice: "free_space" keeps the disk's data where it
+    // fits, "erase" takes the whole disk. The daemon reads it from the
+    // install envelope; the legacy path always erases.
+    property string installMode: "erase"
+    // The eula page's tick. Kept for the run once given.
+    property bool eulaAccepted: false
     // The encryption choices in display order, with needs_passphrase and
     // needs_tpm2: fisherman's data/encryption-choices.json, which the backend
     // embeds and `detect` reports (tests/unit/test_encryption_choices.py).
@@ -392,6 +441,20 @@ ApplicationWindow {
     property var disks: []
     property bool disksProbed: false
     property string diskError: ""
+    // Conditional screens (shared/flow/screens.yaml). Each is skipped when
+    // it has nothing to show, never shown blank.
+    property bool intelRst: false
+    property string releaseType: "stable"
+    property string experimentText: ""
+    property var eulaInfo: ({})
+    readonly property bool showPrerelease: root.releaseType === "pre-release"
+        || root.releaseType === "experiment"
+    readonly property bool showEula: root.eulaInfo.present === true
+    readonly property bool showRst: root.intelRst
+    // wipe-or-free: the chosen disk carries data. has_data comes from the
+    // daemon's Probe; the legacy probe never reports it, so the page is
+    // daemon-only until fisherman learns the fields.
+    readonly property bool showWipe: root.selectedDisk.has_data === true
     // The welcome page's warning: requirements_title, then a line per item.
     readonly property string requirementsWarning: {
         const keys = { ram: "requirements_ram", cpu: "requirements_cpu", uefi: "requirements_uefi" }
@@ -430,6 +493,22 @@ ApplicationWindow {
     property bool cancelOpen: false
     property bool cancelRequested: false
     property bool installCancelled: false
+    // Post-install screens. The recovery screen shows after a successful
+    // encrypted install; the handoff screen after that on the daemon path
+    // (the legacy recipe path has no Handoff call and jumps to done).
+    readonly property bool installEnded: root.installSuccess || root.installCancelled
+        || root.installError !== null
+    readonly property bool showRecoveryScreen: root.installEnded && root.installSuccess
+        && root.encType !== "none"
+    readonly property bool showHandoffScreen: root.installEnded && root.installSuccess
+        && root.daemonMode
+    function postInstallPage() {
+        if (root.showRecoveryScreen) return 13
+        if (root.showHandoffScreen) return 14
+        return 8
+    }
+    // The daemon path flag and the recovery-key fetch state live with the
+    // backend processes below (daemonMode, recoveryKeyProc, handoffProc).
     function confirmCancel() {
         root.cancelOpen = false
         if (!installProc.running)
@@ -444,13 +523,56 @@ ApplicationWindow {
         root.installSuccess = outcome === "succeeded"
         root.installCancelled = outcome === "cancelled"
         root.cancelOpen = false
-        root.currentPage = 8
+        // On the daemon path an encrypted install fetches its recovery key
+        // first (the Install stream carries none); the fetch lands on the
+        // recovery screen, key or key error. The legacy path already holds
+        // the key from the stream. Anything else lands on done.
+        if (root.installSuccess && root.daemonMode && root.encType !== "none")
+            root.startRecoveryFetch()
+        else
+            root.currentPage = root.postInstallPage()
+    }
+    // The backend path: the daemon answers Varlink, the legacy path shells
+    // out to fisherman. `detect` reports which one is driving.
+    property bool daemonMode: false
+    // The handoff call after an install. Once per install: startHandoff
+    // refuses a second run while one is in flight or done.
+    property bool handoffStarted: false
+    property bool handoffKeepsRunning: false
+    property string handoffError: ""
+    // The mode the daemon will take (Probe's handoff hint, read by
+    // detect): migrate, soft_reboot or reboot. The page matches the mode.
+    property string handoffMode: "reboot"
+    property string handoffReason: ""
+    function startHandoff() {
+        if (handoffProc.running || (root.handoffStarted && root.handoffError === "")) return
+        root.handoffError = ""
+        root.handoffKeepsRunning = false
+        root.handoffStarted = true
+        handoffProc.running = true
     }
     // The key fisherman emits once, after TPM enrolment (#129). The
     // "recovery_key" case in renderEvent used to format a log line and keep
     // nothing, so after the install there was nothing left to show.
     property string recoveryKey: ""
     property bool recoveryAck: false
+    // The daemon path fetches the key after the install (the Install stream
+    // carries none) and its QR grid with it. An error keeps the page on a
+    // retry; the key never reaches a log.
+    property var recoveryQr: ({})
+    readonly property int recoveryQrSize: root.recoveryQr.size || 0
+    property string recoveryKeyError: ""
+    property string pendingRecovery: ""
+    property bool qrOpen: false
+    function startRecoveryFetch() {
+        if (recoveryKeyProc.running) return
+        root.recoveryKeyError = ""
+        root.pendingRecovery = JSON.stringify({
+            node: root.selectedDisk.path || "",
+            unlock_password: root.passphrase || ""
+        })
+        recoveryKeyProc.running = true
+    }
     // Restart is held while an unacknowledged key is on screen: leaving the
     // done page is what ends the chance to read it. A failed install enrolled
     // nothing, and a non-TPM install was never given a key, so neither is held.
@@ -746,6 +868,44 @@ ApplicationWindow {
     readonly property var timezoneModel: root.withCurrent(root.timezoneList, root.timezoneName)
     property string pendingSession: ""
     property var sentSession: ({})
+    // ConfigureTarget for the installed system (daemon path only): the
+    // session and account steps store their picks there as well as in the
+    // live session and the recipe. A failure warns and moves on — the
+    // daemon re-validates everything at Install time.
+    property string pendingConfigure: ""
+    property string configureWarning: ""
+    function runConfigure(picks) {
+        if (configureProc.running) return
+        root.configureWarning = ""
+        root.pendingConfigure = JSON.stringify(picks)
+        configureProc.running = true
+    }
+    // The installed system gets the effective region: the user's edits over
+    // the session's values. The privacy object travels only when the user
+    // touched the toggle (supervisor ruling: default false, send on change).
+    function regionTarget() {
+        const picks = root.regionPicks()
+        const target = {
+            locale: picks.locale || root.localeName,
+            keymap: picks.keyboard || root.keyboardLayout,
+            timeZone: picks.timezone || root.timezoneName
+        }
+        if (root.locationTouched)
+            target.privacy = { locationServices: root.locationEnabled }
+        return target
+    }
+    function applyAccount() {
+        if (!root.accountReady || configureProc.running) return
+        if (!root.daemonMode) { root.flowNext(); return }
+        root.runConfigure({
+            hostname: root.hostname,
+            user: {
+                username: root.username,
+                fullname: root.fullname,
+                password: root.userPassword
+            }
+        })
+    }
     // What the user changed: a field whose text is not empty and is not the
     // value the session has now. Applied to the session only on live media.
     function sessionChanges() {
@@ -754,6 +914,11 @@ ApplicationWindow {
     // The region values the installed system gets: the user's changes, on
     // any host. Kept when Continue leaves the step (installRegion).
     property var installRegion: ({})
+    // Location services for the installed system (privacy card). Off until
+    // the user asks; ConfigureTarget takes a privacy object with
+    // locationServices for it, sent only when the toggle was touched.
+    property bool locationEnabled: false
+    property bool locationTouched: false
     function regionPicks() {
         const changes = {}
         const fields = { keyboard: [keyCombo.editText, root.keyboardLayout],
@@ -805,6 +970,7 @@ ApplicationWindow {
     Component.onCompleted: {
         root.catalog = I18n.createCatalog(root, Qt.resolvedUrl("installer.qml"))
         detectProc.running = true
+        eulaProc.running = true
     }
 
     // Readiness stamp — see ../installer/readiness.go.
@@ -861,6 +1027,11 @@ ApplicationWindow {
                     root.liveImage = facts.liveImage || ""
                     root.hasTpm = facts.hasTpm === true
                     root.unmet = facts.unmet || []
+                    root.daemonMode = facts.daemon === true
+                    root.intelRst = facts.intelRst === true
+                    root.handoffMode = facts.handoffMode || "reboot"
+                    root.handoffReason = facts.handoffReason || ""
+                    root.releaseType = facts.releaseType || "stable"
                     if (facts.offlineImages) root.offlineImages = facts.offlineImages
                     if (facts.logPath !== undefined) root.logPath = facts.logPath
                     if (facts.encryptionChoices) root.encryptionChoices = facts.encryptionChoices
@@ -1006,6 +1177,18 @@ ApplicationWindow {
             }
         }
     }
+    // The image's terms of use (`eula` subcommand). No file is not an
+    // answer the page skips on; the page shows only when present is true.
+    Process {
+        id: eulaProc
+        command: [root.backendBin, "eula"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { root.eulaInfo = JSON.parse(text) || ({}) }
+                catch (e) { root.eulaInfo = ({}) }
+            }
+        }
+    }
 
     // Live-session preflight (`session-get`): keyboard, locale, timezone
     // and connectivity. Best-effort reads: what fails stays empty.
@@ -1065,10 +1248,39 @@ ApplicationWindow {
                 if (sent.locale) root.localeName = sent.locale
                 if (sent.timezone) root.timezoneName = sent.timezone
             }
-            root.flowNext()
+            // The installed system gets the same values through
+            // ConfigureTarget (daemon path); otherwise move on.
+            if (root.daemonMode) root.runConfigure(root.regionTarget())
+            else root.flowNext()
         }
     }
 
+    // Storing the session and account picks for the installed system
+    // (`configure-target`). Best effort like `session-set`: an error warns
+    // on the page and the wizard moves on.
+    Process {
+        id: configureProc
+        command: [root.backendBin, "configure-target"]
+        stdinEnabled: true
+        onStarted: {
+            configureProc.write(root.pendingConfigure)
+            root.pendingConfigure = ""
+        }
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let answer = null
+                try { answer = JSON.parse(text) } catch (e) { answer = null }
+                if (!answer || answer.configured !== true) {
+                    root.configureWarning = qsTr("Some settings may not reach the installed system.")
+                }
+            }
+        }
+        onExited: (code, status) => {
+            if (code !== 0 && root.configureWarning === "")
+                root.configureWarning = qsTr("Some settings may not reach the installed system.")
+            root.flowNext()
+        }
+    }
     // Connectivity for the selected image (`netcheck <image>`), after a
     // pause so a walk down the list does not start a check per row.
     Timer {
@@ -1108,6 +1320,61 @@ ApplicationWindow {
     Process {
         id: cancelProc
         command: [root.backendBin, "cancel"]
+    }
+    // The recovery key after a daemon install (`recovery-key`): the node
+    // and the unlock password on stdin, {"key", "qr"} on stdout. An error
+    // keeps the recovery screen on its retry; the key never reaches a log.
+    Process {
+        id: recoveryKeyProc
+        command: [root.backendBin, "recovery-key"]
+        stdinEnabled: true
+        onStarted: {
+            recoveryKeyProc.write(root.pendingRecovery)
+            root.pendingRecovery = ""
+        }
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let answer = null
+                try { answer = JSON.parse(text) } catch (e) { answer = null }
+                if (answer && answer.key) {
+                    root.recoveryKey = answer.key
+                    root.recoveryQr = answer.qr || ({})
+                    root.recoveryKeyError = ""
+                } else {
+                    root.recoveryKeyError = qsTr("The recovery key could not be made. Do not continue without one.")
+                }
+                root.currentPage = root.postInstallPage()
+            }
+        }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (root.recoveryKey === "")
+                    root.recoveryKeyError = qsTr("The recovery key could not be made. Do not continue without one.")
+            }
+        }
+    }
+    // The handoff call after the install (`handoff`, no mode: the daemon
+    // picks migrate, soft-reboot or reboot). The answer decides the page:
+    // Continue quits into a kept session, Restart boots the new system.
+    Process {
+        id: handoffProc
+        command: [root.backendBin, "handoff"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let answer = null
+                try { answer = JSON.parse(text) } catch (e) { answer = null }
+                if (answer && answer.started === true) {
+                    root.handoffKeepsRunning = answer.sessionKeepsRunning === true
+                    root.handoffError = ""
+                } else {
+                    root.handoffError = qsTr("The handoff failed. Restart to boot the installed system, or close and start over.")
+                }
+            }
+        }
+        onExited: (code, status) => {
+            if (code !== 0 && root.handoffError === "")
+                root.handoffError = qsTr("The handoff failed. Restart to boot the installed system, or close and start over.")
+        }
     }
 
     // Power actions on the host (dialog_poweroff parity): systemctl
@@ -1258,12 +1525,27 @@ ApplicationWindow {
         root.cancelRequested = false
         root.installCancelled = false
         root.cancelOpen = false
+        root.recoveryKey = ""
+        root.recoveryQr = ({})
+        root.recoveryAck = false
+        root.recoveryKeyError = ""
+        root.qrOpen = false
+        root.handoffStarted = false
+        root.handoffKeepsRunning = false
+        root.handoffError = ""
+        root.locationTouched = false
         currentPage = 7
         installProc.command = [root.backendBin, "install"]
         // Bound to the disk that the plan on the confirm page showed:
         // fisherman refuses the install if another device is now at that
         // path (disk_identity_mismatch). No plan of this visit: unbound.
-        root.pendingRecipe = JSON.stringify(PlanJs.bind(root.buildRecipe(), root.planView))
+        const bound = PlanJs.bind(root.buildRecipe(), root.planView)
+        // The wipe page's choice travels beside the recipe, never in it:
+        // the shared recipe schema is exact, and the legacy backend would
+        // choke on the extra key. The daemon reads the envelope.
+        root.pendingRecipe = root.daemonMode
+            ? JSON.stringify({ recipe: bound, installMode: root.installMode })
+            : JSON.stringify(bound)
         installProc.running = true
         // The recipe is fed over stdin on Process.started — never argv, so
         // the LUKS passphrase does not leak via /proc/PID/cmdline. See
@@ -1274,14 +1556,17 @@ ApplicationWindow {
     // move on and run nothing. Otherwise `session-set` gets the changed
     // fields on stdin, and its exit moves on.
     function applySession() {
-        if (sessionSetProc.running)
+        if (sessionSetProc.running || configureProc.running)
             return
         root.installRegion = root.regionPicks()
         root.checkFields()
         const changes = root.sessionChanges()
         if (Object.keys(changes).length === 0) {
             root.sessionFailed = false
-            root.flowNext()
+            // Nothing to apply to the session, but the installed system
+            // still gets the effective values (daemon path).
+            if (root.daemonMode) root.runConfigure(root.regionTarget())
+            else root.flowNext()
             return
         }
         root.sentSession = changes
@@ -1409,12 +1694,22 @@ ApplicationWindow {
         case 2: chooseAndNext(); break
         case 3: if (selectedDisk.path !== undefined) flowNext(); break
         case 4: encryptionPage.next(); break
-        case 5: if (root.accountReady) flowNext(); break
+        case 5: root.applyAccount(); break
         case 6: if (root.canInstall) startInstall(); break
+        case 9: flowNext(); break
+        case 10: flowNext(); break
+        case 11: flowNext(); break
+        case 12: if (root.eulaAccepted) flowNext(); break
+        case 13: if (root.recoveryKey !== "" && root.recoveryAck) flowNext(); break
+        case 14: if (root.handoffKeepsRunning && root.handoffError === "") Qt.quit(); break
         }
     }
     function back() {
-        if (currentPage >= 1 && currentPage <= 6) flowBack()
+        // The install, recovery, handoff and done pages have their own way
+        // out; every other page steps back through the flow, skipping the
+        // screens that have nothing to show.
+        if (root.flowPos > 0 && root.currentPage !== 7 && root.currentPage !== 8
+            && root.currentPage !== 13 && root.currentPage !== 14) flowBack()
     }
     Shortcut {
         sequence: "Return"
@@ -1537,11 +1832,35 @@ ApplicationWindow {
                     // the gate dialog below covers this page until each
                     // unmet requirement is accepted or the host powers
                     // off. No inline warning — a warning is not a gate.
+                    // try-or-install: on live media the wizard offers Try
+                    // (quit into the live session) and Install now; off live
+                    // media there is nothing to try, and one button continues.
+                    RowLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.topMargin: Theme.spacingS
+                        spacing: Theme.spacingM
+                        visible: root.isLive
+                        DankButton {
+                            objectName: "tryButton"
+                            //: Try the live system without installing
+                            text: qsTr("Try %1").arg(root.productName)
+                            tonal: true
+                            onClicked: Qt.quit()
+                        }
+                        DankButton {
+                            objectName: "installNowButton"
+                            //: Start the install from the live system
+                            text: qsTr("Install now")
+                            buttonHeight: Theme.buttonHeightM
+                            onClicked: root.advance()
+                        }
+                    }
                     DankButton {
                         text: root.text("welcome_button")
                         buttonHeight: Theme.buttonHeightM
                         Layout.alignment: Qt.AlignHCenter
                         Layout.topMargin: Theme.spacingS
+                        visible: !root.isLive
                         onClicked: root.advance()
                     }
                 }
@@ -1653,6 +1972,35 @@ ApplicationWindow {
                         }
                     }
                 }
+                // Privacy: location services for the installed system. The
+                // toggle travels with the region in ConfigureTarget; the
+                // installer itself reports nothing anywhere.
+                DankCard {
+                    Layout.fillWidth: true
+                    title: qsTr("Privacy")
+                    Column {
+                        width: parent.width
+                        spacing: Theme.spacingS
+                        DankListItem {
+                            objectName: "privacyLocationRow"
+                            width: parent.width
+                            firstInGroup: true
+                            lastInGroup: true
+                            primaryText: qsTr("Location services")
+                            secondaryText: qsTr("Let the installed system detect its location for the time zone.")
+                            isSelected: root.locationEnabled
+                            onClicked: { root.locationEnabled = !root.locationEnabled; root.locationTouched = true }
+                        }
+                        StyledText {
+                            text: qsTr("This installer sends nothing anywhere. It only dials the image registry to test a download.")
+                            color: Theme.surfaceVariantText
+                            font.pixelSize: Theme.fontSizeSmall
+                            wrapMode: Text.Wrap
+                            width: parent.width
+                        }
+                    }
+                }
+
 
                 // A setting that could not be applied: a warning, and the
                 // wizard has already moved on. Shown here for a user who
@@ -1660,6 +2008,15 @@ ApplicationWindow {
                 StyledText {
                     objectName: "sessionWarning"
                     text: root.sessionWarning
+                    color: Theme.warning
+                    visible: text !== ""
+                    font.pixelSize: Theme.fontSizeSmall
+                    wrapMode: Text.Wrap
+                    Layout.fillWidth: true
+                }
+                StyledText {
+                    objectName: "configureWarning"
+                    text: root.configureWarning
                     color: Theme.warning
                     visible: text !== ""
                     font.pixelSize: Theme.fontSizeSmall
@@ -1676,7 +2033,7 @@ ApplicationWindow {
                     DankButton {
                         objectName: "sessionNextButton"
                         text: qsTr("Continue")
-                        enabled: !sessionSetProc.running
+                        enabled: !sessionSetProc.running && !configureProc.running
                         onClicked: root.applySession()
                     }
                 }
@@ -2161,8 +2518,17 @@ ApplicationWindow {
                     }
                 }
 
-                Item { Layout.fillHeight: true }
+                StyledText {
+                    objectName: "accountConfigureWarning"
+                    text: root.configureWarning
+                    color: Theme.warning
+                    visible: text !== ""
+                    font.pixelSize: Theme.fontSizeSmall
+                    wrapMode: Text.Wrap
+                    Layout.fillWidth: true
+                }
 
+                Item { Layout.fillHeight: true }
                 RowLayout {
                     Layout.fillWidth: true
                     DankButton { text: qsTr("Back"); tonal: true; onClicked: root.back() }
@@ -2170,7 +2536,7 @@ ApplicationWindow {
                     DankButton {
                         objectName: "accountNextButton"
                         text: qsTr("Continue")
-                        enabled: root.accountReady
+                        enabled: root.accountReady && !configureProc.running
                         onClicked: root.advance()
                     }
                 }
@@ -2661,6 +3027,304 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         onLinkActivated: link => Qt.openUrlExternally(link)
                     }
+                    // Tour (views/tour.py parity): the leaf's carousel, if it
+                    // ships one. A panel would strand the slides after the
+                    // window closes; the overlay keeps Close one tap away.
+                    // The phone companion stays GNOME-only (see below).
+                    DankButton {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: qsTr("Take a tour")
+                        tonal: true
+                        visible: root.installSuccess && root.tourSlides.length > 0
+                        onClicked: { root.tourIndex = 0; root.tourOpen = true }
+                    }
+                    RowLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        spacing: Theme.spacingM
+                        DankButton { text: qsTr("Close"); tonal: true; onClicked: Qt.quit() }
+                        DankButton {
+                            text: qsTr("Power off")
+                            tonal: true
+                            visible: root.installSuccess
+                            onClicked: root.powerOpen = true
+                        }
+                        DankButton {
+                            objectName: "doneRestartButton"
+                            text: root.text("done_restart")
+                            visible: root.installSuccess
+                            // Held until the key is acknowledged.
+                            enabled: !root.recoveryKeyPending
+                            onClicked: rebootProc.running = true
+                        }
+                    }
+                }
+            }
+            // Page 9: Intel RST — a disk is missing because the firmware
+            // hides it. Warns and continues to the disk list; it never
+            // blocks (gnome-setup parity).
+            Item {
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width, 520)
+                    spacing: Theme.spacingL
+                    StyledText {
+                        objectName: "rstTitle"
+                        text: qsTr("Intel RST is on")
+                        font.pixelSize: Theme.fontSizeXLarge
+                        font.weight: Theme.fontWeightMedium
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    DankCard {
+                        Layout.fillWidth: true
+                        //: Firmware setting that hides disks from the installer
+                        title: qsTr("Some disks may be missing")
+                        StyledText {
+                            width: parent.width
+                            //: Intel RST explanation on the RST page
+                            text: qsTr("This computer uses Intel RST (RAID or VMD mode), which hides NVMe disks from the installer. Switch the storage mode to AHCI in the firmware settings to see every disk. You can also continue with the disks listed.")
+                            color: Theme.surfaceVariantText
+                            wrapMode: Text.WordWrap
+                        }
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.spacingM
+                        DankButton {
+                            objectName: "rstPowerButton"
+                            text: qsTr("Power off")
+                            tonal: true
+                            onClicked: poweroffProc.running = true
+                        }
+                        DankButton {
+                            objectName: "rstFirmwareButton"
+                            text: qsTr("Firmware setup")
+                            tonal: true
+                            onClicked: firmwareProc.running = true
+                        }
+                        Item { Layout.fillWidth: true }
+                        DankButton {
+                            objectName: "rstContinueButton"
+                            text: qsTr("Continue")
+                            onClicked: root.flowNext()
+                        }
+                    }
+                }
+            }
+            // Page 10: wipe-or-free — the chosen disk already holds data.
+            // Free space fits the install: choose. Too tight: only the
+            // whole disk, behind a three second countdown.
+            Item {
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width, 520)
+                    spacing: Theme.spacingM
+                    StyledText {
+                        objectName: "wipeTitle"
+                        text: qsTr("Existing data found")
+                        font.pixelSize: Theme.fontSizeXLarge
+                        font.weight: Theme.fontWeightMedium
+                    }
+                    StyledText {
+                        objectName: "wipeBody"
+                        text: root.wipeTight
+                            ? qsTr("%1 holds data and its free space is below what the install needs. Using the entire disk erases everything on it.").arg(root.selectedDisk.path || "")
+                            : qsTr("%1 holds data with room to spare. Install into the free space, or use the entire disk and erase everything on it.").arg(root.selectedDisk.path || "")
+                        color: Theme.surfaceVariantText
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.groupedListGap
+                        DankListItem {
+                            objectName: "wipeFreeRow"
+                            Layout.fillWidth: true
+                            firstInGroup: true
+                            lastInGroup: false
+                            primaryText: qsTr("Install to Free Space")
+                            secondaryText: qsTr("Keeps the data on the disk.")
+                            enabled: !root.wipeTight
+                            isSelected: root.installMode === "free_space"
+                            onClicked: root.installMode = "free_space"
+                        }
+                        DankListItem {
+                            objectName: "wipeEraseRow"
+                            Layout.fillWidth: true
+                            firstInGroup: false
+                            lastInGroup: true
+                            primaryText: qsTr("Use Entire Disk")
+                            secondaryText: qsTr("Erases everything on the disk.")
+                            isSelected: root.installMode === "erase"
+                            onClicked: root.installMode = "erase"
+                        }
+                    }
+                    Timer {
+                        id: wipeTimer
+                        interval: 1000
+                        repeat: true
+                        running: root.currentPage === 10 && root.wipeTight && root.wipeCountdown > 0
+                        onTriggered: root.wipeCountdown--
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        DankButton { text: qsTr("Back"); tonal: true; onClicked: root.back() }
+                        Item { Layout.fillWidth: true }
+                        DankButton {
+                            objectName: "wipeContinueButton"
+                            text: root.wipeTight && root.wipeCountdown > 0
+                                ? qsTr("Erase and Install (%1)").arg(root.wipeCountdown)
+                                : qsTr("Continue")
+                            enabled: root.installMode === "free_space" || root.wipeCountdown <= 0
+                            onClicked: root.flowNext()
+                        }
+                    }
+                }
+            }
+            // Page 11: prerelease — os-release calls this build a
+            // pre-release or an experiment. Information only.
+            Item {
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width, 520)
+                    spacing: Theme.spacingL
+                    StyledText {
+                        objectName: "prereleaseTitle"
+                        text: qsTr("Disclaimer")
+                        font.pixelSize: Theme.fontSizeXLarge
+                        font.weight: Theme.fontWeightMedium
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    DankCard {
+                        Layout.fillWidth: true
+                        title: qsTr("Before you install")
+                        StyledText {
+                            width: parent.width
+                            text: root.releaseType === "experiment" && root.experimentText !== ""
+                                ? qsTr("This image is an experiment: %1. It can break, and it can lose data.").arg(root.experimentText)
+                                : qsTr("This image is a pre-release. It can break, and it can lose data.")
+                            color: Theme.surfaceVariantText
+                            wrapMode: Text.WordWrap
+                        }
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        DankButton { text: qsTr("Back"); tonal: true; onClicked: root.back() }
+                        Item { Layout.fillWidth: true }
+                        DankButton {
+                            objectName: "prereleaseContinueButton"
+                            text: qsTr("Continue")
+                            onClicked: root.flowNext()
+                        }
+                    }
+                }
+            }
+            // Page 12: eula — the image's terms of use. Continue stays off
+            // until the box is ticked; an unreadable file ends in power off.
+            Item {
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width, 520)
+                    spacing: Theme.spacingM
+                    StyledText {
+                        objectName: "eulaTitle"
+                        text: qsTr("Terms of use")
+                        font.pixelSize: Theme.fontSizeXLarge
+                        font.weight: Theme.fontWeightMedium
+                    }
+                    DankCard {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        title: qsTr("License agreement")
+                        Flickable {
+                            width: parent.width
+                            height: Math.min(320, parent.height)
+                            clip: true
+                            contentWidth: width
+                            contentHeight: eulaText.implicitHeight
+                            boundsBehavior: Flickable.StopAtBounds
+                            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                            StyledText {
+                                id: eulaText
+                                objectName: "eulaText"
+                                width: parent.width
+                                text: root.eulaInfo.unreadable === true
+                                    ? qsTr("The terms of use could not be loaded.")
+                                    : (root.eulaInfo.text || "")
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                    }
+                    DankButton {
+                        objectName: "eulaAckButton"
+                        text: (root.eulaAccepted ? "\u2713  " : "")
+                            + qsTr("I have read and accept the Terms of Use")
+                        tonal: !root.eulaAccepted
+                        checkable: true
+                        checked: root.eulaAccepted
+                        visible: root.eulaInfo.unreadable !== true
+                        onToggled: root.eulaAccepted = checked
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        DankButton {
+                            objectName: "eulaPowerButton"
+                            text: qsTr("Power off")
+                            tonal: true
+                            visible: root.eulaInfo.unreadable === true
+                            onClicked: poweroffProc.running = true
+                        }
+                        DankButton {
+                            text: qsTr("Back")
+                            tonal: true
+                            visible: root.eulaInfo.unreadable !== true
+                            onClicked: root.back()
+                        }
+                        Item { Layout.fillWidth: true }
+                        DankButton {
+                            objectName: "eulaContinueButton"
+                            text: qsTr("Continue")
+                            visible: root.eulaInfo.unreadable !== true
+                            enabled: root.eulaAccepted
+                            onClicked: root.flowNext()
+                        }
+                    }
+                }
+            }
+            // Page 13: recovery-key — the disk is encrypted, so the wizard
+            // shows the key on its own screen and holds Continue until the
+            // user ticks the acknowledgement. A QR button opens the code
+            // dialog; a failed fetch offers a retry instead of a key.
+            Item {
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width, 520)
+                    spacing: Theme.spacingM
+                    StyledText {
+                        objectName: "recoveryTitle"
+                        text: qsTr("Back Up Recovery Key")
+                        font.pixelSize: Theme.fontSizeXLarge
+                        font.weight: Theme.fontWeightMedium
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    StyledText {
+                        objectName: "recoveryError"
+                        text: root.recoveryKeyError
+                        color: Theme.error
+                        visible: text !== ""
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    DankButton {
+                        objectName: "recoveryRetryButton"
+                        text: qsTr("Retry")
+                        Layout.alignment: Qt.AlignHCenter
+                        visible: root.recoveryKey === "" && !recoveryKeyProc.running
+                        onClicked: root.startRecoveryFetch()
+                    }
                     // Recovery key (#129). A panel rather than a dialog, as
                     // on the other frontends: a dialog is dismissed and then
                     // the key is gone, while this stays on screen for as long
@@ -2721,34 +3385,88 @@ ApplicationWindow {
                             }
                         }
                     }
-                    // Tour (views/tour.py parity): the leaf's carousel, if it
-                    // ships one. A panel would strand the slides after the
-                    // window closes; the overlay keeps Close one tap away.
-                    // The phone companion stays GNOME-only (see below).
                     DankButton {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: qsTr("Take a tour")
+                        objectName: "recoveryQrButton"
+                        text: qsTr("Show QR Code for Recovery Key")
                         tonal: true
-                        visible: root.installSuccess && root.tourSlides.length > 0
-                        onClicked: { root.tourIndex = 0; root.tourOpen = true }
+                        Layout.alignment: Qt.AlignHCenter
+                        visible: root.recoveryQrSize > 0
+                        onClicked: root.qrOpen = true
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Item { Layout.fillWidth: true }
+                        DankButton {
+                            objectName: "recoveryContinueButton"
+                            text: qsTr("Continue")
+                            enabled: root.recoveryKey !== "" && root.recoveryAck
+                            onClicked: root.flowNext()
+                        }
+                    }
+                }
+            }
+            // Page 14: handoff — the install is done, and the daemon hands
+            // the new system over. The call runs once on entry, with no
+            // mode: the daemon picks migrate, soft-reboot or reboot. When
+            // the session keeps running, Continue quits into it; otherwise
+            // Restart boots the new system and Not now drops to done.
+            Item {
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width, 520)
+                    spacing: Theme.spacingL
+                    StyledText {
+                        objectName: "handoffTitle"
+                        text: root.handoffError !== "" ? qsTr("Handoff failed")
+                            : root.handoffKeepsRunning ? qsTr("Welcome to your new system")
+                            : qsTr("Install finished")
+                        font.pixelSize: Theme.fontSizeXLarge
+                        font.weight: Theme.fontWeightMedium
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    StyledText {
+                        objectName: "handoffBody"
+                        text: root.handoffError !== "" ? root.handoffError
+                            : !root.handoffStarted ? qsTr("Handing the installed system over…")
+                            : root.handoffMode === "migrate"
+                            ? qsTr("The live session has become the installed system. Data from this session carries over.")
+                            : root.handoffMode === "soft_reboot"
+                            ? qsTr("Restart now to boot into the installed copy. Data from this session does not carry over.")
+                            : qsTr("Restart now to boot into the installed system.")
+                        color: root.handoffError !== "" ? Theme.error : Theme.surfaceVariantText
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
                     }
                     RowLayout {
                         Layout.alignment: Qt.AlignHCenter
                         spacing: Theme.spacingM
-                        DankButton { text: qsTr("Close"); tonal: true; onClicked: Qt.quit() }
                         DankButton {
-                            text: qsTr("Power off")
+                            objectName: "handoffRetryButton"
+                            text: qsTr("Retry")
                             tonal: true
-                            visible: root.installSuccess
-                            onClicked: root.powerOpen = true
+                            visible: root.handoffError !== ""
+                            onClicked: root.startHandoff()
                         }
                         DankButton {
-                            objectName: "doneRestartButton"
-                            text: root.text("done_restart")
-                            visible: root.installSuccess
-                            // Held until the key is acknowledged.
-                            enabled: !root.recoveryKeyPending
+                            objectName: "handoffRebootButton"
+                            text: qsTr("Restart")
+                            visible: root.handoffError !== "" || (root.handoffStarted && !root.handoffKeepsRunning)
                             onClicked: rebootProc.running = true
+                        }
+                        DankButton {
+                            objectName: "handoffNotNowButton"
+                            text: qsTr("Not now")
+                            tonal: true
+                            visible: root.handoffError !== "" || (root.handoffStarted && !root.handoffKeepsRunning)
+                            onClicked: { root.currentPage = 8 }
+                        }
+                        DankButton {
+                            objectName: "handoffContinueButton"
+                            text: qsTr("Continue")
+                            visible: root.handoffError === "" && root.handoffStarted && root.handoffKeepsRunning
+                            onClicked: Qt.quit()
                         }
                     }
                 }
@@ -2759,7 +3477,7 @@ ApplicationWindow {
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.spacingL
-            visible: root.currentPage <= 6
+            visible: root.currentPage !== 7 && root.currentPage !== 8
             Repeater {
                 model: [
                     { key: "Enter", shown: qsTr("Enter"), what: root.currentPage === 6 ? root.text("confirm_button") : qsTr("Continue") },
@@ -3015,6 +3733,53 @@ ApplicationWindow {
                     text: qsTr("Close")
                     tonal: true
                     onClicked: root.tourOpen = false
+                }
+            }
+        }
+    }
+    // The recovery key as a QR code, for a phone camera. The grid comes
+    // from the backend's `recovery-key` answer; the quiet zone is part of
+    // it, and the white card adds the rest of the margin.
+    Rectangle {
+        objectName: "recoveryQrOverlay"
+        anchors.fill: parent
+        visible: root.qrOpen && root.recoveryQrSize > 0
+        color: Theme.withAlpha(Theme.surface, 0.85)
+        z: 14
+        MouseArea { anchors.fill: parent; onClicked: root.qrOpen = false }
+        DankCard {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - Theme.spacingXL * 2, 420)
+            title: qsTr("Recovery Key QR Code")
+            Column {
+                width: parent.width
+                spacing: Theme.spacingM
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: Math.min(320, parent.width)
+                    height: width
+                    color: "white"
+                    Grid {
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        columns: root.recoveryQrSize
+                        Repeater {
+                            model: root.recoveryQr.cells || []
+                            Rectangle {
+                                required property int modelData
+                                required property int index
+                                width: parent.width / root.recoveryQrSize
+                                height: width
+                                color: modelData === 1 ? "black" : "white"
+                            }
+                        }
+                    }
+                }
+                DankButton {
+                    objectName: "recoveryQrDoneButton"
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: qsTr("Done")
+                    onClicked: root.qrOpen = false
                 }
             }
         }

@@ -97,7 +97,18 @@ QtObject {
         "discover-disks": JSON.stringify([
             { path: "/dev/nvme0n1", title: "WD_BLACK SN850X 1000GB", model: "WD_BLACK SN850X 1000GB",
               size_label: "953.9 GiB", transport_label: "NVMe", removable: false }
-        ])
+        ]),
+        // `eula`: no terms file on the capture product, so the page is
+        // skipped unless the frame sets eulaInfo itself.
+        "eula": JSON.stringify({ present: false }),
+        // `configure-target`: the daemon stores the picks.
+        "configure-target": JSON.stringify({ configured: true, errors: [] }),
+        // `recovery-key`: the key of shared/walkthrough/capture_fixtures.py.
+        // The harness sets the QR grid itself (qr_grid), as reading real
+        // cells exercises the dialog better than a canned matrix.
+        "recovery-key": JSON.stringify({ key: "mkta-rdcw-nnhu-fnbx-kwnv-oixz-ahhh-uahf" }),
+        // `handoff`: the daemon takes the session with it.
+        "handoff": JSON.stringify({ mode: "migrate", started: true, sessionKeepsRunning: true })
     })
 
     onRunningChanged: {

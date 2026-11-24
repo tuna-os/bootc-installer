@@ -268,8 +268,14 @@ std::string niriShow(const std::string &wanted)
         QMetaObject::invokeMethod(root, "selectLeaf", Q_ARG(QVariant, QVariant(leaf)));
         settleMs = 1000;   // the check's pause, then the stub's answer
     }
-    if (name == QLatin1String("10-recovery"))
+    if (name == QLatin1String("10-recovery")) {
         appendLog(root, QString::fromLatin1(kRecoveryEvent));
+        // The key lives on its own screen (page 13), reached the way a
+        // finished install reaches it; as in capture-screens.py.
+        root->setProperty("installSuccess", true);
+        root->setProperty("encType", QStringLiteral("tpm2-luks"));
+        root->setProperty("currentPage", 13);
+    }
     if (name == QLatin1String("11-tour")) {
         // The tour overlay reads the selected leaf's carousel slides, as the
         // capture harness's BETA leaf does.
