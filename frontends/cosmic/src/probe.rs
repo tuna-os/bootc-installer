@@ -40,9 +40,44 @@ pub struct Facts {
     /// are fisherman's: a recipe that leaves additionalImageStores out gets
     /// them.
     pub offline_images: Vec<String>,
+    /// Intel RST/VMD remaps the NVMe disk (`intelRst.detected`). The legacy
+    /// probe reports no such fact: always false on that path, so the RST
+    /// page is daemon-only.
+    pub intel_rst: bool,
+    /// One entry per disk in [`Facts::disks`], same order: whether the disk
+    /// holds data and how much free space it has. The wipe-or-free page
+    /// reads this. Empty on the legacy path.
+    pub disk_data: Vec<DiskData>,
+    /// The daemon's handoff mode (`handoff.mode`: migrate, soft-reboot or
+    /// reboot). A missing field means reboot (ruling on #442). The handoff
+    /// page reads this; the install calls `Handoff` with no mode.
+    pub handoff_mode: String,
+    /// Why the daemon chose that mode (`handoff.reason`).
+    pub handoff_reason: String,
     /// The probe's own output, for the objects that this struct does not
     /// hold (`bootc_store`, which offers the install source of #267).
     pub raw: String,
+}
+
+/// What the wipe-or-free page needs about one eligible disk.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct DiskData {
+    /// The disk holds a partition table, an OS, or LUKS.
+    pub has_data: bool,
+    /// Bytes still free on the disk.
+    pub free_bytes: u64,
+    /// Bytes the install needs at minimum.
+    pub minimal_bytes: u64,
+}
+
+impl DiskData {
+    /// screens.yaml `data-detected`: the disk holds data and keeps enough
+    /// free space for a free-space install. Then the wipe-or-free page
+    /// offers the choice; without free space the confirm asks for a
+    /// forced erase instead.
+    pub fn data_detected(&self) -> bool {
+        self.has_data && self.free_bytes >= self.minimal_bytes
+    }
 }
 
 /// Parses probe output.
@@ -113,6 +148,13 @@ pub fn parse(json: &str) -> Result<Facts, String> {
         is_live,
         live_image,
         offline_images,
+        // The legacy probe reports neither: the RST page stays skipped, the
+        // wipe page has no data to show, and the handoff falls back to a
+        // reboot on this path.
+        intel_rst: false,
+        disk_data: Vec::new(),
+        handoff_mode: "reboot".to_string(),
+        handoff_reason: String::new(),
         raw: json.to_string(),
     })
 }
@@ -287,5 +329,17 @@ mod tests {
         let argv = fisherman(Use::Probe, false).unwrap();
         assert_eq!(argv[1..], ["probe", "--json"]);
         assert!(!argv.iter().any(|a| a == "pkexec" || a == "sudo"));
+    }
+
+    #[test]
+    fn data_detected_needs_data_and_room() {
+        let data = DiskData { has_data: true, free_bytes: 200, minimal_bytes: 100 };
+        assert!(data.data_detected());
+        // Data but no room: the confirm asks for a forced erase instead.
+        let tight = DiskData { has_data: true, free_bytes: 50, minimal_bytes: 100 };
+        assert!(!tight.data_detected());
+        // A fresh disk goes straight to confirm.
+        let fresh = DiskData::default();
+        assert!(!fresh.data_detected());
     }
 }

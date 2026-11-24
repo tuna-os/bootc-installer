@@ -36,6 +36,7 @@ tracing-subscriber = "0.3"
 png = "0.18"
 tempfile = "3"
 sha2 = "0.11"
+qrcode = { version = "0.14.1", default-features = false }
 
 [features]
 # The installer that ships. The Flatpak and every native build use the

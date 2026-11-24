@@ -38,6 +38,9 @@ pub mod copy {
         "Welcome. This assistant will guide you through installing {product} onto this computer.";
     pub const WELCOME_CAPTION: &str = "You will choose a target disk and a few options, and create \
          your account. Nothing is written to any disk until you confirm on the last step.";
+    /// The live-session choice (screens.yaml `try-or-install`): quits the
+    /// wizard, the session keeps running. `{product}` fills in the view.
+    pub const TRY_SYSTEM: &str = "Try {product}";
 
     pub const DISK_TITLE: &str = "Select a disk";
     pub const DISK_SUBTITLE: &str = "Everything on the disk you pick will be erased.";
@@ -53,6 +56,7 @@ pub mod copy {
     pub const OPTIONS_FILESYSTEM: &str = "Filesystem";
     pub const OPTIONS_ENCRYPTION: &str = "Encryption";
     pub const OPTIONS_DISK_ENCRYPTION: &str = "Disk encryption";
+    pub const ENCRYPTION_SUBTITLE: &str = "Choose how the disk is locked.";
     pub const OPTIONS_PASSPHRASE: &str = "Passphrase";
     pub const OPTIONS_PASSPHRASE_HINT: &str = "Required to unlock at boot";
     pub const OPTIONS_PASSPHRASE_CONFIRM: &str = "Confirm passphrase";
@@ -164,12 +168,54 @@ pub mod copy {
     pub const NETWORK_TITLE: &str = "Network";
     pub const NETWORK_SUBTITLE: &str = "The installer needs the network to fetch images.";
     pub const NETWORK_CHECKING: &str = "Checking the connection\u{2026}";
+    // Intel RST (screens.yaml `rst`): warns and continues, never blocks.
+    // Next still goes to the disk list, which misses the hidden disk.
+    pub const RST_TITLE: &str = "Intel RST";
+    pub const RST_SUBTITLE: &str = "A disk may be missing from the list.";
+    pub const RST_BODY: &str = "This computer uses Intel RST (RAID mode). Linux cannot see \
+        the solid-state disk until the firmware setting changes from RAID to AHCI. \
+        Continue to the disk list, or power off and change the setting first.";
     pub const NETWORK_ONLINE: &str = "Connected.";
+    // Existing data (screens.yaml `wipe-or-free`): free space is the
+    // default, whole-disk erase is the destructive choice.
+    pub const WIPE_TITLE: &str = "Existing data found";
+    pub const WIPE_SUBTITLE: &str = "This disk already holds data.";
+    pub const WIPE_FREE_SPACE: &str = "Install to Free Space";
+    pub const WIPE_FREE_SPACE_HINT: &str = "Keeps what is there and uses the free space.";
+    pub const WIPE_ERASE: &str = "Use Entire Disk";
+    pub const WIPE_ERASE_HINT: &str = "Erases everything on this disk.";
     pub const NETWORK_OFFLINE: &str =
         "No internet connection. The installer requires an active internet connection.";
     pub const NETWORK_RECHECK: &str = "Recheck";
     // Opens the desktop's own tool on the host (#301).
     pub const NETWORK_SETTINGS: &str = "Network settings";
+    // Pre-release disclaimer (screens.yaml `prerelease`): never a gate.
+    pub const PRERELEASE_TITLE: &str = "Disclaimer";
+    pub const PRERELEASE_SUBTITLE: &str = "This image is not a final release.";
+    pub const PRERELEASE_BODY: &str = "Do not use it for important data.";
+    // Terms of use (screens.yaml `eula`): the accept box gates Next.
+    pub const EULA_TITLE: &str = "Terms of use";
+    pub const EULA_SUBTITLE: &str = "Read and accept the terms to continue.";
+    pub const EULA_ACCEPT: &str = "I have read and accept the Terms of Use";
+    pub const EULA_UNREADABLE: &str = "The terms cannot load.";
+    // Back up the recovery key (screens.yaml `recovery-key`): its own
+    // screen with a QR code. Done enrols the key, then leaves the page.
+    pub const RECOVERY_TITLE: &str = "Recovery key";
+    pub const RECOVERY_SUBTITLE: &str = "Write it down now. The installer will not show it again.";
+    pub const RECOVERY_QR_BUTTON: &str = "Show QR Code for Recovery Key";
+    pub const RECOVERY_DONE: &str = "Done";
+    pub const RECOVERY_LOADING: &str = "Loading the recovery key…";
+    // Hand the system over (screens.yaml `handoff`): what carries over
+    // depends on the mode the daemon reported. Continue hands over; Not
+    // now leaves it for the done page's Restart.
+    pub const HANDOFF_TITLE: &str = "Handoff";
+    pub const HANDOFF_MIGRATE: &str = "This session becomes your installed system. Your files stay as they are. Nothing restarts.";
+    pub const HANDOFF_SOFT_REBOOT: &str = "The system restarts into the installed copy without a full reboot. This session ends: save your work first.";
+    pub const HANDOFF_REBOOT: &str = "The computer restarts into the installed system.";
+    pub const HANDOFF_CONTINUE: &str = "Continue";
+    pub const HANDOFF_NOT_NOW: &str = "Not now";
+    pub const HANDOFF_FAILED: &str = "The handoff failed.";
+    pub const HANDOFF_CLOSE: &str = "Close";
 
     // Tour carousel (views/tour.py).
     pub const TOUR_TITLE: &str = "Tour";
@@ -218,6 +264,47 @@ fn encryption_text(enc_type: &str, suffix: &str) -> String {
 
 fn with_product(s: &str) -> String {
     s.replace("{product}", branding::name())
+}
+
+/// The recovery key as QR pixels: `(width, height, RGBA)`, or `None` when
+/// the key does not encode. Pure, so tests pin it; the update loop renders
+/// the handle once per key arrival, never per frame.
+pub fn qr_rgba(key: &str) -> Option<(u32, u32, Vec<u8>)> {
+    use qrcode::{Color, QrCode};
+    if key.is_empty() {
+        return None;
+    }
+    let code = QrCode::new(key.as_bytes()).ok()?;
+    let modules = code.width();
+    if modules == 0 {
+        return None;
+    }
+    // A quiet zone the scanners need, then ~320 px across: scannable
+    // without dominating the dialog.
+    const QUIET: usize = 4;
+    let side = modules + QUIET * 2;
+    let scale = (320 / side).max(2);
+    let px = side * scale;
+    let mut rgba = Vec::with_capacity(px * px * 4);
+    for oy in 0..px {
+        let my = oy / scale;
+        for ox in 0..px {
+            let mx = ox / scale;
+            let dark = mx >= QUIET
+                && mx < QUIET + modules
+                && my >= QUIET
+                && my < QUIET + modules
+                && code[(mx - QUIET, my - QUIET)] == Color::Dark;
+            let v = if dark { 0 } else { 255 };
+            rgba.extend_from_slice(&[v, v, v, 255]);
+        }
+    }
+    Some((px as u32, px as u32, rgba))
+}
+
+/// The recovery key as a QR image for the dialog.
+pub fn qr_handle(key: &str) -> Option<cosmic::widget::image::Handle> {
+    qr_rgba(key).map(|(w, h, rgba)| cosmic::widget::image::Handle::from_rgba(w, h, rgba))
 }
 
 /// The strings the current page shows, in reading order.
@@ -273,7 +360,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             }
             t
         }
-        Page::Welcome => {
+        Page::TryOrInstall => {
             let mut t = vec![t_line("welcome_title"), with_product(&tr(WELCOME_BODY))];
             let sub = t_line("welcome_subtitle");
             if !sub.is_empty() {
@@ -282,6 +369,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             t.push(tr(WELCOME_CAPTION));
             t.extend(crate::probe::requirements_lines(app.unmet()));
             t.push(t_line("welcome_button"));
+            t.push(with_product(&tr(TRY_SYSTEM)));
             t
         }
         Page::DiskSelect => {
@@ -382,25 +470,84 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             }
             t
         }
+        Page::Prerelease => {
+            let facts = crate::branding::release_facts();
+            let mut t = vec![tr(PRERELEASE_TITLE), tr(PRERELEASE_SUBTITLE), tr(PRERELEASE_BODY)];
+            if !facts.1.is_empty() {
+                t.push(facts.1.clone());
+            }
+            t.push(tr(BACK));
+            t.push(tr(CONTINUE));
+            t
+        }
+        Page::Eula => {
+            let mut t = vec![tr(EULA_TITLE), tr(EULA_SUBTITLE)];
+            if app.eula_error() {
+                t.push(tr(EULA_UNREADABLE));
+                t.push(tr(REQUIREMENTS_POWER_OFF));
+            } else {
+                t.extend(app.eula_text().unwrap_or_default().lines().map(str::to_string));
+                t.push(tr(EULA_ACCEPT));
+            }
+            t.push(tr(BACK));
+            if !app.eula_error() && app.eula_accepted() {
+                t.push(tr(CONTINUE));
+            }
+            t
+        }
+        Page::Rst => {
+            vec![
+                tr(RST_TITLE),
+                tr(RST_SUBTITLE),
+                tr(RST_BODY),
+                tr(REQUIREMENTS_POWER_OFF),
+                tr(REQUIREMENTS_FIRMWARE),
+                tr(BACK),
+                tr(CONTINUE),
+            ]
+        }
+        Page::WipeOrFree => {
+            vec![
+                tr(WIPE_TITLE),
+                tr(WIPE_SUBTITLE),
+                tr(WIPE_FREE_SPACE),
+                tr(WIPE_FREE_SPACE_HINT),
+                tr(WIPE_ERASE),
+                tr(WIPE_ERASE_HINT),
+                tr(BACK),
+                tr(CONTINUE),
+            ]
+        }
         Page::Options => {
-            let choices = available_encryption_choices(app.has_tpm());
-            let current = choices.iter().find(|c| **c == recipe.encryption.enc_type);
+            // The legacy filesystem page: hostname moved to the account
+            // page, encryption to its own page.
             let mut t = vec![
                 tr(OPTIONS_TITLE),
                 tr(OPTIONS_SUBTITLE),
                 tr(OPTIONS_SYSTEM),
-                tr(OPTIONS_HOSTNAME),
-                recipe.hostname.clone(),
-            ];
-            if let Some(p) = app.problem("hostname") {
-                t.push(p.render());
-            }
-            t.extend([
                 tr(OPTIONS_FILESYSTEM),
                 recipe.filesystem.clone(),
+            ];
+            for field in ["filesystem", "btrfsSubvolumes"] {
+                if let Some(p) = app.problem(field) {
+                    t.push(p.render());
+                }
+            }
+            t.push(tr(BACK));
+            if app.options_ok() {
+                t.push(tr(CONTINUE));
+            }
+            t
+        }
+        Page::Encryption => {
+            let choices = available_encryption_choices(app.has_tpm());
+            let current = choices.iter().find(|c| **c == recipe.encryption.enc_type);
+            let mut t = vec![
+                tr(OPTIONS_DISK_ENCRYPTION),
+                tr(ENCRYPTION_SUBTITLE),
                 tr(OPTIONS_ENCRYPTION),
                 tr(OPTIONS_DISK_ENCRYPTION),
-            ]);
+            ];
             if let Some(c) = current {
                 t.push(encryption_text(c, "_label"));
                 t.push(encryption_text(c, "_description"));
@@ -414,19 +561,18 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                     t.push(tr(OPTIONS_PASSPHRASE_MISMATCH));
                 }
             }
-            for field in ["encryption", "filesystem", "btrfsSubvolumes"] {
-                if let Some(p) = app.problem(field) {
-                    t.push(p.render());
-                }
+            if let Some(p) = app.problem("encryption") {
+                t.push(p.render());
             }
             t.push(tr(BACK));
-            if app.options_ok() {
+            if app.encryption_page_ok() {
                 t.push(tr(CONTINUE));
             }
             t
         }
         Page::Account => {
-            // The field labels and the username; never the password.
+            // The field labels, the username and the hostname; never the
+            // password.
             let mut t = vec![
                 tr(ACCOUNT_TITLE),
                 tr(ACCOUNT_SUBTITLE),
@@ -435,6 +581,10 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 app.username().to_string(),
             ];
             if let Some(p) = app.problem("user") {
+                t.push(p.render());
+            }
+            t.extend([tr(OPTIONS_SYSTEM), tr(OPTIONS_HOSTNAME), recipe.hostname.clone()]);
+            if let Some(p) = app.problem("hostname") {
                 t.push(p.render());
             }
             t.push(tr(ACCOUNT_FULLNAME));
@@ -560,6 +710,59 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             },
             tr(DONE_COPY_LOG),
         ],
+        Page::RecoveryKey => {
+            // The key itself goes in: the harness matches it by shape,
+            // never by a node named `Recovery Key`.
+            let mut t = vec![
+                tr(RECOVERY_TITLE),
+                tr(RECOVERY_SUBTITLE),
+                t_line("recovery_key_title"),
+                t_line("recovery_key_body"),
+            ];
+            if let Some(error) = app.recovery_error() {
+                t.push(error.to_string());
+                t.push(tr(BACK));
+                t.push(tr(RECOVERY_DONE));
+                return t;
+            }
+            if app.progress.recovery_key.is_empty() {
+                t.push(tr(RECOVERY_LOADING));
+            } else {
+                t.push(app.progress.recovery_key.clone());
+                t.push(t_line("recovery_key_copy"));
+                t.push(tr(RECOVERY_QR_BUTTON));
+                t.push(t_line("recovery_key_ack"));
+            }
+            t.push(tr(BACK));
+            if !app.progress.recovery_key.is_empty() && app.recovery_ack && !app.recovery_enrolling() {
+                t.push(tr(RECOVERY_DONE));
+            }
+            t
+        }
+        Page::Handoff => {
+            let mut t = vec![tr(HANDOFF_TITLE), tr(HANDOFF_REBOOT)];
+            if let Some(error) = app.handoff_error() {
+                t.push(tr(HANDOFF_FAILED));
+                t.push(error.to_string());
+                t.push(tr(HANDOFF_CLOSE));
+                t.push(t_line("done_restart"));
+            } else {
+                match app.handoff_mode() {
+                    "migrate" => t.push(tr(HANDOFF_MIGRATE)),
+                    "soft_reboot" => t.push(tr(HANDOFF_SOFT_REBOOT)),
+                    _ => {}
+                }
+                if !app.handoff_reason().is_empty() {
+                    t.push(app.handoff_reason().to_string());
+                }
+                t.push(tr(HANDOFF_NOT_NOW));
+                if !app.handoff_calling() {
+                    t.push(tr(HANDOFF_CONTINUE));
+                }
+            }
+            t.push(tr(BACK));
+            t
+        }
         Page::Done => {
             let (title, detail) = done_copy(app);
             let mut t = vec![title, detail];
@@ -568,16 +771,8 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             }
             if app.install_ok() {
                 t.extend(app.receipt_lines());
-                // The recovery panel, when there is a key (#129). The key
-                // itself goes in too: the capture asserts on it, and a
-                // panel drawn without it is the failure worth catching.
-                if !app.progress.recovery_key.is_empty() {
-                    t.push(t_line("recovery_key_title"));
-                    t.push(t_line("recovery_key_body"));
-                    t.push(app.progress.recovery_key.clone());
-                    t.push(t_line("recovery_key_copy"));
-                    t.push(t_line("recovery_key_ack"));
-                }
+                // The key lives on its own page now; done keeps the receipt
+                // and the restart offer.
                 if !branding::get().store_url.is_empty() {
                     t.push(t_line("store_label"));
                 }
@@ -771,18 +966,25 @@ pub fn view(app: &TunaInstaller) -> Element<'_, Message> {
     }
     let content: Element<Message> = match app.page() {
         Page::Requirements => requirements(app),
-        Page::Welcome => welcome(app),
+        Page::TryOrInstall => welcome(app),
         Page::Image => image_page(app),
         Page::Language => language(app),
         Page::Keyboard => keyboard(app),
         Page::Timezone => timezone(app),
         Page::Network => network(app),
+        Page::Prerelease => prerelease(app),
+        Page::Eula => eula(app),
+        Page::Rst => rst(app),
         Page::DiskSelect => disk_select(app),
+        Page::WipeOrFree => wipe_or_free(app),
+        Page::Encryption => encryption(app),
         Page::Options => options(app),
         Page::Account => account(app),
         Page::Tour => tour_page(app),
         Page::Confirm => confirm(app),
         Page::Installing => installing(app),
+        Page::RecoveryKey => recovery(app),
+        Page::Handoff => handoff(app),
         Page::Done => done(app),
     };
 
@@ -1295,6 +1497,166 @@ fn network(app: &TunaInstaller) -> Element<'_, Message> {
     )
 }
 
+/// Intel RST (screens.yaml `rst`): a warning, not a gate. The hidden disk
+/// stays missing from the disk list; Next continues anyway. Power off and
+/// firmware setup offer the way out through the BIOS setting.
+fn rst(_app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    let body = widget::column::with_children(vec![
+        widget::text::body(tr(RST_BODY)).into(),
+        widget::row::with_children(vec![
+            widget::button::standard(tr(REQUIREMENTS_POWER_OFF))
+                .on_press(Message::PowerOff)
+                .into(),
+            widget::button::standard(tr(REQUIREMENTS_FIRMWARE))
+                .on_press(Message::FirmwareSetup)
+                .into(),
+        ])
+        .spacing(spacing.space_s)
+        .into(),
+    ])
+    .spacing(spacing.space_s)
+    .height(Length::Fill);
+
+    page_frame(
+        tr(RST_TITLE),
+        tr(RST_SUBTITLE),
+        body.into(),
+        nav_row(Some(Message::BackPage), Some((tr(CONTINUE), Message::NextPage, false))),
+    )
+}
+
+/// Existing data (screens.yaml `wipe-or-free`): the chosen disk holds data
+/// with room to spare. Free space is the default; whole-disk erase is the
+/// destructive choice. The install reads `installMode` from the choice.
+fn wipe_or_free(app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    let current = Some(app.install_mode());
+    // One row per choice, spelled out: the strings lint holds each
+    // constant to a literal `tr(CONST)` call.
+    let free = wipe_row(
+        spacing.space_xxxs,
+        spacing.space_s,
+        tr(WIPE_FREE_SPACE),
+        tr(WIPE_FREE_SPACE_HINT),
+        crate::InstallMode::FreeSpace,
+        current,
+    );
+    let erase = wipe_row(
+        spacing.space_xxxs,
+        spacing.space_s,
+        tr(WIPE_ERASE),
+        tr(WIPE_ERASE_HINT),
+        crate::InstallMode::Erase,
+        current,
+    );
+    let mut list = widget::list_column().style(cosmic::theme::Container::List);
+    list = list.add(free);
+    list = list.add(erase);
+    let body = widget::column::with_children(vec![list.into_element()])
+        .spacing(spacing.space_s)
+        .height(Length::Fill);
+
+    page_frame(
+        tr(WIPE_TITLE),
+        tr(WIPE_SUBTITLE),
+        body.into(),
+        nav_row(Some(Message::BackPage), Some((tr(CONTINUE), Message::NextPage, false))),
+    )
+}
+
+/// One wipe-or-free radio row: the choice label, its hint, and the radio.
+/// The whole row is clickable, like the image and disk rows.
+fn wipe_row(
+    space_xxxs: u16,
+    space_s: u16,
+    label: String,
+    hint: String,
+    mode: crate::InstallMode,
+    current: Option<crate::InstallMode>,
+) -> Element<'static, Message> {
+    let item = widget::row::with_children(vec![
+        widget::column::with_children(vec![
+            widget::text::body(label).into(),
+            widget::text::caption(hint).into(),
+        ])
+        .spacing(space_xxxs)
+        .width(Length::Fill)
+        .into(),
+        widget::radio(widget::text::body(""), mode, current, Message::WipeSelected).into(),
+    ])
+    .align_y(Alignment::Center)
+    .spacing(space_s);
+    widget::mouse_area(item).on_press(Message::WipeSelected(mode)).into()
+}
+
+/// Pre-release disclaimer (screens.yaml `prerelease`): information only,
+/// never a gate. The experiment text rides along when os-release names one.
+fn prerelease(_app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    let facts = crate::branding::release_facts();
+    let mut parts: Vec<Element<'_, Message>> = vec![widget::text::body(tr(PRERELEASE_BODY)).into()];
+    if !facts.1.is_empty() {
+        parts.push(widget::text::body(facts.1.clone()).into());
+    }
+    let body = widget::column::with_children(parts)
+        .spacing(spacing.space_s)
+        .height(Length::Fill);
+
+    page_frame(
+        tr(PRERELEASE_TITLE),
+        tr(PRERELEASE_SUBTITLE),
+        body.into(),
+        nav_row(Some(Message::BackPage), Some((tr(CONTINUE), Message::NextPage, false))),
+    )
+}
+
+/// Terms of use (screens.yaml `eula`): the accept box gates Next. An
+/// unreadable file is the `eula-unreadable` failure state: no Continue,
+/// power off instead.
+fn eula(app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    if app.eula_error() {
+        let body = widget::column::with_children(vec![
+            widget::text::body(tr(EULA_UNREADABLE)).into(),
+            widget::button::standard(tr(REQUIREMENTS_POWER_OFF))
+                .on_press(Message::PowerOff)
+                .into(),
+        ])
+        .spacing(spacing.space_s)
+        .height(Length::Fill);
+        return page_frame(
+            tr(EULA_TITLE),
+            tr(EULA_SUBTITLE),
+            body.into(),
+            nav_row(Some(Message::BackPage), None),
+        );
+    }
+    let text = app.eula_text().unwrap_or_default().to_string();
+    let body = widget::column::with_children(vec![
+        widget::scrollable(widget::text::body(text))
+            .height(Length::Fill)
+            .into(),
+        widget::checkbox(app.eula_accepted())
+            .label(tr(EULA_ACCEPT))
+            .on_toggle(Message::EulaAccepted)
+            .into(),
+    ])
+    .spacing(spacing.space_s)
+    .height(Length::Fill);
+
+    page_frame(
+        tr(EULA_TITLE),
+        tr(EULA_SUBTITLE),
+        body.into(),
+        nav_row(
+            Some(Message::BackPage),
+            app.eula_accepted()
+                .then_some((tr(CONTINUE), Message::NextPage, false)),
+        ),
+    )
+}
+
 /// Tour carousel (views/tour.py): the selected image's slides, one per
 /// screen, Back stepping within the slides. The last Next leaves the page.
 fn tour_page(app: &TunaInstaller) -> Element<'_, Message> {
@@ -1438,6 +1800,8 @@ pub fn source_reuse_text(progress: &crate::progress::Progress) -> Vec<String> {
         .collect()
 }
 
+/// The live-session choice (screens.yaml `try-or-install`): Try quits the
+/// wizard and the session keeps running, Install goes to the next screen.
 fn welcome(app: &TunaInstaller) -> Element<'_, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
 
@@ -1472,11 +1836,22 @@ fn welcome(app: &TunaInstaller) -> Element<'_, Message> {
         .width(Length::Fill);
 
     let next = t_line("welcome_button");
+    let footer = widget::row::with_children(vec![
+        widget::button::standard(with_product(&tr(TRY_SYSTEM)))
+            .on_press(Message::TrySystem)
+            .into(),
+        widget::space::horizontal().into(),
+        widget::button::suggested(next)
+            .on_press(Message::NextPage)
+            .into(),
+    ])
+    .align_y(Alignment::Center)
+    .spacing(spacing.space_s);
     widget::column::with_children(vec![
         widget::space::vertical().into(),
         hero.into(),
         widget::space::vertical().into(),
-        nav_row(None, Some((next, Message::NextPage, false))),
+        footer.into(),
     ])
     .spacing(spacing.space_m)
     .height(Length::Fill)
@@ -1542,6 +1917,9 @@ fn confirm_mismatch(app: &TunaInstaller) -> bool {
     !app.passphrase_confirm().is_empty() && !app.passphrases_match()
 }
 
+/// The legacy filesystem page: the only installer question without a
+/// shared screen id. Daemon mode skips it (the daemon owns the filesystem
+/// per base image), so this is the recipe path's page.
 fn options(app: &TunaInstaller) -> Element<'_, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
     let recipe = app.recipe();
@@ -1551,6 +1929,41 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
     let fs_choices = app.filesystem_choices();
     let fs_index = fs_choices.iter().position(|f| *f == recipe.filesystem);
     let fs_labels: Vec<String> = fs_choices.iter().map(|f| filesystem_label(f)).collect();
+
+    // fisherman's problem with the choice, under the field.
+    let mut fs_item = widget::settings::item::builder(tr(OPTIONS_FILESYSTEM));
+    if let Some(p) = app.problem("filesystem").or_else(|| app.problem("btrfsSubvolumes")) {
+        fs_item = fs_item.description(p.render());
+    }
+    let system = widget::settings::section()
+        .title(tr(OPTIONS_SYSTEM))
+        .add(fs_item.control(widget::dropdown(fs_labels, fs_index, Message::FilesystemChanged)));
+
+    let body = widget::scrollable(
+        widget::settings::view_column(vec![system.into()]).spacing(spacing.space_m),
+    )
+    .height(Length::Fill);
+
+    page_frame(
+        tr(OPTIONS_TITLE),
+        tr(OPTIONS_SUBTITLE),
+        body.into(),
+        nav_row(
+            Some(Message::BackPage),
+            // Blocked while fisherman reports a problem with the choice,
+            // so it can never reach Confirm/Install and only then be
+            // rejected (tunaOS#734).
+            app.options_ok()
+                .then_some((tr(CONTINUE), Message::NextPage, false)),
+        ),
+    )
+}
+
+/// How the disk is locked (screens.yaml `encryption`): the choice, and the
+/// passphrase twice when the choice carries one.
+fn encryption(app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    let recipe = app.recipe();
 
     // tunaOS#734: this list is `has_tpm`-filtered, same set XFCE offers on
     // this hardware, and `idx` below is a position in it — NOT in the full
@@ -1573,30 +1986,10 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
     // passphrase is acceptable is fisherman's answer (`encryption_ok()`).
     let needs_passphrase = crate::validate::needs_passphrase(&recipe.encryption.enc_type);
 
-    // fisherman's hostname rule, in the copy's words, under the field.
-    let mut hostname_item = widget::settings::item::builder(tr(OPTIONS_HOSTNAME));
-    if let Some(p) = app.problem("hostname") {
-        hostname_item = hostname_item.description(p.render());
-    }
-    let system = widget::settings::section()
-        .title(tr(OPTIONS_SYSTEM))
-        .add(
-            hostname_item.control(
-                widget::text_input(branding::get().default_hostname.as_str(), &recipe.hostname)
-                    .on_input(Message::HostnameChanged)
-                    .width(Length::Fixed(260.0)),
-            ),
-        )
-        .add(widget::settings::item(
-            tr(OPTIONS_FILESYSTEM),
-            widget::dropdown(fs_labels, fs_index, Message::FilesystemChanged),
-        ));
-
-    // fisherman's problem with the choice (an empty passphrase, LUKS on
-    // ZFS) replaces the description while it stands.
-    let enc_description = ["encryption", "filesystem", "btrfsSubvolumes"]
-        .iter()
-        .find_map(|f| app.problem(f))
+    // fisherman's problem with the choice (an empty passphrase) replaces
+    // the description while it stands.
+    let enc_description = app
+        .problem("encryption")
         .map_or(enc_description, |p| p.render());
     let mut security = widget::settings::section().title(tr(OPTIONS_ENCRYPTION)).add(
         widget::settings::item::builder(tr(OPTIONS_DISK_ENCRYPTION))
@@ -1654,24 +2047,190 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
     }
 
     let body = widget::scrollable(
-        widget::settings::view_column(vec![system.into(), security.into()])
-            .spacing(spacing.space_m),
+        widget::settings::view_column(vec![security.into()]).spacing(spacing.space_m),
     )
     .height(Length::Fill);
 
     page_frame(
-        tr(OPTIONS_TITLE),
-        tr(OPTIONS_SUBTITLE),
+        tr(OPTIONS_DISK_ENCRYPTION),
+        tr(ENCRYPTION_SUBTITLE),
         body.into(),
         nav_row(
             Some(Message::BackPage),
-            // Blocked while fisherman reports a problem with the page (an
-            // empty passphrase, a bad hostname), so it can never reach
-            // Confirm/Install and only then be rejected (tunaOS#734).
-            app.options_ok()
+            // Blocked while fisherman reports a problem with the choice (an
+            // empty passphrase), so it can never reach Confirm/Install and
+            // only then be rejected (tunaOS#734).
+            app.encryption_page_ok()
                 .then_some((tr(CONTINUE), Message::NextPage, false)),
         ),
     )
+}
+
+/// Back up the recovery key (screens.yaml `recovery-key`): the key as a
+/// text label (matched by shape, never by a node named `Recovery Key`),
+/// a QR dialog, and an acknowledgement box that gates Done. Daemon mode
+/// enrols the key when Done is pressed; the legacy install enrols it
+/// while writing the disk.
+fn recovery(app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    let key = app.progress.recovery_key.clone();
+    if let Some(error) = app.recovery_error() {
+        // The recovery-key-failed state: no key, do not continue without
+        // one. Back or Done retries through the page entry.
+        let body = widget::column::with_children(vec![
+            widget::text::body(error.to_string()).into(),
+            widget::button::standard(tr(RECOVERY_DONE))
+                .on_press(Message::RecoveryDone)
+                .into(),
+        ])
+        .spacing(spacing.space_s)
+        .height(Length::Fill);
+        return page_frame(
+            tr(RECOVERY_TITLE),
+            tr(RECOVERY_SUBTITLE),
+            body.into(),
+            nav_row(Some(Message::BackPage), None),
+        );
+    }
+    let mut parts: Vec<Element<'_, Message>> = Vec::new();
+    if key.is_empty() {
+        parts.push(widget::text::body(tr(RECOVERY_LOADING)).into());
+    } else {
+        parts.push(widget::text::monotext(key.clone()).into());
+        parts.push(
+            widget::row::with_children(vec![
+                widget::button::standard(t_line("recovery_key_copy"))
+                    .on_press(Message::CopyRecoveryKey)
+                    .into(),
+                widget::button::standard(tr(RECOVERY_QR_BUTTON))
+                    .on_press(Message::ToggleQrDialog)
+                    .into(),
+            ])
+            .spacing(spacing.space_s)
+            .into(),
+        );
+        parts.push(
+            widget::checkbox(app.recovery_ack)
+                .label(t_line("recovery_key_ack"))
+                .on_toggle(Message::RecoveryAckToggled)
+                .into(),
+        );
+    }
+    let body = widget::column::with_children(parts)
+        .spacing(spacing.space_s)
+        .height(Length::Fill);
+
+    let done_live = !key.is_empty() && app.recovery_ack && !app.recovery_enrolling();
+    page_frame(
+        tr(RECOVERY_TITLE),
+        tr(RECOVERY_SUBTITLE),
+        body.into(),
+        nav_row(
+            Some(Message::BackPage),
+            done_live.then_some((tr(RECOVERY_DONE), Message::RecoveryDone, false)),
+        ),
+    )
+}
+
+/// The recovery key's QR dialog: the code large, the key below it for
+/// transcription, Close to go back to the page.
+pub fn qr_dialog(app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    let key = app.progress.recovery_key.clone();
+    let mut children: Vec<Element<'_, Message>> = Vec::new();
+    if let Some(handle) = app.qr_code() {
+        children.push(widget::image(handle).into());
+    }
+    children.push(widget::text::monotext(key).into());
+    let body = widget::column::with_children(children)
+        .spacing(spacing.space_s)
+        .align_x(Alignment::Center)
+        .width(Length::Fill)
+        .height(Length::Fill);
+    widget::container(
+        widget::column::with_children(vec![
+            widget::text::title2(tr(RECOVERY_QR_BUTTON)).into(),
+            widget::divider::horizontal::default().into(),
+            body.into(),
+            widget::divider::horizontal::default().into(),
+            widget::row::with_children(vec![
+                widget::space::horizontal().into(),
+                widget::button::suggested(tr(DONE_CLOSE))
+                    .on_press(Message::ToggleQrDialog)
+                    .into(),
+            ])
+            .align_y(Alignment::Center)
+            .into(),
+        ])
+        .spacing(spacing.space_s)
+        .height(Length::Fill),
+    )
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .padding(spacing.space_l)
+    .into()
+}
+
+/// Hand the system over (screens.yaml `handoff`): the daemon's Probe
+/// chose the mode; the page says plainly what carries over. Continue
+/// hands over (Handoff with no mode in daemon mode, a restart on the
+/// legacy path); Not now leaves it for the done page's Restart. A failed
+/// handoff offers Reboot and Close.
+fn handoff(app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    if let Some(error) = app.handoff_error() {
+        let body = widget::column::with_children(vec![
+            widget::text::body(format!("{} {}", tr(HANDOFF_FAILED), error)).into(),
+            widget::row::with_children(vec![
+                widget::button::standard(tr(HANDOFF_CLOSE))
+                    .on_press(Message::NextPage)
+                    .into(),
+                widget::button::suggested(t_line("done_restart"))
+                    .on_press(Message::Reboot)
+                    .into(),
+            ])
+            .spacing(spacing.space_s)
+            .into(),
+        ])
+        .spacing(spacing.space_s)
+        .height(Length::Fill);
+        return page_frame(
+            tr(HANDOFF_TITLE),
+            tr(HANDOFF_REBOOT),
+            body.into(),
+            nav_row(Some(Message::BackPage), None),
+        );
+    }
+    let mode_text = match app.handoff_mode() {
+        "migrate" => tr(HANDOFF_MIGRATE),
+        "soft_reboot" => tr(HANDOFF_SOFT_REBOOT),
+        _ => tr(HANDOFF_REBOOT),
+    };
+    let mut parts: Vec<Element<'_, Message>> = vec![widget::text::body(mode_text).into()];
+    if !app.handoff_reason().is_empty() {
+        parts.push(widget::text::caption(app.handoff_reason().to_string()).into());
+    }
+    let body = widget::column::with_children(parts)
+        .spacing(spacing.space_s)
+        .height(Length::Fill);
+    let continue_button: Element<'_, Message> = if app.handoff_calling() {
+        widget::button::suggested(tr(HANDOFF_CONTINUE)).into()
+    } else {
+        widget::button::suggested(tr(HANDOFF_CONTINUE))
+            .on_press(Message::HandoffContinue)
+            .into()
+    };
+    let footer = widget::row::with_children(vec![
+        widget::button::standard(tr(HANDOFF_NOT_NOW))
+            .on_press(Message::NextPage)
+            .into(),
+        widget::space::horizontal().into(),
+        continue_button,
+    ])
+    .align_y(Alignment::Center)
+    .spacing(spacing.space_s);
+
+    page_frame(tr(HANDOFF_TITLE), tr(HANDOFF_REBOOT), body.into(), footer.into())
 }
 
 /// The account the installed system is created with: the recipe's `user`
@@ -1681,6 +2240,7 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
 /// (`validate --json --partial`, shown through `validate_username_*`).
 fn account(app: &TunaInstaller) -> Element<'_, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
+    let recipe = app.recipe();
 
     let mut username_item = widget::settings::item::builder(tr(ACCOUNT_USERNAME));
     if let Some(p) = app.problem("user") {
@@ -1689,6 +2249,12 @@ fn account(app: &TunaInstaller) -> Element<'_, Message> {
     let mut confirm_item = widget::settings::item::builder(tr(ACCOUNT_PASSWORD_CONFIRM));
     if app.password_mismatch() {
         confirm_item = confirm_item.description(tr(ACCOUNT_PASSWORD_MISMATCH));
+    }
+    // The hostname lives on the account page (screens.yaml lists it among
+    // the account inputs): the name this computer gets on the network.
+    let mut hostname_item = widget::settings::item::builder(tr(OPTIONS_HOSTNAME));
+    if let Some(p) = app.problem("hostname") {
+        hostname_item = hostname_item.description(p.render());
     }
 
     let section = widget::settings::section()
@@ -1729,9 +2295,16 @@ fn account(app: &TunaInstaller) -> Element<'_, Message> {
                 .width(Length::Fixed(260.0)),
             ),
         );
+    let system = widget::settings::section().title(tr(OPTIONS_SYSTEM)).add(
+        hostname_item.control(
+            widget::text_input(branding::get().default_hostname.as_str(), &recipe.hostname)
+                .on_input(Message::HostnameChanged)
+                .width(Length::Fixed(260.0)),
+        ),
+    );
 
     let body = widget::scrollable(
-        widget::settings::view_column(vec![section.into()]).spacing(spacing.space_m),
+        widget::settings::view_column(vec![system.into(), section.into()]).spacing(spacing.space_m),
     )
     .height(Length::Fill);
 
@@ -2067,35 +2640,9 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
         .align_x(Alignment::Center)
         .width(Length::Fill);
 
-    // The recovery key (#129). fisherman emits it once, after TPM enrolment,
-    // and for a tpm2-luks install it is the only way back into the disk if
-    // the TPM state changes. It used to go to the log pane and nowhere else:
-    // the log scrolls, nothing pauses, and a user could reach this page and
-    // restart having never seen it.
-    //
-    // A panel rather than a dialog, for the same reason XFCE uses one: a
-    // dialog is dismissed and then the key is gone, while this stays on
-    // screen for as long as it takes to write down.
-    let key = app.progress.recovery_key.clone();
-    let show_recovery = app.install_ok() && !key.is_empty();
-    let recovery: Option<Element<'_, Message>> = show_recovery.then(|| {
-        widget::column::with_children(vec![
-            widget::text::title4(t_line("recovery_key_title")).into(),
-            widget::text::body(t_line("recovery_key_body")).into(),
-            widget::text::monotext(key.clone()).into(),
-            widget::button::standard(t_line("recovery_key_copy"))
-                .on_press(Message::CopyRecoveryKey)
-                .into(),
-            widget::checkbox(app.recovery_ack)
-                .label(t_line("recovery_key_ack"))
-                .on_toggle(Message::RecoveryAckToggled)
-                .into(),
-        ])
-        .spacing(spacing.space_xs)
-        .align_x(Alignment::Center)
-        .width(Length::Fill)
-        .into()
-    });
+    // The recovery key lives on its own page now (screens.yaml
+    // `recovery-key`): by the time done shows, the user acknowledged it
+    // there. Restart still waits out `recovery_key_pending`, defensively.
 
     // Restart is the primary action after a successful install (the same
     // as the other frontends); Close stays available either way.
@@ -2135,15 +2682,12 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
         .into()
     };
 
-    let mut children: Vec<Element<'_, Message>> = vec![
+    let children: Vec<Element<'_, Message>> = vec![
         widget::space::vertical().into(),
         hero.into(),
+        widget::space::vertical().into(),
+        actions,
     ];
-    if let Some(panel) = recovery {
-        children.push(panel);
-    }
-    children.push(widget::space::vertical().into());
-    children.push(actions);
 
     widget::column::with_children(children)
         .spacing(spacing.space_m)
@@ -2238,6 +2782,26 @@ mod tests {
         assert_eq!(encryption_text("none", "_label"), "No encryption");
         // fisherman reads "" as none; so does the summary.
         assert_eq!(encryption_text("", "_label"), "No encryption");
+    }
+
+    #[test]
+    fn recovery_qr_is_deterministic_and_key_shaped() {
+        use super::qr_rgba;
+        // Eight groups of eight lowercase letters, like the daemon's.
+        let key = "mktardcw-nnhufnbx-kwnvoixz-ahhhuahf-xqwqwqwq-yzqwqwqw-abcqwqwq-defqwqwq";
+        let (w, h, first) = qr_rgba(key).expect("key renders");
+        assert!(w >= 200 && w == h);
+        assert_eq!(first.len(), (w as usize) * (h as usize) * 4);
+        let (_, _, second) = qr_rgba(key).expect("key renders");
+        assert_eq!(first, second);
+        // Opaque black and white only.
+        assert!(first.chunks_exact(4).all(|p| {
+            (p[0] == 0 || p[0] == 255) && p[0] == p[1] && p[1] == p[2] && p[3] == 255
+        }));
+        let other = qr_rgba("nnhufnbx-kwnvoixz-ahhhuahf-xqwqwqwq-yzqwqwqw-abcqwqwq-defqwqwq-mktardcw")
+            .expect("key renders");
+        assert_ne!(first, other.2);
+        assert!(qr_rgba("").is_none());
     }
 
     /// The production part of a source file: everything before its tests.
