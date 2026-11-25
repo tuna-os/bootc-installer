@@ -1810,7 +1810,7 @@ def qr_available():
 
 
 class RecoveryPage(Page):
-    title = _("Recovery key")
+    title = core.BRANDING.text("recovery_key_title")
     next_label = _("Done")
 
     def __init__(self, win):

@@ -638,14 +638,10 @@ pub fn configure_params(recipe: &crate::Recipe, location_services: Option<bool>)
 /// names (shared/recipe); the daemon's `Encryption.type` is `(none,
 /// luks_passphrase, tpm2_luks, tpm2_luks_passphrase)`. Unknown names pass
 /// through: the daemon's `Validate` owns the error, not this map.
-fn map_encryption_type(enc_type: &str) -> &str {
-    match enc_type {
-        "none" => "none",
-        "luks-passphrase" => "luks_passphrase",
-        "tpm2-luks" => "tpm2_luks",
-        "tpm2-luks-passphrase" => "tpm2_luks_passphrase",
-        other => other,
-    }
+fn map_encryption_type(enc_type: &str) -> String {
+    // Recipe types use dashes (shared/recipe/encryption-choices.json), the
+    // daemon underscores; the names come from the file, not from a list here.
+    enc_type.replace('-', "_")
 }
 
 /// `probe::Facts` from a daemon `Probe` reply plus its `Requirements`
