@@ -1,9 +1,9 @@
 {
   "flavor": "cosmic",
-  "frames": 18,
-  "rendered_frames": 18,
-  "advanced_transitions": 17,
-  "visual_states": 18,
+  "frames": 36,
+  "rendered_frames": 36,
+  "advanced_transitions": 35,
+  "visual_states": 36,
   "activation_key": null,
   "ocr": false,
   "screens": {
@@ -21,13 +21,14 @@
     "welcome": {
       "required": true,
       "evidence": [
-        "welcome"
+        "try-or-install"
       ],
       "outcome": "passed"
     },
     "disk": {
       "required": true,
       "evidence": [
+        "disk",
         "disk"
       ],
       "outcome": "passed"
@@ -35,7 +36,8 @@
     "encryption": {
       "required": false,
       "evidence": [
-        "options",
+        "confirm",
+        "encryption",
         "confirm"
       ],
       "outcome": "passed"
@@ -43,6 +45,7 @@
     "summary": {
       "required": true,
       "evidence": [
+        "confirm",
         "confirm"
       ],
       "outcome": "passed"
@@ -50,6 +53,7 @@
     "install": {
       "required": false,
       "evidence": [
+        "installing",
         "installing"
       ],
       "outcome": "passed"
@@ -58,7 +62,7 @@
       "required": false,
       "evidence": [
         "done",
-        "recovery"
+        "done"
       ],
       "outcome": "passed"
     }
@@ -72,7 +76,7 @@
       "required": true,
       "reached": true,
       "on_pages": [
-        "welcome"
+        "try-or-install"
       ],
       "matched_keywords": [
         "get started",
@@ -84,6 +88,7 @@
       "required": true,
       "reached": true,
       "on_pages": [
+        "disk",
         "disk"
       ],
       "matched_keywords": [
@@ -94,7 +99,8 @@
       "required": false,
       "reached": true,
       "on_pages": [
-        "options",
+        "confirm",
+        "encryption",
         "confirm"
       ],
       "matched_keywords": [
@@ -106,6 +112,7 @@
       "required": true,
       "reached": true,
       "on_pages": [
+        "confirm",
         "confirm"
       ],
       "matched_keywords": [
@@ -117,6 +124,7 @@
       "required": false,
       "reached": true,
       "on_pages": [
+        "installing",
         "installing"
       ],
       "matched_keywords": [
@@ -129,7 +137,7 @@
       "reached": true,
       "on_pages": [
         "done",
-        "recovery"
+        "done"
       ],
       "matched_keywords": [
         "is installed",
@@ -142,12 +150,23 @@
       "name": "requirements",
       "png": "docs/screenshots/01-requirements.png",
       "rendered": true,
-      "colours": 188,
-      "flat": 0.9588899124827268,
+      "colours": 189,
+      "flat": 0.9589282972516505,
       "ink": 0.9900455499257894,
-      "stddev": 0.06862379967381098,
-      "sha256": "1ca66e847e90eb8e0996d79f1c19a8964404c37ef6c1f417adce8447f4efcd30",
+      "stddev": 0.06861436217210988,
+      "sha256": "4dee23ed19c94100d3588022cf3f70edce6b3b897181e6526db25c553214ccfd",
       "text_excerpt": "Requirements met Firmware setup Power off Continue"
+    },
+    {
+      "name": "try-or-install",
+      "png": "docs/screenshots/02-try-or-install.png",
+      "rendered": true,
+      "colours": 294,
+      "flat": 0.9525052459184196,
+      "ink": 0.9893546240851631,
+      "stddev": 0.07292351764801552,
+      "sha256": "3154bb4f3839b92731ddeac18f9cf07f2a81f03e176f1b2fe5adfb5e52ae6d03",
+      "text_excerpt": "Welcome to TunaOS Welcome. This assistant will guide you through installing TunaOS onto this computer. You will choose a target disk and a few options, and create your account. Nothing is written to any disk until you confirm on the last st"
     },
     {
       "name": "welcome",
@@ -158,17 +177,17 @@
       "ink": 0.9895209580838323,
       "stddev": 0.07201007217777272,
       "sha256": "c19268cc48fa4de9a3aa9b7b9f18a8b751faf37cf2934706fc4b40110cbb61bd",
-      "text_excerpt": "Welcome to TunaOS Welcome. This assistant will guide you through installing TunaOS onto this computer. You will choose a target disk and a few options, and create your account. Nothing is written to any disk until you confirm on the last st"
+      "text_excerpt": ""
     },
     {
       "name": "image",
       "png": "docs/screenshots/03-image.png",
       "rendered": true,
       "colours": 210,
-      "flat": 0.5158273197195353,
-      "ink": 0.9894058037770612,
-      "stddev": 0.07781534906523323,
-      "sha256": "03a4bddc627e38b2abf5e5c578dac12d2bdc81e12f40c41ab6b9746fcc0f72bf",
+      "flat": 0.515865704488459,
+      "ink": 0.9894185987000358,
+      "stddev": 0.07778964482918309,
+      "sha256": "25776daff38a2e30f1ed4a364810e8cbd6f0295e020be27d680ecaf605745284",
       "text_excerpt": "Choose a system What to install onto the disk. Search systems  Capture Desktop \u203a Stable The photographed system. Everything is where you left it. Capture Desktop \u203a Beta The next release, before it is stable. It makes its own first user. Cap"
     },
     {
@@ -177,20 +196,20 @@
       "rendered": true,
       "colours": 195,
       "flat": 0.5238113516556631,
-      "ink": 0.9931931009775321,
-      "stddev": 0.06695109271539579,
-      "sha256": "4c8a19dbee0151864733b673a5e8462a28d0ff66c11b397064012d80ab26d967",
+      "ink": 0.9932314857464558,
+      "stddev": 0.06687802216108818,
+      "sha256": "cdf9c00a4c8343efe1ef472cc66cf0d2636086fec25a3792ec59977efd9a7ea8",
       "text_excerpt": "Language Changes this session and the installed system. en_US.UTF-8 en_GB.UTF-8 fr_FR.UTF-8 de_DE.UTF-8 es_ES.UTF-8 it_IT.UTF-8 pt_BR.UTF-8 nl_NL.UTF-8 ja_JP.UTF-8 zh_CN.UTF-8 Back Continue"
     },
     {
       "name": "keyboard",
       "png": "docs/screenshots/05-keyboard.png",
       "rendered": true,
-      "colours": 180,
+      "colours": 179,
       "flat": 0.5271892113209479,
-      "ink": 0.9940631557398024,
-      "stddev": 0.06357153560128224,
-      "sha256": "ad16ffdb4fb76a1f6d8502a4f2d43445190371b03c185a993f8d4c9c5c4dd470",
+      "ink": 0.9941143354317007,
+      "stddev": 0.06347101673192818,
+      "sha256": "f4cedf6e2ea6c28afb0016d9296548af4fa6e86e602cec2bb05b1d7a93e1fe5d",
       "text_excerpt": "Keyboard Changes this session and the installed system. us gb fr de es it br jp ru cn Back Continue"
     },
     {
@@ -199,20 +218,20 @@
       "rendered": true,
       "colours": 199,
       "flat": 0.46579917088899125,
-      "ink": 0.9929372025180409,
-      "stddev": 0.06640756397347561,
-      "sha256": "98beccdf0bb3457a87a36a6649baed57cdb2e5e10179d49947a34ea3cc4ab0c6",
+      "ink": 0.9930011771329137,
+      "stddev": 0.0662875001908908,
+      "sha256": "d47fda0022e25ec90ca0a7ac9b464e938e0b8e2770dae47d08e979e55b9201ad",
       "text_excerpt": "Time zone Search, then pick where you are. Changes this session and the installed system. Search time zones  Europe/Berlin Europe/Paris Europe/Rome America/New_York Asia/Tokyo Back Continue"
     },
     {
       "name": "network",
       "png": "docs/screenshots/07-network.png",
       "rendered": true,
-      "colours": 169,
-      "flat": 0.9638031629049593,
-      "ink": 0.994370233891192,
-      "stddev": 0.053847990414386454,
-      "sha256": "8fa099d52480906a7e1856df895e6ad4423bb30d6ccf3e56f94d25d046bb827b",
+      "colours": 168,
+      "flat": 0.963841547673883,
+      "ink": 0.9944470034290394,
+      "stddev": 0.053652358574484124,
+      "sha256": "15df778e752faabca528788e9685cc0a94b279cbbc9a4bae7025199e40d58ef5",
       "text_excerpt": "Network The installer needs the network to fetch images. Connected. Recheck Back Continue"
     },
     {
@@ -227,6 +246,28 @@
       "text_excerpt": "Select a disk Everything on the disk you pick will be erased. Samsung SSD 870 EVO 500GB /dev/sda \u00b7 465.8 GiB \u00b7 SATA Extreme SSD /dev/sdc \u00b7 931.5 GiB \u00b7 USB Cruzer Blade /dev/sdd \u00b7 59.6 GiB \u00b7 USB WD_BLACK SN850X 1000GB /dev/nvme0n1 \u00b7 953.9 Gi"
     },
     {
+      "name": "prerelease",
+      "png": "docs/screenshots/08-prerelease.png",
+      "rendered": true,
+      "colours": 169,
+      "flat": 0.9664005322687957,
+      "ink": 0.9941783100465735,
+      "stddev": 0.054657115703085374,
+      "sha256": "f2c3f1da01d55c004dd13f37201fb0edd8e31a7e873b7d6938f18278a9e2d7cb",
+      "text_excerpt": "Disclaimer This image is not a final release. Do not use it for important data. Back Continue"
+    },
+    {
+      "name": "eula",
+      "png": "docs/screenshots/09-eula.png",
+      "rendered": true,
+      "colours": 139,
+      "flat": 0.969970315778699,
+      "ink": 0.9976585290956549,
+      "stddev": 0.04207901619739127,
+      "sha256": "78aa894f772b6d0f8e8ea9191a1ecfe3d216347ff310573efb810378aea2c25d",
+      "text_excerpt": "Terms of use Read and accept the terms to continue. I have read and accept the Terms of Use Back"
+    },
+    {
       "name": "options",
       "png": "docs/screenshots/09-options.png",
       "rendered": true,
@@ -235,7 +276,7 @@
       "ink": 0.9892906494702902,
       "stddev": 0.07631856786581548,
       "sha256": "536fac7826b285b3e4faea4ff9d34db733e00628628b48bf21ee95c54e77d971",
-      "text_excerpt": "Options Sensible defaults are already chosen. Change them only if you need to. System Computer name example Filesystem btrfs Encryption Disk encryption Passphrase You'll type it at every boot. Passphrase Required to unlock at boot Confirm p"
+      "text_excerpt": "Options Sensible defaults are already chosen. Change them only if you need to. System Filesystem btrfs Back Continue"
     },
     {
       "name": "account",
@@ -246,7 +287,29 @@
       "ink": 0.9913506320691949,
       "stddev": 0.07131015654619403,
       "sha256": "8223370c00ae428e02a755d77e6766bf9a8b3bd8031d759e8b485c0b896a39a4",
-      "text_excerpt": "Create your account You will sign in with this account. It can administer the computer. Account Username alex Full name Alex Example Password Required Confirm password Type it again Back Continue"
+      "text_excerpt": "Create your account You will sign in with this account. It can administer the computer. Account Username alex System Computer name example Full name Alex Example Password Required Confirm password Type it again Back Continue"
+    },
+    {
+      "name": "rst",
+      "png": "docs/screenshots/10-rst.png",
+      "rendered": true,
+      "colours": 200,
+      "flat": 0.9481549721070679,
+      "ink": 0.9914401965300169,
+      "stddev": 0.06756300899718506,
+      "sha256": "6fc33024887556efe1879710b908115527b08695d17088c8dc695523421a9d19",
+      "text_excerpt": "Intel RST A disk may be missing from the list. This computer uses Intel RST (RAID mode). Linux cannot see the solid-state disk until the firmware setting changes from RAID to AHCI. Continue to the disk list, or power off and change the sett"
+    },
+    {
+      "name": "disk",
+      "png": "docs/screenshots/11-disk.png",
+      "rendered": true,
+      "colours": 203,
+      "flat": 0.5327677977378577,
+      "ink": 0.9921567122165924,
+      "stddev": 0.06812428298330214,
+      "sha256": "9746b5cb61e93900a5651cd562b15721d39fe867bb0e248d48781523bec8138a",
+      "text_excerpt": "Select a disk Everything on the disk you pick will be erased. Samsung SSD 870 EVO 500GB /dev/sda \u00b7 465.8 GiB \u00b7 SATA Extreme SSD /dev/sdc \u00b7 931.5 GiB \u00b7 USB Cruzer Blade /dev/sdd \u00b7 59.6 GiB \u00b7 USB WD_BLACK SN850X 1000GB /dev/nvme0n1 \u00b7 953.9 Gi"
     },
     {
       "name": "tour",
@@ -271,6 +334,28 @@
       "text_excerpt": "Confirm installation The last screen before anything is written. Everything on /dev/sda will be erased. This cannot be undone.  Summary Target disk /dev/sda Filesystem btrfs Encryption Passphrase Computer name example Username alex System C"
     },
     {
+      "name": "wipe-or-free",
+      "png": "docs/screenshots/12-wipe-or-free.png",
+      "rendered": true,
+      "colours": 197,
+      "flat": 0.8123240698090998,
+      "ink": 0.9918624289881774,
+      "stddev": 0.0667152819010763,
+      "sha256": "25b75ab6e4ef6aae61106ad2067fa90876ef997099bed1c8a1da08b85c6baa6f",
+      "text_excerpt": "Existing data found This disk already holds data. Install to Free Space Keeps what is there and uses the free space. Use Entire Disk Erases everything on this disk. Back Continue"
+    },
+    {
+      "name": "encryption",
+      "png": "docs/screenshots/13-encryption.png",
+      "rendered": true,
+      "colours": 209,
+      "flat": 0.7645350324991044,
+      "ink": 0.9910691437637545,
+      "stddev": 0.07112768834215843,
+      "sha256": "d3673ed754e169e3b10d0c158f59bed30e688aea0fe7ef995426c655fa0192fa",
+      "text_excerpt": "Disk encryption Choose how the disk is locked. Encryption Disk encryption Passphrase You'll type it at every boot. Passphrase Required to unlock at boot Confirm passphrase Type it again Back Continue"
+    },
+    {
       "name": "installing",
       "png": "docs/screenshots/13-installing.png",
       "rendered": true,
@@ -293,6 +378,28 @@
       "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it. fisherman did not report an installation receipt for this installation. Restart now Copy log Close"
     },
     {
+      "name": "options",
+      "png": "docs/screenshots/14-options.png",
+      "rendered": true,
+      "colours": 186,
+      "flat": 0.9036286401555863,
+      "ink": 0.9939352065100568,
+      "stddev": 0.05749365620373326,
+      "sha256": "41474f03ecec2736e8d24f061b4c95dd751fd6f6166b80874e9362d98441d44f",
+      "text_excerpt": "Options Sensible defaults are already chosen. Change them only if you need to. System Filesystem btrfs Back Continue"
+    },
+    {
+      "name": "account",
+      "png": "docs/screenshots/15-account.png",
+      "rendered": true,
+      "colours": 203,
+      "flat": 0.6328368903219203,
+      "ink": 0.98856133886074,
+      "stddev": 0.07690763823869542,
+      "sha256": "ac8f30ab70e319f5dcaef38c9f84b9317d4e3887534eca180be17ca4d31f9b46",
+      "text_excerpt": "Create your account You will sign in with this account. It can administer the computer. Account Username alex System Computer name example Full name Alex Example Password Required Confirm password Type it again Back Continue"
+    },
+    {
       "name": "recovery",
       "png": "docs/screenshots/15-recovery.png",
       "rendered": true,
@@ -301,7 +408,7 @@
       "ink": 0.9895081631608578,
       "stddev": 0.078356096552725,
       "sha256": "2eed660ca9caef3a744172635b7acbbb68d0fa45f1e9e829c434fb091dbd9fab",
-      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it. fisherman did not report an installation receipt for this installation. Save your recovery key If you"
+      "text_excerpt": ""
     },
     {
       "name": "cancel",
@@ -315,6 +422,17 @@
       "text_excerpt": "Stop the installation? The disk is already changed. If you stop now, it has no system that can start. You can run the installer again. Keep going Stop the installation"
     },
     {
+      "name": "tour",
+      "png": "docs/screenshots/16-tour.png",
+      "rendered": true,
+      "colours": 170,
+      "flat": 0.9658887353498132,
+      "ink": 0.9930011771329137,
+      "stddev": 0.05826407100192118,
+      "sha256": "9a270afc4e4ec93635ac4f7d4d66b6a4ac93aafc80f5d2cd5e591de2d7dc1550",
+      "text_excerpt": "Tour Capture at a glance Everything is where you left it. Back Continue"
+    },
+    {
       "name": "cancelled",
       "png": "docs/screenshots/17-cancelled.png",
       "rendered": true,
@@ -326,6 +444,28 @@
       "text_excerpt": "Installation cancelled You stopped the installation. The disk has no system that can start. Run the installer again to finish. Copy log Close"
     },
     {
+      "name": "confirm",
+      "png": "docs/screenshots/17-confirm.png",
+      "rendered": true,
+      "colours": 303,
+      "flat": 0.49197758329494856,
+      "ink": 0.9908644249961616,
+      "stddev": 0.07483645397056955,
+      "sha256": "a0a60ffdbdf32208dcf06a0f1d9fc67fd3ede0d5c6f323a0494ae74019d779d9",
+      "text_excerpt": "Confirm installation The last screen before anything is written. Everything on /dev/sda will be erased. This cannot be undone.  Summary Target disk /dev/sda Filesystem btrfs Encryption Passphrase Computer name example Username alex System C"
+    },
+    {
+      "name": "installing",
+      "png": "docs/screenshots/18-installing.png",
+      "rendered": true,
+      "colours": 246,
+      "flat": 0.5253339474896361,
+      "ink": 0.9877040790214443,
+      "stddev": 0.08043967247485408,
+      "sha256": "b8a5f3609bc4fab1454afbaa65d6aaee9117c69b585091a5d14ab016f2713ad4",
+      "text_excerpt": "Installing TunaOS\u2026 fisherman is writing the image to disk. [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pulling image: l"
+    },
+    {
       "name": "offline",
       "png": "docs/screenshots/18-offline.png",
       "rendered": true,
@@ -335,26 +475,110 @@
       "stddev": 0.06205842708014058,
       "sha256": "98912ee8f2ee3e433dab2f95ea8a3e687ff925e9a6593486f053677b2200bef3",
       "text_excerpt": "Network The installer needs the network to fetch images. No internet connection. The installer requires an active internet connection. Network settings Recheck Back"
+    },
+    {
+      "name": "recovery-key",
+      "png": "docs/screenshots/19-recovery-key.png",
+      "rendered": true,
+      "colours": 153,
+      "flat": 0.9507139567019807,
+      "ink": 0.9963790367981985,
+      "stddev": 0.05116854416079418,
+      "sha256": "45872f6f6e28feea15a6e29136aae49530e617c529c6ebf343d71818dcd0f45d",
+      "text_excerpt": "Recovery key Write it down now. The installer will not show it again. Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or"
+    },
+    {
+      "name": "handoff",
+      "png": "docs/screenshots/20-handoff.png",
+      "rendered": true,
+      "colours": 184,
+      "flat": 0.9643021649009673,
+      "ink": 0.9937944623573366,
+      "stddev": 0.056479198223495335,
+      "sha256": "e0b1306edd1b4e7c11cb76b3e982035d71f83f2b6bdf2cf03bc2cae8750819d2",
+      "text_excerpt": "Handoff The computer restarts into the installed system. Not now Continue Back"
+    },
+    {
+      "name": "done",
+      "png": "docs/screenshots/21-done.png",
+      "rendered": true,
+      "colours": 383,
+      "flat": 0.9532601463739189,
+      "ink": 0.9948820308101746,
+      "stddev": 0.05911465172955131,
+      "sha256": "9bcb69bb62d603ff47bec20b82b12194ebd814c1529ea1a87da686f7e83467bc",
+      "text_excerpt": "TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it. fisherman did not report an installation receipt for this installation. Restart now Copy log Close"
+    },
+    {
+      "name": "cancel",
+      "png": "docs/screenshots/22-cancel.png",
+      "rendered": true,
+      "colours": 201,
+      "flat": 0.9589410921746251,
+      "ink": 0.9898280362352219,
+      "stddev": 0.07067397876527248,
+      "sha256": "0216ed46c53e6ac216351fa36d75768a228410ec651096eff49df0cfe2ffacbc",
+      "text_excerpt": "Stop the installation? The disk is already changed. If you stop now, it has no system that can start. You can run the installer again. Keep going Stop the installation"
+    },
+    {
+      "name": "cancelled",
+      "png": "docs/screenshots/23-cancelled.png",
+      "rendered": true,
+      "colours": 209,
+      "flat": 0.9670402784175239,
+      "ink": 0.9923870208301346,
+      "stddev": 0.06047736423456567,
+      "sha256": "84f7aca4ef71fe6b97e8bf29ed35759fadce51c4cd228baa48ad1bf3a08b95d1",
+      "text_excerpt": "Installation cancelled You stopped the installation. The disk has no system that can start. Run the installer again to finish. Copy log Close"
+    },
+    {
+      "name": "offline",
+      "png": "docs/screenshots/24-offline.png",
+      "rendered": true,
+      "colours": 208,
+      "flat": 0.9586596038691847,
+      "ink": 0.9921567122165924,
+      "stddev": 0.06188961747495472,
+      "sha256": "434e7095d2052dea61d9b92244ee1a3d539975f4e6517daca6a12478de67dceb",
+      "text_excerpt": "Network The installer needs the network to fetch images. No internet connection. The installer requires an active internet connection. Network settings Recheck Back"
     }
   ],
   "transition_pixels": [
-    26280,
-    296744,
-    123177,
-    4111,
-    67945,
-    344298,
-    386145,
-    165804,
+    29480,
+    3315,
+    296791,
+    123161,
+    4103,
+    67933,
+    344286,
+    386304,
+    386250,
+    8247,
+    244907,
     159011,
-    191247,
+    195215,
+    384912,
+    385441,
     340548,
-    149406,
+    334823,
+    99063,
+    226181,
     320978,
-    36439,
+    66722,
+    197319,
+    260230,
     38503,
-    22434,
-    26471
+    20952,
+    16943,
+    346356,
+    149408,
+    321098,
+    18273,
+    22473,
+    26759,
+    25871,
+    22505,
+    26525
   ],
   "spec_drift": [],
   "notes": "Text comes from the strings the harness rendered each page from (the same constants the view reads), not from a widget tree or OCR, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
