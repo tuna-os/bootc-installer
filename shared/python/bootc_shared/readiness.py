@@ -136,7 +136,7 @@ def arm(window, app_id, page=None, page_getter=None):
     # caller can arm the stamp, and "map" does not fire again. The XFCE window
     # does that: the installer was on the screen of a live boot and no stamp
     # existed (tuna-os/tunaOS run 45613018486).
-    if getattr(window, "get_mapped", lambda: False)():
+    if getattr(window, "get_mapped", lambda: False)() is True:
         _on_map(window)
         return
     window.connect("map", _on_map)
