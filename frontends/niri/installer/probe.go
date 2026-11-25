@@ -43,6 +43,12 @@ type ProbeDisk struct {
 	SizeLabel      string `json:"size_label"` // fisherman's, verbatim
 	TransportLabel string `json:"transport_label"`
 	Removable      bool   `json:"removable"`
+	// The wipe-or-free page reads these. The legacy probe never reports
+	// them, so they stay out then; the daemon fills them (daemon.go).
+	HasData      bool  `json:"has_data,omitempty"`
+	FreeBytes    int64 `json:"free_bytes,omitempty"`
+	MinimalBytes int64 `json:"minimal_bytes,omitempty"`
+	IntelRst     bool  `json:"intel_rst,omitempty"`
 }
 
 // ProbeFacts is what the wizard needs from one probe run.
@@ -59,6 +65,14 @@ type ProbeFacts struct {
 	// (offline.images). The stores themselves are fisherman's: a recipe that
 	// leaves additionalImageStores out gets them.
 	OfflineImages []string
+	// IntelRst: the daemon's Probe says Intel RST/VMD hides an NVMe disk.
+	// The legacy probe never reports it. The rst page shows when true.
+	IntelRst bool
+	// HandoffMode: the mode the daemon will take (Probe's handoff hint):
+	// migrate, soft_reboot or reboot. Missing or unknown means reboot.
+	HandoffMode string
+	// HandoffReason is why the daemon picked the mode, for the page.
+	HandoffReason string
 	// Raw is the probe's own output, for the objects this struct does not
 	// hold (bootc_store, which offers the install source of #267).
 	Raw []byte
@@ -101,7 +115,8 @@ func parseProbe(data []byte) (ProbeFacts, error) {
 		return ProbeFacts{}, fmt.Errorf("fisherman probe protocol_version %s is not %d", v, probeProtocolVersion)
 	}
 	facts := ProbeFacts{Disks: []ProbeDisk{}, TPMUsable: raw.TPM.Usable, Unmet: []string{},
-		IsLive: raw.Live.IsLive, OfflineImages: []string{}, Raw: data}
+		IsLive: raw.Live.IsLive, OfflineImages: []string{}, Raw: data,
+		HandoffMode: "reboot"}
 	if raw.Live.IsLive {
 		facts.LiveImage = raw.Live.LiveImage
 	}
@@ -137,6 +152,11 @@ func runProbe() (ProbeFacts, error) {
 			return ProbeFacts{}, fmt.Errorf("%s=%s: %w", fakeProbeEnv, fake, err)
 		}
 		return parseProbe(data)
+	}
+	// The daemon answers Requirements and Probe over Varlink; the recipe
+	// path shells out to `fisherman probe`.
+	if useDaemon() {
+		return daemonProbeFacts()
 	}
 	fisherman, err := resolveFisherman()
 	if err != nil {

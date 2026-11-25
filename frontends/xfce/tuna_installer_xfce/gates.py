@@ -25,6 +25,9 @@ all. These are the GTK3 equivalents, in theme colors only (DESIGN.md):
   Cancel / Exit, the delete-event guard for a running install.
 - ConfirmCancelDialog: the question the progress page's Cancel button asks
   before it stops a disk write half-way (#299).
+- CountdownEraseDialog: forced erase (insufficient free space, a foreign
+  label) counts three seconds down before the erase button unlocks
+  (gnome-setup's forced-erase dialog).
 """
 
 import os
@@ -34,7 +37,7 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
-from gi.repository import Gdk, Gtk  # noqa: E402
+from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 from . import core, locale as locale_checks
 from .i18n import _
@@ -301,5 +304,66 @@ class ConfirmCancelDialog(Gtk.Dialog):
         row.pack_start(self.keep_btn, False, False, 0)
         row.pack_start(self.stop_btn, False, False, 0)
         box.pack_start(row, False, False, 0)
-        self.show_all()
         self.keep_btn.grab_focus()
+
+
+class CountdownEraseDialog(Gtk.Dialog):
+    """"Erase the whole disk?" for a forced erase: the install has nowhere
+    else to go (insufficient free space, a foreign disk label), so there is
+    no free-space choice. The erase button counts three seconds down before
+    it unlocks (gnome-setup's forced-erase dialog)."""
+
+    COUNTDOWN_SECONDS = 3
+
+    def __init__(self, parent, disk=""):
+        super().__init__(title=_("Erase the whole disk?"), transient_for=parent,
+                         modal=True)
+        self.set_default_size(420, 140)
+        self._left = self.COUNTDOWN_SECONDS
+        box = self.get_content_area()
+        box.set_spacing(8)
+        box.set_margin_top(12)
+        box.set_margin_bottom(12)
+        box.set_margin_start(12)
+        box.set_margin_end(12)
+        body = Gtk.Label(xalign=0)
+        body.set_line_wrap(True)
+        body.set_text(_(
+            "Everything on {disk} will be erased, and this cannot be "
+            "undone.").format(disk=disk or _("the selected disk")))
+        box.pack_start(body, True, True, 0)
+        row = Gtk.Box(spacing=8)
+        row.set_halign(Gtk.Align.END)
+        self.back_btn = Gtk.Button(label=_("Back"))
+        self.back_btn.connect(
+            "clicked", lambda *_a: self.response(Gtk.ResponseType.CANCEL))
+        self.erase_btn = Gtk.Button()
+        self.erase_btn.get_style_context().add_class("destructive-action")
+        self.erase_btn.set_sensitive(False)
+        self.erase_btn.connect(
+            "clicked", lambda *_a: self.response(Gtk.ResponseType.OK))
+        row.pack_start(self.back_btn, False, False, 0)
+        row.pack_start(self.erase_btn, False, False, 0)
+        box.pack_start(row, False, False, 0)
+        self.show_all()
+        self._tick()
+
+    def _tick(self):
+        if self._left > 0:
+            self.erase_btn.set_label(
+                _("Erase everything ({left})").format(left=self._left))
+            self._left -= 1
+            GLib.timeout_add_seconds(1, self._tick_done)
+        else:
+            self.erase_btn.set_label(_("Erase everything"))
+            self.erase_btn.set_sensitive(True)
+        return False
+
+    def _tick_done(self):
+        # A destroyed dialog must not touch its buttons: the tick after the
+        # answer belongs to nothing.
+        try:
+            self._tick()
+        except RuntimeError:
+            pass
+        return False

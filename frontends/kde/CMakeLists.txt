@@ -11,7 +11,7 @@ set(CMAKE_AUTOMOC ON)
 # are QML-only dependencies: nothing here links against KF6, they are resolved
 # at runtime from the QML import path. That keeps the build to plain Qt 6 while
 # the UI is fully Plasma-styled.
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Qml Quick QuickControls2)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Qml Quick QuickControls2 Network)
 
 qt_standard_project_setup(REQUIRES 6.5)
 
@@ -47,6 +47,12 @@ set(BACKEND_SOURCES
     src/offline.h
     src/fisherman.cpp
     src/fisherman.h
+    src/daemonclient.cpp
+    src/daemonclient.h
+    src/osrelease.cpp
+    src/osrelease.h
+    src/eula.cpp
+    src/eula.h
     src/account.cpp
     src/account.h
     src/branding.cpp
@@ -69,6 +75,8 @@ set(BACKEND_SOURCES
     src/validate.h
     src/translations.cpp
     src/translations.h
+    src/qrcode.cpp
+    src/qrcode.h
 )
 
 # The data the five frontends share is compiled in from shared/, the one copy
@@ -105,7 +113,7 @@ qt_add_library(tunainstallerapp STATIC)
 # Each step lives at modules/<name>/contents/ui/main.qml, the KISS layout, and
 # is aliased into the QML module resource as modules/<name>/main.qml so that
 # Wizard.qml can resolve it with a plain relative URL.
-set(STEP_MODULES welcome disk encryption account confirm progress done)
+set(STEP_MODULES tryorinstall welcome prerelease eula rst disk wipefree encryption account confirm progress done)
 set(STEP_QML_FILES)
 foreach(step ${STEP_MODULES})
     set(src "modules/${step}/contents/ui/main.qml")
@@ -141,6 +149,7 @@ target_link_libraries(tunainstallerapp PUBLIC
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
+    Qt6::Network
     tunainstallercomponentsplugin
 )
 
@@ -190,6 +199,8 @@ if(BUILD_CAPTURE)
     # laptop, the fixture every frontend's capture reads.
     target_compile_definitions(tuna-installer-capture PRIVATE
         PROBE_FIXTURE_FILE="${TUNA_SHARED_DIR}/probe/fixtures/laptop.json"
+        # This frontend's own fixtures (a pre-release os-release and a EULA).
+        CAPTURE_TESTDATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/testdata"
         # The themed logo shared/walkthrough/capture-branding.json names; see
         # the icon search path in tests/capture.cpp.
         CAPTURE_ICON_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../data/icons/hicolor/scalable/apps")
@@ -216,6 +227,9 @@ if(BUILD_TESTING)
         src/branding.cpp
         src/offline.cpp
         src/fisherman.cpp
+        src/daemonclient.cpp
+        src/osrelease.cpp
+        src/eula.cpp
         src/account.cpp
         src/readiness.cpp
         src/redact.cpp
@@ -230,6 +244,8 @@ if(BUILD_TESTING)
         # point readyReadStandardOutput uses.
         src/installercontroller.cpp
         src/translations.cpp
+        src/qrcode.cpp
+        src/qrcode.h
     )
     target_include_directories(tuna-installer-backend-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR})
     # The branding fixtures every frontend's resolver is judged by; the test
@@ -246,12 +262,14 @@ if(BUILD_TESTING)
         SHARED_GROUPS_FILE="${TUNA_SHARED_DIR}/account/groups.json"
         # The QML the strings lint reads (tests/test_backend.cpp, #300).
         KDE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        # This frontend's own fixtures (os-release, EULA).
+        KDE_TESTDATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/testdata"
         VALIDATE_GOLDENS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../fisherman/fisherman/cmd/fisherman/testdata/validate"
         PLAN_GOLDENS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../fisherman/fisherman/cmd/fisherman/testdata/plan")
     # Qt6::Quick is needed to compile readiness.cpp: armStamp() takes a
     # QQuickWindow, so the type must be complete even though the tests below
     # only exercise writeStamp(), which has no Quick dependency of its own.
-    target_link_libraries(tuna-installer-backend-tests PRIVATE Qt6::Core Qt6::Quick Qt6::Test)
+    target_link_libraries(tuna-installer-backend-tests PRIVATE Qt6::Core Qt6::Quick Qt6::Test Qt6::Network)
     if(TUNA_TRANSLATIONS)
         # The .qm files this build compiled: the catalogs the install ships.
         target_compile_definitions(tuna-installer-backend-tests PRIVATE

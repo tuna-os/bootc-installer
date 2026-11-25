@@ -32,6 +32,8 @@
         "mkdir -p /app/lib/tuna-installer-xfce",
         "cp -r tuna_installer_xfce /app/lib/tuna-installer-xfce/",
         "cp -r shared/python/bootc_shared /app/lib/tuna-installer-xfce/",
+        "mkdir -p /app/lib/tuna-installer-xfce/varlink",
+        "install -Dm644 shared/client/varlink_client.py /app/lib/tuna-installer-xfce/varlink/varlink_client.py",
         "install -Dm644 shared/account/groups.json /app/lib/tuna-installer-xfce/bootc_shared/data/account/groups.json",
         "install -Dm644 shared/branding/copy-defaults.json /app/lib/tuna-installer-xfce/bootc_shared/data/branding/copy-defaults.json",
         "install -Dm644 shared/progress/dry-run-transcript.ndjson /app/lib/tuna-installer-xfce/bootc_shared/data/progress/dry-run-transcript.ndjson",
@@ -48,7 +50,8 @@
         { "type": "file", "path": "../../../shared/account/groups.json", "dest": "shared/account" },
         { "type": "file", "path": "../../../shared/branding/copy-defaults.json", "dest": "shared/branding" },
         { "type": "file", "path": "../../../shared/progress/dry-run-transcript.ndjson", "dest": "shared/progress" },
-        { "type": "file", "path": "../../../shared/recipe/encryption-choices.json", "dest": "shared/recipe" }
+        { "type": "file", "path": "../../../shared/recipe/encryption-choices.json", "dest": "shared/recipe" },
+        { "type": "file", "path": "../../../shared/client/python/varlink_client.py", "dest": "shared/client" }
       ]
     }
   ]

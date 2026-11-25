@@ -88,6 +88,7 @@ _SHARED_INPUTS = {
         "shared/python/bootc_shared/",
         "shared/account/groups.json",
         "shared/branding/copy-defaults.json",
+        "shared/client/python/varlink_client.py",
         "shared/progress/dry-run-transcript.ndjson",
         "shared/recipe/encryption-choices.json",
     ),

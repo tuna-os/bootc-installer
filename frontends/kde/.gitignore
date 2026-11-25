@@ -1,4 +1,5 @@
-build/
+.build/
+ build/
 *.o
 *.pro.user
 moc_*

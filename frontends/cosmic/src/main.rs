@@ -25,7 +25,11 @@ mod image_catalog;
 mod hardware;
 mod preflight;
 mod tour;
+mod fishermand;
+mod eula;
 mod i18n;
+#[cfg(all(test, unix))]
+mod fishermand_mock_tests;
 #[cfg(test)]
 mod recipe_compliance;
 
@@ -99,6 +103,23 @@ pub struct Flags {
     pub capture: Option<capture::Capture>,
 }
 
+/// The wipe-or-free choice (screens.yaml `wipe-or-free`): install into the
+/// free space, or erase the whole disk. The daemon's `Install` config calls
+/// these `free_space` and `erase`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InstallMode {
+    FreeSpace,
+    Erase,
+}
+
+impl InstallMode {
+    pub const fn daemon_name(self) -> &'static str {
+        match self {
+            InstallMode::FreeSpace => "free_space",
+            InstallMode::Erase => "erase",
+        }
+    }
+}
 // ---------------------------------------------------------------- pages ----
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -106,7 +127,9 @@ pub enum Page {
     /// Blocking hardware gates (CPU/RAM/unsupported firmware). Shown only
     /// while a gate stands; GNOME opens a dedicated window instead.
     Requirements,
-    Welcome,
+    /// Try the live session or install now (screens.yaml `try-or-install`).
+    /// Try quits the wizard; the live session keeps running.
+    TryOrInstall,
     /// Image catalog (image.py / XFCE SourcePage). Skipped on live media
     /// and when the catalog offers fewer than two leaves.
     Image,
@@ -119,7 +142,28 @@ pub enum Page {
     /// Connectivity preflight (network.py / conn_check.py). Skipped on
     /// live media: an offline install needs no network.
     Network,
+    /// The medium is a pre-release or experiment (screens.yaml
+    /// `prerelease`). A disclaimer, never a gate.
+    Prerelease,
+    /// The image ships terms of use (screens.yaml `eula`). The accept box
+    /// gates Next. Skipped without a EULA file on the medium.
+    Eula,
+    /// Intel RST/VMD hides the NVMe disk. Warns and continues to the disk
+    /// list; it does not block (screens.yaml `rst`). Shown only while the
+    /// daemon reports `intelRst.detected`: the legacy probe has no such
+    /// fact.
+    Rst,
     DiskSelect,
+    /// The chosen disk holds data with room to spare (screens.yaml
+    /// `wipe-or-free`). Offers free-space install or whole-disk erase.
+    /// Daemon-only: the legacy path always erases and has no data facts.
+    WipeOrFree,
+    /// How the disk is locked (screens.yaml `encryption`). The passphrase,
+    /// twice, when the choice carries one. Skipped in daemon mode with a
+    /// usable TPM: the disk seals to PCR 7 with no prompt.
+    Encryption,
+    /// The legacy filesystem page. Daemon mode skips it: the daemon owns
+    /// the filesystem per base image.
     Options,
     /// Username, full name and password: the recipe's `user` block.
     /// Conditional: skipped when the selected image (or a custom URL)
@@ -129,44 +173,65 @@ pub enum Page {
     Tour,
     Confirm,
     Installing,
+    /// The LUKS recovery key (screens.yaml `recovery-key`): its own
+    /// screen with a QR code, shown when the disk is encrypted. The key
+    /// enrols when the user presses Done.
+    RecoveryKey,
+    /// Hand the installed system over (screens.yaml `handoff`): migrate,
+    /// soft-reboot, or reboot, as the daemon's Probe reported.
+    Handoff,
     Done,
 }
 
 impl Page {
     /// Wizard order. Also the capture order, so a new page cannot be added
     /// without appearing in the walkthrough.
-    pub const ORDER: [Page; 14] = [
+    pub const ORDER: [Page; 21] = [
         Page::Requirements,
-        Page::Welcome,
+        Page::TryOrInstall,
         Page::Image,
         Page::Language,
         Page::Keyboard,
         Page::Timezone,
         Page::Network,
+        Page::Prerelease,
+        Page::Eula,
+        Page::Rst,
         Page::DiskSelect,
+        Page::WipeOrFree,
+        Page::Encryption,
         Page::Options,
         Page::Account,
         Page::Tour,
         Page::Confirm,
         Page::Installing,
+        Page::RecoveryKey,
+        Page::Handoff,
         Page::Done,
     ];
 
     pub const fn slug(self) -> &'static str {
         match self {
             Page::Requirements => "requirements",
-            Page::Welcome => "welcome",
+            Page::TryOrInstall => "try-or-install",
             Page::Image => "image",
             Page::Language => "language",
             Page::Keyboard => "keyboard",
             Page::Timezone => "timezone",
             Page::Network => "network",
+            Page::Prerelease => "prerelease",
+            Page::Eula => "eula",
+            Page::Rst => "rst",
             Page::DiskSelect => "disk",
+            Page::WipeOrFree => "wipe-or-free",
+            Page::Encryption => "encryption",
             Page::Options => "options",
             Page::Account => "account",
             Page::Tour => "tour",
             Page::Confirm => "confirm",
             Page::Installing => "installing",
+            Page::RecoveryKey => "recovery-key",
+            Page::Handoff => "handoff",
             Page::Done => "done",
         }
     }
@@ -177,18 +242,25 @@ impl Page {
         use ui::copy;
         match self {
             Page::Requirements => copy::REQUIREMENTS_TITLE,
-            Page::Welcome => copy::PAGE_WELCOME,
+            Page::TryOrInstall => copy::PAGE_WELCOME,
             Page::Image => copy::IMAGE_TITLE,
             Page::Language => copy::LANGUAGE_TITLE,
             Page::Keyboard => copy::KEYBOARD_TITLE,
             Page::Timezone => copy::TIMEZONE_TITLE,
             Page::Network => copy::NETWORK_TITLE,
+            Page::Prerelease => copy::PRERELEASE_TITLE,
+            Page::Eula => copy::EULA_TITLE,
+            Page::Rst => copy::RST_TITLE,
             Page::DiskSelect => copy::DISK_TITLE,
+            Page::WipeOrFree => copy::WIPE_TITLE,
+            Page::Encryption => copy::OPTIONS_DISK_ENCRYPTION,
             Page::Options => copy::OPTIONS_TITLE,
             Page::Account => copy::ACCOUNT_SECTION,
             Page::Tour => copy::TOUR_TITLE,
             Page::Confirm => copy::PAGE_CONFIRM,
             Page::Installing => copy::PAGE_INSTALLING,
+            Page::RecoveryKey => copy::RECOVERY_TITLE,
+            Page::Handoff => copy::HANDOFF_TITLE,
             Page::Done => copy::PAGE_DONE,
         }
     }
@@ -333,6 +405,9 @@ pub enum Message {
     NextPage,
     BackPage,
     SelectDisk(usize),
+    /// The wipe-or-free choice for the selected disk (free space is the
+    /// default while unset). A new disk resets it.
+    WipeSelected(InstallMode),
     /// `fisherman probe --json` answered (shared/probe/README.md).
     Probed(Result<probe::Facts, String>),
     /// `fisherman validate --json --partial` answered for check number `.0`
@@ -361,8 +436,24 @@ pub enum Message {
     PasswordChanged(String),
     PasswordConfirmChanged(String),
     TogglePasswordVisible,
-    /// The done page's "I have saved my recovery key" box.
+    /// The recovery-key page's "I have saved my recovery key" box.
     RecoveryAckToggled(bool),
+    /// The daemon's answer to MakeRecoveryKey, only in daemon mode. The
+    /// legacy key arrives with the install stream instead.
+    RecoveryKeyLoaded(Result<String, String>),
+    /// The recovery-key page's Done: enrols the key, then advances.
+    RecoveryDone,
+    /// The daemon's answer to the recovery Enroll. `Ok` advances; `Err`
+    /// stays on the page with a retry.
+    RecoveryEnrolled(Result<(), String>),
+    /// Open or close the recovery key's QR dialog.
+    ToggleQrDialog,
+    /// The handoff page's Continue: hand the system over, then Done.
+    HandoffContinue,
+    /// The daemon's answer to Handoff. `Ok` advances to Done.
+    HandoffDone(Result<serde_json::Value, String>),
+    /// The EULA page's accept box. Gates Continue on that page.
+    EulaAccepted(bool),
     /// Put the recovery key on the clipboard.
     CopyRecoveryKey,
     StartInstall,
@@ -424,7 +515,21 @@ pub enum Message {
     InstallLine(String),
     /// The wrapper's exit code, or `None` when a signal ended it.
     InstallFinished(Result<Option<i32>, String>),
+    /// One fishermand `Install` event, only in daemon mode
+    /// (`TUNA_USE_FISHERMAND=1`). The update loop folds it into the
+    /// progress state; the terminal event ends the install.
+    DaemonEvent(serde_json::Value),
+    /// The daemon's answer to `Cancel`, only in daemon mode. `Ok` needs no
+    /// handling: the running Install stream ends with the cancelled event.
+    DaemonCancelDone(Result<(), String>),
+    /// A daemon Shutdown call answered, only in daemon mode. `Ok` needs
+    /// no handling: the machine is going down. Errors go to the log.
+    DaemonShutdownDone(Result<(), String>),
     Quit,
+    /// The live-session choice (screens.yaml `try-or-install`): quit the
+    /// wizard with success so the session keeps running. Unlike Quit, the
+    /// exit code is always zero: nothing failed.
+    TrySystem,
     /// The done page's Restart: `systemctl reboot` on the host.
     Reboot,
     /// The done page's store link.
@@ -472,6 +577,9 @@ pub struct TunaInstaller {
     recipe: Recipe,
     disks: Vec<DiskInfo>,
     selected_disk: Option<usize>,
+    /// The wipe-or-free choice for the selected disk. Unset until the user
+    /// visits the page; the install reads free-space then, the safe default.
+    install_mode: Option<InstallMode>,
     install_log: String,
     /// The install's position, parsed from fisherman's protocol
     /// (shared/progress/README.md). Before this the install page showed an
@@ -499,15 +607,44 @@ pub struct TunaInstaller {
     /// The password typed a second time. Never in the recipe.
     password_confirm: String,
     password_hidden: bool,
-    /// Ticked by the user on the done page once they have written the
-    /// recovery key down. It gates Restart (#129).
+    /// Ticked by the user on the recovery-key page once they have written
+    /// the recovery key down. It gates that page's Done (#129).
     recovery_ack: bool,
+    /// The QR dialog is open over the recovery-key page.
+    show_qr_dialog: bool,
+    /// The recovery key's QR code, rendered once when the key arrives.
+    qr_code: Option<cosmic::widget::image::Handle>,
+    /// Why the recovery key is missing or would not enrol. Retry stays
+    /// available; the key never reaches the log.
+    recovery_error: Option<String>,
+    /// A CryptEnroll call is in flight; Done stays dead meanwhile.
+    recovery_enrolling: bool,
+    /// The handoff call is in flight; Continue stays dead meanwhile.
+    handoff_calling: bool,
+    /// Why the handoff failed. The page then offers Reboot and Close.
+    handoff_error: Option<String>,
     /// fisherman's `tpm.usable`. Gates the two `tpm2-*` encryption choices.
     has_tpm: bool,
     /// fisherman's `system.unmet`: the welcome page warns about each one.
     unmet: Vec<String>,
     /// Why there are no disks, when the probe failed. No fallback scan.
     disk_error: Option<String>,
+    /// The daemon's `intelRst.detected`: Intel RST/VMD hides the NVMe disk.
+    /// Always false on the legacy path. The RST page shows while set.
+    intel_rst: bool,
+    /// One entry per disk in `disks`, same order: data and free space. The
+    /// wipe-or-free page reads this. Empty on the legacy path.
+    disk_data: Vec<probe::DiskData>,
+    /// The daemon's handoff mode and reason (`handoff.mode`, `handoff.reason`
+    /// of the Probe reply). Missing means reboot. The handoff page reads this.
+    handoff_mode: String,
+    handoff_reason: String,
+    /// The EULA text for this medium (`eula::load`). `None` skips the page;
+    /// an unreadable file sets `eula_error` and shows the failure state.
+    eula_text: Option<String>,
+    eula_error: bool,
+    /// The user ticked the terms box. Gates Continue on the EULA page.
+    eula_accepted: bool,
     /// Whether a probe answer (or failure) has arrived yet.
     probed: bool,
     /// `Some` only in capture mode. Its presence is also the hard interlock
@@ -565,6 +702,42 @@ pub struct TunaInstaller {
 }
 
 impl TunaInstaller {
+    /// The install ended, from the wrapper's exit (`InstallFinished`) or
+    /// from a daemon terminal event (`DaemonEvent`). One path so the done
+    /// page cannot drift between backends.
+    fn finish_install(&mut self, result: Result<Option<i32>, String>) {
+        self.page = Page::Done;
+        self.installing = false;
+        self.show_cancel_dialog = false;
+        match result {
+            Ok(code) => {
+                let outcome = install_outcome(code, self.cancel_confirmed);
+                self.install_ok = outcome == Outcome::Succeeded;
+                self.install_cancelled = outcome == Outcome::Cancelled;
+                let how = code.map_or("a signal".to_string(), |c| format!("code {c}"));
+                self.install_log
+                    .push_str(&format!("\n=== fisherman exited with {how} ===\n"));
+            }
+            Err(e) => {
+                self.install_ok = false;
+                self.install_cancelled = false;
+                self.install_log.push_str(&format!("\n=== Error: {e} ===\n"));
+            }
+        }
+        // An encrypted install lands on the recovery-key page first, then
+        // the handoff page. The failed and cancelled installs go straight
+        // to done.
+        if self.recovery_key_visible() {
+            self.page = Page::RecoveryKey;
+            // Daemon mode makes the key on entry (on_enter_page); the
+            // legacy key already arrived with the install stream.
+            self.qr_code = crate::ui::qr_handle(&self.progress.recovery_key);
+        } else if self.install_ok {
+            self.page = Page::Handoff;
+        }
+        offline::persist_install_log(&self.install_log, &self.progress.recovery_key);
+    }
+
     pub fn page(&self) -> Page {
         self.page
     }
@@ -651,10 +824,13 @@ impl TunaInstaller {
     }
     /// Whether Continue is live on the account page: a username and a
     /// password typed the same twice (this frontend's rules), and no
-    /// fisherman problem with the username.
+    /// fisherman problem with the username or the hostname.
     pub fn account_ok(&self) -> bool {
         account_complete(&self.username, &self.password, &self.password_confirm)
-            && !self.problems.iter().any(|p| is_account_field(&p.field))
+            && !self
+                .problems
+                .iter()
+                .any(|p| is_account_field(&p.field) || p.field == "hostname")
     }
     /// The recipe's `user` block, from the account page's fields.
     fn sync_user(&mut self) {
@@ -676,6 +852,45 @@ impl TunaInstaller {
     }
     pub fn disk_error(&self) -> Option<&str> {
         self.disk_error.as_deref()
+    }
+    pub fn intel_rst(&self) -> bool {
+        self.intel_rst
+    }
+    pub fn disk_data(&self) -> &[probe::DiskData] {
+        &self.disk_data
+    }
+    pub fn eula_text(&self) -> Option<&str> {
+        self.eula_text.as_deref()
+    }
+    pub fn eula_error(&self) -> bool {
+        self.eula_error
+    }
+    pub fn eula_accepted(&self) -> bool {
+        self.eula_accepted
+    }
+    pub fn handoff_mode(&self) -> &str {
+        &self.handoff_mode
+    }
+    pub fn handoff_reason(&self) -> &str {
+        &self.handoff_reason
+    }
+    pub fn show_qr_dialog(&self) -> bool {
+        self.show_qr_dialog
+    }
+    pub fn qr_code(&self) -> Option<cosmic::widget::image::Handle> {
+        self.qr_code.clone()
+    }
+    pub fn recovery_error(&self) -> Option<&str> {
+        self.recovery_error.as_deref()
+    }
+    pub fn recovery_enrolling(&self) -> bool {
+        self.recovery_enrolling
+    }
+    pub fn handoff_error(&self) -> Option<&str> {
+        self.handoff_error.as_deref()
+    }
+    pub fn handoff_calling(&self) -> bool {
+        self.handoff_calling
     }
     pub fn probed(&self) -> bool {
         self.probed
@@ -805,8 +1020,82 @@ impl TunaInstaller {
                 self.live_image.is_none() && !source_check::offers_reuse(self.probe_output.as_deref())
             }
             Page::Account => self.account_required(),
+            // A pre-release or experiment medium only (os-release).
+            Page::Prerelease => branding::is_prerelease(&branding::release_facts().0),
+            // A EULA file on the medium, readable or not (the unreadable
+            // file is the eula-unreadable failure state, not a skip).
+            Page::Eula => self.eula_text.is_some() || self.eula_error,
+            // The daemon reports Intel RST; the legacy probe has no such
+            // fact, so the page never shows on that path.
+            Page::Rst => self.intel_rst,
             Page::Tour => !self.tour_slides().is_empty(),
+            Page::WipeOrFree => self.wipe_visible(),
+            // Daemon mode owns the filesystem per base image: the legacy
+            // filesystem page has nothing to ask there.
+            Page::Options => !fishermand::use_daemon(),
+            Page::Encryption => self.encryption_visible(),
+            Page::RecoveryKey => self.recovery_key_visible(),
+            // After a finished install only: failed and cancelled
+            // installs go straight to done.
+            Page::Handoff => self.install_ok && !self.installing,
             _ => true,
+        }
+    }
+
+    /// Whether the recovery-key page shows (screens.yaml `recovery-key`):
+    /// the install finished ok and the disk is encrypted. Daemon mode
+    /// makes the key on entry; the legacy key arrives with the install
+    /// stream, so an empty one skips the page.
+    pub fn recovery_key_visible(&self) -> bool {
+        if self.installing || !self.install_ok {
+            return false;
+        }
+        if self.recipe.encryption.enc_type == "none" {
+            return false;
+        }
+        if fishermand::use_daemon() {
+            return true;
+        }
+        !self.progress.recovery_key.is_empty()
+    }
+
+    /// Whether the selected disk holds data with room to spare
+    /// (screens.yaml `data-detected`). Daemon-only: the legacy probe has
+    /// no data facts and that path always erases.
+    pub fn wipe_visible(&self) -> bool {
+        if !fishermand::use_daemon() {
+            return false;
+        }
+        match self.selected_disk {
+            Some(i) => self.disk_data.get(i).map(|d| d.data_detected()).unwrap_or(false),
+            None => false,
+        }
+    }
+
+    /// The wipe-or-free choice, defaulting to free space while unset.
+    pub fn install_mode(&self) -> InstallMode {
+        self.install_mode.unwrap_or(InstallMode::FreeSpace)
+    }
+
+    /// Whether the encryption page shows (screens.yaml `encryption`): in
+    /// daemon mode only without a usable TPM (with one the disk seals to
+    /// PCR 7 with no prompt). The legacy path always asks.
+    pub fn encryption_visible(&self) -> bool {
+        if fishermand::use_daemon() {
+            !self.has_tpm
+        } else {
+            true
+        }
+    }
+
+    /// The encryption type the install uses in daemon mode with a usable
+    /// TPM: the disk seals to PCR 7 with no prompt, so an untouched `none`
+    /// becomes `tpm2-luks`. Anything picked stays.
+    pub fn daemon_sealed_type(has_tpm: bool, enc_type: &str) -> &str {
+        if has_tpm && enc_type == "none" {
+            "tpm2-luks"
+        } else {
+            enc_type
         }
     }
 
@@ -820,7 +1109,18 @@ impl TunaInstaller {
             Ok(facts) => {
                 self.disk_error = None;
                 self.has_tpm = facts.tpm_usable;
+                // Daemon mode with a usable TPM seals to PCR 7 with no
+                // prompt: the encryption page stays skipped, so the
+                // untouched default must already say `tpm2-luks`.
+                if fishermand::use_daemon() {
+                    let sealed = Self::daemon_sealed_type(facts.tpm_usable, &self.recipe.encryption.enc_type);
+                    self.recipe.encryption.enc_type = sealed.to_string();
+                }
                 self.unmet = facts.unmet;
+                self.intel_rst = facts.intel_rst;
+                self.disk_data = facts.disk_data;
+                self.handoff_mode = facts.handoff_mode;
+                self.handoff_reason = facts.handoff_reason;
                 // Live media is fisherman's answer. This used to be a
                 // `bootc status` of our own plus /run/ostree-live and
                 // /proc/cmdline, read inside the Flatpak sandbox.
@@ -859,7 +1159,7 @@ impl TunaInstaller {
         // on the first page, the gates come first. Once the user has moved
         // on, the probe stays out of their way.
         if !self.capturing()
-            && self.page == Page::Welcome
+            && self.page == Page::TryOrInstall
             && !hardware::blocking_gates(&self.unmet, &self.hw_overrides).is_empty()
         {
             self.page = Page::Requirements;
@@ -874,29 +1174,44 @@ impl TunaInstaller {
             .find(|p| p.field == field || p.field.starts_with(&format!("{field}.")))
     }
 
-    /// Whether the Options page is allowed to advance: fisherman knows no
-    /// problem with the hostname, the filesystem or the encryption choice
-    /// (an empty passphrase is `encryption_passphrase_required`). The rules
-    /// are fisherman's; a check that could not run blocks nothing, because
-    /// the install runs the same rules before it touches a disk.
+    /// Whether the encryption page is allowed to advance: fisherman knows
+    /// no problem with the encryption choice (an empty passphrase is
+    /// `encryption_passphrase_required`). Later pages' problems do not
+    /// block this one. The rules are fisherman's; a check that could not
+    /// run blocks nothing, because the install runs the same rules before
+    /// it touches a disk.
     pub fn encryption_ok(&self) -> bool {
-        // The username is the account page's, the region picks are
-        // Confirm's: each holds its own page, not this one.
         !self
             .problems
             .iter()
-            .any(|p| !is_account_field(&p.field) && !is_region_field(&p.field))
+            .any(|p| p.field == "encryption" || p.field.starts_with("encryption."))
     }
 
-    /// Whether Continue is live on the Options page: fisherman's rules
+    /// Whether the legacy filesystem page is allowed to advance: no
+    /// fisherman problem with the filesystem choice.
+    pub fn filesystem_ok(&self) -> bool {
+        !self
+            .problems
+            .iter()
+            .any(|p| p.field == "filesystem" || p.field == "btrfsSubvolumes")
+    }
+
+    /// Whether Continue is live on the encryption page: fisherman's rules
     /// (`encryption_ok`) and the passphrase confirmation, the one rule of
     /// this frontend. A mismatch is caught here, while it can be fixed,
     /// not at the first boot.
-    pub fn options_ok(&self) -> bool {
+    pub fn encryption_page_ok(&self) -> bool {
         self.encryption_ok() && self.passphrases_match()
     }
 
-    /// Asks fisherman about the options page after a pause in the typing,
+    /// Whether Continue is live on the legacy Options page, which now
+    /// holds only the filesystem choice. The hostname moved to the
+    /// account page, the encryption to its own page.
+    pub fn options_ok(&self) -> bool {
+        self.filesystem_ok()
+    }
+
+    /// Asks fisherman about the typed fields after a pause in the typing,
     /// off the UI thread. Never in capture mode: nothing shells out there.
     fn check_fields(&mut self) -> Task<Message> {
         if self.capturing() {
@@ -912,6 +1227,27 @@ impl TunaInstaller {
             {
                 map.extend(fragment);
             }
+        }
+        // Daemon mode: the same fields as a daemon Config, answered by
+        // `Validate(config, partial)`. Problems render unchanged.
+        #[cfg(not(target_arch = "wasm32"))]
+        if fishermand::use_daemon() {
+            let config = fishermand::daemon_config_from_partial(&partial);
+            return Task::perform(
+                async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                    tokio::task::spawn_blocking(move || {
+                        let mut conn = fishermand::connect("io.tunaos.Fisherman")
+                            .map_err(|e| format!("cannot reach fishermand: {e}"))?;
+                        let reply = fishermand::validate(&mut conn, config, true)
+                            .map_err(|e| e.to_string())?;
+                        Ok(fishermand::daemon_problems(&reply))
+                    })
+                    .await
+                    .map_err(|e| format!("Task join error: {e}"))?
+                },
+                move |r| cosmic::action::app(Message::Validated(seq, r)),
+            );
         }
         Task::perform(
             async move {
@@ -1004,6 +1340,29 @@ impl TunaInstaller {
                 Task::none()
             }
             Page::Confirm => Task::batch([self.check_source(), self.check_plan()]),
+            Page::RecoveryKey => {
+                // Daemon mode makes the key when the page opens (gnome
+                // makes it here and enrols it on Done). The legacy key
+                // already arrived with the install stream. Never in
+                // capture mode: nothing shells out there.
+                #[cfg(not(target_arch = "wasm32"))]
+                if fishermand::use_daemon() && !self.capturing() {
+                    self.recovery_error = None;
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(|| {
+                                let mut conn = fishermand::connect("io.systemd.CryptEnroll")
+                                    .map_err(|e| format!("cannot reach fishermand: {e}"))?;
+                                fishermand::make_recovery_key(&mut conn).map_err(|e| e.to_string())
+                            })
+                            .await
+                            .map_err(|e| format!("Task join error: {e}"))?
+                        },
+                        |r| cosmic::action::app(Message::RecoveryKeyLoaded(r)),
+                    );
+                }
+                Task::none()
+            }
             _ => Task::none(),
         }
     }
@@ -1255,9 +1614,12 @@ impl cosmic::Application for TunaInstaller {
         let selected_image = catalog.default_index(&default_image);
         let image_preselected =
             selected_image.is_some() || (catalog.leaves.is_empty() && !default_image.is_empty());
+        // The EULA is static per medium: read once, up front. A file that
+        // exists but does not read is the eula-unreadable state.
+        let eula = eula::load();
         let mut app = Self {
             core,
-            page: Page::Welcome,
+            page: Page::TryOrInstall,
             live_image: None,
             problems: Vec::new(),
             validate_seq: 0,
@@ -1272,6 +1634,7 @@ impl cosmic::Application for TunaInstaller {
             plan: None,
             recipe,
             selected_disk: None,
+            install_mode: None,
             disks: Vec::new(),
             install_log: String::new(),
             progress: progress::Progress::new(branding::name()),
@@ -1288,10 +1651,23 @@ impl cosmic::Application for TunaInstaller {
             password_confirm: String::new(),
             password_hidden: true,
             recovery_ack: false,
+            show_qr_dialog: false,
+            qr_code: None,
+            recovery_error: None,
+            recovery_enrolling: false,
+            handoff_calling: false,
+            handoff_error: None,
             // Until the probe answers: no TPM choices, no warning.
             has_tpm: false,
             unmet: Vec::new(),
             disk_error: None,
+            intel_rst: false,
+            disk_data: Vec::new(),
+            handoff_mode: "reboot".to_string(),
+            handoff_reason: String::new(),
+            eula_text: eula.as_ref().and_then(|r| r.as_ref().ok().cloned()),
+            eula_error: matches!(eula, Some(Err(_))),
+            eula_accepted: false,
             probed: false,
             capture: flags.capture,
             catalog,
@@ -1470,6 +1846,24 @@ impl cosmic::Application for TunaInstaller {
                 }
             }
             Message::PowerOff => {
+                // Daemon mode: the daemon's Shutdown interface owns power
+                // state, so the mock's inhibitor scenario is testable.
+                #[cfg(not(target_arch = "wasm32"))]
+                if fishermand::use_daemon() {
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(|| {
+                                let mut conn = fishermand::connect("io.systemd.Shutdown")
+                                    .map_err(|e| format!("cannot reach fishermand: {e}"))?;
+                                fishermand::power_off(&mut conn, false)
+                                    .map_err(|e| e.to_string())
+                            })
+                            .await
+                            .map_err(|e| format!("Task join error: {e}"))?
+                        },
+                        |r| cosmic::action::app(Message::DaemonShutdownDone(r)),
+                    );
+                }
                 spawn_host(&hardware::poweroff_command());
                 Task::none()
             }
@@ -1614,6 +2008,31 @@ impl cosmic::Application for TunaInstaller {
             }
             Message::ConfirmCancelInstall => {
                 self.show_cancel_dialog = false;
+                // Daemon mode: `Cancel` goes over a second connection, as
+                // the spec requires; the running Install stream then ends
+                // with the cancelled event. Only while an install runs.
+                #[cfg(not(target_arch = "wasm32"))]
+                if fishermand::use_daemon() {
+                    if self.installing {
+                        self.cancel_confirmed = true;
+                        return Task::perform(
+                            async move {
+                                tokio::task::spawn_blocking(|| {
+                                    let mut conn = fishermand::connect(
+                                        "io.tunaos.Fisherman",
+                                    )
+                                    .map_err(|e| e.to_string())?;
+                                    fishermand::cancel(&mut conn).map_err(|e| e.to_string())?;
+                                    Ok(())
+                                })
+                                .await
+                                .map_err(|e| format!("Task join error: {e}"))?
+                            },
+                            |r| cosmic::action::app(Message::DaemonCancelDone(r)),
+                        );
+                    }
+                    return Task::none();
+                }
                 // The wrapper leads its own process group, so the signal
                 // reaches the whole install and not this process. fisherman
                 // then cleans up (unmounts, closes LUKS) and the wrapper
@@ -1624,6 +2043,16 @@ impl cosmic::Application for TunaInstaller {
                     if hardware::terminate_process_group(pid).is_ok() {
                         self.cancel_confirmed = true;
                     }
+                }
+                Task::none()
+            }
+            Message::DaemonCancelDone(result) => {
+                if let Err(e) = result {
+                    // The install still runs: say so in the log and let the
+                    // user try again. The stream stays open.
+                    self.cancel_confirmed = false;
+                    self.install_log
+                        .push_str(&format!("\n=== Cancel failed: {e} ===\n"));
                 }
                 Task::none()
             }
@@ -1648,7 +2077,14 @@ impl cosmic::Application for TunaInstaller {
                 if let Some(disk) = self.disks.get(idx) {
                     self.selected_disk = Some(idx);
                     self.recipe.disk = disk.path.clone();
+                    // A new disk has no choice yet; free space is the
+                    // default until the user visits the page.
+                    self.install_mode = None;
                 }
+                Task::none()
+            }
+            Message::WipeSelected(mode) => {
+                self.install_mode = Some(mode);
                 Task::none()
             }
             Message::Probed(result) => {
@@ -1750,6 +2186,112 @@ impl cosmic::Application for TunaInstaller {
                 self.recovery_ack = v;
                 Task::none()
             }
+            Message::RecoveryKeyLoaded(result) => {
+                match result {
+                    Ok(key) => {
+                        // The QR renders once, here, so no frame pays the
+                        // encoder cost. The key itself never reaches the log.
+                        self.progress.recovery_key = key;
+                        self.qr_code = crate::ui::qr_handle(&self.progress.recovery_key);
+                        self.recovery_error = None;
+                    }
+                    Err(e) => {
+                        self.recovery_error = Some(e);
+                    }
+                }
+                Task::none()
+            }
+            Message::RecoveryDone => {
+                // Daemon mode enrols the key before leaving the page; the
+                // legacy path enrols during the install itself.
+                #[cfg(not(target_arch = "wasm32"))]
+                if fishermand::use_daemon() {
+                    if self.recovery_enrolling {
+                        return Task::none();
+                    }
+                    let key = self.progress.recovery_key.clone();
+                    if key.is_empty() {
+                        // No key yet (MakeRecoveryKey failed or is still
+                        // running): run the page entry again instead of
+                        // enrolling nothing.
+                        return self.on_enter_page(Page::RecoveryKey);
+                    }
+                    self.recovery_enrolling = true;
+                    self.recovery_error = None;
+                    let disk = self.recipe.disk.clone();
+                    let passphrase = self.recipe.encryption.passphrase.clone();
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(move || {
+                                let mut conn = fishermand::connect("io.systemd.CryptEnroll")
+                                    .map_err(|e| format!("cannot reach fishermand: {e}"))?;
+                                fishermand::enroll_recovery(&mut conn, &disk, &key, &passphrase)
+                                    .map(|_| ())
+                                    .map_err(|e| e.to_string())
+                            })
+                            .await
+                            .map_err(|e| format!("Task join error: {e}"))?
+                        },
+                        |r| cosmic::action::app(Message::RecoveryEnrolled(r)),
+                    );
+                }
+                self.advance().1
+            }
+            Message::RecoveryEnrolled(result) => {
+                self.recovery_enrolling = false;
+                match result {
+                    Ok(()) => self.advance().1,
+                    Err(e) => {
+                        self.recovery_error = Some(e);
+                        Task::none()
+                    }
+                }
+            }
+            Message::ToggleQrDialog => {
+                self.show_qr_dialog = !self.show_qr_dialog;
+                Task::none()
+            }
+            Message::HandoffContinue => {
+                // Daemon mode: `Handoff` with no mode; the daemon decides
+                // (ruling on #442). The legacy path reboots directly.
+                #[cfg(not(target_arch = "wasm32"))]
+                if fishermand::use_daemon() {
+                    if self.handoff_calling {
+                        return Task::none();
+                    }
+                    self.handoff_calling = true;
+                    self.handoff_error = None;
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(|| {
+                                let mut conn = fishermand::connect("io.tunaos.Fisherman")
+                                    .map_err(|e| format!("cannot reach fishermand: {e}"))?;
+                                fishermand::handoff(&mut conn, None).map_err(|e| e.to_string())
+                            })
+                            .await
+                            .map_err(|e| format!("Task join error: {e}"))?
+                        },
+                        |r| cosmic::action::app(Message::HandoffDone(r)),
+                    );
+                }
+                // No daemon: the handoff is a plain restart.
+                Task::perform(async {}, |_| cosmic::action::app(Message::Reboot))
+            }
+            Message::HandoffDone(result) => {
+                self.handoff_calling = false;
+                match result {
+                    Ok(_reply) => self.advance().1,
+                    Err(e) => {
+                        // handoff-failed: say why, offer Reboot and Close.
+                        self.handoff_error = Some(e);
+                        Task::none()
+                    }
+                }
+            }
+            Message::EulaAccepted(v) => {
+                self.eula_accepted = v;
+                Task::none()
+            }
             Message::CopyRecoveryKey => {
                 cosmic::iced::clipboard::write(self.progress.recovery_key.clone())
             }
@@ -1775,6 +2317,16 @@ impl cosmic::Application for TunaInstaller {
                 self.show_cancel_dialog = false;
                 self.progress.reset();
                 let recipe = self.bound_install_recipe();
+                if fishermand::use_daemon() {
+                    // The daemon owns the install: config and confirmed go
+                    // over Varlink, events stream back. No wrapper, no pid.
+                    // The plan binding is a legacy concept: the daemon
+                    // validates the config itself.
+                    let config = fishermand::daemon_config(&self.recipe, Some(self.install_mode()));
+                    return Task::stream(
+                        Self::stream_daemon_install(config).map(cosmic::action::app),
+                    );
+                }
                 let pid_slot = self.install_pid.clone();
                 let live = self.live_image.is_some();
                 Task::stream(Self::stream_fisherman(recipe, pid_slot, live).map(cosmic::action::app))
@@ -1789,29 +2341,50 @@ impl cosmic::Application for TunaInstaller {
                 Task::none()
             }
             Message::InstallFinished(result) => {
-                self.page = Page::Done;
-                self.installing = false;
-                self.show_cancel_dialog = false;
-                match result {
-                    Ok(code) => {
-                        let outcome = install_outcome(code, self.cancel_confirmed);
-                        self.install_ok = outcome == Outcome::Succeeded;
-                        self.install_cancelled = outcome == Outcome::Cancelled;
-                        let how = code.map_or("a signal".to_string(), |c| format!("code {c}"));
-                        self.install_log
-                            .push_str(&format!("\n=== fisherman exited with {how} ===\n"));
+                self.finish_install(result);
+                Task::none()
+            }
+            Message::DaemonEvent(event) => {
+                // Daemon mode only: fold one Install event into the
+                // progress state. The terminal event ends the install
+                // through the same finish path as the wrapper's exit.
+                match fishermand::apply_install_event(
+                    &mut self.progress,
+                    &mut self.install_log,
+                    &event,
+                ) {
+                    fishermand::Terminal::Continue => Task::none(),
+                    fishermand::Terminal::Complete => {
+                        self.finish_install(Ok(Some(0)));
+                        Task::none()
                     }
-                    Err(e) => {
-                        self.install_ok = false;
-                        self.install_cancelled = false;
-                        self.install_log.push_str(&format!("\n=== Error: {e} ===\n"));
+                    fishermand::Terminal::Cancelled => {
+                        self.cancel_confirmed = true;
+                        self.finish_install(Ok(Some(130)));
+                        Task::none()
+                    }
+                    fishermand::Terminal::Failed => {
+                        let reason = self
+                            .progress
+                            .error
+                            .as_ref()
+                            .map(|e| e.code.clone())
+                            .unwrap_or_else(|| "install failed".to_string());
+                        self.finish_install(Err(reason));
+                        Task::none()
                     }
                 }
-                offline::persist_install_log(&self.install_log, &self.progress.recovery_key);
-                Task::none()
             }
             Message::Quit => {
                 std::process::exit(i32::from(!self.install_ok));
+            }
+            Message::TrySystem => {
+                // The capture harness walks pages without pressing buttons;
+                // quitting from it would kill the walkthrough run.
+                if self.capturing() {
+                    return Task::none();
+                }
+                std::process::exit(0);
             }
             Message::OpenUrl(url) => {
                 let argv = offline::host_command(&["xdg-open", &url]);
@@ -1821,9 +2394,34 @@ impl cosmic::Application for TunaInstaller {
                 Task::none()
             }
             Message::Reboot => {
+                #[cfg(not(target_arch = "wasm32"))]
+                if fishermand::use_daemon() {
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(|| {
+                                let mut conn = fishermand::connect("io.systemd.Shutdown")
+                                    .map_err(|e| format!("cannot reach fishermand: {e}"))?;
+                                fishermand::reboot(&mut conn, false)
+                                    .map_err(|e| e.to_string())
+                            })
+                            .await
+                            .map_err(|e| format!("Task join error: {e}"))?
+                        },
+                        |r| cosmic::action::app(Message::DaemonShutdownDone(r)),
+                    );
+                }
                 let argv = offline::host_command(&["systemctl", "reboot"]);
                 if let Some((program, args)) = argv.split_first() {
                     let _ = std::process::Command::new(program).args(args).spawn();
+                }
+                Task::none()
+            }
+            Message::DaemonShutdownDone(result) => {
+                // The machine state is unchanged: log and let the user
+                // retry. The done page shows the log on failure.
+                if let Err(e) = result {
+                    self.install_log
+                        .push_str(&format!("\n=== Shutdown failed: {e} ===\n"));
                 }
                 Task::none()
             }
@@ -1846,6 +2444,10 @@ impl cosmic::Application for TunaInstaller {
         if self.show_cancel_dialog {
             return ui::cancel_confirm(self);
         }
+        // The QR dialog replaces the recovery-key page until it closes.
+        if self.show_qr_dialog {
+            return ui::qr_dialog(self);
+        }
         ui::view(self)
     }
 }
@@ -1856,6 +2458,21 @@ impl TunaInstaller {
     /// `fisherman probe --json`, off the UI thread (shared/probe/README.md).
     #[cfg(not(target_arch = "wasm32"))]
     async fn probe() -> Result<probe::Facts, String> {
+        if fishermand::use_daemon() {
+            // One blocking round trip per interface: Requirements for the
+            // gates, Probe for the disks. A daemon answer replaces the
+            // subprocess answer one for one; apply_probe cannot tell them
+            // apart.
+            return tokio::task::spawn_blocking(|| {
+                let mut conn = fishermand::connect("io.tunaos.Fisherman")
+                    .map_err(|e| format!("cannot reach fishermand: {e}"))?;
+                let probe = fishermand::probe(&mut conn).map_err(|e| e.to_string())?;
+                let gates = fishermand::requirements(&mut conn).map_err(|e| e.to_string())?;
+                fishermand::daemon_probe_to_facts(&probe, &gates)
+            })
+            .await
+            .map_err(|e| format!("Task join error: {e}"))?;
+        }
         tokio::task::spawn_blocking(probe::run)
             .await
             .map_err(|e| format!("Task join error: {e}"))?
@@ -1967,12 +2584,64 @@ impl TunaInstaller {
         })
     }
 
+    /// The daemon install: `Install(config, confirmed)` streams events over
+    /// Varlink. The blocking socket lives on a worker thread; each event
+    /// crosses to the UI as it arrives, so the bar moves while the install
+    /// runs. A second connection carries `Cancel` (ConfirmCancelInstall).
+    /// Never in capture mode: the StartInstall arm refuses that first.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn stream_daemon_install(config: serde_json::Value) -> impl Stream<Item = Message> {
+        cosmic::iced::stream::channel(64, async move |mut output| {
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
+            let worker = tokio::task::spawn_blocking(move || {
+                let mut conn = match fishermand::connect("io.tunaos.Fisherman") {
+                    Ok(conn) => conn,
+                    Err(e) => {
+                        let _ = tx.send(Message::InstallFinished(Err(format!(
+                            "cannot reach fishermand: {e}"
+                        ))));
+                        return;
+                    }
+                };
+                if let Err(e) =
+                    fishermand::install(&mut conn, config, true, |event| {
+                        tx.send(Message::DaemonEvent(event)).is_ok()
+                    })
+                {
+                    // The stream broke before the terminal event: a dropped
+                    // connection cancels the install on the daemon side.
+                    let _ = tx.send(Message::InstallFinished(Err(e.to_string())));
+                }
+            });
+            while let Some(msg) = rx.recv().await {
+                if output.send(msg).await.is_err() {
+                    break;
+                }
+            }
+            let _ = worker.await;
+        })
+    }
+
     /// A browser build never starts fisherman: it has no host (#105).
     #[cfg(target_arch = "wasm32")]
     fn stream_fisherman(
         _recipe: serde_json::Value,
         _pid_slot: std::sync::Arc<std::sync::Mutex<Option<u32>>>,
         _live: bool,
+    ) -> impl Stream<Item = Message> {
+        cosmic::iced::stream::channel(1, async move |mut output| {
+            let _ = output
+                .send(Message::InstallFinished(Err(
+                    "A browser build cannot install.".to_string(),
+                )))
+                .await;
+        })
+    }
+
+    /// A browser build has no daemon either: same shape, fails closed.
+    #[cfg(target_arch = "wasm32")]
+    fn stream_daemon_install(
+        _config: serde_json::Value,
     ) -> impl Stream<Item = Message> {
         cosmic::iced::stream::channel(1, async move |mut output| {
             let _ = output
@@ -2088,6 +2757,109 @@ mod tests {
     fn override_makes_all_four_choices_available() {
         assert_eq!(super::available_encryption_choices(false).len(), 2);
         assert_eq!(super::available_encryption_choices(true).len(), 4);
+    }
+
+    #[test]
+    fn try_or_install_joins_the_shared_flow() {
+        // screens.yaml `try-or-install`: the stable id, right after the
+        // requirements gate. The a11y name stays Welcome (PAGE_WELCOME).
+        assert_eq!(Page::TryOrInstall.slug(), "try-or-install");
+        assert_eq!(Page::TryOrInstall.title(), crate::ui::copy::PAGE_WELCOME);
+        let order: Vec<&str> = Page::ORDER.iter().map(|p| p.slug()).collect();
+        assert_eq!(order[0], "requirements");
+        assert_eq!(order[1], "try-or-install");
+    }
+
+    #[test]
+    fn rst_joins_the_shared_flow() {
+        // screens.yaml `rst`: title, slug, and position after prerelease
+        // and eula, before disk.
+        assert_eq!(Page::Rst.slug(), "rst");
+        assert_eq!(Page::Rst.title(), crate::ui::copy::RST_TITLE);
+        let order: Vec<&str> = Page::ORDER.iter().map(|p| p.slug()).collect();
+        let network = order.iter().position(|s| *s == "network").unwrap();
+        let rst = order.iter().position(|s| *s == "rst").unwrap();
+        let disk = order.iter().position(|s| *s == "disk").unwrap();
+        assert!(network < rst && rst < disk, "{order:?}");
+    }
+
+    #[test]
+    fn wipe_or_free_joins_the_shared_flow() {
+        // screens.yaml `wipe-or-free`: title, slug, and position between
+        // disk and options. The a11y name is the page title.
+        assert_eq!(Page::WipeOrFree.slug(), "wipe-or-free");
+        assert_eq!(Page::WipeOrFree.title(), crate::ui::copy::WIPE_TITLE);
+        let order: Vec<&str> = Page::ORDER.iter().map(|p| p.slug()).collect();
+        let disk = order.iter().position(|s| *s == "disk").unwrap();
+        let wipe = order.iter().position(|s| *s == "wipe-or-free").unwrap();
+        let options = order.iter().position(|s| *s == "options").unwrap();
+        assert!(disk < wipe && wipe < options, "{order:?}");
+    }
+
+    #[test]
+    fn prerelease_and_eula_join_the_shared_flow() {
+        // screens.yaml `prerelease` and `eula`: stable ids between network
+        // and rst. The a11y names are the page titles.
+        assert_eq!(Page::Prerelease.slug(), "prerelease");
+        assert_eq!(Page::Prerelease.title(), crate::ui::copy::PRERELEASE_TITLE);
+        assert_eq!(Page::Eula.slug(), "eula");
+        assert_eq!(Page::Eula.title(), crate::ui::copy::EULA_TITLE);
+        let order: Vec<&str> = Page::ORDER.iter().map(|p| p.slug()).collect();
+        let network = order.iter().position(|s| *s == "network").unwrap();
+        let prerelease = order.iter().position(|s| *s == "prerelease").unwrap();
+        let eula = order.iter().position(|s| *s == "eula").unwrap();
+        let rst = order.iter().position(|s| *s == "rst").unwrap();
+        assert!(network < prerelease && prerelease < eula && eula < rst, "{order:?}");
+    }
+
+    #[test]
+    fn encryption_joins_the_shared_flow() {
+        // screens.yaml `encryption`: stable id between wipe-or-free and
+        // options. The title reuses the disk-encryption copy; the a11y
+        // name is the page title.
+        assert_eq!(Page::Encryption.slug(), "encryption");
+        assert_eq!(Page::Encryption.title(), crate::ui::copy::OPTIONS_DISK_ENCRYPTION);
+        let order: Vec<&str> = Page::ORDER.iter().map(|p| p.slug()).collect();
+        let wipe = order.iter().position(|s| *s == "wipe-or-free").unwrap();
+        let encryption = order.iter().position(|s| *s == "encryption").unwrap();
+        let options = order.iter().position(|s| *s == "options").unwrap();
+        assert!(wipe < encryption && encryption < options, "{order:?}");
+    }
+
+    #[test]
+    fn daemon_seal_applies_only_to_an_untouched_none() {
+        // With a usable TPM the install seals to PCR 7; anything the user
+        // could have picked stays.
+        assert_eq!(TunaInstaller::daemon_sealed_type(true, "none"), "tpm2-luks");
+        assert_eq!(TunaInstaller::daemon_sealed_type(true, "luks-passphrase"), "luks-passphrase");
+        assert_eq!(TunaInstaller::daemon_sealed_type(true, "tpm2-luks-passphrase"), "tpm2-luks-passphrase");
+        assert_eq!(TunaInstaller::daemon_sealed_type(false, "none"), "none");
+    }
+
+    #[test]
+    fn recovery_key_joins_the_shared_flow() {
+        // screens.yaml `recovery-key`: stable id between installing and
+        // done. The a11y name is the page title.
+        assert_eq!(Page::RecoveryKey.slug(), "recovery-key");
+        assert_eq!(Page::RecoveryKey.title(), crate::ui::copy::RECOVERY_TITLE);
+        let order: Vec<&str> = Page::ORDER.iter().map(|p| p.slug()).collect();
+        let installing = order.iter().position(|s| *s == "installing").unwrap();
+        let recovery = order.iter().position(|s| *s == "recovery-key").unwrap();
+        let done = order.iter().position(|s| *s == "done").unwrap();
+        assert!(installing < recovery && recovery < done, "{order:?}");
+    }
+
+    #[test]
+    fn handoff_joins_the_shared_flow() {
+        // screens.yaml `handoff`: stable id between recovery-key and done.
+        // The a11y name is the page title.
+        assert_eq!(Page::Handoff.slug(), "handoff");
+        assert_eq!(Page::Handoff.title(), crate::ui::copy::HANDOFF_TITLE);
+        let order: Vec<&str> = Page::ORDER.iter().map(|p| p.slug()).collect();
+        let recovery = order.iter().position(|s| *s == "recovery-key").unwrap();
+        let handoff = order.iter().position(|s| *s == "handoff").unwrap();
+        let done = order.iter().position(|s| *s == "done").unwrap();
+        assert!(recovery < handoff && handoff < done, "{order:?}");
     }
 
     use super::*;
@@ -2481,20 +3253,27 @@ mod tests {
         let at = |p: Page| order.iter().position(|q| *q == p).unwrap();
         // Preflight runs before the disk page; the tour runs after the
         // account and before the summary. No phone companion (#293).
-        assert!(at(Page::Requirements) < at(Page::Welcome));
-        assert!(at(Page::Welcome) < at(Page::Image));
+        assert!(at(Page::Requirements) < at(Page::TryOrInstall));
+        assert!(at(Page::TryOrInstall) < at(Page::Image));
         assert!(at(Page::Image) < at(Page::Language));
         assert!(at(Page::Language) < at(Page::Keyboard));
         assert!(at(Page::Keyboard) < at(Page::Timezone));
         assert!(at(Page::Timezone) < at(Page::Network));
-        assert!(at(Page::Network) < at(Page::DiskSelect));
-        assert!(at(Page::DiskSelect) < at(Page::Options));
+        assert!(at(Page::Network) < at(Page::Prerelease));
+        assert!(at(Page::Prerelease) < at(Page::Eula));
+        assert!(at(Page::Eula) < at(Page::Rst));
+        assert!(at(Page::Rst) < at(Page::DiskSelect));
+        assert!(at(Page::DiskSelect) < at(Page::WipeOrFree));
+        assert!(at(Page::WipeOrFree) < at(Page::Encryption));
+        assert!(at(Page::Encryption) < at(Page::Options));
         assert!(at(Page::Options) < at(Page::Account));
         assert!(at(Page::Account) < at(Page::Tour));
         assert!(at(Page::Tour) < at(Page::Confirm));
         assert!(at(Page::Confirm) < at(Page::Installing));
-        assert!(at(Page::Installing) < at(Page::Done));
-        assert_eq!(order.len(), 14);
+        assert!(at(Page::Installing) < at(Page::RecoveryKey));
+        assert!(at(Page::RecoveryKey) < at(Page::Handoff));
+        assert!(at(Page::Handoff) < at(Page::Done));
+        assert_eq!(order.len(), 21);
         assert!(!order.iter().any(|p| p.slug() == "companion"));
     }
 

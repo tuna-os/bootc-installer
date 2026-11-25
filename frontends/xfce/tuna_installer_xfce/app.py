@@ -4,6 +4,7 @@ import json
 import os
 import signal
 import sys
+import threading
 
 import gi
 
@@ -22,12 +23,44 @@ from .pages import (
     ConfirmPage,
     DestinationPage,
     DonePage,
+    EulaPage,
+    HandoffPage,
     IdentityPage,
+    KeyboardPage,
+    LanguagePage,
+    NetworkPage,
+    PrereleasePage,
     ProgressPage,
+    RecoveryPage,
+    RegionState,
+    RstPage,
     SetupPage,
     SourcePage,
+    TimezonePage,
     WelcomePage,
+    WipePage,
 )
+
+
+# The shared flow's stable screen id for each wizard page (shared/flow/
+# screens.yaml, "order"). The readiness stamp reports these as `page=`.
+# `source` is this frontend's own catalog page: the spec has no id for it.
+SPEC_IDS = {
+    "welcome": "try-or-install", "language": "language",
+    "keyboard": "keyboard", "timezone": "timezone", "network": "network",
+    "prerelease": "prerelease", "eula": "eula", "source": "source",
+    "rst": "rst", "destination": "disk", "wipe": "wipe-or-free",
+    "setup": "encryption", "identity": "account", "confirm": "confirm",
+    "progress": "install", "recovery": "recovery-key", "handoff": "handoff",
+    "done": "done",
+}
+
+
+def spec_page(name):
+    """The shared-flow screen id for an internal page name."""
+    return SPEC_IDS.get(name, "unknown")
+
+
 from .trawlline import TrawlLine
 
 
@@ -114,6 +147,9 @@ class InstallerWindow(Gtk.ApplicationWindow):
         # _closing guards _on_exit against touching widgets after the user
         # confirmed quitting mid-install and the window is already gone.
         self._install_pid = None
+        # A daemon install has no pid: _daemon_running covers it, so Cancel
+        # and the close guard see a running install in both backends.
+        self._daemon_running = False
         self._closing = False
         self._autoinstall_pending = None
         # True once the person confirmed the progress page's Cancel: the
@@ -147,11 +183,23 @@ class InstallerWindow(Gtk.ApplicationWindow):
         # its own Close and Restart now row (DonePage).
         self.nav = nav
 
+        self.region = RegionState()
+        # erase or free_space, from the wipe-or-free page; an empty disk
+        # always erases.
+        self.install_mode = "erase"
+        # The Handoff() reply of the handoff page; None on the recipe path.
+        self.handoff_result = None
         self.pages = {
-            "welcome": WelcomePage(self), "source": SourcePage(self),
-            "destination": DestinationPage(self), "setup": SetupPage(self),
-            "identity": IdentityPage(self), "confirm": ConfirmPage(self),
-            "progress": ProgressPage(self), "done": DonePage(self),
+            "welcome": WelcomePage(self), "language": LanguagePage(self),
+            "keyboard": KeyboardPage(self), "timezone": TimezonePage(self),
+            "network": NetworkPage(self), "prerelease": PrereleasePage(self),
+            "eula": EulaPage(self), "source": SourcePage(self),
+            "rst": RstPage(self), "destination": DestinationPage(self),
+            "wipe": WipePage(self), "setup": SetupPage(self),
+            "identity": IdentityPage(self),
+            "confirm": ConfirmPage(self), "progress": ProgressPage(self),
+            "recovery": RecoveryPage(self), "handoff": HandoffPage(self),
+            "done": DonePage(self),
         }
         for name in PAGE_ORDER:
             self.stack.add_named(self.pages[name], name)
@@ -166,7 +214,26 @@ class InstallerWindow(Gtk.ApplicationWindow):
             GLib.idle_add(self._start_autoinstall, autoinstall_recipe)
 
     def go(self, delta):
-        self._enter(self.index + delta)
+        if delta > 0:
+            current = self.pages[PAGE_ORDER[self.index]]
+            # A page that must run something before leaving (the
+            # recovery-key enrolment) can hold the wizard here.
+            leave = getattr(current, "on_leave", None)
+            if callable(leave) and leave() is False:
+                self.refresh_nav()
+                return
+            # The confirm page asks once more on a forced erase.
+            gate = getattr(current, "confirm_advance", None)
+            if callable(gate) and gate() is False:
+                self.refresh_nav()
+                return
+        step = 1 if delta > 0 else -1
+        i = self.index + step
+        while 0 <= i < len(PAGE_ORDER):
+            if self.pages[PAGE_ORDER[i]].should_show():
+                break
+            i += step
+        self._enter(max(0, min(len(PAGE_ORDER) - 1, i)))
 
     def _enter(self, i):
         self.index = max(0, min(len(PAGE_ORDER) - 1, i))
@@ -195,9 +262,13 @@ class InstallerWindow(Gtk.ApplicationWindow):
             nav.set_visible(not terminal)
         self.next_btn.set_sensitive(page.can_continue())
         # Branding copy on the two buttons that carry a product's voice:
-        # leaving the welcome page and starting the install.
+        # leaving the welcome page and starting the install. A page sets
+        # next_label for its own verb (recovery-key's Done).
         branded = {"welcome": "welcome_button", "confirm": "confirm_button"}.get(name)
-        self.next_btn.set_label(core.BRANDING.text(branded) if branded else _("Next"))
+        label = getattr(page, "next_label", None)
+        if label is None:
+            label = core.BRANDING.text(branded) if branded else _("Next")
+        self.next_btn.set_label(label)
         ctx = self.next_btn.get_style_context()
         if name == "confirm":
             ctx.add_class("destructive-action")
@@ -303,6 +374,8 @@ class InstallerWindow(Gtk.ApplicationWindow):
 
     def _install_running(self):
         """Whether fisherman is currently running under this window."""
+        if getattr(self, "_daemon_running", False):
+            return True
         if not self._install_pid:
             return False
         try:
@@ -314,8 +387,15 @@ class InstallerWindow(Gtk.ApplicationWindow):
     def terminate_install(self):
         """Cancel the running install: SIGTERM the wrapper's process group
         (GNOME's BootcProgress.terminate). fisherman runs as root and cannot
-        be signalled directly; it notices its parent's death and cleans up.
-        A finished or absent install is a no-op."""
+        be signalled directly; it notices its parent die, cleans up and
+        exits 130. A finished or absent install is a no-op. On the daemon
+        backend there is no wrapper: Cancel() stops the install instead."""
+        if getattr(self, "_daemon_running", False):
+            try:
+                core.get_daemon().cancel()
+            except Exception:  # noqa: BLE001 - the stream end reports it
+                pass
+            return
         terminate_process_group(self._install_pid)
         self._install_pid = None
 
@@ -349,7 +429,8 @@ class InstallerWindow(Gtk.ApplicationWindow):
         """Stop the install after a confirmed cancel: SIGTERM the wrapper's
         whole process group. fisherman runs as root and cannot be signalled;
         it sees its parent die, cleans up and exits 130. The wrapper's exit
-        then reaches _on_exit, which shows the cancelled page."""
+        then reaches _on_exit, which shows the cancelled page. On the
+        daemon backend Cancel() stops the stream, whose end shows it."""
         self._cancel_requested = True
         self.pages["progress"].cancel_btn.set_sensitive(False)
         if self._dry_run_source:
@@ -357,15 +438,24 @@ class InstallerWindow(Gtk.ApplicationWindow):
             self._dry_run_source = None
             self._show_result(False, cancelled=True)
             return
+        if getattr(self, "_daemon_running", False):
+            self.terminate_install()
+            return
         terminate_process_group(self._install_pid)
 
     def _show_result(self, ok, cancelled=False, message=None):
-        """Fill the done page and show it."""
+        """Fill the done page and walk on: a finished install continues to
+        the recovery-key and handoff screens, a failed or cancelled one
+        jumps straight to done."""
         log_tail = "".join(self._log_tail) if message is None else message
         self.pages["done"].set_result(
-            ok, log_tail, self.pages["progress"].recovery_key(), cancelled=cancelled,
-            receipt=self.pages["progress"].receipt(), error=self.pages["progress"].error())
-        self._enter(PAGE_ORDER.index("done"))
+            ok, log_tail, cancelled=cancelled,
+            receipt=self.pages["progress"].receipt(),
+            error=self.pages["progress"].error())
+        if ok:
+            self.go(+1)
+        else:
+            self._enter(PAGE_ORDER.index("done"))
 
     def _on_delete(self, *_args):
         """Guard the window close: confirm and kill the install when one is
@@ -454,6 +544,9 @@ class InstallerWindow(Gtk.ApplicationWindow):
             self._autoinstall_pending = None
         if recipe is None:
             recipe = self.install_recipe()
+        if core.backend() == "daemon":
+            self._start_daemon_install(progress_page, recipe)
+            return
         self._log_tail = []
         try:
             # In a Flatpak this stages the bundled fisherman and checks its
@@ -462,10 +555,9 @@ class InstallerWindow(Gtk.ApplicationWindow):
         except core.StageError as exc:
             self._show_result(False, message=str(exc) + "\n")
             return
-        self._install_log = core.open_install_log()
+        self._install_log = self._new_install_log()
         self._install_log.write(
             f"=== install started: {core.shell_line(argv)} (recipe on stdin) ===\n")
-        self._install_log.flush()
         pid, out, err = spawn_fisherman(argv, core.recipe_stdin(recipe))
         self._install_pid = pid
         self._install_channels = []
@@ -476,6 +568,84 @@ class InstallerWindow(Gtk.ApplicationWindow):
                               self._on_output, progress_page)
             self._install_channels.append((channel, progress_page))
         GLib.child_watch_add(pid, self._on_exit)
+
+    def _new_install_log(self):
+        """The persistent install log both install paths share: opened once
+        here, written through everywhere, so the redactor sees every line
+        (test_recovery_key_log)."""
+        return core.open_install_log()
+
+    def daemon_config(self, recipe=None):
+        """The daemon Install Config for a wizard recipe: translated, with
+        the wipe-or-free install mode."""
+        from . import daemon as daemon_client
+
+        recipe = recipe if recipe is not None else self.install_recipe()
+        mode = getattr(self, "install_mode", "erase")
+        return daemon_client.recipe_to_config(recipe, install_mode=mode)
+
+    def _start_daemon_install(self, progress_page, recipe):
+        """Run the install over fishermand: ConfigureTarget first (the full
+        account and region picks, stored idempotently), then the Install
+        stream, translated to legacy lines for the progress page."""
+        from . import daemon as daemon_client
+
+        self._log_tail = []
+        self._install_log = self._new_install_log()
+        self._install_log.write("=== install started: fishermand Install ===\n")
+        self._daemon_running = True
+        config = self.daemon_config(recipe)
+        target = daemon_client.recipe_to_target(recipe)
+        if getattr(getattr(self, "region", None), "autologin", False):
+            target["autologin"] = True
+
+        def work():
+            try:
+                daemon = core.get_daemon()
+                if target:
+                    daemon.configure_target(**target)
+                stream = daemon.install(config)
+            except daemon_client.DaemonError as exc:
+                GLib.idle_add(self._finish_daemon_install, "unreachable",
+                              str(exc))
+                return
+            terminal = "complete"
+            try:
+                for event in stream:
+                    line = daemon_client.line_text(
+                        daemon_client.daemon_event_to_line(event))
+                    GLib.idle_add(self._daemon_line, progress_page, line)
+                    if daemon_client.is_terminal(event):
+                        terminal = event.get("event")
+            except Exception as exc:  # noqa: BLE001 - dropped connection
+                terminal = ("cancelled" if self._cancel_requested
+                            else "disconnected")
+                GLib.idle_add(self._daemon_line, progress_page,
+                              daemon_client.line_text({
+                                  "type": "error",
+                                  "message": str(exc) or _("lost the daemon"),
+                                  "code": "daemon_unreachable"}))
+            GLib.idle_add(self._finish_daemon_install, terminal, "")
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _daemon_line(self, page, text):
+        InstallerWindow._log_line(self, text, page)
+        return False
+
+    def _finish_daemon_install(self, terminal, message):
+        self._daemon_running = False
+        if self._install_log:
+            self._install_log.write(f"=== fishermand install: {terminal} ===\n")
+            self._install_log.close()
+            self._install_log = None
+        if terminal == "complete":
+            self._show_result(True)
+        elif terminal == "cancelled":
+            self._show_result(False, cancelled=True)
+        else:
+            self._show_result(False, message=message or None)
+        return False
 
     def _start_dry_run(self, progress_page):
         """Play a fisherman transcript through the real progress page."""
@@ -575,7 +745,7 @@ class InstallerApp(Gtk.Application):
             win = (self.get_active_window()
                    or InstallerWindow(self,
                                       autoinstall_recipe=self._autoinstall_recipe))
-            readiness.arm(win, APP_ID, page_getter=lambda: PAGE_ORDER[win.index])
+            readiness.arm(win, APP_ID, page_getter=lambda: spec_page(PAGE_ORDER[win.index]))
             win.present()
             return
         # Below-minimum machines never see the wizard: a blocking gate
@@ -591,7 +761,7 @@ class InstallerApp(Gtk.Application):
             win.present()
             return
         win = self.get_active_window() or InstallerWindow(self)
-        readiness.arm(win, APP_ID, page_getter=lambda: PAGE_ORDER[win.index])
+        readiness.arm(win, APP_ID, page_getter=lambda: spec_page(PAGE_ORDER[win.index]))
         win.present()
 
 
@@ -618,10 +788,31 @@ def parse_argv(argv):
     return autoinstall, rest
 
 
+def parse_backend(argv):
+    """(backend_or_None, rest): split --backend=daemon|recipe out before
+    GTK sees the argv. Unknown values fail here, not mid-wizard. Kept out
+    of parse_argv so its (autoinstall, rest) contract does not change."""
+    chosen = None
+    rest = []
+    for arg in argv:
+        if arg.startswith("--backend="):
+            chosen = arg.split("=", 1)[1]
+            if chosen not in ("recipe", "daemon"):
+                raise SystemExit(
+                    f"error: --backend wants recipe or daemon, got {chosen!r}")
+        else:
+            rest.append(arg)
+    return chosen, rest
+
+
 def main(argv=None):
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     prog = sys.argv[0] if argv is None else "tuna-installer-xfce"
-    autoinstall, rest = parse_argv(sys.argv[1:] if argv is None else argv)
+    raw = sys.argv[1:] if argv is None else argv
+    chosen, raw = parse_backend(raw)
+    if chosen is not None:
+        core.set_backend(chosen)
+    autoinstall, rest = parse_argv(raw)
     # run() takes a full argv (program name first); the --autoinstall pair
     # stays out of it so GTK never sees an option it does not know.
     InstallerApp(autoinstall_recipe=autoinstall).run([prog] + rest)

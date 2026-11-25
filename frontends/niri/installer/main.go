@@ -158,6 +158,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  source-check       Check the selected image (request JSON on stdin) with fisherman probe --json --source")
 		fmt.Fprintln(os.Stderr, "  install            Run fisherman with the recipe JSON read from stdin")
 		fmt.Fprintln(os.Stderr, "  cancel             Stop a running install (the progress page's Cancel, the window's close)")
+		fmt.Fprintln(os.Stderr, "  configure-target   Store account, locale, keymap, time zone and autologin (JSON on stdin) in the target")
+		fmt.Fprintln(os.Stderr, "  recovery-key       Make and enrol a recovery key (JSON {node, unlock_password} on stdin)")
+		fmt.Fprintln(os.Stderr, "  handoff [mode]     Hand the installed system over (migrate, soft_reboot, reboot)")
+		fmt.Fprintln(os.Stderr, "  eula               Print the image's terms of use as JSON (present/text)")
 		fmt.Fprintln(os.Stderr, "  log-path           Print the persistent install log file dialog_output.py shows")
 		fmt.Fprintln(os.Stderr, "  validate           Check a partial recipe from stdin with fisherman validate --json --partial")
 		fmt.Fprintln(os.Stderr, "  plan               Report what an install of the recipe on stdin changes (fisherman plan --json -)")
@@ -193,8 +197,19 @@ func main() {
 		networkSettingsMain()
 	case "cancel":
 		cancelMain()
+	case "configure-target":
+		// The account and region picks as one JSON object on stdin.
+		configureTargetMain()
+	case "recovery-key":
+		// {node, unlock_password} on stdin; prints {"key"}.
+		recoveryKeyMain()
+	case "handoff":
+		// handoff [mode]; prints the daemon's answer.
+		handoffMain()
 	case "log-path":
 		logPathMain()
+	case "eula":
+		eulaMain()
 	case "install":
 		// The recipe may hold a LUKS passphrase; read it from stdin rather
 		// than argv so it never shows up in /proc/PID/cmdline (world-readable
@@ -262,6 +277,9 @@ func detectEnvironment() {
 		facts = ProbeFacts{OfflineImages: []string{}}
 	}
 	result := map[string]any{
+		// Which path answers: the QML routes the handoff and the key fetch
+		// through it.
+		"daemon": useDaemon(),
 		// probe's live.is_live: only then may the recipe leave `image`
 		// empty, which installs the running system.
 		"isLive": facts.IsLive,
@@ -273,6 +291,17 @@ func detectEnvironment() {
 		// when this is false, rather than offering a choice that would fail
 		// later at install time.
 		"hasTpm": err == nil && facts.TPMUsable,
+		// The daemon's intelRst.detected: the rst page shows when true.
+		"intelRst": err == nil && facts.IntelRst,
+		// The mode the daemon will take at handoff (Probe's handoff hint):
+		// migrate, soft_reboot or reboot. The page matches the mode.
+		"handoffMode":   facts.HandoffMode,
+		"handoffReason": facts.HandoffReason,
+		// os-release RELEASE_TYPE: "pre-release" and "experiment" show the
+		// prerelease page; anything else skips it.
+		"releaseType": osReleaseType(),
+		// An experiment's free text for the prerelease page; "" otherwise.
+		"experiment": osReleaseExperiment(),
 		// fisherman's system.unmet ("ram", "cpu", "uefi"): the welcome page
 		// warns about each one.
 		"unmet": unmetOrEmpty(facts, err),
@@ -368,6 +397,11 @@ func exitCodeOf(err error) int {
 }
 
 func runInstall(recipeJSON string) {
+	// The daemon translates its Install stream into the same JSON lines the
+	// QML parses, and exits 0/130/1 for done/cancelled/failed.
+	if useDaemon() {
+		runDaemonInstall(recipeJSON)
+	}
 	if len(recipeJSON) == 0 {
 		fmt.Fprintln(os.Stderr, "invalid recipe: empty")
 		os.Exit(1)

@@ -1,0 +1,5 @@
+NAME="TunaOS Experiment"
+VERSION="99.0"
+ID=tunaos
+RELEASE_TYPE=experiment
+EXPERIMENT="TunaOS 99 is an experiment. Nothing here is stable, and the installer says so."

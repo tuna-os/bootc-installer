@@ -1,5 +1,7 @@
 #include "diskmodel.h"
 
+#include "daemonclient.h"
+
 DiskModel::DiskModel(QObject *parent)
     : QAbstractListModel(parent)
 {
@@ -61,6 +63,14 @@ QString DiskModel::deviceAt(int row) const
 
 void DiskModel::refresh()
 {
+    // The daemon backend asks fishermand's Probe; the recipe backend runs
+    // `fisherman probe --json` (shared/probe/README.md). Either way the
+    // rows are eligible disks in fisherman's order with verbatim labels.
+    if (fishermand::backend() == fishermand::Backend::Daemon) {
+        fishermand::Client client(fishermand::socketPath());
+        setResult(fishermand::probeResult(fishermand::fetchProbe(client)));
+        return;
+    }
     setResult(probe::run());
 }
 

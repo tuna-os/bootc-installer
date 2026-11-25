@@ -60,13 +60,24 @@ PAGES = [
     ("13-cancelled", 8, "The end of an install that the user cancelled."),
     ("14-offline", 2, "An image that needs a download, and no network: "
                       "Continue is held."),
+    ("15-rst", 9, "Intel RST hides a disk: warn and continue."),
+    ("16-wipe", 10, "The disk holds data: free space or whole disk."),
+    ("17-prerelease", 11, "The image is a pre-release."),
+    ("18-eula", 12, "The terms of use, gated on the accept tick."),
+    ("19-recovery", 13, "The recovery key on its own screen."),
+    ("20-handoff", 14, "Hand the installed system over."),
+    ("21-qr", 13, "The recovery key as a QR code."),
 ]
 
 # The button that leaves each step, by frame.
 NEXT_BUTTONS = {"02-session": "sessionNextButton", "03-source": "sourceNextButton",
                 "04-disk": "diskNextButton", "05-encryption": "encryptionNextButton",
                 "06-account": "accountNextButton", "07-confirm": "confirmInstallButton",
-                "14-offline": "sourceNextButton"}
+                "14-offline": "sourceNextButton",
+                "16-wipe": "wipeContinueButton",
+                "17-prerelease": "prereleaseContinueButton",
+                "18-eula": "eulaContinueButton",
+                "19-recovery": "recoveryContinueButton"}
 
 # The account page's fields, filled the way a user would leave them: the
 # account frame shows them, and the confirm frame names the user. Neutral
@@ -141,6 +152,20 @@ def capture_leaves(offline_images):
         shown["recipe"] = resolve.recipe_fragment(leaf, offline_images=offline_images)["recipe"]
         out[leaf["imgref"]] = shown
     return out
+RECOVERY_KEY = capture_fixtures.RECOVERY_KEY
+
+
+def qr_grid(key):
+    """A real QR matrix for the key, as the backend's `recovery-key`
+    answer carries it: {"size", "cells"} row by row, 1 for a dark module."""
+    import qrcode
+    qr = qrcode.QRCode(border=4)
+    qr.add_data(key)
+    qr.make()
+    cells = [1 if dark else 0 for row in qr.get_matrix() for dark in row]
+    size = int(len(cells) ** 0.5)
+    return {"size": size, "cells": cells}
+
 
 def find_item(root, name):
     """The QQuickItem with this objectName, searched down the VISUAL tree.
@@ -488,6 +513,41 @@ def main():
             root.setProperty("tourOpen", True)
         else:
             root.setProperty("tourOpen", False)
+        # The new screens need their conditions: the flow skips each of
+        # them when it has nothing to show, so the frame sets up the state
+        # that shows it.
+        if name == "01-welcome":
+            # Live media: Try and Install now, not the single button.
+            root.setProperty("isLive", True)
+        if name == "15-rst":
+            root.setProperty("intelRst", True)
+        if name == "16-wipe":
+            disk = dict(probed["disks"][0])
+            disk.update({"has_data": True, "free_bytes": 992137445376,
+                         "minimal_bytes": 21474836480})
+            root.setProperty("selectedDisk", disk)
+        if name == "17-prerelease":
+            root.setProperty("releaseType", "pre-release")
+        if name == "18-eula":
+            root.setProperty("eulaInfo", {"present": True,
+                "text": "Example Terms of Use.\n\nThese terms govern the trial of this image."})
+        if name in ("19-recovery", "21-qr"):
+            root.setProperty("installSuccess", True)
+            root.setProperty("encType", "tpm2-luks")
+            root.setProperty("recoveryKey", RECOVERY_KEY)
+            root.setProperty("recoveryQr", qr_grid(RECOVERY_KEY))
+            root.setProperty("qrOpen", name == "21-qr")
+        if name == "20-handoff":
+            # The stubbed `handoff` answers migrate (kept session), through
+            # the entry call — the real path, not a property assignment.
+            root.setProperty("installSuccess", True)
+            root.setProperty("daemonMode", True)
+            root.setProperty("handoffMode", "migrate")
+            settle(300)
+            if not root.property("handoffKeepsRunning"):
+                print("  !! the stubbed handoff did not keep the session",
+                      file=sys.stderr)
+                sys.exit(1)
         if name == "08-progress":
             # Through appendLog(), the function a real install calls — so the
             # bar, the step caption and the log rendering are all the live
@@ -527,6 +587,11 @@ def main():
                 print("  !! the recovery_key event did not parse",
                       file=sys.stderr)
                 sys.exit(1)
+            # The key lives on its own screen now: photograph page 13,
+            # reached the way a finished install reaches it.
+            root.setProperty("installSuccess", True)
+            root.setProperty("encType", "tpm2-luks")
+            root.setProperty("currentPage", 13)
         settle(300)
         image = window.grabWindow()
         path = os.path.join(out, f"{name}.png")
@@ -672,6 +737,33 @@ def main():
                 print("  !! Restart is live before the recovery key was "
                       "acknowledged (#129)", file=sys.stderr)
                 sys.exit(1)
+        if name == "19-recovery":
+            if RECOVERY_KEY not in finding["text"]:
+                print("  !! the recovery key is not in the rendered text",
+                      file=sys.stderr)
+                sys.exit(1)
+            cont = find_item(window.contentItem(), "recoveryContinueButton")
+            if cont is None or cont.property("enabled"):
+                print("  !! Continue is live before the key was acknowledged",
+                      file=sys.stderr)
+                sys.exit(1)
+            qr = find_item(window.contentItem(), "recoveryQrButton")
+            if qr is None or not qr.isVisible():
+                print("  !! no QR button on the recovery screen",
+                      file=sys.stderr)
+                sys.exit(1)
+        if name == "21-qr":
+            if not find_item(window.contentItem(),
+                             "recoveryQrOverlay").isVisible():
+                print("  !! the QR dialog did not open", file=sys.stderr)
+                sys.exit(1)
+        if name == "20-handoff":
+            for button in ("handoffContinueButton",):
+                if not find_item(window.contentItem(), button).isVisible():
+                    print(f"  !! no {button} on the handoff screen",
+                          file=sys.stderr)
+                    sys.exit(1)
+
 
         findings.append(finding)
 
@@ -691,9 +783,11 @@ def main():
     # blocking gate dialog on welcome. Dismiss it here: the grabs below
     # photograph the logo, and the dialog would cover it.
     root.setProperty("gatesAccepted", True)
-    # The tour overlay is page-independent: the main loop above leaves it open
-    # on the last leaf, and it would cover the logo the same way.
+    # The overlays are page-independent: the main loop above can leave the
+    # tour or the QR dialog open, and either would cover the logo the same
+    # way.
     root.setProperty("tourOpen", False)
+    root.setProperty("qrOpen", False)
     for page, name in [(0, "welcomeBrandingLogo"), (DONE_PAGE, "doneBrandingLogo")]:
         root.setProperty("currentPage", page)
         root.setProperty("installSuccess", True)

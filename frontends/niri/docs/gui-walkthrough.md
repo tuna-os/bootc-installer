@@ -20,8 +20,9 @@ whatever machine rendered the docs.
 
 ![Welcome](screenshots/01-welcome.png)
 
-The capture shows the requirements gate. It stops the wizard until you
-accept it.
+On live media the page offers Try (quits into the live session) and
+Install now. The capture shows the requirements gate. It stops the wizard
+until you accept it.
 
 ## 2. Session
 
@@ -29,7 +30,9 @@ accept it.
 
 The keyboard, language and time zone of the live session. The wizard sends
 only the fields that you changed. Off live media the fields are read-only,
-as in this capture.
+as in this capture. The Privacy card sets location services for the
+installed system. On the daemon path, the session and account steps store
+their picks with ConfigureTarget.
 
 ## 3. Source
 
@@ -77,9 +80,10 @@ The output of the backend goes into the log.
 
 ![Recovery](screenshots/10-recovery.png)
 
-A TPM install shows the recovery key. Restart stays off until you confirm
-that you saved the key.
-
+An encrypted install lands here after the install: the key on its own
+screen, with a copy button, an acknowledgement tick, and a QR dialog.
+Restart stays off until you confirm that you saved the key. The daemon
+path fetches the key after the install; a failed fetch offers a retry.
 ## 11. Tour
 
 ![Tour](screenshots/11-tour.png)
@@ -101,6 +105,56 @@ until you confirm.
 
 The selected image needs a download and the network check failed. Continue
 stays off.
+
+## 15. Intel RST
+
+![RST](screenshots/15-rst.png)
+
+The firmware hides an NVMe disk behind Intel RST. The page warns and
+continues to the disk list; it never blocks.
+
+## 16. Existing data found
+
+![Wipe](screenshots/16-wipe.png)
+
+The chosen disk holds data with room to spare: install into the free space
+or erase the whole disk. Below the minimum free space, the page offers
+only the whole disk, behind a three second countdown.
+
+## 17. Disclaimer
+
+![Prerelease](screenshots/17-prerelease.png)
+
+Shown when os-release calls the image a pre-release or an experiment.
+
+## 18. Terms of use
+
+![EULA](screenshots/18-eula.png)
+
+The image's terms from `/usr/share/tuna-installer/eula.xml`. Continue
+stays off until you tick the box; an unreadable file offers only power
+off. No file skips the page.
+
+## 19. Recovery key
+
+![Recovery screen](screenshots/19-recovery.png)
+
+The same screen as 10, photographed on its own page.
+
+## 20. Handoff
+
+![Handoff](screenshots/20-handoff.png)
+
+After the install the daemon hands the new system over. A kept session
+offers Continue; otherwise Restart boots the new system and Not now
+drops to done.
+
+## 21. Recovery QR code
+
+![QR](screenshots/21-qr.png)
+
+The Show QR Code dialog: scan the key with a phone camera. The matrix is
+the backend's `recovery-key` answer, drawn as a grid with its quiet zone.
 
 ---
 

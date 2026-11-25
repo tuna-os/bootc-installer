@@ -1,5 +1,8 @@
 #include "offline.h"
 #include "fisherman.h"
+#include "daemonclient.h"
+#include "eula.h"
+#include "osrelease.h"
 #include "account.h"
 #include "imagecatalog.h"
 #include "region.h"
@@ -14,6 +17,7 @@
 #include "redact.h"
 #include "sourcecheck.h"
 #include "translations.h"
+#include "qrcode.h"
 
 #include <QDir>
 #include <QFile>
@@ -23,6 +27,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
+#include <QLocalServer>
+#include <QLocalSocket>
 #include <QProcessEnvironment>
 #include <QRegularExpression>
 #include <QSet>
@@ -31,12 +37,89 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QThread>
 #include <QTranslator>
 #include <QUrl>
+
+#include <atomic>
 
 #include <csignal>
 #include <sys/stat.h>
 #include <unistd.h>
+
+namespace
+{
+// True once the scripted peer thread listens: the socket file appears on
+// listen, so a poll beats a second synchronisation primitive.
+bool pollScriptedPeer(const QString &path)
+{
+    for (int i = 0; i < 100; i++) {
+        if (QFileInfo::exists(path))
+            return true;
+        QThread::msleep(50);
+    }
+    return false;
+}
+
+// Requirements with a failed RAM gate and a failed firmware gate.
+QByteArray scriptedRequirements()
+{
+    return QByteArray("{\"parameters\":{\"meetsRequirements\":false,\"gates\":["
+                      "{\"id\":\"ram\",\"ok\":false,\"severity\":\"block\","
+                      "\"required\":\"3.5 GiB\",\"actual\":\"2 GiB\","
+                      "\"message\":\"At least 4 GB of memory\",\"action\":\"power_off\"},"
+                      "{\"id\":\"cpu\",\"ok\":true,\"severity\":\"block\"},"
+                      "{\"id\":\"firmware\",\"ok\":false,\"severity\":\"block\","
+                      "\"required\":\"UEFI\",\"actual\":\"BIOS\","
+                      "\"message\":\"UEFI firmware\",\"action\":\"firmware_setup\"}]}}")
+           + '\0';
+}
+
+// Probe with two eligible disks (one holds Windows), no usable TPM, Intel
+// RST hiding the NVMe disk, on live media.
+QByteArray scriptedProbe()
+{
+    return QByteArray("{\"parameters\":{\"protocolVersion\":1,\"disks\":[{"
+                      "\"path\":\"/dev/sdb\",\"sizeBytes\":512110190592,"
+                      "\"sizeLabel\":\"476.9 GiB\",\"model\":\"Mock NVMe 512\","
+                      "\"vendor\":\"Mockware\",\"transport\":\"nvme\","
+                      "\"removable\":false,\"eligible\":true,\"freeBytes\":82340831232,"
+                      "\"minimalSizeBytes\":21474836480,\"intelRst\":false,"
+                      "\"existingData\":{\"hasPartitionTable\":true,"
+                      "\"partitionTableType\":\"gpt\",\"partitions\":[],"
+                      "\"operatingSystems\":[\"Windows\"],\"hasLuks\":false}},"
+                      "{\"path\":\"/dev/sdc\",\"sizeBytes\":32000000000,"
+                      "\"sizeLabel\":\"29.8 GiB\",\"model\":\"\",\"vendor\":\"\","
+                      "\"transport\":\"usb\",\"removable\":true,\"eligible\":true,"
+                      "\"freeBytes\":32000000000,\"minimalSizeBytes\":21474836480,"
+                      "\"intelRst\":false,"
+                      "\"existingData\":{\"hasPartitionTable\":false,"
+                      "\"partitions\":[],\"operatingSystems\":[],\"hasLuks\":false}}],"
+                      "\"tpm\":{\"present\":false,\"version\":\"\",\"usable\":false},"
+                      "\"intelRst\":{\"detected\":true,\"mode\":\"vmd\","
+                      "\"affectedDisks\":[\"/dev/nvme0n1\"]},"
+                      "\"live\":{\"isLive\":true,\"liveImage\":\"ghcr.io/example/os:stable\"}}}")
+           + '\0';
+}
+
+// Probe with a usable TPM and no remapped disks: an empty NVMe disk, ready
+// for a sealed install with no passphrase page.
+QByteArray scriptedProbeTpm()
+{
+    return QByteArray("{\"parameters\":{\"protocolVersion\":1,\"disks\":[{"
+                      "\"path\":\"/dev/nvme0n1\",\"sizeBytes\":512110190592,"
+                      "\"sizeLabel\":\"476.9 GiB\",\"model\":\"Mock NVMe 512\","
+                      "\"vendor\":\"Mockware\",\"transport\":\"nvme\","
+                      "\"removable\":false,\"eligible\":true,\"freeBytes\":512110190592,"
+                      "\"minimalSizeBytes\":21474836480,\"intelRst\":false,"
+                      "\"existingData\":{\"hasPartitionTable\":false,"
+                      "\"partitions\":[],\"operatingSystems\":[],\"hasLuks\":false}}],"
+                      "\"tpm\":{\"present\":true,\"version\":\"2.0\",\"usable\":true},"
+                      "\"intelRst\":{\"detected\":false,\"affectedDisks\":[]},"
+                      "\"live\":{\"isLive\":true,\"liveImage\":\"ghcr.io/example/os:stable\"}}}")
+           + '\0';
+}
+} // namespace
 
 class BackendTest : public QObject
 {
@@ -201,6 +284,34 @@ private slots:
 
     // The done screen's tour is the selected leaf's carousel slides.
     void tourSlidesFollowTheSelection();
+    // fishermand over Varlink (tuna-os/fisherman#512): the wire framing, the
+    // bus names, the gates and the probe mapping of src/daemonclient.h.
+    void daemonWireFraming();
+    void daemonTransportLabels();
+    void daemonUnmetFromGates();
+    void daemonProbeResultKeepsEligibleDisksVerbatim();
+    void daemonBackendSelection();
+    void daemonClientReadsUnaryCalls();
+    void daemonBackendDrivesControllerFacts();
+    // The wizard walks the shared flow (shared/flow/screens.yaml): stable
+    // step ids in the spec's order, with skips for steps with nothing to
+    // ask instead of blank screens.
+    void wizardStepsFollowTheSharedFlow();
+    void wizardSkipsStepsWithNothingToShow();
+    // os-release (shared/flow/screens.yaml `prerelease`) and the terms of
+    // use (`eula`): the readers of src/osrelease.h and src/eula.h, and the
+    // controller facts and skip rules over them.
+    void osreleasePrereleaseRules();
+    void osreleaseReadsAFile();
+    void eulaAgreementSections();
+    void eulaPlainTextAndFailures();
+    void releaseFactsDriveSkips();
+    // The RST, wipe-or-free and encryption skip rules with their controller
+    // facts (src/installercontroller.h): daemon Probe rows, the install
+    // mode choice and the TPM-sealed default.
+    void wizardSkipsRstWipeAndEncryption();
+    void wipeChoiceDefaultsToFreeSpace();
+    void recoveryQrMatchesGoldens();
 };
 
 void BackendTest::recipeDefaults()
@@ -3723,6 +3834,833 @@ void BackendTest::planBindsTheInstallRecipe()
     QCOMPARE(manualRecipe.value(QStringLiteral("planBinding")).toObject(), plan::planBinding(manual.plan));
     manualRecipe.remove(QStringLiteral("planBinding"));
     QCOMPARE(manualRecipe, m.installRecipe());
+}
+
+void BackendTest::daemonWireFraming()
+{
+    const QByteArray wire = fishermand::Client::encodeRequest(
+        QStringLiteral("io.tunaos.Fisherman.Requirements"), {}, false);
+    // One JSON object, then the NUL the Varlink framing requires.
+    QVERIFY(wire.endsWith('\0'));
+    const QJsonDocument doc = QJsonDocument::fromJson(wire.chopped(1));
+    QVERIFY(doc.isObject());
+    QCOMPARE(doc.object().value(QStringLiteral("method")).toString(),
+             QStringLiteral("io.tunaos.Fisherman.Requirements"));
+    QVERIFY(!doc.object().contains(QStringLiteral("more")));
+
+    // A message split across two reads decodes only once it is whole.
+    QByteArray half = wire.left(wire.size() / 2);
+    fishermand::Reply pending;
+    QVERIFY(!fishermand::Client::decodeOne(half, &pending));
+    half += wire.mid(wire.size() / 2);
+    fishermand::Reply reply;
+    QVERIFY(fishermand::Client::decodeOne(half, &reply));
+    QVERIFY(reply.ok());
+    QVERIFY(half.isEmpty());
+
+    // Junk fails the call, it does not end the test run.
+    QByteArray junk("not json");
+    junk += '\0';
+    fishermand::Reply bad;
+    QVERIFY(fishermand::Client::decodeOne(junk, &bad));
+    QVERIFY(bad.transportFailed);
+
+    // An error reply keeps its name; the parameters can hold a secret.
+    QByteArray errored("{\"error\":\"io.tunaos.Fisherman.NotConfirmed\",\"parameters\":{}}");
+    errored += '\0';
+    fishermand::Reply denied;
+    QVERIFY(fishermand::Client::decodeOne(errored, &denied));
+    QVERIFY(!denied.ok());
+    QCOMPARE(denied.error, QStringLiteral("io.tunaos.Fisherman.NotConfirmed"));
+}
+
+void BackendTest::daemonTransportLabels()
+{
+    // fisherman/internal/probe/disks.go TransportLabel, kept in lockstep.
+    const QList<QPair<QString, QString>> cases = {
+        {QStringLiteral(""), QStringLiteral("")},
+        {QStringLiteral("nvme"), QStringLiteral("NVMe")},
+        {QStringLiteral("NVME"), QStringLiteral("NVMe")},
+        {QStringLiteral("sata"), QStringLiteral("SATA")},
+        {QStringLiteral("ata"), QStringLiteral("SATA")},
+        {QStringLiteral("usb"), QStringLiteral("USB")},
+        {QStringLiteral("virtio"), QStringLiteral("VirtIO")},
+        {QStringLiteral("mmc"), QStringLiteral("MMC")},
+        {QStringLiteral("weirdbus"), QStringLiteral("WEIRDBUS")},
+    };
+    for (const auto &c : cases)
+        QCOMPARE(fishermand::transportLabel(c.first), c.second);
+}
+
+void BackendTest::daemonUnmetFromGates()
+{
+    const QList<fishermand::Gate> gates = {
+        {QStringLiteral("ram"), false, QStringLiteral("block")},
+        {QStringLiteral("cpu"), true, QStringLiteral("block")},
+        // The daemon names the firmware gate "firmware"; the gates the
+        // welcome step shows (and the legacy probe) call it "uefi".
+        {QStringLiteral("firmware"), false, QStringLiteral("block")},
+    };
+    const QStringList wantUnmet{QStringLiteral("ram"), QStringLiteral("uefi")};
+    QCOMPARE(fishermand::unmetFromGates(gates), wantUnmet);
+    QVERIFY(fishermand::unmetFromGates({}).isEmpty());
+}
+
+void BackendTest::daemonProbeResultKeepsEligibleDisksVerbatim()
+{
+    fishermand::Probe probe;
+    probe.ok = true;
+    fishermand::Disk nvme;
+    nvme.path = QStringLiteral("/dev/nvme0n1");
+    nvme.model = QStringLiteral("Mock NVMe 512");
+    nvme.vendor = QStringLiteral("Mockware");
+    nvme.sizeLabel = QStringLiteral("476.9 GiB");
+    nvme.transport = QStringLiteral("nvme");
+    nvme.eligible = true;
+    probe.disks.append(nvme);
+    fishermand::Disk hidden;
+    hidden.path = QStringLiteral("/dev/nvme1n1");
+    hidden.eligible = false;
+    probe.disks.append(hidden);
+    fishermand::Disk bare;
+    bare.path = QStringLiteral("/dev/sdb");
+    bare.sizeLabel = QStringLiteral("8 GiB");
+    bare.transport = QStringLiteral("usb");
+    bare.eligible = true;
+    probe.disks.append(bare);
+    probe.tpmUsable = true;
+    probe.isLive = true;
+    probe.liveImage = QStringLiteral("ghcr.io/example/os:stable");
+
+    const probe::Result r = fishermand::probeResult(probe);
+    QVERIFY(r.ok);
+    QCOMPARE(r.disks.size(), 2);
+    QCOMPARE(r.disks.at(0).path, QStringLiteral("/dev/nvme0n1"));
+    QCOMPARE(r.disks.at(0).title, QStringLiteral("Mock NVMe 512"));
+    QCOMPARE(r.disks.at(0).sizeLabel, QStringLiteral("476.9 GiB"));
+    QCOMPARE(r.disks.at(0).transportLabel, QStringLiteral("NVMe"));
+    // No model: the path is the title, as in the legacy probe parse.
+    QCOMPARE(r.disks.at(1).title, QStringLiteral("/dev/sdb"));
+    QVERIFY(r.tpmUsable);
+    QVERIFY(r.isLive);
+    QCOMPARE(r.liveImage, QStringLiteral("ghcr.io/example/os:stable"));
+}
+
+void BackendTest::daemonBackendSelection()
+{
+    const QByteArray oldBackend = qgetenv("TUNA_INSTALLER_BACKEND");
+    const QByteArray oldSocket = qgetenv("TUNA_FISHERMAN_SOCKET");
+    qunsetenv("TUNA_INSTALLER_BACKEND");
+    qunsetenv("TUNA_FISHERMAN_SOCKET");
+    QCOMPARE(fishermand::backend(), fishermand::Backend::Recipe);
+    QCOMPARE(fishermand::socketPath(),
+             QStringLiteral("/run/fisherman/io.tunaos.Fisherman"));
+    qputenv("TUNA_INSTALLER_BACKEND", QByteArray("daemon"));
+    qputenv("TUNA_FISHERMAN_SOCKET", QByteArray("/tmp/test-fisherman.sock"));
+    QCOMPARE(fishermand::backend(), fishermand::Backend::Daemon);
+    QCOMPARE(fishermand::socketPath(), QStringLiteral("/tmp/test-fisherman.sock"));
+    if (!oldBackend.isEmpty())
+        qputenv("TUNA_INSTALLER_BACKEND", oldBackend);
+    else
+        qunsetenv("TUNA_INSTALLER_BACKEND");
+    if (!oldSocket.isEmpty())
+        qputenv("TUNA_FISHERMAN_SOCKET", oldSocket);
+    else
+        qunsetenv("TUNA_FISHERMAN_SOCKET");
+}
+
+void BackendTest::daemonClientReadsUnaryCalls()
+{
+    // A scripted peer on a UNIX socket: the shared/client contract is one
+    // JSON object per message, NUL-terminated, answered the same way. The
+    // peer listens and serves on its own thread because both sides block:
+    // the server object stays where it is used, so no QObject crosses
+    // threads.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("fisherman.sock"));
+    const QByteArray requirementsReply =
+        QByteArray("{\"parameters\":{\"meetsRequirements\":false,\"gates\":["
+                   "{\"id\":\"ram\",\"ok\":true,\"severity\":\"block\"},"
+                   "{\"id\":\"firmware\",\"ok\":false,\"severity\":\"block\"}]}}")
+        + '\0';
+    const QByteArray probeReply =
+        QByteArray("{\"parameters\":{\"protocolVersion\":1,\"disks\":[{"
+                   "\"path\":\"/dev/nvme0n1\",\"sizeBytes\":512110190592,"
+                   "\"sizeLabel\":\"476.9 GiB\",\"model\":\"Mock NVMe 512\","
+                   "\"vendor\":\"Mockware\",\"transport\":\"nvme\","
+                   "\"removable\":false,\"eligible\":true,\"freeBytes\":82340831232,"
+                   "\"minimalSizeBytes\":21474836480,\"intelRst\":false,"
+                   "\"existingData\":{\"hasPartitionTable\":true,"
+                   "\"partitionTableType\":\"gpt\",\"partitions\":[],"
+                   "\"operatingSystems\":[\"Windows\"],\"hasLuks\":false}}],"
+                   "\"tpm\":{\"present\":false,\"version\":\"\",\"usable\":false},"
+                   "\"intelRst\":{\"detected\":false,\"affectedDisks\":[]},"
+                   "\"live\":{\"isLive\":true,\"liveImage\":\"ghcr.io/example/os:stable\"}}}")
+        + '\0';
+    const QList<QByteArray> replies{requirementsReply, probeReply};
+    std::atomic<bool> peerOk = true;
+    std::atomic<int> served = 0;
+    QThread *peerThread = QThread::create([&, path] {
+        QLocalServer server;
+        if (!server.listen(path)) {
+            peerOk = false;
+            return;
+        }
+        for (int i = 0; i < replies.size(); i++) {
+            if (!server.waitForNewConnection(10000)) {
+                peerOk = false;
+                return;
+            }
+            QScopedPointer<QLocalSocket> peer(server.nextPendingConnection());
+            if (peer.isNull()) {
+                peerOk = false;
+                return;
+            }
+            QByteArray request;
+            while (!request.contains('\0')) {
+                if (!peer->waitForReadyRead(10000)) {
+                    peerOk = false;
+                    return;
+                }
+                request += peer->readAll();
+            }
+            peer->write(replies.at(i));
+            if (!peer->waitForBytesWritten(10000)) {
+                peerOk = false;
+                return;
+            }
+            peer->disconnectFromServer();
+            served++;
+        }
+    });
+    peerThread->start();
+    QVERIFY(pollScriptedPeer(path));
+
+    fishermand::Client requirements(path);
+    const fishermand::Requirements gates = fishermand::fetchRequirements(requirements);
+    QVERIFY(gates.ok);
+    QVERIFY(!gates.meets);
+    const QStringList wantUefi{QStringLiteral("uefi")};
+    QCOMPARE(fishermand::unmetFromGates(gates.gates), wantUefi);
+
+    fishermand::Client probeCall(path);
+    const fishermand::Probe probe = fishermand::fetchProbe(probeCall);
+    QVERIFY(probe.ok);
+    QCOMPARE(probe.disks.size(), 1);
+    QCOMPARE(probe.disks.at(0).path, QStringLiteral("/dev/nvme0n1"));
+    QCOMPARE(probe.disks.at(0).sizeLabel, QStringLiteral("476.9 GiB"));
+    const QStringList wantOs{QStringLiteral("Windows")};
+    QCOMPARE(probe.disks.at(0).existingData.operatingSystems, wantOs);
+    QVERIFY(!probe.tpmUsable);
+    QVERIFY(probe.isLive);
+    // No handoff object from the peer: the ruling default is reboot.
+    QCOMPARE(probe.handoffMode, QStringLiteral("reboot"));
+
+    peerThread->wait(15000);
+    QVERIFY(peerOk.load());
+    QCOMPARE(served.load(), replies.size());
+    peerThread->deleteLater();
+
+    // A peer that answers with an error: the call keeps the name only.
+    const QString failingPath = dir.filePath(QStringLiteral("denied.sock"));
+    const QByteArray deniedReply =
+        QByteArray("{\"error\":\"io.tunaos.Fisherman.NotConfirmed\",\"parameters\":{}}") + '\0';
+    const QList<QByteArray> deniedReplies{deniedReply};
+    std::atomic<bool> deniedOk = true;
+    std::atomic<int> deniedServed = 0;
+    QThread *deniedThread = QThread::create([&, failingPath] {
+        QLocalServer failing;
+        if (!failing.listen(failingPath)) {
+            deniedOk = false;
+            return;
+        }
+        if (!failing.waitForNewConnection(10000)) {
+            deniedOk = false;
+            return;
+        }
+        QScopedPointer<QLocalSocket> peer(failing.nextPendingConnection());
+        if (peer.isNull()) {
+            deniedOk = false;
+            return;
+        }
+        QByteArray request;
+        while (!request.contains('\0')) {
+            if (!peer->waitForReadyRead(10000)) {
+                deniedOk = false;
+                return;
+            }
+            request += peer->readAll();
+        }
+        peer->write(deniedReplies.at(0));
+        if (!peer->waitForBytesWritten(10000)) {
+            deniedOk = false;
+            return;
+        }
+        peer->disconnectFromServer();
+        deniedServed++;
+    });
+    deniedThread->start();
+    QVERIFY(pollScriptedPeer(failingPath));
+    fishermand::Client denied(failingPath);
+    const fishermand::Requirements refused = fishermand::fetchRequirements(denied);
+    deniedThread->wait(15000);
+    QVERIFY(deniedOk.load());
+    QCOMPARE(deniedServed.load(), 1);
+    deniedThread->deleteLater();
+    QVERIFY(!refused.ok);
+    QCOMPARE(refused.error, QStringLiteral("io.tunaos.Fisherman.NotConfirmed"));
+}
+
+void BackendTest::daemonBackendDrivesControllerFacts()
+{
+    // The controller on the daemon backend reads Requirements and Probe at
+    // startup instead of running `fisherman probe --json`. A scripted peer
+    // answers both; a disk with data, hidden NVMe, no TPM and live media.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("fisherman.sock"));
+    const QList<QByteArray> replies{scriptedRequirements(), scriptedProbe()};
+    std::atomic<bool> peerOk = true;
+    std::atomic<int> served = 0;
+    QThread *peerThread = QThread::create([&, path] {
+        QLocalServer server;
+        if (!server.listen(path)) {
+            peerOk = false;
+            return;
+        }
+        // The constructor asks twice; the disk model asks once more below.
+        for (int i = 0; i < 3; i++) {
+            if (!server.waitForNewConnection(10000)) {
+                peerOk = false;
+                return;
+            }
+            QScopedPointer<QLocalSocket> peer(server.nextPendingConnection());
+            if (peer.isNull()) {
+                peerOk = false;
+                return;
+            }
+            QByteArray request;
+            while (!request.contains('\0')) {
+                if (!peer->waitForReadyRead(10000)) {
+                    peerOk = false;
+                    return;
+                }
+                request += peer->readAll();
+            }
+            peer->write(replies.at(i < replies.size() ? i : 1));
+            if (!peer->waitForBytesWritten(10000)) {
+                peerOk = false;
+                return;
+            }
+            peer->disconnectFromServer();
+            served++;
+        }
+    });
+    peerThread->start();
+    QVERIFY(pollScriptedPeer(path));
+
+    const QByteArray oldBackend = qgetenv("TUNA_INSTALLER_BACKEND");
+    const QByteArray oldSocket = qgetenv("TUNA_FISHERMAN_SOCKET");
+    const QByteArray oldFake = qgetenv(probe::FAKE_ENV);
+    qputenv("TUNA_INSTALLER_BACKEND", QByteArray("daemon"));
+    qputenv("TUNA_FISHERMAN_SOCKET", path.toLocal8Bit());
+    qunsetenv(probe::FAKE_ENV);
+    InstallerController c;
+    QVERIFY(c.daemonBackend());
+    QVERIFY(!c.hasTpm());
+    const QStringList wantUnmet{QStringLiteral("ram"), QStringLiteral("uefi")};
+    QCOMPARE(c.unmetRequirements(), wantUnmet);
+    QVERIFY(c.rstDetected());
+    const QStringList wantAffected{QStringLiteral("/dev/nvme0n1")};
+    QCOMPARE(c.rstAffectedDisks(), wantAffected);
+    QVERIFY(c.isLive());
+    QCOMPARE(c.liveImage(), QStringLiteral("ghcr.io/example/os:stable"));
+    QVERIFY(!c.daemonUnreachable());
+    QVERIFY(c.daemonError().isEmpty());
+    c.setDisk(QStringLiteral("/dev/sdb"));
+    const QStringList wantSystems{QStringLiteral("Windows")};
+    QCOMPARE(c.selectedDiskOperatingSystems(), wantSystems);
+
+    DiskModel model;
+    model.refresh();
+    QCOMPARE(model.rowCount(), 2);
+    QCOMPARE(model.deviceAt(0), QStringLiteral("/dev/sdb"));
+
+    peerThread->wait(15000);
+    QVERIFY(peerOk.load());
+    QCOMPARE(served.load(), 3);
+    peerThread->deleteLater();
+
+    // A daemon that does not answer: the controller says so and offers
+    // nothing, instead of running the recipe probe.
+    qputenv("TUNA_FISHERMAN_SOCKET", dir.filePath(QStringLiteral("gone.sock")).toLocal8Bit());
+    InstallerController down;
+    QVERIFY(down.daemonBackend());
+    QVERIFY(down.daemonUnreachable());
+    QVERIFY(!down.daemonError().isEmpty());
+    QCOMPARE(down.unmetRequirements(), QStringList());
+    QVERIFY(!down.hasTpm());
+
+    if (!oldBackend.isEmpty())
+        qputenv("TUNA_INSTALLER_BACKEND", oldBackend);
+    else
+        qunsetenv("TUNA_INSTALLER_BACKEND");
+    if (!oldSocket.isEmpty())
+        qputenv("TUNA_FISHERMAN_SOCKET", oldSocket);
+    else
+        qunsetenv("TUNA_FISHERMAN_SOCKET");
+    if (!oldFake.isEmpty())
+        qputenv(probe::FAKE_ENV, oldFake);
+}
+
+void BackendTest::wizardStepsFollowTheSharedFlow()
+{
+    // The step ids of src/qml/Wizard.qml, in order: the stable screen ids
+    // of shared/flow/screens.yaml. A rename or a reorder fails here first,
+    // before the harness classifies a page it no longer knows.
+    QFile wizard(QStringLiteral(KDE_SOURCE_DIR "/src/qml/Wizard.qml"));
+    QVERIFY(wizard.open(QIODevice::ReadOnly));
+    const QString text = QString::fromUtf8(wizard.readAll());
+    QStringList ids;
+    QRegularExpression stepRe(QStringLiteral("stepId:\\s*\"([^\"]+)\""));
+    auto matches = stepRe.globalMatch(text);
+    while (matches.hasNext())
+        ids << matches.next().captured(1);
+    const QStringList want{
+        QStringLiteral("try-or-install"),
+        QStringLiteral("welcome"),
+        QStringLiteral("prerelease"),
+        QStringLiteral("eula"),
+        QStringLiteral("rst"),
+        QStringLiteral("disk"),
+        QStringLiteral("wipe-or-free"),
+        QStringLiteral("encryption"),
+        QStringLiteral("account"),
+        QStringLiteral("confirm"),
+        QStringLiteral("install"),
+        QStringLiteral("done"),
+    };
+    QCOMPARE(ids, want);
+}
+
+void BackendTest::wizardSkipsStepsWithNothingToShow()
+{
+    qunsetenv(imagecatalog::IMAGES_ENV);
+    const QString laptop = QDir(QStringLiteral(PROBE_FIXTURES_DIR)).filePath(QStringLiteral("laptop.json"));
+    qputenv(probe::FAKE_ENV, laptop.toLocal8Bit());
+    InstallerController live;
+    QVERIFY(!live.stepSkipped(QStringLiteral("try-or-install")));
+    QVERIFY(!live.stepSkipped(QStringLiteral("disk")));
+    QVERIFY(!live.stepSkipped(QStringLiteral("account")));
+    QVERIFY(!live.stepSkipped(QStringLiteral("no-such-step")));
+
+    // The beta leaf creates its own first user: no account step.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QFile manifest(dir.filePath(QStringLiteral("images.json")));
+    QVERIFY(manifest.open(QIODevice::WriteOnly));
+    manifest.write(catalogFixture());
+    manifest.close();
+    qputenv(imagecatalog::IMAGES_ENV, dir.filePath(QStringLiteral("images.json")).toUtf8());
+    // Catalog selection is deliberately a no-op on live media (the image is
+    // the running system). Exercise it off live media so the beta leaf's
+    // needs_user_creation=false actually applies.
+    qputenv(probe::FAKE_ENV,
+            QDir(QStringLiteral(PROBE_FIXTURES_DIR)).filePath(QStringLiteral("container.json")).toLocal8Bit());
+    InstallerController cataloged;
+    cataloged.selectCatalogImage(1);
+    QVERIFY(cataloged.stepSkipped(QStringLiteral("account")));
+    qunsetenv(imagecatalog::IMAGES_ENV);
+
+    // Off live media there is no live session to try.
+    const QString container = QDir(QStringLiteral(PROBE_FIXTURES_DIR)).filePath(QStringLiteral("container.json"));
+    qputenv(probe::FAKE_ENV, container.toLocal8Bit());
+    InstallerController installed;
+    QVERIFY(installed.stepSkipped(QStringLiteral("try-or-install")));
+    qunsetenv(probe::FAKE_ENV);
+}
+
+void BackendTest::osreleasePrereleaseRules()
+{
+    const QHash<QString, QString> stable{{QStringLiteral("RELEASE_TYPE"), QStringLiteral("stable")}};
+    QVERIFY(!osrelease::isPrerelease(stable));
+    const QHash<QString, QString> lts{{QStringLiteral("RELEASE_TYPE"), QStringLiteral("lts")}};
+    QVERIFY(!osrelease::isPrerelease(lts));
+    const QHash<QString, QString> unset;
+    QVERIFY(!osrelease::isPrerelease(unset));
+    const QHash<QString, QString> unknown{{QStringLiteral("RELEASE_TYPE"), QStringLiteral("rolling")}};
+    QVERIFY(!osrelease::isPrerelease(unknown));
+    const QHash<QString, QString> pre{{QStringLiteral("RELEASE_TYPE"), QStringLiteral("pre-release")}};
+    QVERIFY(osrelease::isPrerelease(pre));
+    const QHash<QString, QString> experiment{{QStringLiteral("RELEASE_TYPE"), QStringLiteral("experiment")}};
+    QVERIFY(osrelease::isPrerelease(experiment));
+    const QHash<QString, QString> upper{{QStringLiteral("RELEASE_TYPE"), QStringLiteral("Pre-Release")}};
+    QVERIFY(osrelease::isPrerelease(upper));
+    QVERIFY(osrelease::experimentText(experiment).isEmpty());
+    const QHash<QString, QString> noted{
+        {QStringLiteral("RELEASE_TYPE"), QStringLiteral("experiment")},
+        {QStringLiteral("EXPERIMENT"), QStringLiteral("Nothing here is stable.")},
+    };
+    QCOMPARE(osrelease::experimentText(noted), QStringLiteral("Nothing here is stable."));
+
+    // gnome-setup's test hooks win over the file, like on GNOME.
+    const QByteArray oldType = qgetenv("SETUP_OVERRIDE_OS_RELEASE_TYPE");
+    const QByteArray oldExperiment = qgetenv("SETUP_OVERRIDE_OS_EXPERIMENT");
+    qputenv("SETUP_OVERRIDE_OS_RELEASE_TYPE", QByteArray("experiment"));
+    QVERIFY(osrelease::isPrerelease(stable));
+    qputenv("SETUP_OVERRIDE_OS_EXPERIMENT", QByteArray("Harness text."));
+    QCOMPARE(osrelease::experimentText(stable), QStringLiteral("Harness text."));
+    if (!oldType.isEmpty())
+        qputenv("SETUP_OVERRIDE_OS_RELEASE_TYPE", oldType);
+    else
+        qunsetenv("SETUP_OVERRIDE_OS_RELEASE_TYPE");
+    if (!oldExperiment.isEmpty())
+        qputenv("SETUP_OVERRIDE_OS_EXPERIMENT", oldExperiment);
+    else
+        qunsetenv("SETUP_OVERRIDE_OS_EXPERIMENT");
+}
+
+void BackendTest::osreleaseReadsAFile()
+{
+    const QString testdata = QString::fromUtf8(KDE_TESTDATA_DIR);
+    const QByteArray oldFile = qgetenv(osrelease::FILE_ENV);
+    qputenv(osrelease::FILE_ENV, testdata.toUtf8() + "/os-release-experiment");
+    const QHash<QString, QString> experiment = osrelease::read();
+    QVERIFY(osrelease::isPrerelease(experiment));
+    QVERIFY(osrelease::experimentText(experiment).contains(QStringLiteral("experiment")));
+    qputenv(osrelease::FILE_ENV, testdata.toUtf8() + "/os-release-stable");
+    const QHash<QString, QString> stable = osrelease::read();
+    QVERIFY(!osrelease::isPrerelease(stable));
+    qputenv(osrelease::FILE_ENV, QByteArray("/nonexistent/os-release"));
+    QVERIFY(osrelease::read().isEmpty());
+    if (!oldFile.isEmpty())
+        qputenv(osrelease::FILE_ENV, oldFile);
+    else
+        qunsetenv(osrelease::FILE_ENV);
+}
+
+void BackendTest::eulaAgreementSections()
+{
+    // TUNA_EULA_FILE wins over the shared path, for tests and demos.
+    const QString testdata = QString::fromUtf8(KDE_TESTDATA_DIR);
+    const QByteArray oldFile = qgetenv(eula::FILE_ENV);
+    qputenv(eula::FILE_ENV, (testdata + QStringLiteral("/eula-agreement.xml")).toUtf8());
+    QCOMPARE(eula::findFile(), testdata + QStringLiteral("/eula-agreement.xml"));
+    const eula::Document document = eula::read(eula::findFile());
+    QVERIFY(document.ok);
+    QVERIFY(document.error.isEmpty());
+    QCOMPARE(document.sections.size(), 2);
+    QCOMPARE(document.sections.at(0).heading, QStringLiteral("Use of this system"));
+    QCOMPARE(document.sections.at(0).blocks.size(), 3);
+    QVERIFY(document.sections.at(0).blocks.at(0).kind == eula::Block::Kind::Paragraph);
+    QCOMPARE(document.sections.at(0).blocks.at(0).text,
+             QStringLiteral("Do not use this experiment for anything important."));
+    QVERIFY(document.sections.at(0).blocks.at(2).kind == eula::Block::Kind::List);
+    QVERIFY(!document.sections.at(0).blocks.at(2).ordered);
+    const QStringList wantItems{QStringLiteral("File bugs when it breaks."),
+                                QStringLiteral("Keep backups of anything you keep.")};
+    QCOMPARE(document.sections.at(0).blocks.at(2).items, wantItems);
+    QCOMPARE(document.sections.at(1).heading, QStringLiteral("Updates"));
+    QVERIFY(document.sections.at(1).blocks.at(1).ordered);
+    // The QML shape: headings with paragraph and list blocks.
+    const QVariantList sections = eula::toVariant(document);
+    QCOMPARE(sections.size(), 2);
+    const QVariantMap first = sections.at(0).toMap();
+    QCOMPARE(first.value(QStringLiteral("heading")).toString(), QStringLiteral("Use of this system"));
+    const QVariantList blocks = first.value(QStringLiteral("blocks")).toList();
+    QCOMPARE(blocks.size(), 3);
+    QCOMPARE(blocks.at(2).toMap().value(QStringLiteral("kind")).toString(), QStringLiteral("ul"));
+    if (!oldFile.isEmpty())
+        qputenv(eula::FILE_ENV, oldFile);
+    else
+        qunsetenv(eula::FILE_ENV);
+}
+
+void BackendTest::eulaPlainTextAndFailures()
+{
+    const QString testdata = QString::fromUtf8(KDE_TESTDATA_DIR);
+    const eula::Document plain = eula::read(testdata + QStringLiteral("/eula-plain.txt"));
+    QVERIFY(plain.ok);
+    QCOMPARE(plain.sections.size(), 1);
+    QVERIFY(plain.sections.at(0).heading.isEmpty());
+    QCOMPARE(plain.sections.at(0).blocks.size(), 2);
+    QCOMPARE(plain.sections.at(0).blocks.at(1).text,
+             QStringLiteral("Please read them carefully before you install."));
+
+    // No path is no file, not an error: the page is skipped.
+    const eula::Document none = eula::read(QString());
+    QVERIFY(!none.ok);
+    QVERIFY(none.error.isEmpty());
+    // A missing or broken file is eula-unreadable: the page shows it.
+    const eula::Document missing = eula::read(QStringLiteral("/nonexistent/eula.xml"));
+    QVERIFY(!missing.ok);
+    QVERIFY(!missing.error.isEmpty());
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString noAgreement = dir.filePath(QStringLiteral("other.xml"));
+    QFile other(noAgreement);
+    QVERIFY(other.open(QIODevice::WriteOnly));
+    other.write("<component><agreement type=\"privacy\"><agreement_section>"
+                "<name>Other</name><p>Not terms.</p></agreement_section>"
+                "</agreement></component>");
+    other.close();
+    QVERIFY(!eula::read(noAgreement).ok);
+    const QString broken = dir.filePath(QStringLiteral("broken.xml"));
+    QFile bad(broken);
+    QVERIFY(bad.open(QIODevice::WriteOnly));
+    bad.write("<component><agreement type=\"eula\"><p>Unclosed.");
+    bad.close();
+    QVERIFY(!eula::read(broken).ok);
+}
+
+void BackendTest::releaseFactsDriveSkips()
+{
+    const QString testdata = QString::fromUtf8(KDE_TESTDATA_DIR);
+    const QByteArray oldRelease = qgetenv(osrelease::FILE_ENV);
+    const QByteArray oldEula = qgetenv(eula::FILE_ENV);
+    const QByteArray oldFake = qgetenv(probe::FAKE_ENV);
+    qputenv(probe::FAKE_ENV,
+            QDir(QStringLiteral(PROBE_FIXTURES_DIR)).filePath(QStringLiteral("laptop.json")).toUtf8());
+    // A pre-release with terms: both screens show.
+    qputenv(osrelease::FILE_ENV, (testdata + QStringLiteral("/os-release-experiment")).toUtf8());
+    qputenv(eula::FILE_ENV, (testdata + QStringLiteral("/eula-agreement.xml")).toUtf8());
+    InstallerController c;
+    QVERIFY(c.isPrerelease());
+    QVERIFY(c.experimentText().contains(QStringLiteral("experiment")));
+    QVERIFY(c.eulaFileFound());
+    QVERIFY(c.eulaAvailable());
+    QVERIFY(c.eulaError().isEmpty());
+    QCOMPARE(c.eulaSections().size(), 2);
+    QVERIFY(!c.stepSkipped(QStringLiteral("prerelease")));
+    QVERIFY(!c.stepSkipped(QStringLiteral("eula")));
+    QVERIFY(!c.eulaAccepted());
+    QSignalSpy accepted(&c, &InstallerController::eulaChanged);
+    c.setEulaAccepted(true);
+    QVERIFY(c.eulaAccepted());
+    QCOMPARE(accepted.count(), 1);
+    c.setEulaAccepted(true);
+    QCOMPARE(accepted.count(), 1);
+    // Stable without terms: both screens skip.
+    qputenv(osrelease::FILE_ENV, (testdata + QStringLiteral("/os-release-stable")).toUtf8());
+    qputenv(eula::FILE_ENV, QByteArray("/nonexistent/eula.xml"));
+    InstallerController d;
+    QVERIFY(!d.isPrerelease());
+    QVERIFY(d.experimentText().isEmpty());
+    QVERIFY(!d.eulaFileFound());
+    QVERIFY(!d.eulaAvailable());
+    QVERIFY(d.stepSkipped(QStringLiteral("prerelease")));
+    QVERIFY(d.stepSkipped(QStringLiteral("eula")));
+    // A terms file that cannot load is not a skip: the page shows the error
+    // and offers only power off.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString broken = dir.filePath(QStringLiteral("broken.xml"));
+    QFile bad(broken);
+    QVERIFY(bad.open(QIODevice::WriteOnly));
+    bad.write("<component><agreement type=\"eula\"><p>Unclosed.");
+    bad.close();
+    qputenv(eula::FILE_ENV, broken.toUtf8());
+    InstallerController brokenEula;
+    QVERIFY(brokenEula.eulaFileFound());
+    QVERIFY(!brokenEula.eulaAvailable());
+    QVERIFY(!brokenEula.eulaError().isEmpty());
+    QVERIFY(!brokenEula.stepSkipped(QStringLiteral("eula")));
+    if (!oldRelease.isEmpty())
+        qputenv(osrelease::FILE_ENV, oldRelease);
+    else
+        qunsetenv(osrelease::FILE_ENV);
+    if (!oldEula.isEmpty())
+        qputenv(eula::FILE_ENV, oldEula);
+    else
+        qunsetenv(eula::FILE_ENV);
+    if (!oldFake.isEmpty())
+        qputenv(probe::FAKE_ENV, oldFake);
+    else
+        qunsetenv(probe::FAKE_ENV);
+}
+
+void BackendTest::wizardSkipsRstWipeAndEncryption()
+{
+    // No usable TPM: the encryption page shows, RST warns, and the wipe
+    // choice follows the chosen disk's data.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("fisherman.sock"));
+    const QList<QByteArray> replies{scriptedRequirements(), scriptedProbe()};
+    std::atomic<bool> peerOk = true;
+    std::atomic<int> served = 0;
+    QThread *peerThread = QThread::create([&, path] {
+        QLocalServer server;
+        if (!server.listen(path)) {
+            peerOk = false;
+            return;
+        }
+        for (int i = 0; i < 2; i++) {
+            if (!server.waitForNewConnection(10000)) {
+                peerOk = false;
+                return;
+            }
+            QScopedPointer<QLocalSocket> peer(server.nextPendingConnection());
+            if (peer.isNull()) {
+                peerOk = false;
+                return;
+            }
+            QByteArray request;
+            while (!request.contains('\0')) {
+                if (!peer->waitForReadyRead(10000)) {
+                    peerOk = false;
+                    return;
+                }
+                request += peer->readAll();
+            }
+            peer->write(replies.at(i));
+            if (!peer->waitForBytesWritten(10000)) {
+                peerOk = false;
+                return;
+            }
+            peer->disconnectFromServer();
+            served++;
+        }
+    });
+    peerThread->start();
+    QVERIFY(pollScriptedPeer(path));
+    const QByteArray oldBackend = qgetenv("TUNA_INSTALLER_BACKEND");
+    const QByteArray oldSocket = qgetenv("TUNA_FISHERMAN_SOCKET");
+    const QByteArray oldFake = qgetenv(probe::FAKE_ENV);
+    qputenv("TUNA_INSTALLER_BACKEND", QByteArray("daemon"));
+    qputenv("TUNA_FISHERMAN_SOCKET", path.toLocal8Bit());
+    qunsetenv(probe::FAKE_ENV);
+    InstallerController c;
+    peerThread->wait(15000);
+    QVERIFY(peerOk.load());
+    QCOMPARE(served.load(), 2);
+    peerThread->deleteLater();
+
+    QVERIFY(!c.stepSkipped(QStringLiteral("rst")));
+    c.setDisk(QStringLiteral("/dev/sdb"));
+    QVERIFY(!c.stepSkipped(QStringLiteral("wipe-or-free")));
+    QVERIFY(!c.selectedDiskForceErase());
+    QVERIFY(!c.selectedDiskFreeSpace().isEmpty());
+    const QStringList wantSystems{QStringLiteral("Windows")};
+    QCOMPARE(c.selectedDiskOperatingSystems(), wantSystems);
+    c.setDisk(QStringLiteral("/dev/sdc"));
+    QVERIFY(c.stepSkipped(QStringLiteral("wipe-or-free")));
+    QVERIFY(c.selectedDiskOperatingSystems().isEmpty());
+    c.setDisk(QStringLiteral("/dev/unknown"));
+    QVERIFY(c.stepSkipped(QStringLiteral("wipe-or-free")));
+    QVERIFY(!c.stepSkipped(QStringLiteral("encryption")));
+    QCOMPARE(c.recipe().encryption.type, QStringLiteral("none"));
+
+    // A usable TPM: the daemon seals to PCR 7 with no prompt.
+    const QList<QByteArray> tpmReplies{scriptedRequirements(), scriptedProbeTpm()};
+    const QString tpmPath = dir.filePath(QStringLiteral("tpm.sock"));
+    std::atomic<bool> tpmOk = true;
+    QThread *tpmThread = QThread::create([&, tpmPath] {
+        QLocalServer server;
+        if (!server.listen(tpmPath)) {
+            tpmOk = false;
+            return;
+        }
+        for (int i = 0; i < 2; i++) {
+            if (!server.waitForNewConnection(10000)) {
+                tpmOk = false;
+                return;
+            }
+            QScopedPointer<QLocalSocket> peer(server.nextPendingConnection());
+            if (peer.isNull()) {
+                tpmOk = false;
+                return;
+            }
+            QByteArray request;
+            while (!request.contains('\0')) {
+                if (!peer->waitForReadyRead(10000)) {
+                    tpmOk = false;
+                    return;
+                }
+                request += peer->readAll();
+            }
+            peer->write(tpmReplies.at(i));
+            if (!peer->waitForBytesWritten(10000)) {
+                tpmOk = false;
+                return;
+            }
+            peer->disconnectFromServer();
+        }
+    });
+    tpmThread->start();
+    QVERIFY(pollScriptedPeer(tpmPath));
+    qputenv("TUNA_FISHERMAN_SOCKET", tpmPath.toLocal8Bit());
+    InstallerController sealed;
+    tpmThread->wait(15000);
+    QVERIFY(tpmOk.load());
+    tpmThread->deleteLater();
+    QVERIFY(sealed.stepSkipped(QStringLiteral("encryption")));
+    QCOMPARE(sealed.recipe().encryption.type, QStringLiteral("tpm2-luks"));
+    // No remapped disks there: no RST page either.
+    QVERIFY(sealed.stepSkipped(QStringLiteral("rst")));
+
+    // The recipe backend keeps its four choices and its erase behaviour:
+    // wipe-or-free and RST skip, encryption shows even with a TPM.
+    qunsetenv("TUNA_INSTALLER_BACKEND");
+    qunsetenv("TUNA_FISHERMAN_SOCKET");
+    qputenv(probe::FAKE_ENV,
+            QDir(QStringLiteral(PROBE_FIXTURES_DIR)).filePath(QStringLiteral("laptop.json")).toUtf8());
+    InstallerController legacy;
+    QVERIFY(legacy.hasTpm());
+    QVERIFY(!legacy.stepSkipped(QStringLiteral("encryption")));
+    QCOMPARE(legacy.recipe().encryption.type, QStringLiteral("none"));
+    QVERIFY(legacy.stepSkipped(QStringLiteral("rst")));
+    legacy.setDisk(QStringLiteral("/dev/nvme0n1"));
+    QVERIFY(legacy.stepSkipped(QStringLiteral("wipe-or-free")));
+
+    if (!oldBackend.isEmpty())
+        qputenv("TUNA_INSTALLER_BACKEND", oldBackend);
+    else
+        qunsetenv("TUNA_INSTALLER_BACKEND");
+    if (!oldSocket.isEmpty())
+        qputenv("TUNA_FISHERMAN_SOCKET", oldSocket);
+    else
+        qunsetenv("TUNA_FISHERMAN_SOCKET");
+    if (!oldFake.isEmpty())
+        qputenv(probe::FAKE_ENV, oldFake);
+    else
+        qunsetenv(probe::FAKE_ENV);
+}
+
+void BackendTest::wipeChoiceDefaultsToFreeSpace()
+{
+    InstallerController c;
+    QCOMPARE(c.installMode(), QStringLiteral("free_space"));
+    QSignalSpy changed(&c, &InstallerController::installModeChanged);
+    c.setInstallMode(QStringLiteral("erase"));
+    QCOMPARE(c.installMode(), QStringLiteral("erase"));
+    QCOMPARE(changed.count(), 1);
+    c.setInstallMode(QStringLiteral("erase"));
+    QCOMPARE(changed.count(), 1);
+    c.setInstallMode(QStringLiteral("bogus"));
+    QCOMPARE(c.installMode(), QStringLiteral("erase"));
+    QCOMPARE(changed.count(), 1);
+}
+
+void BackendTest::recoveryQrMatchesGoldens()
+{
+    // The generator is deliberately narrow: byte mode, EC level M, versions
+    // 1-6. These goldens pin all six, including the automatic mask choice.
+    const QString path = QStringLiteral(KDE_TESTDATA_DIR) + QStringLiteral("/qr-goldens.json");
+    QFile file(path);
+    QVERIFY2(file.open(QIODevice::ReadOnly), qPrintable(path));
+    const QJsonArray cases = QJsonDocument::fromJson(file.readAll()).array();
+    QVERIFY(cases.size() >= 6);
+    for (const QJsonValue &value : cases) {
+        const QJsonObject item = value.toObject();
+        const QString name = item.value(QLatin1String("name")).toString();
+        const qrcode::Code code = qrcode::encode(item.value(QLatin1String("text")).toString());
+        QVERIFY2(code.ok, qPrintable(name));
+        QCOMPARE(code.version, item.value(QLatin1String("version")).toInt());
+        QCOMPARE(code.size, item.value(QLatin1String("size")).toInt());
+        QCOMPARE(code.rows(), item.value(QLatin1String("rows")).toVariant().toStringList());
+    }
 }
 
 QTEST_APPLESS_MAIN(BackendTest)

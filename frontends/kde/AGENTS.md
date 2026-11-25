@@ -52,13 +52,14 @@ JavaScript toolchain here despite appearances.
 
 Each wizard step is a self-contained module at
 `modules/<name>/contents/ui/main.qml` whose root is a
-`TunaComponents.SetupModule` exposing `nextEnabled` and `contentItem`.
+`TunaComponents.SetupModule` exposing `nextEnabled` and `contentItem`, plus
+an `advanceRequested` signal for steps whose content navigates (Try or
+Install now, Done, Continue) instead of the shared Back and Next buttons.
 `src/qml/Wizard.qml` drives them with hand-rolled slide animations rather than
 a `SwipeView`. `src/components/setupmodule.h` is deliberately a near-copy of
 KDE KISS's `SetupModule`, so the shape is upstream's — follow it when adding a
-step rather than inventing a new one.
+Steps (step ids of shared/flow/screens.yaml): try-or-install → welcome → prerelease → eula → rst → disk → wipe-or-free → encryption → account → confirm → install (`modules/progress`) → done. A step that has nothing to ask is skipped by `InstallerController.stepSkipped()`, never blank.
 
-Steps: welcome → disk → encryption → account → confirm → progress → done.
 The disk step shows the image catalog when a manifest is there and the host
 is not live media. `../../shared/catalog/README.md` is the contract for the
 catalog: the search path, the fields that go into the recipe, the image
