@@ -54,6 +54,15 @@
         "phone_companion",
         "locale_pages",
         "locale_installed",
+        "try_or_install",
+        "network_page",
+        "prerelease_page",
+        "eula_page",
+        "rst_page",
+        "wipe_or_free",
+        "recovery_key_screen",
+        "handoff_page",
+        "done_try_again",
         "cancel_install",
         "autoinstall",
         "translatable",
@@ -232,6 +241,60 @@
           "minLength": 1,
           "pattern": "^[^|\\n]+$",
           "description": "Keyboard / language / timezone in the installed system"
+        },
+        "try_or_install": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Try or install screen (live media)"
+        },
+        "network_page": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Network screen (install needs a download)"
+        },
+        "prerelease_page": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Pre-release warning screen"
+        },
+        "eula_page": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "EULA screen"
+        },
+        "rst_page": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Intel RST warning screen"
+        },
+        "wipe_or_free": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Free space or whole-disk erase choice"
+        },
+        "recovery_key_screen": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Own recovery-key screen"
+        },
+        "handoff_page": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Handoff screen (reboot, soft reboot)"
+        },
+        "done_try_again": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^|\\n]+$",
+          "description": "Try again after a failed or cancelled install"
         },
         "cancel_install": {
           "type": "string",

@@ -18,6 +18,19 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-25: feature rows for the shared flow screens
+
+- Added: nine rows in `walkthrough/feature-rows.json` and
+  `walkthrough/features.schema.json`: `try_or_install`, `network_page`,
+  `prerelease_page`, `eula_page`, `rst_page`, `wipe_or_free`,
+  `recovery_key_screen`, `handoff_page`, `done_try_again`. The native ports
+  (#448 to #451) report them; `features-gnome.json` says "no" for all nine.
+  Every `features.json` carries the new rows and `docs/PARITY.md` is
+  regenerated.
+
+Contracts version: `2.3.0`
+Contracts sha256: `502275d9ece17b9e24261177ae2367ac412dbbb137602c167f398cc8a6eb36e3`
+
 ## 2026-11-22: shared installer flow spec and Varlink client examples
 
 - Added: `flow/screens.yaml`, the spec of 18 shared screens, with their ids,
