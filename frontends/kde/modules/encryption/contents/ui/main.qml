@@ -110,6 +110,7 @@ TunaComponents.SetupModule {
 
                 FormCard.FormPasswordFieldDelegate {
                     id: passphraseField
+                    objectName: "encryptionPassphrase"
 
                     label: qsTr("Passphrase")
 
@@ -119,6 +120,7 @@ TunaComponents.SetupModule {
 
                 FormCard.FormPasswordFieldDelegate {
                     id: confirmField
+                    objectName: "encryptionPassphraseConfirm"
 
                     label: qsTr("Confirm passphrase")
 

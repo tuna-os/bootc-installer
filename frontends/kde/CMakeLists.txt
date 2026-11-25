@@ -208,6 +208,24 @@ if(BUILD_CAPTURE)
         CAPTURE_ICON_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../data/icons/hicolor/scalable/apps")
 endif()
 
+# --- the wizard, clicked through against the mock daemon ----------------------
+# The real QML again, driven by its own buttons from the first screen to the
+# last, with a mock fishermand that this program starts itself. It exits 77
+# (a ctest skip) when there is no mock binary.
+if(BUILD_CAPTURE AND BUILD_TESTING)
+    qt_add_executable(tuna-installer-walk tests/walk.cpp)
+    target_link_libraries(tuna-installer-walk PRIVATE tunainstallerapp tunainstallerappplugin)
+    target_compile_definitions(tuna-installer-walk PRIVATE
+        WALK_TESTDATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/testdata"
+        WALK_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        WALK_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+    enable_testing()
+    add_test(NAME tuna-installer-walk COMMAND tuna-installer-walk)
+    set_tests_properties(tuna-installer-walk PROPERTIES
+        SKIP_RETURN_CODE 77
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+endif()
+
 option(BUILD_E2E "Build the end-to-end driver that launches the real backend path" OFF)
 if(BUILD_E2E)
     qt_add_executable(tuna-installer-e2e tests/e2e.cpp)

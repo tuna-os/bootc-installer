@@ -398,6 +398,7 @@ Kirigami.Page {
             Layout.margins: Kirigami.Units.gridUnit
 
             Button {
+                objectName: "backButton"
                 text: qsTr("Back")
                 icon.name: "arrow-left-symbolic"
 
