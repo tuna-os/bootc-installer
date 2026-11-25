@@ -156,6 +156,7 @@
   "this system": "",
   "{bus} disk": "",
   "{button} ({seconds})": "",
+  "{disk} — needs at least {minimum}": "",
   "{image} (this system — no download)": "",
   "{label} — {n} of {total}": "",
   "{n}%": "",

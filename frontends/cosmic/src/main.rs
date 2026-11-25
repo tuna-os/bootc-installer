@@ -771,6 +771,7 @@ pub struct TunaInstaller {
     /// One entry per disk in `disks`, same order: data and free space. The
     /// wipe-or-free page reads this. Empty on the legacy path.
     disk_data: Vec<probe::DiskData>,
+    too_small: Vec<probe::TooSmall>,
     /// The daemon's handoff mode and reason (`handoff.mode`, `handoff.reason`
     /// of the Probe reply). Missing means reboot. The handoff page reads this.
     handoff_mode: String,
@@ -1026,6 +1027,9 @@ impl TunaInstaller {
     }
     pub fn intel_rst(&self) -> bool {
         self.intel_rst
+    }
+    pub fn too_small(&self) -> &[probe::TooSmall] {
+        &self.too_small
     }
     pub fn disk_data(&self) -> &[probe::DiskData] {
         &self.disk_data
@@ -1433,6 +1437,7 @@ impl TunaInstaller {
                 self.unmet = facts.unmet;
                 self.intel_rst = facts.intel_rst;
                 self.disk_data = facts.disk_data;
+                self.too_small = facts.too_small;
                 self.handoff_mode = facts.handoff_mode;
                 self.handoff_reason = facts.handoff_reason;
                 // Live media is fisherman's answer. This used to be a
@@ -1868,9 +1873,10 @@ impl TunaInstaller {
     pub fn receipt_lines(&self) -> Vec<String> {
         source_check::receipt_lines(self.progress.receipt.as_ref())
             .into_iter()
-            // The daemon sends no `receipt` event: only the line that
-            // says nothing checked the new system applies there.
-            .filter(|(key, _)| !fishermand::use_daemon() || key == "done_verification")
+            // The daemon sends no `receipt` event, so there is nothing to
+            // say about one; and after a migrate handoff the new system is
+            // the one that runs.
+            .filter(|_| !fishermand::use_daemon() || self.progress.receipt.is_some())
             .map(|(key, value)| branding::get().text_with(&key, &[("value", &value)]))
             .filter(|line| !line.is_empty())
             .collect()
@@ -2032,6 +2038,7 @@ impl cosmic::Application for TunaInstaller {
             disk_error: None,
             intel_rst: false,
             disk_data: Vec::new(),
+            too_small: Vec::new(),
             handoff_mode: "reboot".to_string(),
             handoff_reason: String::new(),
             location_services: None,
@@ -2291,7 +2298,8 @@ impl cosmic::Application for TunaInstaller {
                 // The session locale first, so the current choice stays
                 // selected instead of resetting to the top of the list.
                 let current = std::env::var("LANG").unwrap_or_default();
-                let ordered = preflight::order_locales(locales, &current);
+                let mut ordered = preflight::order_locales(locales, &current);
+                ordered.retain(|l| names::is_language(l));
                 // Nothing is picked, and nothing is sent: the first row of
                 // the page says that the image keeps its own setting.
                 self.selected_locale = None;

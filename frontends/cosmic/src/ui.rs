@@ -106,6 +106,7 @@ pub mod copy {
     pub const RAIL_INSTALL: &str = "Install";
     // A disk that names no vendor and no model.
     pub const DISK_BUS_TITLE: &str = "{bus} disk";
+    pub const DISK_TOO_SMALL: &str = "{disk} \u{2014} needs at least {minimum}";
     // The disk map.
     pub const MAP_NOW: &str = "On this disk now";
     pub const MAP_AFTER: &str = "After the installation";
@@ -446,6 +447,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 t.push(disk.title.clone());
                 t.push(disk_caption(disk));
             }
+            t.extend(too_small_lines(app));
             t.extend(map_text(app, false));
             t.push(tr(BACK));
             if app.selected_disk().is_some() {
@@ -707,7 +709,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 t_line("confirm_body"),
                 tr(CONFIRM_SUMMARY),
                 tr(CONFIRM_TARGET_DISK),
-                confirm_disk(app),
+                confirm_disk_label(app),
                 if crate::fishermand::use_daemon() {
                     tr(CONFIRM_EXISTING_DATA)
                 } else {
@@ -836,7 +838,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             let mut t = vec![tr(HANDOFF_TITLE), tr(HANDOFF_SUBTITLE)];
             if let Some(error) = app.handoff_error() {
                 t.push(tr(HANDOFF_FAILED));
-                t.push(error.to_string());
+                t.extend(words(error));
                 t.push(tr(HANDOFF_CLOSE));
                 t.push(t_line("done_restart"));
             } else {
@@ -855,9 +857,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             let (title, detail) = done_copy(app);
             let mut t = vec![title, detail];
             if !app.install_ok() && !app.install_cancelled() {
-                if let Some(reason) = app.daemon_failure() {
-                    t.push(daemon_failure_text(reason));
-                }
+                t.extend(failure_reason(app));
                 t.extend(failure_message(app));
                 t.extend(app.failure_lines());
             }
@@ -1037,6 +1037,35 @@ fn fill_class(tint: Tint) -> cosmic::theme::Container<'static> {
             ..Default::default()
         }
     })
+}
+
+/// The disks that cannot hold the install, with the minimum: in view, never
+/// to pick.
+fn too_small_lines(app: &TunaInstaller) -> Vec<String> {
+    app.too_small()
+        .iter()
+        .map(|d| {
+            let disk = format!("{} ({})", d.title, d.caption);
+            let minimum = crate::disk_map::size(d.minimal_bytes);
+            tr_with(DISK_TOO_SMALL, &[("disk", &disk), ("minimum", &minimum)])
+        })
+        .collect()
+}
+
+/// The chosen disk with its name and size, for the summary.
+fn confirm_disk_label(app: &TunaInstaller) -> String {
+    let Some(disk) = app.selected_disk().and_then(|i| app.disks().get(i)) else {
+        return confirm_disk(app);
+    };
+    let mut bits = vec![disk.path.as_str()];
+    if !disk.size_label.is_empty() {
+        bits.push(&disk.size_label);
+    }
+    if disk.title == disk.path {
+        bits.join(", ")
+    } else {
+        format!("{} ({})", disk.title, bits.join(", "))
+    }
 }
 
 /// The facts about the disk that is picked.
@@ -1289,6 +1318,17 @@ pub fn daemon_failure_text(reason: &str) -> String {
         "daemon_unreachable" => tr(DONE_DAEMON_UNREACHABLE),
         other => crate::i18n::tr_with(DONE_FAILED_REASON, &[("reason", other)]),
     }
+}
+
+/// The line for the daemon's reason. A reason with no line of its own is an id
+/// for the log; it shows only when the daemon sent no sentence with it.
+fn failure_reason(app: &TunaInstaller) -> Option<String> {
+    let reason = app.daemon_failure()?;
+    let known = matches!(
+        reason,
+        "device_lost" | "repart_failed" | "luks_failed" | "daemon_unreachable"
+    );
+    (known || failure_message(app).is_none()).then(|| daemon_failure_text(reason))
 }
 
 /// The handoff page's body for a mode of the daemon's Probe.
@@ -1735,9 +1775,7 @@ fn choice_list(
     on_pick: fn(usize) -> Message,
 ) -> Element<'static, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
-    if rows.is_empty() {
-        return widget::text::body(empty).into();
-    }
+    let nothing = rows.is_empty();
     // What applies until the person picks a row is a row too, and it is the
     // one that is chosen: the list never looks as if nothing was.
     let selected = Some(selected.unwrap_or(KEEP_ROW));
@@ -1753,6 +1791,9 @@ fn choice_list(
         .align_y(Alignment::Center)
         .spacing(spacing.space_s);
         list = list.add(widget::mouse_area(item).on_press(on_pick(i)));
+    }
+    if nothing {
+        list = list.add(widget::text::caption(empty));
     }
     widget::scrollable(list.into_element())
         .height(Length::Fill)
@@ -2334,6 +2375,9 @@ fn disk_select(app: &TunaInstaller) -> Element<'_, Message> {
         .height(Length::Fill)
         .into()])
         .spacing(spacing.space_s);
+        for line in too_small_lines(app) {
+            col = col.push(widget::text::caption(line));
+        }
         // What the picked disk holds, before the person goes on.
         for (heading, parts) in maps(app, false) {
             col = col.push(map_view(heading, parts));
@@ -2512,6 +2556,12 @@ fn encryption(app: &TunaInstaller) -> Element<'_, Message> {
 /// a QR dialog, and an acknowledgement box that gates Done. Daemon mode
 /// enrols the key when Done is pressed; the legacy install enrols it
 /// while writing the disk.
+/// The daemon's text, when it is one: an error name
+/// ("io.tunaos.Fisherman.NotInstalled") is for the log.
+fn words(error: &str) -> Option<String> {
+    (error.contains(char::is_whitespace)).then(|| error.to_string())
+}
+
 /// What went wrong with the recovery key, in words. The error name of the
 /// daemon ("io.systemd.System") is for the log: it tells a person nothing.
 fn recovery_error_line(app: &TunaInstaller) -> Option<String> {
@@ -2644,7 +2694,10 @@ fn handoff(app: &TunaInstaller) -> Element<'_, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
     if let Some(error) = app.handoff_error() {
         let body = widget::column::with_children(vec![
-            widget::text::body(format!("{} {}", tr(HANDOFF_FAILED), error)).into(),
+            widget::text::body(match words(error) {
+                Some(text) => format!("{} {text}", tr(HANDOFF_FAILED)),
+                None => tr(HANDOFF_FAILED),
+            }).into(),
             widget::row::with_children(vec![
                 widget::button::standard(tr(HANDOFF_CLOSE))
                     .on_press(Message::NextPage)
@@ -2787,7 +2840,7 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
     let recipe = app.recipe();
 
-    let disk = confirm_disk(app);
+    let disk = confirm_disk_label(app);
     let image = confirm_image(app);
 
     let summary = widget::settings::section()
@@ -3108,8 +3161,8 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
         }
     } else if !app.install_cancelled() {
         // The daemon's reason for the failure, in words.
-        if let Some(reason) = app.daemon_failure() {
-            hero = hero.push(widget::text::body(daemon_failure_text(reason)));
+        if let Some(reason) = failure_reason(app) {
+            hero = hero.push(widget::text::body(reason));
         }
         // fisherman's `error` event (fisherman#449): whether the disk was
         // changed, and a cleanup that failed or timed out.

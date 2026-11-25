@@ -48,6 +48,8 @@ pub struct Facts {
     /// holds data and how much free space it has. The wipe-or-free page
     /// reads this. Empty on the legacy path.
     pub disk_data: Vec<DiskData>,
+    /// The disks that cannot hold the install. Empty on the legacy path.
+    pub too_small: Vec<TooSmall>,
     /// The daemon's handoff mode (`handoff.mode`: migrate, soft-reboot or
     /// reboot). A missing field means reboot (ruling on #442). The handoff
     /// page reads this; the install calls `Handoff` with no mode.
@@ -76,6 +78,15 @@ pub struct DiskData {
     pub size_bytes: u64,
     pub partitions: Vec<Partition>,
     pub systems: Vec<String>,
+}
+
+/// A disk that cannot hold the install: listed with the minimum, never
+/// selectable.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TooSmall {
+    pub title: String,
+    pub caption: String,
+    pub minimal_bytes: u64,
 }
 
 /// One partition of `existingData`.
@@ -170,6 +181,7 @@ pub fn parse(json: &str) -> Result<Facts, String> {
         // reboot on this path.
         intel_rst: false,
         disk_data: Vec::new(),
+        too_small: Vec::new(),
         handoff_mode: "reboot".to_string(),
         handoff_reason: String::new(),
         raw: json.to_string(),
