@@ -226,8 +226,9 @@ class Cli(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             rep, out = os.path.join(d, "walkthrough-gnome.json"), os.path.join(d, "r.json")
             json.dump(REPORT, open(rep, "w"))
-            run = lambda *a: subprocess.run([sys.executable, "-I", os.path.join(E2E, "receipt.py"), *a],
-                                            capture_output=True, text=True)
+            def run(*a):
+                return subprocess.run([sys.executable, "-I", os.path.join(E2E, "receipt.py"), *a],
+                                                        capture_output=True, text=True)
             self.assertEqual(run("walkthrough", rep, "--out", out, "--run-id", "9").returncode, 0)
             self.assertEqual(run("validate", out).returncode, 0)
             self.assertEqual(run("validate", out, "--claim", "installed-media").returncode, 1)
