@@ -85,7 +85,7 @@ jobs:
       # reviewed commit. It has no dependency outside the Go standard
       # library, so the build needs no network. The source goes away after
       # the build: the push-to-dev step commits from this workspace.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           repository: tuna-os/fisherman
           ref: 2fc33965f294b4ceb3462c3b3877b1938ae77c5d
