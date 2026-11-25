@@ -116,7 +116,6 @@
   "This computer meets the requirements.": "",
   "This computer uses Intel RST (RAID mode). Linux cannot see the solid-state disk until the firmware setting changes from RAID to AHCI. Continue to the disk list, or power off and change the setting first.": "",
   "This disk already holds data.": "",
-  "This disk has no free space for {product}. The installer erases the whole disk.": "",
   "This image is not a final release.": "",
   "This session becomes your installed system. Your files stay as they are. Nothing restarts.": "",
   "Time zone": "",
@@ -138,5 +137,6 @@
   "fisherman is writing the image to disk.": "",
   "this system": "",
   "{image} (this system — no download)": "",
-  "{product} Installer": ""
+  "{product} Installer": "",
+  "{product} cannot share this disk with the data on it. The installer erases the whole disk.": ""
 }

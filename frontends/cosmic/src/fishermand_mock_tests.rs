@@ -189,6 +189,19 @@ fn mock_existing_data_probe_keeps_both_disks() {
     let nvme_idx = facts.disks.iter().position(|d| d.path == "/dev/nvme0n1").unwrap();
     assert!(facts.disk_data[nvme_idx].has_data);
     assert!(facts.disk_data[nvme_idx].data_detected());
+    // The disk with a foreign partition table has room, but the daemon
+    // refuses free space there: no choice, the whole disk goes.
+    let sdc = facts.disks.iter().position(|d| d.path == "/dev/sdc").expect("the dos disk");
+    assert!(facts.disk_data[sdc].has_data);
+    assert!(!facts.disk_data[sdc].data_detected());
+    let free = json!({"disk": "/dev/sdc", "installMode": "free_space", "encryption": {"type": "tpm2_luks"}});
+    let reply = fishermand::validate(&mut conn, free, false).unwrap();
+    let codes: Vec<String> = fishermand::daemon_problems(&reply).into_iter().map(|p| p.code).collect();
+    assert_eq!(codes, ["conflicting_disk_label"]);
+    let mode = crate::TunaInstaller::install_mode_for(facts.disk_data[sdc].data_detected(), None);
+    let erase = json!({"disk": "/dev/sdc", "installMode": mode.daemon_name(), "encryption": {"type": "tpm2_luks"}});
+    let reply = fishermand::validate(&mut conn, erase, false).unwrap();
+    assert!(fishermand::daemon_problems(&reply).is_empty(), "{reply}");
 }
 
 #[test]
@@ -348,12 +361,13 @@ fn mock_tight_space_probe_still_lists_the_disk() {
     let facts = fishermand::daemon_probe_to_facts(&probe, &gates).unwrap();
     assert!(!facts.disks.is_empty());
     // The NVMe holds data without room: no choice there, the confirm asks
-    // for a forced erase instead. The foreign-label disk keeps room, so it
-    // still offers the wipe-or-free choice.
+    // for a forced erase instead.
     let nvme = facts.disks.iter().position(|d| d.path == "/dev/nvme0n1").unwrap();
     assert!(facts.disk_data[nvme].has_data);
     assert!(!facts.disk_data[nvme].data_detected());
-    assert!(facts.disk_data.iter().any(|d| d.data_detected()));
+    // The foreign-label disk has room, but its table cannot share the
+    // disk: no disk of this scenario offers the choice.
+    assert!(!facts.disk_data.iter().any(|d| d.data_detected()));
 }
 
 #[test]

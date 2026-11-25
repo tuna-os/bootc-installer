@@ -710,6 +710,11 @@ pub fn daemon_probe_to_facts(probe: &Value, gates: &Value) -> Result<crate::prob
                 has_data,
                 free_bytes: d.get("freeBytes").and_then(Value::as_u64).unwrap_or(0),
                 minimal_bytes: d.get("minimalSizeBytes").and_then(Value::as_u64).unwrap_or(0),
+                // Only a GPT can share the disk with a second system.
+                conflicting_label: data
+                    .and_then(|e| e.get("partitionTableType"))
+                    .and_then(Value::as_str)
+                    .is_some_and(|t| !t.is_empty() && t != "gpt"),
             }
         })
         .collect();

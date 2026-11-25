@@ -247,8 +247,9 @@ pub mod copy {
     pub const CONFIRM_NO_ACCOUNT: &str = "Provided by the image";
     // Confirm page when the first-boot tool makes the user.
     pub const CONFIRM_FIRSTBOOT_ACCOUNT: &str = "Created at the first start";
-    // Confirm page, daemon path: the disk holds data and has no free
-    // space for the install, so the whole disk goes.
+    // Confirm page, daemon path: the disk holds data, and it has no free
+    // space for the install or a partition table that cannot share the
+    // disk. The whole disk goes.
     // Confirm page, daemon path: what happens to the data on the disk.
     pub const CONFIRM_EXISTING_DATA: &str = "Existing data";
     pub const CONFIRM_DATA_KEPT: &str = "Kept. The install uses the free space.";
@@ -256,7 +257,7 @@ pub mod copy {
     pub const CONFIRM_FREE_SPACE_WARNING: &str =
         "The installer writes to the free space on {disk}. It keeps the data that is there.";
     pub const CONFIRM_FORCED_ERASE: &str =
-        "This disk has no free space for {product}. The installer erases the whole disk.";
+        "{product} cannot share this disk with the data on it. The installer erases the whole disk.";
 }
 
 use copy::*;
