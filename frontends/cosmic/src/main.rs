@@ -30,6 +30,8 @@ mod eula;
 mod i18n;
 #[cfg(all(test, unix))]
 mod fishermand_mock_tests;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod daemon_flow_tests;
 #[cfg(test)]
 mod recipe_compliance;
 
@@ -386,41 +388,29 @@ fn account_required_for(
     selected.map_or(true, |leaf| leaf.needs_user_creation)
 }
 
-/// The first-boot tool of this desktop. It creates the first user on the
-/// installed system, so the wizard does not ask for an account
-/// (screens.yaml `account`, `skip_when`).
+/// The first-boot tool of this desktop.
 pub const FIRSTBOOT_TOOL: &str = "cosmic-initial-setup";
 
-/// `TUNA_FIRSTBOOT_TOOL` overrides the detection: the tool's name says that
-/// it owns the user, `none` says that no tool does.
+/// `TUNA_FIRSTBOOT_TOOL=cosmic-initial-setup` says that the first-boot
+/// tool makes the first user on the installed system. Only then does the
+/// wizard skip the account page for that reason (screens.yaml `account`,
+/// `skip_when`).
 pub const FIRSTBOOT_ENV: &str = "TUNA_FIRSTBOOT_TOOL";
 
-/// Whether the first-boot tool owns the first user.
+/// Whether the first-boot tool owns the first user: only when the medium
+/// says so in `TUNA_FIRSTBOOT_TOOL`. The default is that the installer
+/// makes the account.
 ///
-/// `override_value` is `TUNA_FIRSTBOOT_TOOL`. Without it, the tool owns the
-/// user when one of `candidates` is a file. The daemon installs the system
-/// of the medium, so a tool on the medium is a tool on the target.
-pub fn firstboot_owns_user_with(override_value: Option<&str>, candidates: &[&std::path::Path]) -> bool {
-    match override_value.map(str::trim) {
-        Some(FIRSTBOOT_TOOL) => true,
-        Some(value) if !value.is_empty() => false,
-        _ => candidates.iter().any(|p| p.is_file()),
-    }
+/// The tool on the medium proves nothing. tunaOS ships `plasma-setup` and
+/// masks its unit, because each installer frontend makes the account
+/// (tunaOS `build_scripts/desktop/install-desktop.sh`). A skip on mere
+/// presence installs a system with no user.
+pub fn firstboot_owns_user_with(override_value: Option<&str>) -> bool {
+    override_value.map(str::trim) == Some(FIRSTBOOT_TOOL)
 }
 
-/// Where the tool lives on the live system. A Flatpak sees the host under
-/// `/run/host`.
-const FIRSTBOOT_PATHS: [&str; 4] = [
-    "/usr/bin/cosmic-initial-setup",
-    "/usr/libexec/cosmic-initial-setup",
-    "/run/host/usr/bin/cosmic-initial-setup",
-    "/run/host/usr/libexec/cosmic-initial-setup",
-];
-
 fn firstboot_owns_user() -> bool {
-    let candidates: Vec<&std::path::Path> =
-        FIRSTBOOT_PATHS.iter().map(std::path::Path::new).collect();
-    firstboot_owns_user_with(std::env::var(FIRSTBOOT_ENV).ok().as_deref(), &candidates)
+    firstboot_owns_user_with(std::env::var(FIRSTBOOT_ENV).ok().as_deref())
 }
 
 /// How an install ended.
@@ -3133,24 +3123,15 @@ mod tests {
     }
 
     #[test]
-    fn the_first_boot_tool_owns_the_user_when_it_is_on_the_medium() {
-        use std::path::Path;
-        let dir = std::env::temp_dir().join(format!("tuna-firstboot-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let tool = dir.join("cosmic-initial-setup");
-        let missing = dir.join("missing");
-        std::fs::write(&tool, "").unwrap();
-        let there: [&Path; 2] = [&missing, &tool];
-        let absent: [&Path; 1] = [&missing];
-        // Detection: a file at one of the paths.
-        assert!(super::firstboot_owns_user_with(None, &there));
-        assert!(!super::firstboot_owns_user_with(None, &absent));
-        assert!(super::firstboot_owns_user_with(Some(""), &there));
-        // The override wins in both directions.
-        assert!(super::firstboot_owns_user_with(Some("cosmic-initial-setup"), &absent));
-        assert!(!super::firstboot_owns_user_with(Some("none"), &there));
-        assert!(!super::firstboot_owns_user_with(Some("plasma-setup"), &there));
-        std::fs::remove_dir_all(&dir).ok();
+    fn the_first_boot_tool_owns_the_user_only_when_the_medium_says_so() {
+        // The default keeps the account page, with the tool installed or
+        // not: its presence does not prove that it makes a user.
+        assert!(!super::firstboot_owns_user_with(None));
+        assert!(!super::firstboot_owns_user_with(Some("")));
+        assert!(!super::firstboot_owns_user_with(Some("none")));
+        assert!(!super::firstboot_owns_user_with(Some("plasma-setup")));
+        assert!(super::firstboot_owns_user_with(Some("cosmic-initial-setup")));
+        assert!(super::firstboot_owns_user_with(Some(" cosmic-initial-setup ")));
     }
 
     #[test]

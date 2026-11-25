@@ -57,13 +57,13 @@ macro_rules! mock_or_skip {
     };
 }
 
-struct Mock {
+pub(crate) struct Mock {
     child: Child,
-    dir: PathBuf,
+    pub(crate) dir: PathBuf,
 }
 
 impl Mock {
-    fn start(scenario: &str) -> Option<Self> {
+    pub(crate) fn start(scenario: &str) -> Option<Self> {
         let bin = mock_bin()?;
         // Unique per spawn: tests run in parallel and one scenario (happy)
         // serves several tests, so a shared dir would race socket binds.

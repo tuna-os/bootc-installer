@@ -120,8 +120,8 @@ typed two times, and the eye button reveals it. **Continue** waits for a
 username, for two passwords that are the same, and for the backend to
 accept the username. The wizard skips this page when the catalog says that
 the image makes its own first user. On the daemon backend it also skips
-the page when `cosmic-initial-setup` is on the medium: that tool makes the
-user at the first start.
+the page when the medium sets `TUNA_FIRSTBOOT_TOOL=cosmic-initial-setup`:
+that tool then makes the user at the first start.
 
 ## 13. Tour
 

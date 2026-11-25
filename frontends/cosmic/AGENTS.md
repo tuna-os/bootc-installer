@@ -214,6 +214,13 @@ stops seeing that screen.
   `slug()` for file names.
 - A passphrase, a password and a recovery key go only in call parameters.
   `Error` shows the error name, never the parameters.
+- The installer makes the first user. Do not skip the account page
+  because `cosmic-initial-setup` is installed: only
+  `TUNA_FIRSTBOOT_TOOL=cosmic-initial-setup` says that the tool makes it.
+- `src/daemon_flow_tests.rs` builds the application and sends it the
+  messages of each page against the mock. Add a walk there for a change to
+  a page of the daemon path: a test of a client function does not show a
+  page that holds Continue or an install page that nothing leaves.
 - `src/fishermand_mock_tests.rs` drives the mock daemon of tuna-os/fisherman
   (`go build ./cmd/fishermand`). Set `FISHERMAND_BIN` to the binary. With
   no `FISHERMAND_BIN` the tests print `SKIPPED` and do nothing: CI has no

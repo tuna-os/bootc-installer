@@ -91,6 +91,10 @@ fn backend_from_env() -> Backend {
 /// switch). Read once: a socket that appears later must not move a
 /// running wizard to another backend between two pages.
 pub fn use_daemon() -> bool {
+    #[cfg(test)]
+    if let Some(forced) = *test_seam::DAEMON.lock().unwrap() {
+        return forced;
+    }
     static BACKEND: std::sync::OnceLock<Backend> = std::sync::OnceLock::new();
     *BACKEND.get_or_init(backend_from_env) == Backend::Daemon
 }
@@ -139,8 +143,23 @@ pub fn socket_path_with(
     default_socket_path(interface).to_string()
 }
 
+/// What `daemon_flow_tests` sets for the whole process: the backend and
+/// the socket directory of its mock. The update loop reads both on worker
+/// threads, so a thread-local value does not reach it. Those tests hold
+/// one lock and run one at a time; no other test builds the application.
+#[cfg(test)]
+pub mod test_seam {
+    use std::sync::Mutex;
+    pub static DAEMON: Mutex<Option<bool>> = Mutex::new(None);
+    pub static SOCKET_DIR: Mutex<Option<String>> = Mutex::new(None);
+}
+
 /// Resolve the socket for `interface` from the environment.
 pub fn socket_path(interface: &str) -> String {
+    #[cfg(test)]
+    if let Some(dir) = test_seam::SOCKET_DIR.lock().unwrap().as_deref() {
+        return socket_path_with(interface, Some(dir), None);
+    }
     socket_path_with(
         interface,
         std::env::var("FISHERMAN_SOCKET_DIR").ok().as_deref(),

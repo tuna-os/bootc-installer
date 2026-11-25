@@ -99,16 +99,21 @@ so it does not show the RST and existing-data pages.
 
 ## The first user
 
-`cosmic-initial-setup` makes the first user on a COSMIC system. On the
-daemon backend the wizard skips the account page when that tool is on the
-medium (`/usr/bin` or `/usr/libexec`, also below `/run/host`). Confirm,
-handoff and the finished page then say that the account comes at the first
-start. `TUNA_FIRSTBOOT_TOOL=none` keeps the account page, and
-`TUNA_FIRSTBOOT_TOOL=cosmic-initial-setup` skips it.
+The installer makes the first user. That is the rule of tunaOS: its images
+ship the first-boot tool of KDE and mask the unit of that tool, because
+each installer frontend makes the account.
 
-The legacy backend installs an image of the catalog. That image can differ
-from the system of the medium, so the catalog decides there: the page is
-skipped only for `needs_user_creation: false`.
+The wizard skips the account page in two cases only:
+
+- The catalog says that the image makes its own first user
+  (`needs_user_creation: false`).
+- On the daemon backend, the medium sets
+  `TUNA_FIRSTBOOT_TOOL=cosmic-initial-setup`. Confirm, handoff and the
+  finished page then say that the account comes at the first start.
+
+The wizard does not look for `cosmic-initial-setup` on the medium. A tool
+that is installed does not prove that it runs and makes a user. A skip on
+that evidence installs a system that nobody can sign in to.
 
 ## How fisherman runs
 
