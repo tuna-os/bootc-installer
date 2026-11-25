@@ -692,6 +692,35 @@ QJsonObject targetChoices(const Recipe &recipe, bool locationTouched, bool locat
     return choices;
 }
 
+// The words of a step in the log when the daemon sends none. The page has its
+// own label, from the branding copy.
+static QString stepWords(const QString &id)
+{
+    if (id == QLatin1String("validate_device"))
+        return QCoreApplication::translate("fishermand", "Checking your drive…");
+    if (id == QLatin1String("partition"))
+        return QCoreApplication::translate("fishermand", "Setting up your drive…");
+    if (id == QLatin1String("luks"))
+        return QCoreApplication::translate("fishermand", "Securing your drive…");
+    if (id == QLatin1String("tpm2_enroll"))
+        return QCoreApplication::translate("fishermand", "Setting up auto-unlock…");
+    if (id == QLatin1String("mount"))
+        return QCoreApplication::translate("fishermand", "Almost ready…");
+    if (id == QLatin1String("install_os"))
+        return QCoreApplication::translate("fishermand", "Copying the system…");
+    if (id == QLatin1String("configure"))
+        return QCoreApplication::translate("fishermand", "Configuring your system…");
+    if (id == QLatin1String("post_fixups"))
+        return QCoreApplication::translate("fishermand", "Applying the last settings…");
+    if (id == QLatin1String("bootloader"))
+        return QCoreApplication::translate("fishermand", "Setting up the boot loader…");
+    if (id == QLatin1String("finalize"))
+        return QCoreApplication::translate("fishermand", "Finishing up…");
+    if (id == QLatin1String("cleanup"))
+        return QCoreApplication::translate("fishermand", "Cleaning up…");
+    return id;
+}
+
 QJsonObject eventToLine(const QJsonObject &event)
 {
     const QString kind = event.value(QLatin1String("event")).toString();
@@ -703,7 +732,7 @@ QJsonObject eventToLine(const QJsonObject &event)
         line.insert(QStringLiteral("type"), QStringLiteral("step"));
         line.insert(QStringLiteral("step"), event.value(QLatin1String("stepIndex")).toInt());
         line.insert(QStringLiteral("total_steps"), event.value(QLatin1String("totalSteps")).toInt());
-        line.insert(QStringLiteral("step_name"), message.isEmpty() ? stepId : message);
+        line.insert(QStringLiteral("step_name"), message.isEmpty() ? stepWords(stepId) : message);
         line.insert(QStringLiteral("step_id"), stepId);
     } else if (kind == QLatin1String("progress")) {
         line.insert(QStringLiteral("type"), QStringLiteral("substep"));

@@ -345,6 +345,10 @@ public:
         m_seen << u"install"_s;
         expect(!shown(u"backButton"_s), u"Back is offered during the install"_s);
         expect(!shown(u"nextButton"_s), u"Next is offered during the install"_s);
+        if (qEnvironmentVariableIsSet("TUNA_WALK_SHOTS")) {
+            settle(900);
+            shot(u"install"_s);
+        }
         if (after != u"install"_s)
             at(after, 60000);
         else

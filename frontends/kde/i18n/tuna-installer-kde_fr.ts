@@ -324,6 +324,50 @@
         <source>%1 disk</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Checking your drive…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Setting up your drive…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Securing your drive…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Setting up auto-unlock…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Almost ready…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copying the system…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Configuring your system…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Applying the last settings…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Setting up the boot loader…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Finishing up…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cleaning up…</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>main</name>
