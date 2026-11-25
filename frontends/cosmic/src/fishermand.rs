@@ -515,11 +515,13 @@ pub fn apply_install_event(
     let str_of = |key: &str| event.get(key).and_then(Value::as_str).unwrap_or("");
     match str_of("event") {
         "step_started" | "progress" | "step_finished" => {
-            if let Some(index) = event.get("stepIndex").and_then(Value::as_u64) {
-                progress.step = index.saturating_add(1);
-            }
-            if let Some(total) = event.get("totalSteps").and_then(Value::as_u64) {
+            // `stepIndex` starts at 1 (fisherman's reporter.go). The cleanup
+            // after a failure has no total: it is not a step of the install.
+            if let Some(total) = event.get("totalSteps").and_then(Value::as_u64).filter(|t| *t > 0) {
                 progress.total_steps = total;
+                if let Some(index) = event.get("stepIndex").and_then(Value::as_u64) {
+                    progress.step = index;
+                }
             }
             if let Some(pct) = event.get("overallPct").and_then(Value::as_u64) {
                 progress.fraction = (pct.min(100) as f32) / 100.0;
@@ -527,7 +529,7 @@ pub fn apply_install_event(
             let id = str_of("stepId");
             if !id.is_empty() {
                 progress.step_id = id.to_string();
-                progress.step_name = id.to_string();
+                progress.step_name = step_words(id);
             }
             let message = str_of("message");
             if !message.is_empty() {
@@ -536,7 +538,7 @@ pub fn apply_install_event(
             } else if str_of("event") == "step_started" && !id.is_empty() {
                 // The daemon can send a step with no message. The log card
                 // then names the step, so the card is not empty.
-                log.push_str(id);
+                log.push_str(&progress.step_label(crate::branding::get()));
                 log.push('\n');
             }
             Terminal::Continue
@@ -567,6 +569,54 @@ pub fn apply_install_event(
             Terminal::Failed
         }
         _ => Terminal::Continue,
+    }
+}
+
+/// The words for a daemon step that the branding copy has no `step_<id>` line
+/// for: the line of the recipe step that does the same work.
+fn step_words(id: &str) -> String {
+    let like = match id {
+        "validate_device" => "step_prepare_disk",
+        "post_fixups" => "step_configure",
+        "bootloader" => "step_format_efi",
+        "cleanup" => "step_finalize",
+        _ => return id.to_string(),
+    };
+    let words = crate::branding::get().text(like);
+    if words.is_empty() { id.to_string() } else { words }
+}
+
+/// What a disk is called: vendor and model, without the PCI vendor id that
+/// virtio puts where a vendor belongs ("0x1af4"). A disk that names neither
+/// is called after its bus; the row has its path and its size.
+fn disk_title(vendor: &str, model: &str, bus: &str, path: &str) -> String {
+    let pci = |s: &str| {
+        s.strip_prefix("0x")
+            .is_some_and(|hex| !hex.is_empty() && hex.chars().all(|c| c.is_ascii_hexdigit()))
+    };
+    let named: Vec<&str> = [vendor.trim(), model.trim()]
+        .into_iter()
+        .filter(|s| !s.is_empty() && !pci(s))
+        .collect();
+    if !named.is_empty() {
+        named.join(" ")
+    } else if bus.is_empty() {
+        path.to_string()
+    } else {
+        crate::i18n::tr_with(crate::ui::copy::DISK_BUS_TITLE, &[("bus", bus)])
+    }
+}
+
+/// The bus as people write it.
+fn bus_label(transport: &str) -> String {
+    match transport {
+        "ata" => "ATA".into(),
+        "sata" => "SATA".into(),
+        "nvme" => "NVMe".into(),
+        "usb" => "USB".into(),
+        "mmc" => "MMC".into(),
+        "virtio" => "VirtIO".into(),
+        other => other.to_uppercase(),
     }
 }
 
@@ -690,20 +740,14 @@ pub fn daemon_probe_to_facts(probe: &Value, gates: &Value) -> Result<crate::prob
             let str_of = |key: &str| d.get(key).and_then(Value::as_str).unwrap_or("").to_string();
             let model = str_of("model");
             let vendor = str_of("vendor");
-            let title = match (vendor.is_empty(), model.is_empty()) {
-                (false, false) => format!("{vendor} {model}"),
-                (false, true) => vendor,
-                _ => {
-                    let path = str_of("path");
-                    if model.is_empty() { path } else { model.clone() }
-                }
-            };
+            let bus = bus_label(&str_of("transport"));
+            let title = disk_title(&vendor, &model, &bus, &str_of("path"));
             crate::model::DiskInfo {
                 title,
                 path: str_of("path"),
                 model,
                 size_label: str_of("sizeLabel"),
-                transport_label: str_of("transport"),
+                transport_label: bus,
                 removable: d.get("removable").and_then(Value::as_bool).unwrap_or(false),
             }
         })
@@ -1042,7 +1086,7 @@ mod tests {
             "stepIndex": 1, "totalSteps": 9, "overallPct": 11,
         });
         assert_eq!(apply_install_event(&mut progress, &mut log, &started), Terminal::Continue);
-        assert_eq!(progress.step, 2);
+        assert_eq!(progress.step, 1);
         assert_eq!(progress.total_steps, 9);
         assert_eq!(progress.step_id, "partition");
 
@@ -1069,6 +1113,32 @@ mod tests {
             apply_install_event(&mut done, &mut done_log, &cancelled),
             Terminal::Cancelled
         );
+    }
+
+    #[test]
+    fn the_log_has_words_and_no_step_ids() {
+        let mut progress = crate::progress::Progress::new("product");
+        let mut log = String::new();
+        for (index, id) in ["validate_device", "partition", "post_fixups", "bootloader"].iter().enumerate() {
+            let event = serde_json::json!({"event": "step_started", "stepId": id,
+                "stepIndex": index + 1, "totalSteps": 10, "overallPct": 0});
+            apply_install_event(&mut progress, &mut log, &event);
+        }
+        assert_eq!((progress.step, progress.total_steps), (4, 10));
+        assert_eq!(log.lines().count(), 4);
+        assert!(!log.contains('_'), "{log}");
+        // The cleanup after a failure counts for nothing.
+        let cleanup = serde_json::json!({"event": "step_started", "stepId": "cleanup",
+            "stepIndex": 0, "totalSteps": 0, "overallPct": 4});
+        apply_install_event(&mut progress, &mut log, &cleanup);
+        assert_eq!((progress.step, progress.total_steps), (4, 10));
+    }
+
+    #[test]
+    fn a_disk_is_never_called_by_a_pci_id() {
+        assert_eq!(disk_title("0x1af4", "", "VirtIO", "/dev/vda"), "VirtIO disk");
+        assert_eq!(disk_title("0x1af4", "", "", "/dev/vda"), "/dev/vda");
+        assert_eq!(disk_title("Mockware", "Mock NVMe", "NVMe", "/dev/nvme0n1"), "Mockware Mock NVMe");
     }
 
     #[cfg(unix)]

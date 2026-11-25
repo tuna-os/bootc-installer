@@ -92,8 +92,23 @@ pub mod copy {
     // Shown only when updates follow another image than the one installed
     // (an offline install from media that holds only the NVIDIA image).
     pub const CONFIRM_UPDATES: &str = "Updates follow";
-    pub const INSTALLING_SUBTITLE: &str = "fisherman is writing the image to disk.";
-    pub const INSTALLING_STEP: &str = "Step {n} of {total} \u{2014} {label}";
+    pub const INSTALLING_STARTING: &str = "Starting the installation\u{2026}";
+    pub const INSTALLING_STEP: &str = "{label} \u{2014} {n} of {total}";
+    pub const INSTALLING_PERCENT: &str = "{n}%";
+    pub const DETAILS_SHOW: &str = "Show details";
+    pub const DETAILS_HIDE: &str = "Hide details";
+
+    // The step rail: the parts of the install.
+    pub const RAIL_START: &str = "Start";
+    pub const RAIL_BASICS: &str = "Basics";
+    pub const RAIL_DISK: &str = "Disk";
+    pub const RAIL_REVIEW: &str = "Review";
+    pub const RAIL_INSTALL: &str = "Install";
+    // A disk that names no vendor and no model.
+    pub const DISK_BUS_TITLE: &str = "{bus} disk";
+    // The row that is chosen until the person picks another one.
+    pub const REGION_KEEP: &str = "Keep the image's setting";
+    pub const REGION_IMAGE: &str = "The image's setting";
 
     // Cancel on the progress page (#299): ask first, then stop the whole
     // install. No line here may hold a parity-report screen keyword.
@@ -107,7 +122,7 @@ pub mod copy {
     pub const DONE_CANCELLED_DETAIL: &str = "You stopped the installation. The disk has no \
          system that can start. Run the installer again to finish.";
 
-    pub const DONE_FAIL_DETAIL: &str = "The install log above has the details.";
+    pub const DONE_FAIL_DETAIL: &str = "The installation did not finish.";
     pub const DONE_CLOSE: &str = "Close";
     pub const DONE_COPY_LOG: &str = "Copy log";
     pub const EXIT_BUTTON: &str = "Exit";
@@ -459,7 +474,8 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             if app.locales().is_empty() {
                 t.push(tr(LANGUAGE_EMPTY));
             }
-            t.extend(app.locales().iter().cloned());
+            t.push(tr(REGION_KEEP));
+            t.extend(app.locales().iter().map(|l| crate::names::language(l)));
             t.push(tr(BACK));
             t.push(tr(CONTINUE));
             t
@@ -469,7 +485,8 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             if app.keymaps().is_empty() {
                 t.push(tr(KEYBOARD_EMPTY));
             }
-            t.extend(app.keymaps().iter().cloned());
+            t.push(tr(REGION_KEEP));
+            t.extend(app.keymaps().iter().map(|k| crate::names::keymap(k)));
             t.push(tr(BACK));
             t.push(tr(CONTINUE));
             t
@@ -485,7 +502,8 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             if shown.is_empty() {
                 t.push(tr(TIMEZONE_EMPTY));
             }
-            t.extend(shown.into_iter().cloned());
+            t.push(tr(REGION_KEEP));
+            t.extend(shown.into_iter().map(|z| crate::names::timezone(z)));
             if crate::fishermand::use_daemon() {
                 t.push(tr(TIMEZONE_LOCATION));
                 t.push(tr(TIMEZONE_LOCATION_DETAIL));
@@ -617,14 +635,13 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             let mut t = vec![
                 tr(ACCOUNT_TITLE),
                 tr(ACCOUNT_SUBTITLE),
-                tr(ACCOUNT_SECTION),
                 tr(ACCOUNT_USERNAME),
                 app.username().to_string(),
             ];
             if let Some(p) = app.problem("user") {
                 t.push(p.render());
             }
-            t.extend([tr(OPTIONS_SYSTEM), tr(OPTIONS_HOSTNAME), recipe.hostname.clone()]);
+            t.extend([tr(OPTIONS_HOSTNAME), recipe.hostname.clone()]);
             if let Some(p) = app.problem("hostname") {
                 t.push(p.render());
             }
@@ -750,18 +767,27 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             }
             t
         }
-        Page::Installing => vec![
-            t_line("progress_title"),
-            tr(INSTALLING_SUBTITLE),
-            app.install_log().to_string(),
-            t_line("progress_note"),
-            if app.cancel_confirmed() {
-                tr(INSTALL_CANCELLING)
+        Page::Installing => {
+            let mut t = vec![
+                t_line("progress_title"),
+                installing_step(app),
+                installing_percent(app),
+                t_line("progress_note"),
+                if app.cancel_confirmed() {
+                    tr(INSTALL_CANCELLING)
+                } else {
+                    tr(INSTALL_CANCEL)
+                },
+            ];
+            if app.show_details() {
+                t.push(app.install_log().to_string());
+                t.push(tr(DONE_COPY_LOG));
+                t.push(tr(DETAILS_HIDE));
             } else {
-                tr(INSTALL_CANCEL)
-            },
-            tr(DONE_COPY_LOG),
-        ],
+                t.push(tr(DETAILS_SHOW));
+            }
+            t
+        }
         Page::RecoveryKey => {
             // The key itself goes in: the harness matches it by shape,
             // never by a node named `Recovery Key`.
@@ -815,10 +841,17 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 if let Some(reason) = app.daemon_failure() {
                     t.push(daemon_failure_text(reason));
                 }
+                t.extend(failure_message(app));
                 t.extend(app.failure_lines());
             }
             if !app.install_ok() {
                 t.push(tr(TRY_AGAIN));
+                if app.show_details() {
+                    t.push(app.install_log().to_string());
+                    t.push(tr(DETAILS_HIDE));
+                } else {
+                    t.push(tr(DETAILS_SHOW));
+                }
             }
             if app.install_ok() {
                 if app.firstboot_account() {
@@ -859,27 +892,163 @@ fn disk_empty_text(app: &TunaInstaller) -> Vec<String> {
     }
 }
 
-/// The language, keyboard and time zone rows of Confirm: (label, value)
-/// for each region key that the recipe has.
+/// The language, keyboard and time zone rows of Confirm: (label, value).
+/// With no region key in the recipe, the image keeps its own.
 fn confirm_region(app: &TunaInstaller) -> Vec<(String, String)> {
     let recipe = app.recipe();
-    let mut rows = Vec::new();
-    if !recipe.locale.is_empty() {
-        rows.push((tr(LANGUAGE_TITLE), recipe.locale.clone()));
-    }
-    if let Some(keyboard) = &recipe.keyboard {
-        rows.push((tr(KEYBOARD_TITLE), keyboard.layout.clone()));
-    }
-    if !recipe.timezone.is_empty() {
-        rows.push((tr(TIMEZONE_TITLE), recipe.timezone.clone()));
-    }
-    rows
+    let or_image = |picked: Option<String>| picked.unwrap_or_else(|| tr(REGION_IMAGE));
+    vec![
+        (
+            tr(LANGUAGE_TITLE),
+            or_image((!recipe.locale.is_empty()).then(|| crate::names::language(&recipe.locale))),
+        ),
+        (
+            tr(KEYBOARD_TITLE),
+            or_image(recipe.keyboard.as_ref().map(|k| crate::names::keymap(&k.layout))),
+        ),
+        (
+            tr(TIMEZONE_TITLE),
+            or_image((!recipe.timezone.is_empty()).then(|| crate::names::timezone(&recipe.timezone))),
+        ),
+    ]
 }
 
 fn confirm_disk(app: &TunaInstaller) -> String {
     app.selected_disk()
         .and_then(|i| app.disks().get(i))
         .map_or_else(|| "?".to_string(), |d| d.path.clone())
+}
+
+/// The daemon's own words for the failure, as a sentence.
+fn failure_message(app: &TunaInstaller) -> Option<String> {
+    let message = app.progress().error.as_ref()?.message.trim().to_string();
+    let first = message.chars().next()?;
+    let mut line: String = first.to_uppercase().chain(message.chars().skip(1)).collect();
+    if !line.ends_with(['.', '!', '?', '\u{2026}']) {
+        line.push('.');
+    }
+    Some(line)
+}
+
+/// What the install does now.
+fn installing_step(app: &TunaInstaller) -> String {
+    let progress = app.progress();
+    if !progress.started() {
+        return tr(INSTALLING_STARTING);
+    }
+    tr_with(INSTALLING_STEP,
+        &[
+            ("n", &progress.step.to_string()),
+            ("total", &progress.total_steps.to_string()),
+            ("label", &progress.step_label(branding::get())),
+        ],
+    )
+}
+
+fn installing_percent(app: &TunaInstaller) -> String {
+    let percent = (app.progress().fraction * 100.0).round() as u32;
+    tr_with(INSTALLING_PERCENT, &[("n", &percent.to_string())])
+}
+
+/// The step rail: the groups of this install, and where it is. A group with
+/// no page is not there.
+fn rail(app: &TunaInstaller) -> Element<'static, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    let pages = app.shown_pages();
+    let here = app.page().group();
+    let mut row = widget::row::with_capacity(12)
+        .spacing(spacing.space_xs)
+        .align_y(Alignment::Center);
+    for (i, group) in crate::Group::ORDER
+        .into_iter()
+        .filter(|g| pages.iter().any(|p| p.group() == *g))
+        .enumerate()
+    {
+        if i > 0 {
+            row = row.push(
+                widget::container(widget::space::horizontal().width(Length::Fixed(20.0)))
+                    .height(Length::Fixed(1.0))
+                    .class(fill_class(Tint::Line)),
+            );
+        }
+        let tint = match group.cmp(&here) {
+            std::cmp::Ordering::Less => Tint::Past,
+            std::cmp::Ordering::Equal => Tint::Accent,
+            std::cmp::Ordering::Greater => Tint::Line,
+        };
+        row = row.push(
+            widget::container(widget::space::horizontal().width(Length::Fixed(8.0)))
+                .height(Length::Fixed(8.0))
+                .class(fill_class(tint)),
+        );
+        let name = tr(group.title());
+        row = row.push(if group == here {
+            widget::text::caption_heading(name).class(cosmic::theme::Text::Accent)
+        } else {
+            widget::text::caption(name)
+        });
+    }
+    row.into()
+}
+
+/// The fills of the rail.
+#[derive(Clone, Copy)]
+enum Tint {
+    Accent,
+    Past,
+    Line,
+}
+
+fn fill_class(tint: Tint) -> cosmic::theme::Container<'static> {
+    cosmic::theme::Container::custom(move |theme| {
+        let cosmic = theme.cosmic();
+        let mut colour: cosmic::iced::Color = match tint {
+            Tint::Accent | Tint::Past => cosmic.accent_color().into(),
+            Tint::Line => cosmic.on_bg_color().into(),
+        };
+        match tint {
+            Tint::Accent => {}
+            Tint::Past => colour.a = 0.5,
+            Tint::Line => colour.a = 0.25,
+        }
+        cosmic::iced::widget::container::Style {
+            background: Some(colour.into()),
+            border: cosmic::iced::Border {
+                radius: 4.0.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    })
+}
+
+/// The install log in its box, for the install and the failure page.
+fn log_box(app: &TunaInstaller) -> Element<'_, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    widget::container(
+        widget::scrollable(
+            widget::text::monotext(app.install_log())
+                .size(12)
+                .width(Length::Fill),
+        )
+        .height(Length::Fill),
+    )
+    .class(cosmic::theme::Container::Card)
+    .padding(spacing.space_s)
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
+}
+
+fn details_button(app: &TunaInstaller) -> Element<'static, Message> {
+    let label = if app.show_details() {
+        tr(DETAILS_HIDE)
+    } else {
+        tr(DETAILS_SHOW)
+    };
+    widget::button::text(label)
+        .on_press(Message::ToggleDetails)
+        .into()
 }
 fn confirm_warn_key(app: &TunaInstaller) -> &'static str {
     let removable = app
@@ -1106,11 +1275,17 @@ pub fn view(app: &TunaInstaller) -> Element<'_, Message> {
         Page::Done => done(app),
     };
 
-    widget::container(content)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .padding(spacing.space_l)
-        .into()
+    // An id of its own for each page: iced keeps the state of a widget by its
+    // place in the tree, and Confirm opened scrolled to where the account
+    // form had been left, with the erase warning out of sight.
+    let content = widget::id_container(content, widget::Id::new(app.page().slug()));
+    widget::container(
+        widget::column::with_children(vec![rail(app), content.into()]).spacing(spacing.space_s),
+    )
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .padding([spacing.space_s, spacing.space_l, spacing.space_m, spacing.space_l])
+    .into()
 }
 
 /// Back / spacer / forward, the shape every COSMIC wizard uses.
@@ -1122,7 +1297,9 @@ fn nav_row<'a>(
 }
 
 /// `nav_row` with a forward button that can show and not be live: an iced
-/// button with no `on_press` is the disabled state.
+/// button with no `on_press` is the disabled state. A page that waits for the
+/// person shows it so: a button that is not there looks like a dead end.
+/// (`page_text` names a button only while it is live.)
 fn nav_row_live<'a>(
     back: Option<Message>,
     forward: Option<(String, Message, bool)>,
@@ -1417,10 +1594,13 @@ fn image_page(app: &TunaInstaller) -> Element<'_, Message> {
     )
 }
 
+/// The index of the "keep the image's setting" row: no index of a list.
+const KEEP_ROW: usize = usize::MAX;
+
 /// One scrollable radio list over caller-provided rows, shared by the
 /// language and keyboard preflight pages.
 fn choice_list(
-    rows: Vec<String>,
+    rows: Vec<(usize, String)>,
     selected: Option<usize>,
     empty: String,
     on_pick: fn(usize) -> Message,
@@ -1429,8 +1609,11 @@ fn choice_list(
     if rows.is_empty() {
         return widget::text::body(empty).into();
     }
+    // What applies until the person picks a row is a row too, and it is the
+    // one that is chosen: the list never looks as if nothing was.
+    let selected = Some(selected.unwrap_or(KEEP_ROW));
     let mut list = widget::list_column().style(cosmic::theme::Container::List);
-    for (i, row) in rows.into_iter().enumerate() {
+    for (i, row) in std::iter::once((KEEP_ROW, tr(REGION_KEEP))).chain(rows) {
         let label = widget::column::with_children(vec![widget::text::body(row).into()])
             .spacing(spacing.space_xxxs)
             .width(Length::Fill);
@@ -1455,7 +1638,7 @@ fn language(app: &TunaInstaller) -> Element<'_, Message> {
         tr(LANGUAGE_TITLE),
         tr(LANGUAGE_SUBTITLE),
         choice_list(
-            app.locales().to_vec(),
+            app.locales().iter().map(|l| crate::names::language(l)).enumerate().collect(),
             app.selected_locale(),
             tr(LANGUAGE_EMPTY),
             Message::SelectLocale,
@@ -1474,7 +1657,7 @@ fn keyboard(app: &TunaInstaller) -> Element<'_, Message> {
         tr(KEYBOARD_TITLE),
         tr(KEYBOARD_SUBTITLE),
         choice_list(
-            app.keymaps().to_vec(),
+            app.keymaps().iter().map(|k| crate::names::keymap(k)).enumerate().collect(),
             app.selected_keymap(),
             tr(KEYBOARD_EMPTY),
             Message::SelectKeymap,
@@ -1495,39 +1678,16 @@ fn timezone(app: &TunaInstaller) -> Element<'_, Message> {
         .iter()
         .filter_map(|z| app.timezones().iter().position(|t| t == *z))
         .collect();
-    let rows: Vec<String> = shown.into_iter().cloned().collect();
-    let selected = app.selected_timezone();
-
-    let list: Element<Message> = if app.timezones().is_empty() || rows.is_empty() {
-        widget::text::body(tr(TIMEZONE_EMPTY)).into()
-    } else {
-        let mut list = widget::list_column().style(cosmic::theme::Container::List);
-        for (row, zone) in rows.into_iter().enumerate() {
-            let actual_idx = actual.get(row).copied().unwrap_or(0);
-            let is_selected = selected == Some(actual_idx);
-            let label = widget::column::with_children(vec![widget::text::body(zone).into()])
-                .spacing(spacing.space_xxxs)
-                .width(Length::Fill);
-            let item = widget::row::with_children(vec![
-                label.into(),
-                widget::radio(
-                    widget::text::body(""),
-                    actual_idx,
-                    is_selected.then_some(actual_idx),
-                    Message::SelectTimezone,
-                )
-                .into(),
-            ])
-            .align_y(Alignment::Center)
-            .spacing(spacing.space_s);
-            list = list.add(
-                widget::mouse_area(item).on_press(Message::SelectTimezone(actual_idx)),
-            );
-        }
-        widget::scrollable(list.into_element())
-            .height(Length::Fill)
-            .into()
-    };
+    let rows: Vec<(usize, String)> = actual
+        .into_iter()
+        .zip(shown.into_iter().map(|z| crate::names::timezone(z)))
+        .collect();
+    let list = choice_list(
+        rows,
+        app.selected_timezone(),
+        tr(TIMEZONE_EMPTY),
+        Message::SelectTimezone,
+    );
 
     // A picked zone stays picked while the query changes; typing a query
     // that excludes it does not unpick it.
@@ -1633,10 +1793,10 @@ fn network(app: &TunaInstaller) -> Element<'_, Message> {
         tr(NETWORK_TITLE),
         tr(NETWORK_SUBTITLE),
         body.into(),
-        nav_row(
+        nav_row_live(
             Some(Message::BackPage),
-            (app.net_online() == Some(true))
-                .then_some((tr(CONTINUE), Message::NextPage, false)),
+            Some((tr(CONTINUE), Message::NextPage, false)),
+            app.net_online() == Some(true),
         ),
     )
 }
@@ -2048,10 +2208,10 @@ fn disk_select(app: &TunaInstaller) -> Element<'_, Message> {
         tr(DISK_TITLE),
         tr(DISK_SUBTITLE),
         body,
-        nav_row(
+        nav_row_live(
             Some(Message::BackPage),
-            app.selected_disk()
-                .map(|_| (tr(CONTINUE), Message::NextPage, false)),
+            Some((tr(CONTINUE), Message::NextPage, false)),
+            app.selected_disk().is_some(),
         ),
     )
 }
@@ -2092,13 +2252,13 @@ fn options(app: &TunaInstaller) -> Element<'_, Message> {
         tr(OPTIONS_TITLE),
         tr(OPTIONS_SUBTITLE),
         body.into(),
-        nav_row(
+        nav_row_live(
             Some(Message::BackPage),
             // Blocked while fisherman reports a problem with the choice,
             // so it can never reach Confirm/Install and only then be
             // rejected (tunaOS#734).
-            app.options_ok()
-                .then_some((tr(CONTINUE), Message::NextPage, false)),
+            Some((tr(CONTINUE), Message::NextPage, false)),
+            app.options_ok(),
         ),
     )
 }
@@ -2199,13 +2359,13 @@ fn encryption(app: &TunaInstaller) -> Element<'_, Message> {
         tr(OPTIONS_DISK_ENCRYPTION),
         tr(ENCRYPTION_SUBTITLE),
         body.into(),
-        nav_row(
+        nav_row_live(
             Some(Message::BackPage),
             // Blocked while fisherman reports a problem with the choice (an
             // empty passphrase), so it can never reach Confirm/Install and
             // only then be rejected (tunaOS#734).
-            app.encryption_page_ok()
-                .then_some((tr(CONTINUE), Message::NextPage, false)),
+            Some((tr(CONTINUE), Message::NextPage, false)),
+            app.encryption_page_ok(),
         ),
     )
 }
@@ -2270,9 +2430,10 @@ fn recovery(app: &TunaInstaller) -> Element<'_, Message> {
         tr(RECOVERY_TITLE),
         tr(RECOVERY_SUBTITLE),
         body.into(),
-        nav_row(
+        nav_row_live(
             None,
-            done_live.then_some((tr(RECOVERY_DONE), Message::RecoveryDone, false)),
+            Some((tr(RECOVERY_DONE), Message::RecoveryDone, false)),
+            done_live,
         ),
     )
 }
@@ -2400,8 +2561,9 @@ fn account(app: &TunaInstaller) -> Element<'_, Message> {
         hostname_item = hostname_item.description(p.render());
     }
 
+    // One section with no headings, the computer name last: all five fields
+    // are in the smallest window.
     let section = widget::settings::section()
-        .title(tr(ACCOUNT_SECTION))
         .add(
             username_item.control(
                 widget::text_input(tr(ACCOUNT_USERNAME_HINT), app.username())
@@ -2437,17 +2599,17 @@ fn account(app: &TunaInstaller) -> Element<'_, Message> {
                 .on_input(Message::PasswordConfirmChanged)
                 .width(Length::Fixed(260.0)),
             ),
+        )
+        .add(
+            hostname_item.control(
+                widget::text_input(branding::get().default_hostname.as_str(), &recipe.hostname)
+                    .on_input(Message::HostnameChanged)
+                    .width(Length::Fixed(260.0)),
+            ),
         );
-    let system = widget::settings::section().title(tr(OPTIONS_SYSTEM)).add(
-        hostname_item.control(
-            widget::text_input(branding::get().default_hostname.as_str(), &recipe.hostname)
-                .on_input(Message::HostnameChanged)
-                .width(Length::Fixed(260.0)),
-        ),
-    );
 
     let body = widget::scrollable(
-        widget::settings::view_column(vec![system.into(), section.into()]).spacing(spacing.space_m),
+        widget::settings::view_column(vec![section.into()]).spacing(spacing.space_m),
     )
     .height(Length::Fill);
 
@@ -2455,10 +2617,10 @@ fn account(app: &TunaInstaller) -> Element<'_, Message> {
         tr(ACCOUNT_TITLE),
         tr(ACCOUNT_SUBTITLE),
         body.into(),
-        nav_row(
+        nav_row_live(
             Some(Message::BackPage),
-            app.account_ok()
-                .then_some((tr(CONTINUE), Message::NextPage, false)),
+            Some((tr(CONTINUE), Message::NextPage, false)),
+            app.account_ok(),
         ),
     )
 }
@@ -2634,9 +2796,10 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
         body.into(),
         nav_row_live(
             Some(Message::BackPage),
-            (!app.source_blocked() && app.confirm_problems().is_empty())
-                .then(|| (confirm_button_text(app), Message::StartInstall, true)),
-            app.erase_countdown() == 0,
+            Some((confirm_button_text(app), Message::StartInstall, true)),
+            !app.source_blocked()
+                && app.confirm_problems().is_empty()
+                && app.erase_countdown() == 0,
         ),
     )
 }
@@ -2660,19 +2823,6 @@ fn installing(app: &TunaInstaller) -> Element<'_, Message> {
     let theme = cosmic::theme::active();
     let cosmic_theme = theme.cosmic();
 
-    let log = widget::container(
-        widget::scrollable(
-            widget::text::monotext(app.install_log())
-                .size(12)
-                .width(Length::Fill),
-        )
-        .height(Length::Fill),
-    )
-    .class(cosmic::theme::Container::Card)
-    .padding(spacing.space_s)
-    .width(Length::Fill)
-    .height(Length::Fill);
-
     // The install's real position, from fisherman's protocol
     // (shared/progress/README.md). This was indeterminate_linear() for the
     // whole install — docs/PARITY.md gap #2 — which told the user only that
@@ -2692,49 +2842,53 @@ fn installing(app: &TunaInstaller) -> Element<'_, Message> {
             .into()
     };
 
-    let mut children: Vec<Element<'_, Message>> = vec![bar];
-    if progress.started() {
-        // "Step 5 of 8 — Installing <product>…". The count comes from the
-        // event, never a constant: fisherman computes total_steps from the
-        // recipe.
-        children.push(
-            widget::text::caption(tr_with(INSTALLING_STEP,
-                &[
-                    ("n", &progress.step.to_string()),
-                    ("total", &progress.total_steps.to_string()),
-                    ("label", &progress.step_label(branding::get())),
-                ],
-            ))
+    // What runs now, and how far: the two things a person looks for. The
+    // step count comes from the event, never a constant: fisherman computes
+    // total_steps from the recipe.
+    let mut children: Vec<Element<'_, Message>> = vec![
+        widget::row::with_children(vec![
+            widget::text::body(installing_step(app)).into(),
+            widget::space::horizontal().into(),
+            widget::text::title1(installing_percent(app))
+                .class(cosmic::theme::Text::Accent)
+                .into(),
+        ])
+        .align_y(Alignment::End)
+        .into(),
+        bar,
+        widget::text::body(t_line("progress_note"))
+            .class(cosmic::theme::Text::Color(cosmic_theme.warning_text_color().into()))
             .into(),
-        );
-    }
+    ];
 
     let reuse = source_reuse_text(progress);
     if !reuse.is_empty() {
         children.push(widget::text::caption(reuse.join("\n")).into());
     }
 
-    let body = widget::column::with_children({
-        children.extend(vec![
-        log.into(),
-        widget::text::caption(t_line("progress_note"))
-            .class(cosmic::theme::Text::Color(cosmic_theme.warning_text_color().into()))
-            .into(),
-        ]);
-        children
-    })
-    .spacing(spacing.space_s)
-    .height(Length::Fill);
+    children.push(if app.show_details() {
+        log_box(app)
+    } else {
+        widget::space::vertical().into()
+    });
+    let body = widget::column::with_children(children)
+        .spacing(spacing.space_s)
+        .height(Length::Fill);
 
+    // The log is the diagnosis, and it is there for who asks: behind "Show
+    // details", with its Copy button. No button of this page is the accent
+    // one: there is nothing to do but wait.
+    let mut tools = widget::row::with_capacity(2).spacing(spacing.space_s);
+    if app.show_details() {
+        tools = tools.push(widget::button::standard(tr(DONE_COPY_LOG)).on_press(Message::CopyLog));
+    }
     page_frame(
         t_line("progress_title"),
-        tr(INSTALLING_SUBTITLE),
+        String::new(),
         body.into(),
         // A visible Cancel (#299): it opens a dialog and stops nothing by
         // itself. After a confirmed cancel it is dead and says what is
         // happening, until fisherman has cleaned up and the wrapper ends.
-        // Then dialog_output's copy affordance: the log is the diagnosis,
-        // and a failed install is exactly when it is needed.
         widget::row::with_children(vec![
             if app.cancel_confirmed() {
                 widget::button::standard(tr(INSTALL_CANCELLING)).into()
@@ -2744,9 +2898,8 @@ fn installing(app: &TunaInstaller) -> Element<'_, Message> {
                     .into()
             },
             widget::space::horizontal().into(),
-            widget::button::suggested(tr(DONE_COPY_LOG))
-                .on_press(Message::CopyLog)
-                .into(),
+            tools.into(),
+            details_button(app),
         ])
         .spacing(spacing.space_s)
         .align_y(Alignment::Center)
@@ -2798,7 +2951,7 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
         }
         // fisherman's `error` event (fisherman#449): whether the disk was
         // changed, and a cleanup that failed or timed out.
-        for line in app.failure_lines() {
+        for line in failure_message(app).into_iter().chain(app.failure_lines()) {
             hero = hero.push(widget::text::body(line));
         }
     }
@@ -2845,6 +2998,7 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
         .into()
     } else {
         widget::row::with_children(vec![
+            details_button(app),
             widget::space::horizontal().into(),
             widget::button::standard(tr(DONE_COPY_LOG))
                 .on_press(Message::CopyLog)
@@ -2864,7 +3018,11 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
     let children: Vec<Element<'_, Message>> = vec![
         widget::space::vertical().into(),
         hero.into(),
-        widget::space::vertical().into(),
+        if !app.install_ok() && app.show_details() {
+            log_box(app)
+        } else {
+            widget::space::vertical().into()
+        },
         actions,
     ];
 
@@ -2882,17 +3040,17 @@ fn page_frame<'a>(
     footer: Element<'a, Message>,
 ) -> Element<'a, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
-    widget::column::with_children(vec![
-        widget::text::title2(title).into(),
-        widget::text::caption(subtitle).into(),
-        widget::divider::horizontal::default().into(),
-        body,
-        widget::divider::horizontal::default().into(),
-        footer,
-    ])
-    .spacing(spacing.space_s)
-    .height(Length::Fill)
-    .into()
+    let subtitle = subtitle.into();
+    let mut parts: Vec<Element<'a, Message>> = vec![widget::text::title2(title).into()];
+    if !subtitle.is_empty() {
+        parts.push(widget::text::body(subtitle).into());
+    }
+    parts.push(body);
+    parts.push(footer);
+    widget::column::with_children(parts)
+        .spacing(spacing.space_s)
+        .height(Length::Fill)
+        .into()
 }
 
 #[cfg(test)]

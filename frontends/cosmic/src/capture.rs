@@ -654,7 +654,9 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
             }
             // The region picks the recipe carries, on Confirm (#292).
             if page == Some(Page::Confirm)
-                && !["de_DE.UTF-8", "Europe/Berlin"].iter().all(|v| text.contains(v))
+                && !(["Deutsch (DE)", "Berlin (Europe)"].iter().all(|v| text.contains(v))
+                    && app.recipe().locale == "de_DE.UTF-8"
+                    && app.recipe().timezone == "Europe/Berlin")
             {
                 eprintln!("capture: the confirm page does not list the language and time zone picks");
                 std::process::exit(2);
