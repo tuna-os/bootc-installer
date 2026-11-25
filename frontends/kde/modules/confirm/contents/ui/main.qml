@@ -13,6 +13,15 @@ import org.tunaos.installer.components as TunaComponents
 TunaComponents.SetupModule {
     id: root
 
+    Accessible.name: qsTr("Confirm")
+
+    // The daemon install into free space keeps what is on the disk: the
+    // page must not say "erased" then.
+    readonly property bool keepsData: InstallerController.daemonBackend
+        && InstallerController.selectedDiskHasData
+        && !InstallerController.selectedDiskForceErase
+        && InstallerController.installMode === "free_space"
+
     // fisherman's hostname rule (`validate --json --partial`) holds Install
     // while it reports a problem, and so does a missing or rejected account:
     // without one the installed system has nobody to sign in as — unless
@@ -50,8 +59,22 @@ TunaComponents.SetupModule {
             spacing: Kirigami.Units.smallSpacing
 
             Kirigami.InlineMessage {
+                objectName: "confirmKeepsData"
+                type: Kirigami.MessageType.Information
+                visible: root.keepsData
+                position: Kirigami.InlineMessage.Header
+                text: qsTr("The installation uses the free space of %1. The data on the disk stays.").arg(InstallerController.disk)
+
+                Layout.fillWidth: true
+                Layout.maximumWidth: root.cardWidth
+                Layout.alignment: Qt.AlignHCenter
+                Layout.bottomMargin: Kirigami.Units.largeSpacing
+            }
+
+            Kirigami.InlineMessage {
+                objectName: "confirmWarning"
                 type: Kirigami.MessageType.Warning
-                visible: true
+                visible: !root.keepsData
                 position: Kirigami.InlineMessage.Header
                 // "begins" is deliberately avoided: the screen contract
                 // matches a welcome screen on the keyword "begin", so that word
@@ -111,14 +134,18 @@ TunaComponents.SetupModule {
 
                 FormCard.FormDelegateSeparator {}
 
+                // The daemon owns the file system of the image: no row then.
                 FormCard.FormTextDelegate {
+                    visible: !InstallerController.daemonBackend
                     text: qsTr("Filesystem")
                     description: InstallerController.btrfsSubvolumes
                         ? qsTr("%1 (with subvolumes)").arg(InstallerController.filesystem)
                         : InstallerController.filesystem
                 }
 
-                FormCard.FormDelegateSeparator {}
+                FormCard.FormDelegateSeparator {
+                    visible: !InstallerController.daemonBackend
+                }
 
                 FormCard.FormTextDelegate {
                     text: qsTr("Encryption")
@@ -140,7 +167,7 @@ TunaComponents.SetupModule {
                 // empty row would report a choice nobody made.
                 FormCard.FormTextDelegate {
                     objectName: "confirmUsername"
-                    visible: InstallerController.needsUserCreation
+                    visible: InstallerController.needsUserCreation && InstallerController.firstBootTool.length === 0
                     text: qsTr("Username")
                     description: InstallerController.fullname.length > 0
                         ? qsTr("%1 (%2)").arg(InstallerController.username).arg(InstallerController.fullname)
@@ -148,7 +175,34 @@ TunaComponents.SetupModule {
                 }
 
                 FormCard.FormDelegateSeparator {
-                    visible: InstallerController.needsUserCreation
+                    visible: InstallerController.needsUserCreation && InstallerController.firstBootTool.length === 0
+                }
+
+                // The first-boot tool makes the user on the first start: the
+                // account step was skipped, and this row says who asks.
+                FormCard.FormTextDelegate {
+                    objectName: "confirmFirstBoot"
+                    visible: InstallerController.firstBootTool.length > 0
+                    text: qsTr("User account")
+                    description: qsTr("The installed system asks for it when it starts for the first time.")
+                }
+
+                FormCard.FormDelegateSeparator {
+                    visible: InstallerController.firstBootTool.length > 0
+                }
+
+                // The wipe-or-free choice, when the chosen disk has data.
+                FormCard.FormTextDelegate {
+                    objectName: "confirmInstallMode"
+                    visible: InstallerController.daemonBackend && InstallerController.selectedDiskHasData
+                    text: qsTr("Existing data")
+                    description: (InstallerController.installMode === "erase" || InstallerController.selectedDiskForceErase)
+                        ? qsTr("Erased: the install uses the whole disk")
+                        : qsTr("Kept: the install uses the free space")
+                }
+
+                FormCard.FormDelegateSeparator {
+                    visible: InstallerController.daemonBackend && InstallerController.selectedDiskHasData
                 }
 
                 // The image the recipe installs: the catalog's name for it

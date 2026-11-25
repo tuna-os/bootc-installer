@@ -27,7 +27,11 @@ Kirigami.Page {
     topPadding: 0
     bottomPadding: 0
 
-    property int currentIndex: 0
+    // Starts on the first step that has something to show (requirements
+    // only while a gate is unmet), so the first frame, and the readiness
+    // stamp taken from it, name a real screen. Assignments replace the
+    // binding as soon as the wizard moves.
+    property int currentIndex: firstStep()
     readonly property int stepCount: stepsRepeater.count
     readonly property string currentStepId: (currentIndex >= 0 && currentIndex < stepsModel.count)
         ? stepsModel.get(currentIndex).stepId : ""
@@ -51,19 +55,55 @@ Kirigami.Page {
     ListModel {
         id: stepsModel
 
-        ListElement { stepId: "try-or-install"; name: qsTr("Try or Install");   url: "modules/tryorinstall/main.qml" }
-        ListElement { stepId: "welcome";    name: qsTr("Welcome");               url: "modules/welcome/main.qml" }
-        ListElement { stepId: "prerelease"; name: qsTr("Disclaimer");            url: "modules/prerelease/main.qml" }
-        ListElement { stepId: "eula";       name: qsTr("Terms of Use");          url: "modules/eula/main.qml" }
-        ListElement { stepId: "rst";        name: qsTr("Intel RST");             url: "modules/rst/main.qml" }
-        ListElement { stepId: "disk";       name: qsTr("Target Disk");           url: "modules/disk/main.qml" }
-        ListElement { stepId: "wipe-or-free"; name: qsTr("Existing Data");       url: "modules/wipefree/main.qml" }
-        ListElement { stepId: "encryption"; name: qsTr("Disk Encryption");       url: "modules/encryption/main.qml" }
-        ListElement { stepId: "account";    name: qsTr("User Account");          url: "modules/account/main.qml" }
-        ListElement { stepId: "confirm";    name: qsTr("Confirm Installation");  url: "modules/confirm/main.qml" }
-        ListElement { stepId: "install";    name: qsTr("Installing");            url: "modules/progress/main.qml" }
-        ListElement { stepId: "done";       name: qsTr("Finished");              url: "modules/done/main.qml" }
+        // The eighteen screens of shared/flow/screens.yaml, in its order.
+        ListElement { stepId: "requirements";   name: qsTr("Requirements");          url: "modules/requirements/main.qml" }
+        ListElement { stepId: "try-or-install"; name: qsTr("Try or Install");        url: "modules/tryorinstall/main.qml" }
+        ListElement { stepId: "language";       name: qsTr("Language");              url: "modules/language/main.qml" }
+        ListElement { stepId: "keyboard";       name: qsTr("Keyboard Layout");       url: "modules/keyboard/main.qml" }
+        ListElement { stepId: "timezone";       name: qsTr("Time Zone");             url: "modules/timezone/main.qml" }
+        ListElement { stepId: "network";        name: qsTr("Network");               url: "modules/network/main.qml" }
+        ListElement { stepId: "prerelease";     name: qsTr("Disclaimer");            url: "modules/prerelease/main.qml" }
+        ListElement { stepId: "eula";           name: qsTr("Terms of Use");          url: "modules/eula/main.qml" }
+        ListElement { stepId: "rst";            name: qsTr("Intel RST");             url: "modules/rst/main.qml" }
+        ListElement { stepId: "disk";           name: qsTr("Target Disk");           url: "modules/disk/main.qml" }
+        ListElement { stepId: "wipe-or-free";   name: qsTr("Existing Data");         url: "modules/wipefree/main.qml" }
+        ListElement { stepId: "encryption";     name: qsTr("Disk Encryption");       url: "modules/encryption/main.qml" }
+        ListElement { stepId: "account";        name: qsTr("User Account");          url: "modules/account/main.qml" }
+        ListElement { stepId: "confirm";        name: qsTr("Confirm Installation");  url: "modules/confirm/main.qml" }
+        ListElement { stepId: "install";        name: qsTr("Installing");            url: "modules/progress/main.qml" }
+        ListElement { stepId: "recovery-key";   name: qsTr("Recovery Key");          url: "modules/recoverykey/main.qml" }
+        ListElement { stepId: "handoff";        name: qsTr("Handoff");               url: "modules/handoff/main.qml" }
+        ListElement { stepId: "done";           name: qsTr("Finished");              url: "modules/done/main.qml" }
     }
+
+    // The index of a step id, or -1.
+    function stepIndex(stepId: string): int {
+        for (let i = 0; i < stepsModel.count; i++) {
+            if (stepsModel.get(i).stepId === stepId) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    // The first step the wizard lands on: the model's first that has
+    // something to show (requirements only while a gate is unmet).
+    function firstStep(): int {
+        let index = 0;
+        while (index < stepsModel.count - 1 && stepSkipped(index)) {
+            index++;
+        }
+        return index;
+    }
+
+    // After a failure or a cancel: forget the result and go back to the
+    // disk step. Nothing here starts an install.
+    function retry(): void {
+        InstallerController.resetForRetry();
+        goToStep(stepIndex("disk"));
+    }
+
+    Component.onCompleted: stepHeading.text = stepTitle(currentIndex)
 
     // Step animation. Manually animating is more performant and less glitchy
     // with window resize than a SwipeView.
@@ -212,22 +252,35 @@ Kirigami.Page {
         stepHeading.opacity = 1;
     }
 
-    // The install runs on the install step and hands over to the done step by
-    // itself — the same handover the Widgets wizard did in its finished() slot.
-    Connections {
-        target: InstallerController
-
-        function onInstallCompleted(exitCode: int): void {
-            if (root.currentStepId === "install") {
-                root.requestNextPage();
-            }
-        }
+    // The install runs on the install step and the wizard leaves that step
+    // by itself when the backend ends the install.
+    //
+    // This is a state, not a reaction to the installCompleted signal alone.
+    // An install can end before the slide to the install step is over, or
+    // before it starts (a refused configuration fails inside
+    // startInstall()). The signal then arrived while the wizard could not
+    // move, and the wizard stayed on the install step for ever. So: the
+    // install that this wizard started is over, the install step is on
+    // screen, and no slide runs.
+    //
+    // installStarted is set only by the Install button. The screenshot
+    // harness loads a finished state and jumps to the install step, and
+    // must stay there.
+    property bool installStarted: false
+    readonly property bool installOver: installStarted && currentStepId === "install"
+        && InstallerController.installFinished && !animating
+    onInstallOverChanged: if (installOver) {
+        installStarted = false;
+        Qt.callLater(root.requestNextPage);
     }
 
-    // Try-or-install, welcome and done are hero pages that carry their own
+    // Try-or-install, requirements, network, recovery-key, handoff and done
+    // are hero pages that carry their own
     // heading; a header title over them only repeated it. The step
     // indicator still names them.
-    readonly property bool heroStep: currentStepId === "try-or-install" || currentStepId === "welcome" || currentStepId === "done"
+    readonly property bool heroStep: currentStepId === "try-or-install" || currentStepId === "requirements"
+        || currentStepId === "network" || currentStepId === "recovery-key" || currentStepId === "handoff"
+        || currentStepId === "done"
 
     ColumnLayout {
         anchors.fill: parent
@@ -355,6 +408,7 @@ Kirigami.Page {
             Layout.margins: Kirigami.Units.gridUnit
 
             Button {
+                objectName: "backButton"
                 text: qsTr("Back")
                 icon.name: "arrow-left-symbolic"
 
@@ -366,8 +420,10 @@ Kirigami.Page {
                 // No going back once fisherman has been handed the disk, and
                 // none on the first step either (Back is already hidden
                 // there by currentIndex > 0).
-                visible: root.currentIndex > 0
+                visible: root.currentIndex > root.firstStep()
                     && root.currentStepId !== "install"
+                    && root.currentStepId !== "recovery-key"
+                    && root.currentStepId !== "handoff"
                     && root.currentStepId !== "done"
 
                 onClicked: root.requestPreviousPage()
@@ -400,13 +456,12 @@ Kirigami.Page {
                 visible: root.currentStepId !== "install"
                     && root.currentStepId !== "try-or-install"
                     && root.currentStepId !== "wipe-or-free"
-
-                readonly property bool isWelcome: root.currentStepId === "welcome"
+                    && root.currentStepId !== "recovery-key"
+                    && root.currentStepId !== "handoff"
 
                 // Branding copy on the two buttons that carry a product's voice:
                 // leaving the welcome page and starting the install.
                 text: isInstall ? InstallerController.text("confirm_button")
-                    : isWelcome ? InstallerController.text("welcome_button")
                     : (isClose ? qsTr("Close") : qsTr("Next"))
                 icon.name: isInstall ? "install-symbolic"
                     : (isClose ? "window-close-symbolic" : "arrow-right-symbolic")
@@ -418,6 +473,7 @@ Kirigami.Page {
                     if (isClose) {
                         Qt.quit();
                     } else if (isInstall) {
+                        root.installStarted = true;
                         InstallerController.startInstall();
                         root.requestNextPage();
                     } else {
@@ -439,7 +495,9 @@ Kirigami.Page {
 
         property TunaComponents.SetupModule module: null
 
-        visible: index === 0 // the binding is broken later
+        // Set once below, then by the wizard as it moves: not a binding,
+        // so a step that slides out stays drawn until its slide ends.
+        visible: false
 
         width: stepsContainer.width
         height: stepsContainer.height
@@ -451,6 +509,12 @@ Kirigami.Page {
 
         contentItem: module ? module.contentItem : null
 
+        // The screen's accessible name (shared/flow/screens.yaml). A module
+        // is a QObject, not an item: the name it declares reaches the
+        // accessibility tree through this delegate, which is one.
+        Accessible.role: Accessible.Pane
+        Accessible.name: module ? module.Accessible.name : ""
+
         Component.onCompleted: {
             const component = Qt.createComponent(Qt.resolvedUrl(url));
             if (component.status === Component.Error) {
@@ -459,6 +523,8 @@ Kirigami.Page {
             }
             module = component.createObject(item) as TunaComponents.SetupModule;
             module.advanceRequested.connect(() => root.requestNextPage());
+            module.retryRequested.connect(() => root.retry());
+            visible = (index === root.currentIndex);
             updateRootItems();
         }
 

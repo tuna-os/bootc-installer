@@ -56,6 +56,18 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Applying the last fixes…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Installing the boot loader…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cleaning up…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Installation complete</source>
         <translation type="unfinished"></translation>
     </message>
@@ -116,6 +128,30 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>The installer daemon does not answer: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The installer daemon did not answer in time.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The installer daemon does not answer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>✗ Installation failed (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The daemon gave no recovery key.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The daemon did not start the handoff.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>the selected disk</source>
         <translation type="unfinished"></translation>
     </message>
@@ -165,11 +201,27 @@
 <context>
     <name>Wizard</name>
     <message>
+        <source>Requirements</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Try or Install</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Welcome</source>
+        <source>Language</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keyboard Layout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Time Zone</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -209,6 +261,14 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Recovery Key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Handoff</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Finished</source>
         <translation type="unfinished"></translation>
     </message>
@@ -218,6 +278,10 @@
     </message>
     <message>
         <source>Step %1 of %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Welcome</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -250,6 +314,10 @@
 <context>
     <name>main</name>
     <message>
+        <source>Account</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>The selected image creates its own user account, so this step is optional.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -278,6 +346,14 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Confirm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The installation uses the free space of %1. The data on the disk stays.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Target disk</source>
         <translation type="unfinished"></translation>
     </message>
@@ -299,6 +375,26 @@
     </message>
     <message>
         <source>%1 (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>User account</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The installed system asks for it when it starts for the first time.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Existing data</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Erased: the install uses the whole disk</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Kept: the install uses the free space</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -330,6 +426,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Disk selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Choose the disk where %1 will be installed.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -354,7 +454,59 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Connect a disk of at least %1 to install to.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Connect a disk of at least 50 GiB to install to.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Look for disks again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Power off</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disks that are too small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The install needs at least %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Done</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The disk went away during the installation. Check that it is connected, or choose another disk.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The disk could not be partitioned.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The disk could not be encrypted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The installer daemon refused these settings. The log names the field.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The installer daemon does not answer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This session is now the installed system. You can close this window.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>You stopped the installation. The selected disk was not changed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -382,6 +534,14 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>The computer cannot restart now: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Try again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Log saved to %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -390,7 +550,15 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Disk encryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This computer has no TPM 2.0 that can unlock the disk. Set a passphrase. You type it each time the computer starts.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -410,11 +578,123 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Power off</source>
+        <source>I have read and accept the Terms of Use</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>I have read and accept the Terms of Use</source>
+        <source>Handoff</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch to the installed system</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restart into the installed system</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restart the computer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This session becomes the installed system. Nothing restarts. The files and settings of this session stay.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The desktop restarts into the installed system. The computer does not go through its firmware. The files and settings of this session do not carry over.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The computer restarts into the installed system. The files and settings of this session do not carry over. Remove the install medium when the screen goes dark.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The installed system asks for your user account when it starts for the first time.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The handoff did not start: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Waiting for the installer daemon…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restarting…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not now</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Continue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keyboard layout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose the keyboard layout of the installed system. This session keeps its own layout.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search keyboards</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No keyboard layout matches the search.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose the language of the installed system.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search languages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No language matches the search.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No internet connection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Checking the internet connection…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connected to the internet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selected image needs to be downloaded. Connect this computer to a network, then check again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selected image is downloaded during the installation.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recheck</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -423,6 +703,10 @@
     </message>
     <message>
         <source>This copy of %1 is a pre-release. It may break, and its behaviour may change before the final release.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Installing</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -446,11 +730,63 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Installation progress</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Step %1 of %2 — %3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Step %1 of %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recovery key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The recovery key could not be saved to the disk: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No recovery key could be made: %1 Do not continue without one.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show QR Code for Recovery Key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saving the recovery key to the disk…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Making the recovery key…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>QR code of the recovery key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Requirements</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This computer cannot run the installer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This computer is below the requirements</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Continue anyway</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The installation can be slow or can fail on this computer.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -470,6 +806,26 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Choose the time zone of the installed system.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search time zones</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No time zone matches the search.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Location services</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Let apps of the installed system find the location of this computer. Off unless you turn it on.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Welcome</source>
         <translation type="unfinished"></translation>
     </message>
@@ -478,31 +834,15 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>This wizard will guide you through installing %1 onto this computer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Try %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Install now</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>This wizard will guide you through installing %1 onto this computer.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>You will choose a disk and how it should be encrypted. Everything after that is handled by the installer.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>This computer does not meet the requirements, but install anyway</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Region &amp; language</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The installed system uses these settings.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -522,7 +862,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The free space cannot fit the install. Installing erases the whole disk.</source>
+        <source>This disk cannot keep its data: the free space is too small, or its partition table cannot stay. Installing erases the whole disk.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

@@ -113,7 +113,7 @@ qt_add_library(tunainstallerapp STATIC)
 # Each step lives at modules/<name>/contents/ui/main.qml, the KISS layout, and
 # is aliased into the QML module resource as modules/<name>/main.qml so that
 # Wizard.qml can resolve it with a plain relative URL.
-set(STEP_MODULES tryorinstall welcome prerelease eula rst disk wipefree encryption account confirm progress done)
+set(STEP_MODULES requirements tryorinstall language keyboard timezone network prerelease eula rst disk wipefree encryption account confirm progress recoverykey handoff done)
 set(STEP_QML_FILES)
 foreach(step ${STEP_MODULES})
     set(src "modules/${step}/contents/ui/main.qml")
@@ -125,6 +125,7 @@ endforeach()
 set_source_files_properties(src/qml/Main.qml PROPERTIES QT_RESOURCE_ALIAS Main.qml)
 set_source_files_properties(src/qml/Wizard.qml PROPERTIES QT_RESOURCE_ALIAS Wizard.qml)
 set_source_files_properties(src/qml/NetworkGate.qml PROPERTIES QT_RESOURCE_ALIAS NetworkGate.qml)
+set_source_files_properties(src/qml/PickerList.qml PROPERTIES QT_RESOURCE_ALIAS PickerList.qml)
 
 qt_add_qml_module(tunainstallerapp
     URI org.tunaos.installer
@@ -134,6 +135,7 @@ qt_add_qml_module(tunainstallerapp
         src/qml/Main.qml
         src/qml/Wizard.qml
         src/qml/NetworkGate.qml
+        src/qml/PickerList.qml
         ${STEP_QML_FILES}
     SOURCES
         ${BACKEND_SOURCES}
@@ -204,6 +206,24 @@ if(BUILD_CAPTURE)
         # The themed logo shared/walkthrough/capture-branding.json names; see
         # the icon search path in tests/capture.cpp.
         CAPTURE_ICON_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../data/icons/hicolor/scalable/apps")
+endif()
+
+# --- the wizard, clicked through against the mock daemon ----------------------
+# The real QML again, driven by its own buttons from the first screen to the
+# last, with a mock fishermand that this program starts itself. It exits 77
+# (a ctest skip) when there is no mock binary.
+if(BUILD_CAPTURE AND BUILD_TESTING AND NOT EMSCRIPTEN)
+    qt_add_executable(tuna-installer-walk tests/walk.cpp)
+    target_link_libraries(tuna-installer-walk PRIVATE tunainstallerapp tunainstallerappplugin)
+    target_compile_definitions(tuna-installer-walk PRIVATE
+        WALK_TESTDATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/testdata"
+        WALK_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        WALK_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+    enable_testing()
+    add_test(NAME tuna-installer-walk COMMAND tuna-installer-walk)
+    set_tests_properties(tuna-installer-walk PROPERTIES
+        SKIP_RETURN_CODE 77
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
 endif()
 
 option(BUILD_E2E "Build the end-to-end driver that launches the real backend path" OFF)
@@ -278,6 +298,46 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME tuna-installer-backend-tests COMMAND tuna-installer-backend-tests)
+
+    # The daemon flow against the mock fishermand (tuna-os/fisherman,
+    # `go build ./fisherman/cmd/fishermand`). The binary comes from
+    # FISHERMAND_BIN, then build/fishermand, then PATH; without one every
+    # scenario test is skipped and says so. Not on Qt for WebAssembly: it
+    # has no QProcess to start the mock with.
+    if(NOT EMSCRIPTEN)
+    qt_add_executable(tuna-installer-daemon-tests
+        tests/test_daemon.cpp
+        src/log.cpp
+        src/recipe.cpp
+        src/imagecatalog.cpp
+        src/region.cpp
+        src/branding.cpp
+        src/offline.cpp
+        src/fisherman.cpp
+        src/daemonclient.cpp
+        src/osrelease.cpp
+        src/eula.cpp
+        src/account.cpp
+        src/readiness.cpp
+        src/redact.cpp
+        src/plan.cpp
+        src/probe.cpp
+        src/sourcecheck.cpp
+        src/validate.cpp
+        src/diskmodel.cpp
+        src/installercontroller.cpp
+        src/translations.cpp
+        src/qrcode.cpp
+        src/qrcode.h
+    )
+    target_include_directories(tuna-installer-daemon-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR})
+    target_compile_definitions(tuna-installer-daemon-tests PRIVATE
+        KDE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        KDE_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(tuna-installer-daemon-tests PRIVATE Qt6::Core Qt6::Quick Qt6::Test Qt6::Network)
+    add_test(NAME tuna-installer-daemon-tests COMMAND tuna-installer-daemon-tests)
+    set_tests_properties(tuna-installer-daemon-tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endif()
 endif()
 
 install(TARGETS tuna-installer-kde RUNTIME DESTINATION bin)

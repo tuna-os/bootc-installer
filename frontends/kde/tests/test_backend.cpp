@@ -3319,17 +3319,22 @@ void BackendTest::cancelAsksFirstInTheQml()
 
 void BackendTest::confirmPageListsNoLocaleRows()
 {
-    // #292: the welcome step's pickers go into the recipe, and the confirm
-    // step lists them. The welcome step no longer says "not applied".
+    // #292: the region pickers go into the recipe, and the confirm
+    // step lists them. No step says "not applied".
     const QString confirm = qmlCode(QString::fromUtf8(
         readFixture(QStringLiteral(KDE_SOURCE_DIR "/modules/confirm/contents/ui/main.qml"))));
     for (const QString &name : {QStringLiteral("confirmLanguage"), QStringLiteral("confirmKeyboard"),
                                 QStringLiteral("confirmTimezone"), QStringLiteral("regionProblem")})
         QVERIFY2(confirm.contains(name), qPrintable(name));
-    const QString welcome = qmlCode(QString::fromUtf8(
-        readFixture(QStringLiteral(KDE_SOURCE_DIR "/modules/welcome/contents/ui/main.qml"))));
-    QVERIFY(!welcome.contains(QStringLiteral("regionNotApplied")));
-    QVERIFY(welcome.contains(QStringLiteral("regionProblem")));
+    // The pickers are three steps now (language, keyboard, timezone); each
+    // shows fisherman's problem with the region and holds Next on it.
+    for (const char *step : {"language", "keyboard", "timezone"}) {
+        const QString page = qmlCode(QString::fromUtf8(readFixture(
+            QStringLiteral(KDE_SOURCE_DIR "/modules/%1/contents/ui/main.qml").arg(QLatin1String(step)))));
+        QVERIFY2(!page.contains(QStringLiteral("regionNotApplied")), step);
+        QVERIFY2(page.contains(QStringLiteral("InstallerController.regionProblem")), step);
+        QVERIFY2(page.contains(QStringLiteral("PickerList {")), step);
+    }
 
     // Nothing picked: the recipe keeps the image's values.
     {
@@ -3418,7 +3423,14 @@ void BackendTest::connectivityTriesTheImageRegistryFirst()
     QVERIFY(settings.last().startsWith(QStringLiteral("kcmshell6 kcm_networkmanagement")));
     const QString gate = qmlCode(QString::fromUtf8(readFixture(QStringLiteral(KDE_SOURCE_DIR "/src/qml/NetworkGate.qml"))));
     QVERIFY(gate.contains(QStringLiteral("InstallerController.openNetworkSettings()")));
-    for (const char *step : {"welcome", "confirm"}) {
+    // The network step holds Next while offline, and offers the same two
+    // actions (shared/flow `network`: Network settings, Recheck).
+    const QString network = qmlCode(QString::fromUtf8(
+        readFixture(QStringLiteral(KDE_SOURCE_DIR "/modules/network/contents/ui/main.qml"))));
+    QVERIFY(network.contains(QStringLiteral("nextEnabled: !offline")));
+    QVERIFY(network.contains(QStringLiteral("InstallerController.openNetworkSettings()")));
+    QVERIFY(network.contains(QStringLiteral("InstallerController.checkConnectivity()")));
+    for (const char *step : {"confirm"}) {
         const QString page = qmlCode(QString::fromUtf8(
             readFixture(QStringLiteral(KDE_SOURCE_DIR "/modules/%1/contents/ui/main.qml").arg(QLatin1String(step)))));
         QVERIFY2(page.contains(QStringLiteral("NetworkGate {")), step);
@@ -4129,8 +4141,9 @@ void BackendTest::daemonBackendDrivesControllerFacts()
             peerOk = false;
             return;
         }
-        // The constructor asks twice; the disk model asks once more below.
-        for (int i = 0; i < 3; i++) {
+        // The constructor asks three times (Requirements, Probe and the
+        // candidate devices); the disk model asks once more below.
+        for (int i = 0; i < 4; i++) {
             if (!server.waitForNewConnection(10000)) {
                 peerOk = false;
                 return;
@@ -4189,7 +4202,7 @@ void BackendTest::daemonBackendDrivesControllerFacts()
 
     peerThread->wait(15000);
     QVERIFY(peerOk.load());
-    QCOMPARE(served.load(), 3);
+    QCOMPARE(served.load(), 4);
     peerThread->deleteLater();
 
     // A daemon that does not answer: the controller says so and offers
@@ -4228,8 +4241,12 @@ void BackendTest::wizardStepsFollowTheSharedFlow()
     while (matches.hasNext())
         ids << matches.next().captured(1);
     const QStringList want{
+        QStringLiteral("requirements"),
         QStringLiteral("try-or-install"),
-        QStringLiteral("welcome"),
+        QStringLiteral("language"),
+        QStringLiteral("keyboard"),
+        QStringLiteral("timezone"),
+        QStringLiteral("network"),
         QStringLiteral("prerelease"),
         QStringLiteral("eula"),
         QStringLiteral("rst"),
@@ -4239,9 +4256,28 @@ void BackendTest::wizardStepsFollowTheSharedFlow()
         QStringLiteral("account"),
         QStringLiteral("confirm"),
         QStringLiteral("install"),
+        QStringLiteral("recovery-key"),
+        QStringLiteral("handoff"),
         QStringLiteral("done"),
     };
     QCOMPARE(ids, want);
+    // The same eighteen ids, in the same order, as shared/flow/screens.yaml.
+    QFile spec(QStringLiteral(KDE_SOURCE_DIR "/../../shared/flow/screens.yaml"));
+    if (spec.open(QIODevice::ReadOnly)) {
+        QStringList order;
+        bool inOrder = false;
+        for (const QByteArray &raw : spec.readAll().split('\n')) {
+            const QString line = QString::fromUtf8(raw);
+            if (line.startsWith(QLatin1String("order:"))) {
+                inOrder = true;
+            } else if (inOrder && line.startsWith(QLatin1String("  - "))) {
+                order << line.mid(4).trimmed();
+            } else if (inOrder && !line.trimmed().isEmpty() && !line.startsWith(QLatin1Char(' '))) {
+                break;
+            }
+        }
+        QCOMPARE(ids, order);
+    }
 }
 
 void BackendTest::wizardSkipsStepsWithNothingToShow()
@@ -4273,11 +4309,24 @@ void BackendTest::wizardSkipsStepsWithNothingToShow()
     QVERIFY(cataloged.stepSkipped(QStringLiteral("account")));
     qunsetenv(imagecatalog::IMAGES_ENV);
 
-    // Off live media there is no live session to try.
+    // Off live media the first screen stays: it introduces the install and
+    // has no Try action. No gate is unmet there, and the image needs a
+    // download, so the network step shows.
     const QString container = QDir(QStringLiteral(PROBE_FIXTURES_DIR)).filePath(QStringLiteral("container.json"));
     qputenv(probe::FAKE_ENV, container.toLocal8Bit());
     InstallerController installed;
-    QVERIFY(installed.stepSkipped(QStringLiteral("try-or-install")));
+    QVERIFY(!installed.stepSkipped(QStringLiteral("try-or-install")));
+    QVERIFY(!installed.isLive());
+    QVERIFY(!installed.stepSkipped(QStringLiteral("language")));
+    QVERIFY(!installed.stepSkipped(QStringLiteral("keyboard")));
+    QVERIFY(!installed.stepSkipped(QStringLiteral("timezone")));
+    QVERIFY(!installed.stepSkipped(QStringLiteral("network")));
+    // Live media installs the running system: no download, no network step.
+    QVERIFY(live.stepSkipped(QStringLiteral("network")));
+    QCOMPARE(installed.stepSkipped(QStringLiteral("requirements")), installed.unmetRequirements().isEmpty());
+    // Before an install there is no key to save and nothing to hand over.
+    QVERIFY(installed.stepSkipped(QStringLiteral("recovery-key")));
+    QVERIFY(installed.stepSkipped(QStringLiteral("handoff")));
     qunsetenv(probe::FAKE_ENV);
 }
 
@@ -4550,7 +4599,8 @@ void BackendTest::wizardSkipsRstWipeAndEncryption()
     c.setDisk(QStringLiteral("/dev/unknown"));
     QVERIFY(c.stepSkipped(QStringLiteral("wipe-or-free")));
     QVERIFY(!c.stepSkipped(QStringLiteral("encryption")));
-    QCOMPARE(c.recipe().encryption.type, QStringLiteral("none"));
+    // Without a TPM the daemon install asks for a passphrase.
+    QCOMPARE(c.recipe().encryption.type, QStringLiteral("luks-passphrase"));
 
     // A usable TPM: the daemon seals to PCR 7 with no prompt.
     const QList<QByteArray> tpmReplies{scriptedRequirements(), scriptedProbeTpm()};

@@ -18,8 +18,12 @@ import org.tunaos.installer.components as TunaComponents
 
 TunaComponents.SetupModule {
     id: root
+
+    Accessible.name: qsTr("Existing data found")
     readonly property bool forced: InstallerController.selectedDiskForceErase
-    readonly property string systems: InstallerController.selectedDiskOperatingSystems.join(", ")
+    // A method, read again when the disk changes.
+    readonly property string systems: InstallerController.disk.length > 0
+        ? InstallerController.selectedDiskOperatingSystems().join(", ") : ""
     readonly property string freeSpace: InstallerController.selectedDiskFreeSpace
     property int eraseCountdown: 0
 
@@ -74,7 +78,7 @@ TunaComponents.SetupModule {
             Kirigami.InlineMessage {
                 visible: root.forced
                 type: Kirigami.MessageType.Warning
-                text: qsTr("The free space cannot fit the install. Installing erases the whole disk.")
+                text: qsTr("This disk cannot keep its data: the free space is too small, or its partition table cannot stay. Installing erases the whole disk.")
 
                 Layout.fillWidth: true
                 Layout.maximumWidth: root.cardWidth

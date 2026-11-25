@@ -34,6 +34,8 @@ TunaComponents.SetupModule {
         disks.refresh();
     }
 
+    Accessible.name: qsTr("Disk selection")
+
     DiskModel {
         id: disks
     }
@@ -72,7 +74,11 @@ TunaComponents.SetupModule {
 
             Kirigami.InlineMessage {
                 type: Kirigami.MessageType.Warning
-                visible: true
+                // The daemon backend can keep the data of a disk with free
+                // space: the next step asks, so this page does not say
+                // "erased" for such a disk.
+                visible: !(InstallerController.daemonBackend && InstallerController.selectedDiskHasData
+                           && !InstallerController.selectedDiskForceErase)
                 position: Kirigami.InlineMessage.Header
                 text: qsTr("Everything on the selected disk will be erased.")
 
@@ -160,8 +166,10 @@ TunaComponents.SetupModule {
             // fisherman's problem with the value is shown here and holds
             // Next.
             FormCard.FormCard {
-                visible: InstallerController.filesystemChoices.length > 1
-                    || InstallerController.filesystemProblem !== ""
+                // Not on the daemon backend: the daemon owns the file system.
+                visible: !InstallerController.daemonBackend
+                    && (InstallerController.filesystemChoices.length > 1
+                        || InstallerController.filesystemProblem !== "")
                 maximumWidth: root.cardWidth
 
                 Layout.alignment: Qt.AlignHCenter
@@ -222,7 +230,60 @@ TunaComponents.SetupModule {
                     text: disks.error.length > 0 ? qsTr("Could not detect disks") : qsTr("No disks found")
                     description: disks.error.length > 0
                         ? disks.error
-                        : qsTr("Connect a disk of at least 50 GiB to install to.")
+                        : InstallerController.minimalDiskSize.length > 0
+                            ? qsTr("Connect a disk of at least %1 to install to.").arg(InstallerController.minimalDiskSize)
+                            : qsTr("Connect a disk of at least 50 GiB to install to.")
+                }
+
+                FormCard.FormDelegateSeparator {}
+
+                // No disk to pick: look again, or power off
+                // (shared/flow no-usable-disk, probe-failed,
+                // daemon-unreachable).
+                FormCard.FormButtonDelegate {
+                    objectName: "diskRescanButton"
+                    text: qsTr("Look for disks again")
+                    icon.name: "view-refresh-symbolic"
+                    onClicked: {
+                        InstallerController.refreshDaemonFacts();
+                        disks.refresh();
+                    }
+                }
+
+                FormCard.FormButtonDelegate {
+                    objectName: "diskPowerOffButton"
+                    text: qsTr("Power off")
+                    icon.name: "system-shutdown-symbolic"
+                    onClicked: InstallerController.poweroff()
+                }
+            }
+
+            // Disks the daemon lists but that cannot hold the install
+            // (shared/flow disk status too-small): shown, never selectable.
+            FormCard.FormHeader {
+                visible: tooSmallCard.visible
+                title: qsTr("Disks that are too small")
+                maximumWidth: root.cardWidth
+            }
+
+            FormCard.FormCard {
+                id: tooSmallCard
+                objectName: "tooSmallDisks"
+                maximumWidth: root.cardWidth
+                visible: InstallerController.tooSmallDisks.length > 0
+
+                Layout.alignment: Qt.AlignHCenter
+
+                Repeater {
+                    model: InstallerController.tooSmallDisks
+
+                    delegate: FormCard.FormTextDelegate {
+                        required property string modelData
+
+                        text: modelData
+                        description: qsTr("The install needs at least %1.").arg(InstallerController.minimalDiskSize)
+                        enabled: false
+                    }
                 }
             }
         }

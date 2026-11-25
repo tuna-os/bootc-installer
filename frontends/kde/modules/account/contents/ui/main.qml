@@ -40,6 +40,8 @@ TunaComponents.SetupModule {
             && passwordField.text.length > 0
             && passwordsMatch)
 
+    Accessible.name: qsTr("Account")
+
     contentItem: ScrollView {
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
         contentWidth: -1

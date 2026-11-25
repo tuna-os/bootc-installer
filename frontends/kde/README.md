@@ -27,13 +27,34 @@ hardcoded pixel metrics, and no more forced Fusion style.
 
 ## Workflow
 
-1. **Welcome** — brief intro
-2. **Target Disk** — `fisherman probe --json` lists the disks fisherman offers (`../../shared/probe/README.md`); user picks one
-3. **Disk Encryption** — none / passphrase / TPM / TPM + passphrase
-4. **User Account** — username, optional full name, password typed twice; writes the recipe's `user` block with the groups of `shared/account/groups.json`. fisherman checks the username while it is typed
-5. **Confirm** — summary of choices (disk, filesystem, encryption, hostname, username, image)
-6. **Installing** — pipes the recipe JSON to `fisherman -` on stdin, streams output
-7. **Finished** — success, failure or cancelled, with a close button
+The wizard has the eighteen screens of `../../shared/flow/screens.yaml`, in the same order and with the same ids. A screen that has nothing to show does not show.
+
+1. `requirements`: only while a RAM, CPU or firmware gate is unmet
+2. `try-or-install`: keep the live session, or install
+3. `language`, `keyboard`, `timezone`: a search field and a list each
+4. `network`: only when the install needs a download
+5. `prerelease`, `eula`, `rst`: only when there is something to say
+6. `disk`: the disks that the backend offers
+7. `wipe-or-free`: only when the chosen disk holds data (daemon backend)
+8. `encryption`: a TPM 2.0 seals the disk, or you give a passphrase
+9. `account`: only when no first-boot tool makes the user
+10. `confirm`: each choice, and the one Install button
+11. `install`: progress, Cancel, and the failure states
+12. `recovery-key`: the key, with a QR code
+13. `handoff`: how the installed system takes over (daemon backend)
+14. `done`: installed, cancelled or failed
+
+## Backends
+
+`TUNA_INSTALLER_BACKEND` selects the backend. It is the same switch in the Niri, XFCE and COSMIC frontends.
+
+| Value | Backend |
+|---|---|
+| `daemon` | `fishermand` over Varlink ([FISHERMAND.md](https://github.com/tuna-os/fisherman/blob/dev/docs/FISHERMAND.md)) |
+| `legacy` | the `fisherman` CLI, with the recipe on stdin |
+| `auto`, or not set | the daemon when its socket is there, else the CLI |
+
+`TUNA_FISHERMAN_SOCKET` moves the `io.tunaos.Fisherman` socket. `FISHERMAND_SOCKET_DIR` moves all four sockets. The installer makes the user. `TUNA_FIRSTBOOT_TOOL=plasma-setup` (or `cosmic-initial-setup`, `gnome-initial-setup`) on the medium says that the first-boot tool does, and the account step then does not show.
 
 ## Build
 
@@ -64,6 +85,23 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 # Or run directly:
 ./build/tuna-installer-backend-tests
+```
+
+### Daemon Tests
+
+`tuna-installer-daemon-tests` drives the controller against the mock daemon, one test for each scenario. Build the mock from `tuna-os/fisherman` and give its path:
+
+```bash
+(cd <fisherman>/fisherman && go build -o /tmp/fishermand ./cmd/fishermand)
+FISHERMAND_BIN=/tmp/fishermand ./build/tuna-installer-daemon-tests
+```
+
+Without the binary, the scenario tests skip and the mapping tests run. `screenshots-kde.yml` builds the mock from a pinned commit of tuna-os/fisherman, so CI runs the scenario tests and the walk.
+
+`tuna-installer-walk` (built with `-DBUILD_CAPTURE=ON -DBUILD_TESTING=ON`) loads the real QML, starts its own mock and clicks the wizard through nine walks:
+
+```bash
+FISHERMAND_BIN=/tmp/fishermand ./build/tuna-installer-walk
 ```
 
 ### Screenshot Capture Harness

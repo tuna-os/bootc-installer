@@ -16,6 +16,8 @@ TunaComponents.SetupModule {
     // when fisherman exits.
     nextEnabled: false
 
+    Accessible.name: qsTr("Installing")
+
     contentItem: ColumnLayout {
         spacing: Kirigami.Units.largeSpacing
 
@@ -107,6 +109,7 @@ TunaComponents.SetupModule {
                 // The capture harness looks this up by name and fails when it
                 // is missing or draws nothing (tests/capture.cpp).
                 objectName: "installProgressBar"
+                Accessible.name: qsTr("Installation progress")
 
                 // Indeterminate only before the first event arrives, so the
                 // step never looks stalled while fisherman starts up.

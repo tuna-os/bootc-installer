@@ -14,24 +14,27 @@ pattern: each screen is a `SetupModule` under
 the user may continue; the wizard owns navigation, headings, and the shared
 Back and Next buttons.
 
-The twelve modules are (step ids of shared/flow/screens.yaml, in order; the
-directory drops the dashes where the id has them):
+The eighteen modules have the screen ids of `shared/flow/screens.yaml`, in
+its order. The directory drops the dashes where the id has them.
 
-1. `try-or-install` (`modules/tryorinstall`)
-2. `welcome` (the folded language, keyboard, time zone and network cluster)
-3. `prerelease`
-4. `eula`
-5. `rst`
-6. `disk`
-7. `wipe-or-free` (`modules/wipefree`)
-8. `encryption`
-9. `account`
-10. `confirm`
-11. `install` (`modules/progress`)
-12. `done`
-
-Slots 12 and 13 stay reserved for the recovery-key and handoff screens of
-later commits.
+1. `requirements`
+2. `try-or-install` (`modules/tryorinstall`)
+3. `language`
+4. `keyboard`
+5. `timezone`
+6. `network`
+7. `prerelease`
+8. `eula`
+9. `rst`
+10. `disk`
+11. `wipe-or-free` (`modules/wipefree`)
+12. `encryption`
+13. `account`
+14. `confirm`
+15. `install` (`modules/progress`)
+16. `recovery-key` (`modules/recoverykey`)
+17. `handoff`
+18. `done`
 
 The wizard uses slide transitions between modules instead of `SwipeView`,
 matching KISS's behaviour during window resizing. Do not put backend work in a
@@ -85,22 +88,19 @@ are folded into the existing ones rather than added as new steps:
   `flatpaks` key and fisherman applies its default. The leaf also gives the
   filesystem and its choices, and the NVIDIA image on a machine with an
   NVIDIA GPU.
-- The **hardware gates** live on the **welcome** step: unmet RAM/CPU hold
-  Next until an explicit override is ticked (the cpu/ram windows), while a
-  non-UEFI boot has no continue path, only power off (the unsupported
-  window). The **power off** and **copy install log** actions mirror
-  `dialog_poweroff.py` and `dialog_output.py`. **Cancel** on the progress
-  step and a window close during an install each ask first. A confirmed
-  cancel signals the process group of the wrapper. fisherman stops when its
-  parent stops. The done step then shows the cancelled page.
-- **Language, keyboard and timezone** are on the **welcome** step. They
-  are wizard state, not recipe state: the recipe has no field for them yet
-  (#292). Nothing applies them. The welcome step says so, and the confirm
-  step does not list them. The **connectivity check** holds Next on the
-  welcome step and Install on the confirm step, only when the install needs
-  the network. It tries the registry of the selected image first. The
-  message has a "Network settings" action that opens the Plasma tool on the
-  host.
+- The **hardware gates** are the **requirements** step. Unmet RAM or CPU
+  holds Next until you tick Continue anyway. A boot without UEFI has only
+  Power off. **Cancel** on the install step and a window close during an
+  install each ask first.
+- **Language, keyboard and time zone** are three steps. Each has a
+  `Kirigami.SearchField` over a framed list with a check mark on the
+  current row, as the Plasma pickers have. The pick goes to the installed
+  system: the recipe carries it, or `ConfigureTarget` on the daemon
+  backend. It does not change the live session, so the keyboard step has
+  no test field.
+- The **network** step shows only when the install needs a download. It
+  holds Next while there is no connection. "Network settings" opens the
+  Plasma tool on the host.
 - The **tour** is the selected leaf's `carousel` slides on the **done**
   screen. Slide titles and descriptions travel; the artwork does not — the
   manifest names GNOME GResource paths (`resource:///...`), which nothing in
@@ -113,11 +113,41 @@ are folded into the existing ones rather than added as new steps:
   manifest — this stack has no Python, and a new runtime dependency for one
   code is the wrong trade. No manifest change was needed for any of this.
 
+## The daemon backend
+
+`TUNA_INSTALLER_BACKEND=daemon` (or `auto` with the daemon socket there)
+moves the backend boundary to `fishermand` over Varlink. The safety rules
+stay:
+
+- Only the Install button of the confirm step sends `Install`, with
+  `confirmed: true`.
+- The wizard leaves the install step on the terminal reply of the stream.
+- Secrets go in call parameters. The client logs no parameters.
+
+Three pages follow the daemon and not a choice of this frontend:
+
+- **Encryption.** A usable TPM 2.0 seals the disk, and the step does not
+  show. Without one the step asks for a passphrase twice.
+- **Existing data.** `fit` of `io.systemd.SysInstall` decides: a free-space
+  install, a choice, or a forced erase with a countdown.
+- **Handoff.** The daemon reports the mode in `Probe`. The page words it
+  and calls `Handoff` with no mode.
+
+The installer makes the first user. A medium that sets
+`TUNA_FIRSTBOOT_TOOL` (`plasma-setup` for this desktop) says that the
+first-boot tool does. The account step then does not show, and the confirm
+and handoff steps say who asks. A claim of `plasma-setup` with a masked
+or disabled unit does not count: the account step stays.
+
+No daemon call of a page blocks the window. A page shows a busy indicator
+while the daemon works, and a message when the daemon does not answer in
+time.
+
 ## Visual verification
 
-The screenshot workflow builds the real QML modules with `tests/capture.cpp`,
+The screenshot workflow builds the real QML modules with `frontends/kde/tests/capture.cpp`,
 renders every step offscreen, and checks the resulting pixels for meaningful
-content. It also produces `docs/screenshots/walkthrough-kde.json`, the parity
+content. It also produces `frontends/kde/docs/screenshots/walkthrough-kde.json`, the parity
 report consumed by the shared installer matrix. See
 [`docs/gui-walkthrough.md`](docs/gui-walkthrough.md) for the capture contract,
 current screenshots, and safety rationale.

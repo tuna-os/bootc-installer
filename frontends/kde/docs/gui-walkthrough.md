@@ -3,7 +3,7 @@
 Every image below is rendered in CI from the **real** QML — the same
 `src/qml/Wizard.qml` and step modules under `modules/` that the
 shipped installer loads. Only `src/main.cpp` is swapped, for
-`tests/capture.cpp`. Nothing about the UI is mocked or redrawn.
+`frontends/kde/tests/capture.cpp`. Nothing about the UI is mocked or redrawn.
 
 The capture runs on the Qt `offscreen` platform plugin with the software
 scenegraph, inside a Fedora container that carries the KF6 runtime (Kirigami,
@@ -18,23 +18,34 @@ Kirigami Addons, `org.kde.desktop` Qt Quick Controls style). See
 
 | | |
 |---|---|
-| ![Try or install](screenshots/01-tryorinstall.png) | **Try or install** — the first screen on live media: keep the live session, or install now. Skipped off live media. |
-| ![Welcome](screenshots/02-welcome.png) | **Welcome** — what the wizard is about to do, with the region and language pickers, the hardware gates and the connectivity check. |
-| ![Disclaimer](screenshots/03-prerelease.png) | **Disclaimer** — only when os-release calls the product a pre-release or an experiment: the EXPERIMENT text, or a generic pre-release warning. Never holds Next. |
-| ![Terms of use](screenshots/04-eula.png) | **Terms of use** — the AppStream agreement sections the image ships. Skipped when there is no EULA file; a file that cannot load shows an error with only power off. Next stays off until the box is ticked. |
-| ![Intel RST](screenshots/05-rst.png) | **Intel RST** — the firmware hides NVMe disks behind RST or RAID: warn and continue to the disk list, with power off for a firmware change. Skipped when nothing is remapped (the legacy probe never reports it). |
-| ![Target disk](screenshots/06-disk.png) | **Target disk** — the disks `fisherman probe --json` offers, one FormCard radio per disk: the model (the path when unknown), then the path, fisherman's size label and the bus. Re-probed every time the step becomes current, so hotplugged media appear. |
-| ![Existing data](screenshots/07-wipefree.png) | **Existing data** — the chosen disk holds data: install to free space, or erase the disk. When the free space cannot fit the install, erasing is the only path, with a countdown on the button. Daemon-only; the recipe backend keeps its erase behaviour and skips the choice. |
-| ![Disk encryption](screenshots/08-encryption.png) | **Disk encryption** — `none`, `luks-passphrase`, and (only when fisherman reports a usable TPM 2.0) `tpm2-luks` and `tpm2-luks-passphrase`. The passphrase fields appear only for the options that take one. |
-| ![User account](screenshots/09-account.png) | **User account** — username, optional full name and the password typed twice: the recipe's `user` block, with the groups of `shared/account/groups.json`. Next is held until both are filled, the passwords match and `fisherman validate --json --partial -` has no problem with the username (shown under the field in the `validate_username_*` copy). The capture asserts Next is held before the second typing and released after it. |
-| ![Confirm](screenshots/10-confirm.png) | **Confirm** — the recipe as it will be written (including the username, never the password), and the only button in the app that starts an install. |
-| ![Installing](screenshots/11-install.png) | **Installing** — live `fisherman` output. No Back, no Next: the wizard advances itself when the process exits. |
-| ![Finished](screenshots/14-done.png) | **Finished** — success or failure, with the exit code, under the branding artwork. |
-| ![Recovery key](screenshots/12-recovery.png) | **Recovery key** — after a TPM enrolment: the key in a monospace, selectable field with a copy button, and Restart held until "I have saved my recovery key" is ticked. |
-| ![Cancel question](screenshots/15-cancel-confirm.png) | **Cancel** — the install step asks before it stops an install. The capture clicks Cancel and makes sure that the question opens. |
-| ![Cancelled](screenshots/16-cancelled.png) | **Cancelled** — the done step after a confirmed cancel or fisherman exit code 130. The heading is the copy key `done_cancelled_title`. |
+| ![Requirements](screenshots/00-requirements.png) | **Requirements**: only while a gate is unmet. Low memory or too few CPU cores hold Next until you tick Continue anyway. No UEFI offers only Power off. |
+| ![Try or install](screenshots/01-tryorinstall.png) | **Try or install**: the first screen. On live media you keep the live session or install. Off live media it shows the welcome copy and one button. |
+| ![Language](screenshots/02-language.png) | **Language**: a search field and a list. The pick goes to the installed system. |
+| ![Keyboard layout](screenshots/03-keyboard.png) | **Keyboard layout**: a search field and a list of XKB layouts. |
+| ![Time zone](screenshots/04-timezone.png) | **Time zone**: a search field and a list. On the daemon backend the page also has the Location services switch. |
+| ![Network](screenshots/05-network.png) | **Network**: only when the install needs a download. Next stays off while there is no connection. Network settings opens the Plasma tool. |
+| ![Disclaimer](screenshots/06-prerelease.png) | **Disclaimer**: only when os-release calls the product a pre-release or an experiment. It never holds Next. |
+| ![Terms of use](screenshots/07-eula.png) | **Terms of use**: the AppStream agreement of `/usr/share/tuna-installer/eula.xml` (`TUNA_EULA_FILE` moves it). No file, no page. Next stays off until you tick the box. |
+| ![Intel RST](screenshots/08-rst.png) | **Intel RST**: the daemon reports NVMe disks that the firmware hides. The page warns and continues to the disk list. |
+| ![Target disk](screenshots/09-disk.png) | **Target disk**: one radio row for each disk that the backend offers. On the daemon backend a second card lists the disks that are too small. |
+| ![Existing data](screenshots/10-wipefree.png) | **Existing data**: the chosen disk holds data. You install to the free space or erase the disk. A disk that cannot keep its data gives one button with a countdown. Daemon backend only. |
+| ![Disk encryption](screenshots/11-encryption.png) | **Disk encryption**: the four recipe choices on the recipe backend. On the daemon backend a TPM 2.0 seals the disk and the page does not show. Without one, the page asks for a passphrase twice. |
+| ![User account](screenshots/12-account.png) | **User account**: user name, full name and the password twice. The page does not show when the image makes its own user, or when the medium names a first-boot tool in `TUNA_FIRSTBOOT_TOOL`. |
+| ![Confirm](screenshots/13-confirm.png) | **Confirm**: each choice, never a password, and the one button that starts an install. |
+| ![Installing](screenshots/14-install.png) | **Installing**: the progress bar, the step name and the log. Cancel asks first. The wizard moves on only when the backend ends the install. |
+| ![Recovery key](screenshots/15-recovery.png) | **Recovery key**: the key as a label, a copy button and the QR button. Done stays off until you tick the box. On the daemon backend Done enrols the key. |
+| ![Handoff](screenshots/16-handoff.png) | **Handoff**: daemon backend only. The page words the mode that the daemon reports in Probe: migrate, soft reboot or reboot. Continue calls Handoff with no mode. |
+| ![Finished](screenshots/17-done.png) | **Finished**: installed, cancelled or failed, under the branding artwork. |
+| ![Cancel question](screenshots/18-cancel-confirm.png) | **Cancel**: the install step asks before it stops an install. The capture clicks Cancel and checks that the question opens. |
+| ![Cancelled](screenshots/19-cancelled.png) | **Cancelled**: the done step after a cancel. It offers Try again. |
+| ![Failed](screenshots/20-failed.png) | **Failed**: the done step after a failure, with Try again. |
+| ![Recovery key QR](screenshots/21-recovery-qr.png) | **QR code**: the recovery key as a QR code in a dialog. |
 
-Slot 13 belongs to the handoff screen, which lands in a later commit; its number stays reserved. The recovery-key screen lands as 12-recoverykey and retires the 12-recovery done-state frame.
+The number of a frame is the place of its screen in `shared/flow/screens.yaml`. Frames 18 to 21 show a step again in a different state.
+
+## The daemon scenarios
+
+`tuna-installer-capture` can also photograph the screens that a mock scenario changes. Start `fishermand --mock --scenario <name> --socket-dir <dir>`. Then set `TUNA_CAPTURE_SCENARIO=<name>` and `FISHERMAND_SOCKET_DIR=<dir>` and run the capture. It writes `s-<name>-<page>.png` beside the other frames. This run is for a developer. CI does not have the mock daemon and does not do it.
 
 Every step's header shows "Step N of M · name" and one dot per step.
 
@@ -42,7 +53,7 @@ Every step's header shows "Step N of M · name" and one dot per step.
 
 Existence checks are not enough. A sibling repository published a blank page
 while its "the PNGs exist and are non-empty" assertion passed. So
-`tests/capture.cpp` reads its own pixels back and fails the build when a screen
+`frontends/kde/tests/capture.cpp` reads its own pixels back and fails the build when a screen
 did not really render:
 
 - **distinct colours** — a screen that never painted collapses to a handful.
@@ -52,7 +63,7 @@ did not really render:
   a dark colour scheme.
 - **row and column spread** — the fraction of sampled rows, and of sampled
   columns, that contain any ink. This is what actually discriminates. Density
-  alone does not: the welcome and finished steps are hero pages — one icon, a
+  alone does not: the try-or-install and finished steps are hero pages — one icon, a
   heading, a line of prose — and legitimately score around 1% ink, while a form
   step with a FormCard behind it scores 30%. A blank screen scores zero on all
   four.
@@ -61,7 +72,7 @@ did not really render:
   not move with the container's fonts.
 
 Measured on the six real screens at 1000×700 (CI run 33658389834), and the
-thresholds sit below these with margin (see the table at the top of `tests/capture.cpp`):
+thresholds sit below these with margin (see the table at the top of `frontends/kde/tests/capture.cpp`):
 
 | step | class | colours | ink | rows | cols |
 |---|---|---|---|---|---|
@@ -105,9 +116,7 @@ precisely when the capture fails.
 ## Why this cannot start an install
 
 The harness drives navigation through `Wizard.goToStep()`, which moves the
-visible step and calls the target module's `onPageActivated()`. The only
-`onPageActivated()` in the tree is the disk step's, and it re-runs the
-read-only `fisherman probe --json` and nothing else. `InstallerController.startInstall()` — the sole path to a
+visible step and calls the target module's `onPageActivated()`. Four modules have one. The disk step runs the read-only probe again. The network step checks the connection again. The confirm step asks for the plan and the source check, which read and do not write. The wipe-or-free step resets its countdown. `InstallerController.startInstall()` — the sole path to a
 privileged `fisherman` process — has exactly one caller, the Install button's
 `onClicked` in `Wizard.qml`, which the harness never presses.
 
