@@ -880,6 +880,11 @@ class SetupPage(Page):
         for value in ENCRYPTION_TYPES:
             if core.needs_tpm2(value) and not self.has_tpm:
                 continue
+            # The daemon encrypts the root of each install and refuses `none`
+            # (tuna-os/tunaOS run 45639909696): not offered there, as in KDE
+            # and COSMIC.
+            if value == "none" and core.backend() == "daemon":
+                continue
             radio = Gtk.RadioButton.new_with_label_from_widget(
                 group, encryption_text(value, "_label"))
             group = group or radio
@@ -938,6 +943,11 @@ class SetupPage(Page):
         advbox.pack_start(self.subvol_check, False, False, 0)
         adv.add(advbox)
         self.pack_start(adv, False, False, 0)
+        if core.backend() == "daemon" and self.has_tpm:
+            # Sealed to the TPM, with nothing to type.
+            for radio in self.enc_radios:
+                if radio.value == "tpm2-luks":
+                    radio.set_active(True)
         self._sync()
 
     def _sync(self, *_args):
