@@ -30,7 +30,7 @@ Kirigami Addons, `org.kde.desktop` Qt Quick Controls style). See
 | ![Target disk](screenshots/09-disk.png) | **Target disk**: one radio row for each disk that the backend offers. On the daemon backend a second card lists the disks that are too small. |
 | ![Existing data](screenshots/10-wipefree.png) | **Existing data**: the chosen disk holds data. You install to the free space or erase the disk. A disk that cannot keep its data gives one button with a countdown. Daemon backend only. |
 | ![Disk encryption](screenshots/11-encryption.png) | **Disk encryption**: the four recipe choices on the recipe backend. On the daemon backend a TPM 2.0 seals the disk and the page does not show. Without one, the page asks for a passphrase twice. |
-| ![User account](screenshots/12-account.png) | **User account**: user name, full name and the password twice. The page does not show when the image makes its own user, or when `plasma-setup.service` is enabled on the live medium. |
+| ![User account](screenshots/12-account.png) | **User account**: user name, full name and the password twice. The page does not show when the image makes its own user, or when the medium names a first-boot tool in `TUNA_FIRSTBOOT_TOOL`. |
 | ![Confirm](screenshots/13-confirm.png) | **Confirm**: each choice, never a password, and the one button that starts an install. |
 | ![Installing](screenshots/14-install.png) | **Installing**: the progress bar, the step name and the log. Cancel asks first. The wizard moves on only when the backend ends the install. |
 | ![Recovery key](screenshots/15-recovery.png) | **Recovery key**: the key as a label, a copy button and the QR button. Done stays off until you tick the box. On the daemon backend Done enrols the key. |

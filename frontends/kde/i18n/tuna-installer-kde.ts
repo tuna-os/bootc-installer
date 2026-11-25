@@ -4,10 +4,6 @@
 <context>
     <name>InstallerController</name>
     <message>
-        <source>The installer daemon does not answer.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Cancelling installation...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -133,6 +129,14 @@
     </message>
     <message>
         <source>The installer daemon does not answer: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The installer daemon did not answer in time.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The installer daemon does not answer.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -378,7 +382,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Plasma asks for it when the installed system starts for the first time.</source>
+        <source>The installed system asks for it when it starts for the first time.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -606,7 +610,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Plasma asks for your user account when the installed system starts for the first time.</source>
+        <source>The installed system asks for your user account when it starts for the first time.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -615,6 +619,10 @@
     </message>
     <message>
         <source>Close</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Waiting for the installer daemon…</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -747,6 +755,14 @@
     </message>
     <message>
         <source>Show QR Code for Recovery Key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saving the recovery key to the disk…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Making the recovery key…</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

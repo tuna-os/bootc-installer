@@ -61,6 +61,9 @@ struct Reply {
     bool transportFailed = false;
     // A streaming reply with more to come (`continues` on the wire).
     bool continues = false;
+    // No reply came inside the caller's time limit. transportFailed is set
+    // too.
+    bool timedOut = false;
     bool ok() const { return !transportFailed && error.isEmpty(); }
 };
 
@@ -191,7 +194,9 @@ class AsyncClient : public QObject
 public:
     explicit AsyncClient(const QString &path, QObject *parent = nullptr);
     ~AsyncClient() override;
-    void call(const QString &method, const QJsonObject &parameters, bool more);
+    // `timeoutMs` > 0 ends a call that got no reply in that time with a
+    // reply that has timedOut set. A stream that is open has no limit.
+    void call(const QString &method, const QJsonObject &parameters, bool more, int timeoutMs = 0);
     void abort();
     bool busy() const { return m_socket != nullptr; }
 
@@ -208,6 +213,7 @@ private:
     QByteArray m_buffer;
     bool m_streaming = false;
     bool m_finished = true;
+    int m_generation = 0;
 };
 
 // io.tunaos.Fisherman.Install as an event stream, plus Cancel on a second

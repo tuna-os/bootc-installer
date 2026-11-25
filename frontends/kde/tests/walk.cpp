@@ -302,6 +302,10 @@ public:
         if (!m_ok)
             return;
         static const QRegularExpression shape(u"^[a-z]{6,10}(-[a-z]{6,10}){7}$"_s);
+        // The daemon makes the key after the install: wait for it.
+        for (int waited = 0; m_controller->recoveryBusy() && waited < 15000; waited += 50)
+            settle(50);
+        settle(100);
         const QQuickItem *label = item(u"recoveryKeyLabel"_s);
         expect(label && shape.match(label->property("text").toString()).hasMatch(),
                u"the recovery key label does not hold a key of the contract's shape"_s);
@@ -311,6 +315,9 @@ public:
         m_controller->setRecoveryAck(true);
         settle(100);
         click(u"recoveryDoneButton"_s);
+        // The enrolment does not block: wait for the daemon's answer.
+        for (int waited = 0; m_ok && m_controller->recoveryBusy() && waited < 15000; waited += 50)
+            settle(50);
         expect(m_controller->recoveryEnrolled(), u"Done did not enrol the recovery key"_s);
     }
 
@@ -355,6 +362,8 @@ bool walkHappy()
     w.at(u"handoff"_s);
     w.expect(w.ok() && w.controller()->handoffMode() == u"reboot"_s, u"the handoff mode is not reboot"_s);
     w.click(u"handoffContinueButton"_s);
+    for (int waited = 0; w.ok() && w.controller()->handoffState() != u"started"_s && waited < 15000; waited += 50)
+        settle(50);
     settle(300);
     w.expect(w.ok() && w.controller()->handoffState() == u"started"_s, u"Continue did not start the handoff"_s);
     // A restart is on its way: the screen stays and says so.
@@ -364,22 +373,24 @@ bool walkHappy()
                      u"disk"_s, u"account"_s, u"confirm"_s, u"install"_s, u"recovery-key"_s, u"handoff"_s});
 }
 
-// handoff-migrate with plasma-setup on the medium: no account step, and
+// handoff-migrate on a medium that names a first-boot tool: no account step, and
 // after Continue the session goes on, so the wizard shows the done screen.
 bool walkMigrate()
 {
-    Walk w(u"migrate"_s, u"handoff-migrate"_s, "plasma-setup");
+    // gnome-initial-setup, not plasma-setup: the wizard checks a claim of
+    // plasma-setup against the unit, and the build host has none.
+    Walk w(u"migrate"_s, u"handoff-migrate"_s, "gnome-initial-setup");
     w.toDisk();
     if (w.ok())
         w.controller()->setDisk(u"/dev/nvme0n1"_s);
     settle(200);
     w.next(u"confirm"_s);
-    w.expect(w.shown(u"confirmFirstBoot"_s), u"confirm does not say that plasma-setup makes the user"_s);
+    w.expect(w.shown(u"confirmFirstBoot"_s), u"confirm does not say that the first-boot tool makes the user"_s);
     w.install(u"recovery-key"_s);
     w.recoveryKey();
     w.at(u"handoff"_s);
     w.expect(w.ok() && w.controller()->handoffMode() == u"migrate"_s, u"the handoff mode is not migrate"_s);
-    w.expect(w.shown(u"handoffFirstBoot"_s), u"handoff does not say that plasma-setup asks for the user"_s);
+    w.expect(w.shown(u"handoffFirstBoot"_s), u"handoff does not say that the first-boot tool asks for the user"_s);
     w.click(u"handoffContinueButton"_s);
     w.at(u"done"_s);
     w.expect(w.ok() && w.controller()->sessionKeepsRunning(), u"the session does not keep running after a migrate"_s);
@@ -561,6 +572,10 @@ int main(int argc, char *argv[])
         QIcon::setThemeName(u"breeze"_s);
 
     if (mockBinary().isEmpty()) {
+        if (qEnvironmentVariableIsSet("TUNA_REQUIRE_FISHERMAND")) {
+            out << "FAIL: TUNA_REQUIRE_FISHERMAND is set and there is no mock fishermand.\n";
+            return 1;
+        }
         out << "SKIP: no mock fishermand. Set FISHERMAND_BIN (go build ./fisherman/cmd/fishermand).\n";
         return 77;
     }

@@ -248,8 +248,9 @@ TunaComponents.SetupModule {
                 icon.name: "system-reboot-symbolic"
                 visible: InstallerController.succeeded && !root.takenOver
                 highlighted: true
-                // Held until the key is acknowledged (the recovery-key step).
-                enabled: !InstallerController.recoveryKeyPending
+                // Held until the key is acknowledged (the recovery-key step),
+                // and while a restart call is on its way.
+                enabled: !InstallerController.recoveryKeyPending && !InstallerController.shutdownBusy
 
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: Kirigami.Units.largeSpacing

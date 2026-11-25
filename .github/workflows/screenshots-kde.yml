@@ -68,7 +68,7 @@ jobs:
             qt6-qttools-devel qt6-linguist \
             kf6-kirigami kf6-kirigami-addons kf6-qqc2-desktop-style \
             kf6-breeze-icons dejavu-sans-fonts dejavu-sans-mono-fonts \
-            ImageMagick python3
+            ImageMagick python3 golang
           # Fatal on purpose: the KF6 icon theme the UI needs is
           # kf6-breeze-icons, and dnf will happily resolve "breeze-icons" to
           # something else.
@@ -80,6 +80,26 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The mock daemon that tuna-installer-daemon-tests and
+      # tuna-installer-walk start: fishermand of tuna-os/fisherman at one
+      # reviewed commit. It has no dependency outside the Go standard
+      # library, so the build needs no network. The source goes away after
+      # the build: the push-to-dev step commits from this workspace.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: tuna-os/fisherman
+          ref: 2fc33965f294b4ceb3462c3b3877b1938ae77c5d
+          path: .fishermand-src
+          persist-credentials: false
+
+      - name: build the mock fishermand
+        working-directory: .fishermand-src/fisherman
+        run: |
+          CGO_ENABLED=0 go build -o /usr/local/bin/fishermand ./cmd/fishermand
+          /usr/local/bin/fishermand --list-scenarios
+          cd "$GITHUB_WORKSPACE" && rm -rf .fishermand-src
+          mkdir -p /tmp/runtime-tests && chmod 700 /tmp/runtime-tests
+
       # Before the BUILD, not before the capture, so a build failure uploads
       # nothing rather than last run's committed PNGs.
       - name: drop the committed screenshots so only this run's output ships
@@ -90,7 +110,13 @@ jobs:
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_CAPTURE=ON -DBUILD_TESTING=ON
           cmake --build build -j"$(nproc)"
 
+      # TUNA_REQUIRE_FISHERMAND turns "no mock, skipped" into a failure: this
+      # job is where the daemon path runs, and a skip here would be silent.
       - name: run unit tests
+        env:
+          FISHERMAND_BIN: /usr/local/bin/fishermand
+          TUNA_REQUIRE_FISHERMAND: "1"
+          XDG_RUNTIME_DIR: /tmp/runtime-tests
         run: ctest --test-dir build --output-on-failure
 
       # Qt's offscreen platform plugin and the software scenegraph: no X
@@ -112,7 +138,9 @@ jobs:
           mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
           ./build/tuna-installer-capture docs/screenshots
           if command -v magick >/dev/null; then IM=magick; else IM=convert; fi
-          $IM -delay 240 -loop 0 docs/screenshots/0*.png docs/screenshots/walkthrough.gif
+          # Frames 00 to 17 are the eighteen screens, in the order of the
+          # flow. The frames after 17 show a step again in another state.
+          $IM -delay 240 -loop 0 docs/screenshots/0[0-9]-*.png docs/screenshots/1[0-7]-*.png docs/screenshots/walkthrough.gif
           ls -l docs/screenshots
 
       # The harness writes texts.json (each step's QML item text) and

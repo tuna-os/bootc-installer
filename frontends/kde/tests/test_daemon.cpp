@@ -17,7 +17,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QElapsedTimer>
 #include <QJsonObject>
+#include <QLocalServer>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -100,9 +102,24 @@ const QRegularExpression &keyShape()
 
 } // namespace
 
+// The calls below do not block: each test waits for the answer.
+#define ENROLL(c)                                                                                  \
+    (c).enrollRecoveryKey();                                                                       \
+    QTRY_VERIFY_WITH_TIMEOUT(!(c).recoveryBusy(), 15000)
+#define HANDOFF(c)                                                                                 \
+    (c).handoff();                                                                                 \
+    QTRY_VERIFY_WITH_TIMEOUT((c).handoffState() != QStringLiteral("starting"), 15000)
+#define REBOOT(c)                                                                                  \
+    (c).reboot();                                                                                  \
+    QTRY_VERIFY_WITH_TIMEOUT(!(c).shutdownBusy(), 15000)
+#define RECOVERY_KEY(c) QTRY_VERIFY_WITH_TIMEOUT(!(c).recoveryBusy(), 15000)
+
 #define NEED_MOCK(scenario)                                                                        \
-    if (mockBinary().isEmpty())                                                                    \
+    if (mockBinary().isEmpty()) {                                                                  \
+        if (qEnvironmentVariableIsSet("TUNA_REQUIRE_FISHERMAND"))                                  \
+            QFAIL("TUNA_REQUIRE_FISHERMAND is set and there is no mock fishermand");               \
         QSKIP("no mock fishermand: set FISHERMAND_BIN (go build ./fisherman/cmd/fishermand)");     \
+    }                                                                                              \
     Mock mock(QStringLiteral(scenario));                                                           \
     QVERIFY2(mock.ok(), "the mock daemon did not open its sockets")
 
@@ -126,6 +143,7 @@ private Q_SLOTS:
 
     // One test per mock scenario.
     void scenarioHappy();
+    void slowDaemonDoesNotBlock();
     void scenarioNoTpm();
     void scenarioExistingData();
     void scenarioTightSpace();
@@ -404,40 +422,52 @@ void DaemonTest::firstBootToolDetection()
         return f.open(QIODevice::WriteOnly) && f.write(body) == body.size();
     };
 
-    // Nothing there: the wizard asks for the account.
-    QTemporaryDir bare;
-    QVERIFY(bare.isValid());
-    QCOMPARE(InstallerController::detectFirstBootTool(bare.path()), QString());
-
-    // The program alone says nothing: it must run on the first boot.
-    QTemporaryDir installed;
-    QVERIFY(QDir(installed.path()).mkpath(QStringLiteral("usr/libexec")));
-    QVERIFY(QDir(installed.path()).mkpath(QStringLiteral("usr/lib/systemd/system")));
-    QVERIFY(QDir(installed.path()).mkpath(QStringLiteral("etc/systemd/system")));
-    QVERIFY(touch(installed.filePath(QStringLiteral("usr/libexec/plasma-setup")), "x"));
-    QCOMPARE(InstallerController::detectFirstBootTool(installed.path()), QString());
-
-    // The unit there but wanted by no target: not enabled, so no tool.
-    const QString libUnit = installed.filePath(QStringLiteral("usr/lib/systemd/system/") + unit);
+    // An image with plasma-setup enabled.
+    QTemporaryDir enabled;
+    QVERIFY(QDir(enabled.path()).mkpath(QStringLiteral("usr/lib/systemd/system")));
+    QVERIFY(QDir(enabled.path()).mkpath(QStringLiteral("etc/systemd/system/graphical.target.wants")));
+    const QString libUnit = enabled.filePath(QStringLiteral("usr/lib/systemd/system/") + unit);
     QVERIFY(touch(libUnit, "[Unit]\n"));
-    QCOMPARE(InstallerController::detectFirstBootTool(installed.path()), QString());
+    QVERIFY(QFile::link(libUnit, enabled.filePath(QStringLiteral("etc/systemd/system/graphical.target.wants/") + unit)));
+    QVERIFY(InstallerController::plasmaSetupWillRun(enabled.path()));
 
-    // Enabled: a target wants it. Now the tool makes the user.
-    const QString wants = installed.filePath(QStringLiteral("etc/systemd/system/graphical.target.wants"));
-    QVERIFY(QDir().mkpath(wants));
-    QVERIFY(QFile::link(libUnit, wants + QLatin1Char('/') + unit));
-    QCOMPARE(InstallerController::detectFirstBootTool(installed.path()), QStringLiteral("plasma-setup"));
+    // The rule: the installer makes the user. What is on the disk does not
+    // decide it, an enabled plasma-setup included.
+    qunsetenv("TUNA_FIRSTBOOT_TOOL");
+    QCOMPARE(InstallerController::detectFirstBootTool(enabled.path()), QString());
+    for (const char *value : {"", "none", "yes", "1", "kde-initial-setup"}) {
+        qputenv("TUNA_FIRSTBOOT_TOOL", value);
+        QCOMPARE(InstallerController::detectFirstBootTool(enabled.path()), QString());
+    }
 
-    // Masked, as the tunaOS images ship it (the installer makes the user):
-    // the wizard must ask, or the installed system has no user.
-    QVERIFY(QFile::link(QStringLiteral("/dev/null"), installed.filePath(QStringLiteral("etc/systemd/system/") + unit)));
-    QCOMPARE(InstallerController::detectFirstBootTool(installed.path()), QString());
-
-    // The variable wins both ways.
-    qputenv("TUNA_FIRSTBOOT_TOOL", "none");
-    QCOMPARE(InstallerController::detectFirstBootTool(installed.path()), QString());
+    // Only the medium's word skips the account step.
     qputenv("TUNA_FIRSTBOOT_TOOL", "plasma-setup");
-    QCOMPARE(InstallerController::detectFirstBootTool(QStringLiteral("/nonexistent")), QStringLiteral("plasma-setup"));
+    QCOMPARE(InstallerController::detectFirstBootTool(enabled.path()), QStringLiteral("plasma-setup"));
+    qputenv("TUNA_FIRSTBOOT_TOOL", " plasma-setup ");
+    QCOMPARE(InstallerController::detectFirstBootTool(enabled.path()), QStringLiteral("plasma-setup"));
+    // The tools of the other desktops are taken at the medium's word.
+    for (const char *tool : {"cosmic-initial-setup", "gnome-initial-setup"}) {
+        qputenv("TUNA_FIRSTBOOT_TOOL", tool);
+        QCOMPARE(InstallerController::detectFirstBootTool(QStringLiteral("/nonexistent")), QLatin1String(tool));
+    }
+
+    // The check on a claim of plasma-setup: a unit that will not run means
+    // that the wizard asks, or the installed system has no user.
+    qputenv("TUNA_FIRSTBOOT_TOOL", "plasma-setup");
+    QTemporaryDir missing;
+    QVERIFY(missing.isValid());
+    QVERIFY(!InstallerController::plasmaSetupWillRun(missing.path()));
+    QCOMPARE(InstallerController::detectFirstBootTool(missing.path()), QString());
+
+    QTemporaryDir notEnabled;
+    QVERIFY(QDir(notEnabled.path()).mkpath(QStringLiteral("usr/lib/systemd/system")));
+    QVERIFY(touch(notEnabled.filePath(QStringLiteral("usr/lib/systemd/system/") + unit), "[Unit]\n"));
+    QCOMPARE(InstallerController::detectFirstBootTool(notEnabled.path()), QString());
+
+    // Masked, as the tunaOS images ship it today.
+    QVERIFY(QFile::link(QStringLiteral("/dev/null"), enabled.filePath(QStringLiteral("etc/systemd/system/") + unit)));
+    QVERIFY(!InstallerController::plasmaSetupWillRun(enabled.path()));
+    QCOMPARE(InstallerController::detectFirstBootTool(enabled.path()), QString());
 }
 
 void DaemonTest::legacyBackendKeepsTheRecipePath()
@@ -454,14 +484,18 @@ void DaemonTest::legacyBackendKeepsTheRecipePath()
     QVERIFY(c.stepSkipped(QStringLiteral("handoff")));
     QVERIFY(c.stepSkipped(QStringLiteral("recovery-key")));
     QVERIFY(!c.daemonEncrypted());
-    QVERIFY(c.enrollRecoveryKey());
-    QVERIFY(!c.handoff());
+    c.handoff();
+    QVERIFY(c.handoffState().isEmpty());
     // fisherman's recovery_key event still opens the recovery-key step.
     c.loadDemoState(QStringLiteral("{\"type\":\"recovery_key\",\"key\":\"abcdefgh-abcdefgh-abcdefgh-abcdefgh-abcdefgh-abcdefgh-abcdefgh-abcdefgh\"}"), 0);
     QVERIFY(c.succeeded());
     QVERIFY(!c.stepSkipped(QStringLiteral("recovery-key")));
     QVERIFY(c.stepSkipped(QStringLiteral("handoff")));
     QVERIFY(!c.recoveryQrRows().isEmpty());
+    // fisherman enrolled the key before it sent it: Done goes on at once.
+    QVERIFY(!c.recoveryEnrolled());
+    c.enrollRecoveryKey();
+    QVERIFY(c.recoveryEnrolled());
 }
 
 void DaemonTest::scenarioHappy()
@@ -525,13 +559,14 @@ void DaemonTest::scenarioHappy()
     // The recovery key: made at the end of the install, shown with a QR
     // symbol, enrolled when the person is done.
     QVERIFY(!c.stepSkipped(QStringLiteral("recovery-key")));
+    RECOVERY_KEY(c);
     QVERIFY2(keyShape().match(c.recoveryKey()).hasMatch(), "the key does not have the shape of the test contract");
     QVERIFY(c.recoveryError().isEmpty());
     const QStringList qr = c.recoveryQrRows();
     QVERIFY(qr.size() >= 21);
     QCOMPARE(qr.first().size(), qr.size());
     QVERIFY(c.recoveryKeyPending());
-    QVERIFY(c.enrollRecoveryKey());
+    ENROLL(c);
     QVERIFY(c.recoveryEnrolled());
     c.setRecoveryAck(true);
     QVERIFY(!c.recoveryKeyPending());
@@ -540,8 +575,10 @@ void DaemonTest::scenarioHappy()
     // with no mode.
     QVERIFY(!c.stepSkipped(QStringLiteral("handoff")));
     QCOMPARE(c.handoffMode(), QStringLiteral("reboot"));
-    QVERIFY(c.handoff());
-    QCOMPARE(c.handoffState(), QStringLiteral("started"));
+    c.handoff();
+    // It does not block: the state is "starting" until the daemon answers.
+    QCOMPARE(c.handoffState(), QStringLiteral("starting"));
+    QTRY_COMPARE_WITH_TIMEOUT(c.handoffState(), QStringLiteral("started"), 15000);
     QVERIFY(!c.sessionKeepsRunning());
     QVERIFY(c.handoffError().isEmpty());
 
@@ -549,6 +586,56 @@ void DaemonTest::scenarioHappy()
     c.startInstall();
     QTRY_VERIFY_WITH_TIMEOUT(c.installFinishedFlag(), 30000);
     QVERIFY(!c.succeeded());
+}
+
+void DaemonTest::slowDaemonDoesNotBlock()
+{
+    // A peer that accepts and never answers, as a daemon that waits for a
+    // polkit prompt does. No call may hold the event loop: each returns at
+    // once and shows a busy state. The time limit then ends the wait.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QLocalServer silent;
+    QVERIFY(silent.listen(dir.filePath(QStringLiteral("silent.sock"))));
+    fishermand::AsyncClient client(silent.fullServerName());
+    QList<fishermand::Reply> replies;
+    connect(&client, &fishermand::AsyncClient::replyReceived, this,
+            [&replies](const fishermand::Reply &reply) { replies.append(reply); });
+    QElapsedTimer timer;
+    timer.start();
+    client.call(QStringLiteral("io.tunaos.Fisherman.Handoff"), {}, false, 300);
+    QVERIFY2(timer.elapsed() < 200, "the call blocked");
+    QVERIFY(replies.isEmpty());
+    QTRY_COMPARE_WITH_TIMEOUT(replies.size(), 1, 5000);
+    QVERIFY(replies.first().timedOut);
+    QVERIFY(replies.first().transportFailed);
+    QVERIFY(!replies.first().ok());
+    QVERIFY(!client.busy());
+
+    // The controller on such a daemon: the calls return at once.
+    qputenv("TUNA_INSTALLER_BACKEND", "legacy");
+    InstallerController c;
+    qputenv("TUNA_INSTALLER_BACKEND", "daemon");
+    for (const char *name : {"io.tunaos.Fisherman", "io.systemd.CryptEnroll", "io.systemd.Shutdown"}) {
+        auto *server = new QLocalServer(&c);
+        QVERIFY(server->listen(dir.filePath(QLatin1String(name))));
+    }
+    qputenv("FISHERMAND_SOCKET_DIR", dir.path().toLocal8Bit());
+    QVERIFY(c.daemonBackend());
+    timer.restart();
+    c.setDisk(QStringLiteral("/dev/nvme0n1"));
+    c.startInstall();
+    c.makeRecoveryKey();
+    c.reboot();
+    QVERIFY2(timer.elapsed() < 500, "a daemon call blocked the event loop");
+    QVERIFY(c.installing());
+    QVERIFY(c.recoveryBusy());
+    QVERIFY(c.shutdownBusy());
+    // Cancel before the stream opened: nothing ran, the disk is as it was.
+    c.cancelInstall();
+    QVERIFY(!c.installing());
+    QVERIFY(c.cancelled());
+    QVERIFY(c.diskUnchanged());
 }
 
 void DaemonTest::scenarioNoTpm()
@@ -578,8 +665,9 @@ void DaemonTest::scenarioNoTpm()
     QCOMPARE(c.installTotalSteps(), 9);
     // The passphrase is in no log line.
     QVERIFY(!c.log().contains(QStringLiteral("correct horse")));
+    RECOVERY_KEY(c);
     QVERIFY(keyShape().match(c.recoveryKey()).hasMatch());
-    QVERIFY(c.enrollRecoveryKey());
+    ENROLL(c);
     QVERIFY(c.recoveryEnrolled());
 }
 
@@ -674,7 +762,8 @@ void DaemonTest::scenarioDeviceLost()
     QVERIFY(c.recoveryKey().isEmpty());
     QVERIFY(c.stepSkipped(QStringLiteral("recovery-key")));
     QVERIFY(c.stepSkipped(QStringLiteral("handoff")));
-    QVERIFY(!c.handoff());
+    c.handoff();
+    QVERIFY(c.handoffState().isEmpty());
 
     // Try again: the result is forgotten and the daemon takes a new install.
     c.resetForRetry();
@@ -683,8 +772,8 @@ void DaemonTest::scenarioDeviceLost()
     // The mock's disk stays gone: the daemon's check names the disk, and
     // the wizard starts no install on it.
     c.startInstall();
+    QTRY_VERIFY_WITH_TIMEOUT(c.installFinishedFlag(), 15000);
     QVERIFY(!c.installing());
-    QVERIFY(c.installFinishedFlag());
     QCOMPARE(c.failureReason(), QStringLiteral("validation_failed"));
     QVERIFY2(c.log().contains(QStringLiteral("disk")), qPrintable(c.log()));
 }
@@ -741,14 +830,15 @@ void DaemonTest::scenarioHandoffMigrate()
     InstallerController c;
     QCOMPARE(c.handoffMode(), QStringLiteral("migrate"));
     // Before an install the daemon refuses, and the wizard does not ask.
-    QVERIFY(!c.handoff());
+    c.handoff();
+    QVERIFY(c.handoffState().isEmpty());
     c.setDisk(QStringLiteral("/dev/nvme0n1"));
     c.setUsername(QStringLiteral("tuna"));
     c.setUserPassword(QStringLiteral("hunter2!"));
     c.startInstall();
     QTRY_VERIFY_WITH_TIMEOUT(c.installFinishedFlag(), 30000);
     QVERIFY(c.succeeded());
-    QVERIFY(c.handoff());
+    HANDOFF(c);
     QCOMPARE(c.handoffState(), QStringLiteral("started"));
     // The live session becomes the installed system: nothing restarts.
     QVERIFY(c.sessionKeepsRunning());
@@ -765,7 +855,8 @@ void DaemonTest::scenarioHandoffSoftReboot()
     c.startInstall();
     QTRY_VERIFY_WITH_TIMEOUT(c.installFinishedFlag(), 30000);
     QVERIFY(c.succeeded());
-    QVERIFY(c.handoff());
+    HANDOFF(c);
+    QCOMPARE(c.handoffState(), QStringLiteral("started"));
     QVERIFY(!c.sessionKeepsRunning());
 }
 
@@ -776,6 +867,8 @@ void DaemonTest::scenarioInhibitor()
     // reboot-failed: the daemon refuses, and the wizard shows why. It does
     // not fall back to systemctl.
     c.reboot();
+    QVERIFY(c.shutdownBusy());
+    QTRY_VERIFY_WITH_TIMEOUT(!c.shutdownBusy(), 15000);
     QVERIFY2(c.shutdownError().contains(QStringLiteral("io.systemd.Shutdown.")), qPrintable(c.shutdownError()));
 }
 
@@ -786,12 +879,13 @@ void DaemonTest::shutdownVerbs()
     {
         NEED_MOCK("happy");
         InstallerController c;
-        c.reboot();
+        REBOOT(c);
         QVERIFY2(c.shutdownError().isEmpty(), qPrintable(c.shutdownError()));
     }
     NEED_MOCK("happy");
     InstallerController c;
     c.poweroff();
+    QTRY_VERIFY_WITH_TIMEOUT(!c.shutdownBusy(), 15000);
     QVERIFY2(c.shutdownError().isEmpty(), qPrintable(c.shutdownError()));
 }
 
@@ -837,8 +931,10 @@ void DaemonTest::invalidConfigStopsBeforeInstall()
     c.setDisk(QStringLiteral("/dev/nonexistent"));
     c.setPassphrase(QStringLiteral("correct horse battery staple"));
     c.startInstall();
+    // The check is on its way: the install step shows, and nothing blocks.
+    QVERIFY(c.installing());
+    QTRY_VERIFY_WITH_TIMEOUT(c.installFinishedFlag(), 15000);
     QVERIFY(!c.installing());
-    QVERIFY(c.installFinishedFlag());
     QVERIFY(!c.succeeded());
     QCOMPARE(c.failureReason(), QStringLiteral("validation_failed"));
     QVERIFY2(c.log().contains(QStringLiteral("disk")), qPrintable(c.log()));
@@ -857,36 +953,54 @@ void DaemonTest::daemonUnreachable()
     QVERIFY(!c.daemonError().isEmpty());
     // Nothing falls back to the recipe CLI behind the person's back.
     c.setDisk(QStringLiteral("/dev/nvme0n1"));
+    QElapsedTimer timer;
+    timer.start();
     c.startInstall();
+    QTRY_VERIFY_WITH_TIMEOUT(c.installFinishedFlag(), 15000);
+    // A daemon that is not there is known at once, not after a time limit.
+    QVERIFY2(timer.elapsed() < 5000, "an absent daemon took the whole time limit to report");
     QVERIFY(!c.installing());
-    QVERIFY(c.installFinishedFlag());
     QVERIFY(!c.succeeded());
     QCOMPARE(c.failureReason(), QStringLiteral("daemon_unreachable"));
-    c.reboot();
+    REBOOT(c);
     QVERIFY(!c.shutdownError().isEmpty());
+    // recovery-key-failed: no key, a reason, and nothing to enrol.
     c.makeRecoveryKey();
+    RECOVERY_KEY(c);
     QVERIFY(c.recoveryKey().isEmpty());
     QVERIFY(!c.recoveryError().isEmpty());
-    QVERIFY(!c.enrollRecoveryKey());
+    c.enrollRecoveryKey();
+    QVERIFY(!c.recoveryBusy());
+    QVERIFY(!c.recoveryEnrolled());
 }
 
 void DaemonTest::plasmaSetupOwnsTheAccount()
 {
     NEED_MOCK("happy");
     {
-        // No first-boot tool: the wizard asks for the account.
-        qputenv("TUNA_FIRSTBOOT_TOOL", "none");
+        // The default: the wizard asks for the account.
+        qunsetenv("TUNA_FIRSTBOOT_TOOL");
         InstallerController c;
         QCOMPARE(c.firstBootTool(), QString());
+        QVERIFY(c.needsUserCreation());
         QVERIFY(!c.stepSkipped(QStringLiteral("account")));
         c.setUsername(QStringLiteral("tuna"));
         QVERIFY(c.daemonConfig().contains(QLatin1String("user")));
     }
-    // plasma-setup on the medium: no account step, and no user goes to the
-    // daemon, even when a name was typed before.
-    qputenv("TUNA_FIRSTBOOT_TOOL", "plasma-setup");
+    if (!InstallerController::plasmaSetupWillRun(QString())) {
+        // The medium names plasma-setup, and this system has no such unit
+        // that will run: the wizard still asks.
+        qputenv("TUNA_FIRSTBOOT_TOOL", "plasma-setup");
+        InstallerController c;
+        QCOMPARE(c.firstBootTool(), QString());
+        QVERIFY(!c.stepSkipped(QStringLiteral("account")));
+    }
+    // The medium names a first-boot tool: no account step, and no user
+    // goes to the daemon, even when a name was typed before.
+    qputenv("TUNA_FIRSTBOOT_TOOL", "gnome-initial-setup");
     InstallerController c;
-    QCOMPARE(c.firstBootTool(), QStringLiteral("plasma-setup"));
+    QCOMPARE(c.firstBootTool(), QStringLiteral("gnome-initial-setup"));
+    QVERIFY(!c.needsUserCreation());
     QVERIFY(c.stepSkipped(QStringLiteral("account")));
     c.setUsername(QStringLiteral("tuna"));
     c.setUserPassword(QStringLiteral("hunter2!"));
@@ -908,6 +1022,7 @@ void DaemonTest::recoveryKeyStaysOutOfTheLog()
     c.startInstall();
     QTRY_VERIFY_WITH_TIMEOUT(c.installFinishedFlag(), 30000);
     QVERIFY(c.succeeded());
+    RECOVERY_KEY(c);
     const QString key = c.recoveryKey();
     QVERIFY(!key.isEmpty());
     // Not in the pane, not in the copy for a bug report, not in the file.

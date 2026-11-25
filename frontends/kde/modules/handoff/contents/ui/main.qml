@@ -31,6 +31,22 @@ TunaComponents.SetupModule {
     readonly property string mode: InstallerController.handoffMode
     readonly property bool started: InstallerController.handoffState === "started"
     readonly property bool failed: InstallerController.handoffState === "failed"
+    readonly property bool starting: InstallerController.handoffState === "starting"
+
+    // A migrate handoff leaves the session running: go on to the done step
+    // when the daemon says it started. A restart leaves this step on screen
+    // until the system goes down.
+    Connections {
+        target: InstallerController
+
+        function onHandoffChanged(): void {
+            if (root.started && InstallerController.sessionKeepsRunning && !root.advanced) {
+                root.advanced = true;
+                root.advanceRequested();
+            }
+        }
+    }
+    property bool advanced: false
 
     // Continue and Not now are the step's own buttons.
     nextEnabled: false
@@ -83,7 +99,7 @@ TunaComponents.SetupModule {
             Label {
                 objectName: "handoffFirstBoot"
                 visible: InstallerController.firstBootTool.length > 0
-                text: qsTr("Plasma asks for your user account when the installed system starts for the first time.")
+                text: qsTr("The installed system asks for your user account when it starts for the first time.")
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
                 opacity: 0.75
@@ -124,7 +140,8 @@ TunaComponents.SetupModule {
 
             // The restart is on its way: nothing more to press.
             RowLayout {
-                visible: root.started && !InstallerController.sessionKeepsRunning
+                visible: root.starting || InstallerController.shutdownBusy
+                    || (root.started && !InstallerController.sessionKeepsRunning)
                 spacing: Kirigami.Units.largeSpacing
 
                 Layout.alignment: Qt.AlignHCenter
@@ -137,12 +154,12 @@ TunaComponents.SetupModule {
 
                 Label {
                     objectName: "handoffStarted"
-                    text: qsTr("Restarting…")
+                    text: root.starting ? qsTr("Waiting for the installer daemon…") : qsTr("Restarting…")
                 }
             }
 
             RowLayout {
-                visible: !root.started
+                visible: !root.started && !root.starting
                 spacing: Kirigami.Units.largeSpacing
 
                 Layout.alignment: Qt.AlignHCenter
@@ -171,12 +188,7 @@ TunaComponents.SetupModule {
                     leftPadding: Kirigami.Units.gridUnit
                     rightPadding: Kirigami.Units.gridUnit
 
-                    // A migrate handoff leaves the session running: go on to
-                    // the done step. A restart leaves this step on screen
-                    // until the system goes down.
-                    onClicked: if (InstallerController.handoff() && InstallerController.sessionKeepsRunning) {
-                        root.advanceRequested();
-                    }
+                    onClicked: InstallerController.handoff()
                 }
             }
         }

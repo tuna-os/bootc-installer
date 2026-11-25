@@ -72,10 +72,13 @@ are `../../shared/account/groups.json`, which CMake compiles in, or
 `/etc/bootc-installer/recipe.json`. The account is necessary unless the
 image creates its own first user (`needs_user_creation: false`). The wizard
 then skips the step and the recipe has no block. The wizard also skips it
-when `plasma-setup.service` is enabled and not masked on the live medium
-(`detectFirstBootTool`, `TUNA_FIRSTBOOT_TOOL`): that tool then makes the
-user on the first boot. An image that masks the unit keeps the account
-step. The tunaOS images mask it today. The
+when the medium names a first-boot tool in `TUNA_FIRSTBOOT_TOOL`
+(`plasma-setup`, `cosmic-initial-setup` or `gnome-initial-setup`): that
+tool then makes the user on the first boot. This is the one rule of the
+four native frontends (tuna-os/bootc-installer#442). Nothing on the disk
+decides it. `detectFirstBootTool` only checks a claim of `plasma-setup`:
+when `plasma-setup.service` is masked, missing or not enabled, it logs a
+warning and the account step stays. The tunaOS images mask the unit today. The
 requirements step has the hardware gates. The language, keyboard and
 timezone steps have the pickers, and the network step has the connectivity
 check. The pickers go into the recipe as `locale`, `keyboard.layout` and
@@ -122,6 +125,13 @@ Rules:
 
 - `privacy.locationServices` goes to `ConfigureTarget` only after the
   person moved the switch (`locationTouched`).
+- No daemon call of a page blocks the UI thread. `Validate`,
+  `ConfigureTarget`, `MakeRecoveryKey`, `Enroll`, `Handoff` and the
+  `io.systemd.Shutdown` calls go through `daemonCall()`, which has a time
+  limit, and the page shows a busy state (`recoveryBusy`, `shutdownBusy`,
+  `handoffState` "starting", `installing`). A daemon behind polkit can wait
+  for a person. Only the public calls at startup and on a rescan block
+  (`Requirements`, `Probe`, `ListCandidateDevices`).
 - A daemon that does not answer shows an error. The wizard does not fall
   back to the recipe CLI, and it does not run `systemctl` for a refused
   restart.
@@ -133,7 +143,9 @@ Rules:
 `frontends/kde/tests/test_daemon.cpp` (`tuna-installer-daemon-tests`) starts the mock
 (`fishermand --mock --scenario <name>`) for each scenario. It finds the
 binary through `FISHERMAND_BIN`, then `build/fishermand`, then `PATH`. With
-no binary the scenario tests skip.
+no binary the scenario tests skip. `screenshots-kde.yml` builds the mock
+from one pinned commit of tuna-os/fisherman and sets
+`TUNA_REQUIRE_FISHERMAND`, which makes a missing mock a failure.
 
 `frontends/kde/tests/walk.cpp` (`tuna-installer-walk`, built with
 `BUILD_CAPTURE` and `BUILD_TESTING`) loads the real QML and clicks the

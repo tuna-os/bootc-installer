@@ -26,6 +26,22 @@ TunaComponents.SetupModule {
     id: root
 
     readonly property bool hasKey: InstallerController.recoveryKey.length > 0
+    // Done was pressed and the answer of the daemon is not here yet.
+    property bool awaitingEnroll: false
+
+    Connections {
+        target: InstallerController
+
+        function onRecoveryChanged(): void {
+            if (!root.awaitingEnroll || InstallerController.recoveryBusy) {
+                return;
+            }
+            root.awaitingEnroll = false;
+            if (InstallerController.recoveryEnrolled) {
+                root.advanceRequested();
+            }
+        }
+    }
 
     // The step's own Done button moves on.
     nextEnabled: false
@@ -80,7 +96,7 @@ TunaComponents.SetupModule {
                         objectName: "recoveryRetryAction"
                         text: qsTr("Try again")
                         icon.name: "view-refresh-symbolic"
-                        visible: !root.hasKey
+                        visible: !root.hasKey && !InstallerController.recoveryBusy
                         onTriggered: InstallerController.makeRecoveryKey()
                     }
                 ]
@@ -159,7 +175,7 @@ TunaComponents.SetupModule {
                 text: qsTr("Done")
                 icon.name: "dialog-ok-apply"
                 highlighted: true
-                enabled: root.hasKey && InstallerController.recoveryAck
+                enabled: root.hasKey && InstallerController.recoveryAck && !InstallerController.recoveryBusy
 
                 topPadding: Kirigami.Units.largeSpacing
                 bottomPadding: Kirigami.Units.largeSpacing
@@ -168,10 +184,32 @@ TunaComponents.SetupModule {
 
                 Layout.alignment: Qt.AlignHCenter
 
-                // Enrol, then go on. A refused enrolment stays here and
-                // shows the reason above.
-                onClicked: if (InstallerController.enrollRecoveryKey()) {
-                    root.advanceRequested();
+                // Enrol, then go on. The call does not block: the step goes
+                // on when the daemon says the key is enrolled. A refused
+                // enrolment stays here and shows the reason above.
+                onClicked: {
+                    root.awaitingEnroll = true;
+                    InstallerController.enrollRecoveryKey();
+                }
+            }
+
+            // The daemon makes the key, or enrols it: say so while it does.
+            RowLayout {
+                objectName: "recoveryBusy"
+                visible: InstallerController.recoveryBusy
+                spacing: Kirigami.Units.largeSpacing
+
+                Layout.alignment: Qt.AlignHCenter
+
+                BusyIndicator {
+                    running: parent.visible
+                    implicitWidth: Kirigami.Units.iconSizes.medium
+                    implicitHeight: Kirigami.Units.iconSizes.medium
+                }
+
+                Label {
+                    text: root.hasKey ? qsTr("Saving the recovery key to the disk…")
+                                      : qsTr("Making the recovery key…")
                 }
             }
 

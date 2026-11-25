@@ -178,13 +178,13 @@ TunaComponents.SetupModule {
                     visible: InstallerController.needsUserCreation && InstallerController.firstBootTool.length === 0
                 }
 
-                // plasma-setup makes the user on the first start: the
+                // The first-boot tool makes the user on the first start: the
                 // account step was skipped, and this row says who asks.
                 FormCard.FormTextDelegate {
                     objectName: "confirmFirstBoot"
                     visible: InstallerController.firstBootTool.length > 0
                     text: qsTr("User account")
-                    description: qsTr("Plasma asks for it when the installed system starts for the first time.")
+                    description: qsTr("The installed system asks for it when it starts for the first time.")
                 }
 
                 FormCard.FormDelegateSeparator {

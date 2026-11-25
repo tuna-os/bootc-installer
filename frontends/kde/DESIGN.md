@@ -133,10 +133,15 @@ Three pages follow the daemon and not a choice of this frontend:
 - **Handoff.** The daemon reports the mode in `Probe`. The page words it
   and calls `Handoff` with no mode.
 
-`plasma-setup` owns the first user where its unit is enabled on the
-medium. The account step then does not show, and the confirm and handoff
-steps say who asks. A masked unit does not count: the image then expects
-the installer to make the user.
+The installer makes the first user. A medium that sets
+`TUNA_FIRSTBOOT_TOOL` (`plasma-setup` for this desktop) says that the
+first-boot tool does. The account step then does not show, and the confirm
+and handoff steps say who asks. A claim of `plasma-setup` with a masked
+or disabled unit does not count: the account step stays.
+
+No daemon call of a page blocks the window. A page shows a busy indicator
+while the daemon works, and a message when the daemon does not answer in
+time.
 
 ## Visual verification
 

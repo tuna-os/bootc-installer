@@ -54,7 +54,7 @@ The wizard has the eighteen screens of `../../shared/flow/screens.yaml`, in the 
 | `legacy` | the `fisherman` CLI, with the recipe on stdin |
 | `auto`, or not set | the daemon when its socket is there, else the CLI |
 
-`TUNA_FISHERMAN_SOCKET` moves the `io.tunaos.Fisherman` socket. `FISHERMAND_SOCKET_DIR` moves all four sockets. `TUNA_FIRSTBOOT_TOOL=plasma-setup` (or `none`) replaces the check for an enabled `plasma-setup.service` on the live medium.
+`TUNA_FISHERMAN_SOCKET` moves the `io.tunaos.Fisherman` socket. `FISHERMAND_SOCKET_DIR` moves all four sockets. The installer makes the user. `TUNA_FIRSTBOOT_TOOL=plasma-setup` (or `cosmic-initial-setup`, `gnome-initial-setup`) on the medium says that the first-boot tool does, and the account step then does not show.
 
 ## Build
 
@@ -96,7 +96,7 @@ ctest --test-dir build --output-on-failure
 FISHERMAND_BIN=/tmp/fishermand ./build/tuna-installer-daemon-tests
 ```
 
-Without the binary, the scenario tests skip and the mapping tests run. CI does not build the mock, so the scenario tests skip there.
+Without the binary, the scenario tests skip and the mapping tests run. `screenshots-kde.yml` builds the mock from a pinned commit of tuna-os/fisherman, so CI runs the scenario tests and the walk.
 
 `tuna-installer-walk` (built with `-DBUILD_CAPTURE=ON -DBUILD_TESTING=ON`) loads the real QML, starts its own mock and clicks the wizard through nine walks:
 

@@ -5,6 +5,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLocalSocket>
+#include <QTimer>
 
 namespace fishermand
 {
@@ -349,9 +350,25 @@ AsyncClient::~AsyncClient()
     abort();
 }
 
-void AsyncClient::call(const QString &method, const QJsonObject &parameters, bool more)
+void AsyncClient::call(const QString &method, const QJsonObject &parameters, bool more, int timeoutMs)
 {
     abort();
+    if (timeoutMs > 0) {
+        // A daemon behind polkit can wait for a person. It must not wait
+        // for ever, and the wizard must not either.
+        const int generation = ++m_generation;
+        QTimer::singleShot(timeoutMs, this, [this, generation] {
+            if (m_finished || generation != m_generation)
+                return;
+            Reply reply;
+            reply.transportFailed = true;
+            reply.timedOut = true;
+            Q_EMIT replyReceived(reply);
+            finish();
+        });
+    } else {
+        ++m_generation;
+    }
     m_buffer.clear();
     m_streaming = more;
     m_finished = false;
@@ -374,10 +391,22 @@ void AsyncClient::call(const QString &method, const QJsonObject &parameters, boo
         }
     });
     m_socket->connectToServer(m_path);
-    if (m_socket->waitForConnected(10000)) {
-        m_socket->write(Client::encodeRequest(method, parameters, more));
-        m_socket->flush();
+    // The error handler above can have ended the call already.
+    if (!m_socket)
+        return;
+    // A local socket connects at once or not at all: this does not wait.
+    if (!m_socket->waitForConnected(1000)) {
+        // No daemon at the path. Say so now, not when the time limit ends.
+        if (!m_finished) {
+            Reply reply;
+            reply.transportFailed = true;
+            Q_EMIT replyReceived(reply);
+            finish();
+        }
+        return;
     }
+    m_socket->write(Client::encodeRequest(method, parameters, more));
+    m_socket->flush();
 }
 
 void AsyncClient::abort()
