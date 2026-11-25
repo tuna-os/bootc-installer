@@ -145,7 +145,7 @@
       "flat": 0.8167333333333333,
       "ink": 0.03453333333333333,
       "stddev": 0.09196358784379001,
-      "sha256": "738f11bdd2991cbe34f8b30f195abafca654f0f52370eed87445b72883dc15e7",
+      "sha256": "9d43e92be243f0df8273e25619878f1eb9dcca4ae0cb3a1a32ec0f273a5f0d0e",
       "text_excerpt": "Step 1 of 9 \u00b7 Welcome \u2b22 Welcome to TunaOS Install this system \u2014 no download required. Try TunaOS Try TunaOS Install now Install now Enter Continue Tab Next field This computer does not meet the minimum requirements It has less than 4 GB of "
     },
     {
@@ -232,8 +232,8 @@
       "colours": 308,
       "flat": 0.9346666666666666,
       "ink": 0.0248,
-      "stddev": 0.09608996349971945,
-      "sha256": "f3a93702452e7a7ec77c40ea98e7566204377ff46a8d7a816b6c9d72b8c7a2f8",
+      "stddev": 0.09609967421521785,
+      "sha256": "cbabbee88ecff39da217b254682d87f3ab612f1a7610f3033371836ab80f1474",
       "text_excerpt": "Step 9 of 9 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation. Take a "
     },
     {
