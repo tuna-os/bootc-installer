@@ -71,7 +71,15 @@ On the daemon backend:
 
 - `Probe` and `Requirements` give the disks, the TPM, Intel RST, live media
   and the handoff mode.
-- `Validate` checks the fields. The problems come back as data.
+- `Validate` checks the fields. The problems come back as data. The
+  confirm page sends the whole config (`partial: false`). A problem holds
+  **Install**, and so does a daemon that does not answer. The page does not
+  ask the `fisherman` command for a plan or a source check.
+- With a TPM 2.0 the disk seals with no prompt. With no TPM the encryption
+  page starts at the passphrase type. An empty passphrase holds Continue.
+- `installMode` is the pick of the existing-data page. When that page does
+  not show, the mode is `erase`: an empty disk, or a disk with no free
+  space. Confirm says which of the two happens to the data.
 - `ConfigureTarget` gets the user, the hostname, the locale, the keymap and
   the time zone before `Install`. It gets `privacy.locationServices` only
   after the user moved the location switch.

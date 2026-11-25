@@ -463,6 +463,9 @@ pub enum Message {
     /// `fisherman validate --json --partial` answered for check number `.0`
     /// (shared/recipe/README.md). An answer for an older check is dropped.
     Validated(u64, Result<Vec<validate::Problem>, String>),
+    /// The daemon's `Validate` of the whole config answered for confirm
+    /// check number `.0`. An answer for an older check is dropped.
+    ConfirmValidated(u64, Result<Vec<validate::Problem>, String>),
     /// `fisherman probe --json --source` answered for source check number
     /// `.0` (#266, #267): the request and the probe's stdout, or None when
     /// it failed. An answer for an older check is dropped.
@@ -593,6 +596,14 @@ pub enum Message {
     Capture(capture::Message),
 }
 
+/// A needs_passphrase choice with no passphrase holds Continue before the
+/// backend answers. The backend has the same rule
+/// (`encryption_passphrase_required`), but its answer comes after a pause,
+/// and the daemon path opens the page with a passphrase type already set.
+fn passphrase_present(enc_type: &str, passphrase: &str) -> bool {
+    !validate::needs_passphrase(enc_type) || !passphrase.is_empty()
+}
+
 /// The options page's own rule: a needs_passphrase choice holds Continue
 /// until the passphrase was typed the same twice. Other choices carry no
 /// passphrase, so there is nothing to confirm.
@@ -698,6 +709,13 @@ pub struct TunaInstaller {
     /// `ConfigureTarget`). `None` until the user moves the switch: the
     /// daemon hears about it only when the user changed it.
     location_services: Option<bool>,
+    /// The daemon's answer to the confirm page's `Validate` of the whole
+    /// config, and the number of the latest check.
+    confirm_problems: Vec<validate::Problem>,
+    confirm_seq: u64,
+    /// The user picked an encryption type on the page. Until then the
+    /// daemon path sets the default from the TPM (`daemon_default_type`).
+    encryption_picked: bool,
     /// The first-boot tool creates the first user on the installed system
     /// (`firstboot_owns_user`). Only the daemon path reads it.
     firstboot_owns_user: bool,
@@ -802,6 +820,17 @@ impl TunaInstaller {
             self.page = Page::Handoff;
         }
         offline::persist_install_log(&self.install_log, &self.progress.recovery_key);
+    }
+
+    /// Runs the entry step of the page that `finish_install` chose.
+    /// `finish_install` sets the page directly, so nothing else runs the
+    /// step: without it the recovery-key page waits for a key that no
+    /// call asked for.
+    fn enter_page_after_install(&mut self) -> Task<Message> {
+        match self.page {
+            Page::RecoveryKey => self.on_enter_page(Page::RecoveryKey),
+            _ => Task::none(),
+        }
     }
 
     pub fn page(&self) -> Page {
@@ -1160,9 +1189,52 @@ impl TunaInstaller {
         }
     }
 
-    /// The wipe-or-free choice, defaulting to free space while unset.
-    pub fn install_mode(&self) -> InstallMode {
+    /// What the wipe-or-free page shows as picked: free space until the
+    /// user picks (screens.yaml `wipe-or-free`).
+    pub fn wipe_choice(&self) -> InstallMode {
         self.install_mode.unwrap_or(InstallMode::FreeSpace)
+    }
+
+    /// The `installMode` of the daemon install. The choice counts only
+    /// while the page shows: a disk with data and free space. An empty
+    /// disk, and a disk with no free space, get the whole disk.
+    pub fn install_mode(&self) -> InstallMode {
+        Self::install_mode_for(self.wipe_visible(), self.install_mode)
+    }
+
+    /// See `install_mode`.
+    pub fn install_mode_for(choice_offered: bool, choice: Option<InstallMode>) -> InstallMode {
+        if choice_offered {
+            choice.unwrap_or(InstallMode::FreeSpace)
+        } else {
+            InstallMode::Erase
+        }
+    }
+
+    /// The daemon install goes into the free space and keeps the data on
+    /// the disk: the wipe-or-free page showed, and the pick is free space.
+    pub fn keeps_data(&self) -> bool {
+        fishermand::use_daemon()
+            && self.wipe_visible()
+            && self.install_mode() == InstallMode::FreeSpace
+    }
+
+    /// The daemon path erases a disk that holds data and has no free
+    /// space for the install: there is no choice to offer (screens.yaml
+    /// `insufficient-free-space`). Confirm says so.
+    pub fn forced_erase(&self) -> bool {
+        if !fishermand::use_daemon() {
+            return false;
+        }
+        self.selected_disk
+            .and_then(|i| self.disk_data.get(i))
+            .is_some_and(|d| d.has_data && !d.data_detected())
+    }
+
+    /// The daemon's problems with the whole config, from the `Validate`
+    /// that the confirm page runs. A problem holds Install.
+    pub fn confirm_problems(&self) -> &[validate::Problem] {
+        &self.confirm_problems
     }
 
     /// Whether the encryption page shows (screens.yaml `encryption`): in
@@ -1173,6 +1245,21 @@ impl TunaInstaller {
             !self.has_tpm
         } else {
             true
+        }
+    }
+
+    /// The encryption type of the daemon path before the user picks one
+    /// (screens.yaml `encryption`). With a usable TPM the disk seals with
+    /// no prompt (`daemon_sealed_type`). With no TPM the page asks for a
+    /// passphrase: an untouched `none` becomes `luks-passphrase`. A type
+    /// that the user picked stays, also `none`.
+    pub fn daemon_default_type(has_tpm: bool, enc_type: &str, picked: bool) -> &str {
+        if picked {
+            enc_type
+        } else if !has_tpm && enc_type == "none" {
+            "luks-passphrase"
+        } else {
+            Self::daemon_sealed_type(has_tpm, enc_type)
         }
     }
 
@@ -1201,8 +1288,15 @@ impl TunaInstaller {
                 // prompt: the encryption page stays skipped, so the
                 // untouched default must already say `tpm2-luks`.
                 if fishermand::use_daemon() {
-                    let sealed = Self::daemon_sealed_type(facts.tpm_usable, &self.recipe.encryption.enc_type);
-                    self.recipe.encryption.enc_type = sealed.to_string();
+                    let default = Self::daemon_default_type(
+                        facts.tpm_usable,
+                        &self.recipe.encryption.enc_type,
+                        self.encryption_picked,
+                    )
+                    .to_string();
+                    if default != self.recipe.encryption.enc_type {
+                        self.recipe.choose_encryption(&default);
+                    }
                 }
                 self.unmet = facts.unmet;
                 self.intel_rst = facts.intel_rst;
@@ -1289,7 +1383,9 @@ impl TunaInstaller {
     /// this frontend. A mismatch is caught here, while it can be fixed,
     /// not at the first boot.
     pub fn encryption_page_ok(&self) -> bool {
-        self.encryption_ok() && self.passphrases_match()
+        self.encryption_ok()
+            && self.passphrases_match()
+            && passphrase_present(&self.recipe.encryption.enc_type, &self.recipe.encryption.passphrase)
     }
 
     /// Whether Continue is live on the legacy Options page, which now
@@ -1423,11 +1519,22 @@ impl TunaInstaller {
                 let image = self.recipe.image.clone();
                 check_network_task(&mut self.net_checking, &mut self.net_online, false, false, image)
             }
+            // The daemon path can set the type before the page opens
+            // (`daemon_default_type`): ask the backend about it now.
+            Page::Encryption => self.check_fields(),
             Page::Tour => {
                 self.tour_index = 0;
                 Task::none()
             }
-            Page::Confirm => Task::batch([self.check_source(), self.check_plan()]),
+            Page::Confirm => {
+                // The daemon installs the system of the medium: it has no
+                // source to check and no recipe to plan. It validates the
+                // whole config instead.
+                if fishermand::use_daemon() {
+                    return self.check_config();
+                }
+                Task::batch([self.check_source(), self.check_plan()])
+            }
             Page::RecoveryKey => {
                 // Daemon mode makes the key when the page opens (gnome
                 // makes it here and enrols it on Done). The legacy key
@@ -1453,6 +1560,44 @@ impl TunaInstaller {
             }
             _ => Task::none(),
         }
+    }
+
+    /// The confirm page on the daemon backend: `Validate` with the whole
+    /// config (`partial: false`), off the UI thread. A problem holds
+    /// Install, and so does a daemon that does not answer.
+    fn check_config(&mut self) -> Task<Message> {
+        self.source_seq += 1;
+        self.source_view = None;
+        self.store_view = None;
+        self.source_visible = false;
+        self.plan_seq += 1;
+        self.plan = None;
+        self.confirm_seq += 1;
+        self.confirm_problems.clear();
+        if self.capturing() {
+            return Task::none();
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let seq = self.confirm_seq;
+            let config = fishermand::daemon_config(&self.recipe, Some(self.install_mode()));
+            return Task::perform(
+                async move {
+                    tokio::task::spawn_blocking(move || {
+                        let mut conn = fishermand::connect("io.tunaos.Fisherman")
+                            .map_err(|e| format!("cannot reach fishermand: {e}"))?;
+                        let reply = fishermand::validate(&mut conn, config, false)
+                            .map_err(|e| e.to_string())?;
+                        Ok(fishermand::daemon_problems(&reply))
+                    })
+                    .await
+                    .map_err(|e| format!("Task join error: {e}"))?
+                },
+                move |r| cosmic::action::app(Message::ConfirmValidated(seq, r)),
+            );
+        }
+        #[cfg(target_arch = "wasm32")]
+        Task::none()
     }
 
     /// Asks fisherman about the selected source, off the UI thread. The
@@ -1590,6 +1735,9 @@ impl TunaInstaller {
     pub fn receipt_lines(&self) -> Vec<String> {
         source_check::receipt_lines(self.progress.receipt.as_ref())
             .into_iter()
+            // The daemon sends no `receipt` event: only the line that
+            // says nothing checked the new system applies there.
+            .filter(|(key, _)| !fishermand::use_daemon() || key == "done_verification")
             .map(|(key, value)| branding::get().text_with(&key, &[("value", &value)]))
             .filter(|line| !line.is_empty())
             .collect()
@@ -1754,6 +1902,9 @@ impl cosmic::Application for TunaInstaller {
             handoff_mode: "reboot".to_string(),
             handoff_reason: String::new(),
             location_services: None,
+            confirm_problems: Vec::new(),
+            confirm_seq: 0,
+            encryption_picked: false,
             firstboot_owns_user: firstboot_owns_user(),
             daemon_failure: None,
             eula_text: eula.as_ref().and_then(|r| r.as_ref().ok().cloned()),
@@ -2222,6 +2373,21 @@ impl cosmic::Application for TunaInstaller {
                 }
                 Task::none()
             }
+            Message::ConfirmValidated(seq, result) => {
+                if seq == self.confirm_seq {
+                    self.confirm_problems = result.unwrap_or_else(|e| {
+                        // No answer is not a pass: the install needs the
+                        // daemon. The line names the state, not the error.
+                        tracing::warn!("fishermand Validate could not run: {e}");
+                        vec![validate::Problem {
+                            field: "daemon".to_string(),
+                            code: String::new(),
+                            message: i18n::tr(ui::copy::DONE_DAEMON_UNREACHABLE),
+                        }]
+                    });
+                }
+                Task::none()
+            }
             Message::HostnameChanged(h) => {
                 self.hostname_edited = true;
                 self.recipe.hostname = h;
@@ -2241,6 +2407,7 @@ impl cosmic::Application for TunaInstaller {
                 // to the same choice the user actually saw and clicked.
                 let choices = available_encryption_choices(self.has_tpm);
                 if let Some(choice) = choices.get(idx) {
+                    self.encryption_picked = true;
                     // Only a needs_passphrase choice carries a passphrase;
                     // the others clear it, and its confirmation, so a stale
                     // value from a previous choice can't linger into the
@@ -2418,6 +2585,10 @@ impl cosmic::Application for TunaInstaller {
                 if self.installing {
                     return Task::none();
                 }
+                // The daemon refused the config on the confirm page.
+                if fishermand::use_daemon() && !self.confirm_problems.is_empty() {
+                    return Task::none();
+                }
                 self.page = Page::Installing;
                 self.installing = true;
                 self.install_cancelled = false;
@@ -2476,7 +2647,9 @@ impl cosmic::Application for TunaInstaller {
                     fishermand::Terminal::Continue => Task::none(),
                     fishermand::Terminal::Complete => {
                         self.finish_install(Ok(Some(0)));
-                        Task::none()
+                        // The page that follows has an entry step: the
+                        // recovery-key page asks the daemon for the key.
+                        self.enter_page_after_install()
                     }
                     fishermand::Terminal::Cancelled => {
                         self.cancel_confirmed = true;
@@ -2947,6 +3120,19 @@ mod tests {
     }
 
     #[test]
+    fn the_install_mode_is_the_choice_only_while_the_page_offers_one() {
+        use InstallMode::{Erase, FreeSpace};
+        // Data and free space: the page shows, free space is the default.
+        assert_eq!(TunaInstaller::install_mode_for(true, None), FreeSpace);
+        assert_eq!(TunaInstaller::install_mode_for(true, Some(Erase)), Erase);
+        assert_eq!(TunaInstaller::install_mode_for(true, Some(FreeSpace)), FreeSpace);
+        // An empty disk, or a disk with no free space: the whole disk. A
+        // choice from an earlier disk does not count.
+        assert_eq!(TunaInstaller::install_mode_for(false, None), Erase);
+        assert_eq!(TunaInstaller::install_mode_for(false, Some(FreeSpace)), Erase);
+    }
+
+    #[test]
     fn the_first_boot_tool_owns_the_user_when_it_is_on_the_medium() {
         use std::path::Path;
         let dir = std::env::temp_dir().join(format!("tuna-firstboot-{}", std::process::id()));
@@ -3042,6 +3228,17 @@ mod tests {
         assert_eq!(TunaInstaller::daemon_sealed_type(true, "luks-passphrase"), "luks-passphrase");
         assert_eq!(TunaInstaller::daemon_sealed_type(true, "tpm2-luks-passphrase"), "tpm2-luks-passphrase");
         assert_eq!(TunaInstaller::daemon_sealed_type(false, "none"), "none");
+        // A passphrase type with no passphrase never passes the page.
+        assert!(!super::passphrase_present("luks-passphrase", ""));
+        assert!(super::passphrase_present("luks-passphrase", "x"));
+        assert!(super::passphrase_present("none", ""));
+        assert!(super::passphrase_present("tpm2-luks", ""));
+        // No TPM: the page asks for a passphrase until the user picks.
+        assert_eq!(TunaInstaller::daemon_default_type(false, "none", false), "luks-passphrase");
+        assert_eq!(TunaInstaller::daemon_default_type(false, "none", true), "none");
+        assert_eq!(TunaInstaller::daemon_default_type(true, "none", false), "tpm2-luks");
+        assert_eq!(TunaInstaller::daemon_default_type(true, "luks-passphrase", false), "luks-passphrase");
+        assert_eq!(TunaInstaller::daemon_default_type(false, "luks-passphrase", true), "luks-passphrase");
     }
 
     #[test]

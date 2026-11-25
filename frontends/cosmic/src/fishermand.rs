@@ -514,6 +514,11 @@ pub fn apply_install_event(
             if !message.is_empty() {
                 log.push_str(&message);
                 log.push('\n');
+            } else if str_of("event") == "step_started" && !id.is_empty() {
+                // The daemon can send a step with no message. The log card
+                // then names the step, so the card is not empty.
+                log.push_str(id);
+                log.push('\n');
             }
             Terminal::Continue
         }

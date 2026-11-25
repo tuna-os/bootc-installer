@@ -247,6 +247,16 @@ pub mod copy {
     pub const CONFIRM_NO_ACCOUNT: &str = "Provided by the image";
     // Confirm page when the first-boot tool makes the user.
     pub const CONFIRM_FIRSTBOOT_ACCOUNT: &str = "Created at the first start";
+    // Confirm page, daemon path: the disk holds data and has no free
+    // space for the install, so the whole disk goes.
+    // Confirm page, daemon path: what happens to the data on the disk.
+    pub const CONFIRM_EXISTING_DATA: &str = "Existing data";
+    pub const CONFIRM_DATA_KEPT: &str = "Kept. The install uses the free space.";
+    pub const CONFIRM_DATA_ERASED: &str = "Erased";
+    pub const CONFIRM_FREE_SPACE_WARNING: &str =
+        "The installer writes to the free space on {disk}. It keeps the data that is there.";
+    pub const CONFIRM_FORCED_ERASE: &str =
+        "This disk has no free space for {product}. The installer erases the whole disk.";
 }
 
 use copy::*;
@@ -659,13 +669,21 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             let mut t = vec![
                 t_line("confirm_title"),
                 confirm_subtitle(),
-                t_disk(confirm_warn_key(app), &confirm_disk(app)),
+                confirm_warning_text(app),
                 t_line("confirm_body"),
                 tr(CONFIRM_SUMMARY),
                 tr(CONFIRM_TARGET_DISK),
                 confirm_disk(app),
-                tr(OPTIONS_FILESYSTEM),
-                recipe.filesystem.clone(),
+                if crate::fishermand::use_daemon() {
+                    tr(CONFIRM_EXISTING_DATA)
+                } else {
+                    tr(OPTIONS_FILESYSTEM)
+                },
+                if crate::fishermand::use_daemon() {
+                    confirm_data_text(app)
+                } else {
+                    recipe.filesystem.clone()
+                },
                 tr(OPTIONS_ENCRYPTION),
                 encryption_text(&recipe.encryption.enc_type, "_label"),
                 tr(OPTIONS_HOSTNAME),
@@ -688,6 +706,12 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 t.push(value);
             }
             if let Some(problem) = app.region_problem() {
+                t.push(problem.render());
+            }
+            if app.forced_erase() {
+                t.push(with_product(&tr(CONFIRM_FORCED_ERASE)));
+            }
+            for problem in app.confirm_problems() {
                 t.push(problem.render());
             }
             let plan = app.plan_rows();
@@ -718,7 +742,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 }
             }
             t.push(tr(BACK));
-            if !app.source_blocked() {
+            if !app.source_blocked() && app.confirm_problems().is_empty() {
                 t.push(t_line("confirm_button"));
             }
             t
@@ -771,9 +795,6 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 t.push(t_line("done_restart"));
             } else {
                 t.push(handoff_mode_text(app.handoff_mode()));
-                if !app.handoff_reason().is_empty() {
-                    t.push(app.handoff_reason().to_string());
-                }
                 if app.firstboot_account() {
                     t.push(tr(FIRSTBOOT_ACCOUNT));
                 }
@@ -911,6 +932,24 @@ fn done_copy(app: &TunaInstaller) -> (String, String) {
         (t_line("done_cancelled_title"), tr(DONE_CANCELLED_DETAIL))
     } else {
         (t_line("done_failed_title"), tr(DONE_FAIL_DETAIL))
+    }
+}
+
+/// The warning at the top of the confirm page. A free-space install on
+/// the daemon path erases nothing, and the page does not say that it does.
+fn confirm_warning_text(app: &TunaInstaller) -> String {
+    if app.keeps_data() {
+        return crate::i18n::tr_with(CONFIRM_FREE_SPACE_WARNING, &[("disk", &confirm_disk(app))]);
+    }
+    t_disk(confirm_warn_key(app), &confirm_disk(app))
+}
+
+/// The confirm page's "Existing data" row on the daemon path.
+fn confirm_data_text(app: &TunaInstaller) -> String {
+    if app.keeps_data() {
+        tr(CONFIRM_DATA_KEPT)
+    } else {
+        tr(CONFIRM_DATA_ERASED)
     }
 }
 
@@ -1610,7 +1649,7 @@ fn rst(_app: &TunaInstaller) -> Element<'_, Message> {
 /// destructive choice. The install reads `installMode` from the choice.
 fn wipe_or_free(app: &TunaInstaller) -> Element<'_, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
-    let current = Some(app.install_mode());
+    let current = Some(app.wipe_choice());
     // One row per choice, spelled out: the strings lint holds each
     // constant to a literal `tr(CONST)` call.
     let free = wipe_row(
@@ -2283,9 +2322,8 @@ fn handoff(app: &TunaInstaller) -> Element<'_, Message> {
     }
     let mode_text = handoff_mode_text(app.handoff_mode());
     let mut parts: Vec<Element<'_, Message>> = vec![widget::text::body(mode_text).into()];
-    if !app.handoff_reason().is_empty() {
-        parts.push(widget::text::caption(app.handoff_reason().to_string()).into());
-    }
+    // The daemon's `handoff.reason` is a word for a log (`default`), not a
+    // line for a person: the page does not show it.
     if app.firstboot_account() {
         parts.push(widget::text::body(tr(FIRSTBOOT_ACCOUNT)).into());
     }
@@ -2408,11 +2446,21 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
 
     let summary = widget::settings::section()
         .title(tr(CONFIRM_SUMMARY))
-        .add(widget::settings::item(tr(CONFIRM_TARGET_DISK), widget::text::body(disk)))
-        .add(widget::settings::item(
+        .add(widget::settings::item(tr(CONFIRM_TARGET_DISK), widget::text::body(disk)));
+    // The daemon owns the filesystem: the row is for the legacy backend.
+    // On the daemon path the row says what happens to the data instead.
+    let summary = if crate::fishermand::use_daemon() {
+        summary.add(widget::settings::item(
+            tr(CONFIRM_EXISTING_DATA),
+            widget::text::body(confirm_data_text(app)),
+        ))
+    } else {
+        summary.add(widget::settings::item(
             tr(OPTIONS_FILESYSTEM),
             widget::text::body(filesystem_label(&recipe.filesystem)),
         ))
+    };
+    let summary = summary
         .add(widget::settings::item(
             tr(OPTIONS_ENCRYPTION),
             widget::text::body(encryption_text(&recipe.encryption.enc_type, "_label")),
@@ -2461,7 +2509,7 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
                 .size(16)
                 .icon()
                 .into(),
-            widget::text::body(t_disk(confirm_warn_key(app), &confirm_disk(app)))
+            widget::text::body(confirm_warning_text(app))
             .class(cosmic::theme::Text::Color(
                 theme.cosmic().warning_text_color().into(),
             ))
@@ -2474,10 +2522,27 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
     .padding(spacing.space_s)
     .width(Length::Fill);
 
-    let mut parts = vec![warning.into(), summary.into()];
+    let mut parts = vec![warning.into()];
+    // The daemon's problems with the whole config, above the summary so
+    // that no scroll hides them. Each holds Install.
+    for problem in app.confirm_problems() {
+        parts.push(
+            widget::text::body(problem.render())
+                .class(cosmic::theme::Text::Color(theme.cosmic().destructive_text_color().into()))
+                .into(),
+        );
+    }
+    parts.push(summary.into());
     if let Some(problem) = app.region_problem() {
         parts.push(
             widget::text::body(problem.render())
+                .class(cosmic::theme::Text::Color(theme.cosmic().warning_text_color().into()))
+                .into(),
+        );
+    }
+    if app.forced_erase() {
+        parts.push(
+            widget::text::body(with_product(&tr(CONFIRM_FORCED_ERASE)))
                 .class(cosmic::theme::Text::Color(theme.cosmic().warning_text_color().into()))
                 .into(),
         );
@@ -2543,7 +2608,8 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
         body.into(),
         nav_row(
             Some(Message::BackPage),
-            (!app.source_blocked()).then(|| (t_line("confirm_button"), Message::StartInstall, true)),
+            (!app.source_blocked() && app.confirm_problems().is_empty())
+                .then(|| (t_line("confirm_button"), Message::StartInstall, true)),
         ),
     )
 }
@@ -2867,7 +2933,8 @@ mod tests {
             TIMEZONE_LOCATION, TIMEZONE_LOCATION_DETAIL, HANDOFF_SUBTITLE,
             FIRSTBOOT_ACCOUNT, TRY_AGAIN, DONE_DEVICE_LOST, DONE_REPART_FAILED,
             DONE_LUKS_FAILED, DONE_DAEMON_UNREACHABLE, DONE_FAILED_REASON,
-            CONFIRM_FIRSTBOOT_ACCOUNT,
+            CONFIRM_FIRSTBOOT_ACCOUNT, CONFIRM_FORCED_ERASE, CONFIRM_EXISTING_DATA,
+            CONFIRM_DATA_KEPT, CONFIRM_DATA_ERASED, CONFIRM_FREE_SPACE_WARNING,
         ]
         .join(" ")
         .to_lowercase();

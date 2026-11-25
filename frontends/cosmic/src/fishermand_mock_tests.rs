@@ -266,7 +266,7 @@ fn wizard_recipe(disk: &str, has_tpm: bool) -> crate::Recipe {
     recipe.locale = "de_DE.UTF-8".to_string();
     recipe.timezone = "Europe/Berlin".to_string();
     recipe.encryption.enc_type =
-        crate::TunaInstaller::daemon_sealed_type(has_tpm, &recipe.encryption.enc_type).to_string();
+        crate::TunaInstaller::daemon_default_type(has_tpm, &recipe.encryption.enc_type, false).to_string();
     recipe
 }
 
@@ -467,9 +467,9 @@ fn mock_no_tpm_walk_installs_with_a_passphrase() {
     let facts = fishermand::daemon_probe_to_facts(&probe, &gates).unwrap();
     assert!(!facts.tpm_usable);
     let mut recipe = wizard_recipe(&facts.disks[0].path, facts.tpm_usable);
-    // No TPM: the sealed default does not apply. The daemon refuses a
-    // TPM type here, so the page does not offer one.
-    assert_eq!(recipe.encryption.enc_type, "none");
+    // No TPM: the page starts at the passphrase type. The daemon refuses
+    // a TPM type here, so the page does not offer one.
+    assert_eq!(recipe.encryption.enc_type, "luks-passphrase");
     let reply = fishermand::validate(&mut conn, happy_config(&recipe.disk), false).unwrap();
     let problems = fishermand::daemon_problems(&reply);
     assert!(problems.iter().any(|p| p.field.starts_with("encryption")), "{reply}");
@@ -511,6 +511,48 @@ fn mock_existing_data_walk_installs_into_free_space_or_erases() {
         let events = install_events(&mock, config);
         assert_eq!(fold(&events).0, fishermand::Terminal::Complete, "{mode:?}");
     }
+}
+
+#[test]
+fn mock_tight_space_walk_erases_because_free_space_is_refused() {
+    // tight-space: data and no room. No wipe-or-free page; the confirm
+    // page validates the whole config, and the install takes the disk.
+    let mock = mock_or_skip!("tight-space");
+    let mut conn = mock.connect();
+    let gates = fishermand::requirements(&mut conn).unwrap();
+    let probe = fishermand::probe(&mut conn).unwrap();
+    let facts = fishermand::daemon_probe_to_facts(&probe, &gates).unwrap();
+    let nvme = facts.disks.iter().position(|d| d.path == "/dev/nvme0n1").unwrap();
+    let offered = facts.disk_data[nvme].data_detected();
+    assert!(!offered);
+    let recipe = wizard_recipe("/dev/nvme0n1", facts.tpm_usable);
+    // What the wizard used to send: free space with no page to pick it on.
+    let refused = fishermand::daemon_config(&recipe, Some(crate::InstallMode::FreeSpace));
+    let reply = fishermand::validate(&mut conn, refused, false).unwrap();
+    let codes: Vec<String> = fishermand::daemon_problems(&reply).into_iter().map(|p| p.code).collect();
+    assert!(codes.contains(&"insufficient_free_space".to_string()), "{codes:?}");
+    // What it sends now.
+    let mode = crate::TunaInstaller::install_mode_for(offered, None);
+    assert_eq!(mode, crate::InstallMode::Erase);
+    let config = fishermand::daemon_config(&recipe, Some(mode));
+    let reply = fishermand::validate(&mut conn, config.clone(), false).unwrap();
+    assert!(fishermand::daemon_problems(&reply).is_empty(), "{reply}");
+    let events = install_events(&mock, config);
+    assert_eq!(fold(&events).0, fishermand::Terminal::Complete);
+}
+
+#[test]
+fn mock_empty_disk_installs_with_the_whole_disk_mode() {
+    let mock = mock_or_skip!("happy");
+    let mut conn = mock.connect();
+    let recipe = wizard_recipe("/dev/nvme0n1", true);
+    let mode = crate::TunaInstaller::install_mode_for(false, None);
+    let config = fishermand::daemon_config(&recipe, Some(mode));
+    assert_eq!(config["installMode"], Value::from("erase"));
+    let reply = fishermand::validate(&mut conn, config.clone(), false).unwrap();
+    assert!(fishermand::daemon_problems(&reply).is_empty(), "{reply}");
+    let events = install_events(&mock, config);
+    assert_eq!(fold(&events).0, fishermand::Terminal::Complete);
 }
 
 #[test]
