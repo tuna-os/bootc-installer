@@ -15,6 +15,7 @@ timedatectl are absent from minimal live media, and this module must still
 offer something on a system that has neither.
 """
 
+import json
 import locale
 import os
 import socket
@@ -60,12 +61,81 @@ def current_language():
 def available_keyboard_layouts():
     """X11 layouts localectl knows, or the layouts a decade-old laptop most
     plausibly has (DESIGN.md's brief) where it knows none."""
-    found = _run(["localectl", "list-x11-keymap-layouts", "--no-pager"])
+    found = (_run(["localectl", "list-x11-keymap-layouts", "--no-pager"])
+             or sorted(keyboard_names(), key=lambda v: keyboard_label(v).casefold()))
     if found:
         return found
     return ["us", "gb", "de", "fr", "es", "it", "pt", "br", "ru", "pl",
             "cz", "se", "no", "dk", "fi", "hu", "gr", "tr", "ua", "il",
             "ara", "jp", "cn"]
+
+
+XKB_LISTS = ("/usr/share/X11/xkb/rules/evdev.lst",
+             "/usr/share/X11/xkb/rules/base.lst")
+ISO_CODES = "/usr/share/iso-codes/json"
+_names = {}
+
+
+def keyboard_names():
+    """{layout: name} from the XKB rules ("de": "German"), {} without them."""
+    if "keyboard" not in _names:
+        names, inside = {}, False
+        for path in XKB_LISTS:
+            try:
+                with open(path, encoding="utf-8") as rules:
+                    for line in rules:
+                        if line.startswith("!"):
+                            inside = line.split()[1:] == ["layout"]
+                        elif inside and len(line.split(None, 1)) == 2:
+                            code, name = line.split(None, 1)
+                            if code != "custom":
+                                names[code] = name.strip()
+            except (OSError, UnicodeDecodeError):
+                continue
+            if names:
+                break
+        _names["keyboard"] = names
+    return _names["keyboard"]
+
+
+def keyboard_label(layout):
+    """"German (de)"; the bare code when XKB has no name for it."""
+    name = keyboard_names().get(layout)
+    return f"{name} ({layout})" if name else layout
+
+
+def _iso(table, key_field):
+    if table not in _names:
+        try:
+            with open(os.path.join(ISO_CODES, f"iso_{table}.json"),
+                      encoding="utf-8") as handle:
+                rows = json.load(handle)[table]
+            _names[table] = {row[key_field]: row.get("common_name") or row["name"]
+                             for row in rows if key_field in row}
+        except (OSError, ValueError, KeyError, TypeError):
+            _names[table] = {}
+    return _names[table]
+
+
+def language_label(name):
+    """"German (Germany) - de_DE.UTF-8"; the locale name itself when the ISO
+    tables are not installed or do not have it."""
+    code, _, territory = name.split(".")[0].split("@")[0].partition("_")
+    language = (_iso("639-2", "alpha_2").get(code)
+                or _iso("639-3", "alpha_3").get(code))
+    if not language:
+        return name
+    language = language.split(";")[0]
+    country = _iso("3166-1", "alpha_2").get(territory)
+    return f"{language} ({country}) - {name}" if country else f"{language} - {name}"
+
+
+def timezone_label(zone):
+    """"Buenos Aires (America/Argentina)": the city first, as a person looks
+    for it. The zone's own name stays the value of the row."""
+    area, _, city = zone.rpartition("/")
+    city = city.replace("_", " ")
+    return f"{city} ({area.replace('_', ' ')})" if area else city
 
 
 def current_keyboard_layout():
@@ -123,7 +193,7 @@ def available_timezones():
             rel = os.path.relpath(os.path.join(root, name), base)
             if "/" in rel and not rel.startswith(("posix", "right")):
                 zones.append(rel)
-    return sorted(zones)
+    return sorted(zones + ["UTC"])
 
 
 def current_timezone():

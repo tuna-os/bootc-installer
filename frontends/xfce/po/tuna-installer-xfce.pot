@@ -20,6 +20,10 @@ msgid "Next"
 msgstr ""
 
 #, python-brace-format
+msgid "Step {step} of {total} · {title}"
+msgstr ""
+
+#, python-brace-format
 msgid "{product} Installer"
 msgstr ""
 
@@ -30,6 +34,43 @@ msgid "The recipe names no installation disk."
 msgstr ""
 
 msgid "fisherman did not accept the recipe."
+msgstr ""
+
+#, python-brace-format
+msgid "{bus} disk"
+msgstr ""
+
+msgid "Checking your drive…"
+msgstr ""
+
+msgid "Setting up your drive…"
+msgstr ""
+
+msgid "Securing your drive…"
+msgstr ""
+
+msgid "Setting up auto-unlock…"
+msgstr ""
+
+msgid "Almost ready…"
+msgstr ""
+
+msgid "Copying the system…"
+msgstr ""
+
+msgid "Configuring your system…"
+msgstr ""
+
+msgid "Applying the last settings…"
+msgstr ""
+
+msgid "Setting up the boot loader…"
+msgstr ""
+
+msgid "Finishing up…"
+msgstr ""
+
+msgid "Cleaning up…"
 msgstr ""
 
 msgid "Not enough memory"
@@ -157,9 +198,6 @@ msgstr ""
 msgid "No network settings tool was found on this system. Connect with the network icon of the panel, then press Recheck."
 msgstr ""
 
-msgid "Recovery key"
-msgstr ""
-
 msgid "Done"
 msgstr ""
 
@@ -169,7 +207,7 @@ msgstr ""
 msgid "Show"
 msgstr ""
 
-msgid "Keep the image's setting"
+msgid "The image's setting"
 msgstr ""
 
 msgid "Hide"
@@ -194,6 +232,9 @@ msgid "This computer uses Intel RST (RAID mode). Linux cannot see disks behind i
 msgstr ""
 
 msgid "Welcome"
+msgstr ""
+
+msgid "Image"
 msgstr ""
 
 msgid "Search images"
@@ -242,6 +283,9 @@ msgstr ""
 msgid "Confirm"
 msgstr ""
 
+msgid "Summary"
+msgstr ""
+
 msgid "Installing"
 msgstr ""
 
@@ -249,6 +293,9 @@ msgid "Installation progress"
 msgstr ""
 
 msgid "Scan this code into a password manager, then write the key down too."
+msgstr ""
+
+msgid "Recovery key"
 msgstr ""
 
 msgid "Show QR Code for Recovery Key"
@@ -261,6 +308,12 @@ msgid "Continue"
 msgstr ""
 
 msgid "The system is installed. The live session becomes the installed system: nothing restarts, and what is open stays open."
+msgstr ""
+
+msgid "Details"
+msgstr ""
+
+msgid "Keep the image's setting"
 msgstr ""
 
 msgid "Allow apps to determine the location"
@@ -299,23 +352,19 @@ msgstr ""
 msgid "Sign in automatically"
 msgstr ""
 
-#, python-brace-format
-msgid "Language: {language}; Keyboard: {keyboard}; Time zone: {timezone}"
-msgstr ""
-
 msgid "this live system"
 msgstr ""
 
 msgid "Target disk"
 msgstr ""
 
-msgid "Filesystem"
-msgstr ""
-
 msgid "Encryption"
 msgstr ""
 
-msgid "Image"
+msgid "Keyboard"
+msgstr ""
+
+msgid "Starting the installation…"
 msgstr ""
 
 msgid "Recovery key QR code"
@@ -360,6 +409,9 @@ msgstr ""
 msgid "{title} holds {found}. Keep it and install into the free space, or erase the whole disk."
 msgstr ""
 
+msgid "Filesystem"
+msgstr ""
+
 msgid "Username"
 msgstr ""
 
@@ -367,9 +419,6 @@ msgid "Updates from"
 msgstr ""
 
 msgid "User"
-msgstr ""
-
-msgid "Keyboard"
 msgstr ""
 
 msgid "Restart now"
@@ -418,12 +467,7 @@ msgid "The handoff failed."
 msgstr ""
 
 #, python-brace-format
-msgid ""
-"The last lines of the install log:\n"
-"\n"
-"{log}\n"
-"\n"
-"Full log: {path}"
+msgid "Full log: {path}"
 msgstr ""
 
 #, python-brace-format

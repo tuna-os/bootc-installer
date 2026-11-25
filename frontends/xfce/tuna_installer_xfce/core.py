@@ -758,9 +758,8 @@ def daemon_disk_view():
     rows = []
     for disk in reply.get("disks") or []:
         path = disk.get("path", "")
-        vendor = (disk.get("vendor") or "").strip()
         model = (disk.get("model") or "").strip()
-        title = " ".join(part for part in (vendor, model) if part) or path
+        title = daemon_client.disk_title(disk)
         transport = disk.get("transport") or ""
         candidate = fits.get(path) or {}
         fit = candidate.get("fit") or (
@@ -773,6 +772,7 @@ def daemon_disk_view():
                 transport, transport.upper()),
             "removable": bool(disk.get("removable")),
             "eligible": eligible, "fit": fit,
+            "excluded_reason": disk.get("excludedReason") or "",
             "minimal_size_bytes": disk.get("minimalSizeBytes", 0),
             "free_bytes": disk.get("freeBytes", 0),
             "existing_data": disk.get("existingData") or {},
