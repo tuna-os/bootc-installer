@@ -343,6 +343,10 @@ public:
             return;
         }
         m_seen << u"install"_s;
+        // The key, the handoff and the result come after it, and are counted.
+        expect(!counter().section(u' ', 1, 1).isEmpty()
+                   && counter().section(u' ', 1, 1).toInt() + 3 == counter().section(u' ', 3, 3).toInt(),
+               u"the install step does not count the steps after it: "_s + counter());
         expect(!shown(u"backButton"_s), u"Back is offered during the install"_s);
         expect(!shown(u"nextButton"_s), u"Next is offered during the install"_s);
         if (qEnvironmentVariableIsSet("TUNA_WALK_SHOTS")) {

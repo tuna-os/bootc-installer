@@ -43,7 +43,7 @@ Kirigami.Page {
         for (let i = 0; i < stepsModel.count; i++) {
             // After the install come the key and the handoff, which the
             // controller answers only when it has ended.
-            const later = i > currentIndex && currentIndex < stepIndex("install")
+            const later = i > currentIndex && currentIndex <= stepIndex("install")
                 && (stepsModel.get(i).stepId === "recovery-key" && InstallerController.encryptionType !== "none"
                     || stepsModel.get(i).stepId === "handoff") && InstallerController.daemonBackend;
             if (i === currentIndex || later || !stepSkipped(i)) {
