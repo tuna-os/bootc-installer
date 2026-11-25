@@ -1,6 +1,6 @@
-# GitHub Copilot Instructions — bootc-installer
+# GitHub Copilot Instructions — installer
 
-This is `tuna-os/installer`: a GTK4/Libadwaita Flatpak GUI installer for bootc images, backed by the `fisherman` Go backend.
+This is `tuna-os/installer`: the installer frontends for bootc images. KDE, COSMIC, niri and XFCE are in `frontends/`, each with its own `AGENTS.md`. The rest of this file is about the legacy GNOME frontend, a GTK4/Libadwaita Flatpak.
 
 ## Read before doing any work
 

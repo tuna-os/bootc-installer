@@ -165,22 +165,29 @@ attestation. You need the GitHub CLI 2.49 or later.
 
 ```bash
 tag=vYYYY.MM.DD-abcdef1
-gh release download "$tag" --repo tuna-os/bootc-installer \
+repo=tuna-os/installer      # tuna-os/bootc-installer for an older release
+gh release download "$tag" --repo tuna-os/installer \
   --pattern 'org.bootcinstaller.Installer.flatpak' --pattern '*.spdx.json'
 gh attestation verify org.bootcinstaller.Installer.flatpak \
-  --repo tuna-os/bootc-installer \
-  --signer-workflow tuna-os/bootc-installer/.github/workflows/release.yml
-gh attestation verify kde.spdx.json --repo tuna-os/bootc-installer
+  --repo "$repo" --signer-workflow "$repo/.github/workflows/release.yml"
+gh attestation verify kde.spdx.json --repo "$repo"
 ```
+
+A certificate holds the repository name of its day. A rename does not change
+it. Use the identity of the release, and no wildcard:
+
+| Release | `repo` | Certificate identity |
+|---|---|---|
+| Up to `v2026.11.25-13b83601` | `tuna-os/bootc-installer` | `https://github.com/tuna-os/bootc-installer/.github/workflows/release.yml@refs/heads/prod` |
+| Later | `tuna-os/installer` | `https://github.com/tuna-os/installer/.github/workflows/release.yml@refs/heads/prod` |
 
 A pass shows that `release.yml` in this repository built the file, and it
 shows the commit and the run. `--signer-workflow` refuses a file that
 another workflow attested. To check with no GitHub CLI, download the
-Sigstore bundle with `gh attestation download <file> --repo
-tuna-os/bootc-installer`, then give it to `cosign verify-blob-attestation
---bundle`, with `--certificate-identity-regexp` set to the `release.yml`
-workflow and `--certificate-oidc-issuer
-https://token.actions.githubusercontent.com`.
+Sigstore bundle with `gh attestation download <file> --owner tuna-os`,
+then give it to `cosign verify-blob-attestation --bundle`, with
+`--certificate-identity` set to the identity in the table and
+`--certificate-oidc-issuer https://token.actions.githubusercontent.com`.
 
 The SBOM lists what the Flatpak contains or builds from. Open it with any
 SPDX tool, for example `jq '.packages[].name' kde.spdx.json`. The four

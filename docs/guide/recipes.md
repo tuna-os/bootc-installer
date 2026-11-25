@@ -1,5 +1,7 @@
 # Recipes and autoinstall
 
+Recipes belong to the recipe path. The [daemon path](../architecture.md#fishermand) does not use them.
+
 The wizard writes a JSON recipe, and fisherman reads it.
 You can also write a recipe by hand.
 Use a hand-written recipe for automation, or to configure a live ISO.

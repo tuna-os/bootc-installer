@@ -9,9 +9,25 @@ Open all pull requests against the `dev` branch.
 Clone with `--recurse-submodules`, or the build fails:
 
 ```bash
-git clone --recurse-submodules https://github.com/tuna-os/bootc-installer
-cd bootc-installer
+git clone --recurse-submodules https://github.com/tuna-os/installer
+cd installer
 ```
+
+## The native frontends
+
+Each frontend has its own build and test commands.
+Read its README and its `AGENTS.md` first:
+[KDE](../../frontends/kde/README.md), [COSMIC](../../frontends/cosmic/README.md), [niri](../../frontends/niri/README.md) and [XFCE](../../frontends/xfce/README.md).
+This command lists the tests of all frontends, as CI runs them:
+
+```bash
+python3 shared/ci/frontend_tests.py --list
+```
+
+The daemon tests of a frontend need `fishermand` from [tuna-os/fisherman](https://github.com/tuna-os/fisherman/blob/dev/docs/FISHERMAND.md).
+Its `--mock` option changes no disk.
+
+The other sections of this page are about the legacy GNOME frontend.
 
 ## Dependencies
 

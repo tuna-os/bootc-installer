@@ -1,12 +1,19 @@
 # CLAUDE.md
 
-bootc-installer is the monorepo for every TunaOS / Bluefin bootc installer frontend. The GNOME frontend (GTK4/Libadwaita, Python) lives at the root; the KDE, COSMIC, Niri and XFCE frontends live under `frontends/<name>/`, each with its own `AGENTS.md` that is authoritative for that tree. All five drive the Go backend fisherman (a git submodule).
+This repository (`tuna-os/installer`, named `tuna-os/bootc-installer` until 2026-11-25) holds the installer frontends for bootc images. Read [`docs/architecture.md`](docs/architecture.md) first.
+
+- KDE, COSMIC, niri and XFCE live under `frontends/<name>/`. Each has an `AGENTS.md` that is authoritative for that tree. They use `fishermand` over Varlink when its socket is there, else the recipe path.
+- GNOME, Pantheon and Tuna use gnome-setup on the image-based medium. tunaOS builds it from an upstream pin. Do not port it here.
+- The legacy GNOME wizard (GTK4/Libadwaita, Python) lives at the root. Live ISOs use it today. It gets fixes only, and it uses the recipe path.
+- The GHCR package `ghcr.io/tuna-os/bootc-installer`, the Flatpak app IDs and `/etc/bootc-installer/` keep their names. Do not rename them.
 
 ## Monorepo layout
 
 | Path | What |
 |---|---|
-| `bootc_installer/`, `data/`, `flatpak/`, `tests/` | GNOME frontend (this file's original subject) |
+| `bootc_installer/`, `data/`, `flatpak/`, `tests/` | legacy GNOME frontend (the sections below are about it) |
+| `shared/flow/` | the eighteen screens of the native frontends, and their status |
+| `shared/client/` | Varlink client examples for `fishermand` |
 | `frontends/kde|cosmic|niri|xfce/` | the other frontends, imported with history from `tuna-os/tuna-installer-*`; read their `AGENTS.md` first |
 | `shared/recipe/` | the recipe schema, the one copy (a unit test fails if a frontend adds a second) |
 | `shared/catalog/` | image catalog contract: search path, fields that reach the recipe, default selection; `fixtures/` + reference `resolve.py` |
@@ -15,7 +22,7 @@ bootc-installer is the monorepo for every TunaOS / Bluefin bootc installer front
 | `shared/branding/` | product identity contract: `branding.json` first, `os-release` second, neutral last; one resolver per language, all tested against `fixtures/` |
 | `shared/walkthrough/` | screen contract + parity report + `aggregate.py` that builds `docs/walkthrough/` |
 | `shared/flatpak/` | the `go` and `fisherman` Flatpak modules; every manifest lists `go.json` by path, the four frontends list `fisherman.json`, which builds the submodule, so the gitlink is the one fisherman pin |
-| `fisherman/` | backend submodule |
+| `fisherman/` | backend submodule: the `fisherman` command of the recipe path. The medium builds `fishermand` from a different pin, in tunaOS |
 
 Workflows live only in the root `.github/workflows/`; per-frontend ones are named `<thing>-<frontend>.yml` and use `working-directory: frontends/<name>`.
 
@@ -61,7 +68,7 @@ fisherman is a separate repo (`tuna-os/fisherman`). Changes must be committed an
 
 ```bash
 cd fisherman/fisherman && git add -A && git commit -m "..." && git push
-cd ~/src/bootc-installer
+cd ~/src/installer
 git add fisherman && git commit -m "chore: update fisherman submodule (...)" && git push
 ```
 

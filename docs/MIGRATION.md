@@ -9,6 +9,10 @@ and issue that existed on the old repositories at the moment of the move, so
 nothing is lost in the shuffle. Tracking epic:
 [bootc-installer#83](https://github.com/tuna-os/bootc-installer/issues/83).
 
+The repository had the name `tuna-os/bootc-installer` until 2026-11-25. It is
+now `tuna-os/installer`. The lists below keep the old links, which redirect.
+The GHCR package keeps its name.
+
 ## Layout
 
 | Path | Frontend | Toolkit | Was |

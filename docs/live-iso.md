@@ -1,5 +1,9 @@
 # Building a bootc Live ISO with bootc-installer
 
+This page is about the live ISO and its legacy GNOME frontend, which use the
+recipe path. [The image-based medium](image-medium.md) is the planned
+replacement, and you cannot download it yet.
+
 This document explains how to build a bootable live ISO that auto-launches
 bootc-installer for offline installation of a bootc image. It documents the
 configuration conventions the installer expects, and the OS-image-side setup

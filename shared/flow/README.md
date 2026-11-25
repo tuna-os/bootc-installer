@@ -15,7 +15,7 @@ widgets, motion and words follow the toolkit. The order below is the order of
 `screens.yaml`. A frontend skips a screen that has nothing to show. It never shows a blank one.
 
 A frontend reports the screen id as `page=` in the readiness stamp. The stamp
-itself is in section 1 of `docs/INSTALLER-FRONTENDS.md` in tunaOS.
+itself is in section 1 of [INSTALLER-FRONTENDS.md](https://github.com/tuna-os/tunaOS/blob/main/docs/INSTALLER-FRONTENDS.md) in tunaOS.
 
 | # | Id | Shows when | Varlink call |
 |---|---|---|---|
@@ -40,13 +40,13 @@ itself is in section 1 of `docs/INSTALLER-FRONTENDS.md` in tunaOS.
 
 The tables use short names. `screens.yaml` has the full names, the inputs
 and outputs, the skip rules, the failure states and the accessibility names.
-Field names of `io.tunaos.Fisherman` are proposals until the daemon lands.
+Field names of `io.tunaos.Fisherman` follow the daemon (tuna-os/fisherman).
 
 ## Required screens
 
 The harness needs six: `try-or-install`, `disk`, `confirm`, `install`,
 `recovery-key` and `done`. A frontend records the others until the owners promote them. `installer-screens.proposed.yaml` holds the proposed content of
-`tests/installer-screens.yaml` in tunaOS. That file is in another repository,
+the `installer-screens` file in tunaOS. That file is in another repository,
 so this copy is a proposal. It keeps the six old ids as `aliases`, because
 the walkthrough script and `shared/walkthrough/parity_report.py` read them.
 
@@ -55,7 +55,7 @@ the walkthrough script and `shared/walkthrough/parity_report.py` read them.
 Issue #442 says that the order matches gnome-setup. These points are not so.
 Each comes from the source of gnome-setup.
 
-- `timezone`, `network`, `privacy` and `user` are in `data/pages.conf`. No
+- `timezone`, `network`, `privacy` and `user` are in the page list of gnome-setup. No
   page builds them. The loader logs `unsupported page` and drops them.
 - `window.rs` sets the mode to `live-initial-setup` (a TODO). So `installer-welcome` never runs. A single class builds both welcome ids.
 - `language`, `keyboard`, `prerelease` and `eula` come before

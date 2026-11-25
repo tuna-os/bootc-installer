@@ -1,10 +1,13 @@
-# How an install works
+# How a recipe install works
 
-The installer has two parts:
+This page is about the recipe path, which the live ISOs and the Flatpaks use.
+[Architecture](../architecture.md) has the daemon path of the image-based medium.
+
+The recipe path has two parts:
 
 | Part | Language | Job |
 |---|---|---|
-| `bootc_installer/` | Python, GTK4 and libadwaita | The wizard. It collects your choices and writes a JSON recipe. |
+| A frontend | Python, C++, Rust or QML and Go | The wizard. It collects your choices and writes a JSON recipe. |
 | `fisherman/` | Go | The backend. It reads the recipe and writes the OS to the disk. It runs as root. |
 
 `fisherman` is a git submodule.
@@ -93,6 +96,7 @@ To keep Windows and move your files into the new system, use [wootc](https://git
 
 ## Phone companion
 
+The GNOME, COSMIC and XFCE frontends have it.
 The installer starts a local HTTPS server on port 8443 with a self-signed certificate.
 It shows a QR code.
 When you scan the code, your phone opens a form.
@@ -105,7 +109,7 @@ The server listens on the LAN address of the computer only, and it accepts one f
 
 ## Video during the install
 
-The progress screen plays an AV1 or VP9 video.
+In the legacy GNOME frontend, the progress screen plays an AV1 or VP9 video.
 A distribution sets its own video in `branding.json`, under `extensions.gnome.video`.
 Refer to [`shared/branding/README.md`](../../shared/branding/README.md).
 The installer first makes sure that GStreamer has the codecs.

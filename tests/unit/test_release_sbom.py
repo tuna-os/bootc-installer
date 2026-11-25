@@ -256,7 +256,10 @@ def test_release_doc_says_how_to_verify():
         doc = stream.read()
     assert "## Verify a release" in doc
     assert "gh attestation verify" in doc
-    assert "--repo tuna-os/bootc-installer" in doc
+    # One exact identity for each name that the repository had, no pattern.
+    for repo in ("tuna-os/bootc-installer", "tuna-os/installer"):
+        assert f"https://github.com/{repo}/.github/workflows/release.yml@refs/heads/prod" in doc
+    assert "identity-regexp" not in doc
     assert ".spdx.json" in doc
 
 
@@ -309,7 +312,7 @@ SYFT = {
     "relationships": [{"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES",
                        "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-sbom-src"}],
 }
-REPO_URL = "https://github.com/tuna-os/bootc-installer"
+REPO_URL = "https://github.com/tuna-os/installer"
 COMMIT = "a" * 40
 
 

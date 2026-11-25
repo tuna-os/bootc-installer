@@ -1,7 +1,7 @@
 # AGENTS.md — agent guide for frontends/xfce (formerly tuna-os/tuna-installer-xfce)
 
 > **Monorepo note.** This directory is one of five frontends in
-> `tuna-os/installer`. Every path below is relative to THIS directory.
+> `tuna-os/bootc-installer`. Every path below is relative to THIS directory.
 > Workflows referenced as `screenshots.yml` / `publish-flatpak.yml` / `ci.yml`
 > are now `.github/workflows/screenshots-xfce.yml`, `publish-flatpak.yml` (`frontend: xfce`)
 > (plus `ci-niri.yml` for the niri Go backend) at the repository root, running with

@@ -19,9 +19,9 @@ one back means moving what `latest` points to, not just fixing `dev`.
 ## 1. Confirm it's actually the latest release that's bad
 
 ```bash
-gh release list --repo tuna-os/bootc-installer --limit 5
-gh release view "$(gh release list --repo tuna-os/bootc-installer --limit 1 --json tagName --jq '.[0].tagName')" \
-  --repo tuna-os/bootc-installer
+gh release list --repo tuna-os/installer --limit 5
+gh release view "$(gh release list --repo tuna-os/installer --limit 1 --json tagName --jq '.[0].tagName')" \
+  --repo tuna-os/installer
 ```
 
 Reproduce against the actual asset before touching anything — download
@@ -31,7 +31,7 @@ and run it, or check CI/user reports against the specific tag, not just
 ## 2. Find the last known-good release
 
 ```bash
-gh release list --repo tuna-os/bootc-installer --limit 15 \
+gh release list --repo tuna-os/installer --limit 15 \
   --json tagName,createdAt,isLatest
 ```
 
@@ -44,10 +44,10 @@ minimum that its commit predates the regression) before promoting it.
 
 ```bash
 # Demote the bad release
-gh release edit <bad-tag> --repo tuna-os/bootc-installer --latest=false
+gh release edit <bad-tag> --repo tuna-os/installer --latest=false
 
 # Promote the last known-good release
-gh release edit <good-tag> --repo tuna-os/bootc-installer --latest
+gh release edit <good-tag> --repo tuna-os/installer --latest
 ```
 
 `releases/latest/` always resolves to the newest release with
@@ -58,9 +58,9 @@ newer-but-also-bad release exists; check the full list from step 2.
 ## 4. Verify the fix took
 
 ```bash
-curl -sfIL -o /dev/null https://github.com/tuna-os/bootc-installer/releases/latest/download/org.bootcinstaller.Installer.flatpak && \
+curl -sfIL -o /dev/null https://github.com/tuna-os/installer/releases/latest/download/org.bootcinstaller.Installer.flatpak && \
   echo reachable
-gh release view --repo tuna-os/bootc-installer -R tuna-os/bootc-installer 2>/dev/null | head -1
+gh release view --repo tuna-os/installer 2>/dev/null | head -1
 ```
 
 Confirm the tag now served under `releases/latest/` is `<good-tag>`, not

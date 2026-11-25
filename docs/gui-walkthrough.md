@@ -1,4 +1,7 @@
-# GNOME installer walkthrough
+# Legacy GNOME installer walkthrough
+
+This is the frontend that live ISOs with GNOME use today. The image-based
+medium uses gnome-setup in its place ([architecture](architecture.md)).
 
 CI renders every image below from the real GTK4 / libadwaita wizard with
 `tests/gui/capture-screens.py`. The script uses the same `BootcWindow` that
