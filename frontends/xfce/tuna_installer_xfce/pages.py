@@ -3,6 +3,7 @@ Flow and recipe contract: ../../INSTALLER-FRONTENDS.md."""
 
 import json
 import os
+import sys
 import threading
 
 import gi
@@ -2070,9 +2071,13 @@ class RecoveryPage(Page):
         try:
             core.get_daemon().enroll_recovery_key(disk, self.key)
         except Exception as exc:  # noqa: BLE001 - the key is shown; retry
+            # The error name of the daemon (io.systemd.System) is for the
+            # log; it tells a person nothing.
+            print(f"the recovery key was not enrolled: {exc}", file=sys.stderr)
             show_problem(self.error_label, {
-                "code": "", "message": str(exc) or _(
-                    "The key could not be enrolled. Try again.")})
+                "code": "", "message": _(
+                    "The recovery key could not be saved to the disk. It does "
+                    "not unlock the disk yet. Press Done to try again.")})
             return False
         return True
 

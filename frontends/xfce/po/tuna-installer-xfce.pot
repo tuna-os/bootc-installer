@@ -436,6 +436,9 @@ msgstr ""
 msgid "Everything on {title} ({path}) will be erased."
 msgstr ""
 
+msgid "The recovery key could not be saved to the disk. It does not unlock the disk yet. Press Done to try again."
+msgstr ""
+
 #, python-brace-format
 msgid ""
 "You stopped the installation. The target disk holds an incomplete system: start the installer again to use it.\n"
@@ -448,9 +451,6 @@ msgstr ""
 
 #, python-brace-format
 msgid "Could not detect disks: {error}"
-msgstr ""
-
-msgid "The key could not be enrolled. Try again."
 msgstr ""
 
 msgid "Cannot restart right now. Try again."
