@@ -265,6 +265,8 @@ fn wizard_recipe(disk: &str, has_tpm: bool) -> crate::Recipe {
     recipe.hostname = "tuna-box".to_string();
     recipe.locale = "de_DE.UTF-8".to_string();
     recipe.timezone = "Europe/Berlin".to_string();
+    recipe.choose_keyboard("de");
+    recipe.keyboard.as_mut().unwrap().variant = "nodeadkeys".to_string();
     recipe.encryption.enc_type =
         crate::TunaInstaller::daemon_default_type(has_tpm, &recipe.encryption.enc_type, false).to_string();
     recipe

@@ -601,6 +601,8 @@ fn daemon_user(recipe: &crate::Recipe) -> Option<Value> {
     if !user.password.is_empty() {
         u.insert("password".into(), Value::from(user.password.clone()));
     }
+    // Groups have no daemon field: membership of `wheel` is `admin`.
+    u.insert("admin".into(), Value::from(user.groups.iter().any(|g| g == "wheel")));
     Some(Value::Object(u))
 }
 
@@ -625,7 +627,9 @@ pub fn configure_params(recipe: &crate::Recipe, location_services: Option<bool>)
             let keymap = if kb.variant.is_empty() {
                 kb.layout.clone()
             } else {
-                format!("{},{}", kb.layout, kb.variant)
+                // The daemon reads `layout-variant` (`de-nodeadkeys`); a comma
+                // is `keymap_invalid`.
+                format!("{}-{}", kb.layout, kb.variant)
             };
             params.insert("keymap".into(), Value::from(keymap));
         }
@@ -914,6 +918,23 @@ mod tests {
         assert_eq!(on["privacy"], json!({"locationServices": true}));
         let off = configure_params(&recipe, Some(false));
         assert_eq!(off["privacy"], json!({"locationServices": false}));
+    }
+
+    #[test]
+    fn the_keymap_and_the_admin_flag_are_in_the_daemons_form() {
+        let mut recipe = crate::Recipe::default();
+        recipe.choose_keyboard("de");
+        assert_eq!(configure_params(&recipe, None)["keymap"], Value::from("de"));
+        recipe.keyboard.as_mut().unwrap().variant = "nodeadkeys".into();
+        assert_eq!(configure_params(&recipe, None)["keymap"], Value::from("de-nodeadkeys"));
+        recipe.user = Some(crate::model::User {
+            username: "alex".into(),
+            groups: vec!["wheel".into(), "audio".into()],
+            ..Default::default()
+        });
+        assert_eq!(configure_params(&recipe, None)["user"]["admin"], Value::Bool(true));
+        recipe.user.as_mut().unwrap().groups = vec!["audio".into()];
+        assert_eq!(daemon_config(&recipe, None)["user"]["admin"], Value::Bool(false));
     }
 
     #[test]
