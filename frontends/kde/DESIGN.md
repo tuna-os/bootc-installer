@@ -133,8 +133,10 @@ Three pages follow the daemon and not a choice of this frontend:
 - **Handoff.** The daemon reports the mode in `Probe`. The page words it
   and calls `Handoff` with no mode.
 
-`plasma-setup` owns the first user where the medium has it. The account
-step then does not show, and the confirm and handoff steps say who asks.
+`plasma-setup` owns the first user where its unit is enabled on the
+medium. The account step then does not show, and the confirm and handoff
+steps say who asks. A masked unit does not count: the image then expects
+the installer to make the user.
 
 ## Visual verification
 

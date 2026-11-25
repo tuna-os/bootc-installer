@@ -72,8 +72,10 @@ are `../../shared/account/groups.json`, which CMake compiles in, or
 `/etc/bootc-installer/recipe.json`. The account is necessary unless the
 image creates its own first user (`needs_user_creation: false`). The wizard
 then skips the step and the recipe has no block. The wizard also skips it
-when `plasma-setup` is on the live medium (`detectFirstBootTool`,
-`TUNA_FIRSTBOOT_TOOL`): that tool makes the user on the first boot. The
+when `plasma-setup.service` is enabled and not masked on the live medium
+(`detectFirstBootTool`, `TUNA_FIRSTBOOT_TOOL`): that tool then makes the
+user on the first boot. An image that masks the unit keeps the account
+step. The tunaOS images mask it today. The
 requirements step has the hardware gates. The language, keyboard and
 timezone steps have the pickers, and the network step has the connectivity
 check. The pickers go into the recipe as `locale`, `keyboard.layout` and

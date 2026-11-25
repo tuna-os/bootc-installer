@@ -509,6 +509,12 @@ Kirigami.Page {
 
         contentItem: module ? module.contentItem : null
 
+        // The screen's accessible name (shared/flow/screens.yaml). A module
+        // is a QObject, not an item: the name it declares reaches the
+        // accessibility tree through this delegate, which is one.
+        Accessible.role: Accessible.Pane
+        Accessible.name: module ? module.Accessible.name : ""
+
         Component.onCompleted: {
             const component = Qt.createComponent(Qt.resolvedUrl(url));
             if (component.status === Component.Error) {

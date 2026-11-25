@@ -418,9 +418,9 @@ public:
     // calls this per step; the backend tests pin every rule.
     Q_INVOKABLE bool stepSkipped(const QString &stepId) const;
     QString firstBootTool() const { return m_firstBootTool; }
-    // Which first-boot tool the running system has: TUNA_FIRSTBOOT_TOOL
-    // (plasma-setup, or anything else for none), else the tool's files
-    // under `root`. Public for tests.
+    // Which first-boot tool will make the user: TUNA_FIRSTBOOT_TOOL
+    // (plasma-setup, or anything else for none), else plasma-setup when
+    // its unit under `root` is enabled and not masked. Public for tests.
     static QString detectFirstBootTool(const QString &root);
     bool locationServices() const { return m_locationServices; }
     void setLocationServices(bool v);

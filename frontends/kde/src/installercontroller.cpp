@@ -1768,10 +1768,37 @@ QString InstallerController::detectFirstBootTool(const QString &root)
         return qEnvironmentVariable("TUNA_FIRSTBOOT_TOOL") == QLatin1String("plasma-setup")
             ? QStringLiteral("plasma-setup") : QString();
     }
-    for (const char *path : {"/usr/bin/plasma-setup", "/usr/libexec/plasma-setup",
-                             "/usr/lib/systemd/system/plasma-setup.service"}) {
-        if (QFileInfo::exists(root + QLatin1String(path)))
-            return QStringLiteral("plasma-setup");
+    // The tool owns the user only when its unit will run on the first boot:
+    // the unit is there, nothing masks it, and a target wants it. An image
+    // can ship plasma-setup and mask it, because its installer makes the
+    // user (tunaOS does: build_scripts/desktop/install-desktop.sh). Then
+    // this wizard must ask, or the installed system has no user at all.
+    // When in doubt the answer is "no tool".
+    const QString unit = QStringLiteral("plasma-setup.service");
+    const QStringList unitDirs{root + QStringLiteral("/etc/systemd/system"),
+                               root + QStringLiteral("/usr/lib/systemd/system")};
+    bool present = false;
+    for (const QString &dir : unitDirs) {
+        const QFileInfo file(dir + QLatin1Char('/') + unit);
+        if (!file.exists() && !file.isSymLink())
+            continue;
+        // A mask is a link to /dev/null (or an empty file).
+        if (file.isSymLink() && file.symLinkTarget() == QLatin1String("/dev/null"))
+            return {};
+        if (file.exists() && file.size() == 0)
+            return {};
+        present = true;
+    }
+    if (!present)
+        return {};
+    for (const QString &dir : unitDirs) {
+        const QStringList wants = QDir(dir).entryList({QStringLiteral("*.wants"), QStringLiteral("*.requires")},
+                                                      QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString &want : wants) {
+            const QFileInfo link(dir + QLatin1Char('/') + want + QLatin1Char('/') + unit);
+            if (link.exists() || link.isSymLink())
+                return QStringLiteral("plasma-setup");
+        }
     }
     return {};
 }

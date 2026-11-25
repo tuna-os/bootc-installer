@@ -398,17 +398,44 @@ void DaemonTest::eventsBecomeProgressLines()
 
 void DaemonTest::firstBootToolDetection()
 {
-    QTemporaryDir root;
-    QVERIFY(root.isValid());
-    QCOMPARE(InstallerController::detectFirstBootTool(root.path()), QString());
-    QVERIFY(QDir(root.path()).mkpath(QStringLiteral("usr/libexec")));
-    QFile tool(root.filePath(QStringLiteral("usr/libexec/plasma-setup")));
-    QVERIFY(tool.open(QIODevice::WriteOnly));
-    tool.close();
-    QCOMPARE(InstallerController::detectFirstBootTool(root.path()), QStringLiteral("plasma-setup"));
+    const QString unit = QStringLiteral("plasma-setup.service");
+    const auto touch = [](const QString &path, const QByteArray &body) {
+        QFile f(path);
+        return f.open(QIODevice::WriteOnly) && f.write(body) == body.size();
+    };
+
+    // Nothing there: the wizard asks for the account.
+    QTemporaryDir bare;
+    QVERIFY(bare.isValid());
+    QCOMPARE(InstallerController::detectFirstBootTool(bare.path()), QString());
+
+    // The program alone says nothing: it must run on the first boot.
+    QTemporaryDir installed;
+    QVERIFY(QDir(installed.path()).mkpath(QStringLiteral("usr/libexec")));
+    QVERIFY(QDir(installed.path()).mkpath(QStringLiteral("usr/lib/systemd/system")));
+    QVERIFY(QDir(installed.path()).mkpath(QStringLiteral("etc/systemd/system")));
+    QVERIFY(touch(installed.filePath(QStringLiteral("usr/libexec/plasma-setup")), "x"));
+    QCOMPARE(InstallerController::detectFirstBootTool(installed.path()), QString());
+
+    // The unit there but wanted by no target: not enabled, so no tool.
+    const QString libUnit = installed.filePath(QStringLiteral("usr/lib/systemd/system/") + unit);
+    QVERIFY(touch(libUnit, "[Unit]\n"));
+    QCOMPARE(InstallerController::detectFirstBootTool(installed.path()), QString());
+
+    // Enabled: a target wants it. Now the tool makes the user.
+    const QString wants = installed.filePath(QStringLiteral("etc/systemd/system/graphical.target.wants"));
+    QVERIFY(QDir().mkpath(wants));
+    QVERIFY(QFile::link(libUnit, wants + QLatin1Char('/') + unit));
+    QCOMPARE(InstallerController::detectFirstBootTool(installed.path()), QStringLiteral("plasma-setup"));
+
+    // Masked, as the tunaOS images ship it (the installer makes the user):
+    // the wizard must ask, or the installed system has no user.
+    QVERIFY(QFile::link(QStringLiteral("/dev/null"), installed.filePath(QStringLiteral("etc/systemd/system/") + unit)));
+    QCOMPARE(InstallerController::detectFirstBootTool(installed.path()), QString());
+
     // The variable wins both ways.
     qputenv("TUNA_FIRSTBOOT_TOOL", "none");
-    QCOMPARE(InstallerController::detectFirstBootTool(root.path()), QString());
+    QCOMPARE(InstallerController::detectFirstBootTool(installed.path()), QString());
     qputenv("TUNA_FIRSTBOOT_TOOL", "plasma-setup");
     QCOMPARE(InstallerController::detectFirstBootTool(QStringLiteral("/nonexistent")), QStringLiteral("plasma-setup"));
 }

@@ -54,7 +54,7 @@ The wizard has the eighteen screens of `../../shared/flow/screens.yaml`, in the 
 | `legacy` | the `fisherman` CLI, with the recipe on stdin |
 | `auto`, or not set | the daemon when its socket is there, else the CLI |
 
-`TUNA_FISHERMAN_SOCKET` moves the `io.tunaos.Fisherman` socket. `FISHERMAND_SOCKET_DIR` moves all four sockets. `TUNA_FIRSTBOOT_TOOL=plasma-setup` (or `none`) replaces the check for `plasma-setup` on the live medium.
+`TUNA_FISHERMAN_SOCKET` moves the `io.tunaos.Fisherman` socket. `FISHERMAND_SOCKET_DIR` moves all four sockets. `TUNA_FIRSTBOOT_TOOL=plasma-setup` (or `none`) replaces the check for an enabled `plasma-setup.service` on the live medium.
 
 ## Build
 
