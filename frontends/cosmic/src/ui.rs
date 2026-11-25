@@ -106,6 +106,15 @@ pub mod copy {
     pub const RAIL_INSTALL: &str = "Install";
     // A disk that names no vendor and no model.
     pub const DISK_BUS_TITLE: &str = "{bus} disk";
+    // The disk map.
+    pub const MAP_NOW: &str = "On this disk now";
+    pub const MAP_AFTER: &str = "After the installation";
+    pub const MAP_EMPTY: &str = "This disk is empty.";
+    pub const MAP_BOOT: &str = "Boot";
+    pub const MAP_WINDOWS: &str = "Windows";
+    pub const MAP_LINUX: &str = "Linux";
+    pub const MAP_ENCRYPTED: &str = "Encrypted";
+    pub const MAP_FREE: &str = "Free space";
     // The row that is chosen until the person picks another one.
     pub const REGION_KEEP: &str = "Keep the image's setting";
     pub const REGION_IMAGE: &str = "The image's setting";
@@ -433,6 +442,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 t.push(disk.title.clone());
                 t.push(disk_caption(disk));
             }
+            t.extend(map_text(app, false));
             t.push(tr(BACK));
             if app.selected_disk().is_some() {
                 t.push(tr(CONTINUE));
@@ -725,6 +735,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 t.push(label);
                 t.push(value);
             }
+            t.extend(map_text(app, true));
             if let Some(problem) = app.region_problem() {
                 t.push(problem.render());
             }
@@ -1011,6 +1022,118 @@ fn fill_class(tint: Tint) -> cosmic::theme::Container<'static> {
             Tint::Past => colour.a = 0.5,
             Tint::Line => colour.a = 0.25,
         }
+        cosmic::iced::widget::container::Style {
+            background: Some(colour.into()),
+            border: cosmic::iced::Border {
+                radius: 4.0.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    })
+}
+
+/// The facts about the disk that is picked.
+fn picked_data(app: &TunaInstaller) -> Option<&crate::probe::DiskData> {
+    app.selected_disk().and_then(|i| app.disk_data().get(i))
+}
+
+/// The maps of the picked disk as (heading, parts): as it is, and, on
+/// Confirm, as it will be.
+fn maps(app: &TunaInstaller, with_after: bool) -> Vec<(String, Vec<crate::disk_map::Part>)> {
+    let Some(disk) = picked_data(app) else {
+        return Vec::new();
+    };
+    let now = crate::disk_map::now(disk);
+    if now.is_empty() {
+        return Vec::new();
+    }
+    let mut maps = vec![(tr(MAP_NOW), now)];
+    if with_after {
+        let after = crate::disk_map::after(disk, app.keeps_data(), branding::name());
+        maps.push((tr(MAP_AFTER), after));
+    }
+    maps
+}
+
+/// The words of the maps.
+fn map_text(app: &TunaInstaller, with_after: bool) -> Vec<String> {
+    let mut t = Vec::new();
+    for (heading, parts) in maps(app, with_after) {
+        t.push(heading);
+        if is_empty_disk(&parts) {
+            t.push(tr(MAP_EMPTY));
+        } else {
+            t.extend(parts.iter().map(crate::disk_map::legend));
+        }
+    }
+    t
+}
+
+/// Nothing but free space.
+fn is_empty_disk(parts: &[crate::disk_map::Part]) -> bool {
+    parts.iter().all(|p| p.kind == crate::disk_map::Kind::Free)
+}
+
+/// One map: the heading, the bar in proportion and the legend. The legend
+/// names each part, so nothing hangs on the colours alone.
+fn map_view(heading: String, parts: Vec<crate::disk_map::Part>) -> Element<'static, Message> {
+    let spacing = cosmic::theme::active().cosmic().spacing;
+    let empty = is_empty_disk(&parts);
+    let mut bar = widget::row::with_capacity(parts.len()).spacing(2);
+    let mut legend = widget::row::with_capacity(parts.len()).spacing(spacing.space_s);
+    for part in parts {
+        bar = bar.push(
+            widget::container(widget::space::horizontal().width(Length::Fill))
+                .width(Length::FillPortion(part.share))
+                .height(Length::Fixed(14.0))
+                .class(part_class(part.kind)),
+        );
+        legend = legend.push(
+            widget::row::with_children(vec![
+                widget::container(widget::space::horizontal().width(Length::Fixed(8.0)))
+                    .height(Length::Fixed(8.0))
+                    .class(part_class(part.kind))
+                    .into(),
+                widget::text::caption(crate::disk_map::legend(&part)).into(),
+            ])
+            .spacing(spacing.space_xxs)
+            .align_y(Alignment::Center),
+        );
+    }
+    let below: Element<'static, Message> = if empty {
+        widget::text::caption(tr(MAP_EMPTY)).into()
+    } else {
+        legend.wrap().into()
+    };
+    widget::column::with_children(vec![
+        widget::text::caption_heading(heading).into(),
+        bar.into(),
+        below,
+    ])
+    .spacing(spacing.space_xxs)
+    .into()
+}
+
+/// Never the accent: on a page the accent is the button that goes on.
+fn part_class(kind: crate::disk_map::Kind) -> cosmic::theme::Container<'static> {
+    use crate::disk_map::Kind;
+    cosmic::theme::Container::custom(move |theme| {
+        let cosmic = theme.cosmic();
+        let palette = &cosmic.palette;
+        let colour: cosmic::iced::Color = match kind {
+            Kind::Boot => palette.ext_yellow.into(),
+            Kind::Windows => palette.ext_blue.into(),
+            Kind::Linux => palette.ext_orange.into(),
+            Kind::Locked => palette.ext_pink.into(),
+            Kind::New => palette.ext_purple.into(),
+            Kind::Other => palette.neutral_6.into(),
+            Kind::Free => {
+                let mut free: cosmic::iced::Color = cosmic.on_bg_color().into();
+                free.a = 0.15;
+                free
+            }
+        };
         cosmic::iced::widget::container::Style {
             background: Some(colour.into()),
             border: cosmic::iced::Border {
@@ -2199,9 +2322,17 @@ fn disk_select(app: &TunaInstaller) -> Element<'_, Message> {
                     .on_press(Message::SelectDisk(i)),
             );
         }
-        widget::scrollable(list.into_element())
-            .height(Length::Fill)
-            .into()
+        let mut col = widget::column::with_children(vec![widget::scrollable(
+            list.into_element(),
+        )
+        .height(Length::Fill)
+        .into()])
+        .spacing(spacing.space_s);
+        // What the picked disk holds, before the person goes on.
+        for (heading, parts) in maps(app, false) {
+            col = col.push(map_view(heading, parts));
+        }
+        col.height(Length::Fill).into()
     };
 
     page_frame(
@@ -2719,6 +2850,10 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
                 .class(cosmic::theme::Text::Color(theme.cosmic().destructive_text_color().into()))
                 .into(),
         );
+    }
+    // What is there, and what will be: above the summary, below the warning.
+    for (heading, map) in maps(app, true) {
+        parts.push(map_view(heading, map));
     }
     parts.push(summary.into());
     if let Some(problem) = app.region_problem() {

@@ -27,6 +27,7 @@ mod hardware;
 mod preflight;
 mod tour;
 mod fishermand;
+mod disk_map;
 mod eula;
 mod i18n;
 #[cfg(all(test, unix))]

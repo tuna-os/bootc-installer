@@ -778,6 +778,33 @@ pub fn daemon_probe_to_facts(probe: &Value, gates: &Value) -> Result<crate::prob
                     .and_then(|e| e.get("partitionTableType"))
                     .and_then(Value::as_str)
                     .is_some_and(|t| !t.is_empty() && t != "gpt"),
+                size_bytes: d.get("sizeBytes").and_then(Value::as_u64).unwrap_or(0),
+                partitions: data
+                    .and_then(|e| e.get("partitions"))
+                    .and_then(Value::as_array)
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[])
+                    .iter()
+                    .map(|p| {
+                        let text = |key: &str| {
+                            p.get(key).and_then(Value::as_str).unwrap_or("").to_string()
+                        };
+                        crate::probe::Partition {
+                            path: text("path"),
+                            fstype: text("fstype"),
+                            label: text("label"),
+                            size_bytes: p.get("sizeBytes").and_then(Value::as_u64).unwrap_or(0),
+                        }
+                    })
+                    .collect(),
+                systems: data
+                    .and_then(|e| e.get("operatingSystems"))
+                    .and_then(Value::as_array)
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[])
+                    .iter()
+                    .filter_map(|s| s.as_str().map(str::to_string))
+                    .collect(),
             }
         })
         .collect();
