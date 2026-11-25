@@ -79,43 +79,33 @@ Each comes from the source of gnome-setup.
 ## Frontends today
 
 Status is `have`, `partial` or `missing`, from the code of each frontend.
-`DESIGN.md` of KDE and COSMIC is stale: both say that the recipe has no
-locale field, and it has one.
+All four frontends have a page for each screen. Niri and XFCE show the
+`requirements` gates in a dialog, so that row is `partial` for them.
 
 | Screen | KDE | COSMIC | Niri | XFCE |
 |---|---|---|---|---|
-| `requirements` | partial | have | partial | partial |
-| `try-or-install` | missing | partial | have | missing |
-| `language` | partial | have | have | partial |
-| `keyboard` | partial | have | have | partial |
-| `timezone` | partial | have | have | partial |
-| `network` | partial | have | have | partial |
-| `prerelease` | missing | missing | have | missing |
-| `eula` | missing | missing | have | missing |
-| `rst` | missing | missing | have | missing |
+| `requirements` | have | have | partial | partial |
+| `try-or-install` | have | have | have | have |
+| `language` | have | have | have | have |
+| `keyboard` | have | have | have | have |
+| `timezone` | have | have | have | have |
+| `network` | have | have | have | have |
+| `prerelease` | have | have | have | have |
+| `eula` | have | have | have | have |
+| `rst` | have | have | have | have |
 | `disk` | have | have | have | have |
-| `wipe-or-free` | missing | missing | have | missing |
-| `encryption` | partial | partial | have | have |
+| `wipe-or-free` | have | have | have | have |
+| `encryption` | have | have | have | have |
 | `account` | have | have | have | have |
 | `confirm` | have | have | have | have |
 | `install` | have | have | have | have |
-| `recovery-key` | partial | partial | have | partial |
-| `handoff` | missing | missing | have | missing |
+| `recovery-key` | have | have | have | have |
+| `handoff` | have | have | have | have |
 | `done` | have | have | have | have |
 
-The other frontends keep the `recovery-key` in a panel on the done page,
-with a copy button and an acknowledgement box, and have no QR code. Niri
-shows a QR code and counts as `have`.
-
-The page counts in the port issues differ from the code:
-
-- KDE has seven modules. Language, keyboard and time zone are on its welcome
-  module. A network gate and a requirements gate exist.
-- COSMIC has fourteen pages, as #444 says.
-- Niri has nine steps, not seven. Its Session step holds keyboard, language,
-  time zone and network.
-- XFCE has eight pages, not seven. Its identity page holds language,
-  keyboard and time zone in an expander.
+`have` says that the page exists and that its frontend's own tests and
+screenshots show it. It does not say that the page ran on an installer
+medium. `docs/image-medium.md` has that state.
 
 ## Test contract
 

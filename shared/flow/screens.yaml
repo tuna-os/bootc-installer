@@ -76,7 +76,7 @@ screens:
     accessibility: {name: Requirements, buttons: [Continue anyway, Power off, Firmware setup]}
     gnome_setup: {status: absent, note: "No such page. The GNOME frontend in this repo has BootcRamWindow, BootcCpuWindow and BootcUnsupportedWindow."}
     frontends:
-      kde: {status: partial, note: "A gate on the welcome module, not a page. RAM and CPU hold Next until a tick. No UEFI offers only power off."}
+      kde: {status: have, note: "Own step, shown only while a gate is unmet. RAM and CPU have an override."}
       cosmic: {status: have, note: "Page `requirements`, one card per gate. Already matches this spec."}
       niri: {status: partial, note: "Warning on the welcome page and a gate dialog."}
       xfce: {status: partial, note: "Gate windows (RAM, CPU, UEFI) before the wizard opens."}
@@ -103,10 +103,10 @@ screens:
         Copy differs when XDG_SESSION_CLASS=user. In gnome-setup this page comes after
         language, keyboard, prerelease and eula.
     frontends:
-      kde: {status: missing, note: "The welcome module introduces the install. It has no Try action."}
-      cosmic: {status: partial, note: "`welcome` introduces the product. It has no Try action."}
+      kde: {status: have, note: "Step `try-or-install`. Try quits, Install advances. No Try off live media."}
+      cosmic: {status: have, note: "Page `try-or-install`. Try quits to the live session."}
       niri: {status: have, note: "Welcome page on live media: Try quits into the live session, Install now advances. Off live media one button."}
-      xfce: {status: missing, note: "WelcomePage, no Try action."}
+      xfce: {status: have, note: "WelcomePage: Try quits to the live session, Next installs."}
 
   - id: language
     title: Language
@@ -127,10 +127,10 @@ screens:
     accessibility: {name: Language, search_field: Search languages}
     gnome_setup: {status: present, note: "Search box, list, empty state `No Results Found`. A multilingual welcome carousel above the list."}
     frontends:
-      kde: {status: partial, note: "Combo box in `Region & language` on the welcome module. The recipe carries `locale`. DESIGN.md says nothing applies it: stale."}
+      kde: {status: have, note: "Own step: a search field and a list."}
       cosmic: {status: have, note: "Page `language`. Changes the live session with localectl and fills the recipe."}
       niri: {status: have, note: "Part of the Session step. Applies to the live session and fills the recipe."}
-      xfce: {status: partial, note: "Combo box in an expander on the identity page. Starts at `keep`."}
+      xfce: {status: have, note: "LanguagePage, a search list."}
 
   - id: keyboard
     title: Keyboard layout
@@ -148,10 +148,10 @@ screens:
     accessibility: {name: Keyboard layout, search_field: Search keyboards}
     gnome_setup: {status: present, note: "Search box and list. No test field, unlike the text of #442."}
     frontends:
-      kde: {status: partial, note: "Combo box on the welcome module."}
+      kde: {status: have, note: "Own step: a search field and a list."}
       cosmic: {status: have, note: "Page `keyboard`, XKB layout."}
       niri: {status: have, note: "Part of the Session step."}
-      xfce: {status: partial, note: "Combo box in the identity page expander."}
+      xfce: {status: have, note: "KeyboardPage, a search list with a test field."}
 
   - id: timezone
     title: Time zone
@@ -168,10 +168,10 @@ screens:
     accessibility: {name: Time zone}
     gnome_setup: {status: absent, note: "Listed in pages.conf. No page exists: the loader warns `unsupported page` and drops it."}
     frontends:
-      kde: {status: partial, note: "Combo box on the welcome module."}
+      kde: {status: have, note: "Own step: a search field and a list."}
       cosmic: {status: have, note: "Page `timezone`."}
       niri: {status: have, note: "Part of the Session step."}
-      xfce: {status: partial, note: "Combo box in the identity page expander."}
+      xfce: {status: have, note: "TimezonePage, a search list."}
 
   - id: network
     title: Network
@@ -189,10 +189,10 @@ screens:
     accessibility: {name: Network, buttons: [Network settings, Recheck]}
     gnome_setup: {status: absent, note: "Listed in pages.conf. No page exists."}
     frontends:
-      kde: {status: partial, note: "NetworkGate on the welcome module and on confirm, with a Network settings action."}
+      kde: {status: have, note: "Own step, only when the install needs a download. Network settings and Recheck."}
       cosmic: {status: have, note: "Page `network`. Skipped on live media and when the system copy is offered."}
       niri: {status: have, note: "Network card in the Session step, with Network settings and Recheck."}
-      xfce: {status: partial, note: "Gate on the confirm page."}
+      xfce: {status: have, note: "NetworkPage, only when the install needs a download. Network settings and Recheck."}
 
   - id: prerelease
     title: Disclaimer
@@ -208,10 +208,10 @@ screens:
     accessibility: {name: Disclaimer}
     gnome_setup: {status: present, note: "Title `Disclaimer`. gnome-setup also reads SETUP_OVERRIDE_OS_RELEASE_TYPE and SETUP_OVERRIDE_OS_EXPERIMENT for tests."}
     frontends:
-      kde: {status: missing, note: ""}
-      cosmic: {status: missing, note: ""}
+      kde: {status: have, note: "Shown when os-release says pre-release or experiment."}
+      cosmic: {status: have, note: "Shown when os-release says pre-release or experiment."}
       niri: {status: have, note: "Page `prerelease`, shown when os-release says pre-release; Continue."}
-      xfce: {status: missing, note: ""}
+      xfce: {status: have, note: "Shown when os-release says pre-release or experiment."}
 
   - id: eula
     title: Terms of use
@@ -230,10 +230,10 @@ screens:
     accessibility: {name: Terms of use, checkbox: I have read and accept the Terms of Use}
     gnome_setup: {status: present, note: "A checkbox `I have read and accept the Terms of Use` gates Next. No decline path."}
     frontends:
-      kde: {status: missing, note: ""}
-      cosmic: {status: missing, note: ""}
+      kde: {status: have, note: "Shown when the image has an agreement."}
+      cosmic: {status: have, note: "Shown when the medium has the agreement file. The accept box holds Continue."}
       niri: {status: have, note: "Page `eula`; an accept box gates Continue, Power off beside it."}
-      xfce: {status: missing, note: ""}
+      xfce: {status: have, note: "Shown when the image has an agreement. The accept box gates Next."}
 
   - id: rst
     title: Intel RST
@@ -253,10 +253,10 @@ screens:
     accessibility: {name: Intel RST, role: alert}
     gnome_setup: {status: present, note: "Page `Intel RST`, role alert, Next continues to disk select."}
     frontends:
-      kde: {status: missing, note: ""}
-      cosmic: {status: missing, note: ""}
+      kde: {status: have, note: "Daemon backend. Warns and continues."}
+      cosmic: {status: have, note: "Daemon backend. Warns and continues."}
       niri: {status: have, note: "Page `rst`; warns and continues, with Power off and Firmware setup."}
-      xfce: {status: missing, note: ""}
+      xfce: {status: have, note: "Daemon backend. Warns and continues."}
 
   - id: disk
     title: Disk
@@ -299,10 +299,10 @@ screens:
     accessibility: {name: Existing data found, radios: [Install to Free Space, Use Entire Disk]}
     gnome_setup: {status: present, note: "Page `Existing Data Found`, two radio rows, button `Start Installation`."}
     frontends:
-      kde: {status: missing, note: "The confirm card lists the devices that are erased. No choice."}
-      cosmic: {status: missing, note: ""}
+      kde: {status: have, note: "Daemon backend: free space or erase. A forced erase counts three seconds down."}
+      cosmic: {status: have, note: "Daemon backend: free space or erase. A forced erase counts three seconds down."}
       niri: {status: have, note: "Page `wipe-or-free`; free space or erase, both rows keyboard reachable."}
-      xfce: {status: missing, note: ""}
+      xfce: {status: have, note: "Daemon backend: free space or erase. A forced erase counts three seconds down."}
 
   - id: encryption
     title: Disk encryption
@@ -322,8 +322,8 @@ screens:
     accessibility: {name: Disk encryption, fields: [Passphrase, Confirm passphrase]}
     gnome_setup: {status: present, note: "Page `Disk Passphrase`, only when /sys/class/tpm has no TPM 2. Comes after the install, before the recovery key."}
     frontends:
-      kde: {status: partial, note: "One module with four choices (none, passphrase, TPM, TPM and passphrase). TPM rows hide without a TPM."}
-      cosmic: {status: partial, note: "Inside the `options` page with hostname and filesystem."}
+      kde: {status: have, note: "Step `encryption`, choices of the shared file. The daemon backend always encrypts."}
+      cosmic: {status: have, note: "Page `encryption`."}
       niri: {status: have, note: "Step `Encryption`, same four choices."}
       xfce: {status: have, note: "SetupPage, titled `Disk encryption`."}
 
@@ -416,10 +416,10 @@ screens:
       checkbox: I backed up my recovery key
     gnome_setup: {status: present, note: "Page `Back Up Recovery Key`. If MakeRecoveryKey fails, gnome-setup logs a warning and shows an empty key with no error."}
     frontends:
-      kde: {status: partial, note: "Panel on the done module: key, copy button, ack checkbox. No QR. Not its own screen."}
-      cosmic: {status: partial, note: "Panel on the done page. No QR. libcosmic has a `qr_code` feature."}
+      kde: {status: have, note: "Own step: key, copy, QR code, acknowledgement. The daemon enrols the key on Done."}
+      cosmic: {status: have, note: "Own page: key, copy, QR dialog, and a box that holds Done."}
       niri: {status: have, note: "Recovery key page with copy, acknowledgement and a QR code."}
-      xfce: {status: partial, note: "On the done page. Restart now stays off until the user acknowledges."}
+      xfce: {status: have, note: "RecoveryPage: key, copy, QR dialog, and an acknowledgement that gates Done."}
 
   - id: handoff
     title: Handoff
@@ -439,10 +439,10 @@ screens:
     accessibility: {name: Handoff, buttons: [Continue, Not now]}
     gnome_setup: {status: absent, note: "None. The done page offers Reboot (io.systemd.Shutdown.Reboot) and, in a session, `Not Now`."}
     frontends:
-      kde: {status: missing, note: ""}
-      cosmic: {status: missing, note: ""}
+      kde: {status: have, note: "Daemon backend: the mode of Probe. Continue calls Handoff with no mode. Not now."}
+      cosmic: {status: have, note: "Daemon backend: the mode of Probe. Continue calls Handoff with no mode. Not now."}
       niri: {status: have, note: "Page `handoff`; migrate or soft reboot as Probe reports, with a retry button."}
-      xfce: {status: missing, note: ""}
+      xfce: {status: have, note: "Daemon backend: the mode of Probe. Continue calls Handoff with no mode. Not now."}
 
   - id: done
     title: Done
