@@ -18,6 +18,17 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-25: readiness stamps a window that is already mapped
+
+- Fixed: `python/bootc_shared/readiness.py` `arm()` writes the stamp at once
+  when the window is already mapped. Before, a window that calls
+  `show_all()` in its constructor (XFCE) was mapped before `arm()` ran, the
+  `map` signal did not fire again, and no stamp existed on a live boot.
+- No report field changes, and no frontend changes.
+
+Contracts version: `2.3.2`
+Contracts sha256: `a118fec7f1decc088466b87ac00928830047a1cc8a6d98317c0100dfcb2c58ee`
+
 ## 2026-11-25: the walkthrough page keeps UI text in its table cells
 
 - Fixed: `walkthrough/aggregate.py` writes each caption, each text excerpt

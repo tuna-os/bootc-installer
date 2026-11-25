@@ -97,6 +97,24 @@ class TestArm:
         assert "page=" not in body
 
 
+    def test_a_window_that_is_already_mapped_stamps_at_once(self, tmp_path, monkeypatch):
+        """InstallerWindow calls show_all() in its constructor, so it is mapped
+        before arm() connects: the live boot had a window and no stamp."""
+        monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+
+        class MappedWindow:
+            def get_mapped(self):
+                return True
+
+            def connect(self, signal, handler):
+                raise AssertionError("the map signal does not fire again")
+
+        readiness.arm(MappedWindow(), app_id="x", page_getter=lambda: "try-or-install")
+        body = (tmp_path / readiness.STAMP_NAME).read_text()
+        assert "window=MappedWindow" in body
+        assert "page=try-or-install" in body
+
+
 class TestWriteStampFailure:
     def test_write_failure_is_logged_and_swallowed(self, tmp_path, monkeypatch, caplog):
         monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
