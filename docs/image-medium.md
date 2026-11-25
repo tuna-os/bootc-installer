@@ -33,7 +33,7 @@ Notes:
 
 - **SELinux was permissive in the live session of each run**
   ([tunaOS#4973](https://github.com/tuna-os/tunaOS/issues/4973)). In the
-  KDE and COSMIC runs, `getenforce` on the new system gave the enforcing mode.
+  KDE and COSMIC runs, `getenforce` on the new system gave `Enforcing`.
 - **A CD boot of a GRUB cell stops at the GRUB prompt**
   ([tunaOS#4970](https://github.com/tuna-os/tunaOS/issues/4970)).
 - niri does not start on the software renderer of the CI runner. The test

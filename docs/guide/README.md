@@ -31,5 +31,5 @@ A CI job makes them again after each change to `dev`.
 
 - [Live ISO](../live-iso.md): build a live ISO that starts the installer.
 - [Release flow](../RELEASE.md): how `dev` gets to `prod`.
-- [Monorepo migration](../MIGRATION.md): how one repository replaced five.
+- [Monorepo migration](../MIGRATION.md): how the five frontend repositories became one.
 - [Contribution guide](../../CONTRIBUTING.md): branch rules and commit format.

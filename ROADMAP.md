@@ -28,7 +28,7 @@ contracts. [Architecture](docs/architecture.md) tells you how it works today.
 | Live ISOs | Use the recipe path. GNOME uses the legacy `bootc_installer/` | [Live ISO](docs/live-iso.md) |
 | Validation | All checks on `dev` are green | Actions on `dev` |
 | Publication | Five Flatpaks, through `prod` only | [Release flow](docs/RELEASE.md) |
-| Name | `tuna-os/bootc-installer` became `tuna-os/installer`. The GHCR package and the app IDs keep their names | [Migration](docs/MIGRATION.md) |
+| Name | `tuna-os/bootc-installer` became `tuna-os/installer`. The GHCR package and the app IDs keep their names | [README](README.md) |
 
 ## Now
 

@@ -146,7 +146,7 @@ sent to fisherman.
 | `tour` | — | Progress screen tour slides (`welcome` and `completed`) |
 | `store_url` | — | If set, shows a merch store QR code for US-locale users on the done screen |
 | `store_qr_resource` | — | GResource path for the store QR SVG; defaults to the built-in `assets/store-qr.svg` |
-| `credits_data` | — | GResource path **or** filesystem path to a `credits.json` file; defaults to the built-in `data/credits.json` |
+| `credits_data` | — | GResource path **or** filesystem path to a `credits.json` file; the default has no credits file |
 
 #### Step templates
 
