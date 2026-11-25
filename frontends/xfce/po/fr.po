@@ -35,7 +35,7 @@ msgstr ""
 msgid "The recipe names no installation disk."
 msgstr ""
 
-msgid "The installer does not accept these settings."
+msgid "The installer did not accept these settings."
 msgstr ""
 
 #, python-brace-format
