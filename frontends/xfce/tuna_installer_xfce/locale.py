@@ -15,7 +15,6 @@ timedatectl are absent from minimal live media, and this module must still
 offer something on a system that has neither.
 """
 
-import json
 import locale
 import os
 import socket
@@ -72,7 +71,24 @@ def available_keyboard_layouts():
 
 XKB_LISTS = ("/usr/share/X11/xkb/rules/evdev.lst",
              "/usr/share/X11/xkb/rules/base.lst")
-ISO_CODES = "/usr/share/iso-codes/json"
+# The name of each language in that language, as COSMIC shows it.
+LANGUAGES = {
+    "af": "Afrikaans", "ar": "العربية", "be": "Беларуская", "bg": "Български",
+    "bn": "বাংলা", "bs": "Bosanski", "ca": "Català", "cs": "Čeština", "cy": "Cymraeg",
+    "da": "Dansk", "de": "Deutsch", "el": "Ελληνικά", "en": "English",
+    "eo": "Esperanto", "es": "Español", "et": "Eesti", "eu": "Euskara", "fa": "فارسی",
+    "fi": "Suomi", "fr": "Français", "ga": "Gaeilge", "gl": "Galego", "gu": "ગુજરાતી",
+    "he": "עברית", "hi": "हिन्दी", "hr": "Hrvatski", "hu": "Magyar", "hy": "Հայերեն",
+    "id": "Bahasa Indonesia", "is": "Íslenska", "it": "Italiano", "ja": "日本語",
+    "ka": "ქართული", "kk": "Қазақша", "km": "ខ្មែរ", "kn": "ಕನ್ನಡ", "ko": "한국어",
+    "lt": "Lietuvių", "lv": "Latviešu", "mk": "Македонски", "ml": "മലയാളം",
+    "mr": "मराठी", "ms": "Bahasa Melayu", "nb": "Norsk bokmål", "ne": "नेपाली",
+    "nl": "Nederlands", "nn": "Norsk nynorsk", "pa": "ਪੰਜਾਬੀ", "pl": "Polski",
+    "pt": "Português", "ro": "Română", "ru": "Русский", "sk": "Slovenčina",
+    "sl": "Slovenščina", "sq": "Shqip", "sr": "Српски", "sv": "Svenska", "ta": "தமிழ்",
+    "te": "తెలుగు", "th": "ไทย", "tr": "Türkçe", "uk": "Українська", "ur": "اردو",
+    "uz": "Oʻzbekcha", "vi": "Tiếng Việt", "zh": "中文",
+}
 _names = {}
 
 
@@ -99,35 +115,23 @@ def keyboard_names():
 
 
 def keyboard_label(layout):
-    """"German (de)"; the bare code when XKB has no name for it."""
-    name = keyboard_names().get(layout)
-    return f"{name} ({layout})" if name else layout
-
-
-def _iso(table, key_field):
-    if table not in _names:
-        try:
-            with open(os.path.join(ISO_CODES, f"iso_{table}.json"),
-                      encoding="utf-8") as handle:
-                rows = json.load(handle)[table]
-            _names[table] = {row[key_field]: row.get("common_name") or row["name"]
-                             for row in rows if key_field in row}
-        except (OSError, ValueError, KeyError, TypeError):
-            _names[table] = {}
-    return _names[table]
+    """"German" for "de"; the bare code when XKB has no name for it."""
+    return keyboard_names().get(layout, layout)
 
 
 def language_label(name):
-    """"German (Germany) - de_DE.UTF-8"; the locale name itself when the ISO
-    tables are not installed or do not have it."""
+    """"Deutsch (DE)" for "de_DE.UTF-8"; the locale name itself when the
+    table does not have the language."""
     code, _, territory = name.split(".")[0].split("@")[0].partition("_")
-    language = (_iso("639-2", "alpha_2").get(code)
-                or _iso("639-3", "alpha_3").get(code))
-    if not language:
+    language = LANGUAGES.get(code)
+    if language is None:
         return name
-    language = language.split(";")[0]
-    country = _iso("3166-1", "alpha_2").get(territory)
-    return f"{language} ({country}) - {name}" if country else f"{language} - {name}"
+    return f"{language} ({territory})" if territory else language
+
+
+def is_language(name):
+    """C and POSIX are locales, and no person's language."""
+    return name.split(".")[0] not in ("C", "POSIX")
 
 
 def timezone_label(zone):

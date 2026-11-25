@@ -299,7 +299,10 @@ class LanguagePage(SearchListPage):
     search_placeholder = _("Search languages")
 
     def values(self):
-        return locale_checks.available_languages()
+        # A session in the C locale has no language to preselect: the page
+        # opens on "Keep the image's setting".
+        return [name for name in locale_checks.available_languages()
+                if locale_checks.is_language(name)]
 
     def current(self):
         return locale_checks.current_language()
@@ -557,9 +560,9 @@ class RstPage(Page):
         super().__init__(win)
         a11y_name(self, _("Intel RST"))
         alert = _warn_row(_(
-            "This computer uses Intel RST (RAID mode). Linux cannot see "
-            "disks behind it. Switch the storage to AHCI in the firmware "
-            "settings, then continue."))
+            "This computer uses Intel RST (RAID mode), which can hide disks. "
+            "If the disk that you want is not in the list of the next step, "
+            "switch the storage to AHCI in the firmware settings."))
         if Atspi is not None:
             alert.get_accessible().set_role(Atspi.Role.ALERT)
         self.pack_start(alert, False, False, 0)
@@ -710,7 +713,7 @@ class SourcePage(Page):
             self.search.set_no_show_all(True)
             self.pack_start(_warn_row(_(
                 "No image catalog found and this is not a live system. "
-                "Check that fisherman's images.json is installed.")), False, False, 0)
+                "Check that images.json is installed.")), False, False, 0)
         self.listbox.show_all()
         self._sync_hint()
 

@@ -930,7 +930,7 @@ def recipe_problems(recipe):
              for problem in fisherman_validate.problems(result)]
     lines = [line for line in lines if line]
     if not lines and result.get("valid") is False:
-        lines = [_("fisherman did not accept the recipe.")]
+        lines = [_("The installer does not accept these settings.")]
     return lines
 
 
@@ -984,7 +984,7 @@ def _daemon_recipe_problems(recipe):
     lines = [fisherman_validate.render(problem, BRANDING.text) for problem in errors]
     lines = [line for line in lines if line]
     if not lines and result.get("valid") is False:
-        lines = [_("fisherman did not accept the recipe.")]
+        lines = [_("The installer does not accept these settings.")]
     return lines
 
 

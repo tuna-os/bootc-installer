@@ -35,7 +35,7 @@ msgstr ""
 msgid "The recipe names no installation disk."
 msgstr ""
 
-msgid "fisherman did not accept the recipe."
+msgid "The installer does not accept these settings."
 msgstr ""
 
 #, python-brace-format
@@ -230,7 +230,7 @@ msgstr ""
 msgid "Checking network connection…"
 msgstr ""
 
-msgid "This computer uses Intel RST (RAID mode). Linux cannot see disks behind it. Switch the storage to AHCI in the firmware settings, then continue."
+msgid "This computer uses Intel RST (RAID mode), which can hide disks. If the disk that you want is not in the list of the next step, switch the storage to AHCI in the firmware settings."
 msgstr ""
 
 msgid "Welcome"
@@ -401,7 +401,7 @@ msgstr ""
 msgid "(this system)"
 msgstr ""
 
-msgid "No image catalog found and this is not a live system. Check that fisherman's images.json is installed."
+msgid "No image catalog found and this is not a live system. Check that images.json is installed."
 msgstr ""
 
 msgid "No disk of at least 50 GiB was found. Connect one to install to."

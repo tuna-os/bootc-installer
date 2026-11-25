@@ -102,8 +102,41 @@ def test_keyboard_layouts_have_the_names_of_xkb(tmp_path, monkeypatch):
     monkeypatch.setattr(locale_checks, "XKB_LISTS", (str(rules),))
     monkeypatch.setattr(locale_checks, "_names", {})
     assert locale_checks.keyboard_names() == {"de": "German"}
-    assert locale_checks.keyboard_label("de") == "German (de)"
+    assert locale_checks.keyboard_label("de") == "German"
     assert locale_checks.keyboard_label("xx") == "xx"
+
+
+def test_c_is_no_language(monkeypatch):
+    monkeypatch.setattr(locale_checks, "available_languages",
+                        lambda: ["C.UTF-8", "POSIX", "de_DE.UTF-8"])
+    monkeypatch.setattr(locale_checks, "current_language", lambda: "C.UTF-8")
+    win = types.SimpleNamespace(region=pages.RegionState(), refresh_nav=lambda: None)
+    page = pages.LanguagePage(win)
+    assert list(page.rows) == ["", "de_DE.UTF-8"]
+    assert page.listbox.get_selected_row() is page.rows[""]
+    assert page.rows["de_DE.UTF-8"].get_child().get_text() == "Deutsch (DE)"
+
+
+@pytest.mark.parametrize("page_class, offer, session, field", [
+    (pages.LanguagePage, "available_languages", "current_language", "locale"),
+    (pages.KeyboardPage, "available_keyboard_layouts", "current_keyboard_layout",
+     "keyboard_layout"),
+    (pages.TimezonePage, "available_timezones", "current_timezone", "timezone"),
+])
+@pytest.mark.parametrize("current", ["de_DE.UTF-8", "xx"])
+def test_what_is_selected_is_what_is_sent(monkeypatch, page_class, offer, session, field,
+                                          current):
+    """The selected row and the recipe cannot differ: a passphrase is typed
+    with the one and read with the other."""
+    for name in ("apply_language", "apply_keyboard_layout", "apply_timezone"):
+        monkeypatch.setattr(locale_checks, name, lambda _v: True)
+    monkeypatch.setattr(locale_checks, offer, lambda: ["de_DE.UTF-8", "fr_FR.UTF-8"])
+    monkeypatch.setattr(locale_checks, session, lambda: current)
+    region = pages.RegionState()
+    page = page_class(types.SimpleNamespace(region=region, refresh_nav=lambda: None))
+    assert page.listbox.get_selected_row().value == getattr(region, field)
+    page.listbox.select_row(page.rows["fr_FR.UTF-8"])
+    assert getattr(region, field) == "fr_FR.UTF-8"
 
 
 # ─── the window ──────────────────────────────────────────────────────────────
@@ -123,6 +156,14 @@ def test_the_steps_are_named_and_only_the_shown_ones_count(window, monkeypatch):
     assert window.trawl.n_steps == len(steps)
     window._enter(app.PAGE_ORDER.index("done"))
     assert not window.step_label.get_visible()
+
+
+def test_a_button_that_waits_is_not_marked(window):
+    window._enter(app.PAGE_ORDER.index("identity"))
+    window.pages["identity"].username.set_text("")
+    window.pages["identity"].can_continue = lambda: False
+    window.refresh_nav()
+    assert not window.next_btn.get_style_context().has_class("suggested-action")
 
 
 def test_the_primary_button_is_marked(window):

@@ -325,7 +325,12 @@ class InstallerWindow(Gtk.ApplicationWindow):
             ctx.remove_class("suggested-action")
         else:
             ctx.remove_class("destructive-action")
-            ctx.add_class("suggested-action")
+            # The mark is for a button that can be pressed: themes draw a
+            # disabled suggested button almost like a live one.
+            if page.can_continue():
+                ctx.add_class("suggested-action")
+            else:
+                ctx.remove_class("suggested-action")
 
     def selected_leaf(self):
         sel = self.pages["source"].selection() or {}
