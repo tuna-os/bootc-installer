@@ -428,12 +428,12 @@ screens:
     applies_when: After the install and the recovery key.
     skip_when: Never.
     blocking: false
-    inputs: ["handoff mode from Probe: migrate | soft-reboot | reboot"]
+    inputs: ["handoff mode from Probe: migrate | soft_reboot | reboot"]
     outputs: []
     varlink: [io.tunaos.Fisherman.Handoff, io.systemd.Shutdown.SoftReboot, io.systemd.Shutdown.Reboot]
     modes:
       migrate: "btrfs cells. The live session becomes the installed system. Nothing restarts. Data of the live session stays."
-      soft-reboot: "EL10 cells. Userspace restarts into the copy. Data of the live session does not carry over."
+      soft_reboot: "EL10 cells. Userspace restarts into the copy. Data of the live session does not carry over."
       reboot: "Fallback. A full restart."
     failure_states: [handoff-failed]
     accessibility: {name: Handoff, buttons: [Continue, Not now]}
@@ -515,7 +515,7 @@ mock_scenarios:
   recovery-key-error: {reaches: [recovery-key], note: "MakeRecoveryKey fails."}
   passphrase-enroll-error: {reaches: [encryption], note: "Enroll returns PasswordIncorrect."}
   handoff-migrate: {reaches: [handoff], note: "Mode migrate."}
-  handoff-soft-reboot: {reaches: [handoff], note: "Mode soft-reboot."}
+  handoff-soft-reboot: {reaches: [handoff], note: "Mode soft_reboot."}
   handoff-error: {reaches: [handoff], note: "Handoff fails."}
   slow: {reaches: [install], note: "Progress at a fixed slow rate, for screenshots."}
 
