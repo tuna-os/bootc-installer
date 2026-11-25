@@ -89,6 +89,29 @@ jobs:
           echo "rc=$?" >> "$GITHUB_OUTPUT"
           head -60 docs/walkthrough/README.md
 
+      # This job commits the page with [skip ci], so no check runs on that
+      # commit, and the next pull request pays for it: the Prose check
+      # (ste.yml) counts the page against .ste-budget, and that budget is
+      # exact. So the page must add no finding at all. aggregate.py keeps
+      # captured UI text in table cells, which are not prose; this step
+      # proves it with the same linter, at the commit that ste.yml pins.
+      # A failure stops the upload and the commit, and dev keeps the last
+      # good page.
+      - name: Check that the page adds no STE finding
+        run: |
+          set -euo pipefail
+          sha=$(grep -oE 'ste-lint\.yml@[0-9a-f]{40}' .github/workflows/ste.yml | head -n1 | cut -d@ -f2)
+          test -n "$sha"
+          mkdir -p "$RUNNER_TEMP/ste-lint"
+          for f in ste-lint.mjs ste-rules.mjs; do
+            curl -fsSL --retry 3 -o "$RUNNER_TEMP/ste-lint/$f" \
+              "https://raw.githubusercontent.com/tuna-os/.github/$sha/.github/actions/ste-lint/$f"
+          done
+          if ! node "$RUNNER_TEMP/ste-lint/ste-lint.mjs" --max 0 docs/walkthrough/README.md; then
+            echo "::error::docs/walkthrough/README.md has STE findings. Its prose is the fixed text in shared/walkthrough/aggregate.py: fix it there, not in .ste-budget."
+            exit 1
+          fi
+
       # The publication allowlist (#270): only images, JSON and Markdown,
       # and no recipe secret or E2E test credential. A failure stops the
       # upload and the commit.
