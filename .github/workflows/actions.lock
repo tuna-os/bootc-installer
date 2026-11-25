@@ -18,6 +18,7 @@ workflows:
         - 'extractions/setup-just@v4.0.0'
     '.github/workflows/cargo-test-cosmic.yml':
         - 'actions/checkout@v7.0.1'
+        - 'actions/setup-go@v7.0.0'
         - 'dtolnay/rust-toolchain@stable'
         - 'swatinem/rust-cache@v2.9.3'
     '.github/workflows/ci-niri.yml':
