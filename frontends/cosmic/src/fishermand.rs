@@ -234,38 +234,13 @@ mod transport {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
-    // The language/keyboard/timezone/account pages will call this. The
-    // optional privacy object (e.g. `{"locationServices": bool}`) goes
-    // only when the user changed it; callers pass None otherwise.
-    #[allow(dead_code)]
-    pub fn configure_target(
-        conn: &mut Connection,
-        user: Option<Value>,
-        hostname: Option<&str>,
-        locale: Option<&str>,
-        keymap: Option<&str>,
-        time_zone: Option<&str>,
-        autologin: Option<bool>,
-        privacy: Option<Value>,
-    ) -> Result<Value, Error> {
-        let mut params = serde_json::Map::new();
-        if let Some(user) = user {
-            params.insert("user".into(), user);
-        }
-        for (key, value) in [
-            ("hostname", hostname.map(Value::from)),
-            ("locale", locale.map(Value::from)),
-            ("keymap", keymap.map(Value::from)),
-            ("timeZone", time_zone.map(Value::from)),
-            ("autologin", autologin.map(Value::from)),
-            ("privacy", privacy),
-        ] {
-            if let Some(value) = value {
-                params.insert(key.into(), value);
-            }
-        }
-        conn.call(&format!("{FISHERMAN}.ConfigureTarget"), Value::Object(params))
+    /// Record the target choices (`ConfigureTarget`): user, hostname and
+    /// region picks from `configure_params`. The optional privacy object
+    /// (e.g. `{"locationServices": bool}`) goes only when the user changed
+    /// it; no page changes it yet, so callers build params without one
+    /// (ruling on #442).
+    pub fn configure_target(conn: &mut Connection, params: Value) -> Result<Value, Error> {
+        conn.call(&format!("{FISHERMAN}.ConfigureTarget"), params)
     }
 
     /// Stream install events. `on_event` sees every reply, the terminal one
@@ -411,6 +386,7 @@ pub mod stub {
         requirements(_conn: &mut Connection) -> Value;
         probe(_conn: &mut Connection) -> Value;
         validate(_conn: &mut Connection, _config: Value, _partial: bool) -> Value;
+        configure_target(_conn: &mut Connection, _params: Value) -> Value;
         handoff(_conn: &mut Connection, _mode: Option<&str>) -> Value;
         cancel(_conn: &mut Connection) -> Value;
         list_candidate_devices(_conn: &mut Connection) -> Vec<Value>;
@@ -525,21 +501,60 @@ pub fn daemon_config(recipe: &crate::Recipe, install_mode: Option<crate::Install
         );
     }
     config.insert("encryption".into(), Value::Object(encryption));
-    if let Some(user) = &recipe.user {
-        let mut u = serde_json::Map::new();
-        u.insert("username".into(), Value::from(user.username.clone()));
-        if !user.fullname.is_empty() {
-            u.insert("fullName".into(), Value::from(user.fullname.clone()));
-        }
-        if !user.password.is_empty() {
-            u.insert("password".into(), Value::from(user.password.clone()));
-        }
-        config.insert("user".into(), Value::Object(u));
+    if let Some(user) = daemon_user(recipe) {
+        config.insert("user".into(), user);
     }
     if !recipe.hostname.is_empty() {
         config.insert("hostname".into(), Value::from(recipe.hostname.clone()));
     }
     Value::Object(config)
+}
+
+/// The daemon `User` object from the recipe, shared by `daemon_config`
+/// and `configure_params`. The password travels only inside the Varlink
+/// parameters; nothing logs it.
+fn daemon_user(recipe: &crate::Recipe) -> Option<Value> {
+    let user = recipe.user.as_ref()?;
+    let mut u = serde_json::Map::new();
+    u.insert("username".into(), Value::from(user.username.clone()));
+    if !user.fullname.is_empty() {
+        u.insert("fullName".into(), Value::from(user.fullname.clone()));
+    }
+    if !user.password.is_empty() {
+        u.insert("password".into(), Value::from(user.password.clone()));
+    }
+    Some(Value::Object(u))
+}
+
+/// The `ConfigureTarget` parameters from the recipe: user, hostname, and
+/// the region picks (locale, keymap, time zone). Empty picks stay out, so
+/// the image keeps its own values. No privacy object: no page changes it,
+/// so the daemon default stands (ruling on #442).
+pub fn configure_params(recipe: &crate::Recipe) -> Value {
+    let mut params = serde_json::Map::new();
+    if let Some(user) = daemon_user(recipe) {
+        params.insert("user".into(), user);
+    }
+    if !recipe.hostname.is_empty() {
+        params.insert("hostname".into(), Value::from(recipe.hostname.clone()));
+    }
+    if !recipe.locale.is_empty() {
+        params.insert("locale".into(), Value::from(recipe.locale.clone()));
+    }
+    if let Some(kb) = &recipe.keyboard {
+        if !kb.layout.is_empty() {
+            let keymap = if kb.variant.is_empty() {
+                kb.layout.clone()
+            } else {
+                format!("{},{}", kb.layout, kb.variant)
+            };
+            params.insert("keymap".into(), Value::from(keymap));
+        }
+    }
+    if !recipe.timezone.is_empty() {
+        params.insert("timeZone".into(), Value::from(recipe.timezone.clone()));
+    }
+    Value::Object(params)
 }
 
 /// The recipe's encryption names are fisherman's encryption-choices.json

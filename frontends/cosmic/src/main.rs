@@ -2323,8 +2323,11 @@ impl cosmic::Application for TunaInstaller {
                     // The plan binding is a legacy concept: the daemon
                     // validates the config itself.
                     let config = fishermand::daemon_config(&self.recipe, Some(self.install_mode()));
+                    // The region picks and account reach the target via
+                    // ConfigureTarget before Install runs.
+                    let configure = fishermand::configure_params(&self.recipe);
                     return Task::stream(
-                        Self::stream_daemon_install(config).map(cosmic::action::app),
+                        Self::stream_daemon_install(config, configure).map(cosmic::action::app),
                     );
                 }
                 let pid_slot = self.install_pid.clone();
@@ -2584,13 +2587,17 @@ impl TunaInstaller {
         })
     }
 
-    /// The daemon install: `Install(config, confirmed)` streams events over
-    /// Varlink. The blocking socket lives on a worker thread; each event
-    /// crosses to the UI as it arrives, so the bar moves while the install
-    /// runs. A second connection carries `Cancel` (ConfirmCancelInstall).
+    /// The daemon install: `ConfigureTarget` records the choices, then
+    /// `Install(config, confirmed)` streams events over Varlink. The
+    /// blocking socket lives on a worker thread; each event crosses to
+    /// the UI as it arrives, so the bar moves while the install runs.
+    /// A second connection carries `Cancel` (ConfirmCancelInstall).
     /// Never in capture mode: the StartInstall arm refuses that first.
     #[cfg(not(target_arch = "wasm32"))]
-    fn stream_daemon_install(config: serde_json::Value) -> impl Stream<Item = Message> {
+    fn stream_daemon_install(
+        config: serde_json::Value,
+        configure: serde_json::Value,
+    ) -> impl Stream<Item = Message> {
         cosmic::iced::stream::channel(64, async move |mut output| {
             let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Message>();
             let worker = tokio::task::spawn_blocking(move || {
@@ -2603,6 +2610,34 @@ impl TunaInstaller {
                         return;
                     }
                 };
+                // Record the account and region picks first. A problem
+                // here (a bad locale, a reserved name) ends the install
+                // before any disk step: the daemon returns the problems
+                // as data, and the first code names the failure.
+                let has_choices = configure
+                    .as_object()
+                    .map(|m| !m.is_empty())
+                    .unwrap_or(false);
+                if has_choices {
+                    match fishermand::configure_target(&mut conn, configure) {
+                        Ok(reply) => {
+                            let problems = fishermand::daemon_problems(&reply);
+                            if let Some(first) = problems.first() {
+                                let _ = tx.send(Message::InstallFinished(Err(format!(
+                                    "ConfigureTarget: {}",
+                                    first.code
+                                ))));
+                                return;
+                            }
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Message::InstallFinished(Err(format!(
+                                "ConfigureTarget failed: {e}"
+                            ))));
+                            return;
+                        }
+                    }
+                }
                 if let Err(e) =
                     fishermand::install(&mut conn, config, true, |event| {
                         tx.send(Message::DaemonEvent(event)).is_ok()
@@ -2642,6 +2677,7 @@ impl TunaInstaller {
     #[cfg(target_arch = "wasm32")]
     fn stream_daemon_install(
         _config: serde_json::Value,
+        _configure: serde_json::Value,
     ) -> impl Stream<Item = Message> {
         cosmic::iced::stream::channel(1, async move |mut output| {
             let _ = output
