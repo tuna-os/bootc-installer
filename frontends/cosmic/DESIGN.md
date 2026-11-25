@@ -182,3 +182,24 @@ from advancing. Theme-derived semantic colors preserve contrast across COSMIC
 themes. Changes to the wizard should be checked with keyboard navigation and
 by reviewing all generated screens in both the ordinary and variant-branded
 capture artifacts.
+
+### Names for the screen-reader and the shared harness
+
+What the code sets, read from `src/main.rs` and `src/ui.rs`. It is not a
+measurement of a live AT-SPI tree: the `a11y` feature (accesskit) is on in
+`Cargo.toml`, but no AT-SPI session was available to dump one.
+
+- The header shows the page title: `Page::title()`, a message id of
+  `ui::copy`, passed through `i18n::tr`. A harness that classifies a page by
+  its text can use that title. The titles are translated, so it must match
+  the shared id (`page=` in the readiness stamp, `Page::flow_id()`) or the
+  English text of the C locale.
+- The stamp, not the tree, is the stable name of a page. `TryOrInstall`
+  has the title `Welcome`; `Installing` has the id `install`.
+- Buttons carry their label as the name (**Continue**, **Back**, **Done**,
+  **Try again**). One name can belong to more than one node, as the
+  shared test contract says, so match `role=button` and sensitive.
+- The recovery key is a label whose name is its text. Match it by shape.
+
+Still to check on a live frontend: that every page title reaches the tree,
+and that the QR code has a text alternative.
