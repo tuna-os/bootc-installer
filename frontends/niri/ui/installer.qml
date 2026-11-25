@@ -426,7 +426,10 @@ ApplicationWindow {
     function needsPassphrase(type) { return encryptionChoice(type).needs_passphrase === true }
     function needsTpm2(type) { return encryptionChoice(type).needs_tpm2 === true }
     readonly property var offeredEncryptionTypes: encryptionChoices
-        .filter(c => root.hasTpm || c.needs_tpm2 !== true).map(c => c.type)
+        .filter(c => root.hasTpm || c.needs_tpm2 !== true)
+        // The daemon encrypts the root of each install and refuses "none"
+        // (tuna-os/tunaOS run 45639909696), as KDE and COSMIC know.
+        .filter(c => !root.daemonMode || c.type !== "none").map(c => c.type)
     // What a type is called: suffix "_label" or "_description", branding
     // copy (shared/branding/README.md, "Encryption choices"). "" is none.
     function encryptionText(type, suffix) {
@@ -1028,6 +1031,9 @@ ApplicationWindow {
                     root.hasTpm = facts.hasTpm === true
                     root.unmet = facts.unmet || []
                     root.daemonMode = facts.daemon === true
+                    // Sealed to the TPM with nothing to type, else a passphrase.
+                    if (root.daemonMode && root.encType === "none")
+                        root.encType = root.hasTpm ? "tpm2-luks" : "luks-passphrase"
                     root.intelRst = facts.intelRst === true
                     root.handoffMode = facts.handoffMode || "reboot"
                     root.handoffReason = facts.handoffReason || ""
