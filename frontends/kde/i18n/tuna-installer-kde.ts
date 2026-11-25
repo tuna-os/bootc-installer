@@ -342,6 +342,14 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Confirm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The installation uses the free space of %1. The data on the disk stays.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Target disk</source>
         <translation type="unfinished"></translation>
     </message>

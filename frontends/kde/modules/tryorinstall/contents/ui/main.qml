@@ -45,8 +45,9 @@ TunaComponents.SetupModule {
 
             Kirigami.Heading {
                 objectName: "tryHeading"
-                text: InstallerController.isLive ? InstallerController.productName
-                                                 : InstallerController.text("welcome_title")
+                // The product's welcome line (branding copy), on live media
+                // and off it: the screen contract finds this screen by it.
+                text: InstallerController.text("welcome_title")
                 level: 1
                 type: Kirigami.Heading.Type.Primary
                 horizontalAlignment: Text.AlignHCenter
@@ -57,7 +58,7 @@ TunaComponents.SetupModule {
 
             Label {
                 text: InstallerController.text("welcome_subtitle")
-                visible: text.length > 0 && !InstallerController.isLive
+                visible: text.length > 0
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
 

@@ -111,7 +111,9 @@ TunaComponents.SetupModule {
                             font.family: Kirigami.Theme.fixedWidthFont.family
                             font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.15
                             horizontalAlignment: Text.AlignHCenter
-                            wrapMode: Text.WrapAnywhere
+                            // Breaks after a hyphen, so a group of the
+                            // key stays whole.
+                            wrapMode: Text.Wrap
                             Accessible.name: InstallerController.recoveryKey
 
                             Layout.fillWidth: true

@@ -58,7 +58,7 @@ Install now, Done, Continue) instead of the shared Back and Next buttons.
 `src/qml/Wizard.qml` drives them with hand-rolled slide animations rather than
 a `SwipeView`. `src/components/setupmodule.h` is deliberately a near-copy of
 KDE KISS's `SetupModule`, so the shape is upstream's — follow it when adding a
-Steps (step ids of shared/flow/screens.yaml): try-or-install → welcome → prerelease → eula → rst → disk → wipe-or-free → encryption → account → confirm → install (`modules/progress`) → done. A step that has nothing to ask is skipped by `InstallerController.stepSkipped()`, never blank.
+Steps: the eighteen ids of `../../shared/flow/screens.yaml`, in its order: requirements → try-or-install → language → keyboard → timezone → network → prerelease → eula → rst → disk → wipe-or-free → encryption → account → confirm → install (`modules/progress`) → recovery-key → handoff → done. `test_backend` (`wizardStepsFollowTheSharedFlow`) holds `Wizard.qml` to that file. `InstallerController.stepSkipped()` skips a step that has nothing to ask. No step is blank. `src/qml/PickerList.qml` is the search field and list of the language, keyboard and time zone steps.
 
 The disk step shows the image catalog when a manifest is there and the host
 is not live media. `../../shared/catalog/README.md` is the contract for the
@@ -71,8 +71,11 @@ are `../../shared/account/groups.json`, which CMake compiles in, or
 `user.groups` of
 `/etc/bootc-installer/recipe.json`. The account is necessary unless the
 image creates its own first user (`needs_user_creation: false`). The wizard
-then skips the step and the recipe has no block. The welcome step also has
-the hardware gates, the region and language pickers and the connectivity
+then skips the step and the recipe has no block. The wizard also skips it
+when `plasma-setup` is on the live medium (`detectFirstBootTool`,
+`TUNA_FIRSTBOOT_TOOL`): that tool makes the user on the first boot. The
+requirements step has the hardware gates. The language, keyboard and
+timezone steps have the pickers, and the network step has the connectivity
 check. The pickers go into the recipe as `locale`, `keyboard.layout` and
 `timezone` (#292), the live check sends them to `fisherman validate`, and the
 confirm step lists them.
@@ -91,6 +94,44 @@ sends SIGTERM to the process group of the wrapper, then SIGKILL after five
 seconds. Exit code 130, or a signal after a cancel, shows the cancelled
 page (`done_cancelled_title`), not the failure page. Another exit code
 after a cancel is a failure.
+
+## The fishermand backend
+
+`TUNA_INSTALLER_BACKEND` is `daemon`, `legacy` or `auto` (`fishermand::backend()`
+in `src/daemonclient.cpp`). `auto` uses the daemon when its socket is there.
+`src/daemonclient.{h,cpp}` is the Varlink client and the mapping between
+the recipe and the daemon (`installConfig`, `targetChoices`, `eventToLine`).
+The controller does the calls:
+
+- Startup: `Requirements`, `Probe` and `ListCandidateDevices`. The `fit` of
+  a candidate decides a forced erase.
+- Fields: `Validate` with `partial`, 300 ms after a change.
+- Install: `Validate`, then `ConfigureTarget`, then the `Install` stream.
+  `confirmed` is true only in `startDaemonInstall()`. Each event becomes a
+  line of the legacy progress protocol, so the parser, the bar and the log
+  are the same on the two backends. The install ends on the terminal reply
+  of the stream, never on a progress event.
+- Cancel: `Cancel` on a second connection.
+- After the install: `MakeRecoveryKey`, then `Enroll` when the person
+  presses Done. `Handoff` goes with no mode: the daemon decided it in
+  `Probe`. Restart and power off are `io.systemd.Shutdown` calls.
+
+Rules:
+
+- `privacy.locationServices` goes to `ConfigureTarget` only after the
+  person moved the switch (`locationTouched`).
+- A daemon that does not answer shows an error. The wizard does not fall
+  back to the recipe CLI, and it does not run `systemctl` for a refused
+  restart.
+- The passphrase, the password and the recovery key reach no log. The
+  client keeps the name of an error and drops its parameters.
+- The capture sets `TUNA_INSTALLER_BACKEND=legacy`. It calls no daemon,
+  except in the `TUNA_CAPTURE_SCENARIO` mode for a developer.
+
+`frontends/kde/tests/test_daemon.cpp` (`tuna-installer-daemon-tests`) starts the mock
+(`fishermand --mock --scenario <name>`) for each scenario. It finds the
+binary through `FISHERMAND_BIN`, then `build/fishermand`, then `PATH`. With
+no binary the scenario tests skip.
 
 ## Strings
 
@@ -208,11 +249,11 @@ After a confirmed cancel, only exit code 130 or a signal is a cancel
 
 ## Visual verification
 
-`screenshots.yml` builds the real QML modules with `tests/capture.cpp`, renders
+`screenshots.yml` builds the real QML modules with `frontends/kde/tests/capture.cpp`, renders
 every step offscreen, and checks the pixels for meaningful content. It also
 writes `texts.json` (the item text of each step) and `audit.json` (its pixel
 verdict). The workflow then runs `../../shared/walkthrough/report_from_pngs.py`,
-which writes `docs/screenshots/walkthrough-kde.json`, the parity report the
+which writes `frontends/kde/docs/screenshots/walkthrough-kde.json`, the parity report the
 shared installer matrix consumes. A UI change that breaks capture thus breaks
 the cross-installer report, not only the screenshots of this tree.
 

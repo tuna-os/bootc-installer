@@ -646,7 +646,8 @@ int main(int argc, char *argv[])
     // the output directory, where the artifact upload will happily publish them
     // as if they were this run's output. That is the same "looks like output,
     // isn't" failure the pixel audit exists to catch.
-    {
+    // A scenario run adds its s-<scenario>-*.png beside the others.
+    if (qEnvironmentVariableIsEmpty("TUNA_CAPTURE_SCENARIO")) {
         QDir dir(outDir);
         const QStringList stale = dir.entryList(
             {u"*.png"_s, u"*.gif"_s, u"texts.json"_s, u"audit.json"_s}, QDir::Files);
@@ -684,7 +685,14 @@ int main(int argc, char *argv[])
     // The capture is the recipe backend with fixtures, wherever it runs: a
     // fishermand socket on the build host must not change the pictures, and
     // nothing on this path calls a daemon.
-    qputenv("TUNA_INSTALLER_BACKEND", "legacy");
+    //
+    // The one exception is TUNA_CAPTURE_SCENARIO=<mock scenario>: a developer
+    // started `fishermand --mock --scenario <name>` and pointed
+    // FISHERMAND_SOCKET_DIR at it. The harness then photographs the screens
+    // that scenario changes, on the daemon backend, as s-<scenario>-*.png.
+    // It still starts no install: an end state is replayed from events.
+    const QString scenario = qEnvironmentVariable("TUNA_CAPTURE_SCENARIO");
+    qputenv("TUNA_INSTALLER_BACKEND", scenario.isEmpty() ? "legacy" : "daemon");
 
     QQmlApplicationEngine engine;
     engine.loadFromModule("org.tunaos.installer"_L1, "Main"_L1);
@@ -729,8 +737,10 @@ int main(int argc, char *argv[])
     out << "product name rendered in these screens: " << controller->productName() << "\n";
     controller->setDisk(u"/dev/nvme0n1"_s);
     controller->setImage(u"ghcr.io/tuna-os/albacore:kde"_s);
-    controller->setEncryptionType(u"luks-passphrase"_s);
-    controller->setPassphrase(u"correct horse battery staple"_s);
+    if (scenario.isEmpty() || !controller->hasTpm()) {
+        controller->setEncryptionType(u"luks-passphrase"_s);
+        controller->setPassphrase(u"correct horse battery staple"_s);
+    }
     // The account step's fields, so it and the confirm step show a real
     // account. The confirmation field belongs to the page, not the
     // controller; the 12-account frame below types into it.
@@ -749,11 +759,67 @@ int main(int argc, char *argv[])
     // it, and widening the controller's API for the harness's convenience
     // would be the tail wagging the dog. The log split is what removes the
     // false credit; the exit code is not read on the progress screen.
-    controller->loadDemoState(QString::fromUtf8(kFixtureLogRunning), 0);
+    if (scenario.isEmpty())
+        controller->loadDemoState(QString::fromUtf8(kFixtureLogRunning), 0);
 
     window->resize(1000, 700);
     window->show();
     settle(700);
+
+    if (!scenario.isEmpty()) {
+        if (!controller->daemonBackend() || controller->daemonUnreachable()) {
+            out << "FAIL: TUNA_CAPTURE_SCENARIO is set and no daemon answers: " << controller->daemonError() << "\n";
+            return 1;
+        }
+        // An end state, replayed through the entry points the live stream
+        // uses. No Install call is made.
+        const auto replay = [&](const QByteArray &event, const QString &terminal) {
+            controller->consumeDaemonEvent(QJsonDocument::fromJson(
+                R"({"event":"step_started","stepId":"install_os","stepIndex":5,"totalSteps":9,"overallPct":14})").object());
+            if (!event.isEmpty())
+                controller->consumeDaemonEvent(QJsonDocument::fromJson(event).object());
+            controller->finishDaemonInstall(terminal, QString());
+        };
+        const auto shot = [&](int index, const QString &page) {
+            if (!callGoToStep(index))
+                return false;
+            settle(400);
+            const QImage image = window->grabWindow();
+            const QString path = outDir + u"/s-"_s + scenario + u"-"_s + page + u".png"_s;
+            out << "  -> " << path << "\n";
+            return !image.isNull() && image.save(path);
+        };
+        bool ok = true;
+        if (scenario == u"low-ram"_s || scenario == u"no-uefi"_s) {
+            ok = shot(0, u"requirements"_s);
+        } else if (scenario == u"rst"_s) {
+            ok = shot(8, u"rst"_s) && shot(9, u"disk"_s);
+        } else if (scenario == u"no-tpm"_s) {
+            ok = shot(11, u"encryption"_s) && shot(13, u"confirm"_s);
+        } else if (scenario == u"existing-data"_s || scenario == u"tight-space"_s) {
+            ok = shot(9, u"disk"_s) && shot(10, u"wipefree"_s) && shot(13, u"confirm"_s);
+        } else if (scenario == u"device-lost"_s) {
+            replay(R"({"event":"failed","stepId":"install_os","reason":"device_lost","message":"the target disk disappeared","nextAction":"choose_another_disk","overallPct":40})", u"failed"_s);
+            ok = shot(17, u"done"_s);
+        } else if (scenario == u"repart-error"_s) {
+            replay(R"({"event":"failed","stepId":"partition","reason":"repart_failed","message":"systemd-repart failed","nextAction":"retry","overallPct":5})", u"failed"_s);
+            ok = shot(17, u"done"_s);
+        } else if (scenario == u"cancel"_s) {
+            ok = shot(14, u"install"_s);
+            replay(QByteArray(), u"cancelled"_s);
+            ok = ok && shot(17, u"done"_s);
+        } else {
+            // happy and the handoff scenarios: the screens after an install.
+            ok = shot(4, u"timezone"_s) && shot(9, u"disk"_s) && shot(13, u"confirm"_s);
+            replay(R"({"event":"complete","overallPct":100})", u"complete"_s);
+            ok = ok && shot(15, u"recovery"_s) && shot(16, u"handoff"_s) && shot(17, u"done"_s);
+        }
+        if (!ok) {
+            out << "FAIL: could not capture the scenario screens\n";
+            return 1;
+        }
+        return 0;
+    }
 
     // The number is the screen's place in shared/flow/screens.yaml (00
     // requirements to 17 done), which is also the wizard's step index. The

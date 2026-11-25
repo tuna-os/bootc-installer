@@ -1,9 +1,9 @@
 {
   "flavor": "kde",
-  "frames": 10,
-  "rendered_frames": 10,
-  "advanced_transitions": 9,
-  "visual_states": 10,
+  "frames": 22,
+  "rendered_frames": 22,
+  "advanced_transitions": 21,
+  "visual_states": 22,
   "activation_key": null,
   "ocr": false,
   "screens": {
@@ -21,7 +21,7 @@
     "welcome": {
       "required": true,
       "evidence": [
-        "welcome"
+        "tryorinstall"
       ],
       "outcome": "passed"
     },
@@ -49,7 +49,7 @@
     "install": {
       "required": false,
       "evidence": [
-        "progress",
+        "install",
         "cancel-confirm"
       ],
       "outcome": "passed"
@@ -57,8 +57,7 @@
     "done": {
       "required": false,
       "evidence": [
-        "done",
-        "recovery"
+        "done"
       ],
       "outcome": "passed"
     }
@@ -72,12 +71,10 @@
       "required": true,
       "reached": true,
       "on_pages": [
-        "welcome"
+        "tryorinstall"
       ],
       "matched_keywords": [
-        "get started",
-        "welcome",
-        "will guide you through"
+        "welcome"
       ]
     },
     "disk": {
@@ -115,7 +112,7 @@
       "required": false,
       "reached": true,
       "on_pages": [
-        "progress",
+        "install",
         "cancel-confirm"
       ],
       "matched_keywords": [
@@ -127,8 +124,7 @@
       "required": false,
       "reached": true,
       "on_pages": [
-        "done",
-        "recovery"
+        "done"
       ],
       "matched_keywords": [
         "is installed",
@@ -138,126 +134,270 @@
   },
   "pages": [
     {
-      "name": "welcome",
-      "png": "docs/screenshots/01-welcome.png",
+      "name": "requirements",
+      "png": "docs/screenshots/00-requirements.png",
       "rendered": true,
-      "colours": 555,
-      "flat": 0.7825672185041681,
-      "ink": 0.1706733591640249,
-      "stddev": 0.08896666971489771,
-      "sha256": "91b3a3196ed76b8238d307f718da7f9405dce31ec670e0cfa98fd31a345587f2",
-      "text_excerpt": "Step 1 of 7 \u00b7 Welcome\nWelcome to TunaOS\nThis wizard will guide you through installing TunaOS onto this computer.\nYou will choose a disk and how it should be encrypted. Everything after that is handled by the installer.\nRegion & language\nThe"
+      "colours": 207,
+      "flat": 0.9891833979100623,
+      "ink": 0.00777856052600681,
+      "stddev": 0.036711414785621045,
+      "sha256": "fdddf31c59c964daa9519b04f10faed08f9d47673cadad8db247f30fa8368537",
+      "text_excerpt": "Step 1 of 18 \u00b7 Requirements\nThis computer is below the requirements\nPower off\n&Power off\nNext\n&Next"
+    },
+    {
+      "name": "tryorinstall",
+      "png": "docs/screenshots/01-tryorinstall.png",
+      "rendered": true,
+      "colours": 376,
+      "flat": 0.9743892496696748,
+      "ink": 0.02045205363920047,
+      "stddev": 0.06643773361944717,
+      "sha256": "8cf9d7805e178aa6acc4d0e070fcdf5137f7bea18d497214e229cf58b820ba20",
+      "text_excerpt": "Step 2 of 18 \u00b7 Try or Install\nWelcome to TunaOS\nTry TunaOS without changing this computer, or install it.\nTry TunaOS\n&Try TunaOS\nInstall now\n&Install now"
+    },
+    {
+      "name": "language",
+      "png": "docs/screenshots/02-language.png",
+      "rendered": true,
+      "colours": 299,
+      "flat": 0.9214539670658682,
+      "ink": 0.06298340818363274,
+      "stddev": 0.07319518537277363,
+      "sha256": "44f41406bf74ef6fe65cb23607652e9ce7f046e262670140f58e43b27ae7f610",
+      "text_excerpt": "Step 3 of 18 \u00b7 Language\nLanguage\nChoose the language of the installed system.\nSearch languages\nAfrikaans\nAfrikaans\nAghem\nAghem\nAkan\nAkan\nAkoose\nAkoose\nAmerican English\nAmerican English\nAnar\u00e2\u0161kiel\u00e2\nAnar\u00e2\u0161kiel\u00e2\nAnii kag\u0269ja\nAnii kag\u0269ja\nAragon\u00e9"
+    },
+    {
+      "name": "keyboard",
+      "png": "docs/screenshots/03-keyboard.png",
+      "rendered": true,
+      "colours": 277,
+      "flat": 0.9449850299401198,
+      "ink": 0.03992015968063872,
+      "stddev": 0.057433790270611074,
+      "sha256": "4e28be06609f13670d8a87232d2464583f23e86e41d69f3ad3acf3dc694e015f",
+      "text_excerpt": "Step 4 of 18 \u00b7 Keyboard Layout\nKeyboard Layout\nChoose the keyboard layout of the installed system. This session keeps its own layout.\nSearch keyboards\nAlbanian\nAlbanian\nAmharic\nAmharic\nArmenian\nArmenian\nArabic\nArabic\nArabic (Egypt)\nArabic ("
+    },
+    {
+      "name": "timezone",
+      "png": "docs/screenshots/04-timezone.png",
+      "rendered": true,
+      "colours": 322,
+      "flat": 0.9179297654690619,
+      "ink": 0.06594623253493014,
+      "stddev": 0.07615522937250023,
+      "sha256": "90734c739d10a17aef5a6548f87b70672c97b9cf169615c1019dffc002aa2146",
+      "text_excerpt": "Step 5 of 18 \u00b7 Time Zone\nTime Zone\nChoose the time zone of the installed system.\nSearch time zones\nBerlin (Europe)\nBerlin (Europe)\nGMT-7 (Etc)\nGMT-7 (Etc)\nGMT-8 (Etc)\nGMT-8 (Etc)\nGMT-9 (Etc)\nGMT-9 (Etc)\nGMT0 (Etc)\nGMT0 (Etc)\nGreenwich (Etc)"
+    },
+    {
+      "name": "network",
+      "png": "docs/screenshots/05-network.png",
+      "rendered": true,
+      "colours": 255,
+      "flat": 0.9834008453680874,
+      "ink": 0.01116883879300223,
+      "stddev": 0.043344317350701725,
+      "sha256": "ce8836cfbcd8ed667d466eacf7e5fe052519dd16511b2e1e68055814c54bcbcf",
+      "text_excerpt": "Step 6 of 18 \u00b7 Network\nConnected to the internet\nThe selected image is downloaded during the installation.\nNetwork settings\nN&etwork settings\nRecheck\n&Recheck\nBack\n&Back\nNext\n&Next"
+    },
+    {
+      "name": "prerelease",
+      "png": "docs/screenshots/06-prerelease.png",
+      "rendered": true,
+      "colours": 210,
+      "flat": 0.9861994760479041,
+      "ink": 0.012334705588822355,
+      "stddev": 0.048613715682417465,
+      "sha256": "293f26b0033302d561617087dae0df689efa8295c70c787b050773de956d0424",
+      "text_excerpt": "Step 7 of 18 \u00b7 Disclaimer\nDisclaimer\nDisclaimer\nTunaOS 99 is an experiment. Nothing here is stable, and the installer says so.\nBack\n&Back\nNext\n&Next"
+    },
+    {
+      "name": "eula",
+      "png": "docs/screenshots/07-eula.png",
+      "rendered": true,
+      "colours": 221,
+      "flat": 0.9840319361277445,
+      "ink": 0.014268338323353294,
+      "stddev": 0.06266065721876532,
+      "sha256": "bc16caacd3ba9e69e321915fea79e983a52c23b6713c9d915edc96170672e916",
+      "text_excerpt": "Step 8 of 18 \u00b7 Terms of Use\nTerms of Use\nTerms of use\nUse of this system\nDo not use this experiment for anything important.\nYou agree to the following:\n\u2022 File bugs when it breaks.\n\u2022 Keep backups of anything you keep.\nUpdates\nUpdates arrive "
+    },
+    {
+      "name": "rst",
+      "png": "docs/screenshots/08-rst.png",
+      "rendered": true,
+      "colours": 248,
+      "flat": 0.9347866766467066,
+      "ink": 0.062437624750499,
+      "stddev": 0.05489812957237455,
+      "sha256": "a299cd81cd894a3d7df8ba7571badb9a0cc0b1b3aa2a83ce1511a674deba5dee",
+      "text_excerpt": "Step 9 of 18 \u00b7 Intel RST\nIntel RST\nIntel RST is on\nThis computer hides its NVMe disk behind Intel RST. The disk list on the next step cannot show a disk the system cannot see. To install to the hidden disk, switch the firmware from RST or R"
     },
     {
       "name": "disk",
-      "png": "docs/screenshots/02-disk.png",
+      "png": "docs/screenshots/09-disk.png",
       "rendered": true,
       "colours": 432,
       "flat": 0.6303330838323353,
       "ink": 0.351437749500998,
-      "stddev": 0.06195886355066795,
-      "sha256": "d117abefa9711492211082cb5af59d3d4a5a9df64f6cde61aa6c0958fc4759c5",
-      "text_excerpt": "Step 2 of 7 \u00b7 Target Disk\nTarget Disk\nChoose the disk where TunaOS will be installed.\nEverything on the selected disk will be erased.\nEverything on the selected disk will be erased.\nEverything on the selected disk will be erased.\nFilesystem"
+      "stddev": 0.06241627837388142,
+      "sha256": "08c967545d160387ef4edf248dce7cf46947bdedbf0e911b2b13091af3b677b9",
+      "text_excerpt": "Step 10 of 18 \u00b7 Target Disk\nTarget Disk\nChoose the disk where TunaOS will be installed.\nEverything on the selected disk will be erased.\nEverything on the selected disk will be erased.\nEverything on the selected disk will be erased.\nFilesyst"
+    },
+    {
+      "name": "wipefree",
+      "png": "docs/screenshots/10-wipefree.png",
+      "rendered": true,
+      "colours": 187,
+      "flat": 0.981630489021956,
+      "ink": 0.010229540918163672,
+      "stddev": 0.04551577836407874,
+      "sha256": "57c9e3ebe19f49bff2d0d11cd6d030a4aed514520efe7837f5b0a17d7e0a8003",
+      "text_excerpt": "Step 11 of 18 \u00b7 Existing Data\nExisting Data\nExisting data found\n/dev/nvme0n1 already holds data.\nInstall to Free Space\n&Install to Free Space\nErase and Install\n&Erase and Install\nBack\n&Back"
     },
     {
       "name": "encryption",
-      "png": "docs/screenshots/03-encryption.png",
+      "png": "docs/screenshots/11-encryption.png",
       "rendered": true,
       "colours": 394,
       "flat": 0.5836608033932136,
       "ink": 0.4121132734530938,
-      "stddev": 0.06226990800977924,
-      "sha256": "aed5a96123abd09a7ab872e6ad7357f30da75139ef72f6e84226a5e409f57664",
-      "text_excerpt": "Step 3 of 7 \u00b7 Disk Encryption\nDisk Encryption\nEncryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling.\nNo encryption\nAnyone with the disk can read your files.\nNo encryption\nAnyone with"
+      "stddev": 0.06288878499260439,
+      "sha256": "d443dc83db15c36e20a8edea578d3799553fe407d40da0d731a182b7fe0ca86b",
+      "text_excerpt": "Step 12 of 18 \u00b7 Disk Encryption\nDisk Encryption\nEncryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling.\nNo encryption\nAnyone with the disk can read your files.\nAnyone with the disk ca"
     },
     {
       "name": "account",
-      "png": "docs/screenshots/04-account.png",
+      "png": "docs/screenshots/12-account.png",
       "rendered": true,
       "colours": 283,
       "flat": 0.6994604540918163,
       "ink": 0.2959549650698603,
-      "stddev": 0.0753053156274033,
-      "sha256": "1e6c99aa0322a120f2eb2beec34b442b53128b267e46fd40429c974a3a281058",
-      "text_excerpt": "Step 4 of 7 \u00b7 User Account\nUser Account\nCreate the account you will sign in with. It can also administer this computer.\nAlex Example\nFull name (optional)\nFull name (optional)\nAlex Example\nalex\nUsername\nUsername\nalex\nPassword\nPassword\nShow P"
+      "stddev": 0.07573233628303316,
+      "sha256": "0b4976e5fc169b00e2660667fdcc05ca92de8020e25ffe85b0bc068f80e0c025",
+      "text_excerpt": "Step 13 of 18 \u00b7 User Account\nUser Account\nCreate the account you will sign in with. It can also administer this computer.\nAlex Example\nFull name (optional)\nFull name (optional)\nAlex Example\nalex\nUsername\nUsername\nalex\nPassword\nPassword\nShow"
     },
     {
       "name": "confirm",
-      "png": "docs/screenshots/05-confirm.png",
+      "png": "docs/screenshots/13-confirm.png",
       "rendered": true,
       "colours": 408,
       "flat": 0.4919691866267465,
       "ink": 0.49243700099800397,
-      "stddev": 0.06706481474506798,
-      "sha256": "bd90ee203ce98168ff6a4a80061cc11e679a37d3f189234adfa62f2022053310",
-      "text_excerpt": "Step 5 of 7 \u00b7 Confirm Installation\nConfirm installation\nEverything on /dev/nvme0n1 will be erased. This cannot be undone.\nEverything on /dev/nvme0n1 will be erased. This cannot be undone.\nEverything on /dev/nvme0n1 will be erased. This cann"
+      "stddev": 0.0675207120104482,
+      "sha256": "53754379ecb7b06820c71bf392462a7dbc65eed84c61dafaaed95006ec05cb33",
+      "text_excerpt": "Step 14 of 18 \u00b7 Confirm Installation\nConfirm installation\nEverything on /dev/nvme0n1 will be erased. This cannot be undone.\nEverything on /dev/nvme0n1 will be erased. This cannot be undone.\nEverything on /dev/nvme0n1 will be erased. This ca"
     },
     {
-      "name": "progress",
-      "png": "docs/screenshots/06-progress.png",
+      "name": "install",
+      "png": "docs/screenshots/14-install.png",
       "rendered": true,
       "colours": 342,
       "flat": 0.7577829415795275,
       "ink": 0.24132332350224922,
-      "stddev": 0.07682274537081049,
-      "sha256": "91646a43665e99c3121532c33ed04c48a9c72e77c23c209bb38d936c56037b4d",
-      "text_excerpt": "Step 6 of 7 \u00b7 Installing\nInstalling\nInstalling TunaOS\u2026 /dev/nvme0n1. Do not power off the computer.\nStep 5 of 8 \u2014 Installing TunaOS\u2026\n[1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting file"
+      "stddev": 0.07731782708877054,
+      "sha256": "73cdfea351621d529699217057425e93f7808c42a95bd27c571f3cc3c3bb6cce",
+      "text_excerpt": "Step 15 of 18 \u00b7 Installing\nInstalling\nInstalling TunaOS\u2026 /dev/nvme0n1. Do not power off the computer.\nStep 5 of 8 \u2014 Installing TunaOS\u2026\n[1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting fi"
+    },
+    {
+      "name": "recovery",
+      "png": "docs/screenshots/15-recovery.png",
+      "rendered": true,
+      "colours": 438,
+      "flat": 0.8826993899524894,
+      "ink": 0.10325827218801834,
+      "stddev": 0.06793003226156623,
+      "sha256": "96417e64a19bf4284b3e53f44616c9ce17991b0a80322de6966a02ed8dec3d00",
+      "text_excerpt": "Step 16 of 18 \u00b7 Recovery Key\nSave your recovery key\nIf your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy.\nmkta-rdcw-nnhu-fnbx-kwnv"
+    },
+    {
+      "name": "handoff",
+      "png": "docs/screenshots/16-handoff.png",
+      "rendered": true,
+      "colours": 228,
+      "flat": 0.983835146608192,
+      "ink": 0.010851536363891934,
+      "stddev": 0.05994638143508439,
+      "sha256": "fdec5c2ed4219b429c9ccbbe1c0a58bfca2db028136414b6360cf3f17a8af587",
+      "text_excerpt": "Step 17 of 18 \u00b7 Handoff\nRestart the computer\nThe computer restarts into the installed system. The files and settings of this session do not carry over. Remove the install medium when the screen goes dark.\nNot now\n&Not now\nContinue\n&Continue"
     },
     {
       "name": "done",
-      "png": "docs/screenshots/07-done.png",
+      "png": "docs/screenshots/17-done.png",
       "rendered": true,
       "colours": 430,
       "flat": 0.9696342608899847,
       "ink": 0.026388399671245743,
-      "stddev": 0.07512092344883955,
-      "sha256": "747065f693119a1712d6126ad749f44af6bd745ce77996854282268f9b6c3482",
-      "text_excerpt": "Step 7 of 7 \u00b7 Finished\nTunaOS is installed\nRemove the installation media and restart the computer.\nThe new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation.\nResta"
-    },
-    {
-      "name": "recovery",
-      "png": "docs/screenshots/08-recovery.png",
-      "rendered": true,
-      "colours": 543,
-      "flat": 0.8349917811435952,
-      "ink": 0.15727368791828109,
-      "stddev": 0.07146668874543928,
-      "sha256": "16d38424ed01365fa851b7678eb0f508f4812c16da65d2efd4570979b473aaf8",
-      "text_excerpt": "Step 7 of 7 \u00b7 Finished\nTunaOS is installed\nRemove the installation media and restart the computer.\nThe new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation.\nSave "
+      "stddev": 0.07563262387917045,
+      "sha256": "89e6d67ec6f145e6db717c8dd5762e07f6c2bdf5201c34d8fd5c649b5a6f847a",
+      "text_excerpt": "Step 18 of 18 \u00b7 Finished\nTunaOS is installed\nRemove the installation media and restart the computer.\nThe new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation.\nRes"
     },
     {
       "name": "cancel-confirm",
-      "png": "docs/screenshots/09-cancel-confirm.png",
+      "png": "docs/screenshots/18-cancel-confirm.png",
       "rendered": true,
       "colours": 515,
       "flat": 0.6543480203771561,
       "ink": 0.14520213304733817,
-      "stddev": 0.10539422926217538,
-      "sha256": "86a70f6661e45273837697b599f72cfda940b9514aca7625cad0674d644e11ff",
-      "text_excerpt": "Step 6 of 7 \u00b7 Installing\nInstalling\nInstalling TunaOS\u2026 /dev/nvme0n1. Do not power off the computer.\nStep 5 of 8 \u2014 Installing TunaOS\u2026\n[1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting file"
+      "stddev": 0.10560099149353966,
+      "sha256": "b04c9def8345e1186ce3addef28f66abc667cf3c1dba2c69bd57e19e027b52e3",
+      "text_excerpt": "Step 15 of 18 \u00b7 Installing\nInstalling\nInstalling TunaOS\u2026 /dev/nvme0n1. Do not power off the computer.\nStep 5 of 8 \u2014 Installing TunaOS\u2026\n[1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting fi"
     },
     {
       "name": "cancelled",
-      "png": "docs/screenshots/10-cancelled.png",
+      "png": "docs/screenshots/19-cancelled.png",
       "rendered": true,
-      "colours": 170,
-      "flat": 0.9900639896677234,
-      "ink": 0.009231536926147704,
-      "stddev": 0.05618261774991484,
-      "sha256": "d6c5b4201ccd53b24f94c45604a4e5ac29c833709925f5c6313d6d11b8278bdb",
-      "text_excerpt": "Step 7 of 7 \u00b7 Finished\nInstallation cancelled\nYou stopped the installation. The selected disk is erased and has no complete system. Start the installer again to install.\nClose\n&Close"
+      "colours": 197,
+      "flat": 0.9858371492309499,
+      "ink": 0.011022073500058707,
+      "stddev": 0.058420811913300945,
+      "sha256": "6e6d7bc1807b824f69c126a3f817aaf225d2ba3aa7ce3f25abc4c58ba86965b2",
+      "text_excerpt": "Step 18 of 18 \u00b7 Finished\nInstallation cancelled\nYou stopped the installation. The selected disk is erased and has no complete system. Start the installer again to install.\nTry again\n&Try again\nClose\n&Close"
+    },
+    {
+      "name": "failed",
+      "png": "docs/screenshots/20-failed.png",
+      "rendered": true,
+      "colours": 269,
+      "flat": 0.9783374427615358,
+      "ink": 0.01626159445814254,
+      "stddev": 0.0686551058604541,
+      "sha256": "21d3c59a952c4f3ca2a0a2887acbced7794c48024c4ca8c4a8eac93ec2713baf",
+      "text_excerpt": "Step 18 of 18 \u00b7 Finished\nInstallation failed\nThe installation did not finish. The log has the details \u2014 exit code 1.\nTry again\n&Try again\nClose\n&Close"
+    },
+    {
+      "name": "recovery-qr",
+      "png": "docs/screenshots/21-recovery-qr.png",
+      "rendered": true,
+      "colours": 282,
+      "flat": 0.8170138596047342,
+      "ink": 0.12893930448961233,
+      "stddev": 0.14300962322661856,
+      "sha256": "a42b52693e8e9a7a61a76854b54a8179e5ecb006a9d2f3e449661607e8a44c79",
+      "text_excerpt": "Step 16 of 18 \u00b7 Recovery Key\nSave your recovery key\nIf your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy.\nmkta-rdcw-nnhu-fnbx-kwnv"
     }
   ],
   "transition_pixels": [
-    15076,
-    10270,
-    10044,
-    11521,
-    11976,
-    14387,
-    12760,
-    177054,
-    173064
+    6727,
+    13531,
+    9687,
+    11273,
+    11348,
+    5595,
+    8134,
+    9361,
+    9586,
+    6903,
+    6336,
+    10039,
+    11520,
+    11987,
+    12819,
+    8196,
+    9046,
+    174055,
+    173938,
+    7443,
+    193122
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the item tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."

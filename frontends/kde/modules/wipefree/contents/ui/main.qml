@@ -21,7 +21,9 @@ TunaComponents.SetupModule {
 
     Accessible.name: qsTr("Existing data found")
     readonly property bool forced: InstallerController.selectedDiskForceErase
-    readonly property string systems: InstallerController.selectedDiskOperatingSystems.join(", ")
+    // A method, read again when the disk changes.
+    readonly property string systems: InstallerController.disk.length > 0
+        ? InstallerController.selectedDiskOperatingSystems().join(", ") : ""
     readonly property string freeSpace: InstallerController.selectedDiskFreeSpace
     property int eraseCountdown: 0
 

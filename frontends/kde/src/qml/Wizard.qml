@@ -27,7 +27,11 @@ Kirigami.Page {
     topPadding: 0
     bottomPadding: 0
 
-    property int currentIndex: 0
+    // Starts on the first step that has something to show (requirements
+    // only while a gate is unmet), so the first frame, and the readiness
+    // stamp taken from it, name a real screen. Assignments replace the
+    // binding as soon as the wizard moves.
+    property int currentIndex: firstStep()
     readonly property int stepCount: stepsRepeater.count
     readonly property string currentStepId: (currentIndex >= 0 && currentIndex < stepsModel.count)
         ? stepsModel.get(currentIndex).stepId : ""
@@ -86,7 +90,7 @@ Kirigami.Page {
     // something to show (requirements only while a gate is unmet).
     function firstStep(): int {
         let index = 0;
-        while (index < stepCount - 1 && stepSkipped(index)) {
+        while (index < stepsModel.count - 1 && stepSkipped(index)) {
             index++;
         }
         return index;
@@ -99,14 +103,7 @@ Kirigami.Page {
         goToStep(stepIndex("disk"));
     }
 
-    // Once the delegates exist. Deferred: the Repeater fills in while this
-    // page completes.
-    Component.onCompleted: Qt.callLater(() => {
-        const first = root.firstStep();
-        if (first !== 0 && root.currentIndex === 0) {
-            root.goToStep(first);
-        }
-    })
+    Component.onCompleted: stepHeading.text = stepTitle(currentIndex)
 
     // Step animation. Manually animating is more performant and less glitchy
     // with window resize than a SwipeView.
@@ -486,7 +483,9 @@ Kirigami.Page {
 
         property TunaComponents.SetupModule module: null
 
-        visible: index === 0 // the binding is broken later
+        // Set once below, then by the wizard as it moves: not a binding,
+        // so a step that slides out stays drawn until its slide ends.
+        visible: false
 
         width: stepsContainer.width
         height: stepsContainer.height
@@ -507,6 +506,7 @@ Kirigami.Page {
             module = component.createObject(item) as TunaComponents.SetupModule;
             module.advanceRequested.connect(() => root.requestNextPage());
             module.retryRequested.connect(() => root.retry());
+            visible = (index === root.currentIndex);
             updateRootItems();
         }
 

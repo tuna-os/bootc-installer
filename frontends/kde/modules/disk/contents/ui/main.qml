@@ -74,7 +74,11 @@ TunaComponents.SetupModule {
 
             Kirigami.InlineMessage {
                 type: Kirigami.MessageType.Warning
-                visible: true
+                // The daemon backend can keep the data of a disk with free
+                // space: the next step asks, so this page does not say
+                // "erased" for such a disk.
+                visible: !(InstallerController.daemonBackend && InstallerController.selectedDiskHasData
+                           && !InstallerController.selectedDiskForceErase)
                 position: Kirigami.InlineMessage.Header
                 text: qsTr("Everything on the selected disk will be erased.")
 
@@ -162,8 +166,10 @@ TunaComponents.SetupModule {
             // fisherman's problem with the value is shown here and holds
             // Next.
             FormCard.FormCard {
-                visible: InstallerController.filesystemChoices.length > 1
-                    || InstallerController.filesystemProblem !== ""
+                // Not on the daemon backend: the daemon owns the file system.
+                visible: !InstallerController.daemonBackend
+                    && (InstallerController.filesystemChoices.length > 1
+                        || InstallerController.filesystemProblem !== "")
                 maximumWidth: root.cardWidth
 
                 Layout.alignment: Qt.AlignHCenter
