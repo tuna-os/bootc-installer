@@ -34,7 +34,7 @@ against the frames. An advisory report is not a pass.
 |---|---|---|---|---|---|
 | GNOME | 13 | 13 | 12 | strict, passed | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
 | KDE Plasma | 15 | 15 | 14 | strict, passed | tests/capture.cpp (Kirigami/QML, offscreen) |
-| COSMIC | 36 | 36 | 35 | strict, passed | src/capture.rs (libcosmic on lavapipe under Xvfb) |
+| COSMIC | 39 | 39 | 38 | strict, passed | src/capture.rs (libcosmic on lavapipe under Xvfb) |
 | Niri | 21 | 21 | 20 | strict, passed | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
 | XFCE | 20 | 20 | 19 | strict, passed | tests/gui/capture-screens.py (GTK3 under Xvfb) |
 
@@ -118,16 +118,19 @@ libcosmic / iced (Rust). Source: `frontends/cosmic/`.
 | <img src="cosmic/15-recovery.png" width="360"> | **recovery**  |
 | <img src="cosmic/16-cancel.png" width="360"> | **cancel**  <br><sub>Stop the installation? The disk is already changed. If you stop now, it has no system that can start. You can run the installer again. Keep</sub> |
 | <img src="cosmic/16-tour.png" width="360"> | **tour**  <br><sub>Tour Capture at a glance Everything is where you left it. Back Continue</sub> |
-| <img src="cosmic/17-cancelled.png" width="360"> | **cancelled**  <br><sub>Installation cancelled You stopped the installation. The disk has no system that can start. Run the installer again to finish. Copy log Clos</sub> |
+| <img src="cosmic/17-cancelled.png" width="360"> | **cancelled**  <br><sub>Installation cancelled You stopped the installation. The disk has no system that can start. Run the installer again to finish. Try again Cop</sub> |
 | <img src="cosmic/17-confirm.png" width="360"> | **confirm**  <br><sub>Confirm installation The last screen before anything is written. Everything on /dev/sda will be erased. This cannot be undone. Summary Targe</sub> |
 | <img src="cosmic/18-installing.png" width="360"> | **installing**  <br><sub>Installing TunaOS… fisherman is writing the image to disk. [1/8] Partitioning disk [2/8] Formatting EFI partition [3/8] Formatting root file</sub> |
 | <img src="cosmic/18-offline.png" width="360"> | **offline**  <br><sub>Network The installer needs the network to fetch images. No internet connection. The installer requires an active internet connection. Netwo</sub> |
 | <img src="cosmic/19-recovery-key.png" width="360"> | **recovery key**  <br><sub>Recovery key Write it down now. The installer will not show it again. Save your recovery key If your disk fails to unlock automatically, you</sub> |
-| <img src="cosmic/20-handoff.png" width="360"> | **handoff**  <br><sub>Handoff The computer restarts into the installed system. Not now Continue Back</sub> |
+| <img src="cosmic/20-handoff.png" width="360"> | **handoff**  <br><sub>Handoff The installation is complete. The computer restarts into the installed system. Not now Continue</sub> |
 | <img src="cosmic/21-done.png" width="360"> | **done**  <br><sub>TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it. f</sub> |
 | <img src="cosmic/22-cancel.png" width="360"> | **cancel**  <br><sub>Stop the installation? The disk is already changed. If you stop now, it has no system that can start. You can run the installer again. Keep</sub> |
-| <img src="cosmic/23-cancelled.png" width="360"> | **cancelled**  <br><sub>Installation cancelled You stopped the installation. The disk has no system that can start. Run the installer again to finish. Copy log Clos</sub> |
+| <img src="cosmic/23-cancelled.png" width="360"> | **cancelled**  <br><sub>Installation cancelled You stopped the installation. The disk has no system that can start. Run the installer again to finish. Try again Cop</sub> |
 | <img src="cosmic/24-offline.png" width="360"> | **offline**  <br><sub>Network The installer needs the network to fetch images. No internet connection. The installer requires an active internet connection. Netwo</sub> |
+| <img src="cosmic/25-failed.png" width="360"> | **failed**  <br><sub>Installation failed The install log above has the details. The disk went away during the installation. Connect it again, or choose another d</sub> |
+| <img src="cosmic/26-recovery-key-failed.png" width="360"> | **recovery key failed**  <br><sub>Recovery key Write it down now. The installer will not show it again. Save your recovery key If your disk fails to unlock automatically, you</sub> |
+| <img src="cosmic/27-handoff-failed.png" width="360"> | **handoff failed**  <br><sub>Handoff The installation is complete. The handoff failed. io.tunaos.Fisherman.NotInstalled Close Restart now</sub> |
 
 ## Niri
 
