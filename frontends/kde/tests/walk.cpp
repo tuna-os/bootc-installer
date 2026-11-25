@@ -93,7 +93,8 @@ bool onScreen(const QQuickItem *item)
 class Walk
 {
 public:
-    Walk(const QString &name, const QString &scenario, const QByteArray &firstBootTool)
+    Walk(const QString &name, const QString &scenario, const QByteArray &firstBootTool,
+         const QString &stepDelay = u"60ms"_s)
         : m_name(name)
     {
         out << "walk " << name << " (scenario " << scenario << ")\n";
@@ -104,7 +105,10 @@ public:
         }
         m_mock.setProgram(mockBinary());
         m_mock.setArguments({u"--mock"_s, u"--scenario"_s, scenario, u"--socket-dir"_s, m_dir.path(),
-                             u"--step-delay"_s, u"5ms"_s});
+                             // Slow enough by default that the install screen
+                             // is on screen before a scripted failure ends
+                             // the install.
+                             u"--step-delay"_s, stepDelay});
         m_mock.setStandardErrorFile(QProcess::nullDevice());
         m_mock.setStandardOutputFile(QProcess::nullDevice());
         m_mock.start();
@@ -167,8 +171,14 @@ public:
 
     void fail(const QString &why)
     {
-        if (m_ok)
+        if (m_ok) {
             out << "  FAIL (" << m_name << ", on " << step() << "): " << why << "\n";
+            if (m_controller) {
+                out << "    problems: hostname [" << m_controller->hostnameProblem() << "] encryption ["
+                    << m_controller->encryptionProblem() << "] user [" << m_controller->usernameProblem()
+                    << "] region [" << m_controller->regionProblem() << "]\n";
+            }
+        }
         m_ok = false;
     }
 
@@ -271,11 +281,20 @@ public:
         expect(step() == u"confirm"_s, u"Install is pressed off the confirm screen"_s);
         expect(!m_controller->installing(), u"an install runs before Install was pressed"_s);
         click(u"nextButton"_s);
-        at(u"install"_s);
+        // The step id changes with the click, before the slide: checked at
+        // once, because a scripted failure can end the install in less
+        // time than a slide takes.
+        if (m_ok && step() != u"install"_s) {
+            fail(u"Install did not open the install screen"_s);
+            return;
+        }
+        m_seen << u"install"_s;
         expect(!shown(u"backButton"_s), u"Back is offered during the install"_s);
         expect(!shown(u"nextButton"_s), u"Next is offered during the install"_s);
         if (after != u"install"_s)
             at(after, 60000);
+        else
+            settle(900);
     }
 
     void recoveryKey()
@@ -448,7 +467,7 @@ bool walkFailure(const QString &scenario, const QString &reason)
 // done screen.
 bool walkCancel()
 {
-    Walk w(u"cancel"_s, u"cancel"_s, "none");
+    Walk w(u"cancel"_s, u"cancel"_s, "none", u"5ms"_s);
     w.toDisk();
     if (w.ok())
         w.controller()->setDisk(u"/dev/nvme0n1"_s);

@@ -469,7 +469,8 @@ public:
     void finishDaemonInstall(const QString &terminal, const QString &errorName);
     bool continueAnyway() const { return m_continueAnyway; }
     void setContinueAnyway(bool v);
-    bool needsUserCreation() const { return m_needsUser; }
+    // False also when plasma-setup makes the user on the first boot.
+    bool needsUserCreation() const { return m_needsUser && m_firstBootTool.isEmpty(); }
     bool hasCatalog() const { return !m_catalog.leaves.isEmpty(); }
     QStringList catalogNames() const;
     QStringList catalogImgrefs() const;

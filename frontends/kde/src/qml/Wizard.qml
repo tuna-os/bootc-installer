@@ -252,16 +252,26 @@ Kirigami.Page {
         stepHeading.opacity = 1;
     }
 
-    // The install runs on the install step and hands over to the done step by
-    // itself — the same handover the Widgets wizard did in its finished() slot.
-    Connections {
-        target: InstallerController
-
-        function onInstallCompleted(exitCode: int): void {
-            if (root.currentStepId === "install") {
-                root.requestNextPage();
-            }
-        }
+    // The install runs on the install step and the wizard leaves that step
+    // by itself when the backend ends the install.
+    //
+    // This is a state, not a reaction to the installCompleted signal alone.
+    // An install can end before the slide to the install step is over, or
+    // before it starts (a refused configuration fails inside
+    // startInstall()). The signal then arrived while the wizard could not
+    // move, and the wizard stayed on the install step for ever. So: the
+    // install that this wizard started is over, the install step is on
+    // screen, and no slide runs.
+    //
+    // installStarted is set only by the Install button. The screenshot
+    // harness loads a finished state and jumps to the install step, and
+    // must stay there.
+    property bool installStarted: false
+    readonly property bool installOver: installStarted && currentStepId === "install"
+        && InstallerController.installFinished && !animating
+    onInstallOverChanged: if (installOver) {
+        installStarted = false;
+        Qt.callLater(root.requestNextPage);
     }
 
     // Try-or-install, requirements, network, recovery-key, handoff and done
@@ -463,6 +473,7 @@ Kirigami.Page {
                     if (isClose) {
                         Qt.quit();
                     } else if (isInstall) {
+                        root.installStarted = true;
                         InstallerController.startInstall();
                         root.requestNextPage();
                     } else {

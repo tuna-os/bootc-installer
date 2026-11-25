@@ -254,8 +254,8 @@ QString encryptionWireType(const QString &recipeType);
 // The Install and Validate `config` for the wizard's recipe: disk, install
 // mode, encryption, user and hostname. The file system, the image and the
 // region are not install configuration. `installMode` is erase or
-// free_space; empty leaves the key out. `partial` leaves out the secrets
-// (passphrase, password): a field check does not need them.
+// free_space; empty leaves the key out. `partial` is the field check: it
+// leaves out the account password, which no rule reads.
 QJsonObject installConfig(const Recipe &recipe, const QString &installMode, bool partial = false);
 
 // The ConfigureTarget choices: user, hostname, locale, keymap and time zone,

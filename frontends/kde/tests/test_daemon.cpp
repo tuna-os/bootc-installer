@@ -295,6 +295,9 @@ void DaemonTest::installConfigMapsTheRecipe()
     // The field check leaves the account password out.
     const QJsonObject partial = fishermand::installConfig(r, QString(), true);
     QVERIFY(!partial.value(QLatin1String("user")).toObject().contains(QLatin1String("password")));
+    // The passphrase stays: the daemon has rules for it.
+    QCOMPARE(partial.value(QLatin1String("encryption")).toObject().value(QLatin1String("passphrase")).toString(),
+             QStringLiteral("s3cret passphrase"));
     // A TPM-only type carries no passphrase even when one was typed.
     r.encryption.type = QStringLiteral("tpm2-luks");
     QVERIFY(!fishermand::installConfig(r, QString()).value(QLatin1String("encryption")).toObject()
@@ -789,6 +792,13 @@ void DaemonTest::daemonValidatesFields()
     c.setUsername(QStringLiteral("tuna"));
     QTRY_VERIFY_WITH_TIMEOUT(c.hostnameProblem().isEmpty(), 10000);
     QVERIFY(c.usernameProblem().isEmpty());
+
+    // The passphrase rule: a problem while it is empty, none once typed.
+    c.setEncryptionType(QStringLiteral("luks-passphrase"));
+    c.setPassphrase(QString());
+    QTRY_VERIFY_WITH_TIMEOUT(!c.encryptionProblem().isEmpty(), 10000);
+    c.setPassphrase(QStringLiteral("correct horse battery staple"));
+    QTRY_VERIFY_WITH_TIMEOUT(c.encryptionProblem().isEmpty(), 10000);
 }
 
 void DaemonTest::invalidConfigStopsBeforeInstall()

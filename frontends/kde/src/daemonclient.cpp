@@ -608,7 +608,9 @@ QJsonObject installConfig(const Recipe &recipe, const QString &installMode, bool
     if (installMode == QLatin1String("erase") || installMode == QLatin1String("free_space"))
         config.insert(QStringLiteral("installMode"), installMode);
     QJsonObject encryption{{QStringLiteral("type"), encryptionWireType(recipe.encryption.type)}};
-    if (!partial && Recipe::needsPassphrase(recipe.encryption.type) && !recipe.encryption.passphrase.isEmpty())
+    // The passphrase goes in the field check too: the daemon has rules for
+    // it, as `fisherman validate` has.
+    if (Recipe::needsPassphrase(recipe.encryption.type) && !recipe.encryption.passphrase.isEmpty())
         encryption.insert(QStringLiteral("passphrase"), recipe.encryption.passphrase);
     config.insert(QStringLiteral("encryption"), encryption);
     if (recipe.userRequired && !recipe.user.username.isEmpty()) {

@@ -50,7 +50,7 @@ The wizard has the eighteen screens of `../../shared/flow/screens.yaml`, in the 
 
 | Value | Backend |
 |---|---|
-| `daemon` | `fishermand` over Varlink (`fisherman/docs/FISHERMAND.md`) |
+| `daemon` | `fishermand` over Varlink ([FISHERMAND.md](https://github.com/tuna-os/fisherman/blob/dev/docs/FISHERMAND.md)) |
 | `legacy` | the `fisherman` CLI, with the recipe on stdin |
 | `auto`, or not set | the daemon when its socket is there, else the CLI |
 
@@ -97,6 +97,12 @@ FISHERMAND_BIN=/tmp/fishermand ./build/tuna-installer-daemon-tests
 ```
 
 Without the binary, the scenario tests skip and the mapping tests run. CI does not build the mock, so the scenario tests skip there.
+
+`tuna-installer-walk` (built with `-DBUILD_CAPTURE=ON -DBUILD_TESTING=ON`) loads the real QML, starts its own mock and clicks the wizard through nine walks:
+
+```bash
+FISHERMAND_BIN=/tmp/fishermand ./build/tuna-installer-walk
+```
 
 ### Screenshot Capture Harness
 

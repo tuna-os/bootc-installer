@@ -133,6 +133,16 @@ Rules:
 binary through `FISHERMAND_BIN`, then `build/fishermand`, then `PATH`. With
 no binary the scenario tests skip.
 
+`frontends/kde/tests/walk.cpp` (`tuna-installer-walk`, built with
+`BUILD_CAPTURE` and `BUILD_TESTING`) loads the real QML and clicks the
+wizard through nine walks. It starts its own mock and uses no other
+daemon. It reads the step id after each click. With no binary it exits 77,
+and ctest reports a skip.
+
+The wizard leaves the install step on a state (`installOver` in
+`Wizard.qml`), not on the `installCompleted` signal alone. An install can
+end during the slide to the install step, or inside `startInstall()`.
+
 ## Strings
 
 Put each string that a person reads in `qsTr()` (QML) or `tr()` (C++).

@@ -635,7 +635,7 @@ bool InstallerController::stepSkipped(const QString &stepId) const
     // rule).
     // Also when plasma-setup makes the user on the first boot.
     if (stepId == QLatin1String("account"))
-        return !m_needsUser || firstBootOwnsAccount();
+        return !needsUserCreation();
     return false;
 }
 
