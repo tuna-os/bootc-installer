@@ -55,7 +55,7 @@ feature/xyz ──PR──▶ dev ──promote.yml (all checks green + soak)─
 
 | Workflow | What |
 |---|---|
-| `walkthrough.yml` | After any screenshot job on `dev` (and daily): downloads the latest green `gui-screenshots-<frontend>` artifact of every frontend, runs `shared/walkthrough/aggregate.py`, commits `docs/walkthrough/`. |
+| `walkthrough.yml` | After any screenshot job on `dev` (and daily): downloads the latest green `gui-screenshots-<frontend>` artifact of every frontend, runs `shared/walkthrough/aggregate.py`, checks that the page has no STE finding (the commit is `[skip ci]`, and `.ste-budget` is exact), commits `docs/walkthrough/`. |
 
 ### Monitoring
 

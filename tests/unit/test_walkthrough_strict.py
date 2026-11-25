@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import shutil
 import struct
 import subprocess
@@ -467,3 +468,84 @@ def test_a_deleted_real_frame_fails_that_frontend(tmp_path, flavor):
     rc, agg = consume(root, tmp_path)
     assert rc == 1
     assert any("'disk'" in f and "frame is missing" in f for f in agg["failures"])
+
+
+# ── The page is not prose to count (.ste-budget)
+#
+# docs/walkthrough/README.md is committed to dev with [skip ci], so no pull
+# request check sees it change. The STE prose check (ste.yml) then counts
+# what the page holds against .ste-budget on every later pull request. KDE's
+# widget text has line breaks; each one ended its table row, the rest of the
+# text became body paragraphs, and 62 findings in UI strings put dev over
+# the budget. The tests below hold the rule that stops that: captured text
+# stays in table cells, and the only prose is the fixed text of the
+# generator.
+
+UI_TEXT = ("Step 1 of 12 \u00b7 Welcome\nGet started.\n"
+           "Everything on the disk will be erased.\nBack | Next\n<b>&Install now</b>")
+
+
+def _page(root, tmp_path):
+    rc, _agg = consume(root, tmp_path)
+    return rc, (tmp_path / "out" / "README.md").read_text()
+
+
+def _prose(page):
+    """What the STE check reads as prose: not tables, headings, HTML or opt-outs."""
+    page = re.sub(r"<!--\s*ste-disable:\s*.+?\s*-->[\s\S]*?<!--\s*ste-enable\s*-->",
+                  "", page)
+    return [line for line in page.splitlines()
+            if line.strip() and not re.match(r"^\|.*\|$", line)
+            and not line.startswith(("#", "<"))]
+
+
+def test_cell_text_is_one_line_with_no_cell_break_and_no_markup():
+    text = aggregate.cell_text(UI_TEXT)
+    assert "\n" not in text and "|" not in text and "<" not in text
+    assert text.startswith("Step 1 of 12 \u00b7 Welcome Get started.")
+    assert "Back &#124; Next &lt;b&gt;&amp;Install now&lt;/b&gt;" in text
+    assert aggregate.cell_text(None) == "" and aggregate.cell_text(" \n ") == ""
+    assert aggregate.cell_text("one  two\nthree", limit=7) == "one two"
+
+
+def test_captured_text_stays_in_its_table_row(root, tmp_path):
+    capture(root, texts={"welcome": UI_TEXT})
+    (root / "gnome" / "captions.json").write_text(
+        json.dumps({"02-disk.png": "Choose the disk.\nNothing is written | yet."}))
+    rc, page = _page(root, tmp_path)
+    assert rc == 0
+    rows = [line for line in page.splitlines() if line.startswith("|")]
+    assert all(line.endswith("|") for line in rows)
+    welcome = [line for line in rows if "01-welcome.png" in line]
+    assert len(welcome) == 1 and "Everything on the disk will be erased." in welcome[0]
+    assert welcome[0].count("|") == 3
+    disk = [line for line in rows if "02-disk.png" in line]
+    assert len(disk) == 1 and "Nothing is written &#124; yet." in disk[0]
+    assert not any("erased" in line or "written" in line for line in _prose(page))
+
+
+def test_the_only_prose_is_the_fixed_text_of_the_generator(root, tmp_path):
+    """With a failure, a pending frontend and UI text: no run-dependent prose."""
+    capture(root, "gnome", texts={"welcome": UI_TEXT})
+    capture(root, "xfce", texts={"disk": "nothing that\nmatches"})
+    rc, page = _page(root, tmp_path)
+    assert rc == 1 and "**Gaps:**" in page and "- XFCE: required screen 'disk'" in page
+    fixed = {"**Gaps:**", "_No capture on record yet._"}
+    fixed |= {f"{toolkit}. Source: `{path}`." for _f, _n, toolkit, path in aggregate.FLAVORS}
+    rest = [line for line in _prose(page) if line not in fixed]
+    intro = page.split("| Mark | Meaning |")[0].splitlines()
+    assert rest and all(line in intro for line in rest), rest
+
+
+@pytest.mark.skipif(not os.environ.get("STE_LINT"),
+                    reason="set STE_LINT to ste-lint.mjs of tuna-os/.github")
+def test_the_page_has_no_ste_finding(root, tmp_path):
+    """The check that walkthrough.yml runs before it commits the page."""
+    capture(root, "gnome", texts={"welcome": UI_TEXT})
+    capture(root, "xfce", texts={"disk": "nothing that\nmatches"})
+    _page(root, tmp_path)
+    out = tmp_path / "out"
+    for page in (out / "README.md", REPO / "docs" / "walkthrough" / "README.md"):
+        lint = subprocess.run(["node", os.environ["STE_LINT"], "--max", "0", page.name],
+                              cwd=page.parent, capture_output=True, text=True)
+        assert lint.returncode == 0, lint.stdout + lint.stderr

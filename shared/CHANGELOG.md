@@ -18,6 +18,26 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-25: the walkthrough page keeps UI text in its table cells
+
+- Fixed: `walkthrough/aggregate.py` writes each caption, each text excerpt
+  and each gap message on one line, and escapes `|`, `<` and `&`. Before, a
+  line break in the widget text of a page ended the table row of that page
+  in `docs/walkthrough/README.md`. The STE check then counted the UI text
+  as prose, and `dev` went above `.ste-budget`.
+- Changed: the fixed text of the page has no STE finding, and its legend is
+  a table. The gap messages are in an `ste-disable` block. The page adds
+  no finding to `.ste-budget`, and `walkthrough.yml` makes sure of that
+  before it commits the page.
+- Fixed: `walkthrough/features-gnome.json` has the text of
+  `recovery_key_not_in_log` that #456 put in `docs/PARITY.md` by hand: GNOME
+  redacts log lines before it writes them (#429). The table and its source
+  agree again, and `tests/unit/test_parity_features.py` passes.
+- No report field changes, and no frontend changes.
+
+Contracts version: `2.3.1`
+Contracts sha256: `71d4284a5bd787161fd0cc76948c7907bf94121797412487feb923a47f664542`
+
 ## 2026-11-25: feature rows for the shared flow screens
 
 - Added: nine rows in `walkthrough/feature-rows.json` and
