@@ -192,9 +192,9 @@
       "rendered": true,
       "colours": 290,
       "flat": 0.8548616600790514,
-      "ink": 0.033122529644268775,
-      "stddev": 0.149869765654843,
-      "sha256": "15e2a5ac0aaeb5bc86ee6f3f70c7be72bad327ee2c91d9dd598ff58eddf4f6d0",
+      "ink": 0.03310935441370224,
+      "stddev": 0.14985761482678586,
+      "sha256": "9b873f544c61100957e50d7605db77fc13d527b1608513e91a7e156eb9f5ae49",
       "text_excerpt": "Set Up From Your Phone Type your account details on your phone instead of this keyboard. Both devices need to be on the same network. No QR code on this system. Copy the link and open it on your phone. 1 Open the camera on your phone 2 Poin"
     },
     {
@@ -223,11 +223,11 @@
       "name": "user",
       "png": "docs/screenshots/09-user.png",
       "rendered": true,
-      "colours": 327,
+      "colours": 325,
       "flat": 0.7092094861660079,
-      "ink": 0.02067193675889328,
-      "stddev": 0.0813719711954672,
-      "sha256": "971aa44fb0102fd85ed5e94ce873a2f2cce95612caea5e3392f57be3d39c2061",
+      "ink": 0.013544137022397892,
+      "stddev": 0.06962043067565267,
+      "sha256": "3185620c179abdd0f620b285499633a3e5c802a5070771d3ede3341b4b8fc557",
       "text_excerpt": "Create User Provide details for your user account Name Name Name Username Username Username Password Password Password Confirm Password Confirm Password Confirm Password"
     },
     {
@@ -236,9 +236,9 @@
       "rendered": true,
       "colours": 355,
       "flat": 0.5575494071146245,
-      "ink": 0.010355731225296443,
-      "stddev": 0.06963489660892233,
-      "sha256": "2c354d2c7fadad4b05fcc9821689c4cdaba960a95fcc869e97fc2a72b3bb2e86",
+      "ink": 0.010342555994729908,
+      "stddev": 0.06963062574600704,
+      "sha256": "e524e5992b49a6f5dc179ce1eb7841a76c71677c7eb763df8d9f3c8a792102e5",
       "text_excerpt": "Confirm installation Everything on /dev/sda will be erased. This cannot be undone. Everything on /dev/sda will be erased. This cannot be undone. Summary Summary Target disk Samsung SSD 870 EVO 500GB (/dev/sda, 465.8 GiB) Target disk Samsung"
     },
     {
@@ -281,11 +281,11 @@
     29291,
     27037,
     70837,
-    63523,
+    63526,
     46736,
     43790,
-    42515,
-    37420,
+    42521,
+    37427,
     38578,
     44391
   ],
