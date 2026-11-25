@@ -85,27 +85,27 @@ locale field, and it has one.
 | Screen | KDE | COSMIC | Niri | XFCE |
 |---|---|---|---|---|
 | `requirements` | partial | have | partial | partial |
-| `try-or-install` | missing | partial | missing | missing |
+| `try-or-install` | missing | partial | have | missing |
 | `language` | partial | have | have | partial |
 | `keyboard` | partial | have | have | partial |
 | `timezone` | partial | have | have | partial |
 | `network` | partial | have | have | partial |
-| `prerelease` | missing | missing | missing | missing |
-| `eula` | missing | missing | missing | missing |
-| `rst` | missing | missing | missing | missing |
+| `prerelease` | missing | missing | have | missing |
+| `eula` | missing | missing | have | missing |
+| `rst` | missing | missing | have | missing |
 | `disk` | have | have | have | have |
-| `wipe-or-free` | missing | missing | missing | missing |
+| `wipe-or-free` | missing | missing | have | missing |
 | `encryption` | partial | partial | have | have |
 | `account` | have | have | have | have |
 | `confirm` | have | have | have | have |
 | `install` | have | have | have | have |
-| `recovery-key` | partial | partial | partial | partial |
-| `handoff` | missing | missing | missing | missing |
+| `recovery-key` | partial | partial | have | partial |
+| `handoff` | missing | missing | have | missing |
 | `done` | have | have | have | have |
 
-Every `recovery-key` is partial for the same reason. The key sits in a
-panel on the done page, with a copy button and an acknowledgement box. None
-has a QR code, and none has its own screen.
+The other frontends keep the `recovery-key` in a panel on the done page,
+with a copy button and an acknowledgement box, and have no QR code. Niri
+shows a QR code and counts as `have`.
 
 The page counts in the port issues differ from the code:
 
