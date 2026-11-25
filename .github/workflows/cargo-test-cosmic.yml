@@ -7,6 +7,13 @@ name: Cargo Tests (cosmic)
 # every COSMIC job stayed green (#120). screenshots-cosmic.yml compiles the
 # crate, which is why a build break is caught, but compiling is not testing.
 #
+# The job also builds the mock installer daemon (`fishermand --mock`, from
+# tuna-os/fisherman at a pinned commit) and sets FISHERMAND_BIN, so the
+# mock_ and flow_ tests drive the daemon path. Without the variable those
+# tests print SKIPPED and pass, which is not a test of that path. The pin
+# is not the submodule's commit: the daemon is newer than the fisherman
+# that the recipe path ships.
+#
 # The render dependencies (Xvfb, lavapipe, an icon theme) are deliberately
 # absent: these tests do not open a window. The e2e test that does is
 # #[ignore]d and runs from e2e.yml instead.
@@ -66,6 +73,27 @@ jobs:
             libfontconfig-dev libfreetype-dev \
             libinput-dev libudev-dev libgbm-dev libegl1-mesa-dev libssl-dev
 
+      - name: check out the installer daemon
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: tuna-os/fisherman
+          ref: 2fc33965f294b4ceb3462c3b3877b1938ae77c5d
+          path: fishermand-src
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: fishermand-src/fisherman/go.mod
+          # No go.sum: the daemon is standard-library only.
+          cache: false
+
+      - name: build the mock daemon
+        working-directory: fishermand-src/fisherman
+        run: |
+          CGO_ENABLED=0 go build -o "$RUNNER_TEMP/fishermand" ./cmd/fishermand
+          "$RUNNER_TEMP/fishermand" --list-scenarios
+          echo "FISHERMAND_BIN=$RUNNER_TEMP/fishermand" >> "$GITHUB_ENV"
+
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2.9.3
@@ -74,3 +102,11 @@ jobs:
 
       - name: cargo test
         run: cargo test -- --nocapture
+
+      # A skip is a pass for cargo. This step is what fails when the mock
+      # was not there, so that a green job means the daemon path ran.
+      - name: the daemon tests ran
+        run: |
+          test -x "$FISHERMAND_BIN"
+          cargo test -- --nocapture flow_ mock_ 2>&1 | tee "$RUNNER_TEMP/daemon-tests.log"
+          ! grep -q '^SKIPPED' "$RUNNER_TEMP/daemon-tests.log"
