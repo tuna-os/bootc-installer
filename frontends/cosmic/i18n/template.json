@@ -119,6 +119,8 @@
   "The installer needs the network to fetch images.": "",
   "The installer writes to the free space on {disk}. It keeps the data that is there.": "",
   "The last screen before anything is written.": "",
+  "The recovery key could not be made. Do not continue without one.": "",
+  "The recovery key could not be saved to the disk. It does not unlock the disk yet. Press Done to try again.": "",
   "The system restarts into the installed copy without a full reboot. This session ends: save your work first.": "",
   "The terms cannot load.": "",
   "This computer does not meet a requirement.": "",

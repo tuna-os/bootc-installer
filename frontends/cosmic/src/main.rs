@@ -2674,6 +2674,7 @@ impl cosmic::Application for TunaInstaller {
                 match result {
                     Ok(()) => self.advance().1,
                     Err(e) => {
+                        tracing::warn!("the recovery key was not enrolled: {e}");
                         self.recovery_error = Some(e);
                         Task::none()
                     }

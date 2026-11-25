@@ -225,6 +225,10 @@ pub mod copy {
     pub const RECOVERY_SUBTITLE: &str = "Write it down now. The installer will not show it again.";
     pub const RECOVERY_QR_BUTTON: &str = "Show QR Code for Recovery Key";
     pub const RECOVERY_DONE: &str = "Done";
+    pub const RECOVERY_NO_KEY: &str =
+        "The recovery key could not be made. Do not continue without one.";
+    pub const RECOVERY_NOT_SAVED: &str =
+        "The recovery key could not be saved to the disk. It does not unlock the disk yet. Press Done to try again.";
     pub const RECOVERY_LOADING: &str = "Loading the recovery key…";
     // Hand the system over (screens.yaml `handoff`): what carries over
     // depends on the mode the daemon reported. Continue hands over; Not
@@ -797,10 +801,12 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 t_line("recovery_key_title"),
                 t_line("recovery_key_body"),
             ];
-            if let Some(error) = app.recovery_error() {
-                t.push(error.to_string());
-                t.push(tr(TRY_AGAIN));
-                return t;
+            if let Some(line) = recovery_error_line(app) {
+                t.push(line);
+                if app.progress.recovery_key.is_empty() {
+                    t.push(tr(TRY_AGAIN));
+                    return t;
+                }
             }
             if app.progress.recovery_key.is_empty() {
                 t.push(tr(RECOVERY_LOADING));
@@ -2375,14 +2381,25 @@ fn encryption(app: &TunaInstaller) -> Element<'_, Message> {
 /// a QR dialog, and an acknowledgement box that gates Done. Daemon mode
 /// enrols the key when Done is pressed; the legacy install enrols it
 /// while writing the disk.
+/// What went wrong with the recovery key, in words. The error name of the
+/// daemon ("io.systemd.System") is for the log: it tells a person nothing.
+fn recovery_error_line(app: &TunaInstaller) -> Option<String> {
+    app.recovery_error()?;
+    Some(if app.progress.recovery_key.is_empty() {
+        tr(RECOVERY_NO_KEY)
+    } else {
+        tr(RECOVERY_NOT_SAVED)
+    })
+}
+
 fn recovery(app: &TunaInstaller) -> Element<'_, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
     let key = app.progress.recovery_key.clone();
-    if let Some(error) = app.recovery_error() {
+    if let (Some(line), true) = (recovery_error_line(app), key.is_empty()) {
         // The recovery-key-failed state: no key, do not continue without
         // one. Back or Done retries through the page entry.
         let body = widget::column::with_children(vec![
-            widget::text::body(error.to_string()).into(),
+            widget::text::body(line).into(),
             widget::button::suggested(tr(TRY_AGAIN))
                 .on_press(Message::RecoveryDone)
                 .into(),
@@ -2398,6 +2415,16 @@ fn recovery(app: &TunaInstaller) -> Element<'_, Message> {
         );
     }
     let mut parts: Vec<Element<'_, Message>> = Vec::new();
+    if let Some(line) = recovery_error_line(app) {
+        // The key is not on the disk: it stays on the page (the person may
+        // have written it down), and Done tries again.
+        let theme = cosmic::theme::active();
+        parts.push(
+            widget::text::body(line)
+                .class(cosmic::theme::Text::Color(theme.cosmic().destructive_text_color().into()))
+                .into(),
+        );
+    }
     if key.is_empty() {
         parts.push(widget::text::body(tr(RECOVERY_LOADING)).into());
     } else {
