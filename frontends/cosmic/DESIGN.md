@@ -7,49 +7,41 @@ recipe, and presents the backend's progress and result.
 
 ## Flow
 
-The installer has fourteen screens. A screen with nothing to show is
-skipped, not shown blank (see `page_visible`):
+The pages follow `../../shared/flow/screens.yaml`. `Page::ORDER` in
+`src/main.rs` has twenty-one pages: the eighteen screens of the shared flow
+and three pages that only the legacy backend shows. A page with nothing to
+show is skipped, not shown blank (see `page_visible`). `Page::flow_id()` is
+the shared screen id. The readiness stamp reports it as `page=`.
 
-1. **Requirements** blocks on fisherman's unmet requirements (RAM, CPU,
-   firmware) with one card for each gate. RAM and CPU offer "continue
-   anyway". Unsupported firmware offers only power off and a reboot to the
-   firmware setup. Shown only while a gate stands.
-2. **Welcome** introduces the product that the branding resolver found.
-3. **Choose a system** shows the image catalog as a flat list with a search
-   box, and a row for a custom image reference. A row shows the breadcrumb
-   of the leaf ("Atlas › Stable"), because the name of a tag leaf is a
-   channel. The selection at the start is the branding `default_image`,
-   then the catalog's `default_image`. If the catalog has neither, nothing
-   is selected and Continue is not there. The page is skipped on live media.
-   `../../shared/catalog/README.md` is the contract.
-4. **Language**, 5. **Keyboard**, 6. **Time zone** change the live session
-   through `localectl` and `timedatectl` on the host (best effort, never a
-   gate). Each page says that it changes this session only. The installed
-   system keeps the image's values until the recipe has fields for them
-   (#292).
-7. **Network** checks the connection: the registry of the selected image on
-   port 443, then `ghcr.io:443`, then `8.8.8.8:53`. Continue is not there
-   until the check passes. With no connection the page offers **Network
-   settings**, which opens the desktop's own tool on the host, and
-   **Recheck**. The page is skipped on live media.
-8. **Select a disk** lists the disks that `fisherman probe --json` offers.
-9. **Options** has the hostname, the filesystem and the encryption. The
-   filesystem list is the list of the selected image, so an image that
-   allows ext4 offers it.
-10. **Account** creates the first user: the password two times, with a
-    reveal button. It is skipped only when the catalog says that the image
-    makes its own user (`needs_user_creation: false`). An image that the
-    catalog does not have needs an account.
-11. **Tour** shows the carousel slides of the selected image, if it has any.
-12. **Confirm** shows the choices. Its button is the destructive one.
-13. **Installing** pipes the recipe to `fisherman -` on stdin and shows the
-    progress. **Cancel** opens a question first. "Stop the installation"
-    signals the process group of the wrapper.
-14. **Finished** has three states: installed, cancelled and failed.
-    fisherman's exit code 130, or a signal after a confirmed cancel, is
-    "cancelled" (the copy key `done_cancelled_title`), not a failure.
+| # | Page | Screen id | Shows when |
+|---|---|---|---|
+| 1 | Requirements | `requirements` | A gate of the probe is not met. RAM and CPU offer "continue anyway". Firmware offers power off and the firmware setup. |
+| 2 | Welcome | `try-or-install` | Always. **Try** quits the wizard, and the live session continues. |
+| 3 | Choose a system | (legacy) `image` | Not on live media, and only when there is a choice. `../../shared/catalog/README.md` is the contract. |
+| 4 | Language | `language` | Always. |
+| 5 | Keyboard | `keyboard` | Always. |
+| 6 | Time zone | `timezone` | Always. On the daemon backend it also has the location switch. |
+| 7 | Network | `network` | Not on live media, and not when this computer can copy its own system. |
+| 8 | Disclaimer | `prerelease` | `RELEASE_TYPE` of os-release is `pre-release` or `experiment`. |
+| 9 | Terms of use | `eula` | The medium has `/usr/share/tuna-installer/eula.xml`, or the file that `TUNA_EULA_FILE` names. The box holds Continue. |
+| 10 | Intel RST | `rst` | The daemon reports Intel RST. The page warns and continues. |
+| 11 | Select a disk | `disk` | Always. |
+| 12 | Existing data | `wipe-or-free` | Daemon backend: the disk has data and free space. |
+| 13 | Disk encryption | `encryption` | Daemon backend: only with no TPM 2.0. Legacy backend: always. |
+| 14 | Options | (legacy) `options` | Legacy backend: the filesystem. |
+| 15 | Account | `account` | See "The first user". |
+| 16 | Tour | (legacy) `tour` | The selected image has slides. |
+| 17 | Confirm | `confirm` | Always. Its button is the destructive one. |
+| 18 | Installing | `install` | After Confirm. **Cancel** asks first. The slug of the page is `installing`. |
+| 19 | Recovery key | `recovery-key` | The install ended well and the disk is encrypted. The key, a QR code and a box that holds **Done**. |
+| 20 | Handoff | `handoff` | The install ended well. |
+| 21 | Finished | `done` | Always. Three states: installed, cancelled and failed. |
 
-The **Exit** button in the header also asks first. During an install it
+A pick on the language, keyboard and time zone pages changes the live
+session through `localectl` and `timedatectl` (best effort, never a gate)
+and goes to the installed system.
+
+The **Exit** button in the header asks first. During a legacy install it
 signals the process group of the wrapper and then quits, so no root install
 stays behind.
 
@@ -57,8 +49,58 @@ There is no phone companion. The COSMIC port sent the account password
 over plain HTTP on the LAN, and #293 removed it.
 
 The header bar shows the current step and overall progress. Navigation is
-reversible through Confirm; starting installation is the boundary after which
-the UI no longer offers Back or Continue.
+reversible through Confirm. After the install starts, no page offers Back.
+
+## The two backends
+
+`fishermand::use_daemon()` reads the switch one time for each process.
+
+| `TUNA_INSTALLER_BACKEND` | Backend |
+|---|---|
+| `daemon` | The `fishermand` Varlink daemon. |
+| `legacy` | The recipe on the stdin of `fisherman -`. |
+| `auto`, or not set | The daemon when its socket is there. If not, the legacy backend. |
+
+The older `TUNA_USE_FISHERMAND=1` still selects the daemon when
+`TUNA_INSTALLER_BACKEND` names no backend. The capture mode and the unit
+tests do not follow the socket. `TUNA_FISHERMAN_SOCKET` names one socket
+for all calls, and `FISHERMAN_SOCKET_DIR` names a directory with the four
+sockets.
+
+On the daemon backend:
+
+- `Probe` and `Requirements` give the disks, the TPM, Intel RST, live media
+  and the handoff mode.
+- `Validate` checks the fields. The problems come back as data.
+- `ConfigureTarget` gets the user, the hostname, the locale, the keymap and
+  the time zone before `Install`. It gets `privacy.locationServices` only
+  after the user moved the location switch.
+- `Install` streams the events. **Cancel** sends `Cancel` on a second
+  connection. The page leaves only on the terminal event.
+- A failed install shows the daemon's `reason` in words: `device_lost`,
+  `repart_failed`, `luks_failed`, or that the daemon does not answer. The
+  step id says whether the disk changed. **Try again** goes back to Confirm.
+- The recovery-key page calls `MakeRecoveryKey` when it opens and `Enroll`
+  on **Done**. With no key the page offers **Try again** and no **Done**.
+- The handoff page shows the mode of `Probe` (`migrate`, `soft_reboot` or
+  `reboot`; an unknown mode is `reboot`). **Continue** calls `Handoff` with
+  no mode. A failure offers **Close** and **Restart**.
+
+The legacy backend keeps its pages and its recipe. It has no data facts,
+so it does not show the RST and existing-data pages.
+
+## The first user
+
+`cosmic-initial-setup` makes the first user on a COSMIC system. On the
+daemon backend the wizard skips the account page when that tool is on the
+medium (`/usr/bin` or `/usr/libexec`, also below `/run/host`). Confirm,
+handoff and the finished page then say that the account comes at the first
+start. `TUNA_FIRSTBOOT_TOOL=none` keeps the account page, and
+`TUNA_FIRSTBOOT_TOOL=cosmic-initial-setup` skips it.
+
+The legacy backend installs an image of the catalog. That image can differ
+from the system of the medium, so the catalog decides there: the page is
+skipped only for `needs_user_creation: false`.
 
 ## How fisherman runs
 

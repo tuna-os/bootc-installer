@@ -28,12 +28,25 @@ the cosmic widget set and the `cosmic-theme` palette. It drives the
 
 ## Workflow
 
-1. **Welcome** — brief intro
-2. **Select a disk** — `fisherman probe --json` lists the disks fisherman offers (`../../shared/probe/README.md`); user picks one
-3. **Options** — computer name, filesystem, encryption
-4. **Confirm** — summary of choices, under a warning banner
-5. **Installing** — writes recipe JSON, runs `fisherman`, streams output
-6. **Finished** — success/failure
+The pages follow the shared flow (`../../shared/flow/screens.yaml`).
+[DESIGN.md](DESIGN.md) has the table of the pages. The wizard skips a page
+that has nothing to show.
+
+## Backends
+
+`TUNA_INSTALLER_BACKEND` selects the backend: `daemon` (the `fishermand`
+Varlink daemon), `legacy` (the recipe on the stdin of `fisherman -`) or
+`auto`. `auto` is the default: it uses the daemon when its socket is there.
+`TUNA_USE_FISHERMAND=1` still selects the daemon.
+
+```bash
+# The mock daemon of tuna-os/fisherman, then the installer on it.
+fishermand --mock --scenario no-tpm --socket-dir /tmp/fd &
+TUNA_INSTALLER_BACKEND=daemon FISHERMAN_SOCKET_DIR=/tmp/fd cargo run
+
+# The tests that drive the mock.
+FISHERMAND_BIN=/path/to/fishermand cargo test --locked mock_
+```
 
 ## Build
 

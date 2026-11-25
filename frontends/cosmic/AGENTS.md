@@ -198,6 +198,27 @@ both read from it, and the capture harness writes `page_text` to
 `copy` and to `page_text` when you add it to a view, or the parity matrix
 stops seeing that screen.
 
+## The fishermand backend
+
+`DESIGN.md`, "The two backends", is the contract. The rules for a change:
+
+- Ask `fishermand::use_daemon()`. Do not read `TUNA_INSTALLER_BACKEND`,
+  `TUNA_USE_FISHERMAND` or a socket path in another module.
+- Each daemon call has a twin in the `stub` module of `fishermand.rs` for
+  the browser build. Add the twin with the call.
+- `Handoff` gets no mode. `Probe` gives the mode, and
+  `fishermand::handoff_mode_of` reads it.
+- `configure_params` sends `privacy` only for `Some`. Keep the location
+  switch `None` until the user moves it.
+- `Page::flow_id()` is the id of `../../shared/flow/screens.yaml`. Keep
+  `slug()` for file names.
+- A passphrase, a password and a recovery key go only in call parameters.
+  `Error` shows the error name, never the parameters.
+- `src/fishermand_mock_tests.rs` drives the mock daemon of tuna-os/fisherman
+  (`go build ./cmd/fishermand`). Set `FISHERMAND_BIN` to the binary. With
+  no `FISHERMAND_BIN` the tests print `SKIPPED` and do nothing: CI has no
+  mock binary, so run them before you push a change to the daemon path.
+
 ## Disks, TPM and minimum requirements
 
 These come from `fisherman probe --json`, not from this frontend. `src/probe.rs`
