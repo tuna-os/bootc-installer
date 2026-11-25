@@ -677,6 +677,20 @@ ApplicationWindow {
     }
     // The recipe keys of the Session step's picks (#292). None without a
     // pick: the installed system keeps the image's values.
+    // What Confirm shows is what the install sends: on the daemon path the
+    // effective region, also the part that nobody changed.
+    function confirmRegion() {
+        if (!root.daemonMode) return root.regionRecipe()
+        const t = root.regionTarget()
+        return { locale: t.locale, timezone: t.timeZone,
+            keyboard: t.keymap ? { layout: t.keymap } : undefined }
+    }
+    // The chosen disk with its name and size.
+    function diskLabel(disk) {
+        if (!disk || !disk.path) return "—"
+        const bits = [disk.path, disk.size_label].filter(s => s).join(", ")
+        return disk.title && disk.title !== disk.path ? disk.title + " (" + bits + ")" : bits
+    }
     function regionRecipe() { return RecipeJs.regionKeys(root.installRegion) }
     readonly property string regionProblem: problemText("locale") || problemText("keyboard.layout")
         || problemText("keyboard.variant") || problemText("keyboard.model") || problemText("timezone")
@@ -2206,8 +2220,10 @@ ApplicationWindow {
                         // fisherman's disk (shared/probe/README.md): the model
                         // (the path when unknown), then path, size label, bus.
                         primaryText: modelData.title
-                        secondaryText: [modelData.path, modelData.size_label, modelData.transport_label]
+                        secondaryText: [modelData.path, modelData.size_label, modelData.transport_label,
+                            modelData.too_small ? qsTr("needs at least %1").arg(modelData.minimal_label) : ""]
                             .filter(s => s).join("  ·  ")
+                        enabled: !modelData.too_small
                         isSelected: root.selectedDisk.path === modelData.path
                         onClicked: root.selectedDisk = modelData
                     }
@@ -2607,7 +2623,7 @@ ApplicationWindow {
                                 columnSpacing: Theme.spacingXL
                                 rowSpacing: Theme.spacingS
                                 StyledText { text: qsTr("Target disk"); color: Theme.surfaceVariantText }
-                                StyledText { text: root.selectedDisk.path ? root.selectedDisk.path : "—"; isMonospace: true }
+                                StyledText { objectName: "confirmDisk"; text: root.diskLabel(root.selectedDisk); isMonospace: true }
                                 StyledText { text: qsTr("Image"); color: Theme.surfaceVariantText }
                                 StyledText {
                                     // The image that is installed (the NVIDIA image
@@ -2660,12 +2676,12 @@ ApplicationWindow {
                                     text: root.username || "—"; isMonospace: true
                                 }
                                 // The Session step's picks that go into the recipe (#292).
-                                StyledText { text: qsTr("Language"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().locale }
-                                StyledText { objectName: "confirmLocale"; visible: !!root.regionRecipe().locale; text: root.regionRecipe().locale || ""; isMonospace: true }
-                                StyledText { text: qsTr("Keyboard"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().keyboard }
-                                StyledText { objectName: "confirmKeyboard"; visible: !!root.regionRecipe().keyboard; text: root.regionRecipe().keyboard ? root.regionRecipe().keyboard.layout : ""; isMonospace: true }
-                                StyledText { text: qsTr("Timezone"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().timezone }
-                                StyledText { objectName: "confirmTimezone"; visible: !!root.regionRecipe().timezone; text: root.regionRecipe().timezone || ""; isMonospace: true }
+                                StyledText { text: qsTr("Language"); color: Theme.surfaceVariantText; visible: !!root.confirmRegion().locale }
+                                StyledText { objectName: "confirmLocale"; visible: !!root.confirmRegion().locale; text: root.confirmRegion().locale || ""; isMonospace: true }
+                                StyledText { text: qsTr("Keyboard"); color: Theme.surfaceVariantText; visible: !!root.confirmRegion().keyboard }
+                                StyledText { objectName: "confirmKeyboard"; visible: !!root.confirmRegion().keyboard; text: root.confirmRegion().keyboard ? root.confirmRegion().keyboard.layout : ""; isMonospace: true }
+                                StyledText { text: qsTr("Timezone"); color: Theme.surfaceVariantText; visible: !!root.confirmRegion().timezone }
+                                StyledText { objectName: "confirmTimezone"; visible: !!root.confirmRegion().timezone; text: root.confirmRegion().timezone || ""; isMonospace: true }
                                 StyledText { text: qsTr("Region"); color: Theme.surfaceVariantText; visible: root.regionProblem !== "" }
                                 StyledText { objectName: "regionProblem"; visible: root.regionProblem !== ""; text: root.regionProblem; color: Theme.error; wrapMode: Text.Wrap; Layout.fillWidth: true }
                                 StyledText { text: qsTr("Hostname"); color: Theme.surfaceVariantText }
@@ -3011,7 +3027,9 @@ ApplicationWindow {
                     // the new system can check its own start (#269).
                     StyledText {
                         objectName: "doneVerification"
+                        // The daemon sends no receipt: nothing to say about one.
                         visible: root.installSuccess && text !== ""
+                            && !(root.daemonMode && !root.installReceipt)
                         // With what fisherman's `receipt` event set up for that
                         // check, and the install id.
                         text: BarMath.receiptLines(root.installReceipt, k => root.copyHas(k))

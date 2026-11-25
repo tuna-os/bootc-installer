@@ -14,3 +14,25 @@ func TestADiskIsNeverCalledByAPCIID(t *testing.T) {
 		}
 	}
 }
+
+func TestADiskThatIsTooSmallIsNamedSo(t *testing.T) {
+	reason := "too_small"
+	for _, c := range []struct {
+		disk daemonDisk
+		want bool
+	}{
+		{daemonDisk{Eligible: true, SizeBytes: 64, MinimalSizeBytes: 20}, false},
+		{daemonDisk{Eligible: true, SizeBytes: 8, MinimalSizeBytes: 20}, true},
+		{daemonDisk{ExcludedReason: &reason}, true},
+		{daemonDisk{}, false},
+	} {
+		if got := daemonTooSmall(c.disk); got != c.want {
+			t.Errorf("%+v: got %v", c.disk, got)
+		}
+	}
+	for in, want := range map[int64]string{0: "", 20 << 30: "20 GiB", 512110190592: "476.9 GiB"} {
+		if got := sizeLabel(in); got != want {
+			t.Errorf("sizeLabel(%d) = %q, want %q", in, got, want)
+		}
+	}
+}

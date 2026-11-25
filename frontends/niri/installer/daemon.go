@@ -19,6 +19,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -351,7 +352,8 @@ func daemonProbeFacts() (ProbeFacts, error) {
 	}
 	facts.IntelRst = probe.IntelRst.Detected
 	for _, d := range probe.Disks {
-		if !d.Eligible {
+		small := daemonTooSmall(d)
+		if !d.Eligible && !small {
 			continue
 		}
 		title := daemonDiskTitle(d.Vendor, d.Model, transportLabel(d.Transport), d.Path)
@@ -364,9 +366,34 @@ func daemonProbeFacts() (ProbeFacts, error) {
 				len(ed.OperatingSystems) > 0 || ed.HasLuks,
 			FreeBytes: d.FreeBytes, MinimalBytes: d.MinimalSizeBytes,
 			IntelRst: d.IntelRst,
+			TooSmall: small, MinimalLabel: sizeLabel(d.MinimalSizeBytes),
 		})
 	}
 	return facts, nil
+}
+
+// daemonTooSmall: the daemon excludes a disk below its minimum, or leaves it
+// eligible and states the minimum.
+func daemonTooSmall(d daemonDisk) bool {
+	if d.ExcludedReason != nil && *d.ExcludedReason == "too_small" {
+		return true
+	}
+	return d.Eligible && d.SizeBytes > 0 && d.SizeBytes < d.MinimalSizeBytes
+}
+
+// sizeLabel is a size as fisherman writes it ("20 GiB"), "" for none.
+func sizeLabel(bytes int64) string {
+	if bytes <= 0 {
+		return ""
+	}
+	value, unit := float64(bytes), "B"
+	for _, next := range []string{"KiB", "MiB", "GiB", "TiB"} {
+		if value < 1024 {
+			break
+		}
+		value, unit = value/1024, next
+	}
+	return strings.TrimSuffix(strconv.FormatFloat(value, 'f', 1, 64), ".0") + " " + unit
 }
 
 // pciID is what virtio names as the vendor of a disk ("0x1af4").
