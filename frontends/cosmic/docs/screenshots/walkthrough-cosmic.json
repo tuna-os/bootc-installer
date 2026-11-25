@@ -1,9 +1,9 @@
 {
   "flavor": "cosmic",
-  "frames": 36,
-  "rendered_frames": 36,
-  "advanced_transitions": 35,
-  "visual_states": 36,
+  "frames": 39,
+  "rendered_frames": 39,
+  "advanced_transitions": 38,
+  "visual_states": 39,
   "activation_key": null,
   "ocr": false,
   "screens": {
@@ -441,7 +441,7 @@
       "ink": 0.9924509954450074,
       "stddev": 0.060404241334318404,
       "sha256": "d78be503b3f029c989289749ee926f92b48b5de4003306c3760649cbe61e594d",
-      "text_excerpt": "Installation cancelled You stopped the installation. The disk has no system that can start. Run the installer again to finish. Copy log Close"
+      "text_excerpt": "Installation cancelled You stopped the installation. The disk has no system that can start. Run the installer again to finish. Try again Copy log Close"
     },
     {
       "name": "confirm",
@@ -480,23 +480,23 @@
       "name": "recovery-key",
       "png": "docs/screenshots/19-recovery-key.png",
       "rendered": true,
-      "colours": 153,
-      "flat": 0.9507139567019807,
-      "ink": 0.9963790367981985,
-      "stddev": 0.05116854416079418,
-      "sha256": "45872f6f6e28feea15a6e29136aae49530e617c529c6ebf343d71818dcd0f45d",
+      "colours": 150,
+      "flat": 0.9573417268028046,
+      "ink": 0.9964430114130713,
+      "stddev": 0.04949431429251106,
+      "sha256": "5ba070606735a394b850905eb35db97e39d1f0e22f399008250d4417d2423eb3",
       "text_excerpt": "Recovery key Write it down now. The installer will not show it again. Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or"
     },
     {
       "name": "handoff",
       "png": "docs/screenshots/20-handoff.png",
       "rendered": true,
-      "colours": 184,
-      "flat": 0.9643021649009673,
-      "ink": 0.9937944623573366,
-      "stddev": 0.056479198223495335,
-      "sha256": "e0b1306edd1b4e7c11cb76b3e982035d71f83f2b6bdf2cf03bc2cae8750819d2",
-      "text_excerpt": "Handoff The computer restarts into the installed system. Not now Continue Back"
+      "colours": 179,
+      "flat": 0.9647243973591278,
+      "ink": 0.9939352065100568,
+      "stddev": 0.05587836382581406,
+      "sha256": "dee7ef98005a044f39fe7efd1d77108d9d7faf940d8e06c28e7a3f04bef1977d",
+      "text_excerpt": "Handoff The installation is complete. The computer restarts into the installed system. Not now Continue"
     },
     {
       "name": "done",
@@ -524,12 +524,12 @@
       "name": "cancelled",
       "png": "docs/screenshots/23-cancelled.png",
       "rendered": true,
-      "colours": 209,
-      "flat": 0.9670402784175239,
-      "ink": 0.9923870208301346,
-      "stddev": 0.06047736423456567,
-      "sha256": "84f7aca4ef71fe6b97e8bf29ed35759fadce51c4cd228baa48ad1bf3a08b95d1",
-      "text_excerpt": "Installation cancelled You stopped the installation. The disk has no system that can start. Run the installer again to finish. Copy log Close"
+      "colours": 231,
+      "flat": 0.9630610573724346,
+      "ink": 0.9913634269921695,
+      "stddev": 0.06360905144661261,
+      "sha256": "f7fb16bbbf8699a7c278e382b61d54dda460a1d6b9131712966ce62e06d0cbfa",
+      "text_excerpt": "Installation cancelled You stopped the installation. The disk has no system that can start. Run the installer again to finish. Try again Copy log Close"
     },
     {
       "name": "offline",
@@ -541,6 +541,39 @@
       "stddev": 0.06188961747495472,
       "sha256": "434e7095d2052dea61d9b92244ee1a3d539975f4e6517daca6a12478de67dceb",
       "text_excerpt": "Network The installer needs the network to fetch images. No internet connection. The installer requires an active internet connection. Network settings Recheck Back"
+    },
+    {
+      "name": "failed",
+      "png": "docs/screenshots/25-failed.png",
+      "rendered": true,
+      "colours": 272,
+      "flat": 0.9529914529914529,
+      "ink": 0.9875121551768259,
+      "stddev": 0.07751310837311405,
+      "sha256": "ca1dda3700af46b024e8f6a17441d4d2d23041854136e04a575d111fefaa0b58",
+      "text_excerpt": "Installation failed The install log above has the details. The disk went away during the installation. Connect it again, or choose another disk. The installer changed your disk before it stopped. The disk can hold an incomplete system that "
+    },
+    {
+      "name": "recovery-key-failed",
+      "png": "docs/screenshots/26-recovery-key-failed.png",
+      "rendered": true,
+      "colours": 175,
+      "flat": 0.9705460873125544,
+      "ink": 0.9934362045140488,
+      "stddev": 0.05661025200046182,
+      "sha256": "4b6b871be8a3eedaed9be1681eb5cb26e256ea26dffcfdd0b6039c5b3026c452",
+      "text_excerpt": "Recovery key Write it down now. The installer will not show it again. Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or"
+    },
+    {
+      "name": "handoff-failed",
+      "png": "docs/screenshots/27-handoff-failed.png",
+      "rendered": true,
+      "colours": 175,
+      "flat": 0.9690362864015558,
+      "ink": 0.9935257689748708,
+      "stddev": 0.055934935981768755,
+      "sha256": "bc832c24c8bb441641106b7798803e44f9d7c49000ad2797bc5e5663bc948fcf",
+      "text_excerpt": "Handoff The installation is complete. The handoff failed. io.tunaos.Fisherman.NotInstalled Close Restart now"
     }
   ],
   "transition_pixels": [
@@ -573,12 +606,15 @@
     346356,
     149408,
     321098,
-    18273,
-    22473,
-    26759,
+    21820,
+    25452,
+    26386,
     25871,
-    22505,
-    26525
+    20470,
+    29225,
+    34223,
+    27837,
+    11707
   ],
   "spec_drift": [],
   "notes": "Text comes from the strings the harness rendered each page from (the same constants the view reads), not from a widget tree or OCR, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."
