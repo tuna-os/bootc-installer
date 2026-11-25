@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -353,10 +354,7 @@ func daemonProbeFacts() (ProbeFacts, error) {
 		if !d.Eligible {
 			continue
 		}
-		title := d.Model
-		if title == "" {
-			title = d.Path
-		}
+		title := daemonDiskTitle(d.Vendor, d.Model, transportLabel(d.Transport), d.Path)
 		ed := d.ExistingData
 		facts.Disks = append(facts.Disks, ProbeDisk{
 			Path: d.Path, Title: title, Model: d.Model,
@@ -369,6 +367,23 @@ func daemonProbeFacts() (ProbeFacts, error) {
 		})
 	}
 	return facts, nil
+}
+
+// pciID is what virtio names as the vendor of a disk ("0x1af4").
+var pciID = regexp.MustCompile(`^0[xX][0-9a-fA-F]+$`)
+
+// daemonDiskTitle is what a disk is called: its model, else its vendor (never a
+// PCI id), else its bus. The row has the path and the size.
+func daemonDiskTitle(vendor, model, bus, path string) string {
+	for _, name := range []string{strings.TrimSpace(model), strings.TrimSpace(vendor)} {
+		if name != "" && !pciID.MatchString(name) {
+			return name
+		}
+	}
+	if bus != "" {
+		return bus + " disk"
+	}
+	return path
 }
 
 // daemonValidate checks a partial recipe through Validate with partial=true
@@ -452,7 +467,8 @@ func emitInstallLine(w io.Writer, ev daemonInstallEvent) {
 	case "step_started":
 		step, total := 0, 0
 		if ev.StepIndex != nil {
-			step = *ev.StepIndex + 1
+			// The daemon counts from 1 (fisherman's reporter.go).
+			step = *ev.StepIndex
 		}
 		if ev.TotalSteps != nil {
 			total = *ev.TotalSteps
