@@ -33,7 +33,7 @@ against the frames. An advisory report is not a pass.
 | Frontend | Pages | Rendered | Transitions | Report | Harness |
 |---|---|---|---|---|---|
 | GNOME | 13 | 13 | 12 | strict, passed | tests/gui/capture-screens.py (GTK4/libadwaita under Xvfb) |
-| KDE Plasma | 15 | 15 | 14 | strict, passed | tests/capture.cpp (Kirigami/QML, offscreen) |
+| KDE Plasma | 22 | 22 | 21 | strict, passed | tests/capture.cpp (Kirigami/QML, offscreen) |
 | COSMIC | 39 | 39 | 38 | strict, passed | src/capture.rs (libcosmic on lavapipe under Xvfb) |
 | Niri | 21 | 21 | 20 | strict, passed | tests/gui/capture-screens.py (QML via PyQt6, offscreen) |
 | XFCE | 20 | 20 | 19 | strict, passed | tests/gui/capture-screens.py (GTK3 under Xvfb) |
@@ -68,21 +68,28 @@ Qt 6 / Kirigami (C++ + QML). Source: `frontends/kde/`.
 
 | | |
 |---|---|
-| <img src="kde/01-tryorinstall.png" width="360"> | **tryorinstall**  <br><sub>Step 1 of 12 · Try or Install TunaOS Try TunaOS without changing this computer, or install it. Try TunaOS &amp;Try TunaOS Install now &amp;Install n</sub> |
-| <img src="kde/02-welcome.png" width="360"> | **welcome**  <br><sub>Step 2 of 12 · Welcome Welcome to TunaOS This wizard will guide you through installing TunaOS onto this computer. You will choose a disk and</sub> |
-| <img src="kde/03-prerelease.png" width="360"> | **prerelease**  <br><sub>Step 3 of 12 · Disclaimer Disclaimer Disclaimer TunaOS 99 is an experiment. Nothing here is stable, and the installer says so. Back &amp;Back Ne</sub> |
-| <img src="kde/04-eula.png" width="360"> | **eula**  <br><sub>Step 4 of 12 · Terms of Use Terms of Use Terms of use Use of this system Do not use this experiment for anything important. You agree to the</sub> |
-| <img src="kde/05-rst.png" width="360"> | **rst**  <br><sub>Step 5 of 12 · Intel RST Intel RST Intel RST is on This computer hides its NVMe disk behind Intel RST. The disk list on the next step cannot</sub> |
-| <img src="kde/06-disk.png" width="360"> | **disk**  <br><sub>Step 6 of 12 · Target Disk Target Disk Choose the disk where TunaOS will be installed. Everything on the selected disk will be erased. Every</sub> |
-| <img src="kde/07-wipefree.png" width="360"> | **wipefree**  <br><sub>Step 7 of 12 · Existing Data Existing Data Existing data found /dev/nvme0n1 already holds data. Install to Free Space &amp;Install to Free Space</sub> |
-| <img src="kde/08-encryption.png" width="360"> | **encryption**  <br><sub>Step 8 of 12 · Disk Encryption Disk Encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later wi</sub> |
-| <img src="kde/09-account.png" width="360"> | **account**  <br><sub>Step 9 of 12 · User Account User Account Create the account you will sign in with. It can also administer this computer. Alex Example Full n</sub> |
-| <img src="kde/10-confirm.png" width="360"> | **confirm**  <br><sub>Step 10 of 12 · Confirm Installation Confirm installation Everything on /dev/nvme0n1 will be erased. This cannot be undone. Everything on /d</sub> |
-| <img src="kde/11-install.png" width="360"> | **install**  <br><sub>Step 11 of 12 · Installing Installing Installing TunaOS… /dev/nvme0n1. Do not power off the computer. Step 5 of 8 — Installing TunaOS… [1/8]</sub> |
-| <img src="kde/12-recovery.png" width="360"> | **recovery**  <br><sub>Step 12 of 12 · Finished TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so</sub> |
-| <img src="kde/14-done.png" width="360"> | **done**  <br><sub>Step 12 of 12 · Finished TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so</sub> |
-| <img src="kde/15-cancel-confirm.png" width="360"> | **cancel confirm**  <br><sub>Step 11 of 12 · Installing Installing Installing TunaOS… /dev/nvme0n1. Do not power off the computer. Step 5 of 8 — Installing TunaOS… [1/8]</sub> |
-| <img src="kde/16-cancelled.png" width="360"> | **cancelled**  <br><sub>Step 12 of 12 · Finished Installation cancelled You stopped the installation. The selected disk is erased and has no complete system. Start</sub> |
+| <img src="kde/00-requirements.png" width="360"> | **requirements**  <br><sub>Step 1 of 18 · Requirements This computer is below the requirements Power off &amp;Power off Next &amp;Next</sub> |
+| <img src="kde/01-tryorinstall.png" width="360"> | **tryorinstall**  <br><sub>Step 2 of 18 · Try or Install Welcome to TunaOS Try TunaOS without changing this computer, or install it. Try TunaOS &amp;Try TunaOS Install now</sub> |
+| <img src="kde/02-language.png" width="360"> | **language**  <br><sub>Step 3 of 18 · Language Language Choose the language of the installed system. Search languages Afrikaans Afrikaans Aghem Aghem Akan Akan Ako</sub> |
+| <img src="kde/03-keyboard.png" width="360"> | **keyboard**  <br><sub>Step 4 of 18 · Keyboard Layout Keyboard Layout Choose the keyboard layout of the installed system. This session keeps its own layout. Search</sub> |
+| <img src="kde/04-timezone.png" width="360"> | **timezone**  <br><sub>Step 5 of 18 · Time Zone Time Zone Choose the time zone of the installed system. Search time zones Berlin (Europe) Berlin (Europe) GMT-7 (Et</sub> |
+| <img src="kde/05-network.png" width="360"> | **network**  <br><sub>Step 6 of 18 · Network Connected to the internet The selected image is downloaded during the installation. Network settings N&amp;etwork setting</sub> |
+| <img src="kde/06-prerelease.png" width="360"> | **prerelease**  <br><sub>Step 7 of 18 · Disclaimer Disclaimer Disclaimer TunaOS 99 is an experiment. Nothing here is stable, and the installer says so. Back &amp;Back Ne</sub> |
+| <img src="kde/07-eula.png" width="360"> | **eula**  <br><sub>Step 8 of 18 · Terms of Use Terms of Use Terms of use Use of this system Do not use this experiment for anything important. You agree to the</sub> |
+| <img src="kde/08-rst.png" width="360"> | **rst**  <br><sub>Step 9 of 18 · Intel RST Intel RST Intel RST is on This computer hides its NVMe disk behind Intel RST. The disk list on the next step cannot</sub> |
+| <img src="kde/09-disk.png" width="360"> | **disk**  <br><sub>Step 10 of 18 · Target Disk Target Disk Choose the disk where TunaOS will be installed. Everything on the selected disk will be erased. Ever</sub> |
+| <img src="kde/10-wipefree.png" width="360"> | **wipefree**  <br><sub>Step 11 of 18 · Existing Data Existing Data Existing data found /dev/nvme0n1 already holds data. Install to Free Space &amp;Install to Free Spac</sub> |
+| <img src="kde/11-encryption.png" width="360"> | **encryption**  <br><sub>Step 12 of 18 · Disk Encryption Disk Encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later w</sub> |
+| <img src="kde/12-account.png" width="360"> | **account**  <br><sub>Step 13 of 18 · User Account User Account Create the account you will sign in with. It can also administer this computer. Alex Example Full</sub> |
+| <img src="kde/13-confirm.png" width="360"> | **confirm**  <br><sub>Step 14 of 18 · Confirm Installation Confirm installation Everything on /dev/nvme0n1 will be erased. This cannot be undone. Everything on /d</sub> |
+| <img src="kde/14-install.png" width="360"> | **install**  <br><sub>Step 15 of 18 · Installing Installing Installing TunaOS… /dev/nvme0n1. Do not power off the computer. Step 5 of 8 — Installing TunaOS… [1/8]</sub> |
+| <img src="kde/15-recovery.png" width="360"> | **recovery**  <br><sub>Step 16 of 18 · Recovery Key Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access yo</sub> |
+| <img src="kde/16-handoff.png" width="360"> | **handoff**  <br><sub>Step 17 of 18 · Handoff Restart the computer The computer restarts into the installed system. The files and settings of this session do not</sub> |
+| <img src="kde/17-done.png" width="360"> | **done**  <br><sub>Step 18 of 18 · Finished TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so</sub> |
+| <img src="kde/18-cancel-confirm.png" width="360"> | **cancel confirm**  <br><sub>Step 15 of 18 · Installing Installing Installing TunaOS… /dev/nvme0n1. Do not power off the computer. Step 5 of 8 — Installing TunaOS… [1/8]</sub> |
+| <img src="kde/19-cancelled.png" width="360"> | **cancelled**  <br><sub>Step 18 of 18 · Finished Installation cancelled You stopped the installation. The selected disk is erased and has no complete system. Start</sub> |
+| <img src="kde/20-failed.png" width="360"> | **failed**  <br><sub>Step 18 of 18 · Finished Installation failed The installation did not finish. The log has the details — exit code 1. Try again &amp;Try again Cl</sub> |
+| <img src="kde/21-recovery-qr.png" width="360"> | **recovery qr**  <br><sub>Step 16 of 18 · Recovery Key Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access yo</sub> |
 
 ## COSMIC
 
