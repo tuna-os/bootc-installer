@@ -2,12 +2,12 @@
 
 **Last updated**: 2026-11-10
 
-This frontend (GTK3 / PyGObject) is one of five in the `tuna-os/bootc-installer`
+This frontend (GTK3 / PyGObject) is one of five in the `tuna-os/installer`
 monorepo. It has no plan of its own. The plan for all five is the root
 [ROADMAP.md](../../ROADMAP.md).
 
 The repository `tuna-os/tuna-installer-xfce` does not exist any more. An issue
-number in this file is an issue in `tuna-os/bootc-installer`.
+number in this file is an issue in `tuna-os/installer`.
 
 ## Where to look
 

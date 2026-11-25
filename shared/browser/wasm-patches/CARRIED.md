@@ -12,7 +12,7 @@ pop-os closed
 with "We are no longer accepting LLM-generated changes", and closed
 [pop-os/iced#397](https://github.com/pop-os/iced/pull/397) and
 [pop-os/iced#398](https://github.com/pop-os/iced/pull/398) unmerged. In
-[#105](https://github.com/tuna-os/bootc-installer/issues/105) the
+[#105](https://github.com/tuna-os/installer/issues/105) the
 maintainer decided to carry the fixes in the tuna-os forks and not to send
 them upstream again. A person can still send one upstream by hand.
 

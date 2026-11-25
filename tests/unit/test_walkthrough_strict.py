@@ -85,7 +85,7 @@ def capture(root, flavor="gnome", texts=None, exemptions=None, before=None):
 def consume(root, tmp_path):
     """Run the consumer as walkthrough.yml does. Returns (rc, summary.json)."""
     outdir = tmp_path / "out"
-    rc = aggregate.build(str(root), str(outdir), "tuna-os/bootc-installer", True)
+    rc = aggregate.build(str(root), str(outdir), "tuna-os/installer", True)
     return rc, json.loads((outdir / "summary.json").read_text())
 
 

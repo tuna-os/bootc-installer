@@ -92,7 +92,13 @@ def test_what_the_application_does_use_is_still_built():
 def test_the_go_toolchain_is_not_shipped(path):
     manifest = _load(path)
     go = next(module for module in manifest["modules"] if module["name"] == "go")
-    assert go["build-commands"] == ["cp -r go /app/go"]
+    assert go["build-commands"] == [
+        "cp -r go /app/go",
+        "install -Dm644 go/LICENSE /app/share/licenses/go/LICENSE",
+    ]
+    # The shared module carries the cleanup, so the other four Flatpaks, which
+    # have no top-level one, do not ship the toolchain either.
+    assert go["cleanup"] == ["/go"]
     assert "/go" in manifest.get("cleanup", []), "/app/go would ship in the bundle"
     # fisherman is built with that toolchain, after it and before cleanup.
     names = _names(manifest)

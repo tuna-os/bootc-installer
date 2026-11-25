@@ -18,7 +18,7 @@ Never post account credentials or API keys in issues or pull requests.
 ## Getting started
 
 ```bash
-git clone --recurse-submodules https://github.com/tuna-os/bootc-installer
+git clone --recurse-submodules https://github.com/tuna-os/installer
 cd bootc-installer
 ```
 
@@ -110,4 +110,4 @@ See [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) for deeper architecture do
 
 ## Security
 
-Report vulnerabilities through a [private vulnerability report on GitHub](https://github.com/tuna-os/bootc-installer/security/advisories/new). Do not open public issues for security bugs.
+Report vulnerabilities through a [private vulnerability report on GitHub](https://github.com/tuna-os/installer/security/advisories/new). Do not open public issues for security bugs.

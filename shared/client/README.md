@@ -2,7 +2,7 @@
 
 Thin Varlink clients for the installer daemon (tuna-os/fisherman#512).
 Varlink is JSON over a UNIX socket, so each client is under 150 lines. Issue:
-tuna-os/bootc-installer#442.
+tuna-os/installer#442.
 
 ## The wire format
 

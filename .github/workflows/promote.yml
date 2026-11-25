@@ -362,6 +362,19 @@ jobs:
           SHA: ${{ needs.gate.outputs.sha }}
         run: |
           set -euo pipefail
+          # Two gates can pass the same commit: the second one decides before
+          # the first one's push job gets a runner. The push is then a no-op,
+          # but a second dispatch built and published the same release again
+          # (13b83601 and bc6d07ad each had two Release runs). A commit whose
+          # release is queued, running or done gets no other one. A failed or
+          # cancelled release does not count, so a later promotion retries it.
+          live=$(gh api --method GET "/repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/runs" \
+            -f head_sha="$SHA" -f per_page=50 \
+            --jq '[.workflow_runs[] | select(.status != "completed" or .conclusion == "success")] | length')
+          if [ "$live" -gt 0 ]; then
+            echo "release.yml already has a run for $SHA; not dispatching another"
+            exit 0
+          fi
           gh workflow run release.yml --ref "$PROD_BRANCH" -f expected_sha="$SHA"
           echo "dispatched release.yml on $PROD_BRANCH for $SHA"
           {

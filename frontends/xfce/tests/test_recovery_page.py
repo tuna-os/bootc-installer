@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # The key moved off the done page onto its own screen
-# (tuna-os/bootc-installer#446): the key label, the copy button, the QR
+# (tuna-os/installer#446): the key label, the copy button, the QR
 # dialog, and the acknowledgement gating Done. Nothing here writes the
 # key anywhere but the label.
 

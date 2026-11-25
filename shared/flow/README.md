@@ -2,7 +2,7 @@
 
 This is the flow spec for the four native frontends (KDE, COSMIC, Niri,
 XFCE). It comes from [gnome-setup](https://github.com/hanthor/gnome-setup)
-(branch `utah`), read from its source. Issue: tuna-os/bootc-installer#442.
+(branch `utah`), read from its source. Issue: tuna-os/installer#442.
 Daemon: tuna-os/fisherman#512.
 
 `screens.yaml` is the machine-readable spec. This file explains it. A test

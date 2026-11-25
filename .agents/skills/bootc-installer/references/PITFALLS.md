@@ -1,6 +1,6 @@
 # bootc-installer Pitfalls Reference
 
-Distilled engineering gotchas for `tuna-os/bootc-installer`.  
+Distilled engineering gotchas for `tuna-os/installer`.  
 Load when debugging test failures, import errors, or GTK/GIO issues.
 
 ---
@@ -373,10 +373,10 @@ This repo uses GitHub **repository rulesets** (not classic branch protection). T
 
 ```bash
 # What dev requires right now
-gh api repos/tuna-os/bootc-installer/rules/branches/dev
+gh api repos/tuna-os/installer/rules/branches/dev
 
 # Classic branch protection (does NOT apply here — returns 404)
-gh api repos/tuna-os/bootc-installer/branches/dev/protection
+gh api repos/tuna-os/installer/branches/dev/protection
 ```
 
 The `tier-a: required checks` ruleset requires the unit, UI, build, `Recipe compliance` and every `E2E (...)` check on each PR to `dev`, so `dev` stays green and `promote.yml` can move `prod`. A direct push to `dev` that is refused with "N of N required status checks expected" is the ruleset doing its job: open a PR instead. Never delete or loosen the ruleset to land a change. Bots that must push to `dev` use `.github/actions/push-to-dev` (a deploy key, the ruleset's bypass).

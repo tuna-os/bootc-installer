@@ -414,7 +414,7 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--index-url", default=INDEX_URL)
     p.add_argument("--index-file", help="read the index from a file instead of the URL")
-    p.add_argument("--repo", default="tuna-os/bootc-installer")
+    p.add_argument("--repo", default="tuna-os/installer")
     p.add_argument("--git-dir", default=".")
     p.add_argument("--prod-ref", default="origin/prod")
     p.add_argument("--report", help="also write the markdown report here")
