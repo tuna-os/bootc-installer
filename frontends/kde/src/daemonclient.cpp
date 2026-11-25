@@ -5,6 +5,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLocalSocket>
+#include <QRegularExpression>
 #include <QTimer>
 
 namespace fishermand
@@ -298,6 +299,20 @@ bool tooSmall(const Disk &disk)
     return disk.sizeBytes > 0 && disk.minimalSizeBytes > 0 && disk.sizeBytes < disk.minimalSizeBytes;
 }
 
+QString diskTitle(const Disk &disk)
+{
+    // virtio puts its PCI vendor id ("0x1af4") where a vendor belongs. A disk
+    // that names neither vendor nor model is called after its bus; the row
+    // has its path and its size below.
+    static const QRegularExpression pciId(QStringLiteral("^0[xX][0-9a-fA-F]+$"));
+    for (const QString &name : {disk.model.trimmed(), disk.vendor.trimmed()}) {
+        if (!name.isEmpty() && !pciId.match(name).hasMatch())
+            return name;
+    }
+    const QString bus = transportLabel(disk.transport);
+    return bus.isEmpty() ? disk.path : QCoreApplication::translate("fishermand", "%1 disk").arg(bus);
+}
+
 probe::Result probeResult(const Probe &probe)
 {
     probe::Result r;
@@ -313,7 +328,7 @@ probe::Result probeResult(const Probe &probe)
         probe::Disk disk;
         disk.path = d.path;
         disk.model = d.model;
-        disk.title = d.model.isEmpty() ? d.path : d.model;
+        disk.title = diskTitle(d);
         disk.sizeLabel = d.sizeLabel;
         disk.transportLabel = transportLabel(d.transport);
         disk.removable = d.removable;

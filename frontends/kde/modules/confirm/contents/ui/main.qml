@@ -15,6 +15,8 @@ TunaComponents.SetupModule {
 
     Accessible.name: qsTr("Confirm")
 
+    readonly property string imageSetting: qsTr("The image's setting")
+
     // The daemon install into free space keeps what is on the disk: the
     // page must not say "erased" then.
     readonly property bool keepsData: InstallerController.daemonBackend
@@ -238,8 +240,8 @@ TunaComponents.SetupModule {
                 }
 
                 // The region choices of the welcome step: the recipe's
-                // locale, keyboard and timezone (#292). A row is hidden when
-                // the recipe has no such key.
+                // locale, keyboard and timezone (#292). With no such key in
+                // the recipe, the row says that the image keeps its own.
                 FormCard.FormDelegateSeparator {
                     visible: languageRow.visible
                 }
@@ -247,9 +249,11 @@ TunaComponents.SetupModule {
                 FormCard.FormTextDelegate {
                     id: languageRow
                     objectName: "confirmLanguage"
-                    visible: InstallerController.localeName.length > 0
                     text: qsTr("Language")
                     description: {
+                        if (InstallerController.localeName.length === 0) {
+                            return root.imageSetting
+                        }
                         const i = InstallerController.languageIds.indexOf(InstallerController.language)
                         const name = i >= 0 ? InstallerController.languageNames[i] : InstallerController.language
                         return qsTr("%1 (%2)").arg(name).arg(InstallerController.localeName)
@@ -263,9 +267,11 @@ TunaComponents.SetupModule {
                 FormCard.FormTextDelegate {
                     id: keyboardRow
                     objectName: "confirmKeyboard"
-                    visible: InstallerController.keyboardChosen
                     text: qsTr("Keyboard")
                     description: {
+                        if (!InstallerController.keyboardChosen) {
+                            return root.imageSetting
+                        }
                         const i = InstallerController.keyboardLayoutIds.indexOf(InstallerController.keyboardLayout)
                         return i >= 0 ? InstallerController.keyboardLayoutNames[i] : InstallerController.keyboardLayout
                     }
@@ -278,9 +284,10 @@ TunaComponents.SetupModule {
                 FormCard.FormTextDelegate {
                     id: timezoneRow
                     objectName: "confirmTimezone"
-                    visible: InstallerController.timezoneChosen
                     text: qsTr("Time zone")
-                    description: InstallerController.timezoneDisplay(InstallerController.timezone)
+                    description: InstallerController.timezoneChosen
+                        ? InstallerController.timezoneDisplay(InstallerController.timezone)
+                        : root.imageSetting
                 }
             }
             // The install plan (tuna-os/fisherman#371): the disk fisherman

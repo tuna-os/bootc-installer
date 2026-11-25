@@ -165,6 +165,7 @@ class InstallerController : public QObject
     // luks_failed, internal_error, daemon_unreachable, or "" on the recipe
     // backend. The done step words it.
     Q_PROPERTY(QString failureReason READ failureReason NOTIFY installCompleted)
+    Q_PROPERTY(QString failureMessage READ failureMessage NOTIFY installCompleted)
     // The install ended before the disk was written (the error or the
     // cancel came during the device check). False when unknown.
     Q_PROPERTY(bool diskUnchanged READ diskUnchanged NOTIFY installCompleted)
@@ -463,6 +464,8 @@ public:
     bool sessionKeepsRunning() const { return m_sessionKeepsRunning; }
     QString shutdownError() const { return m_shutdownError; }
     QString failureReason() const { return m_failureReason; }
+    // The daemon's own words for the failure, as a sentence; "" without one.
+    QString failureMessage() const { return m_failureMessage; }
     bool diskUnchanged() const
     {
         const QVariant changed = m_installError.value(QStringLiteral("disk_changed"));
@@ -849,6 +852,7 @@ private:
     fishermand::AsyncClient *m_validateClient = nullptr;
     QString m_lastDaemonStep;
     QString m_failureReason;
+    QString m_failureMessage;
     QString m_firstBootTool;
     bool m_locationServices = false;
     bool m_locationTouched = false;

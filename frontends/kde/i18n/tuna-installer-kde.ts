@@ -199,6 +199,13 @@
     </message>
 </context>
 <context>
+    <name>PickerList</name>
+    <message>
+        <source>Nothing is chosen: the installed system keeps its own setting.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>Wizard</name>
     <message>
         <source>Requirements</source>
@@ -312,6 +319,13 @@
     </message>
 </context>
 <context>
+    <name>fishermand</name>
+    <message>
+        <source>%1 disk</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>main</name>
     <message>
         <source>Account</source>
@@ -347,6 +361,10 @@
     </message>
     <message>
         <source>Confirm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The image&apos;s setting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -750,11 +768,23 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>The recovery key could not be saved to the disk. Press Done to try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>No recovery key could be made: %1 Do not continue without one.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>No recovery key could be made. Do not continue without one.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Show QR Code for Recovery Key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>To continue, tick the box when you have saved the key.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

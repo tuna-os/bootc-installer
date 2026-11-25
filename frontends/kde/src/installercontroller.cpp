@@ -149,7 +149,7 @@ InstallerController::InstallerController(QObject *parent)
         m_languageNames << l.display;
     }
     if (!m_languageIds.contains(m_language) && !m_languageIds.isEmpty())
-        m_language = m_languageIds.first();
+        m_language = m_languageIds.contains(QStringLiteral("en")) ? QStringLiteral("en") : m_languageIds.first();
     for (const region::Keymap &k : region::availableKeyboardLayouts()) {
         m_keyboardIds << k.id;
         m_keyboardNames << k.description;
@@ -704,8 +704,7 @@ QStringList InstallerController::tooSmallDisks() const
     for (const fishermand::Disk &disk : m_daemonProbe.disks) {
         if (!disk.eligible || !fishermand::tooSmall(disk))
             continue;
-        out << QStringList{disk.vendor, disk.model.isEmpty() ? disk.path : disk.model, disk.sizeLabel}
-                   .join(QLatin1Char(' ')).simplified();
+        out << QStringList{fishermand::diskTitle(disk), disk.sizeLabel}.join(QLatin1Char(' ')).simplified();
     }
     return out;
 }
@@ -1289,6 +1288,7 @@ void InstallerController::resetProgress()
     m_recoveryBusy = false;
     Q_EMIT recoveryChanged();
     m_failureReason.clear();
+    m_failureMessage.clear();
     m_lastDaemonStep.clear();
     m_handoffState.clear();
     m_handoffError.clear();
@@ -1968,13 +1968,28 @@ void InstallerController::daemonShutdown(const QString &verb)
     });
 }
 
+// A daemon message ("the disk is too small") as a sentence for the failure page.
+static QString sentence(QString text)
+{
+    text = text.trimmed();
+    if (text.isEmpty())
+        return text;
+    text[0] = text.at(0).toUpper();
+    if (!QStringLiteral(".!?…").contains(text.back()))
+        text += QLatin1Char('.');
+    return text;
+}
+
 void InstallerController::consumeDaemonEvent(const QJsonObject &event)
 {
     const QString stepId = event.value(QLatin1String("stepId")).toString();
     if (!stepId.isEmpty())
         m_lastDaemonStep = stepId;
     if (event.value(QLatin1String("event")).toString() == QLatin1String("failed"))
+    {
         m_failureReason = event.value(QLatin1String("reason")).toString();
+        m_failureMessage = sentence(event.value(QLatin1String("message")).toString());
+    }
     // Through the legacy line and appendLine(): one parser, one bar, one
     // log. An Install event holds no secret.
     const QJsonObject line = fishermand::eventToLine(event);

@@ -108,7 +108,7 @@ TunaComponents.SetupModule {
                 Layout.topMargin: Kirigami.Units.largeSpacing
                 Layout.alignment: Qt.AlignHCenter
 
-                FormCard.FormPasswordFieldDelegate {
+                NamedPasswordField {
                     id: passphraseField
                     objectName: "encryptionPassphrase"
 
@@ -118,7 +118,7 @@ TunaComponents.SetupModule {
                     onTextChanged: root.commitPassphrase()
                 }
 
-                FormCard.FormPasswordFieldDelegate {
+                NamedPasswordField {
                     id: confirmField
                     objectName: "encryptionPassphraseConfirm"
 

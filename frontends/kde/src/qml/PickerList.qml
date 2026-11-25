@@ -53,6 +53,17 @@ ColumnLayout {
         Layout.fillWidth: true
     }
 
+    // What applies when nobody picks a row: the row with the check mark, or
+    // the image's own value when the list does not have the session's.
+    Label {
+        objectName: "pickerKeeps"
+        visible: picker.ids.length > 0 && picker.ids.indexOf(picker.currentId) < 0
+        text: qsTr("Nothing is chosen: the installed system keeps its own setting.")
+        wrapMode: Text.Wrap
+
+        Layout.fillWidth: true
+    }
+
     ScrollView {
         id: scroll
 
@@ -104,8 +115,21 @@ ColumnLayout {
                 text: picker.emptyText
             }
 
-            // Show the current row when the step opens.
-            Component.onCompleted: positionViewAtIndex(Math.max(0, currentIndex), ListView.Center)
+            // Show the current row when the step opens. Not when the list is
+            // made: each step is made at the start, with no height, and the
+            // row of "English (US)" was then far below the fold of a list
+            // that looked as if nothing was chosen.
+            function showCurrent(): void {
+                forceLayout();
+                positionViewAtIndex(Math.max(0, currentIndex), ListView.Center);
+            }
+
+            onVisibleChanged: if (visible) {
+                Qt.callLater(showCurrent);
+            }
+            onHeightChanged: if (visible && !moving) {
+                Qt.callLater(showCurrent);
+            }
         }
     }
 }

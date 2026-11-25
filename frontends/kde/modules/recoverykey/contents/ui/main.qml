@@ -88,9 +88,17 @@ TunaComponents.SetupModule {
                 objectName: "recoveryError"
                 type: Kirigami.MessageType.Error
                 visible: InstallerController.recoveryError.length > 0
+                // A bare error name of the daemon (io.systemd.System) is
+                // for the log; it tells a person nothing.
+                readonly property string reason: /^[a-z]+(\.[A-Za-z0-9]+)+\.?$/.test(InstallerController.recoveryError)
+                    ? "" : InstallerController.recoveryError
                 text: root.hasKey
-                    ? qsTr("The recovery key could not be saved to the disk: %1").arg(InstallerController.recoveryError)
-                    : qsTr("No recovery key could be made: %1 Do not continue without one.").arg(InstallerController.recoveryError)
+                    ? (reason.length > 0
+                       ? qsTr("The recovery key could not be saved to the disk: %1").arg(reason)
+                       : qsTr("The recovery key could not be saved to the disk. Press Done to try again."))
+                    : (reason.length > 0
+                       ? qsTr("No recovery key could be made: %1 Do not continue without one.").arg(reason)
+                       : qsTr("No recovery key could be made. Do not continue without one."))
                 actions: [
                     Kirigami.Action {
                         objectName: "recoveryRetryAction"
@@ -168,6 +176,18 @@ TunaComponents.SetupModule {
                     checked: InstallerController.recoveryAck
                     onToggled: InstallerController.recoveryAck = checked
                 }
+            }
+
+            // A disabled button alone is faint, and does not say what it
+            // waits for.
+            Label {
+                objectName: "recoveryDoneHint"
+                visible: root.hasKey && !InstallerController.recoveryAck
+                text: qsTr("To continue, tick the box when you have saved the key.")
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+
+                Layout.fillWidth: true
             }
 
             Button {
