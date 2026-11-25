@@ -44,6 +44,8 @@ with open(CATALOG_FILE, encoding="utf-8") as fh:
 # The account the e2e user types. The VM job installs it for real, so it is
 # a valid name for fisherman (not reserved) and names no product.
 ACCOUNT = {"username": "e2euser", "fullname": "E2E User", "password": "e2e-password"}
+# Page name -> the row the driver picks (language, XKB layout, time zone).
+REGION_PICKS = {"language": "de_DE.UTF-8", "keyboard": "de", "timezone": "Europe/Berlin"}
 _tmp = tempfile.mkdtemp(prefix="tuna-e2e-xfce-")
 # The same catalog, where check-recipe.py looks for it.
 os.makedirs(E2E_DIR, exist_ok=True)
@@ -85,6 +87,13 @@ def main():
         for name in PAGE_ORDER:
             if name == "progress":
                 break
+            # The shared flow skips a screen that has nothing to say here
+            # (a pre-release warning on a stable image, an EULA the image
+            # does not ship, Intel RST on a machine without it): walk the
+            # wizard the way go() does, not through every page.
+            if not win.pages[name].should_show():
+                print(f"[e2e] skipped by the flow: {name}")
+                continue
             win._enter(PAGE_ORDER.index(name))
             _pump(0.2)
             page = win.pages[name]
@@ -98,6 +107,24 @@ def main():
                     outcome["error"] = f"the source page selected {picked!r}"
                     app.quit()
                     return
+            if name in REGION_PICKS:
+                # The pages preselect the live session's value, which on a
+                # runner is the US keyboard: the guest check
+                # (shared/e2e/vm-checks/region.sh) needs a real console
+                # keymap. Pick what the KDE driver picks (#325).
+                row = page.rows.get(REGION_PICKS[name])
+                if row is None and name == "language":
+                    # The runner's locale list may lack de_DE; the session's
+                    # own locale then stays, and region.sh checks that one.
+                    print("[e2e] language: no de_DE.UTF-8 offered, keeping the session's")
+                    row = page.listbox.get_selected_row()
+                if row is None:
+                    outcome["error"] = f"{name} page offers no {REGION_PICKS[name]!r}"
+                    app.quit()
+                    return
+                page.listbox.select_row(row)
+                _pump(0.5)
+                print(f"[e2e] {name} picked: {getattr(row, 'value', '')}")
             if name == "destination":
                 radios = page.radios
                 print(f"[e2e] disks offered: {[r.disk['path'] for r in radios]}")
@@ -132,6 +159,13 @@ def main():
         deadline = time.monotonic() + TIMEOUT
         while win.stack.get_visible_child_name() != "done" and time.monotonic() < deadline:
             _pump(0.25)
+            # A finished install walks on to the recovery-key and handoff
+            # screens when they apply; the run takes the same Next a person
+            # would, once the page lets it.
+            shown = win.stack.get_visible_child_name()
+            if shown in ("recovery", "handoff") and win.pages[shown].can_continue():
+                print(f"[e2e] continuing past the {shown} screen")
+                win.go(+1)
         if win.stack.get_visible_child_name() != "done":
             outcome["error"] = f"no Done page after {TIMEOUT:.0f}s"
         else:

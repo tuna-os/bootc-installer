@@ -187,12 +187,9 @@ class Daemon:
 
 # Recipe types use dashes (shared/recipe/encryption-choices.json); the
 # daemon uses underscores (io.tunaos.Fisherman.varlink, type Encryption).
-ENCRYPTION_TYPES = {
-    "none": "none",
-    "luks-passphrase": "luks_passphrase",
-    "tpm2-luks": "tpm2_luks",
-    "tpm2-luks-passphrase": "tpm2_luks_passphrase",
-}
+# The names come from the file, not from a list kept here.
+def daemon_encryption_type(recipe_type):
+    return (recipe_type or "none").replace("-", "_")
 
 
 def recipe_to_config(recipe, install_mode=None):
@@ -213,7 +210,7 @@ def recipe_to_config(recipe, install_mode=None):
             raise ValueError(f"unknown install mode {install_mode!r}")
         config["installMode"] = install_mode
     encryption = recipe.get("encryption") or {}
-    enc_type = ENCRYPTION_TYPES.get(encryption.get("type") or "none", "none")
+    enc_type = daemon_encryption_type(encryption.get("type"))
     entry = {"type": enc_type}
     if encryption.get("passphrase"):
         entry["passphrase"] = encryption["passphrase"]
