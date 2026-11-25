@@ -868,6 +868,16 @@ ApplicationWindow {
     //     of an installed system are not this wizard's to change.
     // What the user changed also goes into the recipe (`locale`,
     // `keyboard.layout`, `timezone`, #292), on live media and off it.
+    // id -> name for a person, from `session-get`. An id with no name is
+    // shown as it is, and an id that is typed is taken as it is.
+    property var keyboardNames: ({})
+    property var localeNames: ({})
+    property var timezoneNames: ({})
+    function nameOf(names, id) { return names[id] || id }
+    function idOf(names, shown) {
+        for (const id in names) { if (names[id] === shown) return id }
+        return shown
+    }
     property var keyboardLayouts: []
     property string keyboardLayout: ""
     property var localeList: []
@@ -938,9 +948,9 @@ ApplicationWindow {
     property bool locationTouched: false
     function regionPicks() {
         const changes = {}
-        const fields = { keyboard: [keyCombo.editText, root.keyboardLayout],
-            locale: [localeCombo.editText, root.localeName],
-            timezone: [tzCombo.editText, root.timezoneName] }
+        const fields = { keyboard: [root.idOf(root.keyboardNames, keyCombo.editText.trim()), root.keyboardLayout],
+            locale: [root.idOf(root.localeNames, localeCombo.editText.trim()), root.localeName],
+            timezone: [root.idOf(root.timezoneNames, tzCombo.editText.trim()), root.timezoneName] }
         for (const name in fields) {
             const chosen = (fields[name][0] || "").trim()
             if (chosen !== "" && chosen !== fields[name][1])
@@ -1220,14 +1230,17 @@ ApplicationWindow {
                 try {
                     const state = JSON.parse(text)
                     if (state.keyboard) {
+                        root.keyboardNames = state.keyboard.names || {}
                         if (state.keyboard.current) root.keyboardLayout = state.keyboard.current
                         root.keyboardLayouts = state.keyboard.available || []
                     }
                     if (state.locale) {
+                        root.localeNames = state.locale.names || {}
                         if (state.locale.current) root.localeName = state.locale.current
                         root.localeList = state.locale.available || []
                     }
                     if (state.timezone) {
+                        root.timezoneNames = state.timezone.names || {}
                         if (state.timezone.current) root.timezoneName = state.timezone.current
                         root.timezoneList = state.timezone.available || []
                     }
@@ -1922,8 +1935,11 @@ ApplicationWindow {
                             id: keyCombo
                             objectName: "sessionKeyboard"
                             editable: true
-                            model: root.keyboardModel
+                            model: root.keyboardModel.map(id => root.nameOf(root.keyboardNames, id))
                             currentIndex: root.keyboardModel.indexOf(root.keyboardLayout)
+                            // A new model puts the index at 0: the first language of the
+                            // list would look, and be sent, as the session's own.
+                            onModelChanged: currentIndex = Qt.binding(() => root.keyboardModel.indexOf(root.keyboardLayout))
                             implicitWidth: 300
                         }
 
@@ -1932,8 +1948,9 @@ ApplicationWindow {
                             id: localeCombo
                             objectName: "sessionLocale"
                             editable: true
-                            model: root.localeModel
+                            model: root.localeModel.map(id => root.nameOf(root.localeNames, id))
                             currentIndex: root.localeModel.indexOf(root.localeName)
+                            onModelChanged: currentIndex = Qt.binding(() => root.localeModel.indexOf(root.localeName))
                             implicitWidth: 300
                         }
 
@@ -1942,8 +1959,9 @@ ApplicationWindow {
                             id: tzCombo
                             objectName: "sessionTimezone"
                             editable: true
-                            model: root.timezoneModel
+                            model: root.timezoneModel.map(id => root.nameOf(root.timezoneNames, id))
                             currentIndex: root.timezoneModel.indexOf(root.timezoneName)
+                            onModelChanged: currentIndex = Qt.binding(() => root.timezoneModel.indexOf(root.timezoneName))
                             implicitWidth: 300
                         }
                     }
@@ -2677,11 +2695,11 @@ ApplicationWindow {
                                 }
                                 // The Session step's picks that go into the recipe (#292).
                                 StyledText { text: qsTr("Language"); color: Theme.surfaceVariantText; visible: !!root.confirmRegion().locale }
-                                StyledText { objectName: "confirmLocale"; visible: !!root.confirmRegion().locale; text: root.confirmRegion().locale || ""; isMonospace: true }
+                                StyledText { objectName: "confirmLocale"; visible: !!root.confirmRegion().locale; text: root.nameOf(root.localeNames, root.confirmRegion().locale || ""); isMonospace: true }
                                 StyledText { text: qsTr("Keyboard"); color: Theme.surfaceVariantText; visible: !!root.confirmRegion().keyboard }
-                                StyledText { objectName: "confirmKeyboard"; visible: !!root.confirmRegion().keyboard; text: root.confirmRegion().keyboard ? root.confirmRegion().keyboard.layout : ""; isMonospace: true }
+                                StyledText { objectName: "confirmKeyboard"; visible: !!root.confirmRegion().keyboard; text: root.nameOf(root.keyboardNames, root.confirmRegion().keyboard ? root.confirmRegion().keyboard.layout : ""); isMonospace: true }
                                 StyledText { text: qsTr("Timezone"); color: Theme.surfaceVariantText; visible: !!root.confirmRegion().timezone }
-                                StyledText { objectName: "confirmTimezone"; visible: !!root.confirmRegion().timezone; text: root.confirmRegion().timezone || ""; isMonospace: true }
+                                StyledText { objectName: "confirmTimezone"; visible: !!root.confirmRegion().timezone; text: root.nameOf(root.timezoneNames, root.confirmRegion().timezone || ""); isMonospace: true }
                                 StyledText { text: qsTr("Region"); color: Theme.surfaceVariantText; visible: root.regionProblem !== "" }
                                 StyledText { objectName: "regionProblem"; visible: root.regionProblem !== ""; text: root.regionProblem; color: Theme.error; wrapMode: Text.Wrap; Layout.fillWidth: true }
                                 StyledText { text: qsTr("Hostname"); color: Theme.surfaceVariantText }
