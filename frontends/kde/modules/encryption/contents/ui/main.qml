@@ -133,6 +133,19 @@ TunaComponents.SetupModule {
                 }
             }
 
+            // The session keeps its own layout, and the installed system reads
+            // the passphrase with the layout that was picked.
+            Kirigami.InlineMessage {
+                objectName: "encryptionLayoutNote"
+                type: Kirigami.MessageType.Warning
+                visible: root.needsPassphrase && InstallerController.keyboardChosen
+                text: qsTr("You type the passphrase with the keyboard layout of this session. The installed system reads it with the layout that you chose: use characters that are the same on both.")
+
+                Layout.fillWidth: true
+                Layout.maximumWidth: root.cardWidth
+                Layout.alignment: Qt.AlignHCenter
+            }
+
             // fisherman's problem with the choice, in the copy's words.
             Kirigami.InlineMessage {
                 type: Kirigami.MessageType.Error

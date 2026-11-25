@@ -109,6 +109,8 @@ class InstallerController : public QObject
     // Wipe-or-free (shared/flow/screens.yaml): what the daemon probe says
     // about the chosen disk. False on the recipe backend, which knows no
     // prior data and keeps its erase behaviour.
+    // What the chosen disk is: name, path and size ("VirtIO disk (/dev/vda, 64 GiB)").
+    Q_PROPERTY(QString selectedDiskLabel READ selectedDiskLabel NOTIFY recipeChanged)
     Q_PROPERTY(bool selectedDiskHasData READ selectedDiskHasData NOTIFY recipeChanged)
     // The chosen disk cannot fit the install in its free space: Install
     // erases it, with a countdown on the button.
@@ -416,6 +418,7 @@ public:
     // already holds. Empty when the backend is the recipe or the disk is
     // unknown.
     Q_INVOKABLE QStringList selectedDiskOperatingSystems() const;
+    QString selectedDiskLabel() const;
     bool selectedDiskHasData() const;
     bool selectedDiskForceErase() const;
     QString selectedDiskFreeSpace() const;

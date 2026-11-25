@@ -130,8 +130,9 @@ TunaComponents.SetupModule {
                 Layout.alignment: Qt.AlignHCenter
 
                 FormCard.FormTextDelegate {
+                    objectName: "confirmDisk"
                     text: qsTr("Target disk")
-                    description: InstallerController.disk
+                    description: InstallerController.selectedDiskLabel
                 }
 
                 FormCard.FormDelegateSeparator {}

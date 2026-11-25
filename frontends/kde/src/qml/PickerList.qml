@@ -23,6 +23,11 @@ ColumnLayout {
     property var names: []
     property var ids: []
     property string currentId: ""
+    // With a text: a first row with the id "", the choice of a person who
+    // picks nothing. What has the check mark is what the install sends.
+    property string keepText: ""
+    readonly property var rowNames: keepText.length > 0 ? [keepText].concat(Array.from(names)) : Array.from(names)
+    readonly property var rowIds: keepText.length > 0 ? [""].concat(Array.from(ids)) : Array.from(ids)
     // The accessible name and the placeholder of the search field.
     property string searchLabel: ""
     property string emptyText: ""
@@ -32,10 +37,10 @@ ColumnLayout {
     readonly property var matches: {
         const needle = search.text.trim().toLocaleLowerCase();
         const out = [];
-        for (let i = 0; i < names.length; i++) {
-            const name = String(names[i]);
+        for (let i = 0; i < rowNames.length; i++) {
+            const name = String(rowNames[i]);
             if (needle === "" || name.toLocaleLowerCase().indexOf(needle) >= 0
-                || String(ids[i]).toLocaleLowerCase().indexOf(needle) >= 0) {
+                || String(rowIds[i]).toLocaleLowerCase().indexOf(needle) >= 0) {
                 out.push(i);
             }
         }
@@ -49,17 +54,6 @@ ColumnLayout {
         objectName: "pickerSearch"
         placeholderText: picker.searchLabel
         Accessible.name: picker.searchLabel
-
-        Layout.fillWidth: true
-    }
-
-    // What applies when nobody picks a row: the row with the check mark, or
-    // the image's own value when the list does not have the session's.
-    Label {
-        objectName: "pickerKeeps"
-        visible: picker.ids.length > 0 && picker.ids.indexOf(picker.currentId) < 0
-        text: qsTr("Nothing is chosen: the installed system keeps its own setting.")
-        wrapMode: Text.Wrap
 
         Layout.fillWidth: true
     }
@@ -80,7 +74,7 @@ ColumnLayout {
             objectName: "pickerList"
             clip: true
             model: picker.matches
-            currentIndex: picker.matches.indexOf(picker.ids.indexOf(picker.currentId))
+            currentIndex: picker.matches.indexOf(picker.rowIds.indexOf(picker.currentId))
             keyNavigationEnabled: true
             activeFocusOnTab: true
 
@@ -93,10 +87,10 @@ ColumnLayout {
                 required property int modelData
                 required property int index
 
-                readonly property bool current: picker.ids[modelData] === picker.currentId
+                readonly property bool current: picker.rowIds[modelData] === picker.currentId
 
                 width: ListView.view.width
-                text: picker.names[modelData]
+                text: picker.rowNames[modelData]
                 highlighted: current
                 icon.name: current ? "checkmark-symbolic" : ""
 
@@ -104,7 +98,7 @@ ColumnLayout {
                 Accessible.name: text
                 Accessible.selected: current
 
-                onClicked: picker.picked(picker.ids[modelData])
+                onClicked: picker.picked(picker.rowIds[modelData])
             }
 
             Kirigami.PlaceholderMessage {

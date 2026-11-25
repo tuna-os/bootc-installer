@@ -140,23 +140,18 @@ InstallerController::InstallerController(QObject *parent)
         applyLeaf(imagecatalog::liveLeaf(m_catalog.find(m_liveImage), operatorRecipe));
     }
 
-    // Region & language preflight defaults: the live session's own values.
-    m_language = region::systemLanguage();
-    m_keyboardLayout = region::systemKeyboardLayout();
-    m_timezone = region::systemTimezone();
+    // Region & language: nothing is picked at the start, and the pages say
+    // so ("Keep the image's setting"). They had the session's values with a
+    // check mark, and the install sent none of them (#292).
     for (const region::Language &l : region::availableLanguages()) {
         m_languageIds << l.id;
         m_languageNames << l.display;
     }
-    if (!m_languageIds.contains(m_language) && !m_languageIds.isEmpty())
-        m_language = m_languageIds.contains(QStringLiteral("en")) ? QStringLiteral("en") : m_languageIds.first();
     for (const region::Keymap &k : region::availableKeyboardLayouts()) {
         m_keyboardIds << k.id;
         m_keyboardNames << k.description;
     }
     m_timezones = region::availableTimezones();
-    if (!m_timezones.contains(m_timezone))
-        m_timezone = QStringLiteral("UTC");
     // The recipe gets a region value only when the user picks one (#292):
     // a value nobody looked at must not replace the image's own.
 
@@ -496,6 +491,10 @@ QStringList InstallerController::reuseLines() const
 QStringList InstallerController::receiptLines() const
 {
     QStringList out;
+    // The daemon sends no receipt: there is nothing to say about one, and
+    // after a migrate handoff the new system is the one that runs.
+    if (daemonBackend() && !m_receipt.isObject())
+        return out;
     for (const auto &line : sourcecheck::receiptLines(m_receipt)) {
         const QString shown = m_branding.text(line.first, {{QStringLiteral("value"), line.second}});
         if (!shown.isEmpty())
@@ -702,11 +701,28 @@ QStringList InstallerController::tooSmallDisks() const
 {
     QStringList out;
     for (const fishermand::Disk &disk : m_daemonProbe.disks) {
-        if (!disk.eligible || !fishermand::tooSmall(disk))
+        // The daemon itself excludes a disk below its minimum, or leaves it
+        // eligible and states the minimum.
+        const bool small = disk.excludedReason == QLatin1String("too_small")
+            || (disk.eligible && fishermand::tooSmall(disk));
+        if (!small)
             continue;
         out << QStringList{fishermand::diskTitle(disk), disk.sizeLabel}.join(QLatin1Char(' ')).simplified();
     }
     return out;
+}
+
+QString InstallerController::selectedDiskLabel() const
+{
+    const fishermand::Disk *disk = selectedDaemonDisk();
+    if (!disk)
+        return m_recipe.disk;
+    QStringList bits{disk->path};
+    if (!disk->sizeLabel.isEmpty())
+        bits << disk->sizeLabel;
+    const QString title = fishermand::diskTitle(*disk);
+    return title == disk->path ? bits.join(QStringLiteral(", "))
+                               : QStringLiteral("%1 (%2)").arg(title, bits.join(QStringLiteral(", ")));
 }
 
 QString InstallerController::minimalDiskSize() const

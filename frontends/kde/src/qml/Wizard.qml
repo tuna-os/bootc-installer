@@ -495,7 +495,16 @@ Kirigami.Page {
                 // click must not start the install.
                 enabled: (root.currentModule ? root.currentModule.nextEnabled : false)
                     && !(isInstall && root.animating)
-                highlighted: true
+                // Install erases the disk: the one button in the colour of a
+                // thing that cannot be undone.
+                readonly property bool destructive: isInstall
+                    && !(InstallerController.daemonBackend && InstallerController.selectedDiskHasData
+                         && !InstallerController.selectedDiskForceErase
+                         && InstallerController.installMode === "free_space")
+                highlighted: !destructive
+                Kirigami.Theme.inherit: !destructive
+                Kirigami.Theme.textColor: destructive ? Kirigami.Theme.negativeTextColor : undefined
+                icon.color: destructive ? Kirigami.Theme.negativeTextColor : "transparent"
 
                 // The one and only place an install is started.
                 onClicked: {

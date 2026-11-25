@@ -46,7 +46,7 @@ TunaComponents.SetupModule {
             Kirigami.InlineMessage {
                 type: Kirigami.MessageType.Warning
                 visible: true
-                text: qsTr("This computer hides its NVMe disk behind Intel RST. The disk list on the next step cannot show a disk the system cannot see. To install to the hidden disk, switch the firmware from RST or RAID to AHCI first, then start the installer again.")
+                text: qsTr("This computer uses Intel RST (RAID mode), which can hide disks. If the disk that you want is not in the list of the next step, switch the storage to AHCI in the firmware settings.")
 
                 Layout.fillWidth: true
                 Layout.maximumWidth: root.cardWidth

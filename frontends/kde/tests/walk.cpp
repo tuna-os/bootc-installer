@@ -291,6 +291,19 @@ public:
         at(u"language"_s);
         next(u"keyboard"_s);
         expect(counter().startsWith(u"Step 3 of "_s), u"the third step is not step 3: "_s + counter());
+        // What has the check mark is what the install sends: nothing is
+        // picked, and the row says so.
+        if (m_ok) {
+            const QQuickItem *picker = item(u"keyboardPicker"_s);
+            expect(picker && picker->property("currentId").toString().isEmpty() && !m_controller->keyboardChosen(),
+                   u"a layout looks chosen that is not sent"_s);
+            m_controller->setKeyboardLayout(u"de"_s);
+            settle(50);
+            expect(picker && picker->property("currentId").toString() == u"de"_s && m_controller->keyboardChosen(),
+                   u"a picked layout is not the checked one"_s);
+            m_controller->setKeyboardLayout(QString());
+            settle(50);
+        }
         // The row that applies is in view, with its check mark.
         if (m_ok) {
             const QQuickItem *list = findItemByName(findItemByName(m_window->contentItem(), u"keyboardPicker"_s),

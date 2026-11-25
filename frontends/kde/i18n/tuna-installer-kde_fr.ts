@@ -199,13 +199,6 @@
     </message>
 </context>
 <context>
-    <name>PickerList</name>
-    <message>
-        <source>Nothing is chosen: the installed system keeps its own setting.</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>Wizard</name>
     <message>
         <source>Requirements</source>
@@ -636,6 +629,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>You type the passphrase with the keyboard layout of this session. The installed system reads it with the layout that you chose: use characters that are the same on both.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Terms of use</source>
         <translation type="unfinished"></translation>
     </message>
@@ -705,6 +702,10 @@
     </message>
     <message>
         <source>Choose the keyboard layout of the installed system. This session keeps its own layout.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep the image&apos;s setting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -872,7 +873,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>This computer hides its NVMe disk behind Intel RST. The disk list on the next step cannot show a disk the system cannot see. To install to the hidden disk, switch the firmware from RST or RAID to AHCI first, then start the installer again.</source>
+        <source>This computer uses Intel RST (RAID mode), which can hide disks. If the disk that you want is not in the list of the next step, switch the storage to AHCI in the firmware settings.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
