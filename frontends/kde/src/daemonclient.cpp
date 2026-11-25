@@ -88,6 +88,7 @@ bool Client::decodeOne(QByteArray &buffer, Reply *reply)
     const QJsonObject o = doc.object();
     reply->parameters = o.value(QLatin1String("parameters")).toObject();
     reply->error = o.value(QLatin1String("error")).toString();
+    reply->continues = o.value(QLatin1String("continues")).toBool();
     return true;
 }
 
@@ -118,6 +119,39 @@ Reply Client::call(const QString &method, const QJsonObject &parameters, int tim
     }
     socket.disconnectFromServer();
     return reply;
+}
+
+QList<Reply> Client::callMore(const QString &method, const QJsonObject &parameters, int timeoutMs)
+{
+    QList<Reply> out;
+    QLocalSocket socket;
+    socket.connectToServer(m_path);
+    if (!socket.waitForConnected(timeoutMs)) {
+        out.append(Reply{.transportFailed = true});
+        return out;
+    }
+    socket.write(encodeRequest(method, parameters, true));
+    if (!socket.waitForBytesWritten(timeoutMs)) {
+        out.append(Reply{.transportFailed = true});
+        return out;
+    }
+    QByteArray buffer;
+    while (true) {
+        Reply reply;
+        while (!decodeOne(buffer, &reply)) {
+            if (!socket.waitForReadyRead(timeoutMs)) {
+                out.append(Reply{.transportFailed = true});
+                socket.disconnectFromServer();
+                return out;
+            }
+            buffer += socket.readAll();
+        }
+        out.append(reply);
+        if (reply.transportFailed || !reply.error.isEmpty() || !reply.continues)
+            break;
+    }
+    socket.disconnectFromServer();
+    return out;
 }
 
 Requirements fetchRequirements(Client &client)
@@ -248,6 +282,265 @@ probe::Result probeResult(const Probe &probe)
     r.isLive = probe.isLive;
     r.liveImage = probe.liveImage;
     return r;
+}
+
+QList<ValidationProblem> validationProblems(const QJsonObject &parameters)
+{
+    QList<ValidationProblem> out;
+    for (const QJsonValue &value : parameters.value(QLatin1String("errors")).toArray()) {
+        const QJsonObject e = value.toObject();
+        out.append({e.value(QLatin1String("field")).toString(), e.value(QLatin1String("code")).toString(),
+                    e.value(QLatin1String("message")).toString()});
+    }
+    return out;
+}
+
+AsyncClient::AsyncClient(const QString &path, QObject *parent)
+    : QObject(parent)
+    , m_path(path)
+{
+}
+
+AsyncClient::~AsyncClient()
+{
+    abort();
+}
+
+void AsyncClient::call(const QString &method, const QJsonObject &parameters, bool more)
+{
+    abort();
+    m_buffer.clear();
+    m_streaming = more;
+    m_finished = false;
+    m_socket = new QLocalSocket(this);
+    connect(m_socket, &QLocalSocket::readyRead, this, &AsyncClient::onReadyRead);
+    connect(m_socket, &QLocalSocket::disconnected, this, [this] {
+        if (!m_finished) {
+            Reply reply;
+            reply.transportFailed = true;
+            Q_EMIT replyReceived(reply);
+            finish();
+        }
+    });
+    connect(m_socket, &QLocalSocket::errorOccurred, this, [this](QLocalSocket::LocalSocketError) {
+        if (!m_finished && m_socket->state() == QLocalSocket::UnconnectedState) {
+            Reply reply;
+            reply.transportFailed = true;
+            Q_EMIT replyReceived(reply);
+            finish();
+        }
+    });
+    m_socket->connectToServer(m_path);
+    if (m_socket->waitForConnected(10000)) {
+        m_socket->write(Client::encodeRequest(method, parameters, more));
+        m_socket->flush();
+    }
+}
+
+void AsyncClient::abort()
+{
+    if (!m_socket)
+        return;
+    QLocalSocket *socket = m_socket;
+    m_socket = nullptr;
+    m_finished = true;
+    socket->disconnect();
+    socket->abort();
+    socket->deleteLater();
+}
+
+void AsyncClient::finish()
+{
+    if (m_finished)
+        return;
+    m_finished = true;
+    if (m_socket) {
+        QLocalSocket *socket = m_socket;
+        m_socket = nullptr;
+        socket->disconnect();
+        socket->deleteLater();
+    }
+    Q_EMIT callFinished();
+}
+
+void AsyncClient::onReadyRead()
+{
+    if (!m_socket)
+        return;
+    m_buffer += m_socket->readAll();
+    while (!m_finished) {
+        Reply reply;
+        if (!Client::decodeOne(m_buffer, &reply))
+            break;
+        Q_EMIT replyReceived(reply);
+        if (reply.transportFailed || !reply.error.isEmpty() || !m_streaming || !reply.continues) {
+            finish();
+            break;
+        }
+    }
+}
+
+InstallStream::InstallStream(const QString &path, QObject *parent)
+    : QObject(parent)
+    , m_path(path)
+{
+}
+
+void InstallStream::start(const QJsonObject &config, bool confirmed)
+{
+    if (m_client)
+        return;
+    m_terminalSent = false;
+    m_client = new AsyncClient(m_path, this);
+    connect(m_client, &AsyncClient::replyReceived, this, [this](const Reply &reply) {
+        if (!reply.error.isEmpty()) {
+            if (!m_terminalSent) {
+                m_terminalSent = true;
+                Q_EMIT streamFinished(QStringLiteral("error"), reply.error);
+            }
+            return;
+        }
+        if (reply.transportFailed) {
+            if (!m_terminalSent) {
+                m_terminalSent = true;
+                Q_EMIT streamFinished(QStringLiteral("error"),
+                                       QStringLiteral("the installer daemon did not answer"));
+            }
+            return;
+        }
+        const QJsonObject event = reply.parameters;
+        Q_EMIT eventReceived(event);
+        const QString kind = event.value(QLatin1String("event")).toString();
+        if (kind == QLatin1String("complete") || kind == QLatin1String("failed")
+            || kind == QLatin1String("cancelled")) {
+            if (!m_terminalSent) {
+                m_terminalSent = true;
+                Q_EMIT streamFinished(kind, QString());
+            }
+        }
+    });
+    connect(m_client, &AsyncClient::callFinished, this, [this] {
+        if (m_client) {
+            m_client->deleteLater();
+            m_client = nullptr;
+        }
+        if (!m_terminalSent) {
+            m_terminalSent = true;
+            Q_EMIT streamFinished(QStringLiteral("error"),
+                                   QStringLiteral("the installer daemon did not answer"));
+        }
+    });
+    const QJsonObject args{{QStringLiteral("config"), config}, {QStringLiteral("confirmed"), confirmed}};
+    m_client->call(QStringLiteral("io.tunaos.Fisherman.Install"), args, true);
+}
+
+void InstallStream::cancel()
+{
+    // Cancel travels on its own connection while Install streams on this one.
+    auto *client = new AsyncClient(m_path, this);
+    connect(client, &AsyncClient::replyReceived, this, [client, this](const Reply &reply) {
+        Q_EMIT cancelFinished(reply.ok() && reply.parameters.value(QLatin1String("wasInstalling")).toBool());
+        client->deleteLater();
+    });
+    connect(client, &AsyncClient::callFinished, client, &QObject::deleteLater);
+    client->call(QStringLiteral("io.tunaos.Fisherman.Cancel"), {}, false);
+}
+
+namespace
+{
+QString replyError(const Reply &reply)
+{
+    if (reply.transportFailed)
+        return QCoreApplication::translate("daemon", "the installer daemon did not answer");
+    return reply.error;
+}
+} // namespace
+
+QList<CandidateDevice> fetchCandidateDevices(Client &client, QString *error)
+{
+    QList<CandidateDevice> out;
+    const QList<Reply> replies = client.callMore(QStringLiteral("io.systemd.SysInstall.ListCandidateDevices"),
+                                                 QJsonObject{{QStringLiteral("definitions"), QJsonArray{}}});
+    for (const Reply &reply : replies) {
+        if (!reply.ok()) {
+            if (error)
+                *error = replyError(reply);
+            return {};
+        }
+        const QJsonObject p = reply.parameters;
+        if (p.isEmpty())
+            continue;
+        CandidateDevice device;
+        device.node = p.value(QLatin1String("node")).toString();
+        device.vendor = p.value(QLatin1String("vendor")).toString();
+        device.model = p.value(QLatin1String("model")).toString();
+        device.subsystem = p.value(QLatin1String("subsystem")).toString();
+        device.sizeBytes = static_cast<qint64>(p.value(QLatin1String("sizeBytes")).toDouble(-1));
+        device.fit = p.value(QLatin1String("fit")).toString();
+        device.minimalSizeBytes = static_cast<qint64>(p.value(QLatin1String("minimalSizeBytes")).toDouble(-1));
+        device.currentSizeBytes = static_cast<qint64>(p.value(QLatin1String("currentSizeBytes")).toDouble(-1));
+        device.action = p.value(QLatin1String("action")).toString();
+        if (!device.node.isEmpty())
+            out.append(device);
+    }
+    return out;
+}
+
+QList<ValidationProblem> validateConfig(Client &client, const QJsonObject &config, bool partial, QString *error)
+{
+    QJsonObject args{{QStringLiteral("config"), config}};
+    if (partial)
+        args.insert(QStringLiteral("partial"), true);
+    const Reply reply = client.call(QStringLiteral("io.tunaos.Fisherman.Validate"), args);
+    if (!reply.ok()) {
+        if (error)
+            *error = replyError(reply);
+        return {};
+    }
+    return validationProblems(reply.parameters);
+}
+
+QList<ValidationProblem> configureTarget(Client &client, const QJsonObject &args, QString *error)
+{
+    const Reply reply = client.call(QStringLiteral("io.tunaos.Fisherman.ConfigureTarget"), args);
+    if (!reply.ok()) {
+        if (error)
+            *error = replyError(reply);
+        return {};
+    }
+    return validationProblems(reply.parameters);
+}
+
+QString makeRecoveryKey(Client &client, QString *error)
+{
+    const Reply reply = client.call(QStringLiteral("io.systemd.CryptEnroll.MakeRecoveryKey"), {});
+    if (!reply.ok()) {
+        if (error)
+            *error = replyError(reply);
+        return {};
+    }
+    return reply.parameters.value(QLatin1String("recoveryKey")).toString();
+}
+
+Reply enrollRecoveryKey(Client &client, const QString &node, const QString &recoveryKey, const QString &unlockPassword)
+{
+    QJsonObject args{{QStringLiteral("node"), node},
+                     {QStringLiteral("mechanism"), QStringLiteral("recovery")},
+                     {QStringLiteral("recoveryKey"), recoveryKey}};
+    if (!unlockPassword.isEmpty())
+        args.insert(QStringLiteral("unlockPassword"), unlockPassword);
+    return client.call(QStringLiteral("io.systemd.CryptEnroll.Enroll"), args);
+}
+
+Reply callHandoff(Client &client)
+{
+    // No mode argument: the daemon decided it in Probe (ruling on #512).
+    return client.call(QStringLiteral("io.tunaos.Fisherman.Handoff"), {});
+}
+
+Reply callCancel(Client &client)
+{
+    return client.call(QStringLiteral("io.tunaos.Fisherman.Cancel"), {});
 }
 
 } // namespace fishermand

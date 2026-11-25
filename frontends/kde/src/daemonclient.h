@@ -14,10 +14,13 @@
 #include <QByteArray>
 #include <QJsonObject>
 #include <QList>
+#include <QObject>
 #include <QString>
 #include <QStringList>
 
 #include "probe.h"
+
+class QLocalSocket;
 
 namespace fishermand
 {
@@ -46,6 +49,8 @@ struct Reply {
     QString error;
     // The socket failed or the peer sent junk. parameters is empty.
     bool transportFailed = false;
+    // A streaming reply with more to come (`continues` on the wire).
+    bool continues = false;
     bool ok() const { return !transportFailed && error.isEmpty(); }
 };
 
@@ -56,6 +61,8 @@ class Client
 public:
     explicit Client(const QString &path);
     Reply call(const QString &method, const QJsonObject &parameters, int timeoutMs = 10000);
+    // A blocking streaming call: every reply until one without `continues`.
+    QList<Reply> callMore(const QString &method, const QJsonObject &parameters, int timeoutMs = 10000);
 
     // Test seams: the wire format without the socket.
     static QByteArray encodeRequest(const QString &method, const QJsonObject &parameters, bool more);
@@ -140,5 +147,88 @@ Probe fetchProbe(Client &client);
 // disk list and the gates run on either backend without a second code path.
 // offlineImages stays empty: the daemon Probe names no offline stores.
 probe::Result probeResult(const Probe &probe);
+
+// One io.systemd.SysInstall candidate, as ListCandidateDevices streams it.
+struct CandidateDevice {
+    QString node;
+    QString vendor;
+    QString model;
+    QString subsystem;
+    qint64 sizeBytes = -1;
+    QString fit;
+    qint64 minimalSizeBytes = -1;
+    qint64 currentSizeBytes = -1;
+    QString action;
+};
+
+// Validation problems as data: [{field, code, message}].
+struct ValidationProblem {
+    QString field;
+    QString code;
+    QString message;
+};
+QList<ValidationProblem> validationProblems(const QJsonObject &parameters);
+
+// A non-blocking Varlink call on its own connection. One call at a time;
+// `more` streams replies until one arrives without `continues`.
+class AsyncClient : public QObject
+{
+    Q_OBJECT
+public:
+    explicit AsyncClient(const QString &path, QObject *parent = nullptr);
+    ~AsyncClient() override;
+    void call(const QString &method, const QJsonObject &parameters, bool more);
+    void abort();
+    bool busy() const { return m_socket != nullptr; }
+
+Q_SIGNALS:
+    void replyReceived(const fishermand::Reply &reply);
+    void callFinished();
+
+private:
+    void onReadyRead();
+    void finish();
+
+    QString m_path;
+    QLocalSocket *m_socket = nullptr;
+    QByteArray m_buffer;
+    bool m_streaming = false;
+    bool m_finished = true;
+};
+
+// io.tunaos.Fisherman.Install as an event stream, plus Cancel on a second
+// connection (the wire allows one call per connection).
+class InstallStream : public QObject
+{
+    Q_OBJECT
+public:
+    explicit InstallStream(const QString &path, QObject *parent = nullptr);
+    void start(const QJsonObject &config, bool confirmed);
+    // Asks the daemon to stop and clean up. Safe while idle.
+    void cancel();
+    bool running() const { return m_client != nullptr; }
+
+Q_SIGNALS:
+    void eventReceived(const QJsonObject &event);
+    // terminal is complete, failed, cancelled or error. For error,
+    // errorName is the Varlink error or a transport note.
+    void streamFinished(const QString &terminal, const QString &errorName);
+    void cancelFinished(bool wasInstalling);
+
+private:
+    QString m_path;
+    AsyncClient *m_client = nullptr;
+    bool m_terminalSent = false;
+};
+
+// The remaining unary daemon operations. All block; callers run them off
+// the UI thread or accept the short wait at startup.
+QList<CandidateDevice> fetchCandidateDevices(Client &client, QString *error = nullptr);
+QList<ValidationProblem> validateConfig(Client &client, const QJsonObject &config, bool partial, QString *error = nullptr);
+QList<ValidationProblem> configureTarget(Client &client, const QJsonObject &args, QString *error = nullptr);
+QString makeRecoveryKey(Client &client, QString *error = nullptr);
+Reply enrollRecoveryKey(Client &client, const QString &node, const QString &recoveryKey, const QString &unlockPassword);
+Reply callHandoff(Client &client);
+Reply callCancel(Client &client);
 
 } // namespace fishermand
