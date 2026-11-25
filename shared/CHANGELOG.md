@@ -27,7 +27,7 @@ schema only.
 - No report field changes, and no frontend changes.
 
 Contracts version: `2.3.2`
-Contracts sha256: `6fba896760bfcafbf6390d918834bdb42db5f694f2296bfac5323b3f0af4e9ba`
+Contracts sha256: `a118fec7f1decc088466b87ac00928830047a1cc8a6d98317c0100dfcb2c58ee`
 
 ## 2026-11-25: the walkthrough page keeps UI text in its table cells
 
