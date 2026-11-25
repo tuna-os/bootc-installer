@@ -105,7 +105,7 @@ screens:
     frontends:
       kde: {status: missing, note: "The welcome module introduces the install. It has no Try action."}
       cosmic: {status: partial, note: "`welcome` introduces the product. It has no Try action."}
-      niri: {status: missing, note: "Welcome page, no Try action."}
+      niri: {status: have, note: "Welcome page on live media: Try quits into the live session, Install now advances. Off live media one button."}
       xfce: {status: missing, note: "WelcomePage, no Try action."}
 
   - id: language
@@ -210,7 +210,7 @@ screens:
     frontends:
       kde: {status: missing, note: ""}
       cosmic: {status: missing, note: ""}
-      niri: {status: missing, note: ""}
+      niri: {status: have, note: "Page `prerelease`, shown when os-release says pre-release; Continue."}
       xfce: {status: missing, note: ""}
 
   - id: eula
@@ -232,7 +232,7 @@ screens:
     frontends:
       kde: {status: missing, note: ""}
       cosmic: {status: missing, note: ""}
-      niri: {status: missing, note: ""}
+      niri: {status: have, note: "Page `eula`; an accept box gates Continue, Power off beside it."}
       xfce: {status: missing, note: ""}
 
   - id: rst
@@ -255,7 +255,7 @@ screens:
     frontends:
       kde: {status: missing, note: ""}
       cosmic: {status: missing, note: ""}
-      niri: {status: missing, note: ""}
+      niri: {status: have, note: "Page `rst`; warns and continues, with Power off and Firmware setup."}
       xfce: {status: missing, note: ""}
 
   - id: disk
@@ -301,7 +301,7 @@ screens:
     frontends:
       kde: {status: missing, note: "The confirm card lists the devices that are erased. No choice."}
       cosmic: {status: missing, note: ""}
-      niri: {status: missing, note: ""}
+      niri: {status: have, note: "Page `wipe-or-free`; free space or erase, both rows keyboard reachable."}
       xfce: {status: missing, note: ""}
 
   - id: encryption
@@ -418,7 +418,7 @@ screens:
     frontends:
       kde: {status: partial, note: "Panel on the done module: key, copy button, ack checkbox. No QR. Not its own screen."}
       cosmic: {status: partial, note: "Panel on the done page. No QR. libcosmic has a `qr_code` feature."}
-      niri: {status: partial, note: "Panel on the done page. No QR."}
+      niri: {status: have, note: "Recovery key page with copy, acknowledgement and a QR code."}
       xfce: {status: partial, note: "On the done page. Restart now stays off until the user acknowledges."}
 
   - id: handoff
@@ -441,7 +441,7 @@ screens:
     frontends:
       kde: {status: missing, note: ""}
       cosmic: {status: missing, note: ""}
-      niri: {status: missing, note: ""}
+      niri: {status: have, note: "Page `handoff`; migrate or soft reboot as Probe reports, with a retry button."}
       xfce: {status: missing, note: ""}
 
   - id: done
