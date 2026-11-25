@@ -27,7 +27,7 @@ the shared screen id. The readiness stamp reports it as `page=`.
 | 10 | Intel RST | `rst` | The daemon reports Intel RST. The page warns and continues. |
 | 11 | Select a disk | `disk` | Always. |
 | 12 | Existing data | `wipe-or-free` | Daemon backend: the disk has data and free space. |
-| 13 | Disk encryption | `encryption` | Daemon backend: only with no TPM 2.0. Legacy backend: always. |
+| 13 | Disk encryption | `encryption` | Daemon backend: only with no TPM 2.0, and only the passphrase type. Legacy backend: always, four types. |
 | 14 | Options | (legacy) `options` | Legacy backend: the filesystem. |
 | 15 | Account | `account` | See "The first user". |
 | 16 | Tour | (legacy) `tour` | The selected image has slides. |
@@ -75,11 +75,18 @@ On the daemon backend:
   confirm page sends the whole config (`partial: false`). A problem holds
   **Install**, and so does a daemon that does not answer. The page does not
   ask the `fisherman` command for a plan or a source check.
-- With a TPM 2.0 the disk seals with no prompt. With no TPM the encryption
-  page starts at the passphrase type. An empty passphrase holds Continue.
+- The daemon installs encrypted only and refuses `none`
+  (tuna-os/fisherman#521). With a TPM 2.0 the disk seals with no prompt
+  and no page. With no TPM the encryption page asks for a passphrase two
+  times, and offers no other type. An empty passphrase holds Continue.
+  The legacy backend keeps its four types.
 - `installMode` is the pick of the existing-data page. When that page does
   not show, the mode is `erase`: an empty disk, or a disk with no free
   space. Confirm says which of the two happens to the data.
+- A disk that cannot keep its data (no free space, or a partition table
+  that is not GPT) is a forced erase. Confirm then holds **Install** for
+  three seconds each time the page opens, and the button shows the
+  seconds that are left.
 - `ConfigureTarget` gets the user, the hostname, the locale, the keymap and
   the time zone before `Install`. It gets `privacy.locationServices` only
   after the user moved the location switch.
@@ -107,9 +114,12 @@ The wizard skips the account page in two cases only:
 
 - The catalog says that the image makes its own first user
   (`needs_user_creation: false`).
-- On the daemon backend, the medium sets
-  `TUNA_FIRSTBOOT_TOOL=cosmic-initial-setup`. Confirm, handoff and the
-  finished page then say that the account comes at the first start.
+- On the daemon backend, the medium sets `TUNA_FIRSTBOOT_TOOL` to the
+  name of a first-boot tool: `cosmic-initial-setup`, `plasma-setup` or
+  `gnome-initial-setup`. The four native frontends read the same list.
+  Confirm, handoff and the finished page then say that the account comes
+  at the first start. An empty value, `none` and a name that is not in
+  the list keep the account page.
 
 The wizard does not look for `cosmic-initial-setup` on the medium. A tool
 that is installed does not prove that it runs and makes a user. A skip on

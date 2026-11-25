@@ -166,6 +166,14 @@ fn flow_no_tpm_walks_every_page_to_done() {
     w.send(Message::LocationServicesToggled(true));
     assert_eq!(w.app.location_choice(), Some(true));
 
+    // The daemon installs encrypted only: the page offers no unencrypted
+    // type, and its one row is the passphrase type.
+    assert_eq!(crate::encryption_choices_for(w.app.has_tpm(), true), ["luks-passphrase"]);
+    w.send(Message::EncryptionChanged(0));
+    assert_eq!(w.app.recipe().encryption.enc_type, "luks-passphrase");
+    w.send(Message::EncryptionChanged(1));
+    assert_eq!(w.app.recipe().encryption.enc_type, "luks-passphrase");
+
     // No TPM: the page asks for a passphrase, and holds Continue until
     // the daemon accepts one that was typed the same twice.
     assert_eq!(w.app.recipe().encryption.enc_type, "luks-passphrase");
@@ -305,4 +313,59 @@ fn flow_cancel_ends_on_the_cancelled_page() {
     assert_eq!(w.app.page(), Page::Done);
     assert!(w.app.install_cancelled());
     assert!(!w.app.install_ok());
+}
+
+#[test]
+fn flow_a_forced_erase_holds_install_for_three_seconds() {
+    // tight-space: data and no free space. No choice was offered, so the
+    // confirm page counts down before Install is live.
+    let mut w = wizard_or_skip!("tight-space");
+    w.app.firstboot_owns_user = true;
+    let seen = w.continue_to(Page::DiskSelect);
+    assert!(!seen.contains(&Page::WipeOrFree));
+    assert!(w.app.forced_erase());
+    // Open the confirm page, and hold its tasks: the countdown is one.
+    let started = std::time::Instant::now();
+    let task = {
+        let _guard = w.runtime.enter();
+        cosmic::Application::update(&mut w.app, Message::NextPage)
+    };
+    assert_eq!(w.app.page(), Page::Confirm);
+    assert_eq!(w.app.erase_countdown(), crate::ERASE_COUNTDOWN_SECONDS);
+    assert_eq!(crate::ERASE_COUNTDOWN_SECONDS, 3);
+    // Install does nothing while the countdown runs.
+    w.send(Message::StartInstall);
+    assert_eq!(w.app.page(), Page::Confirm);
+    assert!(!w.app.installing);
+    // A tick of an older visit counts nothing.
+    w.send(Message::EraseCountdownTick(w.app.countdown_seq - 1));
+    assert_eq!(w.app.erase_countdown(), 3);
+    // The countdown runs out in three seconds, not before.
+    w.run(task);
+    assert_eq!(w.app.erase_countdown(), 0);
+    assert!(started.elapsed() >= std::time::Duration::from_secs(3), "{:?}", started.elapsed());
+    assert!(w.install_is_live());
+    assert_eq!(w.app.install_mode(), crate::InstallMode::Erase);
+    w.send(Message::StartInstall);
+    assert!(w.app.install_ok());
+}
+
+#[test]
+fn flow_a_disk_that_keeps_its_data_has_no_countdown() {
+    let mut w = wizard_or_skip!("existing-data");
+    w.app.firstboot_owns_user = true;
+    w.continue_to(Page::Confirm);
+    assert!(w.app.keeps_data());
+    assert_eq!(w.app.erase_countdown(), 0);
+    let mut w = wizard_or_skip_second(w, "happy");
+    w.app.firstboot_owns_user = true;
+    w.continue_to(Page::Confirm);
+    assert!(!w.app.forced_erase(), "an empty disk is not a forced erase");
+    assert_eq!(w.app.erase_countdown(), 0);
+}
+
+/// Ends `first` (its lock, its mock) and starts a wizard on `scenario`.
+fn wizard_or_skip_second(first: Wizard, scenario: &str) -> Wizard {
+    drop(first);
+    Wizard::start(scenario).expect("the mock binary was there for the first wizard")
 }

@@ -9,7 +9,7 @@ use cosmic::prelude::*;
 use cosmic::widget;
 
 use crate::i18n::{tr, tr_with};
-use crate::{available_encryption_choices, branding, Message, Page, TunaInstaller};
+use crate::{branding, encryption_choices_for, Message, Page, TunaInstaller};
 
 /// Every user-facing string of the wizard, in one place.
 ///
@@ -256,6 +256,8 @@ pub mod copy {
     pub const CONFIRM_DATA_ERASED: &str = "Erased";
     pub const CONFIRM_FREE_SPACE_WARNING: &str =
         "The installer writes to the free space on {disk}. It keeps the data that is there.";
+    // The Install button while the forced-erase countdown runs.
+    pub const CONFIRM_COUNTDOWN: &str = "{button} ({seconds})";
     pub const CONFIRM_FORCED_ERASE: &str =
         "{product} cannot share this disk with the data on it. The installer erases the whole disk.";
 }
@@ -579,7 +581,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             t
         }
         Page::Encryption => {
-            let choices = available_encryption_choices(app.has_tpm());
+            let choices = encryption_choices_for(app.has_tpm(), crate::fishermand::use_daemon());
             let current = choices.iter().find(|c| **c == recipe.encryption.enc_type);
             let mut t = vec![
                 tr(OPTIONS_DISK_ENCRYPTION),
@@ -744,7 +746,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             }
             t.push(tr(BACK));
             if !app.source_blocked() && app.confirm_problems().is_empty() {
-                t.push(t_line("confirm_button"));
+                t.push(confirm_button_text(app));
             }
             t
         }
@@ -954,6 +956,19 @@ fn confirm_data_text(app: &TunaInstaller) -> String {
     }
 }
 
+/// The Install button. During the countdown of a forced erase it shows
+/// the seconds that are left, and it is not live.
+fn confirm_button_text(app: &TunaInstaller) -> String {
+    let label = t_line("confirm_button");
+    match app.erase_countdown() {
+        0 => label,
+        n => {
+            let seconds = n.to_string();
+            crate::i18n::tr_with(CONFIRM_COUNTDOWN, &[("button", &label), ("seconds", &seconds)])
+        }
+    }
+}
+
 /// What the confirm page shows for the account row.
 fn confirm_user(app: &TunaInstaller) -> String {
     if app.account_required() {
@@ -1103,6 +1118,16 @@ fn nav_row<'a>(
     back: Option<Message>,
     forward: Option<(String, Message, bool)>,
 ) -> Element<'a, Message> {
+    nav_row_live(back, forward, true)
+}
+
+/// `nav_row` with a forward button that can show and not be live: an iced
+/// button with no `on_press` is the disabled state.
+fn nav_row_live<'a>(
+    back: Option<Message>,
+    forward: Option<(String, Message, bool)>,
+    live: bool,
+) -> Element<'a, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
     let mut row = widget::row::with_capacity(3).spacing(spacing.space_s);
 
@@ -1116,7 +1141,7 @@ fn nav_row<'a>(
         } else {
             widget::button::suggested(label)
         };
-        row = row.push(button.on_press(msg));
+        row = row.push(if live { button.on_press(msg) } else { button });
     }
     row.align_y(Alignment::Center).into()
 }
@@ -2089,7 +2114,7 @@ fn encryption(app: &TunaInstaller) -> Element<'_, Message> {
     // `ENCRYPTION_TYPES` list. `update()`'s `EncryptionChanged` handler
     // rebuilds the identical filtered list before indexing into it, so the
     // two stay in lockstep without passing the list through a message.
-    let enc_choices = available_encryption_choices(app.has_tpm());
+    let enc_choices = encryption_choices_for(app.has_tpm(), crate::fishermand::use_daemon());
     let enc_index = enc_choices
         .iter()
         .position(|c| *c == recipe.encryption.enc_type);
@@ -2607,10 +2632,11 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
         t_line("confirm_title"),
         confirm_subtitle(),
         body.into(),
-        nav_row(
+        nav_row_live(
             Some(Message::BackPage),
             (!app.source_blocked() && app.confirm_problems().is_empty())
-                .then(|| (t_line("confirm_button"), Message::StartInstall, true)),
+                .then(|| (confirm_button_text(app), Message::StartInstall, true)),
+            app.erase_countdown() == 0,
         ),
     )
 }

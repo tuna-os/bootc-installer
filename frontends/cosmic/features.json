@@ -34,7 +34,7 @@
     "prerelease_page": "yes: shown for RELEASE_TYPE pre-release or experiment",
     "eula_page": "yes: shown when the medium has the agreement file; the accept box holds Continue",
     "rst_page": "yes: daemon backend; warns and continues when Intel RST hides disks",
-    "wipe_or_free": "yes: daemon backend; free-space install or whole-disk erase; a disk with no free space is erased and confirm says so (no countdown)",
+    "wipe_or_free": "yes: daemon backend; free-space install or whole-disk erase; a disk that cannot keep its data is erased, and confirm counts three seconds down on Install",
     "recovery_key_screen": "yes: own screen with the key, Copy, a QR dialog and a box that holds Done; no key offers Try again",
     "handoff_page": "yes: the mode of the daemon's Probe; Continue calls Handoff with no mode; Not now goes to done",
     "done_try_again": "yes: failed and cancelled installs offer Try again (back to confirm)",

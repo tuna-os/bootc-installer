@@ -292,6 +292,18 @@ impl Page {
 /// entry that produces an unenrollable recipe is worse than one that isn't
 /// offered. What each one is called is branding copy
 /// (`encryption_<type>_label` / `_description`), read in `ui.rs`.
+///
+/// On the daemon backend the unencrypted type is not offered: the daemon
+/// installs encrypted only and refuses `none` (`unsupported_config`,
+/// tuna-os/fisherman#521). The legacy backend keeps every type.
+pub fn encryption_choices_for(has_tpm: bool, daemon: bool) -> Vec<&'static str> {
+    available_encryption_choices(has_tpm)
+        .into_iter()
+        .filter(|c| !daemon || validate::needs_passphrase(c) || validate::needs_tpm2(c))
+        .collect()
+}
+
+/// The types of the legacy backend (see `encryption_choices_for`).
 pub fn available_encryption_choices(has_tpm: bool) -> Vec<&'static str> {
     validate::choices()
         .iter()
@@ -388,25 +400,29 @@ fn account_required_for(
     selected.map_or(true, |leaf| leaf.needs_user_creation)
 }
 
-/// The first-boot tool of this desktop.
-pub const FIRSTBOOT_TOOL: &str = "cosmic-initial-setup";
+/// How long a forced erase holds the Install button.
+pub const ERASE_COUNTDOWN_SECONDS: u8 = 3;
 
-/// `TUNA_FIRSTBOOT_TOOL=cosmic-initial-setup` says that the first-boot
-/// tool makes the first user on the installed system. Only then does the
-/// wizard skip the account page for that reason (screens.yaml `account`,
-/// `skip_when`).
+/// The first-boot tools that make the first user. One list for the four
+/// native frontends: a medium names the tool of its desktop.
+pub const FIRSTBOOT_TOOLS: [&str; 3] = ["cosmic-initial-setup", "plasma-setup", "gnome-initial-setup"];
+
+/// `TUNA_FIRSTBOOT_TOOL=<tool>` says that this first-boot tool makes the
+/// first user on the installed system. Only then does the wizard skip the
+/// account page for that reason (screens.yaml `account`, `skip_when`).
 pub const FIRSTBOOT_ENV: &str = "TUNA_FIRSTBOOT_TOOL";
 
-/// Whether the first-boot tool owns the first user: only when the medium
-/// says so in `TUNA_FIRSTBOOT_TOOL`. The default is that the installer
-/// makes the account.
+/// Whether a first-boot tool owns the first user: only when the medium
+/// names one of `FIRSTBOOT_TOOLS` in `TUNA_FIRSTBOOT_TOOL`. An empty value,
+/// `none` and a name that is not in the list keep the account page. The
+/// default is that the installer makes the account.
 ///
 /// The tool on the medium proves nothing. tunaOS ships `plasma-setup` and
 /// masks its unit, because each installer frontend makes the account
 /// (tunaOS `build_scripts/desktop/install-desktop.sh`). A skip on mere
 /// presence installs a system with no user.
 pub fn firstboot_owns_user_with(override_value: Option<&str>) -> bool {
-    override_value.map(str::trim) == Some(FIRSTBOOT_TOOL)
+    override_value.is_some_and(|value| FIRSTBOOT_TOOLS.contains(&value.trim()))
 }
 
 fn firstboot_owns_user() -> bool {
@@ -533,6 +549,8 @@ pub enum Message {
     SelectTimezone(usize),
     /// The location switch on the timezone page (daemon path).
     LocationServicesToggled(bool),
+    /// One second of the forced-erase countdown `.0` passed.
+    EraseCountdownTick(u64),
     /// The done page's Try again, after a failed or cancelled install:
     /// back to Confirm with the choices kept.
     TryAgain,
@@ -703,6 +721,10 @@ pub struct TunaInstaller {
     /// config, and the number of the latest check.
     confirm_problems: Vec<validate::Problem>,
     confirm_seq: u64,
+    /// Seconds until the Install button of a forced erase is live, and the
+    /// number of the countdown that may still tick (`start_erase_countdown`).
+    erase_countdown: u8,
+    countdown_seq: u64,
     /// The user picked an encryption type on the page. Until then the
     /// daemon path sets the default from the TPM (`daemon_default_type`).
     encryption_picked: bool,
@@ -1221,6 +1243,35 @@ impl TunaInstaller {
             .is_some_and(|d| d.has_data && !d.data_detected())
     }
 
+    /// Seconds until Install is live on a forced erase; zero when it is.
+    pub fn erase_countdown(&self) -> u8 {
+        self.erase_countdown
+    }
+
+    /// A forced erase holds the Install button for three seconds each time
+    /// the confirm page opens (screens.yaml `wipe-or-free`: no choice was
+    /// offered, so the page gives time to read what goes). Not in capture
+    /// mode: a frame does not wait.
+    fn start_erase_countdown(&mut self) -> Task<Message> {
+        self.countdown_seq += 1;
+        self.erase_countdown = 0;
+        if !self.forced_erase() || self.capturing() {
+            return Task::none();
+        }
+        self.erase_countdown = ERASE_COUNTDOWN_SECONDS;
+        Self::countdown_tick(self.countdown_seq)
+    }
+
+    fn countdown_tick(seq: u64) -> Task<Message> {
+        Task::perform(
+            async move {
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                seq
+            },
+            |seq| cosmic::action::app(Message::EraseCountdownTick(seq)),
+        )
+    }
+
     /// The daemon's problems with the whole config, from the `Validate`
     /// that the confirm page runs. A problem holds Install.
     pub fn confirm_problems(&self) -> &[validate::Problem] {
@@ -1238,15 +1289,13 @@ impl TunaInstaller {
         }
     }
 
-    /// The encryption type of the daemon path before the user picks one
-    /// (screens.yaml `encryption`). With a usable TPM the disk seals with
-    /// no prompt (`daemon_sealed_type`). With no TPM the page asks for a
-    /// passphrase: an untouched `none` becomes `luks-passphrase`. A type
-    /// that the user picked stays, also `none`.
-    pub fn daemon_default_type(has_tpm: bool, enc_type: &str, picked: bool) -> &str {
-        if picked {
-            enc_type
-        } else if !has_tpm && enc_type == "none" {
+    /// The encryption type of the daemon path (screens.yaml `encryption`).
+    /// The daemon installs encrypted only, so `none` never stays: with a
+    /// usable TPM the disk seals with no prompt (`daemon_sealed_type`),
+    /// and with no TPM the type is `luks-passphrase`. An encrypted type
+    /// that the user picked stays.
+    pub fn daemon_default_type(has_tpm: bool, enc_type: &str, _picked: bool) -> &str {
+        if !has_tpm && enc_type == "none" {
             "luks-passphrase"
         } else {
             Self::daemon_sealed_type(has_tpm, enc_type)
@@ -1521,7 +1570,8 @@ impl TunaInstaller {
                 // source to check and no recipe to plan. It validates the
                 // whole config instead.
                 if fishermand::use_daemon() {
-                    return self.check_config();
+                    let countdown = self.start_erase_countdown();
+                    return Task::batch([self.check_config(), countdown]);
                 }
                 Task::batch([self.check_source(), self.check_plan()])
             }
@@ -1895,6 +1945,8 @@ impl cosmic::Application for TunaInstaller {
             confirm_problems: Vec::new(),
             confirm_seq: 0,
             encryption_picked: false,
+            erase_countdown: 0,
+            countdown_seq: 0,
             firstboot_owns_user: firstboot_owns_user(),
             daemon_failure: None,
             eula_text: eula.as_ref().and_then(|r| r.as_ref().ok().cloned()),
@@ -2215,6 +2267,17 @@ impl cosmic::Application for TunaInstaller {
                 self.location_services = Some(on);
                 Task::none()
             }
+            Message::EraseCountdownTick(seq) => {
+                // A tick of an older visit to the page counts nothing.
+                if seq != self.countdown_seq || self.erase_countdown == 0 {
+                    return Task::none();
+                }
+                self.erase_countdown -= 1;
+                if self.erase_countdown > 0 {
+                    return Self::countdown_tick(seq);
+                }
+                Task::none()
+            }
             Message::TryAgain => {
                 // Only after an install that ended without success. The
                 // daemon is idle again then, and the legacy wrapper is gone.
@@ -2395,7 +2458,7 @@ impl cosmic::Application for TunaInstaller {
                 // Recompute the same has_tpm-filtered list ui.rs built the
                 // dropdown from, so `idx` (a position in THAT list) resolves
                 // to the same choice the user actually saw and clicked.
-                let choices = available_encryption_choices(self.has_tpm);
+                let choices = encryption_choices_for(self.has_tpm, fishermand::use_daemon());
                 if let Some(choice) = choices.get(idx) {
                     self.encryption_picked = true;
                     // Only a needs_passphrase choice carries a passphrase;
@@ -2573,6 +2636,10 @@ impl cosmic::Application for TunaInstaller {
                 }
                 // One install at a time.
                 if self.installing {
+                    return Task::none();
+                }
+                // A forced erase is still in its countdown.
+                if self.erase_countdown > 0 {
                     return Task::none();
                 }
                 // The daemon refused the config on the confirm page.
@@ -3129,8 +3196,12 @@ mod tests {
         assert!(!super::firstboot_owns_user_with(None));
         assert!(!super::firstboot_owns_user_with(Some("")));
         assert!(!super::firstboot_owns_user_with(Some("none")));
-        assert!(!super::firstboot_owns_user_with(Some("plasma-setup")));
-        assert!(super::firstboot_owns_user_with(Some("cosmic-initial-setup")));
+        assert!(!super::firstboot_owns_user_with(Some("my-setup-tool")));
+        assert!(!super::firstboot_owns_user_with(Some("1")));
+        // Each known tool, the same list in the four frontends.
+        for tool in ["cosmic-initial-setup", "plasma-setup", "gnome-initial-setup"] {
+            assert!(super::firstboot_owns_user_with(Some(tool)), "{tool}");
+        }
         assert!(super::firstboot_owns_user_with(Some(" cosmic-initial-setup ")));
     }
 
@@ -3216,7 +3287,15 @@ mod tests {
         assert!(super::passphrase_present("tpm2-luks", ""));
         // No TPM: the page asks for a passphrase until the user picks.
         assert_eq!(TunaInstaller::daemon_default_type(false, "none", false), "luks-passphrase");
-        assert_eq!(TunaInstaller::daemon_default_type(false, "none", true), "none");
+        // The daemon refuses an unencrypted install: `none` never stays.
+        assert_eq!(TunaInstaller::daemon_default_type(false, "none", true), "luks-passphrase");
+        assert_eq!(TunaInstaller::daemon_default_type(true, "none", true), "tpm2-luks");
+        // The daemon path offers no unencrypted type; the legacy path does.
+        assert_eq!(super::encryption_choices_for(false, true), ["luks-passphrase"]);
+        assert!(!super::encryption_choices_for(true, true).contains(&"none"));
+        assert_eq!(super::encryption_choices_for(true, true).len(), 3);
+        assert_eq!(super::encryption_choices_for(false, false).len(), 2);
+        assert_eq!(super::encryption_choices_for(true, false).len(), 4);
         assert_eq!(TunaInstaller::daemon_default_type(true, "none", false), "tpm2-luks");
         assert_eq!(TunaInstaller::daemon_default_type(true, "luks-passphrase", false), "luks-passphrase");
         assert_eq!(TunaInstaller::daemon_default_type(false, "luks-passphrase", true), "luks-passphrase");

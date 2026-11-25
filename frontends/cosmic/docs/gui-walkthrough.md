@@ -93,7 +93,9 @@ model, the device node, the size label of the backend and the bus.
 ![Existing data](screenshots/12-wipe-or-free.png)
 
 Daemon backend only. When the disk has data and free space, you select the
-free space or the whole disk. The free space is the default.
+free space or the whole disk. The free space is the default. A disk that
+cannot keep its data gets no choice: the confirm page says that the whole
+disk goes, and holds **Install** for three seconds.
 
 ## 10. Disk encryption
 
@@ -101,8 +103,10 @@ free space or the whole disk. The free space is the default.
 
 An encryption type that needs a passphrase adds **Passphrase** and
 **Confirm passphrase**. A mismatch shows under the second field and holds
-**Continue**. The capture shows this state. On the daemon backend a
-computer with a TPM 2.0 skips this page: the TPM locks the disk.
+**Continue**. The capture shows this state, on the legacy backend. The
+daemon backend installs encrypted only. A computer with a TPM 2.0 skips
+this page: the TPM locks the disk. With no TPM the page asks for a
+passphrase and offers no other type.
 
 ## 11. Options
 
@@ -120,8 +124,9 @@ typed two times, and the eye button reveals it. **Continue** waits for a
 username, for two passwords that are the same, and for the backend to
 accept the username. The wizard skips this page when the catalog says that
 the image makes its own first user. On the daemon backend it also skips
-the page when the medium sets `TUNA_FIRSTBOOT_TOOL=cosmic-initial-setup`:
-that tool then makes the user at the first start.
+the page when the medium names a first-boot tool in
+`TUNA_FIRSTBOOT_TOOL` (for COSMIC, `cosmic-initial-setup`): that tool then
+makes the user at the first start.
 
 ## 13. Tour
 
