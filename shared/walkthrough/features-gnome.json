@@ -50,7 +50,7 @@
     "done_receipt": "yes: install ID and first-boot check, or the reason",
     "restart_from_done": "yes",
     "log_after_failure": "yes (recovery key redacted); the page shows fisherman's `error` event, whether the disk was changed, and a cleanup that failed or timed out",
-    "recovery_key_not_in_log": "yes (log file scrubbed; dialog and clipboard redacted)",
+    "recovery_key_not_in_log": "yes (log lines redacted before they are written, #429; dialog and clipboard redacted)",
     "walkthrough": "yes",
     "e2e_gate": "yes"
   }
