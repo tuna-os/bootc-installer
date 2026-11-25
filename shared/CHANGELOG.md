@@ -29,7 +29,7 @@ schema only.
 - Added: `e2e/receipt.py`, a receipt for each run of the VM canary.
 
 Contracts version: `2.4.0`
-Contracts sha256: `a20c81f69f14a621323ceba07377fcc9e80d1047ce58fce1a1ec3dbedf7d861b`
+Contracts sha256: `ba9d2fddc9de0f603d8cc45fa0a45e856351748b6f9a83692ea89a8d8a0c27fc`
 
 ## 2026-11-25: no program names in the copy; the RST page warns
 
