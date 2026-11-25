@@ -6,6 +6,7 @@
 # The mock-daemon tests at the end need build/fishermand and are skipped
 # without it.
 
+import json
 import os
 
 import pytest
@@ -116,6 +117,19 @@ class TestProbeHandoff:
     def test_unknown_mode_means_reboot(self):
         assert daemon.probe_handoff(
             {"handoff": {"mode": "hyperloop"}})["mode"] == "reboot"
+
+    def test_shared_conformance_cases(self):
+        """shared/probe/handoff-cases.json: the one list every frontend meets."""
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "..",
+                            "shared", "probe", "handoff-cases.json")
+        if not os.path.isfile(path):
+            pytest.skip("shared cases only exist in the monorepo checkout")
+        with open(path, encoding="utf-8") as f:
+            cases = json.load(f)["cases"]
+        for case in cases:
+            handoff = ({} if case["wire_mode"] is None
+                       else {"handoff": {"mode": case["wire_mode"]}})
+            assert daemon.probe_handoff(handoff)["mode"] == case["mode"], case["name"]
 
 
 # ─── legacy shape ────────────────────────────────────────────────────────

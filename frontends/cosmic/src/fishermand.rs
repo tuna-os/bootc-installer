@@ -971,6 +971,25 @@ mod tests {
         assert_eq!(handoff_mode_of(None), "reboot");
     }
 
+    /// shared/probe/handoff-cases.json: the cases every frontend meets.
+    #[test]
+    fn handoff_mode_meets_the_shared_cases() {
+        let file: Value = serde_json::from_str(include_str!(
+            "../../../shared/probe/handoff-cases.json"
+        ))
+        .unwrap();
+        let cases = file["cases"].as_array().unwrap();
+        assert!(!cases.is_empty());
+        for case in cases {
+            assert_eq!(
+                handoff_mode_of(case["wire_mode"].as_str()),
+                case["mode"].as_str().unwrap(),
+                "{}",
+                case["name"]
+            );
+        }
+    }
+
     #[test]
     fn a_failed_step_says_whether_the_disk_changed() {
         assert_eq!(disk_changed_at("validate_device"), Some(false));

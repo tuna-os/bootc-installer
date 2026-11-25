@@ -1,0 +1,11 @@
+{
+  "description": "Handoff mode from the daemon's Probe reply (`handoff.mode`). `wire_mode` is the value on the wire (null: the field is absent); `mode` is what every frontend must pick. The wire spells the soft reboot `soft_reboot` (fisherman/internal/handoff ModeSoftReboot), with an underscore. A missing or unknown value means `reboot`. Lenient readers may also accept `soft-reboot`; that is not part of the contract and is not tested here.",
+  "cases": [
+    {"name": "migrate", "wire_mode": "migrate", "mode": "migrate"},
+    {"name": "soft_reboot", "wire_mode": "soft_reboot", "mode": "soft_reboot"},
+    {"name": "reboot", "wire_mode": "reboot", "mode": "reboot"},
+    {"name": "missing", "wire_mode": null, "mode": "reboot"},
+    {"name": "empty", "wire_mode": "", "mode": "reboot"},
+    {"name": "unknown", "wire_mode": "hyperloop", "mode": "reboot"}
+  ]
+}
