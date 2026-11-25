@@ -50,22 +50,22 @@
       "kind": "strict"
     },
     "kde": {
-      "frames": 10,
+      "frames": 15,
       "report": true,
       "kind": "strict"
     },
     "cosmic": {
-      "frames": 18,
+      "frames": 36,
       "report": true,
       "kind": "strict"
     },
     "niri": {
-      "frames": 14,
+      "frames": 21,
       "report": true,
       "kind": "strict"
     },
     "xfce": {
-      "frames": 10,
+      "frames": 20,
       "report": true,
       "kind": "strict"
     }

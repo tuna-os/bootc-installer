@@ -1,9 +1,9 @@
 {
   "flavor": "niri",
-  "frames": 14,
-  "rendered_frames": 14,
-  "advanced_transitions": 13,
-  "visual_states": 14,
+  "frames": 21,
+  "rendered_frames": 21,
+  "advanced_transitions": 20,
+  "visual_states": 21,
   "activation_key": null,
   "ocr": false,
   "screens": {
@@ -21,7 +21,8 @@
     "welcome": {
       "required": true,
       "evidence": [
-        "01-welcome"
+        "01-welcome",
+        "20-handoff"
       ],
       "outcome": "passed"
     },
@@ -58,7 +59,6 @@
       "required": false,
       "evidence": [
         "09-done",
-        "10-recovery",
         "11-tour"
       ],
       "outcome": "passed"
@@ -73,12 +73,11 @@
       "required": true,
       "reached": true,
       "on_pages": [
-        "01-welcome"
+        "01-welcome",
+        "20-handoff"
       ],
       "matched_keywords": [
-        "get started",
-        "welcome",
-        "will guide you through"
+        "welcome"
       ]
     },
     "disk": {
@@ -129,7 +128,6 @@
       "reached": true,
       "on_pages": [
         "09-done",
-        "10-recovery",
         "11-tour"
       ],
       "matched_keywords": [
@@ -143,66 +141,66 @@
       "name": "01-welcome",
       "png": "docs/screenshots/01-welcome.png",
       "rendered": true,
-      "colours": 304,
-      "flat": 0.8248,
-      "ink": 0.034666666666666665,
-      "stddev": 0.09195645179113664,
-      "sha256": "a450f6db2fb835888b833b622973a2f606cb3097a45200135f21d48660a1ebfe",
-      "text_excerpt": "Step 1 of 9 \u00b7 Welcome \u2b22 Welcome to TunaOS This wizard will guide you through installing TunaOS onto your computer. Get started Get started Enter Continue Tab Next field This computer does not meet the minimum requirements It has less than 4"
+      "colours": 320,
+      "flat": 0.8167333333333333,
+      "ink": 0.03453333333333333,
+      "stddev": 0.09196358784379001,
+      "sha256": "9d43e92be243f0df8273e25619878f1eb9dcca4ae0cb3a1a32ec0f273a5f0d0e",
+      "text_excerpt": "Step 1 of 9 \u00b7 Welcome \u2b22 Welcome to TunaOS Install this system \u2014 no download required. Try TunaOS Try TunaOS Install now Install now Enter Continue Tab Next field This computer does not meet the minimum requirements It has less than 4 GB of "
     },
     {
       "name": "02-session",
       "png": "docs/screenshots/02-session.png",
       "rendered": true,
-      "colours": 410,
-      "flat": 0.6247,
-      "ink": 0.026266666666666667,
-      "stddev": 0.09779041921278185,
-      "sha256": "65744320755a56e4b92f5b39539d1e5dd731c8641a459533ae0487b72069f9cc",
-      "text_excerpt": "Step 2 of 9 \u00b7 Session Session Keyboard, language and time zone for the installed system. This computer keeps its own. Keyboard and language Keyboard us Language en_US.UTF-8 Timezone Europe/Berlin Network Connected \u2014 downloads will work. Rec"
+      "colours": 524,
+      "flat": 0.4280333333333333,
+      "ink": 0.034666666666666665,
+      "stddev": 0.1041750959412181,
+      "sha256": "d7e74dbbec35092780d804a267d5ffc2053851b813174f7f5e26e61f39b7d5b0",
+      "text_excerpt": "Step 2 of 9 \u00b7 Session Session Keyboard, language and time zone for this live session and for the installed system, and the network. Keyboard and language Keyboard us Language en_US.UTF-8 Timezone Europe/Berlin Network Connected \u2014 downloads "
     },
     {
       "name": "03-source",
       "png": "docs/screenshots/03-source.png",
       "rendered": true,
-      "colours": 497,
-      "flat": 0.5597333333333333,
-      "ink": 0.1155,
-      "stddev": 0.1152965279548122,
-      "sha256": "4c22d447dc55c42c83948dd9e99a7e309a63abb729e21d9d9cb33843e4600d63",
-      "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Capture Desktop \u203a Edge ghcr.io/exa"
+      "colours": 525,
+      "flat": 0.47196666666666665,
+      "ink": 0.11783333333333333,
+      "stddev": 0.11635324507495268,
+      "sha256": "8ea93e871249e223a43b88d87c608e37b5a7811b85fe37943a58302f13b64ce5",
+      "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Install TunaOS Installs to your internal disk. Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  avail"
     },
     {
       "name": "04-disk",
       "png": "docs/screenshots/04-disk.png",
       "rendered": true,
-      "colours": 484,
-      "flat": 0.6199333333333333,
-      "ink": 0.11003333333333333,
-      "stddev": 0.10557607011149404,
-      "sha256": "da8e4ee577e2fb8859e8b44607083a81bba39cf9741584ad8160d74c0560dae0",
+      "colours": 481,
+      "flat": 0.62,
+      "ink": 0.11,
+      "stddev": 0.10559852017409473,
+      "sha256": "9dc4a525f5cdc2337d884566ede07a0f88929aeb0990fec75fa2a3cebc4f91b8",
       "text_excerpt": "Step 4 of 9 \u00b7 Disk Destination Everything on /dev/sda will be erased. This cannot be undone. Samsung SSD 870 EVO 500GB /dev/sda  \u00b7  465.8 GiB  \u00b7  SATA Extreme SSD /dev/sdc  \u00b7  931.5 GiB  \u00b7  USB Cruzer Blade /dev/sdd  \u00b7  59.6 GiB  \u00b7  USB WD_"
     },
     {
       "name": "05-encryption",
       "png": "docs/screenshots/05-encryption.png",
       "rendered": true,
-      "colours": 521,
-      "flat": 0.4215333333333333,
-      "ink": 0.2012,
-      "stddev": 0.11962846478068354,
-      "sha256": "427d4845e87d359582fcbeb8ea473189dba1cb7d9249376f14b58c08630d9251",
+      "colours": 518,
+      "flat": 0.4216,
+      "ink": 0.20116666666666666,
+      "stddev": 0.11965789715750128,
+      "sha256": "425995d1bb87614fee28012fcd810f1f0255b687a9675c8cbeec9e29475a2d55",
       "text_excerpt": "Step 5 of 9 \u00b7 Encryption Disk encryption Encryption protects your files if the disk is lost or stolen. It cannot be turned on later without reinstalling. No encryption Anyone with the disk can read your files. Passphrase You'll type it at e"
     },
     {
       "name": "06-account",
       "png": "docs/screenshots/06-account.png",
       "rendered": true,
-      "colours": 346,
-      "flat": 0.5258333333333334,
-      "ink": 0.030633333333333332,
-      "stddev": 0.10059300974972753,
-      "sha256": "14b64d27b11b5bfc6425dd9cde10d24ee37c118ce0c907c10e4423af4e611d34",
+      "colours": 343,
+      "flat": 0.5259,
+      "ink": 0.0306,
+      "stddev": 0.10062666352517599,
+      "sha256": "407365f9bf71a53def13b0e40df8c355bd714b4cd075205498cfe871e6a0a730",
       "text_excerpt": "Step 6 of 9 \u00b7 Account Your account The account you sign in with. It can administer this computer. Account Username alex Full name Alex Example Password capture Password again capture Show passwords Show passwords Back Back Continue Continue"
     },
     {
@@ -242,72 +240,156 @@
       "name": "10-recovery",
       "png": "docs/screenshots/10-recovery.png",
       "rendered": true,
-      "colours": 407,
-      "flat": 0.8905333333333333,
-      "ink": 0.03,
-      "stddev": 0.09913306458009426,
-      "sha256": "139e8b87081594836802505acbeb43437b1d57cc458d2a53150a9af091991446",
-      "text_excerpt": "Step 9 of 9 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation. Save yo"
+      "colours": 381,
+      "flat": 0.9295,
+      "ink": 0.0234,
+      "stddev": 0.08788040883648968,
+      "sha256": "be95d0f2a9c54af95f79d1b0188913405e22540b1ce9993b09065759b713e82c",
+      "text_excerpt": "Step 9 of 10 \u00b7 Recovery key Back Up Recovery Key Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkta"
     },
     {
       "name": "11-tour",
       "png": "docs/screenshots/11-tour.png",
       "rendered": true,
-      "colours": 195,
-      "flat": 0.7204666666666667,
+      "colours": 179,
+      "flat": 0.7632,
       "ink": 0.011333333333333334,
-      "stddev": 0.04765841039617274,
-      "sha256": "f44ed7fa891eb365643d062a6a86b478ea3215d054f5317e9e1fe063b9ee5d22",
-      "text_excerpt": "Step 9 of 9 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation. Save yo"
+      "stddev": 0.04729360942218537,
+      "sha256": "6e492649ece8e396a43570d6838b047647c0748694ed83af47fc2ba5a3b920e9",
+      "text_excerpt": "Step 10 of 10 \u00b7 Done \u2713 TunaOS is installed Remove the installation media and restart the computer. The new system has not started yet, so nothing has checked it.\n\nfisherman did not report an installation receipt for this installation. Take "
     },
     {
       "name": "12-cancel-confirm",
       "png": "docs/screenshots/12-cancel-confirm.png",
       "rendered": true,
-      "colours": 375,
-      "flat": 0.422,
-      "ink": 0.0396,
-      "stddev": 0.10962146762859741,
-      "sha256": "8796eacc9b9d3534ed580ae116a6c017348c590b54dad0a18ca1988bd1044395",
-      "text_excerpt": "Step 8 of 9 \u00b7 Installing Installing TunaOS\u2026 Step 5 of 8 \u2014 Installing OS [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pul"
+      "colours": 373,
+      "flat": 0.42206666666666665,
+      "ink": 0.03956666666666667,
+      "stddev": 0.10962072541178153,
+      "sha256": "4a739ad16a98bc7ecbd48f484f9c9995a05f47143f8eaf295a895ea1b485a798",
+      "text_excerpt": "Step 8 of 10 \u00b7 Installing Installing TunaOS\u2026 Step 5 of 8 \u2014 Installing OS [1/8] Partitioning disk\n[2/8] Formatting EFI partition\n[3/8] Formatting root filesystem\n[4/8] Mounting filesystem\n[5/8] Installing OS\n  Pulling image: layer 18/71\n  Pu"
     },
     {
       "name": "13-cancelled",
       "png": "docs/screenshots/13-cancelled.png",
       "rendered": true,
-      "colours": 203,
-      "flat": 0.9648333333333333,
-      "ink": 0.0125,
-      "stddev": 0.06889365344625271,
-      "sha256": "f36dd679be8eb325b635187634c8c58cd0140a7609a0a59afd8423729b3e4fdf",
+      "colours": 200,
+      "flat": 0.9649,
+      "ink": 0.012466666666666666,
+      "stddev": 0.06892338031392593,
+      "sha256": "2745b5f24c71014652248a54758a3aa38444155991c4e7411992b1b7d696b1e1",
       "text_excerpt": "Step 9 of 9 \u00b7 Done \u2013 Installation cancelled You stopped the installer. The disk can be in an incomplete state: start the installer again before you use it. Close Close"
     },
     {
       "name": "14-offline",
       "png": "docs/screenshots/14-offline.png",
       "rendered": true,
-      "colours": 640,
-      "flat": 0.45976666666666666,
-      "ink": 0.1171,
-      "stddev": 0.10711879164913583,
-      "sha256": "6680fc65e0c0d06f6fcc363a13ba09bd9602d76994257985b0b9df8e897cc05e",
-      "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  available offline Capture Desktop \u203a Edge ghcr.io/exa"
+      "colours": 635,
+      "flat": 0.4032,
+      "ink": 0.11543333333333333,
+      "stddev": 0.10534670377005402,
+      "sha256": "bff7236963df7f1b2241c4529e0c8c1b9ceb1b2470a84793579c9d9dfbcf9424",
+      "text_excerpt": "Step 3 of 9 \u00b7 Source What do you want to install? Search images Install TunaOS Installs to your internal disk. Capture Desktop \u203a Stable ghcr.io/example/os:stable  \u00b7  available offline Capture Desktop \u203a Beta ghcr.io/example/os:beta  \u00b7  avail"
+    },
+    {
+      "name": "15-rst",
+      "png": "docs/screenshots/15-rst.png",
+      "rendered": true,
+      "colours": 354,
+      "flat": 0.8395,
+      "ink": 0.027933333333333334,
+      "stddev": 0.09959454102925508,
+      "sha256": "3535942ddeb6b791b3705b206db93ad861bd8f7056694bd51502197794f12b99",
+      "text_excerpt": "Step 4 of 10 \u00b7 Intel RST Intel RST is on Some disks may be missing This computer uses Intel RST (RAID or VMD mode), which hides NVMe disks from the installer. Switch the storage mode to AHCI in the firmware settings to see every disk. You c"
+    },
+    {
+      "name": "16-wipe",
+      "png": "docs/screenshots/16-wipe.png",
+      "rendered": true,
+      "colours": 391,
+      "flat": 0.8439333333333333,
+      "ink": 0.0835,
+      "stddev": 0.10525954987732766,
+      "sha256": "40a92914c5ccc6b513239e0552246ad7a449b0de036a6c498246d86f4e710d40",
+      "text_excerpt": "Step 6 of 11 \u00b7 Existing data Existing data found /dev/sda holds data with room to spare. Install into the free space, or use the entire disk and erase everything on it. Install to Free Space Keeps the data on the disk. Use Entire Disk Erase"
+    },
+    {
+      "name": "17-prerelease",
+      "png": "docs/screenshots/17-prerelease.png",
+      "rendered": true,
+      "colours": 236,
+      "flat": 0.9101666666666667,
+      "ink": 0.016533333333333334,
+      "stddev": 0.08034621396085015,
+      "sha256": "4a4a3c13a7413ddd09a871e405d18c4bcf8b414328050b4c8c407dae90ef9981",
+      "text_excerpt": "Step 4 of 12 \u00b7 Disclaimer Disclaimer Before you install This image is a pre-release. It can break, and it can lose data. Back Back Continue Continue Enter Continue Shift+Enter Back Tab Next field"
+    },
+    {
+      "name": "18-eula",
+      "png": "docs/screenshots/18-eula.png",
+      "rendered": true,
+      "colours": 234,
+      "flat": 0.9005666666666666,
+      "ink": 0.0107,
+      "stddev": 0.06283538660663034,
+      "sha256": "365b3ad9b96b24181581351775a1caef12945e61624857a05035f63ca895b178",
+      "text_excerpt": "Step 5 of 13 \u00b7 Terms of use Terms of use License agreement Example Terms of Use.\n\nThese terms govern the trial of this image. I have read and accept the Terms of Use I have read and accept the Terms of Use Back Back Continue Continue Enter "
+    },
+    {
+      "name": "19-recovery",
+      "png": "docs/screenshots/19-recovery.png",
+      "rendered": true,
+      "colours": 393,
+      "flat": 0.9084666666666666,
+      "ink": 0.025,
+      "stddev": 0.08884586424863987,
+      "sha256": "346a686d915afb554aa9ebb1346efde47aec98466cc3ea01ddc8c3f87f5fe293",
+      "text_excerpt": "Step 13 of 14 \u00b7 Recovery key Back Up Recovery Key Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkt"
+    },
+    {
+      "name": "20-handoff",
+      "png": "docs/screenshots/20-handoff.png",
+      "rendered": true,
+      "colours": 225,
+      "flat": 0.9709333333333333,
+      "ink": 0.019966666666666667,
+      "stddev": 0.08816558873226746,
+      "sha256": "5d942cbbbcb43c0c22f85396253726aad6db2f11eae7efd636a4fd892f428d7d",
+      "text_excerpt": "Step 14 of 15 \u00b7 Handoff Welcome to your new system The live session has become the installed system. Data from this session carries over. Continue Continue Enter Continue Shift+Enter Back Tab Next field"
+    },
+    {
+      "name": "21-qr",
+      "png": "docs/screenshots/21-qr.png",
+      "rendered": true,
+      "colours": 105,
+      "flat": 0.6185666666666667,
+      "ink": 0.1617,
+      "stddev": 0.3358585089060773,
+      "sha256": "1e2d9026d8cbf46671fa8298d6f96e7d376ecad269a4c6ce4ea372b1a4adbca1",
+      "text_excerpt": "Step 13 of 15 \u00b7 Recovery key Back Up Recovery Key Save your recovery key If your disk fails to unlock automatically, you will need this recovery key to access your data. Save it somewhere safe, like a password manager or a printed copy. mkt"
     }
   ],
   "transition_pixels": [
-    143775,
-    173911,
-    74298,
-    99802,
-    241992,
-    132379,
+    194393,
+    240250,
+    119180,
+    99790,
+    241980,
+    132357,
     84670,
     266722,
-    69018,
-    133012,
-    59132,
-    86158,
-    152439
+    56846,
+    89496,
+    55854,
+    86279,
+    151254,
+    188172,
+    77659,
+    52392,
+    37472,
+    63408,
+    42529,
+    182054
   ],
   "spec_drift": [],
   "notes": "GPU-less capture: pages are driven programmatically and text is read from the widget tree, so this reports SCREEN PARITY only. It does not measure keyboard navigation, compositor rendering, or that the frontend launches under its real desktop \u2014 those stay the VM walkthrough's job."

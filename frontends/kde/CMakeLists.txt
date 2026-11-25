@@ -212,7 +212,7 @@ endif()
 # The real QML again, driven by its own buttons from the first screen to the
 # last, with a mock fishermand that this program starts itself. It exits 77
 # (a ctest skip) when there is no mock binary.
-if(BUILD_CAPTURE AND BUILD_TESTING)
+if(BUILD_CAPTURE AND BUILD_TESTING AND NOT EMSCRIPTEN)
     qt_add_executable(tuna-installer-walk tests/walk.cpp)
     target_link_libraries(tuna-installer-walk PRIVATE tunainstallerapp tunainstallerappplugin)
     target_compile_definitions(tuna-installer-walk PRIVATE
@@ -302,7 +302,9 @@ if(BUILD_TESTING)
     # The daemon flow against the mock fishermand (tuna-os/fisherman,
     # `go build ./fisherman/cmd/fishermand`). The binary comes from
     # FISHERMAND_BIN, then build/fishermand, then PATH; without one every
-    # scenario test is skipped and says so.
+    # scenario test is skipped and says so. Not on Qt for WebAssembly: it
+    # has no QProcess to start the mock with.
+    if(NOT EMSCRIPTEN)
     qt_add_executable(tuna-installer-daemon-tests
         tests/test_daemon.cpp
         src/log.cpp
@@ -335,6 +337,7 @@ if(BUILD_TESTING)
     target_link_libraries(tuna-installer-daemon-tests PRIVATE Qt6::Core Qt6::Quick Qt6::Test Qt6::Network)
     add_test(NAME tuna-installer-daemon-tests COMMAND tuna-installer-daemon-tests)
     set_tests_properties(tuna-installer-daemon-tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endif()
 endif()
 
 install(TARGETS tuna-installer-kde RUNTIME DESTINATION bin)
