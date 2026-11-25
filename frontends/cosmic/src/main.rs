@@ -236,6 +236,19 @@ impl Page {
         }
     }
 
+    /// The stable screen id of shared/flow/screens.yaml, which the
+    /// readiness stamp reports as `page=`. It is the slug, except for the
+    /// install page: the slug `installing` names the screenshot and the
+    /// walkthrough row, and the shared id is `install`. `image`, `options`
+    /// and `tour` are pages of the legacy path with no shared id; they keep
+    /// their slug.
+    pub const fn flow_id(self) -> &'static str {
+        match self {
+            Page::Installing => "install",
+            other => other.slug(),
+        }
+    }
+
     /// The page's name in the header: a message id of `ui::copy`, shown
     /// through `i18n::tr`.
     pub const fn title(self) -> &'static str {
@@ -373,6 +386,43 @@ fn account_required_for(
     selected.map_or(true, |leaf| leaf.needs_user_creation)
 }
 
+/// The first-boot tool of this desktop. It creates the first user on the
+/// installed system, so the wizard does not ask for an account
+/// (screens.yaml `account`, `skip_when`).
+pub const FIRSTBOOT_TOOL: &str = "cosmic-initial-setup";
+
+/// `TUNA_FIRSTBOOT_TOOL` overrides the detection: the tool's name says that
+/// it owns the user, `none` says that no tool does.
+pub const FIRSTBOOT_ENV: &str = "TUNA_FIRSTBOOT_TOOL";
+
+/// Whether the first-boot tool owns the first user.
+///
+/// `override_value` is `TUNA_FIRSTBOOT_TOOL`. Without it, the tool owns the
+/// user when one of `candidates` is a file. The daemon installs the system
+/// of the medium, so a tool on the medium is a tool on the target.
+pub fn firstboot_owns_user_with(override_value: Option<&str>, candidates: &[&std::path::Path]) -> bool {
+    match override_value.map(str::trim) {
+        Some(FIRSTBOOT_TOOL) => true,
+        Some(value) if !value.is_empty() => false,
+        _ => candidates.iter().any(|p| p.is_file()),
+    }
+}
+
+/// Where the tool lives on the live system. A Flatpak sees the host under
+/// `/run/host`.
+const FIRSTBOOT_PATHS: [&str; 4] = [
+    "/usr/bin/cosmic-initial-setup",
+    "/usr/libexec/cosmic-initial-setup",
+    "/run/host/usr/bin/cosmic-initial-setup",
+    "/run/host/usr/libexec/cosmic-initial-setup",
+];
+
+fn firstboot_owns_user() -> bool {
+    let candidates: Vec<&std::path::Path> =
+        FIRSTBOOT_PATHS.iter().map(std::path::Path::new).collect();
+    firstboot_owns_user_with(std::env::var(FIRSTBOOT_ENV).ok().as_deref(), &candidates)
+}
+
 /// How an install ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Outcome {
@@ -488,6 +538,11 @@ pub enum Message {
     SelectKeymap(usize),
     TimezoneQueryChanged(String),
     SelectTimezone(usize),
+    /// The location switch on the timezone page (daemon path).
+    LocationServicesToggled(bool),
+    /// The done page's Try again, after a failed or cancelled install:
+    /// back to Confirm with the choices kept.
+    TryAgain,
     /// Connectivity recheck (conn_check's Recheck button).
     RecheckNetwork,
     /// The connectivity probe answered.
@@ -516,7 +571,7 @@ pub enum Message {
     /// The wrapper's exit code, or `None` when a signal ended it.
     InstallFinished(Result<Option<i32>, String>),
     /// One fishermand `Install` event, only in daemon mode
-    /// (`TUNA_USE_FISHERMAND=1`). The update loop folds it into the
+    /// (`fishermand::use_daemon`). The update loop folds it into the
     /// progress state; the terminal event ends the install.
     DaemonEvent(serde_json::Value),
     /// The daemon's answer to `Cancel`, only in daemon mode. `Ok` needs no
@@ -639,6 +694,17 @@ pub struct TunaInstaller {
     /// of the Probe reply). Missing means reboot. The handoff page reads this.
     handoff_mode: String,
     handoff_reason: String,
+    /// The location-services choice (`privacy.locationServices` of
+    /// `ConfigureTarget`). `None` until the user moves the switch: the
+    /// daemon hears about it only when the user changed it.
+    location_services: Option<bool>,
+    /// The first-boot tool creates the first user on the installed system
+    /// (`firstboot_owns_user`). Only the daemon path reads it.
+    firstboot_owns_user: bool,
+    /// Why a daemon install failed: the daemon's `reason`, or
+    /// `daemon_unreachable`. The done page words it. `None` on the legacy
+    /// path and after an install that did not fail.
+    daemon_failure: Option<String>,
     /// The EULA text for this medium (`eula::load`). `None` skips the page;
     /// an unreadable file sets `eula_error` and shows the failure state.
     eula_text: Option<String>,
@@ -874,6 +940,25 @@ impl TunaInstaller {
     pub fn handoff_reason(&self) -> &str {
         &self.handoff_reason
     }
+    /// The location switch as the timezone page shows it: off until the
+    /// user turns it on (the daemon's default).
+    pub fn location_services(&self) -> bool {
+        self.location_services.unwrap_or(false)
+    }
+    /// The location choice for `ConfigureTarget`: `None` when untouched.
+    pub fn location_choice(&self) -> Option<bool> {
+        self.location_services
+    }
+    /// The first-boot tool makes the first user: the daemon path with the
+    /// tool on the medium. The legacy path installs a catalog image, which
+    /// can differ from the running system, so the catalog decides there.
+    pub fn firstboot_account(&self) -> bool {
+        fishermand::use_daemon() && self.firstboot_owns_user && !self.capturing()
+    }
+    /// Why the daemon install failed (see the field).
+    pub fn daemon_failure(&self) -> Option<&str> {
+        self.daemon_failure.as_deref()
+    }
     pub fn show_qr_dialog(&self) -> bool {
         self.show_qr_dialog
     }
@@ -985,6 +1070,9 @@ impl TunaInstaller {
     }
     /// Whether the account page is required (`account_required_for`).
     pub fn account_required(&self) -> bool {
+        if self.firstboot_account() {
+            return false;
+        }
         account_required_for(
             &self.catalog,
             // The capture walks every page with the live fixture loaded.
@@ -1665,6 +1753,9 @@ impl cosmic::Application for TunaInstaller {
             disk_data: Vec::new(),
             handoff_mode: "reboot".to_string(),
             handoff_reason: String::new(),
+            location_services: None,
+            firstboot_owns_user: firstboot_owns_user(),
+            daemon_failure: None,
             eula_text: eula.as_ref().and_then(|r| r.as_ref().ok().cloned()),
             eula_error: matches!(eula, Some(Err(_))),
             eula_accepted: false,
@@ -1978,6 +2069,23 @@ impl cosmic::Application for TunaInstaller {
                 }
                 // fisherman checks the pick now, not at Install.
                 self.check_fields()
+            }
+            Message::LocationServicesToggled(on) => {
+                self.location_services = Some(on);
+                Task::none()
+            }
+            Message::TryAgain => {
+                // Only after an install that ended without success. The
+                // daemon is idle again then, and the legacy wrapper is gone.
+                if self.installing || self.install_ok || self.page != Page::Done {
+                    return Task::none();
+                }
+                self.install_cancelled = false;
+                self.cancel_confirmed = false;
+                self.daemon_failure = None;
+                self.progress.reset();
+                self.page = Page::Confirm;
+                self.on_enter_page(Page::Confirm)
             }
             Message::RecheckNetwork => {
                 let capturing = self.capturing();
@@ -2315,6 +2423,7 @@ impl cosmic::Application for TunaInstaller {
                 self.install_cancelled = false;
                 self.cancel_confirmed = false;
                 self.show_cancel_dialog = false;
+                self.daemon_failure = None;
                 self.progress.reset();
                 let recipe = self.bound_install_recipe();
                 if fishermand::use_daemon() {
@@ -2325,7 +2434,7 @@ impl cosmic::Application for TunaInstaller {
                     let config = fishermand::daemon_config(&self.recipe, Some(self.install_mode()));
                     // The region picks and account reach the target via
                     // ConfigureTarget before Install runs.
-                    let configure = fishermand::configure_params(&self.recipe);
+                    let configure = fishermand::configure_params(&self.recipe, self.location_choice());
                     return Task::stream(
                         Self::stream_daemon_install(config, configure).map(cosmic::action::app),
                     );
@@ -2344,6 +2453,14 @@ impl cosmic::Application for TunaInstaller {
                 Task::none()
             }
             Message::InstallFinished(result) => {
+                // The daemon path sends this only when no terminal event
+                // came: the socket is not there, the stream broke, or
+                // ConfigureTarget refused the choices.
+                if let Err(error) = &result {
+                    if fishermand::use_daemon() && self.daemon_failure.is_none() {
+                        self.daemon_failure = Some(fishermand::stream_failure_reason(error).to_string());
+                    }
+                }
                 self.finish_install(result);
                 Task::none()
             }
@@ -2373,6 +2490,7 @@ impl cosmic::Application for TunaInstaller {
                             .as_ref()
                             .map(|e| e.code.clone())
                             .unwrap_or_else(|| "install failed".to_string());
+                        self.daemon_failure = Some(reason.clone());
                         self.finish_install(Err(reason));
                         Task::none()
                     }
@@ -2437,7 +2555,7 @@ impl cosmic::Application for TunaInstaller {
         // offers. See readiness.rs: this frontend is the one that proved
         // `flatpak ps` insufficient, by running with no window ever appearing
         // while the smoke check stayed green. Cheap after the first call.
-        readiness::stamp_first_frame(APP_ID, self.page.slug());
+        readiness::stamp_first_frame(APP_ID, self.page.flow_id());
         // The exit confirm (dialog_poweroff's sibling in GNOME's main
         // window) replaces the page until it is answered.
         if self.show_exit_dialog {
@@ -2643,8 +2761,9 @@ impl TunaInstaller {
                         tx.send(Message::DaemonEvent(event)).is_ok()
                     })
                 {
-                    // The stream broke before the terminal event: a dropped
-                    // connection cancels the install on the daemon side.
+                    // The stream broke before the terminal event, or the
+                    // daemon refused the call. A dropped connection does
+                    // not stop an install on the daemon side.
                     let _ = tx.send(Message::InstallFinished(Err(e.to_string())));
                 }
             });
@@ -2793,6 +2912,59 @@ mod tests {
     fn override_makes_all_four_choices_available() {
         assert_eq!(super::available_encryption_choices(false).len(), 2);
         assert_eq!(super::available_encryption_choices(true).len(), 4);
+    }
+
+    #[test]
+    fn the_readiness_stamp_reports_the_shared_screen_ids() {
+        // shared/flow/screens.yaml `order`, read from the file: every id
+        // there is the flow id of one page, in the same order.
+        let spec = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../shared/flow/screens.yaml"
+        ))
+        .expect("screens.yaml");
+        let order: Vec<&str> = spec
+            .lines()
+            .skip_while(|l| l.trim_end() != "order:")
+            .skip(1)
+            .take_while(|l| l.starts_with("  - "))
+            .map(|l| l.trim_start_matches("  - ").trim())
+            .collect();
+        assert_eq!(order.len(), 18, "{order:?}");
+        let ours: Vec<&str> = Page::ORDER.iter().map(|p| p.flow_id()).collect();
+        let mut last = 0;
+        for id in &order {
+            let at = ours.iter().position(|o| o == id).unwrap_or_else(|| panic!("no page for {id}"));
+            assert!(at >= last, "{id} is out of order: {ours:?}");
+            last = at;
+        }
+        // The slug `installing` names the screenshot; the stamp says `install`.
+        assert_eq!(Page::Installing.slug(), "installing");
+        assert_eq!(Page::Installing.flow_id(), "install");
+        // Only the three legacy pages have no shared id.
+        let extra: Vec<&&str> = ours.iter().filter(|o| !order.contains(o)).collect();
+        assert_eq!(extra, [&"image", &"options", &"tour"]);
+    }
+
+    #[test]
+    fn the_first_boot_tool_owns_the_user_when_it_is_on_the_medium() {
+        use std::path::Path;
+        let dir = std::env::temp_dir().join(format!("tuna-firstboot-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let tool = dir.join("cosmic-initial-setup");
+        let missing = dir.join("missing");
+        std::fs::write(&tool, "").unwrap();
+        let there: [&Path; 2] = [&missing, &tool];
+        let absent: [&Path; 1] = [&missing];
+        // Detection: a file at one of the paths.
+        assert!(super::firstboot_owns_user_with(None, &there));
+        assert!(!super::firstboot_owns_user_with(None, &absent));
+        assert!(super::firstboot_owns_user_with(Some(""), &there));
+        // The override wins in both directions.
+        assert!(super::firstboot_owns_user_with(Some("cosmic-initial-setup"), &absent));
+        assert!(!super::firstboot_owns_user_with(Some("none"), &there));
+        assert!(!super::firstboot_owns_user_with(Some("plasma-setup"), &there));
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

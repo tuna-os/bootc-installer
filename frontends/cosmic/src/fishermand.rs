@@ -6,13 +6,18 @@
 //! dependency so the wasm build (`--no-default-features --features web`)
 //! gains no Unix-only dependency and `Cargo.lock` stays untouched.
 //!
-//! Switch: `TUNA_USE_FISHERMAND=1` talks to the daemon. Anything else keeps
-//! the recipe + `fisherman -` subprocess (`offline::fisherman_argv`), so
-//! nothing regresses until the daemon ships.
+//! Switch: `TUNA_INSTALLER_BACKEND` is the switch that all four native
+//! frontends share. `daemon` talks to fishermand, and `legacy` keeps the
+//! recipe + `fisherman -` subprocess (`offline::fisherman_argv`). Unset, or
+//! `auto`, uses the daemon when its socket is there and the subprocess
+//! otherwise. The older `TUNA_USE_FISHERMAND=1` still selects the daemon
+//! when `TUNA_INSTALLER_BACKEND` names no backend. The answer is read once
+//! for each process (`use_daemon`).
 //!
 //! Sockets: the daemon serves every interface on every socket. One socket
 //! path per interface keeps gnome-setup compatibility. `FISHERMAN_SOCKET_DIR`
-//! moves all four; `TUNA_FISHERMAND_SOCKET` points every call at one socket
+//! moves all four; `TUNA_FISHERMAN_SOCKET` (the name that KDE and Niri read)
+//! or the older `TUNA_FISHERMAND_SOCKET` points every call at one socket
 //! (tests, mock daemon with `--socket-dir`).
 //!
 //! Secrets: passphrases and recovery keys pass through `parameters`. This
@@ -21,9 +26,73 @@
 
 use serde_json::{json, Value};
 
-/// Talk to fishermand when `TUNA_USE_FISHERMAND=1`, else the subprocess.
+/// The backend the wizard talks to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Backend {
+    Daemon,
+    Legacy,
+}
+
+/// The backend for the given switch values. `backend` is
+/// `TUNA_INSTALLER_BACKEND`, `legacy_flag` is `TUNA_USE_FISHERMAND`.
+///
+/// - `daemon` or `legacy` in `backend` wins.
+/// - Else `TUNA_USE_FISHERMAND=1` selects the daemon, as before.
+/// - Else (`auto`, unset or unknown) the daemon is used when its socket
+///   is there. The capture harness never selects the daemon this way: it
+///   renders fixtures and must not depend on the machine.
+pub fn backend_from(
+    backend: Option<&str>,
+    legacy_flag: Option<&str>,
+    socket_exists: bool,
+    capturing: bool,
+) -> Backend {
+    match backend.map(|b| b.trim().to_ascii_lowercase()).as_deref() {
+        Some("daemon") => return Backend::Daemon,
+        Some("legacy") => return Backend::Legacy,
+        _ => {}
+    }
+    if legacy_flag == Some("1") {
+        return Backend::Daemon;
+    }
+    if socket_exists && !capturing {
+        Backend::Daemon
+    } else {
+        Backend::Legacy
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn fisherman_socket_exists() -> bool {
+    use std::os::unix::fs::FileTypeExt;
+    std::fs::metadata(socket_path("io.tunaos.Fisherman"))
+        .map(|m| m.file_type().is_socket())
+        .unwrap_or(false)
+}
+
+/// A browser build has no sockets (#105).
+#[cfg(target_arch = "wasm32")]
+fn fisherman_socket_exists() -> bool {
+    false
+}
+
+fn backend_from_env() -> Backend {
+    backend_from(
+        std::env::var("TUNA_INSTALLER_BACKEND").ok().as_deref(),
+        std::env::var("TUNA_USE_FISHERMAND").ok().as_deref(),
+        // A unit test never follows the machine: a developer with a
+        // daemon socket gets the same answers as CI.
+        !cfg!(test) && fisherman_socket_exists(),
+        std::env::var_os("TUNA_CAPTURE_DIR").is_some(),
+    )
+}
+
+/// Whether the wizard talks to fishermand (see the module text for the
+/// switch). Read once: a socket that appears later must not move a
+/// running wizard to another backend between two pages.
 pub fn use_daemon() -> bool {
-    std::env::var("TUNA_USE_FISHERMAND").as_deref() == Ok("1")
+    static BACKEND: std::sync::OnceLock<Backend> = std::sync::OnceLock::new();
+    *BACKEND.get_or_init(backend_from_env) == Backend::Daemon
 }
 
 /// The spec screen id (shared/flow/screens.yaml) to mock-daemon scenario
@@ -75,7 +144,11 @@ pub fn socket_path(interface: &str) -> String {
     socket_path_with(
         interface,
         std::env::var("FISHERMAN_SOCKET_DIR").ok().as_deref(),
-        std::env::var("TUNA_FISHERMAND_SOCKET").ok().as_deref(),
+        std::env::var("TUNA_FISHERMAN_SOCKET")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .or_else(|| std::env::var("TUNA_FISHERMAND_SOCKET").ok())
+            .as_deref(),
     )
 }
 
@@ -236,9 +309,8 @@ mod transport {
 
     /// Record the target choices (`ConfigureTarget`): user, hostname and
     /// region picks from `configure_params`. The optional privacy object
-    /// (e.g. `{"locationServices": bool}`) goes only when the user changed
-    /// it; no page changes it yet, so callers build params without one
-    /// (ruling on #442).
+    /// (`{"locationServices": bool}`) goes only when the user changed it
+    /// on the timezone page (ruling on #442).
     pub fn configure_target(conn: &mut Connection, params: Value) -> Result<Value, Error> {
         conn.call(&format!("{FISHERMAN}.ConfigureTarget"), params)
     }
@@ -464,7 +536,8 @@ pub fn apply_install_event(
                 code: str_of("reason").to_string(),
                 field: String::new(),
                 step_id: str_of("stepId").to_string(),
-                disk_changed: None,
+                // The daemon sends no `disk_changed`: the step says it.
+                disk_changed: disk_changed_at(str_of("stepId")),
                 cleanup: None,
             });
             Terminal::Failed
@@ -528,9 +601,10 @@ fn daemon_user(recipe: &crate::Recipe) -> Option<Value> {
 
 /// The `ConfigureTarget` parameters from the recipe: user, hostname, and
 /// the region picks (locale, keymap, time zone). Empty picks stay out, so
-/// the image keeps its own values. No privacy object: no page changes it,
-/// so the daemon default stands (ruling on #442).
-pub fn configure_params(recipe: &crate::Recipe) -> Value {
+/// the image keeps its own values. `location_services` is the switch on
+/// the timezone page: `None` while the user did not move it, and then no
+/// privacy object goes and the daemon default stands (ruling on #442).
+pub fn configure_params(recipe: &crate::Recipe, location_services: Option<bool>) -> Value {
     let mut params = serde_json::Map::new();
     if let Some(user) = daemon_user(recipe) {
         params.insert("user".into(), user);
@@ -553,6 +627,9 @@ pub fn configure_params(recipe: &crate::Recipe) -> Value {
     }
     if !recipe.timezone.is_empty() {
         params.insert("timeZone".into(), Value::from(recipe.timezone.clone()));
+    }
+    if let Some(on) = location_services {
+        params.insert("privacy".into(), json!({ "locationServices": on }));
     }
     Value::Object(params)
 }
@@ -668,14 +745,8 @@ pub fn daemon_probe_to_facts(probe: &Value, gates: &Value) -> Result<crate::prob
             .and_then(Value::as_bool)
             .unwrap_or(false),
         disk_data,
-        handoff_mode: match probe.pointer("/handoff/mode").and_then(Value::as_str) {
-            // The daemon decides; a missing or unknown field means reboot.
-            Some("migrate") => "migrate".to_string(),
-            // The frozen Handoff enum spells this with an underscore on the
-            // wire (fisherman/internal/handoff: ModeSoftReboot).
-            Some("soft_reboot") => "soft_reboot".to_string(),
-            _ => "reboot".to_string(),
-        },
+        handoff_mode: handoff_mode_of(probe.pointer("/handoff/mode").and_then(Value::as_str))
+            .to_string(),
         handoff_reason: probe
             .pointer("/handoff/reason")
             .and_then(Value::as_str)
@@ -683,6 +754,45 @@ pub fn daemon_probe_to_facts(probe: &Value, gates: &Value) -> Result<crate::prob
             .to_string(),
         raw: serde_json::to_string(probe).map_err(|e| format!("cannot reserialize Probe: {e}"))?,
     })
+}
+
+/// The handoff mode for a `handoff.mode` of the Probe reply. The daemon
+/// decides; a missing or unknown value means reboot. The wire spells the
+/// soft reboot with an underscore (fisherman/internal/handoff:
+/// ModeSoftReboot) and the ruling on #512 with a dash: both are the same
+/// mode here.
+pub fn handoff_mode_of(mode: Option<&str>) -> &'static str {
+    match mode {
+        Some("migrate") => "migrate",
+        Some("soft_reboot") | Some("soft-reboot") => "soft_reboot",
+        _ => "reboot",
+    }
+}
+
+/// Whether a failed daemon step changed the disk, from its step id: only
+/// `validate_device` runs before the first write. `None` when the event
+/// names no step.
+pub fn disk_changed_at(step_id: &str) -> Option<bool> {
+    match step_id {
+        "" => None,
+        "validate_device" => Some(false),
+        _ => Some(true),
+    }
+}
+
+/// The failure reason for a daemon install that ended with no terminal
+/// event. `error` is the text of the `InstallFinished` error:
+/// `ConfigureTarget: <code>` when the daemon refused a choice, a Varlink
+/// error name when it refused the call, and a transport note otherwise.
+pub fn stream_failure_reason(error: &str) -> &str {
+    if let Some(code) = error.strip_prefix("ConfigureTarget: ") {
+        return code;
+    }
+    let name = error.strip_prefix("ConfigureTarget failed: ").unwrap_or(error);
+    if name.starts_with("io.tunaos.") || name.starts_with("org.varlink.") || name.starts_with("io.systemd.") {
+        return name;
+    }
+    "daemon_unreachable"
 }
 
 /// The options page's problems from a daemon `Validate` reply. Same shape
@@ -751,6 +861,103 @@ mod tests {
             socket_path_with("io.tunaos.Fisherman", Some("/tmp/mock"), Some("/tmp/one.sock")),
             "/tmp/one.sock"
         );
+    }
+
+    #[test]
+    fn the_shared_switch_selects_the_backend() {
+        use Backend::{Daemon, Legacy};
+        // An explicit value wins over everything else.
+        assert_eq!(backend_from(Some("daemon"), None, false, false), Daemon);
+        assert_eq!(backend_from(Some("daemon"), None, false, true), Daemon);
+        assert_eq!(backend_from(Some(" Daemon "), None, false, false), Daemon);
+        assert_eq!(backend_from(Some("legacy"), Some("1"), true, false), Legacy);
+        // The old switch still works when the shared one names no backend.
+        assert_eq!(backend_from(None, Some("1"), false, false), Daemon);
+        assert_eq!(backend_from(Some("auto"), Some("1"), false, false), Daemon);
+        assert_eq!(backend_from(None, Some("0"), false, false), Legacy);
+        assert_eq!(backend_from(None, Some("true"), false, false), Legacy);
+        // auto, unset and unknown values follow the socket.
+        for auto in [None, Some("auto"), Some(""), Some("bogus")] {
+            assert_eq!(backend_from(auto, None, true, false), Daemon, "{auto:?}");
+            assert_eq!(backend_from(auto, None, false, false), Legacy, "{auto:?}");
+            // The capture renders fixtures: a socket on the machine does
+            // not move it to the daemon.
+            assert_eq!(backend_from(auto, None, true, true), Legacy, "{auto:?}");
+        }
+    }
+
+    #[test]
+    fn one_socket_override_wins_over_the_directory() {
+        // TUNA_FISHERMAN_SOCKET (and the older TUNA_FISHERMAND_SOCKET)
+        // reach socket_path_with as `single`.
+        assert_eq!(
+            socket_path_with("io.systemd.Shutdown", Some("/tmp/mock"), Some("/tmp/one.sock")),
+            "/tmp/one.sock"
+        );
+        assert_eq!(
+            socket_path_with("io.systemd.Shutdown", Some("/tmp/mock"), Some("")),
+            "/tmp/mock/io.systemd.Shutdown"
+        );
+    }
+
+    #[test]
+    fn privacy_goes_to_configure_target_only_when_the_user_changed_it() {
+        let mut recipe = crate::Recipe::default();
+        recipe.timezone = "Europe/Berlin".into();
+        // Untouched switch: no privacy object, the daemon default stands.
+        let untouched = configure_params(&recipe, None);
+        assert!(untouched.get("privacy").is_none(), "{untouched}");
+        assert_eq!(untouched["timeZone"], Value::from("Europe/Berlin"));
+        // Turned on, and turned off again: both are a change.
+        let on = configure_params(&recipe, Some(true));
+        assert_eq!(on["privacy"], json!({"locationServices": true}));
+        let off = configure_params(&recipe, Some(false));
+        assert_eq!(off["privacy"], json!({"locationServices": false}));
+    }
+
+    #[test]
+    fn handoff_mode_accepts_both_spellings_and_falls_back_to_reboot() {
+        assert_eq!(handoff_mode_of(Some("migrate")), "migrate");
+        assert_eq!(handoff_mode_of(Some("soft_reboot")), "soft_reboot");
+        assert_eq!(handoff_mode_of(Some("soft-reboot")), "soft_reboot");
+        assert_eq!(handoff_mode_of(Some("reboot")), "reboot");
+        assert_eq!(handoff_mode_of(Some("kexec")), "reboot");
+        assert_eq!(handoff_mode_of(None), "reboot");
+    }
+
+    #[test]
+    fn a_failed_step_says_whether_the_disk_changed() {
+        assert_eq!(disk_changed_at("validate_device"), Some(false));
+        assert_eq!(disk_changed_at("partition"), Some(true));
+        assert_eq!(disk_changed_at("install_os"), Some(true));
+        assert_eq!(disk_changed_at(""), None);
+        let mut progress = crate::progress::Progress::new("product");
+        let mut log = String::new();
+        let event = json!({"event": "failed", "stepId": "install_os",
+            "reason": "device_lost", "message": "gone", "overallPct": 40});
+        assert_eq!(apply_install_event(&mut progress, &mut log, &event), Terminal::Failed);
+        let error = progress.error.as_ref().unwrap();
+        assert_eq!(error.code, "device_lost");
+        assert_eq!(error.disk_changed, Some(true));
+        assert_eq!(
+            crate::progress::failure_lines(progress.error.as_ref()),
+            vec!["done_failed_disk_changed"]
+        );
+    }
+
+    #[test]
+    fn a_stream_that_ends_with_no_terminal_event_names_its_reason() {
+        assert_eq!(stream_failure_reason("ConfigureTarget: locale_invalid"), "locale_invalid");
+        assert_eq!(
+            stream_failure_reason("io.tunaos.Fisherman.InstallInProgress"),
+            "io.tunaos.Fisherman.InstallInProgress"
+        );
+        assert_eq!(
+            stream_failure_reason("ConfigureTarget failed: org.varlink.service.PermissionDenied"),
+            "org.varlink.service.PermissionDenied"
+        );
+        assert_eq!(stream_failure_reason("cannot reach fishermand: transport: no socket"), "daemon_unreachable");
+        assert_eq!(stream_failure_reason("transport: connection reset"), "daemon_unreachable");
     }
 
     #[test]
