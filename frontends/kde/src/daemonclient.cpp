@@ -1,6 +1,7 @@
 #include "daemonclient.h"
 
 #include <QCoreApplication>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLocalSocket>
@@ -17,8 +18,16 @@ namespace
 
 Backend backend()
 {
-    return qEnvironmentVariable("TUNA_INSTALLER_BACKEND") == QLatin1String("daemon") ? Backend::Daemon
-                                                                                     : Backend::Recipe;
+    // The one switch of the four native frontends: `daemon` and `legacy`
+    // force a path. Anything else is `auto`: the daemon when its socket is
+    // there, the recipe CLI otherwise. `recipe` is the old word for legacy.
+    const QString mode = qEnvironmentVariable("TUNA_INSTALLER_BACKEND").trimmed().toLower();
+    if (mode == QLatin1String("daemon"))
+        return Backend::Daemon;
+    if (mode == QLatin1String("legacy") || mode == QLatin1String("recipe"))
+        return Backend::Recipe;
+    const QFileInfo socket(socketPath());
+    return socket.exists() && !socket.isDir() ? Backend::Daemon : Backend::Recipe;
 }
 
 QString socketPath()
@@ -26,7 +35,40 @@ QString socketPath()
     const QString env = qEnvironmentVariable("TUNA_FISHERMAN_SOCKET");
     if (!env.isEmpty())
         return env;
+    const QString dir = qEnvironmentVariable("FISHERMAND_SOCKET_DIR");
+    if (!dir.isEmpty())
+        return dir + QStringLiteral("/io.tunaos.Fisherman");
     return QStringLiteral("/run/fisherman/io.tunaos.Fisherman");
+}
+
+QString socketPath(const QString &interface)
+{
+    if (interface == QLatin1String("io.tunaos.Fisherman"))
+        return socketPath();
+    const QString dir = qEnvironmentVariable("FISHERMAND_SOCKET_DIR");
+    if (!dir.isEmpty())
+        return dir + QLatin1Char('/') + interface;
+    // `fishermand --socket-dir` puts the four sockets side by side under
+    // their interface names. When the Fisherman socket was moved and such a
+    // sibling is there, use it. A lone moved socket (the mock serves every
+    // interface on each) answers for all of them.
+    const QString env = qEnvironmentVariable("TUNA_FISHERMAN_SOCKET");
+    if (!env.isEmpty()) {
+        const QString sibling = QFileInfo(env).absolutePath() + QLatin1Char('/') + interface;
+        return QFileInfo::exists(sibling) ? sibling : env;
+    }
+    return QStringLiteral("/run/systemd/") + interface;
+}
+
+QString normalHandoffMode(const QString &mode)
+{
+    // The wire word is soft_reboot; the ruling on #512 wrote soft-reboot.
+    // Both are read. A missing or unknown mode is a plain reboot.
+    QString m = mode.trimmed().toLower();
+    m.replace(QLatin1Char('-'), QLatin1Char('_'));
+    if (m == QLatin1String("migrate") || m == QLatin1String("soft_reboot"))
+        return m;
+    return QStringLiteral("reboot");
 }
 
 QString transportLabel(const QString &tran)
@@ -234,11 +276,7 @@ Probe fetchProbe(Client &client)
     out.liveImage = live.value(QLatin1String("liveImage")).toString();
     // A missing handoff object means reboot (ruling on #512).
     const QJsonObject handoff = reply.parameters.value(QLatin1String("handoff")).toObject();
-    out.handoffMode = handoff.value(QLatin1String("mode")).toString();
-    // The frozen Handoff enum spells this with an underscore on the wire
-    // (fisherman/internal/handoff: ModeSoftReboot).
-    if (out.handoffMode != QLatin1String("migrate") && out.handoffMode != QLatin1String("soft_reboot"))
-        out.handoffMode = QStringLiteral("reboot");
+    out.handoffMode = normalHandoffMode(handoff.value(QLatin1String("mode")).toString());
     out.handoffReason = handoff.value(QLatin1String("reason")).toString();
     return out;
 }
@@ -254,6 +292,11 @@ QStringList unmetFromGates(const QList<Gate> &gates)
     return unmet;
 }
 
+bool tooSmall(const Disk &disk)
+{
+    return disk.sizeBytes > 0 && disk.minimalSizeBytes > 0 && disk.sizeBytes < disk.minimalSizeBytes;
+}
+
 probe::Result probeResult(const Probe &probe)
 {
     probe::Result r;
@@ -264,7 +307,7 @@ probe::Result probeResult(const Probe &probe)
     }
     r.ok = true;
     for (const Disk &d : probe.disks) {
-        if (!d.eligible)
+        if (!d.eligible || tooSmall(d))
             continue;
         probe::Disk disk;
         disk.path = d.path;
@@ -526,9 +569,11 @@ Reply enrollRecoveryKey(Client &client, const QString &node, const QString &reco
 {
     QJsonObject args{{QStringLiteral("node"), node},
                      {QStringLiteral("mechanism"), QStringLiteral("recovery")},
-                     {QStringLiteral("recoveryKey"), recoveryKey}};
-    if (!unlockPassword.isEmpty())
-        args.insert(QStringLiteral("unlockPassword"), unlockPassword);
+                     {QStringLiteral("recoveryKey"), recoveryKey},
+                     // Always sent: a TPM install has the empty password
+                     // that the installer set, and the daemon needs to hear
+                     // it (gnome-setup does the same).
+                     {QStringLiteral("unlockPassword"), unlockPassword}};
     return client.call(QStringLiteral("io.systemd.CryptEnroll.Enroll"), args);
 }
 
@@ -541,6 +586,101 @@ Reply callHandoff(Client &client)
 Reply callCancel(Client &client)
 {
     return client.call(QStringLiteral("io.tunaos.Fisherman.Cancel"), {});
+}
+
+Reply callShutdown(Client &client, const QString &verb)
+{
+    return client.call(QStringLiteral("io.systemd.Shutdown.") + verb, {});
+}
+
+QString encryptionWireType(const QString &recipeType)
+{
+    QString type = recipeType.isEmpty() ? QStringLiteral("none") : recipeType;
+    type.replace(QLatin1Char('-'), QLatin1Char('_'));
+    return type;
+}
+
+QJsonObject installConfig(const Recipe &recipe, const QString &installMode, bool partial)
+{
+    QJsonObject config;
+    if (!recipe.disk.isEmpty())
+        config.insert(QStringLiteral("disk"), recipe.disk);
+    if (installMode == QLatin1String("erase") || installMode == QLatin1String("free_space"))
+        config.insert(QStringLiteral("installMode"), installMode);
+    QJsonObject encryption{{QStringLiteral("type"), encryptionWireType(recipe.encryption.type)}};
+    if (!partial && Recipe::needsPassphrase(recipe.encryption.type) && !recipe.encryption.passphrase.isEmpty())
+        encryption.insert(QStringLiteral("passphrase"), recipe.encryption.passphrase);
+    config.insert(QStringLiteral("encryption"), encryption);
+    if (recipe.userRequired && !recipe.user.username.isEmpty()) {
+        QJsonObject user{{QStringLiteral("username"), recipe.user.username}};
+        if (!recipe.user.fullname.isEmpty())
+            user.insert(QStringLiteral("fullName"), recipe.user.fullname);
+        if (!partial && !recipe.user.password.isEmpty())
+            user.insert(QStringLiteral("password"), recipe.user.password);
+        // The daemon has no group list: membership of wheel is `admin`.
+        user.insert(QStringLiteral("admin"), recipe.user.groups.contains(QStringLiteral("wheel")));
+        config.insert(QStringLiteral("user"), user);
+    }
+    if (!recipe.hostname.isEmpty())
+        config.insert(QStringLiteral("hostname"), recipe.hostname);
+    return config;
+}
+
+QJsonObject targetChoices(const Recipe &recipe, bool locationTouched, bool locationServices)
+{
+    QJsonObject choices;
+    const QJsonObject config = installConfig(recipe, QString());
+    if (config.contains(QLatin1String("user")))
+        choices.insert(QStringLiteral("user"), config.value(QLatin1String("user")));
+    if (!recipe.hostname.isEmpty())
+        choices.insert(QStringLiteral("hostname"), recipe.hostname);
+    if (!recipe.locale.isEmpty())
+        choices.insert(QStringLiteral("locale"), recipe.locale);
+    if (!recipe.keyboardLayout.isEmpty())
+        choices.insert(QStringLiteral("keymap"), recipe.keyboardLayout);
+    if (!recipe.timezone.isEmpty())
+        choices.insert(QStringLiteral("timeZone"), recipe.timezone);
+    if (locationTouched)
+        choices.insert(QStringLiteral("privacy"),
+                       QJsonObject{{QStringLiteral("locationServices"), locationServices}});
+    return choices;
+}
+
+QJsonObject eventToLine(const QJsonObject &event)
+{
+    const QString kind = event.value(QLatin1String("event")).toString();
+    const QString stepId = event.value(QLatin1String("stepId")).toString();
+    const QString message = event.value(QLatin1String("message")).toString();
+    const QJsonValue overall = event.value(QLatin1String("overallPct"));
+    QJsonObject line;
+    if (kind == QLatin1String("step_started")) {
+        line.insert(QStringLiteral("type"), QStringLiteral("step"));
+        line.insert(QStringLiteral("step"), event.value(QLatin1String("stepIndex")).toInt());
+        line.insert(QStringLiteral("total_steps"), event.value(QLatin1String("totalSteps")).toInt());
+        line.insert(QStringLiteral("step_name"), message.isEmpty() ? stepId : message);
+        line.insert(QStringLiteral("step_id"), stepId);
+    } else if (kind == QLatin1String("progress")) {
+        line.insert(QStringLiteral("type"), QStringLiteral("substep"));
+        line.insert(QStringLiteral("message"), message);
+    } else if (kind == QLatin1String("warning")) {
+        line.insert(QStringLiteral("type"), QStringLiteral("info"));
+        line.insert(QStringLiteral("message"), message.isEmpty() ? stepId : message);
+    } else if (kind == QLatin1String("complete")) {
+        line.insert(QStringLiteral("type"), QStringLiteral("complete"));
+        line.insert(QStringLiteral("message"), message);
+    } else if (kind == QLatin1String("failed")) {
+        line.insert(QStringLiteral("type"), QStringLiteral("error"));
+        line.insert(QStringLiteral("message"), message);
+        line.insert(QStringLiteral("code"), event.value(QLatin1String("reason")).toString());
+        line.insert(QStringLiteral("step_id"), stepId);
+        line.insert(QStringLiteral("disk_changed"), stepId != QLatin1String("validate_device"));
+    } else {
+        // step_finished and cancelled move no bar and add no line.
+        return {};
+    }
+    if (overall.isDouble() && kind != QLatin1String("failed"))
+        line.insert(QStringLiteral("overall_pct"), kind == QLatin1String("complete") ? 100 : overall.toInt());
+    return line;
 }
 
 } // namespace fishermand

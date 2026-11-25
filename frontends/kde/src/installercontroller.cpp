@@ -1,4 +1,5 @@
 #include "installercontroller.h"
+#include "qrcode.h"
 #include "probe.h"
 #include "log.h"
 #include "offline.h"
@@ -57,6 +58,7 @@ InstallerController::InstallerController(QObject *parent)
             m_daemonUnreachable = true;
             m_daemonError = !m_daemonProbe.ok ? m_daemonProbe.error : m_daemonReqs.error;
         }
+        readDiskFit();
     } else {
         facts = probe::run();
     }
@@ -65,14 +67,21 @@ InstallerController::InstallerController(QObject *parent)
     // A usable TPM seals the daemon install to PCR 7 with no prompt: the
     // encryption page is skipped, so the type is set here. The recipe
     // backend keeps `none` and its four choices.
-    if (fishermand::backend() == fishermand::Backend::Daemon && m_hasTpm)
-        m_recipe.encryption.type = QStringLiteral("tpm2-luks");
+    // Without one the encryption step asks for a passphrase.
+    if (fishermand::backend() == fishermand::Backend::Daemon)
+        m_recipe.encryption.type = m_hasTpm ? QStringLiteral("tpm2-luks") : QStringLiteral("luks-passphrase");
     // Live media is fisherman's answer (probe's `live`). This used to be a
     // `bootc status` of our own plus /run/ostree-live and /proc/cmdline,
     // read inside the Flatpak sandbox.
     m_recipe.liveMode = facts.isLive;
     m_liveImage = facts.liveImage;
     m_probeOutput = facts.raw;
+    // plasma-setup makes the user on the first boot of the installed
+    // system. The medium is the image, so the running live system says
+    // whether the tool is there. Off live media the host says nothing
+    // about the image, and the account step stays.
+    if (m_recipe.liveMode)
+        m_firstBootTool = detectFirstBootTool(offline::inFlatpak() ? QStringLiteral("/run/host") : QString());
     // os-release at startup (src/osrelease.h): a pre-release disclaimer and
     // its EXPERIMENT text. The terms of use (src/eula.h): the agreement
     // sections, or nothing when the image ships none.
@@ -129,7 +138,7 @@ InstallerController::InstallerController(QObject *parent)
         // none of them fails in fisherman's "Installing OS" (tunaOS#4485). An
         // image the catalog does not have needs an account.
         m_needsUser = m_catalog.needsUserCreation(m_liveImage);
-        m_recipe.userRequired = m_needsUser;
+        m_recipe.userRequired = m_needsUser && !firstBootOwnsAccount();
         applyLeaf(imagecatalog::liveLeaf(m_catalog.find(m_liveImage), operatorRecipe));
     }
 
@@ -196,8 +205,49 @@ void InstallerController::checkFields()
     m_validateTimer.start();
 }
 
+void InstallerController::runDaemonValidate()
+{
+    // The same fields through io.tunaos.Fisherman.Validate, partial: the
+    // daemon checks only what is present and reads no machine state. The
+    // account password is left out; the passphrase goes, as on the recipe
+    // backend, and the client never logs parameters.
+    if (m_validateClient) {
+        m_validateAgain = true;
+        return;
+    }
+    m_validateClient = new fishermand::AsyncClient(fishermand::socketPath(), this);
+    connect(m_validateClient, &fishermand::AsyncClient::replyReceived, this, [this](const fishermand::Reply &reply) {
+        if (!reply.ok()) {
+            qCWarning(logInstaller) << "daemon validate could not run:" << reply.error;
+            return;
+        }
+        QList<validate::Problem> problems;
+        for (const fishermand::ValidationProblem &p : fishermand::validationProblems(reply.parameters))
+            problems.append({p.field, p.code, p.message});
+        m_problems = problems;
+        Q_EMIT problemsChanged();
+    });
+    connect(m_validateClient, &fishermand::AsyncClient::callFinished, this, [this] {
+        m_validateClient->deleteLater();
+        m_validateClient = nullptr;
+        if (m_validateAgain) {
+            m_validateAgain = false;
+            checkFields();
+        }
+    });
+    QJsonObject config = fishermand::installConfig(m_recipe, QString(), true);
+    // No disk in the field check: the disk rules read machine state.
+    config.remove(QStringLiteral("disk"));
+    m_validateClient->call(QStringLiteral("io.tunaos.Fisherman.Validate"),
+                           QJsonObject{{QStringLiteral("config"), config}, {QStringLiteral("partial"), true}}, false);
+}
+
 void InstallerController::runValidate()
 {
+    if (daemonBackend()) {
+        runDaemonValidate();
+        return;
+    }
 #if QT_CONFIG(process)
     if (m_validateProcess) {
         m_validateAgain = true;
@@ -317,6 +367,9 @@ void InstallerController::requestPlan()
         m_plan = QJsonObject();
         Q_EMIT planChanged();
     }
+    // The plan is the recipe CLI's. The daemon validates the disk itself.
+    if (daemonBackend())
+        return;
 #if QT_CONFIG(process)
     if (m_planProcess) {
         // The answer of an earlier request binds nothing.
@@ -399,6 +452,10 @@ QVariantList InstallerController::planRows() const
 
 void InstallerController::refreshReuse()
 {
+    // The copy of this computer's system is a recipe field. The daemon
+    // installs the medium's image.
+    if (daemonBackend())
+        return;
     const QJsonObject recipe = m_recipe.toJson();
     QString updateRef = recipe.value(QLatin1String("targetImgref")).toString();
     if (updateRef.isEmpty())
@@ -516,14 +573,20 @@ void InstallerController::refreshDaemonFacts()
     m_daemonProbe = fishermand::fetchProbe(client);
     const probe::Result facts = fishermand::probeResult(m_daemonProbe);
     m_hasTpm = facts.tpmUsable;
-    if (m_hasTpm && m_recipe.encryption.type == QLatin1String("none"))
+    // The TPM decides the type on this backend: sealed with one, a
+    // passphrase without.
+    const bool wasTpm = Recipe::needsTpm2(m_recipe.encryption.type);
+    if (m_hasTpm && !wasTpm)
         m_recipe.encryption.type = QStringLiteral("tpm2-luks");
+    else if (!m_hasTpm && wasTpm)
+        m_recipe.encryption.type = QStringLiteral("luks-passphrase");
     m_unmet = m_daemonReqs.ok ? fishermand::unmetFromGates(m_daemonReqs.gates) : facts.unmet;
     m_recipe.liveMode = facts.isLive;
     m_liveImage = facts.liveImage;
     m_probeOutput = facts.raw;
     m_daemonUnreachable = !m_daemonReqs.ok || !m_daemonProbe.ok;
     m_daemonError = !m_daemonProbe.ok ? m_daemonProbe.error : m_daemonReqs.error;
+    readDiskFit();
     Q_EMIT factsChanged();
     Q_EMIT daemonFactsChanged();
 }
@@ -532,8 +595,23 @@ bool InstallerController::stepSkipped(const QString &stepId) const
 {
     // try-or-install runs on live media only (shared/flow/screens.yaml):
     // off it there is no live session to try.
+    // The requirements step only while a gate is unmet.
+    if (stepId == QLatin1String("requirements"))
+        return m_unmet.isEmpty();
+    // try-or-install is the first screen. Off live media it has no Try
+    // action and only introduces the install.
     if (stepId == QLatin1String("try-or-install"))
-        return !m_recipe.liveMode;
+        return false;
+    // The network step only when the install needs a download.
+    if (stepId == QLatin1String("network"))
+        return !needsNetwork();
+    // The recovery key after an install that has one: the daemon makes it
+    // for every encrypted disk, fisherman sends it after TPM enrolment.
+    if (stepId == QLatin1String("recovery-key"))
+        return !(succeeded() && (daemonEncrypted() || !m_recoveryKey.isEmpty()));
+    // The handoff is the daemon's. The recipe backend restarts from done.
+    if (stepId == QLatin1String("handoff"))
+        return !(succeeded() && daemonBackend());
     // The disclaimer only when os-release calls this a pre-release or an
     // experiment; the terms only when the image ships them.
     if (stepId == QLatin1String("prerelease"))
@@ -555,8 +633,9 @@ bool InstallerController::stepSkipped(const QString &stepId) const
     // The account step when the selected image creates its own first user
     // (needs_user_creation, the GNOME image step and XFCE IdentityPage
     // rule).
+    // Also when plasma-setup makes the user on the first boot.
     if (stepId == QLatin1String("account"))
-        return !m_needsUser;
+        return !m_needsUser || firstBootOwnsAccount();
     return false;
 }
 
@@ -595,9 +674,50 @@ bool InstallerController::selectedDiskHasData() const
 
 bool InstallerController::selectedDiskForceErase() const
 {
+    // SysInstall's `fit` decides (shared/flow disk_status): no room beside
+    // the data, or a label that cannot stay. Without a `fit`, the Probe's
+    // sizes say the same for the first case.
     const fishermand::Disk *disk = selectedDaemonDisk();
+    if (!disk)
+        return false;
+    const QString fit = m_diskFit.value(disk->path);
+    if (fit == QLatin1String("insufficient_free_space") || fit == QLatin1String("conflicting_disk_label_present"))
+        return true;
+    if (!fit.isEmpty())
+        return false;
     return selectedDiskHasData() && disk->freeBytes >= 0 && disk->minimalSizeBytes > 0
         && disk->freeBytes < disk->minimalSizeBytes;
+}
+
+void InstallerController::readDiskFit()
+{
+    m_diskFit.clear();
+    if (!m_daemonProbe.ok)
+        return;
+    fishermand::Client client(fishermand::socketPath(QStringLiteral("io.systemd.SysInstall")));
+    for (const fishermand::CandidateDevice &device : fishermand::fetchCandidateDevices(client))
+        m_diskFit.insert(device.node, device.fit);
+}
+
+QStringList InstallerController::tooSmallDisks() const
+{
+    QStringList out;
+    for (const fishermand::Disk &disk : m_daemonProbe.disks) {
+        if (!disk.eligible || !fishermand::tooSmall(disk))
+            continue;
+        out << QStringList{disk.vendor, disk.model.isEmpty() ? disk.path : disk.model, disk.sizeLabel}
+                   .join(QLatin1Char(' ')).simplified();
+    }
+    return out;
+}
+
+QString InstallerController::minimalDiskSize() const
+{
+    for (const fishermand::Disk &disk : m_daemonProbe.disks) {
+        if (disk.minimalSizeBytes > 0)
+            return QLocale().formattedDataSize(disk.minimalSizeBytes);
+    }
+    return {};
 }
 
 QString InstallerController::selectedDiskFreeSpace() const
@@ -727,7 +847,7 @@ void InstallerController::selectCatalogImage(int index)
     m_recipe.image = choice.image;
     m_recipe.targetImgref = choice.targetImgref;
     m_needsUser = leaf.needsUserCreation;
-    m_recipe.userRequired = leaf.needsUserCreation;
+    m_recipe.userRequired = leaf.needsUserCreation && !firstBootOwnsAccount();
     m_tourSlides = leaf.carousel;
     applyLeaf(leaf);
     Q_EMIT catalogChanged();
@@ -847,9 +967,10 @@ void InstallerController::checkSource()
     const QStringList args = sourcecheck::probeArguments(req);
     m_sourceCheck = QJsonObject();
     m_bootcStore = QJsonObject();
-    m_sourceVisible = !args.isEmpty();
+    // `fisherman probe --source` is the recipe CLI's check.
+    m_sourceVisible = !args.isEmpty() && !daemonBackend();
     Q_EMIT sourceCheckChanged();
-    if (args.isEmpty())
+    if (args.isEmpty() || daemonBackend())
         return;
     // The probe gets the image references only; the recipe stays here.
     std::thread([this, generation, req, args]() {
@@ -927,6 +1048,16 @@ void InstallerController::openNetworkSettings()
 
 void InstallerController::poweroff()
 {
+    if (daemonBackend()) {
+        // io.systemd.Shutdown.PowerOff. No fall back to systemctl: a daemon
+        // that refuses (an inhibitor) has a reason the person must see.
+        fishermand::Client client(fishermand::socketPath(QStringLiteral("io.systemd.Shutdown")));
+        const fishermand::Reply reply = fishermand::callShutdown(client, QStringLiteral("PowerOff"));
+        m_shutdownError = reply.ok() ? QString()
+            : reply.transportFailed ? tr("The installer daemon does not answer.") : reply.error;
+        Q_EMIT handoffChanged();
+        return;
+    }
     // Same host path as the install and the reboot: flatpak-spawn --host
     // when sandboxed. Mirrors dialog_poweroff.py's host systemctl call.
     QStringList argv = offline::hostCommand({QStringLiteral("systemctl"), QStringLiteral("poweroff")});
@@ -955,6 +1086,16 @@ QString InstallerController::logForSharing() const
 
 void InstallerController::cancelInstall()
 {
+    if (m_stream) {
+        // Cancel goes on a second connection: Install holds the first. The
+        // daemon cleans up, then ends the stream with `cancelled`.
+        if (m_cancelRequested)
+            return;
+        m_cancelRequested = true;
+        appendLine(tr("Cancelling installation..."), false);
+        m_stream->cancel();
+        return;
+    }
 #if QT_CONFIG(process)
     // Nothing running, or already asked: there is nothing more to signal.
     if (!m_process || m_cancelRequested)
@@ -1139,7 +1280,16 @@ void InstallerController::resetProgress()
     m_sourceReuse = QJsonValue();
     Q_EMIT sourceReuseChanged();
     m_recoveryAck = false;
+    m_recoveryError.clear();
+    m_recoveryEnrolled = false;
     Q_EMIT recoveryChanged();
+    m_failureReason.clear();
+    m_lastDaemonStep.clear();
+    m_handoffState.clear();
+    m_handoffError.clear();
+    m_sessionKeepsRunning = false;
+    m_shutdownError.clear();
+    Q_EMIT handoffChanged();
     m_cumulativePct = 0;
     m_weightPct = 0;
     m_stepFrac = 0.0;
@@ -1195,6 +1345,16 @@ QString InstallerController::stepLabel(const QString &stepId, const QString &ste
         if (!label.isEmpty())
             return label;
     }
+    // The daemon's step ids that the shared copy has no line for yet
+    // (v1 freezes the ids: fisherman/docs/FISHERMAND.md).
+    if (stepId == QLatin1String("validate_device"))
+        return tr("Checking your drive…");
+    if (stepId == QLatin1String("post_fixups"))
+        return tr("Applying the last fixes…");
+    if (stepId == QLatin1String("bootloader"))
+        return tr("Installing the boot loader…");
+    if (stepId == QLatin1String("cleanup"))
+        return tr("Cleaning up…");
     return friendlyStep(stepName, m_productName);
 }
 
@@ -1428,8 +1588,12 @@ void InstallerController::loadDemoState(const QString &log, int exitCode)
 
 void InstallerController::startInstall()
 {
-    if (m_process)
+    if (m_process || m_stream)
         return;
+    if (daemonBackend()) {
+        startDaemonInstall();
+        return;
+    }
 
     // Not live media and nothing chosen: the branding's default image. On
     // live media the image stays empty and fisherman installs the running
@@ -1578,6 +1742,14 @@ bool InstallerController::waitForInstall(int ms)
 
 void InstallerController::reboot()
 {
+    if (daemonBackend()) {
+        fishermand::Client client(fishermand::socketPath(QStringLiteral("io.systemd.Shutdown")));
+        const fishermand::Reply reply = fishermand::callShutdown(client, QStringLiteral("Reboot"));
+        m_shutdownError = reply.ok() ? QString()
+            : reply.transportFailed ? tr("The installer daemon does not answer.") : reply.error;
+        Q_EMIT handoffChanged();
+        return;
+    }
     // Same host path as the install: flatpak-spawn --host when sandboxed.
     QStringList argv = offline::hostCommand({QStringLiteral("systemctl"), QStringLiteral("reboot")});
     const QString program = argv.takeFirst();
@@ -1586,4 +1758,229 @@ void InstallerController::reboot()
 #else
     qCWarning(logInstaller) << "this build cannot start processes, not running" << program;
 #endif
+}
+
+// ── The fishermand backend (tuna-os/fisherman#512) ─────────────────────────
+
+QString InstallerController::detectFirstBootTool(const QString &root)
+{
+    if (qEnvironmentVariableIsSet("TUNA_FIRSTBOOT_TOOL")) {
+        return qEnvironmentVariable("TUNA_FIRSTBOOT_TOOL") == QLatin1String("plasma-setup")
+            ? QStringLiteral("plasma-setup") : QString();
+    }
+    for (const char *path : {"/usr/bin/plasma-setup", "/usr/libexec/plasma-setup",
+                             "/usr/lib/systemd/system/plasma-setup.service"}) {
+        if (QFileInfo::exists(root + QLatin1String(path)))
+            return QStringLiteral("plasma-setup");
+    }
+    return {};
+}
+
+void InstallerController::setLocationServices(bool v)
+{
+    // A touch, even back to the default, is a choice the daemon hears.
+    m_locationTouched = true;
+    if (m_locationServices == v)
+        return;
+    m_locationServices = v;
+    Q_EMIT regionChanged();
+}
+
+QJsonObject InstallerController::daemonConfig() const
+{
+    // installMode only where the wipe-or-free step asked, or where the disk
+    // leaves no choice. An empty disk takes the daemon's own default.
+    QString mode;
+    if (selectedDiskForceErase())
+        mode = QStringLiteral("erase");
+    else if (selectedDiskHasData())
+        mode = m_installMode;
+    else
+        mode = QStringLiteral("erase");
+    return fishermand::installConfig(m_recipe, mode);
+}
+
+QJsonObject InstallerController::daemonTarget() const
+{
+    return fishermand::targetChoices(m_recipe, m_locationTouched, m_locationServices);
+}
+
+void InstallerController::startDaemonInstall()
+{
+    m_log.clear();
+    m_stdoutBuffer.clear();
+    m_stderrBuffer.clear();
+    m_finished = false;
+    m_cancelRequested = false;
+    m_cancelled = false;
+    Q_EMIT logChanged();
+    openLogFile();
+    resetProgress();
+    appendLine(tr("Starting installation..."), false);
+
+    // The daemon's own check first, whole: Install answers a bad config
+    // with a bare error name, and the person needs the field.
+    const QJsonObject config = daemonConfig();
+    QString error;
+    fishermand::Client client(fishermand::socketPath());
+    QList<fishermand::ValidationProblem> problems = fishermand::validateConfig(client, config, false, &error);
+    if (error.isEmpty() && problems.isEmpty()) {
+        // The account, the host name, the region and the privacy choice
+        // reach the target in the daemon's `configure` step.
+        problems = fishermand::configureTarget(client, daemonTarget(), &error);
+    }
+    if (!error.isEmpty()) {
+        m_failureReason = QStringLiteral("daemon_unreachable");
+        fail(tr("The installer daemon does not answer: %1").arg(error));
+        return;
+    }
+    if (!problems.isEmpty()) {
+        QStringList lines;
+        for (const fishermand::ValidationProblem &p : problems) {
+            const QString worded = p.code.isEmpty() ? QString() : text(QLatin1String(validate::COPY_PREFIX) + p.code);
+            lines << QStringLiteral("%1: %2").arg(p.field, worded.isEmpty() ? p.message : worded);
+        }
+        m_failureReason = QStringLiteral("validation_failed");
+        fail(lines.join(QLatin1Char('\n')));
+        return;
+    }
+
+    m_stream = new fishermand::InstallStream(fishermand::socketPath(), this);
+    connect(m_stream, &fishermand::InstallStream::eventReceived, this, &InstallerController::consumeDaemonEvent);
+    connect(m_stream, &fishermand::InstallStream::streamFinished, this, &InstallerController::finishDaemonInstall);
+    // `confirmed` is true here and nowhere else: only the Install button of
+    // the confirm step reaches startInstall().
+    m_stream->start(config, true);
+    Q_EMIT installingChanged();
+}
+
+void InstallerController::consumeDaemonEvent(const QJsonObject &event)
+{
+    const QString stepId = event.value(QLatin1String("stepId")).toString();
+    if (!stepId.isEmpty())
+        m_lastDaemonStep = stepId;
+    if (event.value(QLatin1String("event")).toString() == QLatin1String("failed"))
+        m_failureReason = event.value(QLatin1String("reason")).toString();
+    // Through the legacy line and appendLine(): one parser, one bar, one
+    // log. An Install event holds no secret.
+    const QJsonObject line = fishermand::eventToLine(event);
+    if (!line.isEmpty())
+        appendLine(QString::fromUtf8(QJsonDocument(line).toJson(QJsonDocument::Compact)));
+}
+
+void InstallerController::finishDaemonInstall(const QString &terminal, const QString &errorName)
+{
+    // The terminal reply of the stream ends the install, never a progress
+    // event: the daemon form of "only after the process exits".
+    if (m_finished)
+        return;
+    if (terminal == QLatin1String("complete")) {
+        m_exitCode = 0;
+        appendLine(QLatin1Char('\n') + tr("✓ Installation complete!"), false);
+        if (daemonEncrypted())
+            makeRecoveryKey();
+    } else if (terminal == QLatin1String("cancelled")) {
+        m_cancelled = true;
+        m_exitCode = 130;
+        // A cancel before the partition step leaves the disk as it was.
+        if (m_lastDaemonStep.isEmpty() || m_lastDaemonStep == QLatin1String("validate_device"))
+            m_installError = QVariantMap{{QStringLiteral("disk_changed"), false}};
+        qCInfo(logInstaller) << "the install was cancelled";
+        appendLine(QLatin1Char('\n') + tr("Installation cancelled."), false);
+    } else if (terminal == QLatin1String("failed")) {
+        m_exitCode = 1;
+        qCWarning(logInstaller) << "the daemon install failed:" << m_failureReason;
+        appendLine(QLatin1Char('\n') + tr("✗ Installation failed (%1)").arg(m_failureReason), false);
+    } else {
+        m_exitCode = 1;
+        if (m_failureReason.isEmpty())
+            m_failureReason = QStringLiteral("daemon_unreachable");
+        qCWarning(logInstaller) << "the install stream ended:" << errorName;
+        appendLine(QLatin1Char('\n') + tr("ERROR: %1").arg(errorName), false);
+    }
+    if (!m_logPath.isEmpty())
+        appendLine(tr("Log: %1").arg(m_logPath), false);
+    closeLogFile();
+    m_finished = true;
+    if (m_stream) {
+        m_stream->deleteLater();
+        m_stream = nullptr;
+    }
+    Q_EMIT installingChanged();
+    Q_EMIT installCompleted(m_exitCode);
+}
+
+QStringList InstallerController::recoveryQrRows() const
+{
+    if (m_recoveryKey.isEmpty())
+        return {};
+    const qrcode::Code code = qrcode::encode(m_recoveryKey);
+    return code.ok ? code.rows() : QStringList();
+}
+
+void InstallerController::makeRecoveryKey()
+{
+    if (!daemonBackend())
+        return;
+    fishermand::Client client(fishermand::socketPath(QStringLiteral("io.systemd.CryptEnroll")));
+    QString error;
+    const QString key = fishermand::makeRecoveryKey(client, &error);
+    // The key stays in memory for the step. It reaches no log: appendLine
+    // is not called with it, and logForSharing() redacts it anyway.
+    m_recoveryKey = key;
+    m_recoveryEnrolled = false;
+    m_recoveryError = key.isEmpty() ? (error.isEmpty() ? tr("The daemon gave no recovery key.") : error) : QString();
+    Q_EMIT recoveryChanged();
+}
+
+bool InstallerController::enrollRecoveryKey()
+{
+    if (!daemonBackend())
+        return true;
+    if (m_recoveryEnrolled)
+        return true;
+    if (m_recoveryKey.isEmpty())
+        return false;
+    fishermand::Client client(fishermand::socketPath(QStringLiteral("io.systemd.CryptEnroll")));
+    // Unlocked with the passphrase the person set, or with the empty
+    // password of a TPM install (what gnome-setup does).
+    const fishermand::Reply reply =
+        fishermand::enrollRecoveryKey(client, m_recipe.disk, m_recoveryKey, m_recipe.encryption.passphrase);
+    m_recoveryEnrolled = reply.ok();
+    m_recoveryError = reply.ok() ? QString()
+        : reply.transportFailed ? tr("The installer daemon does not answer.") : reply.error;
+    Q_EMIT recoveryChanged();
+    return m_recoveryEnrolled;
+}
+
+bool InstallerController::handoff()
+{
+    if (!daemonBackend() || !succeeded())
+        return false;
+    fishermand::Client client(fishermand::socketPath());
+    const fishermand::Reply reply = fishermand::callHandoff(client);
+    const bool started = reply.ok() && reply.parameters.value(QLatin1String("started")).toBool();
+    m_sessionKeepsRunning = started && reply.parameters.value(QLatin1String("sessionKeepsRunning")).toBool();
+    m_handoffState = started ? QStringLiteral("started") : QStringLiteral("failed");
+    m_handoffError = started ? QString()
+        : reply.transportFailed ? tr("The installer daemon does not answer.")
+        : reply.error.isEmpty() ? tr("The daemon did not start the handoff.") : reply.error;
+    Q_EMIT handoffChanged();
+    return started;
+}
+
+void InstallerController::resetForRetry()
+{
+    if (installing() || !m_finished || succeeded())
+        return;
+    m_finished = false;
+    m_cancelled = false;
+    m_cancelRequested = false;
+    m_exitCode = 0;
+    m_log.clear();
+    resetProgress();
+    Q_EMIT logChanged();
+    Q_EMIT installCompleted(0);
+    if (daemonBackend())
+        refreshDaemonFacts();
 }

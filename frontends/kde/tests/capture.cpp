@@ -106,7 +106,7 @@ namespace {
 //
 // So the two classes are not measuring the same thing and cannot share a floor:
 //
-//   hero (01-tryorinstall, 02-welcome, 14-done) — icon + heading + prose centred on a flat page.
+//   hero (the list in isHeroStep()) — icon + heading + prose centred on a flat page.
 //       Vertical extent is a function of font metrics. Floor set against the
 //       7.0% now measured on the sparsest, which still leaves >2x margin over
 //       a module that drew nothing (0.0%).
@@ -145,7 +145,12 @@ constexpr int MIN_STEP_TEXT = 10;
 // card step reclassify itself as a hero page and pass.
 bool isHeroStep(const QString &name)
 {
-    return name == u"01-tryorinstall"_s || name == u"02-welcome"_s || name == u"14-done"_s || name == u"16-cancelled"_s;
+    static const QStringList hero{
+        u"00-requirements"_s, u"01-tryorinstall"_s, u"05-network"_s,    u"15-recovery"_s,
+        u"16-handoff"_s,      u"17-done"_s,         u"19-cancelled"_s,  u"20-failed"_s,
+        u"21-recovery-qr"_s,
+    };
+    return hero.contains(name);
 }
 
 // The port's narrower card steps. Explicit by capture name, for the same
@@ -153,7 +158,7 @@ bool isHeroStep(const QString &name)
 // reclassify itself as sparse and pass.
 bool isSparseCardStep(const QString &name)
 {
-    return name == u"03-prerelease"_s || name == u"04-eula"_s || name == u"05-rst"_s || name == u"07-wipefree"_s;
+    return name == u"06-prerelease"_s || name == u"07-eula"_s || name == u"08-rst"_s || name == u"10-wipefree"_s;
 }
 
 void settle(int ms)
@@ -676,6 +681,11 @@ int main(int argc, char *argv[])
         qputenv("TUNA_EULA_FILE", CAPTURE_TESTDATA_DIR "/eula-agreement.xml");
     }
 
+    // The capture is the recipe backend with fixtures, wherever it runs: a
+    // fishermand socket on the build host must not change the pictures, and
+    // nothing on this path calls a daemon.
+    qputenv("TUNA_INSTALLER_BACKEND", "legacy");
+
     QQmlApplicationEngine engine;
     engine.loadFromModule("org.tunaos.installer"_L1, "Main"_L1);
     if (engine.rootObjects().isEmpty()) {
@@ -723,7 +733,7 @@ int main(int argc, char *argv[])
     controller->setPassphrase(u"correct horse battery staple"_s);
     // The account step's fields, so it and the confirm step show a real
     // account. The confirmation field belongs to the page, not the
-    // controller; the 09-account frame below types into it.
+    // controller; the 12-account frame below types into it.
     const QString captureUsername = u"alex"_s;
     const QString capturePassword = u"account password 42"_s;
     controller->setUsername(captureUsername);
@@ -745,30 +755,36 @@ int main(int argc, char *argv[])
     window->show();
     settle(700);
 
-    // Numbers follow the shared flow (shared/flow/screens.yaml): 01 is the
-    // first screen, 14 the last. Slot 13 belongs to the handoff screen a
-    // later commit adds; its number stays reserved so nothing renumbers
-    // again. The wizard indices shift as modules land; the names do not.
+    // The number is the screen's place in shared/flow/screens.yaml (00
+    // requirements to 17 done), which is also the wizard's step index. The
+    // frames after 17 show a step again in another state.
     const QVector<QPair<int, QString>> steps = {
-        {0, u"01-tryorinstall"_s},
-        {1, u"02-welcome"_s},
-        {2, u"03-prerelease"_s},
-        {3, u"04-eula"_s},
-        {4, u"05-rst"_s},
-        {5, u"06-disk"_s},
-        {6, u"07-wipefree"_s},
-        {7, u"08-encryption"_s},
-        {8, u"09-account"_s},
-        {9, u"10-confirm"_s},
-        {10, u"11-install"_s},
-        {11, u"14-done"_s},
-        // The done page again, as a TPM install leaves it. Same step, other
-        // state -- not a step of its own.
-        {11, u"12-recovery"_s},
+        {0, u"00-requirements"_s},
+        {1, u"01-tryorinstall"_s},
+        {2, u"02-language"_s},
+        {3, u"03-keyboard"_s},
+        {4, u"04-timezone"_s},
+        {5, u"05-network"_s},
+        {6, u"06-prerelease"_s},
+        {7, u"07-eula"_s},
+        {8, u"08-rst"_s},
+        {9, u"09-disk"_s},
+        {10, u"10-wipefree"_s},
+        {11, u"11-encryption"_s},
+        {12, u"12-account"_s},
+        {13, u"13-confirm"_s},
+        {14, u"14-install"_s},
+        // The recovery-key step, as a TPM install leaves it.
+        {15, u"15-recovery"_s},
+        {16, u"16-handoff"_s},
+        {17, u"17-done"_s},
         // The install page again, with the question Cancel asks (#299),
-        // then the done page as a cancelled install leaves it.
-        {10, u"15-cancel-confirm"_s},
-        {11, u"16-cancelled"_s},
+        // then the done page as a cancelled and as a failed install leave
+        // it, then the recovery key as a QR code.
+        {14, u"18-cancel-confirm"_s},
+        {17, u"19-cancelled"_s},
+        {17, u"20-failed"_s},
+        {15, u"21-recovery-qr"_s},
     };
 
     QObject *cancelDialog = nullptr;
@@ -779,13 +795,21 @@ int main(int argc, char *argv[])
 
         // The install "finishes" between the install and done screens, which
         // is the only ordering under which each screen shows what it is for.
-        if (step.second == u"14-done"_s) {
+        if (step.second == u"16-handoff"_s || step.second == u"17-done"_s) {
             controller->loadDemoState(
                 QString::fromUtf8(kFixtureLogRunning)
                     + QString::fromUtf8(kFixtureLogFinished),
                 0);
         }
-        if (step.second == u"12-recovery"_s) {
+        if (step.second == u"20-failed"_s) {
+            // An exit code other than 0 and 130: the failure page.
+            controller->loadDemoState(QString::fromUtf8(kFixtureLogRunning), 1);
+            if (controller->succeeded() || controller->cancelled()) {
+                out << "FAIL: exit code 1 is not a failed install\n";
+                return 1;
+            }
+        }
+        if (step.second == u"15-recovery"_s || step.second == u"21-recovery-qr"_s) {
             controller->loadDemoState(
                 QString::fromUtf8(kFixtureLogRunning)
                     + QString::fromUtf8(kFixtureLogFinished)
@@ -797,10 +821,10 @@ int main(int argc, char *argv[])
             }
         }
 
-        if (step.second == u"15-cancel-confirm"_s) {
+        if (step.second == u"18-cancel-confirm"_s) {
             controller->loadDemoState(QString::fromUtf8(kFixtureLogRunning), 0);
         }
-        if (step.second == u"16-cancelled"_s) {
+        if (step.second == u"19-cancelled"_s) {
             // 130 is fisherman's exit code for a cancelled install.
             controller->loadDemoState(QString::fromUtf8(kFixtureLogRunning), 130);
             if (!controller->cancelled()) {
@@ -819,7 +843,7 @@ int main(int argc, char *argv[])
         // reaches it (its clicked() signal); the question must open, and
         // the frame shows it. No install runs here, so nothing is stopped
         // either way: the point is that a click alone opens a question.
-        if (step.second == u"15-cancel-confirm"_s) {
+        if (step.second == u"18-cancel-confirm"_s) {
             QQuickItem *cancel = findItemByName(window->contentItem(), u"cancelInstallButton"_s);
             // A popup is no item of the visual tree; it is declared next to
             // the button, so it is a QObject child of the button's row.
@@ -852,7 +876,7 @@ int main(int argc, char *argv[])
         // strand the user before the confirm step, and one that never held
         // it would install with a mistyped password. The frame is taken
         // after the second typing, so it shows a form ready to go on.
-        if (step.second == u"09-account"_s) {
+        if (step.second == u"12-account"_s) {
             QQuickItem *next = findItemByName(window->contentItem(), u"nextButton"_s);
             QQuickItem *username = findItemByName(window->contentItem(), u"accountUsername"_s);
             QQuickItem *confirm = findItemByName(window->contentItem(), u"accountPasswordConfirm"_s);
@@ -879,6 +903,29 @@ int main(int argc, char *argv[])
             }
         }
 
+        // The QR code is a dialog over the recovery-key step: opened the way
+        // a click opens it, and closed again after the frame.
+        QObject *qrDialog = nullptr;
+        if (step.second == u"21-recovery-qr"_s) {
+            QQuickItem *button = findItemByName(window->contentItem(), u"recoveryQrButton"_s);
+            if (!button) {
+                out << "FAIL: no recoveryQrButton in the visual tree\n";
+                return 1;
+            }
+            QMetaObject::invokeMethod(button, "clicked");
+            settle(500);
+            for (QObject *o = button; o && !qrDialog; o = o->parent())
+                qrDialog = o->findChild<QObject *>(u"recoveryQrDialog"_s);
+            if (!qrDialog || !qrDialog->property("visible").toBool()) {
+                out << "FAIL: the QR button did not open the QR dialog\n";
+                return 1;
+            }
+            if (controller->recoveryQrRows().size() < 21) {
+                out << "FAIL: the recovery key has no QR symbol\n";
+                return 1;
+            }
+        }
+
         const QImage image = window->grabWindow();
         if (image.isNull()) {
             out << "FAIL: grabWindow() returned nothing for " << step.second << "\n";
@@ -894,11 +941,11 @@ int main(int argc, char *argv[])
             out << "FAIL: could not locate the step content area for " << step.second << "\n";
             return 1;
         }
-        if (step.second == u"11-install"_s && !progressBarIsDrawn(window, image, out))
+        if (step.second == u"14-install"_s && !progressBarIsDrawn(window, image, out))
             return 1;
         // The last page before the disk is written says who will sign in,
         // and never the password.
-        if (step.second == u"10-confirm"_s) {
+        if (step.second == u"13-confirm"_s) {
             const QString shown = itemText(window->contentItem());
             if (!shown.contains(captureUsername)) {
                 out << "FAIL: the confirm step does not show the account's username\n";
@@ -920,11 +967,11 @@ int main(int argc, char *argv[])
         // defaults, and an assertion that only looked for the KEY passed it.
         // KDE compiles copy-defaults.json in (branding.cpp), so this should
         // hold -- which is why it is worth asserting rather than assuming.
-        if (step.second == u"12-recovery"_s) {
+        if (step.second == u"15-recovery"_s) {
             const QString shown = itemText(window->contentItem());
             if (!shown.contains(controller->recoveryKey())) {
                 out << "FAIL: the recovery key is not in the rendered text -- "
-                       "the panel did not draw (#129)\n";
+                       "the step did not draw (#129)\n";
                 return 1;
             }
             for (const auto &key : {u"recovery_key_title"_s, u"recovery_key_ack"_s}) {
@@ -938,38 +985,72 @@ int main(int argc, char *argv[])
                     return 1;
                 }
             }
-            QQuickItem *restart =
-                findItemByName(window->contentItem(), u"doneRestartButton"_s);
-            if (!restart) {
-                out << "FAIL: no doneRestartButton in the visual tree\n";
+            // Done is the way off this step, and it stays off until the
+            // person says the key is saved.
+            QQuickItem *done = findItemByName(window->contentItem(), u"recoveryDoneButton"_s);
+            if (!done) {
+                out << "FAIL: no recoveryDoneButton in the visual tree\n";
                 return 1;
             }
-            if (restart->property("enabled").toBool()) {
-                out << "FAIL: Restart is live before the recovery key was "
+            if (done->property("enabled").toBool()) {
+                out << "FAIL: Done is live before the recovery key was "
                        "acknowledged (#129)\n";
                 return 1;
             }
-            // And the other half: the acknowledgement must release it. A
-            // binding that never re-enables Restart would strand the user on
-            // a finished install. Toggled through the controller and back, so
-            // the frame captured below is still the unacknowledged state.
+            // And the other half: the acknowledgement must release it.
+            // Toggled through the controller and back, so the frame captured
+            // above is the unacknowledged state.
             controller->setRecoveryAck(true);
             settle(50);
-            const bool releasedByAck = restart->property("enabled").toBool();
+            const bool releasedByAck = done->property("enabled").toBool();
             controller->setRecoveryAck(false);
             settle(50);
             if (!releasedByAck) {
-                out << "FAIL: acknowledging the recovery key did not enable Restart\n";
+                out << "FAIL: acknowledging the recovery key did not enable Done\n";
                 return 1;
             }
-            // The key must be in a selectable field, not a bare label.
-            QQuickItem *keyField = findItemByName(window->contentItem(), u"recoveryKeyLabel"_s);
-            if (!keyField || !keyField->property("selectByMouse").toBool()) {
-                out << "FAIL: the recovery key is not in a selectable field\n";
+            // The key is a label whose accessible name is the key itself
+            // (shared/flow test contract), and the step offers the QR code.
+            QQuickItem *keyLabel = findItemByName(window->contentItem(), u"recoveryKeyLabel"_s);
+            if (!keyLabel || keyLabel->property("text").toString() != controller->recoveryKey()) {
+                out << "FAIL: the recovery key is not in the recoveryKeyLabel\n";
+                return 1;
+            }
+            QQuickItem *qr = findItemByName(window->contentItem(), u"recoveryQrButton"_s);
+            if (!qr || !qr->property("enabled").toBool()) {
+                out << "FAIL: the recovery-key step offers no QR code\n";
                 return 1;
             }
         }
-        if (step.second == u"15-cancel-confirm"_s) {
+        if (step.second == u"16-handoff"_s) {
+            const QString shown = itemText(window->contentItem());
+            if (!findItemByName(window->contentItem(), u"handoffContinueButton"_s)
+                || !findItemByName(window->contentItem(), u"handoffNotNowButton"_s)) {
+                out << "FAIL: the handoff step has no Continue or Not now button\n";
+                return 1;
+            }
+            if (!shown.contains(u"Not now"_s) || !shown.contains(u"Continue"_s)) {
+                out << "FAIL: the handoff step does not show both actions\n";
+                return 1;
+            }
+        }
+        if (qrDialog) {
+            QMetaObject::invokeMethod(qrDialog, "close");
+            settle(300);
+        }
+        if (step.second == u"20-failed"_s) {
+            QQuickItem *heading = findItemByName(window->contentItem(), u"doneHeading"_s);
+            QQuickItem *retry = findItemByName(window->contentItem(), u"doneRetryButton"_s);
+            if (!heading || heading->property("text").toString() != controller->text(u"done_failed_title"_s)) {
+                out << "FAIL: the failure page's heading is not done_failed_title\n";
+                return 1;
+            }
+            if (!retry || !retry->property("visible").toBool()) {
+                out << "FAIL: the failure page offers no Try again\n";
+                return 1;
+            }
+        }
+        if (step.second == u"18-cancel-confirm"_s) {
             // Closed again, so the next frame is the done page alone.
             if (cancelDialog)
                 QMetaObject::invokeMethod(cancelDialog, "close");
@@ -978,7 +1059,7 @@ int main(int argc, char *argv[])
         // The cancelled page: its heading is the branding copy key, it is
         // not the failure page, and it offers no restart into a system that
         // is not there.
-        if (step.second == u"16-cancelled"_s) {
+        if (step.second == u"19-cancelled"_s) {
             QQuickItem *heading = findItemByName(window->contentItem(), u"doneHeading"_s);
             QQuickItem *restart = findItemByName(window->contentItem(), u"doneRestartButton"_s);
             const QString title = controller->text(u"done_cancelled_title"_s);
@@ -997,7 +1078,7 @@ int main(int argc, char *argv[])
         }
         // The confirm page lists what the install does, the language,
         // keyboard and time zone included: the recipe carries them (#292).
-        if (step.second == u"10-confirm"_s) {
+        if (step.second == u"13-confirm"_s) {
             const QString shown = itemText(window->contentItem());
             for (const auto &row : {u"Language"_s, u"Keyboard"_s, u"Time zone"_s}) {
                 if (!shown.contains(row)) {
@@ -1007,7 +1088,7 @@ int main(int argc, char *argv[])
             }
         }
         // More than one filesystem to choose from: the disk step asks.
-        if (step.second == u"06-disk"_s) {
+        if (step.second == u"09-disk"_s) {
             QQuickItem *fs = findItemByName(window->contentItem(), u"filesystemCombo"_s);
             if (controller->filesystemChoices().size() > 1 && (!fs || !fs->isVisible())) {
                 out << "FAIL: the disk step does not offer the filesystem choices (#287)\n";

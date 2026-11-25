@@ -15,11 +15,30 @@ TunaComponents.SetupModule {
 
     nextEnabled: true
 
-    // A recovery key takes the room the hero icon would have; the icon
-    // shrinks so the key, its copy button and the acknowledgement fit the
-    // page without scrolling.
-    readonly property bool showRecovery: InstallerController.succeeded
-        && InstallerController.recoveryKey.length > 0
+    Accessible.name: qsTr("Done")
+
+    // After a migrate handoff the live session is the installed system:
+    // there is nothing to restart.
+    readonly property bool takenOver: InstallerController.succeeded
+        && InstallerController.sessionKeepsRunning
+    // The daemon's reason for a failure, in words (shared/flow failure
+    // states device-lost, repart-error, daemon-unreachable).
+    readonly property string failureText: {
+        switch (InstallerController.failureReason) {
+        case "device_lost":
+            return qsTr("The disk went away during the installation. Check that it is connected, or choose another disk.");
+        case "repart_failed":
+            return qsTr("The disk could not be partitioned.");
+        case "luks_failed":
+            return qsTr("The disk could not be encrypted.");
+        case "validation_failed":
+            return qsTr("The installer daemon refused these settings. The log names the field.");
+        case "daemon_unreachable":
+            return qsTr("The installer daemon does not answer.");
+        default:
+            return "";
+        }
+    }
     readonly property string failureIcon: InstallerController.cancelled
         ? "dialog-cancel" : "dialog-error"
 
@@ -47,8 +66,7 @@ TunaComponents.SetupModule {
                        || "checkmark")
                     : root.failureIcon
                 fallback: InstallerController.succeeded ? "checkmark" : root.failureIcon
-                implicitWidth: root.showRecovery ? Kirigami.Units.iconSizes.huge
-                                                 : Kirigami.Units.iconSizes.enormous
+                implicitWidth: Kirigami.Units.iconSizes.enormous
                 implicitHeight: implicitWidth
 
                 Layout.alignment: Qt.AlignHCenter
@@ -73,11 +91,18 @@ TunaComponents.SetupModule {
             }
 
             Label {
+                objectName: "doneBody"
                 text: InstallerController.succeeded
-                    ? InstallerController.text("done_subtitle")
+                    ? (root.takenOver
+                        ? qsTr("This session is now the installed system. You can close this window.")
+                        : InstallerController.text("done_subtitle"))
                     : InstallerController.cancelled
-                        ? qsTr("You stopped the installation. The selected disk is erased and has no complete system. Start the installer again to install.")
-                        : qsTr("The installation did not finish. The log has the details — exit code %1.").arg(InstallerController.exitCode)
+                        ? (InstallerController.diskUnchanged
+                            ? qsTr("You stopped the installation. The selected disk was not changed.")
+                            : qsTr("You stopped the installation. The selected disk is erased and has no complete system. Start the installer again to install."))
+                        : root.failureText.length > 0
+                            ? root.failureText
+                            : qsTr("The installation did not finish. The log has the details — exit code %1.").arg(InstallerController.exitCode)
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
 
@@ -125,97 +150,6 @@ TunaComponents.SetupModule {
                 Layout.fillWidth: true
 
                 onLinkActivated: link => Qt.openUrlExternally(link)
-            }
-
-            // Recovery key (#129). fisherman emits it once, after TPM
-            // enrolment, and for a tpm2-luks install it is the only way back
-            // into the disk if the TPM state changes. It used to go to the
-            // log pane and nowhere else: the log scrolls, nothing pauses, and
-            // a user could reach this page and restart having never seen it.
-            //
-            // A panel rather than a dialog, as on the other frontends: a
-            // dialog is dismissed and then the key is gone, while this stays
-            // on screen for as long as it takes to write down. A FormCard, the
-            // way Plasma System Settings groups a value with its actions: the
-            // explanation, the key in a monospace, selectable field beside its
-            // copy button, then the acknowledgement that releases Restart.
-            ColumnLayout {
-                objectName: "recoveryPanel"
-                visible: root.showRecovery
-                spacing: 0
-
-                Layout.fillWidth: true
-
-                FormCard.FormHeader {
-                    title: InstallerController.text("recovery_key_title")
-                    maximumWidth: root.cardWidth
-                }
-
-                FormCard.FormCard {
-                    maximumWidth: root.cardWidth
-
-                    FormCard.FormTextDelegate {
-                        text: InstallerController.text("recovery_key_body")
-                        textItem.wrapMode: Text.Wrap
-                    }
-
-                    FormCard.FormDelegateSeparator {}
-
-                    FormCard.AbstractFormDelegate {
-                        background: null
-                        focusPolicy: Qt.NoFocus
-
-                        contentItem: RowLayout {
-                            spacing: Kirigami.Units.smallSpacing
-
-                            TextField {
-                                objectName: "recoveryKeyLabel"
-                                text: InstallerController.recoveryKey
-                                readOnly: true
-                                selectByMouse: true
-                                font.family: Kirigami.Theme.fixedWidthFont.family
-                                font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.15
-                                horizontalAlignment: Text.AlignHCenter
-                                Accessible.name: InstallerController.text("recovery_key_title")
-
-                                Layout.fillWidth: true
-                            }
-
-                            // Icon-only so the field keeps the width the
-                            // whole key needs; the copy key is the tooltip
-                            // and the accessible name.
-                            Button {
-                                objectName: "recoveryCopyButton"
-                                text: InstallerController.text("recovery_key_copy")
-                                icon.name: "edit-copy-symbolic"
-                                display: AbstractButton.IconOnly
-                                ToolTip.text: text
-                                ToolTip.visible: hovered
-                                ToolTip.delay: Kirigami.Units.toolTipDelay
-                                onClicked: recoveryClip.selectAll(),
-                                           recoveryClip.copy(),
-                                           recoveryClip.deselect()
-                            }
-                        }
-                    }
-
-                    FormCard.FormDelegateSeparator {}
-
-                    FormCard.FormCheckDelegate {
-                        objectName: "recoveryAckCheck"
-                        text: InstallerController.text("recovery_key_ack")
-                        checked: InstallerController.recoveryAck
-                        onToggled: InstallerController.recoveryAck = checked
-                    }
-                }
-
-                // QtQuick has no clipboard object; a hidden TextEdit is the
-                // standard way to reach one.
-                TextEdit {
-                    id: recoveryClip
-                    visible: false
-                    text: InstallerController.recoveryKey
-                }
             }
 
             // A first look at the installed system (the GNOME tour step):
@@ -312,15 +246,41 @@ TunaComponents.SetupModule {
                 objectName: "doneRestartButton"
                 text: InstallerController.text("done_restart")
                 icon.name: "system-reboot-symbolic"
-                visible: InstallerController.succeeded
+                visible: InstallerController.succeeded && !root.takenOver
                 highlighted: true
-                // Held until the key is acknowledged.
+                // Held until the key is acknowledged (the recovery-key step).
                 enabled: !InstallerController.recoveryKeyPending
 
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: Kirigami.Units.largeSpacing
 
                 onClicked: InstallerController.reboot()
+            }
+
+            // reboot-failed: the daemon refused the restart (an inhibitor,
+            // or one already on its way).
+            Kirigami.InlineMessage {
+                objectName: "doneShutdownError"
+                type: Kirigami.MessageType.Error
+                visible: InstallerController.shutdownError.length > 0
+                text: qsTr("The computer cannot restart now: %1").arg(InstallerController.shutdownError)
+
+                Layout.fillWidth: true
+            }
+
+            // After a failure or a cancel: back to the disk step for
+            // another try. Close stays in the footer.
+            Button {
+                objectName: "doneRetryButton"
+                text: qsTr("Try again")
+                icon.name: "view-refresh-symbolic"
+                visible: InstallerController.installFinished && !InstallerController.succeeded
+                highlighted: true
+
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: Kirigami.Units.largeSpacing
+
+                onClicked: root.retryRequested()
             }
 
             // The log shown on the previous step dies with this window; this

@@ -113,7 +113,7 @@ qt_add_library(tunainstallerapp STATIC)
 # Each step lives at modules/<name>/contents/ui/main.qml, the KISS layout, and
 # is aliased into the QML module resource as modules/<name>/main.qml so that
 # Wizard.qml can resolve it with a plain relative URL.
-set(STEP_MODULES tryorinstall welcome prerelease eula rst disk wipefree encryption account confirm progress done)
+set(STEP_MODULES requirements tryorinstall language keyboard timezone network prerelease eula rst disk wipefree encryption account confirm progress recoverykey handoff done)
 set(STEP_QML_FILES)
 foreach(step ${STEP_MODULES})
     set(src "modules/${step}/contents/ui/main.qml")
@@ -125,6 +125,7 @@ endforeach()
 set_source_files_properties(src/qml/Main.qml PROPERTIES QT_RESOURCE_ALIAS Main.qml)
 set_source_files_properties(src/qml/Wizard.qml PROPERTIES QT_RESOURCE_ALIAS Wizard.qml)
 set_source_files_properties(src/qml/NetworkGate.qml PROPERTIES QT_RESOURCE_ALIAS NetworkGate.qml)
+set_source_files_properties(src/qml/PickerList.qml PROPERTIES QT_RESOURCE_ALIAS PickerList.qml)
 
 qt_add_qml_module(tunainstallerapp
     URI org.tunaos.installer
@@ -134,6 +135,7 @@ qt_add_qml_module(tunainstallerapp
         src/qml/Main.qml
         src/qml/Wizard.qml
         src/qml/NetworkGate.qml
+        src/qml/PickerList.qml
         ${STEP_QML_FILES}
     SOURCES
         ${BACKEND_SOURCES}
@@ -278,6 +280,43 @@ if(BUILD_TESTING)
     endif()
 
     add_test(NAME tuna-installer-backend-tests COMMAND tuna-installer-backend-tests)
+
+    # The daemon flow against the mock fishermand (tuna-os/fisherman,
+    # `go build ./fisherman/cmd/fishermand`). The binary comes from
+    # FISHERMAND_BIN, then build/fishermand, then PATH; without one every
+    # scenario test is skipped and says so.
+    qt_add_executable(tuna-installer-daemon-tests
+        tests/test_daemon.cpp
+        src/log.cpp
+        src/recipe.cpp
+        src/imagecatalog.cpp
+        src/region.cpp
+        src/branding.cpp
+        src/offline.cpp
+        src/fisherman.cpp
+        src/daemonclient.cpp
+        src/osrelease.cpp
+        src/eula.cpp
+        src/account.cpp
+        src/readiness.cpp
+        src/redact.cpp
+        src/plan.cpp
+        src/probe.cpp
+        src/sourcecheck.cpp
+        src/validate.cpp
+        src/diskmodel.cpp
+        src/installercontroller.cpp
+        src/translations.cpp
+        src/qrcode.cpp
+        src/qrcode.h
+    )
+    target_include_directories(tuna-installer-daemon-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR})
+    target_compile_definitions(tuna-installer-daemon-tests PRIVATE
+        KDE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        KDE_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(tuna-installer-daemon-tests PRIVATE Qt6::Core Qt6::Quick Qt6::Test Qt6::Network)
+    add_test(NAME tuna-installer-daemon-tests COMMAND tuna-installer-daemon-tests)
+    set_tests_properties(tuna-installer-daemon-tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
 install(TARGETS tuna-installer-kde RUNTIME DESTINATION bin)

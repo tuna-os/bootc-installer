@@ -57,6 +57,9 @@ Q_SIGNALS:
     // the content (Try or Install now, Done, Continue) rather than the
     // wizard's shared Back and Next buttons.
     void advanceRequested();
+    // The step asks the wizard to go back to the disk step for another
+    // try (the done step after a failure or a cancel).
+    void retryRequested();
 
 private:
     bool m_available = true;

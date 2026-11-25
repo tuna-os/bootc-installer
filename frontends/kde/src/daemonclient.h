@@ -19,16 +19,19 @@
 #include <QStringList>
 
 #include "probe.h"
+#include "recipe.h"
 
 class QLocalSocket;
 
 namespace fishermand
 {
 
-// Which backend the frontend talks to. `recipe` (the default) keeps the
-// `fisherman -` subprocess with the recipe on stdin; `daemon` talks to
-// fishermand over Varlink. Selected by TUNA_INSTALLER_BACKEND, read once
-// per call so tests can flip it.
+// Which backend the frontend talks to. Recipe keeps the `fisherman -`
+// subprocess with the recipe on stdin; Daemon talks to fishermand over
+// Varlink. TUNA_INSTALLER_BACKEND selects it, the same switch as the Niri,
+// XFCE and COSMIC frontends: `daemon`, `legacy`, or `auto` (the default:
+// the daemon when its socket is there). Read once per call so tests can
+// flip it.
 enum class Backend { Recipe, Daemon };
 Backend backend();
 
@@ -36,6 +39,13 @@ Backend backend();
 // every interface, so one path is enough. TUNA_FISHERMAN_SOCKET wins, else
 // the daemon's own default (--fisherman-socket).
 QString socketPath();
+// The socket of one interface (io.systemd.CryptEnroll, io.systemd.Shutdown,
+// io.systemd.SysInstall). The real daemon serves one interface on each
+// socket. FISHERMAND_SOCKET_DIR moves all four; else a sibling of the
+// moved Fisherman socket; else /run/systemd/<interface>.
+QString socketPath(const QString &interface);
+// migrate, soft_reboot or reboot for any spelling of a handoff mode.
+QString normalHandoffMode(const QString &mode);
 
 // The human bus name for an lsblk TRAN value. A port of fisherman's
 // TransportLabel (fisherman/internal/probe/disks.go): the daemon Probe
@@ -115,6 +125,10 @@ struct Disk {
     bool intelRst = false;
     ExistingData existingData;
 };
+
+// The disk cannot hold the install at all (shared/flow disk status
+// too-small): it is listed as unusable and never selectable.
+bool tooSmall(const Disk &disk);
 
 // The legacy unmet ids ("ram", "cpu", "uefi") from the daemon gates: a gate
 // that is not ok contributes its id, with "firmware" renamed to "uefi".
@@ -230,5 +244,30 @@ QString makeRecoveryKey(Client &client, QString *error = nullptr);
 Reply enrollRecoveryKey(Client &client, const QString &node, const QString &recoveryKey, const QString &unlockPassword);
 Reply callHandoff(Client &client);
 Reply callCancel(Client &client);
+// io.systemd.Shutdown: `verb` is Reboot, PowerOff or SoftReboot.
+Reply callShutdown(Client &client, const QString &verb);
+
+// The recipe's encryption type in the daemon's spelling: the recipe has
+// dashes (shared/recipe/encryption-choices.json), the wire has underscores.
+QString encryptionWireType(const QString &recipeType);
+
+// The Install and Validate `config` for the wizard's recipe: disk, install
+// mode, encryption, user and hostname. The file system, the image and the
+// region are not install configuration. `installMode` is erase or
+// free_space; empty leaves the key out. `partial` leaves out the secrets
+// (passphrase, password): a field check does not need them.
+QJsonObject installConfig(const Recipe &recipe, const QString &installMode, bool partial = false);
+
+// The ConfigureTarget choices: user, hostname, locale, keymap and time zone,
+// each only when the wizard has a value. `privacy.locationServices` is sent
+// only when the person changed the switch (`locationTouched`).
+QJsonObject targetChoices(const Recipe &recipe, bool locationTouched, bool locationServices);
+
+// One line of the legacy progress protocol (shared/progress/README.md) for
+// a daemon Install event, so the progress page keeps one parser, one bar
+// and one log. An event with nothing to show gives an empty object.
+// `disk_changed` on an error line is false only for validate_device: after
+// that step the disk may hold a new partition table.
+QJsonObject eventToLine(const QJsonObject &event);
 
 } // namespace fishermand

@@ -22,6 +22,8 @@ import org.tunaos.installer.components as TunaComponents
 TunaComponents.SetupModule {
     id: root
 
+    Accessible.name: qsTr("Disk encryption")
+
     // needs_passphrase from encryption-choices.json, not the type's name.
     readonly property bool needsPassphrase: InstallerController.needsPassphrase(InstallerController.encryptionType)
     readonly property bool passphrasesMatch: passphraseField.text === confirmField.text
@@ -56,8 +58,24 @@ TunaComponents.SetupModule {
                 Layout.bottomMargin: Kirigami.Units.largeSpacing
             }
 
+            // The daemon backend has no list: with a TPM 2.0 the disk is
+            // sealed with no prompt and this step is skipped; without one
+            // the step asks for a passphrase (shared/flow `encryption`).
+            Kirigami.InlineMessage {
+                objectName: "encryptionNoTpm"
+                type: Kirigami.MessageType.Information
+                visible: InstallerController.daemonBackend
+                text: qsTr("This computer has no TPM 2.0 that can unlock the disk. Set a passphrase. You type it each time the computer starts.")
+
+                Layout.fillWidth: true
+                Layout.maximumWidth: root.cardWidth
+                Layout.alignment: Qt.AlignHCenter
+                Layout.bottomMargin: Kirigami.Units.largeSpacing
+            }
+
             FormCard.FormCard {
                 maximumWidth: root.cardWidth
+                visible: !InstallerController.daemonBackend
 
                 Layout.alignment: Qt.AlignHCenter
 

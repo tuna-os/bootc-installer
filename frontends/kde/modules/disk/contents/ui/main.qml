@@ -34,6 +34,8 @@ TunaComponents.SetupModule {
         disks.refresh();
     }
 
+    Accessible.name: qsTr("Disk selection")
+
     DiskModel {
         id: disks
     }
@@ -222,7 +224,60 @@ TunaComponents.SetupModule {
                     text: disks.error.length > 0 ? qsTr("Could not detect disks") : qsTr("No disks found")
                     description: disks.error.length > 0
                         ? disks.error
-                        : qsTr("Connect a disk of at least 50 GiB to install to.")
+                        : InstallerController.minimalDiskSize.length > 0
+                            ? qsTr("Connect a disk of at least %1 to install to.").arg(InstallerController.minimalDiskSize)
+                            : qsTr("Connect a disk of at least 50 GiB to install to.")
+                }
+
+                FormCard.FormDelegateSeparator {}
+
+                // No disk to pick: look again, or power off
+                // (shared/flow no-usable-disk, probe-failed,
+                // daemon-unreachable).
+                FormCard.FormButtonDelegate {
+                    objectName: "diskRescanButton"
+                    text: qsTr("Look for disks again")
+                    icon.name: "view-refresh-symbolic"
+                    onClicked: {
+                        InstallerController.refreshDaemonFacts();
+                        disks.refresh();
+                    }
+                }
+
+                FormCard.FormButtonDelegate {
+                    objectName: "diskPowerOffButton"
+                    text: qsTr("Power off")
+                    icon.name: "system-shutdown-symbolic"
+                    onClicked: InstallerController.poweroff()
+                }
+            }
+
+            // Disks the daemon lists but that cannot hold the install
+            // (shared/flow disk status too-small): shown, never selectable.
+            FormCard.FormHeader {
+                visible: tooSmallCard.visible
+                title: qsTr("Disks that are too small")
+                maximumWidth: root.cardWidth
+            }
+
+            FormCard.FormCard {
+                id: tooSmallCard
+                objectName: "tooSmallDisks"
+                maximumWidth: root.cardWidth
+                visible: InstallerController.tooSmallDisks.length > 0
+
+                Layout.alignment: Qt.AlignHCenter
+
+                Repeater {
+                    model: InstallerController.tooSmallDisks
+
+                    delegate: FormCard.FormTextDelegate {
+                        required property string modelData
+
+                        text: modelData
+                        description: qsTr("The install needs at least %1.").arg(InstallerController.minimalDiskSize)
+                        enabled: false
+                    }
                 }
             }
         }

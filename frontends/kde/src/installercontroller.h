@@ -7,6 +7,7 @@
 // hardware and live media, `validate --json --partial` for the fields.
 
 #include <QFile>
+#include <QHash>
 #include <QJsonObject>
 #include <QObject>
 #if QT_CONFIG(process)
@@ -119,8 +120,47 @@ class InstallerController : public QObject
     Q_PROPERTY(QString installMode READ installMode WRITE setInstallMode NOTIFY installModeChanged)
     // The daemon did not answer. The disk step shows the reason and offers
     // a retry (refreshDaemonFacts); only power off is offered otherwise.
+    // Disks the daemon lists but that cannot hold the install, as
+    // "<vendor> <model> <size>" lines, and the least size in the
+    // toolkit's formatting. The disk step shows them as unusable.
+    Q_PROPERTY(QStringList tooSmallDisks READ tooSmallDisks NOTIFY daemonFactsChanged)
+    Q_PROPERTY(QString minimalDiskSize READ minimalDiskSize NOTIFY daemonFactsChanged)
     Q_PROPERTY(bool daemonUnreachable READ daemonUnreachable NOTIFY daemonFactsChanged)
     Q_PROPERTY(QString daemonError READ daemonError NOTIFY daemonFactsChanged)
+    // The first-boot tool that creates the user on the installed system
+    // (plasma-setup), or "". With one, the account step is skipped and the
+    // install sends no user: the confirm step says who asks instead.
+    Q_PROPERTY(QString firstBootTool READ firstBootTool CONSTANT)
+    // Location services for the installed system (the time zone step).
+    // ConfigureTarget gets `privacy.locationServices` only after the person
+    // moved the switch; the daemon's default is off.
+    Q_PROPERTY(bool locationServices READ locationServices WRITE setLocationServices NOTIFY regionChanged)
+    // The daemon install encrypts the disk (every type but `none`): the
+    // recovery-key step then follows the install.
+    Q_PROPERTY(bool daemonEncrypted READ daemonEncrypted NOTIFY recipeChanged)
+    // The recovery-key step (shared/flow `recovery-key`). recoveryError is
+    // why no key could be made or enrolled (recovery-key-failed): the step
+    // offers a retry and never continues without a key. recoveryQrRows is
+    // the key as a QR symbol, one string of 0 and 1 per row.
+    Q_PROPERTY(QString recoveryError READ recoveryError NOTIFY recoveryChanged)
+    Q_PROPERTY(bool recoveryEnrolled READ recoveryEnrolled NOTIFY recoveryChanged)
+    Q_PROPERTY(QStringList recoveryQrRows READ recoveryQrRows NOTIFY recoveryChanged)
+    // The handoff step (shared/flow `handoff`). The mode is the daemon's
+    // decision from Probe: migrate, soft_reboot or reboot. handoffState is
+    // "", "started" or "failed".
+    Q_PROPERTY(QString handoffMode READ handoffMode NOTIFY daemonFactsChanged)
+    Q_PROPERTY(QString handoffState READ handoffState NOTIFY handoffChanged)
+    Q_PROPERTY(QString handoffError READ handoffError NOTIFY handoffChanged)
+    Q_PROPERTY(bool sessionKeepsRunning READ sessionKeepsRunning NOTIFY handoffChanged)
+    // Why the daemon's Reboot or PowerOff was refused (reboot-failed), or "".
+    Q_PROPERTY(QString shutdownError READ shutdownError NOTIFY handoffChanged)
+    // The daemon's reason for a failed install: device_lost, repart_failed,
+    // luks_failed, internal_error, daemon_unreachable, or "" on the recipe
+    // backend. The done step words it.
+    Q_PROPERTY(QString failureReason READ failureReason NOTIFY installCompleted)
+    // The install ended before the disk was written (the error or the
+    // cancel came during the device check). False when unknown.
+    Q_PROPERTY(bool diskUnchanged READ diskUnchanged NOTIFY installCompleted)
     // The user's explicit override for the non-fatal gates. Starts false:
     // an unmet CPU/RAM requirement holds the welcome step until it is set.
     Q_PROPERTY(bool continueAnyway READ continueAnyway WRITE setContinueAnyway NOTIFY continueAnywayChanged)
@@ -355,6 +395,10 @@ public:
     bool daemonBackend() const { return fishermand::backend() == fishermand::Backend::Daemon; }
     bool rstDetected() const { return m_daemonProbe.rstDetected; }
     QStringList rstAffectedDisks() const { return m_daemonProbe.rstAffectedDisks; }
+    QStringList tooSmallDisks() const;
+    QString minimalDiskSize() const;
+    // io.systemd.SysInstall's `fit` for a disk node, or "".
+    QString diskFit(const QString &node) const { return m_diskFit.value(node); }
     bool daemonUnreachable() const { return m_daemonUnreachable; }
     QString daemonError() const { return m_daemonError; }
     // Re-asks Requirements and Probe (daemon backend only; a no-op on the
@@ -373,6 +417,56 @@ public:
     // skipped but stay in the model (shared/flow/screens.yaml). The wizard
     // calls this per step; the backend tests pin every rule.
     Q_INVOKABLE bool stepSkipped(const QString &stepId) const;
+    QString firstBootTool() const { return m_firstBootTool; }
+    // Which first-boot tool the running system has: TUNA_FIRSTBOOT_TOOL
+    // (plasma-setup, or anything else for none), else the tool's files
+    // under `root`. Public for tests.
+    static QString detectFirstBootTool(const QString &root);
+    bool locationServices() const { return m_locationServices; }
+    void setLocationServices(bool v);
+    bool locationTouched() const { return m_locationTouched; }
+    bool daemonEncrypted() const
+    {
+        return daemonBackend() && m_recipe.encryption.type != QLatin1String("none")
+            && !m_recipe.encryption.type.isEmpty();
+    }
+    QString recoveryError() const { return m_recoveryError; }
+    bool recoveryEnrolled() const { return m_recoveryEnrolled; }
+    QStringList recoveryQrRows() const;
+    // Asks the daemon for a recovery key (io.systemd.CryptEnroll
+    // .MakeRecoveryKey). The end of a daemon install calls it; the step's
+    // retry calls it again. A no-op on the recipe backend, where fisherman
+    // sends the key as an event.
+    Q_INVOKABLE void makeRecoveryKey();
+    // Enrols the key on the new disk (CryptEnroll.Enroll) when the person
+    // presses Done. True when the step may go on: enrolled, or the recipe
+    // backend, where fisherman enrolled it already.
+    Q_INVOKABLE bool enrollRecoveryKey();
+    QString handoffMode() const { return m_daemonProbe.handoffMode.isEmpty() ? QStringLiteral("reboot") : m_daemonProbe.handoffMode; }
+    QString handoffState() const { return m_handoffState; }
+    QString handoffError() const { return m_handoffError; }
+    bool sessionKeepsRunning() const { return m_sessionKeepsRunning; }
+    QString shutdownError() const { return m_shutdownError; }
+    QString failureReason() const { return m_failureReason; }
+    bool diskUnchanged() const
+    {
+        const QVariant changed = m_installError.value(QStringLiteral("disk_changed"));
+        return changed.typeId() == QMetaType::Bool && !changed.toBool();
+    }
+    // io.tunaos.Fisherman.Handoff with no mode: the daemon uses its own
+    // decision. True when the handoff started.
+    Q_INVOKABLE bool handoff();
+    // After a failed or cancelled install: forget the result so the wizard
+    // can go back to the disk step. The daemon is idle again by then.
+    Q_INVOKABLE void resetForRetry();
+    // The Install `config` and the ConfigureTarget choices the daemon gets.
+    // Public for tests.
+    QJsonObject daemonConfig() const;
+    QJsonObject daemonTarget() const;
+    // Takes in one daemon Install event, and the end of the stream. The
+    // live stream calls these; public so tests can replay a stream.
+    void consumeDaemonEvent(const QJsonObject &event);
+    void finishDaemonInstall(const QString &terminal, const QString &errorName);
     bool continueAnyway() const { return m_continueAnyway; }
     void setContinueAnyway(bool v);
     bool needsUserCreation() const { return m_needsUser; }
@@ -463,7 +557,7 @@ public:
     int installTotalSteps() const { return m_totalSteps; }
     qreal installFraction() const { return m_fraction; }
     QString installStepName() const { return m_stepName; }
-    bool installing() const { return m_process != nullptr; }
+    bool installing() const { return m_process != nullptr || m_stream != nullptr; }
     bool installFinishedFlag() const { return m_finished; }
     int exitCode() const { return m_exitCode; }
     bool succeeded() const { return m_finished && m_exitCode == 0 && !m_cancelled; }
@@ -601,6 +695,7 @@ Q_SIGNALS:
     void receiptChanged();
     void sourceReuseChanged();
     void planChanged();
+    void handoffChanged();
 
 private:
     void appendLine(const QString &line, bool parse = true);
@@ -623,6 +718,10 @@ private:
     // The daemon probe's row for the chosen disk; null when unknown.
     const fishermand::Disk *selectedDaemonDisk() const;
     void signalInstallGroup(int signal);
+    void startDaemonInstall();
+    void runDaemonValidate();
+    // Whether the first-boot tool, not this wizard, makes the user.
+    bool firstBootOwnsAccount() const { return !m_firstBootTool.isEmpty(); }
 
     Recipe m_recipe;
     // The source check: the view of the newest reply, the store view, and
@@ -719,6 +818,21 @@ private:
     fishermand::Probe m_daemonProbe;
     bool m_daemonUnreachable = false;
     QString m_daemonError;
+    QHash<QString, QString> m_diskFit;
+    void readDiskFit();
+    fishermand::InstallStream *m_stream = nullptr;
+    fishermand::AsyncClient *m_validateClient = nullptr;
+    QString m_lastDaemonStep;
+    QString m_failureReason;
+    QString m_firstBootTool;
+    bool m_locationServices = false;
+    bool m_locationTouched = false;
+    QString m_recoveryError;
+    bool m_recoveryEnrolled = false;
+    QString m_handoffState;
+    QString m_handoffError;
+    bool m_sessionKeepsRunning = false;
+    QString m_shutdownError;
     QString m_productName;
     QString m_logoSource;
     QString m_welcomeImageSource;
