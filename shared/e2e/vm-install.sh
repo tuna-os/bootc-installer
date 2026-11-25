@@ -35,12 +35,14 @@ FRONTEND=${2:?frontend name}
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(cd "$HERE/../.." && pwd)
 FISH="$REPO/fisherman"
+DISK_FILE=/tmp/tuna-e2e-vm-disk.img
 OUT=/tmp/tuna-e2e-vm   # publication staging: the job uploads this, nothing else
 rm -rf "$OUT"
 mkdir -p "$OUT"
 PRIV=$(mktemp -d /tmp/tuna-e2e-vm-private.XXXXXX)   # 0700: never uploaded
 export ARTIFACTS_DIR="$PRIV/bootcrew"               # boot-verify.sh writes its logs here
 mkdir -p "$ARTIFACTS_DIR"
+OWNED_LOOP=0   # set to 1 only once this script attached its own disk
 publish_and_clean() {
   local rc=$?
   set +e
@@ -48,7 +50,25 @@ publish_and_clean() {
   sudo chown -R "$(id -u):$(id -g)" "$PRIV" 2>/dev/null
   python3 "$HERE/publish.py" stage --recipe "$PRIV/recipe.json" --frontend "$FRONTEND" \
     --out "$OUT" "$PRIV/install.log" "$PRIV/boot.log" "$ARTIFACTS_DIR"/*.log
-  sudo rm -rf "$PRIV"
+  # Teardown comes before the receipt, so the receipt records its result.
+  # Only what this script created is removed: its loop device and image.
+  local cleanup=ok detail=""
+  if [ "$OWNED_LOOP" = 1 ]; then
+    (cd "$FISH" && just cleanup-loop) >/dev/null 2>&1 || { cleanup=failed; detail="loop device"; }
+    rm -f "$DISK_FILE" || { cleanup=failed; detail="$detail disk image"; }
+  fi
+  sudo rm -rf "$PRIV" || { cleanup=failed; detail="$detail private directory"; }
+  local flags=(--frontend "$FRONTEND" --cleanup "$cleanup" --cleanup-detail "${detail# }")
+  [ -f "$PRIV.install.ok" ] && flags+=(--install-ok)
+  [ -f "$PRIV.boot.ok" ] && flags+=(--boot-ok)
+  python3 "$HERE/receipt.py" canary "${flags[@]}" --stage-dir "$OUT" \
+    --out "$OUT/receipt-$FRONTEND.json" --run-id "${GITHUB_RUN_ID:-local}" \
+    --attempt "${GITHUB_RUN_ATTEMPT:-1}" --session "$(basename "$PRIV")" \
+    --source-revision "$(git -C "$REPO" rev-parse HEAD 2>/dev/null)" \
+    --harness-revision "$(git -C "$REPO" rev-parse HEAD 2>/dev/null)"
+  rm -f "$PRIV.install.ok" "$PRIV.boot.ok"
+  # A cleanup failure is visible: it turns a passing run red.
+  [ "$cleanup" = failed ] && [ "$rc" = 0 ] && rc=1
   exit "$rc"
 }
 trap publish_and_clean EXIT
@@ -58,18 +78,19 @@ field() { python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); print(eva
 cd "$FISH"
 just setup-ssh-keys
 just build
-DISK_FILE=/tmp/tuna-e2e-vm-disk.img
 WANT=$(field "$RECIPE_IN" 'r.get("disk", "")')
 if [[ "$WANT" =~ ^/dev/loop[0-9]+$ ]] && [ -b "$WANT" ] && ! sudo losetup "$WANT" >/dev/null 2>&1; then
   # The frontend's disk path is free here: attach the disk there, so the
   # recipe needs no change at all.
   truncate -s 120G "$DISK_FILE"   # fisherman's DISK_SIZE (justfile)
   sudo losetup "$WANT" "$DISK_FILE"
+  OWNED_LOOP=1
   echo "$WANT" > /tmp/bootcrew-loopdev.txt
   echo "Loop device: $WANT (the recipe's own disk)"
 else
   echo "The recipe's disk ${WANT:-<none>} is not a free loop device here; using the next free one"
   just setup-loop "$DISK_FILE"
+  OWNED_LOOP=1
 fi
 LOOPDEV=$(cat /tmp/bootcrew-loopdev.txt)
 
@@ -120,6 +141,7 @@ echo "=== enabling SSH in the installed system"
 # and rejected every probe until boot-verify timed out.
 bash scripts/enable-ssh-installed.sh "$LOOPDEV" "$COMPOSEFS" /tmp/bootcrew-ssh/id_rsa.pub "$PASSPHRASE" 2>&1 | redact
 just verify-installation "$LOOPDEV" "$COMPOSEFS" "$PASSPHRASE" 2>&1 | redact
+touch "$PRIV.install.ok"
 
 # Same BLS patch as fisherman's bootcrew-ci-test: console=ttyS0 so the
 # serial log in the artifact shows the kernel and systemd (without it the
@@ -159,6 +181,5 @@ fi
 echo "=== booting it"
 bash scripts/boot-verify.sh 2222 /tmp/bootcrew-ssh/id_rsa "$VM_TIMEOUT" 2G "$LOOPDEV" "e2e-$FRONTEND" "$PASSPHRASE" 2>&1 | tee "$PRIV/boot.log" | redact
 
-just cleanup-loop
-rm -f "$DISK_FILE"
+touch "$PRIV.boot.ok"
 echo "OK: $FRONTEND's recipe installed and booted"
