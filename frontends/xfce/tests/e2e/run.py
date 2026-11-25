@@ -85,6 +85,13 @@ def main():
         for name in PAGE_ORDER:
             if name == "progress":
                 break
+            # The shared flow skips a screen that has nothing to say here
+            # (a pre-release warning on a stable image, an EULA the image
+            # does not ship, Intel RST on a machine without it): walk the
+            # wizard the way go() does, not through every page.
+            if not win.pages[name].should_show():
+                print(f"[e2e] skipped by the flow: {name}")
+                continue
             win._enter(PAGE_ORDER.index(name))
             _pump(0.2)
             page = win.pages[name]
@@ -132,6 +139,13 @@ def main():
         deadline = time.monotonic() + TIMEOUT
         while win.stack.get_visible_child_name() != "done" and time.monotonic() < deadline:
             _pump(0.25)
+            # A finished install walks on to the recovery-key and handoff
+            # screens when they apply; the run takes the same Next a person
+            # would, once the page lets it.
+            shown = win.stack.get_visible_child_name()
+            if shown in ("recovery", "handoff") and win.pages[shown].can_continue():
+                print(f"[e2e] continuing past the {shown} screen")
+                win.go(+1)
         if win.stack.get_visible_child_name() != "done":
             outcome["error"] = f"no Done page after {TIMEOUT:.0f}s"
         else:
