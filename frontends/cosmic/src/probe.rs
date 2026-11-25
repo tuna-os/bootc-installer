@@ -68,6 +68,9 @@ pub struct DiskData {
     pub free_bytes: u64,
     /// Bytes the install needs at minimum.
     pub minimal_bytes: u64,
+    /// The partition table cannot share the disk (not GPT). The daemon
+    /// refuses a free-space install there (`conflicting_disk_label`).
+    pub conflicting_label: bool,
 }
 
 impl DiskData {
@@ -76,7 +79,7 @@ impl DiskData {
     /// offers the choice; without free space the confirm asks for a
     /// forced erase instead.
     pub fn data_detected(&self) -> bool {
-        self.has_data && self.free_bytes >= self.minimal_bytes
+        self.has_data && !self.conflicting_label && self.free_bytes >= self.minimal_bytes
     }
 }
 
@@ -333,10 +336,12 @@ mod tests {
 
     #[test]
     fn data_detected_needs_data_and_room() {
-        let data = DiskData { has_data: true, free_bytes: 200, minimal_bytes: 100 };
+        let data = DiskData { has_data: true, free_bytes: 200, minimal_bytes: 100, conflicting_label: false };
         assert!(data.data_detected());
         // Data but no room: the confirm asks for a forced erase instead.
-        let tight = DiskData { has_data: true, free_bytes: 50, minimal_bytes: 100 };
+        let foreign = DiskData { conflicting_label: true, ..data.clone() };
+        assert!(!foreign.data_detected(), "a foreign table cannot share the disk");
+        let tight = DiskData { has_data: true, free_bytes: 50, minimal_bytes: 100, conflicting_label: false };
         assert!(!tight.data_detected());
         // A fresh disk goes straight to confirm.
         let fresh = DiskData::default();

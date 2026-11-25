@@ -123,6 +123,19 @@ mod tests {
         assert!(body.contains("page=welcome"), "{body}");
         assert!(body.contains("mapped_at="), "{body}");
 
+        // The page of the stamp is the shared screen id
+        // (shared/flow/screens.yaml). The install page's slug is
+        // `installing`; its stamp says `install`.
+        let page = crate::Page::Installing.flow_id();
+        write_stamp("org.tunaos.InstallerCosmic", page).unwrap();
+        let body = std::fs::read_to_string(dir.join(STAMP_NAME)).unwrap();
+        assert!(body.lines().any(|l| l == "page=install"), "{body}");
+        assert!(!body.contains("page=installing"), "{body}");
+        // The first page of a run: the stamp that a live session writes.
+        write_stamp("org.tunaos.InstallerCosmic", crate::Page::TryOrInstall.flow_id()).unwrap();
+        let body = std::fs::read_to_string(dir.join(STAMP_NAME)).unwrap();
+        assert!(body.lines().any(|l| l == "page=try-or-install"), "{body}");
+
         std::fs::remove_dir_all(&dir).ok();
     }
 

@@ -12,20 +12,25 @@ never touches a disk.
 
 ---
 
+The pages are in the order of `shared/flow/screens.yaml`. The file name of
+a frame is its place in the capture and the slug of its page. The capture
+shows each page, also a page that a real run skips.
+
 ## 1. Requirements
 
 ![Requirements](screenshots/01-requirements.png)
 
-fisherman's probe says which requirements the machine does not meet. The
-wizard shows this page only while a gate stands. The capture shows the
-state with no gate.
+The probe says which requirements the machine does not meet. The wizard
+shows this page only while a gate stands. The capture shows the state with
+no gate.
 
-## 2. Welcome
+## 2. Try or install
 
-![Welcome](screenshots/02-welcome.png)
+![Welcome](screenshots/02-try-or-install.png)
 
-The COSMIC header bar has the step counter and a progress bar for the whole
-wizard. Nothing is written to a disk until you confirm on the last step.
+**Try** quits the wizard and the live session continues. **Install**
+goes on. The COSMIC header bar has the step counter and a progress bar for
+the wizard. Nothing is written to a disk until you confirm.
 
 ## 3. Choose a system
 
@@ -43,86 +48,142 @@ The last row takes a custom image reference. Live media skips this page.
 ![Keyboard](screenshots/05-keyboard.png)
 ![Time zone](screenshots/06-timezone.png)
 
-A pick changes the live session, best effort. Each page says that it
-changes this session only: the installed system keeps the values of its
-image.
+A pick changes the live session, best effort, and goes to the installed
+system. On the daemon backend the time zone page also has the **Location
+services** switch. It starts off. The daemon gets the choice only after
+you move the switch.
 
 ## 5. Network
 
 ![Network](screenshots/07-network.png)
-![No connection](screenshots/18-offline.png)
+![No connection](screenshots/24-offline.png)
 
 The check tries the registry of the selected image on port 443 first.
 **Continue** is there only when the check passes. With no connection,
 **Network settings** opens the desktop's own tool and **Recheck** runs the
 check again. Live media skips this page.
 
-## 6. Select a disk
+## 6. Disclaimer and terms of use
 
-![Select a disk](screenshots/08-disk.png)
+![Disclaimer](screenshots/08-prerelease.png)
+![Terms of use](screenshots/09-eula.png)
 
-Disks come from `fisherman probe --json` (`shared/probe/README.md`). Each
-row has the model, the device node, fisherman's size label and the bus.
+The disclaimer shows for a pre-release or an experiment (`RELEASE_TYPE` of
+os-release). The terms show when the medium has
+`/usr/share/tuna-installer/eula.xml`. `TUNA_EULA_FILE` names another file.
+The box holds **Continue**.
+
+## 7. Intel RST
+
+![Intel RST](screenshots/10-rst.png)
+
+The daemon reports Intel RST, which hides the solid-state disk from Linux.
+The page says why a disk can be absent from the list. It does not block.
+
+## 8. Select a disk
+
+![Select a disk](screenshots/11-disk.png)
+
+The disks come from the probe (`shared/probe/README.md`). Each row has the
+model, the device node, the size label of the backend and the bus.
 **Continue** is not there until a disk is selected.
 
-## 7. Options
+## 9. Existing data
 
-![Options](screenshots/09-options.png)
+![Existing data](screenshots/12-wipe-or-free.png)
 
-The computer name, the filesystem and the encryption. The filesystem list
-is the list of the selected image. An encryption type that needs a
-passphrase adds **Passphrase** and **Confirm passphrase**; a mismatch shows
-under the second field and holds **Continue**. The capture shows this state.
+Daemon backend only. When the disk has data and free space, you select the
+free space or the whole disk. The free space is the default. A disk that
+cannot keep its data gets no choice: the confirm page says that the whole
+disk goes, and holds **Install** for three seconds.
 
-## 8. Account
+## 10. Disk encryption
 
-![Account](screenshots/10-account.png)
+![Disk encryption](screenshots/13-encryption.png)
 
-The account of the installed system: the recipe's `user` block (username,
-full name, password and the groups of `shared/account/groups.json`). The
-password is typed two times, and the eye button reveals it. **Continue**
-waits for a username, for two passwords that are the same, and for
-fisherman to accept the username. The wizard skips this page only when the
-catalog says that the image makes its own first user.
+An encryption type that needs a passphrase adds **Passphrase** and
+**Confirm passphrase**. A mismatch shows under the second field and holds
+**Continue**. The capture shows this state, on the legacy backend. The
+daemon backend installs encrypted only. A computer with a TPM 2.0 skips
+this page: the TPM locks the disk. With no TPM the page asks for a
+passphrase and offers no other type.
 
-## 9. Tour
+## 11. Options
 
-![Tour](screenshots/11-tour.png)
+![Options](screenshots/14-options.png)
+
+Legacy backend only: the filesystem. The list is the list of the selected
+image.
+
+## 12. Account
+
+![Account](screenshots/15-account.png)
+
+The computer name and the account of the installed system. The password is
+typed two times, and the eye button reveals it. **Continue** waits for a
+username, for two passwords that are the same, and for the backend to
+accept the username. The wizard skips this page when the catalog says that
+the image makes its own first user. On the daemon backend it also skips
+the page when the medium names a first-boot tool in
+`TUNA_FIRSTBOOT_TOOL` (for COSMIC, `cosmic-initial-setup`): that tool then
+makes the user at the first start.
+
+## 13. Tour
+
+![Tour](screenshots/16-tour.png)
 
 The slides of the selected image, when its catalog entry has a `carousel`.
 
-## 10. Confirm
+## 14. Confirm
 
-![Confirm](screenshots/12-confirm.png)
+![Confirm](screenshots/17-confirm.png)
 
 All the choices, below a warning that names the disk. This is the last
 screen before the installer writes to the disk, and the only screen with a
 destructive button.
 
-## 11. Installing
+## 15. Installing
 
-![Installing](screenshots/13-installing.png)
-![Stop the installation?](screenshots/16-cancel.png)
+![Installing](screenshots/18-installing.png)
+![Stop the installation?](screenshots/22-cancel.png)
 
-`fisherman` reads the recipe JSON on stdin, never from a file (it has the
-passphrase and the account password). Its progress events move the bar and
-fill the log card. **Cancel** asks first. "Stop the installation" then
-signals the whole install, and fisherman cleans up.
+The progress events of the backend move the bar and fill the log card.
+**Cancel** asks first. The legacy backend then signals the whole install.
+The daemon backend sends `Cancel` on a second connection.
 
 The log here is fixture text. The capture harness sets this page directly
 and never sends `StartInstall`, and the message handler refuses
 `StartInstall` in capture mode.
 
-## 12. Finished
+## 16. Recovery key
 
-![Finished](screenshots/14-done.png)
-![Recovery key](screenshots/15-recovery.png)
-![Cancelled](screenshots/17-cancelled.png)
+![Recovery key](screenshots/19-recovery-key.png)
+![No recovery key](screenshots/26-recovery-key-failed.png)
 
-Installed, cancelled or failed, in the colours of the COSMIC theme. After
-a TPM install the page shows the recovery key and holds **Restart now**
-until you tick the box. A cancelled install has its own heading: it is not
-a failure.
+The key of an encrypted disk, with **Copy** and a QR code. **Done** is
+not there until you tick the box. When the daemon gives no key, the page
+offers **Try again** and no **Done**.
+
+## 17. Handoff
+
+![Handoff](screenshots/20-handoff.png)
+![The handoff failed](screenshots/27-handoff-failed.png)
+
+The page says what the daemon does next: the session becomes the installed
+system, the system restarts into the copy, or the computer restarts.
+**Continue** starts it. **Not now** goes to the last page. A failure
+offers **Close** and **Restart**.
+
+## 18. Finished
+
+![Finished](screenshots/21-done.png)
+![Cancelled](screenshots/23-cancelled.png)
+![Failed](screenshots/25-failed.png)
+
+Installed, cancelled or failed, in the colours of the COSMIC theme. A
+cancelled install has its own heading: it is not a failure. A failed daemon
+install says why, and whether the disk changed. **Try again** goes back to
+Confirm.
 
 ---
 

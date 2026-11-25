@@ -154,7 +154,23 @@ const FIXTURE_CATALOG: &str =
 
 /// The frames after the page list: a page in another state, not a page of
 /// its own, so none of them is in `Page::ORDER`.
-const EXTRA_FRAMES: [&str; 3] = ["cancel", "cancelled", "offline"];
+const EXTRA_FRAMES: [&str; 6] = [
+    "cancel",
+    "cancelled",
+    "offline",
+    "failed",
+    "recovery-key-failed",
+    "handoff-failed",
+];
+
+/// A daemon `failed` event, as the mock's `device-lost` scenario sends it
+/// (fisherman/docs/FISHERMAND.md). Fed through `apply_install_event`, the
+/// way the install page reads it.
+const FIXTURE_DAEMON_FAILED: &str = concat!(
+    r#"{"event":"failed","stepId":"install_os","stepIndex":5,"totalSteps":10,"#,
+    r#""overallPct":40,"message":"the target disk disappeared","#,
+    r#""reason":"device_lost","nextAction":"choose_another_disk"}"#,
+);
 
 pub struct Capture {
     pub dir: PathBuf,
@@ -243,6 +259,46 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                         let outcome = crate::install_outcome(Some(130), false);
                         app.install_ok = outcome == crate::Outcome::Succeeded;
                         app.install_cancelled = outcome == crate::Outcome::Cancelled;
+                    }
+                    // The done page after a daemon install that lost its
+                    // disk: the reason in words, whether the disk changed,
+                    // and Try again.
+                    "failed" => {
+                        app.installing = false;
+                        app.install_ok = false;
+                        app.install_cancelled = false;
+                        app.page = Page::Done;
+                        app.progress.reset();
+                        let event: serde_json::Value =
+                            serde_json::from_str(FIXTURE_DAEMON_FAILED).expect("the fixture parses");
+                        let end = crate::fishermand::apply_install_event(
+                            &mut app.progress,
+                            &mut app.install_log,
+                            &event,
+                        );
+                        if end != crate::fishermand::Terminal::Failed {
+                            eprintln!("capture: the failed event did not end the install");
+                            std::process::exit(2);
+                        }
+                        app.daemon_failure = app.progress.error.as_ref().map(|e| e.code.clone());
+                    }
+                    // The recovery-key page when MakeRecoveryKey failed: no
+                    // key, no Done, Try again.
+                    "recovery-key-failed" => {
+                        app.daemon_failure = None;
+                        app.progress.reset();
+                        app.install_ok = true;
+                        app.page = Page::RecoveryKey;
+                        app.recovery_error =
+                            Some("io.systemd.CryptEnroll.VolumeUnderForeignManagement".to_string());
+                    }
+                    // The handoff page when Handoff failed: Close and
+                    // Restart.
+                    "handoff-failed" => {
+                        app.recovery_error = None;
+                        app.install_ok = true;
+                        app.page = Page::Handoff;
+                        app.handoff_error = Some("io.tunaos.Fisherman.NotInstalled".to_string());
                     }
                     // The network page with no connection: the help an
                     // offline user gets.
@@ -478,6 +534,26 @@ pub fn update(app: &mut TunaInstaller, message: Message) -> Task<crate::Message>
                     && !has(tr(copy::DONE_FAIL_DETAIL)))
             {
                 eprintln!("capture: exit code 130 did not show the cancelled page (#299)");
+                std::process::exit(2);
+            }
+            if name == "failed"
+                && !(has(tr(copy::DONE_DEVICE_LOST))
+                    && has(tr(copy::TRY_AGAIN))
+                    && has(crate::branding::get().text("done_failed_disk_changed")))
+            {
+                eprintln!("capture: the failed page does not say why, or offers no retry");
+                std::process::exit(2);
+            }
+            if name == "recovery-key-failed"
+                && !(has(tr(copy::TRY_AGAIN)) && !has(tr(copy::RECOVERY_DONE)))
+            {
+                eprintln!("capture: the recovery-key failure offers Done, or no retry");
+                std::process::exit(2);
+            }
+            if name == "handoff-failed"
+                && !(has(tr(copy::HANDOFF_FAILED)) && has(tr(copy::HANDOFF_CLOSE)))
+            {
+                eprintln!("capture: the handoff failure does not say so");
                 std::process::exit(2);
             }
             if name == "offline" && !(has(tr(copy::NETWORK_SETTINGS)) && !has(tr(copy::CONTINUE))) {

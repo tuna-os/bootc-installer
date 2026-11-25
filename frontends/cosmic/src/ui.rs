@@ -9,7 +9,7 @@ use cosmic::prelude::*;
 use cosmic::widget;
 
 use crate::i18n::{tr, tr_with};
-use crate::{available_encryption_choices, branding, Message, Page, TunaInstaller};
+use crate::{branding, encryption_choices_for, Message, Page, TunaInstaller};
 
 /// Every user-facing string of the wizard, in one place.
 ///
@@ -163,6 +163,12 @@ pub mod copy {
          Changes this session and the installed system.";
     pub const TIMEZONE_SEARCH_HINT: &str = "Search time zones";
     pub const TIMEZONE_EMPTY: &str = "No time zones matched.";
+    // The location switch (`privacy.locationServices` of ConfigureTarget).
+    // Off until the user turns it on. Daemon path only: the recipe has no
+    // field for it.
+    pub const TIMEZONE_LOCATION: &str = "Location services";
+    pub const TIMEZONE_LOCATION_DETAIL: &str =
+        "Let apps find where this computer is. You can change this later in Settings.";
 
     // Connectivity preflight (network.py / conn_check.py).
     pub const NETWORK_TITLE: &str = "Network";
@@ -216,6 +222,22 @@ pub mod copy {
     pub const HANDOFF_NOT_NOW: &str = "Not now";
     pub const HANDOFF_FAILED: &str = "The handoff failed.";
     pub const HANDOFF_CLOSE: &str = "Close";
+    pub const HANDOFF_SUBTITLE: &str = "The installation is complete.";
+    // The first-boot tool makes the first user (screens.yaml `account`,
+    // `skip_when`): the handoff and done pages say so.
+    pub const FIRSTBOOT_ACCOUNT: &str =
+        "You create your account when the installed system starts for the first time.";
+    // After a failed or cancelled install, and on the recovery-key page
+    // when no key came.
+    pub const TRY_AGAIN: &str = "Try again";
+    // Why a daemon install failed (screens.yaml `failure_states`).
+    pub const DONE_DEVICE_LOST: &str =
+        "The disk went away during the installation. Connect it again, or choose another disk.";
+    pub const DONE_REPART_FAILED: &str = "The installer could not partition the disk.";
+    pub const DONE_LUKS_FAILED: &str = "The installer could not encrypt the disk.";
+    pub const DONE_DAEMON_UNREACHABLE: &str = "The install service does not answer. \
+         If an installation was in progress, it can still be running.";
+    pub const DONE_FAILED_REASON: &str = "Reason: {reason}";
 
     // Tour carousel (views/tour.py).
     pub const TOUR_TITLE: &str = "Tour";
@@ -223,6 +245,21 @@ pub mod copy {
 
     // Confirm page when the account was skipped: the image provides the user.
     pub const CONFIRM_NO_ACCOUNT: &str = "Provided by the image";
+    // Confirm page when the first-boot tool makes the user.
+    pub const CONFIRM_FIRSTBOOT_ACCOUNT: &str = "Created at the first start";
+    // Confirm page, daemon path: the disk holds data, and it has no free
+    // space for the install or a partition table that cannot share the
+    // disk. The whole disk goes.
+    // Confirm page, daemon path: what happens to the data on the disk.
+    pub const CONFIRM_EXISTING_DATA: &str = "Existing data";
+    pub const CONFIRM_DATA_KEPT: &str = "Kept. The install uses the free space.";
+    pub const CONFIRM_DATA_ERASED: &str = "Erased";
+    pub const CONFIRM_FREE_SPACE_WARNING: &str =
+        "The installer writes to the free space on {disk}. It keeps the data that is there.";
+    // The Install button while the forced-erase countdown runs.
+    pub const CONFIRM_COUNTDOWN: &str = "{button} ({seconds})";
+    pub const CONFIRM_FORCED_ERASE: &str =
+        "{product} cannot share this disk with the data on it. The installer erases the whole disk.";
 }
 
 use copy::*;
@@ -449,6 +486,10 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 t.push(tr(TIMEZONE_EMPTY));
             }
             t.extend(shown.into_iter().cloned());
+            if crate::fishermand::use_daemon() {
+                t.push(tr(TIMEZONE_LOCATION));
+                t.push(tr(TIMEZONE_LOCATION_DETAIL));
+            }
             t.push(tr(BACK));
             t.push(tr(CONTINUE));
             t
@@ -540,7 +581,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             t
         }
         Page::Encryption => {
-            let choices = available_encryption_choices(app.has_tpm());
+            let choices = encryption_choices_for(app.has_tpm(), crate::fishermand::use_daemon());
             let current = choices.iter().find(|c| **c == recipe.encryption.enc_type);
             let mut t = vec![
                 tr(OPTIONS_DISK_ENCRYPTION),
@@ -625,22 +666,27 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             t
         }
         Page::Confirm => {
-            // Skipped account, skipped row: the image provides the user.
-            let confirm_user = if app.account_required() {
-                app.username().to_string()
-            } else {
-                tr(CONFIRM_NO_ACCOUNT)
-            };
+            // Skipped account: the image or the first-boot tool makes
+            // the user.
+            let confirm_user = confirm_user(app);
             let mut t = vec![
                 t_line("confirm_title"),
                 confirm_subtitle(),
-                t_disk(confirm_warn_key(app), &confirm_disk(app)),
+                confirm_warning_text(app),
                 t_line("confirm_body"),
                 tr(CONFIRM_SUMMARY),
                 tr(CONFIRM_TARGET_DISK),
                 confirm_disk(app),
-                tr(OPTIONS_FILESYSTEM),
-                recipe.filesystem.clone(),
+                if crate::fishermand::use_daemon() {
+                    tr(CONFIRM_EXISTING_DATA)
+                } else {
+                    tr(OPTIONS_FILESYSTEM)
+                },
+                if crate::fishermand::use_daemon() {
+                    confirm_data_text(app)
+                } else {
+                    recipe.filesystem.clone()
+                },
                 tr(OPTIONS_ENCRYPTION),
                 encryption_text(&recipe.encryption.enc_type, "_label"),
                 tr(OPTIONS_HOSTNAME),
@@ -663,6 +709,12 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 t.push(value);
             }
             if let Some(problem) = app.region_problem() {
+                t.push(problem.render());
+            }
+            if app.forced_erase() {
+                t.push(with_product(&tr(CONFIRM_FORCED_ERASE)));
+            }
+            for problem in app.confirm_problems() {
                 t.push(problem.render());
             }
             let plan = app.plan_rows();
@@ -693,8 +745,8 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 }
             }
             t.push(tr(BACK));
-            if !app.source_blocked() {
-                t.push(t_line("confirm_button"));
+            if !app.source_blocked() && app.confirm_problems().is_empty() {
+                t.push(confirm_button_text(app));
             }
             t
         }
@@ -721,8 +773,7 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             ];
             if let Some(error) = app.recovery_error() {
                 t.push(error.to_string());
-                t.push(tr(BACK));
-                t.push(tr(RECOVERY_DONE));
+                t.push(tr(TRY_AGAIN));
                 return t;
             }
             if app.progress.recovery_key.is_empty() {
@@ -733,43 +784,46 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
                 t.push(tr(RECOVERY_QR_BUTTON));
                 t.push(t_line("recovery_key_ack"));
             }
-            t.push(tr(BACK));
             if !app.progress.recovery_key.is_empty() && app.recovery_ack && !app.recovery_enrolling() {
                 t.push(tr(RECOVERY_DONE));
             }
             t
         }
         Page::Handoff => {
-            let mut t = vec![tr(HANDOFF_TITLE), tr(HANDOFF_REBOOT)];
+            let mut t = vec![tr(HANDOFF_TITLE), tr(HANDOFF_SUBTITLE)];
             if let Some(error) = app.handoff_error() {
                 t.push(tr(HANDOFF_FAILED));
                 t.push(error.to_string());
                 t.push(tr(HANDOFF_CLOSE));
                 t.push(t_line("done_restart"));
             } else {
-                match app.handoff_mode() {
-                    "migrate" => t.push(tr(HANDOFF_MIGRATE)),
-                    "soft_reboot" => t.push(tr(HANDOFF_SOFT_REBOOT)),
-                    _ => {}
-                }
-                if !app.handoff_reason().is_empty() {
-                    t.push(app.handoff_reason().to_string());
+                t.push(handoff_mode_text(app.handoff_mode()));
+                if app.firstboot_account() {
+                    t.push(tr(FIRSTBOOT_ACCOUNT));
                 }
                 t.push(tr(HANDOFF_NOT_NOW));
                 if !app.handoff_calling() {
                     t.push(tr(HANDOFF_CONTINUE));
                 }
             }
-            t.push(tr(BACK));
             t
         }
         Page::Done => {
             let (title, detail) = done_copy(app);
             let mut t = vec![title, detail];
             if !app.install_ok() && !app.install_cancelled() {
+                if let Some(reason) = app.daemon_failure() {
+                    t.push(daemon_failure_text(reason));
+                }
                 t.extend(app.failure_lines());
             }
+            if !app.install_ok() {
+                t.push(tr(TRY_AGAIN));
+            }
             if app.install_ok() {
+                if app.firstboot_account() {
+                    t.push(tr(FIRSTBOOT_ACCOUNT));
+                }
                 t.extend(app.receipt_lines());
                 // The key lives on its own page now; done keeps the receipt
                 // and the restart offer.
@@ -881,6 +935,70 @@ fn done_copy(app: &TunaInstaller) -> (String, String) {
         (t_line("done_cancelled_title"), tr(DONE_CANCELLED_DETAIL))
     } else {
         (t_line("done_failed_title"), tr(DONE_FAIL_DETAIL))
+    }
+}
+
+/// The warning at the top of the confirm page. A free-space install on
+/// the daemon path erases nothing, and the page does not say that it does.
+fn confirm_warning_text(app: &TunaInstaller) -> String {
+    if app.keeps_data() {
+        return crate::i18n::tr_with(CONFIRM_FREE_SPACE_WARNING, &[("disk", &confirm_disk(app))]);
+    }
+    t_disk(confirm_warn_key(app), &confirm_disk(app))
+}
+
+/// The confirm page's "Existing data" row on the daemon path.
+fn confirm_data_text(app: &TunaInstaller) -> String {
+    if app.keeps_data() {
+        tr(CONFIRM_DATA_KEPT)
+    } else {
+        tr(CONFIRM_DATA_ERASED)
+    }
+}
+
+/// The Install button. During the countdown of a forced erase it shows
+/// the seconds that are left, and it is not live.
+fn confirm_button_text(app: &TunaInstaller) -> String {
+    let label = t_line("confirm_button");
+    match app.erase_countdown() {
+        0 => label,
+        n => {
+            let seconds = n.to_string();
+            crate::i18n::tr_with(CONFIRM_COUNTDOWN, &[("button", &label), ("seconds", &seconds)])
+        }
+    }
+}
+
+/// What the confirm page shows for the account row.
+fn confirm_user(app: &TunaInstaller) -> String {
+    if app.account_required() {
+        app.username().to_string()
+    } else if app.firstboot_account() {
+        tr(CONFIRM_FIRSTBOOT_ACCOUNT)
+    } else {
+        tr(CONFIRM_NO_ACCOUNT)
+    }
+}
+
+/// The done page's line for a failed daemon install: the daemon's
+/// `reason` in words (screens.yaml `failure_states`). A reason with no
+/// line of its own is shown as it came.
+pub fn daemon_failure_text(reason: &str) -> String {
+    match reason {
+        "device_lost" => tr(DONE_DEVICE_LOST),
+        "repart_failed" => tr(DONE_REPART_FAILED),
+        "luks_failed" => tr(DONE_LUKS_FAILED),
+        "daemon_unreachable" => tr(DONE_DAEMON_UNREACHABLE),
+        other => crate::i18n::tr_with(DONE_FAILED_REASON, &[("reason", other)]),
+    }
+}
+
+/// The handoff page's body for a mode of the daemon's Probe.
+fn handoff_mode_text(mode: &str) -> String {
+    match mode {
+        "migrate" => tr(HANDOFF_MIGRATE),
+        "soft_reboot" => tr(HANDOFF_SOFT_REBOOT),
+        _ => tr(HANDOFF_REBOOT),
     }
 }
 
@@ -1000,6 +1118,16 @@ fn nav_row<'a>(
     back: Option<Message>,
     forward: Option<(String, Message, bool)>,
 ) -> Element<'a, Message> {
+    nav_row_live(back, forward, true)
+}
+
+/// `nav_row` with a forward button that can show and not be live: an iced
+/// button with no `on_press` is the disabled state.
+fn nav_row_live<'a>(
+    back: Option<Message>,
+    forward: Option<(String, Message, bool)>,
+    live: bool,
+) -> Element<'a, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
     let mut row = widget::row::with_capacity(3).spacing(spacing.space_s);
 
@@ -1013,7 +1141,7 @@ fn nav_row<'a>(
         } else {
             widget::button::suggested(label)
         };
-        row = row.push(button.on_press(msg));
+        row = row.push(if live { button.on_press(msg) } else { button });
     }
     row.align_y(Alignment::Center).into()
 }
@@ -1412,6 +1540,22 @@ fn timezone(app: &TunaInstaller) -> Element<'_, Message> {
     ])
     .spacing(spacing.space_s)
     .height(Length::Fill);
+    // The daemon path asks about location services here, as COSMIC
+    // Settings does next to the time zone. The switch starts off, and the
+    // daemon hears about it only when the user moved it.
+    let body = if crate::fishermand::use_daemon() {
+        let privacy = widget::settings::section().add(
+            widget::settings::item::builder(tr(TIMEZONE_LOCATION))
+                .description(tr(TIMEZONE_LOCATION_DETAIL))
+                .control(
+                    widget::toggler(app.location_services())
+                        .on_toggle(Message::LocationServicesToggled),
+                ),
+        );
+        body.push(privacy)
+    } else {
+        body
+    };
 
     page_frame(
         tr(TIMEZONE_TITLE),
@@ -1531,7 +1675,7 @@ fn rst(_app: &TunaInstaller) -> Element<'_, Message> {
 /// destructive choice. The install reads `installMode` from the choice.
 fn wipe_or_free(app: &TunaInstaller) -> Element<'_, Message> {
     let spacing = cosmic::theme::active().cosmic().spacing;
-    let current = Some(app.install_mode());
+    let current = Some(app.wipe_choice());
     // One row per choice, spelled out: the strings lint holds each
     // constant to a literal `tr(CONST)` call.
     let free = wipe_row(
@@ -1970,7 +2114,7 @@ fn encryption(app: &TunaInstaller) -> Element<'_, Message> {
     // `ENCRYPTION_TYPES` list. `update()`'s `EncryptionChanged` handler
     // rebuilds the identical filtered list before indexing into it, so the
     // two stay in lockstep without passing the list through a message.
-    let enc_choices = available_encryption_choices(app.has_tpm());
+    let enc_choices = encryption_choices_for(app.has_tpm(), crate::fishermand::use_daemon());
     let enc_index = enc_choices
         .iter()
         .position(|c| *c == recipe.encryption.enc_type);
@@ -2079,7 +2223,7 @@ fn recovery(app: &TunaInstaller) -> Element<'_, Message> {
         // one. Back or Done retries through the page entry.
         let body = widget::column::with_children(vec![
             widget::text::body(error.to_string()).into(),
-            widget::button::standard(tr(RECOVERY_DONE))
+            widget::button::suggested(tr(TRY_AGAIN))
                 .on_press(Message::RecoveryDone)
                 .into(),
         ])
@@ -2089,7 +2233,8 @@ fn recovery(app: &TunaInstaller) -> Element<'_, Message> {
             tr(RECOVERY_TITLE),
             tr(RECOVERY_SUBTITLE),
             body.into(),
-            nav_row(Some(Message::BackPage), None),
+            // No Back: the install ran, and Back led to its page.
+            nav_row(None, None),
         );
     }
     let mut parts: Vec<Element<'_, Message>> = Vec::new();
@@ -2126,7 +2271,7 @@ fn recovery(app: &TunaInstaller) -> Element<'_, Message> {
         tr(RECOVERY_SUBTITLE),
         body.into(),
         nav_row(
-            Some(Message::BackPage),
+            None,
             done_live.then_some((tr(RECOVERY_DONE), Message::RecoveryDone, false)),
         ),
     )
@@ -2196,19 +2341,17 @@ fn handoff(app: &TunaInstaller) -> Element<'_, Message> {
         .height(Length::Fill);
         return page_frame(
             tr(HANDOFF_TITLE),
-            tr(HANDOFF_REBOOT),
+            tr(HANDOFF_SUBTITLE),
             body.into(),
-            nav_row(Some(Message::BackPage), None),
+            nav_row(None, None),
         );
     }
-    let mode_text = match app.handoff_mode() {
-        "migrate" => tr(HANDOFF_MIGRATE),
-        "soft_reboot" => tr(HANDOFF_SOFT_REBOOT),
-        _ => tr(HANDOFF_REBOOT),
-    };
+    let mode_text = handoff_mode_text(app.handoff_mode());
     let mut parts: Vec<Element<'_, Message>> = vec![widget::text::body(mode_text).into()];
-    if !app.handoff_reason().is_empty() {
-        parts.push(widget::text::caption(app.handoff_reason().to_string()).into());
+    // The daemon's `handoff.reason` is a word for a log (`default`), not a
+    // line for a person: the page does not show it.
+    if app.firstboot_account() {
+        parts.push(widget::text::body(tr(FIRSTBOOT_ACCOUNT)).into());
     }
     let body = widget::column::with_children(parts)
         .spacing(spacing.space_s)
@@ -2230,7 +2373,7 @@ fn handoff(app: &TunaInstaller) -> Element<'_, Message> {
     .align_y(Alignment::Center)
     .spacing(spacing.space_s);
 
-    page_frame(tr(HANDOFF_TITLE), tr(HANDOFF_REBOOT), body.into(), footer.into())
+    page_frame(tr(HANDOFF_TITLE), tr(HANDOFF_SUBTITLE), body.into(), footer.into())
 }
 
 /// The account the installed system is created with: the recipe's `user`
@@ -2329,11 +2472,21 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
 
     let summary = widget::settings::section()
         .title(tr(CONFIRM_SUMMARY))
-        .add(widget::settings::item(tr(CONFIRM_TARGET_DISK), widget::text::body(disk)))
-        .add(widget::settings::item(
+        .add(widget::settings::item(tr(CONFIRM_TARGET_DISK), widget::text::body(disk)));
+    // The daemon owns the filesystem: the row is for the legacy backend.
+    // On the daemon path the row says what happens to the data instead.
+    let summary = if crate::fishermand::use_daemon() {
+        summary.add(widget::settings::item(
+            tr(CONFIRM_EXISTING_DATA),
+            widget::text::body(confirm_data_text(app)),
+        ))
+    } else {
+        summary.add(widget::settings::item(
             tr(OPTIONS_FILESYSTEM),
             widget::text::body(filesystem_label(&recipe.filesystem)),
         ))
+    };
+    let summary = summary
         .add(widget::settings::item(
             tr(OPTIONS_ENCRYPTION),
             widget::text::body(encryption_text(&recipe.encryption.enc_type, "_label")),
@@ -2344,11 +2497,7 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
         ))
         .add(widget::settings::item(
             tr(ACCOUNT_USERNAME),
-            widget::text::body(if app.account_required() {
-                app.username().to_string()
-            } else {
-                tr(CONFIRM_NO_ACCOUNT)
-            }),
+            widget::text::body(confirm_user(app)),
         ));
     // The product and the channel, when the catalog has the image (a live
     // leaf built from the ISO recipe alone has no label); then the
@@ -2386,7 +2535,7 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
                 .size(16)
                 .icon()
                 .into(),
-            widget::text::body(t_disk(confirm_warn_key(app), &confirm_disk(app)))
+            widget::text::body(confirm_warning_text(app))
             .class(cosmic::theme::Text::Color(
                 theme.cosmic().warning_text_color().into(),
             ))
@@ -2399,10 +2548,27 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
     .padding(spacing.space_s)
     .width(Length::Fill);
 
-    let mut parts = vec![warning.into(), summary.into()];
+    let mut parts = vec![warning.into()];
+    // The daemon's problems with the whole config, above the summary so
+    // that no scroll hides them. Each holds Install.
+    for problem in app.confirm_problems() {
+        parts.push(
+            widget::text::body(problem.render())
+                .class(cosmic::theme::Text::Color(theme.cosmic().destructive_text_color().into()))
+                .into(),
+        );
+    }
+    parts.push(summary.into());
     if let Some(problem) = app.region_problem() {
         parts.push(
             widget::text::body(problem.render())
+                .class(cosmic::theme::Text::Color(theme.cosmic().warning_text_color().into()))
+                .into(),
+        );
+    }
+    if app.forced_erase() {
+        parts.push(
+            widget::text::body(with_product(&tr(CONFIRM_FORCED_ERASE)))
                 .class(cosmic::theme::Text::Color(theme.cosmic().warning_text_color().into()))
                 .into(),
         );
@@ -2466,9 +2632,11 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
         t_line("confirm_title"),
         confirm_subtitle(),
         body.into(),
-        nav_row(
+        nav_row_live(
             Some(Message::BackPage),
-            (!app.source_blocked()).then(|| (t_line("confirm_button"), Message::StartInstall, true)),
+            (!app.source_blocked() && app.confirm_problems().is_empty())
+                .then(|| (confirm_button_text(app), Message::StartInstall, true)),
+            app.erase_countdown() == 0,
         ),
     )
 }
@@ -2617,10 +2785,17 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
     // The receipt line says what fisherman's `receipt` event set up for that
     // check, and the install id.
     if app.install_ok() {
+        if app.firstboot_account() {
+            hero = hero.push(widget::text::body(tr(FIRSTBOOT_ACCOUNT)));
+        }
         for line in app.receipt_lines() {
             hero = hero.push(widget::text::caption(line));
         }
     } else if !app.install_cancelled() {
+        // The daemon's reason for the failure, in words.
+        if let Some(reason) = app.daemon_failure() {
+            hero = hero.push(widget::text::body(daemon_failure_text(reason)));
+        }
         // fisherman's `error` event (fisherman#449): whether the disk was
         // changed, and a cleanup that failed or timed out.
         for line in app.failure_lines() {
@@ -2674,8 +2849,12 @@ fn done(app: &TunaInstaller) -> Element<'_, Message> {
             widget::button::standard(tr(DONE_COPY_LOG))
                 .on_press(Message::CopyLog)
                 .into(),
-            widget::button::suggested(tr(DONE_CLOSE))
+            widget::button::standard(tr(DONE_CLOSE))
                 .on_press(Message::Quit)
+                .into(),
+            // The choices are kept: Try again goes back to Confirm.
+            widget::button::suggested(tr(TRY_AGAIN))
+                .on_press(Message::TryAgain)
                 .into(),
         ])
         .spacing(spacing.space_s)
@@ -2721,6 +2900,21 @@ mod tests {
     use super::encryption_text;
 
     #[test]
+    fn a_daemon_failure_reason_has_words() {
+        use super::copy::*;
+        use super::daemon_failure_text;
+        use crate::i18n::tr;
+        assert_eq!(daemon_failure_text("device_lost"), tr(DONE_DEVICE_LOST));
+        assert_eq!(daemon_failure_text("repart_failed"), tr(DONE_REPART_FAILED));
+        assert_eq!(daemon_failure_text("luks_failed"), tr(DONE_LUKS_FAILED));
+        assert_eq!(daemon_failure_text("daemon_unreachable"), tr(DONE_DAEMON_UNREACHABLE));
+        // A reason with no line of its own is shown as it came.
+        let other = daemon_failure_text("internal_error");
+        assert!(other.contains("internal_error"), "{other}");
+        assert!(!other.contains("{reason}"), "{other}");
+    }
+
+    #[test]
     fn every_encryption_type_has_a_label_and_a_description() {
         for id in crate::validate::choices().iter().map(|c| c.enc_type.as_str()) {
             assert!(!encryption_text(id, "_label").is_empty(), "{id}: no label");
@@ -2763,6 +2957,11 @@ mod tests {
             CANCEL_CONFIRM, DONE_CANCELLED_DETAIL, NETWORK_SETTINGS, NETWORK_OFFLINE,
             IMAGE_SEARCH_HINT, IMAGE_NO_MATCH, IMAGE_CHOOSE, CONFIRM_UPDATES, CONFIRM_SYSTEM,
             LANGUAGE_SUBTITLE, KEYBOARD_SUBTITLE, TIMEZONE_SUBTITLE,
+            TIMEZONE_LOCATION, TIMEZONE_LOCATION_DETAIL, HANDOFF_SUBTITLE,
+            FIRSTBOOT_ACCOUNT, TRY_AGAIN, DONE_DEVICE_LOST, DONE_REPART_FAILED,
+            DONE_LUKS_FAILED, DONE_DAEMON_UNREACHABLE, DONE_FAILED_REASON,
+            CONFIRM_FIRSTBOOT_ACCOUNT, CONFIRM_FORCED_ERASE, CONFIRM_EXISTING_DATA,
+            CONFIRM_DATA_KEPT, CONFIRM_DATA_ERASED, CONFIRM_FREE_SPACE_WARNING,
         ]
         .join(" ")
         .to_lowercase();
