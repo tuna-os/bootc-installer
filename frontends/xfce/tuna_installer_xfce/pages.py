@@ -2089,6 +2089,11 @@ class RecoveryPage(Page):
         self.pack_start(self.ack, False, False, 0)
         self.error_label = problem_label()
         self.pack_start(self.error_label, False, False, 0)
+        self.retry_btn = Gtk.Button.new_with_mnemonic(_("_Try again"))
+        self.retry_btn.set_halign(Gtk.Align.START)
+        self.retry_btn.set_no_show_all(True)
+        self.retry_btn.connect("clicked", lambda *_a: self.on_enter())
+        self.pack_start(self.retry_btn, False, False, 0)
         self.key = ""
 
     def encrypted(self):
@@ -2110,13 +2115,17 @@ class RecoveryPage(Page):
             try:
                 self.key = core.get_daemon().make_recovery_key()
             except Exception as exc:  # noqa: BLE001 - recovery-key-failed
-                show_problem(self.error_label, {
-                    "code": "", "message": str(exc) or _(
-                        "No recovery key. Do not continue without one.")})
+                # The daemon's error name (io.systemd.System) is for the
+                # log; a person gets a sentence and Try again.
+                print(f"no recovery key: {exc}", file=sys.stderr)
+                show_problem(self.error_label, {"code": "", "message": _(
+                    "The installer could not make a recovery key. The disk "
+                    "is installed. Press Try again.")})
                 self.key = ""
         else:
             progress = self.win.pages.get("progress")
             self.key = progress.recovery_key() if progress else ""
+        self.retry_btn.set_visible(core.backend() == "daemon" and not self.key)
         self.key_label.set_text(self.key)
         self.qr_btn.set_visible(bool(self.key) and qr_available())
         refresh = getattr(self.win, "refresh_nav", None)
@@ -2210,7 +2219,7 @@ class HandoffPage(Page):
             return "reboot", ""
         try:
             info = daemon_client.probe_handoff(core.get_daemon().probe())
-        except daemon_client.DaemonError:
+        except Exception:  # noqa: BLE001 - a Varlink error reply too
             return "reboot", ""
         return info["mode"], info["reason"]
 
@@ -2235,9 +2244,10 @@ class HandoffPage(Page):
             try:
                 result = core.get_daemon().handoff()
             except Exception as exc:  # noqa: BLE001 - handoff-failed
-                show_problem(self.handoff_error, {
-                    "code": "", "message": str(exc) or _(
-                        "The handoff failed.")})
+                print(f"handoff failed: {exc}", file=sys.stderr)
+                show_problem(self.handoff_error, {"code": "", "message": _(
+                    "The installed system could not be started from here. "
+                    "Press Not now, then Restart.")})
                 return
             self.win.handoff_result = result
         self.win.go(+1)

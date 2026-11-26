@@ -320,3 +320,48 @@ def test_a_page_that_raises_still_shows_a_way_out(monkeypatch):
              for c in box.get_children() if isinstance(c, (Gtk.Label, Gtk.Button))]
     assert any("probe went away" in t for t in texts)
     assert "Rescan" in texts and not page.can_continue()
+
+
+class _VarlinkReply(Exception):
+    def __init__(self, error):
+        super().__init__(error)
+        self.error = error
+
+
+def test_a_failed_recovery_key_says_so_and_offers_try_again(monkeypatch):
+    """Mock recovery-key-error: only "io.systemd.System" in red, no way on."""
+    answers = [_VarlinkReply("io.systemd.System"), "k" * 8]
+
+    def make():
+        answer = answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    monkeypatch.setattr(core, "backend", lambda: "daemon")
+    monkeypatch.setattr(core, "get_daemon", lambda: types.SimpleNamespace(
+        make_recovery_key=make))
+    win = _Win()
+    win.pages = {}
+    page = pages.RecoveryPage(win)
+    page.on_enter()
+    text = page.error_label.get_text()
+    assert "io.systemd" not in text and "recovery key" in text
+    assert page.retry_btn.get_visible() and not page.can_continue()
+    page.retry_btn.clicked()
+    assert page.key == "k" * 8 and not page.retry_btn.get_visible()
+    assert not page.error_label.get_visible()
+
+
+def test_a_failed_handoff_says_what_to_do(monkeypatch):
+    def fail():
+        raise _VarlinkReply("io.systemd.System")
+
+    monkeypatch.setattr(core, "backend", lambda: "daemon")
+    monkeypatch.setattr(core, "get_daemon", lambda: types.SimpleNamespace(
+        probe=fail, handoff=fail))
+    page = pages.HandoffPage(_Win())
+    page.on_enter()
+    page._on_continue()
+    text = page.handoff_error.get_text()
+    assert "io.systemd" not in text and "Not now" in text
