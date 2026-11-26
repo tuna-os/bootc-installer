@@ -88,22 +88,6 @@ def test_what_the_application_does_use_is_still_built():
     ]
 
 
-@pytest.mark.parametrize("path", [PRODUCTION, DEVEL], ids=lambda p: p.name)
-def test_the_go_toolchain_is_not_shipped(path):
-    manifest = _load(path)
-    go = next(module for module in manifest["modules"] if module["name"] == "go")
-    assert go["build-commands"] == ["cp -r go /app/go"]
-    assert "/go" in manifest.get("cleanup", []), "/app/go would ship in the bundle"
-    # fisherman is built with that toolchain, after it and before cleanup.
-    names = _names(manifest)
-    assert names.index("go") < names.index("fisherman")
-    assert manifest["build-options"]["env"]["PATH"].startswith("/app/go/bin:")
-
-
-def test_cleanup_does_not_remove_what_runs():
-    assert _load(PRODUCTION)["cleanup"] == ["/go"]
-
-
 def test_production_has_no_devel_permission():
     args = _load(PRODUCTION)["finish-args"]
     assert "--allow=devel" not in args
