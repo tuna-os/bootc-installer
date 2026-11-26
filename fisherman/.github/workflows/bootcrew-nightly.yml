@@ -1,0 +1,381 @@
+name: Bootcrew Nightly (full install)
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.read-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Parse image matrix
+        id: read-matrix
+        run: |
+          MATRIX=$(yq -o json tests/bootcrew-matrix.yaml | jq -c '[.images[] | select(.nightly != false)]')
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
+      - name: Initialize job summary
+        run: |
+          echo "| Image | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
+
+  unit-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: fisherman/go.mod
+          cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
+
+      - name: Run unit tests
+        run: sudo go test -race ./...
+        working-directory: fisherman
+
+  full-install:
+    name: install / ${{ matrix.image.name }}${{ matrix.image.nightly_advisory && ' (advisory)' || '' }}
+    needs: [setup, unit-tests]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    # nightly_advisory images (tests/bootcrew-matrix.yaml) run the full
+    # install and boot, but their failure does not fail the workflow. The
+    # matrix entry carries the evidence that the upstream image is broken.
+    continue-on-error: ${{ matrix.image.nightly_advisory == true }}
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJson(needs.setup.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: fisherman/go.mod
+          cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
+
+      - name: Install tools
+        uses: $/.github/actions/setup-host-tools
+        with:
+          packages: podman xfsprogs btrfs-progs cryptsetup-bin ostree qemu-system-x86 ovmf flatpak jq binutils
+
+      # Firefox is guest installation input, not a pinned host tool. Keep its
+      # fresh Flathub install and verification outside the host archive cache.
+      - name: Install Firefox from Flathub
+        run: |
+          sudo flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak install -y flathub org.mozilla.firefox
+
+      - name: Build fisherman
+        run: go build -o /tmp/fisherman ./cmd/fisherman/
+        working-directory: fisherman
+
+      - name: Create loop device (50 GB sparse)
+        id: loopdev
+        run: |
+          TMPFILE=$(mktemp)
+          truncate -s 50G "$TMPFILE"
+          LOOPDEV=$(sudo losetup --find --show "$TMPFILE")
+          echo "loopdev=$LOOPDEV" >> "$GITHUB_OUTPUT"
+          echo "tmpfile=$TMPFILE" >> "$GITHUB_OUTPUT"
+
+      # Mirrors fisherman's layout contract (cmd/fisherman/main.go,
+      # internal/disk/partition.go):
+      #   systemd: p1 EFI-SYSTEM + p2 root (DPS root type)           2 partitions
+      #   grub2:   p1 EFI-SYSTEM + p2 ext4 /boot + p3 root           3 partitions
+      - name: Resolve bootloader and partition layout
+        id: layout
+        run: |
+          BOOTLOADER='${{ matrix.image.bootloader }}'
+          BOOTLOADER="${BOOTLOADER:-grub2}"
+          case "$BOOTLOADER" in
+            systemd) PARTS=2; ROOT_NUM=2; BOOT_NUM=1 ;;
+            grub2)   PARTS=3; ROOT_NUM=3; BOOT_NUM=2 ;;
+            *) echo "FAIL: unknown bootloader '$BOOTLOADER' in tests/bootcrew-matrix.yaml"; exit 1 ;;
+          esac
+          {
+            echo "bootloader=$BOOTLOADER"
+            echo "parts=$PARTS"
+            echo "root_num=$ROOT_NUM"
+            echo "boot_num=$BOOT_NUM"
+          } >> "$GITHUB_OUTPUT"
+          echo "bootloader=$BOOTLOADER: expect $PARTS partitions, root on p$ROOT_NUM"
+
+      - name: Generate recipe
+        env:
+          LOOPDEV: ${{ steps.loopdev.outputs.loopdev }}
+          BOOTLOADER: ${{ steps.layout.outputs.bootloader }}
+        run: |
+          FLATPAKS='${{ toJSON(matrix.image.flatpaks) }}'
+
+          cat > /tmp/recipe.json <<EOF
+          {
+            "disk": "$LOOPDEV",
+            "filesystem": "${{ matrix.image.filesystem }}",
+            "composeFsBackend": ${{ matrix.image.composefs_backend }},
+            "unifiedStorage": ${{ matrix.image.unified_storage }},
+            "selinuxDisabled": ${{ matrix.image.selinux_disabled }},
+            "encryption": {"type": "none"},
+            "image": "${{ matrix.image.image }}",
+            "hostname": "ci-test",
+            "bootloader": "$BOOTLOADER",
+            "flatpaks": $FLATPAKS
+          }
+          EOF
+
+      - name: Pre-pull image via podman
+        run: sudo podman pull ${{ matrix.image.image }}
+
+      - name: Run fisherman
+        run: sudo /tmp/fisherman /tmp/recipe.json
+
+      - name: Verify installation
+        env:
+          LOOPDEV: ${{ steps.loopdev.outputs.loopdev }}
+          BOOTLOADER: ${{ steps.layout.outputs.bootloader }}
+          PARTS: ${{ steps.layout.outputs.parts }}
+          BOOT_NUM: ${{ steps.layout.outputs.boot_num }}
+          ROOT_NUM: ${{ steps.layout.outputs.root_num }}
+        run: |
+          COMPOSEFS="${{ matrix.image.composefs_backend }}"
+
+          LABEL_COUNT=$(sudo lsblk -o LABEL "$LOOPDEV" | grep -cE 'EFI-SYSTEM|boot|root' || true)
+          if [ "$LABEL_COUNT" -ne "$PARTS" ]; then
+            echo "FAIL: expected $PARTS labelled partitions for bootloader=$BOOTLOADER, got $LABEL_COUNT"
+            sudo lsblk -o NAME,SIZE,FSTYPE,LABEL,PARTTYPE "$LOOPDEV"
+            exit 1
+          fi
+
+          if [ "$BOOTLOADER" = "systemd" ]; then
+            # A sealed UKI has no root= on its command line; the root is found
+            # by GPT auto-discovery, so the DPS root type is load-bearing.
+            ROOT_TYPE=$(sudo lsblk -no PARTTYPE "${LOOPDEV}p2" | tr '[:upper:]' '[:lower:]')
+            if [ "$ROOT_TYPE" != "4f68bce3-e8cd-4db1-96e7-fbcaf984b709" ]; then
+              echo "FAIL: root partition ${LOOPDEV}p2 type is '$ROOT_TYPE', expected the x86-64 DPS root type"
+              sudo lsblk -o NAME,SIZE,FSTYPE,LABEL,PARTTYPE "$LOOPDEV"
+              exit 1
+            fi
+            echo "OK: root partition carries the DPS root type"
+          fi
+
+          # grub2: the ext4 /boot (p2); systemd: the ESP (p1), which holds the kernels.
+          BOOT_PART="${LOOPDEV}p${BOOT_NUM}"
+          VERIFY_DIR=$(mktemp -d)
+          sudo mount "$BOOT_PART" "$VERIFY_DIR"
+
+          ROOT_PART="${LOOPDEV}p${ROOT_NUM}"
+          ROOT_DIR=$(mktemp -d)
+          sudo mount "$ROOT_PART" "$ROOT_DIR"
+
+          echo "--- Root directory structure ---"
+          sudo ls -F "$ROOT_DIR"
+          if [ -d "$ROOT_DIR/ostree" ]; then
+            echo "--- Ostree structure ---"
+            sudo ls -R "$ROOT_DIR/ostree" | head -n 20
+          fi
+
+          if [ "$COMPOSEFS" = "true" ]; then
+            # composefs-native installs do not expose /etc/hostname at the raw
+            # partition mount — the rootfs lives inside the composefs image and
+            # the on-disk layout is composefs/ + state/ + var/ (no ostree/).
+            if [ ! -d "$ROOT_DIR/composefs" ]; then
+              echo "FAIL: composefs layout missing at $ROOT_DIR/composefs"
+              sudo umount "$ROOT_DIR" || true
+              sudo umount "$VERIFY_DIR" || true
+              exit 1
+            fi
+            echo "OK: composefs-native layout at $ROOT_DIR/composefs"
+          fi
+
+          IMAGE_NAME="${{ matrix.image.name }}"
+          if [[ "$IMAGE_NAME" == *"bluefin"* || "$IMAGE_NAME" == *"yellowfin"* ]]; then
+            echo "Searching for Firefox flatpak..."
+            FLATPAK_APP_DIR=$(sudo find "$ROOT_DIR" -type d -path "*/var/lib/flatpak/app/org.mozilla.firefox" -print -quit)
+            if [ -z "$FLATPAK_APP_DIR" ]; then
+               echo "FAIL: Flatpak firefox not found anywhere on the root partition"
+               sudo find "$ROOT_DIR" -maxdepth 6 || true
+               sudo umount "$ROOT_DIR" || true
+               sudo umount "$VERIFY_DIR" || true
+               exit 1
+            fi
+            echo "OK: Flatpak found at $FLATPAK_APP_DIR"
+            # flatpak list --installation cannot resolve a mount-prefixed
+            # installation dir (errors with "Could not find installation"),
+            # so verify the copied deployment metadata directly instead.
+            if [ ! -e "$FLATPAK_APP_DIR/active" ] && [ ! -d "$FLATPAK_APP_DIR/current" ]; then
+              echo "FAIL: Firefox flatpak app dir present but no active deployment"
+              sudo umount "$ROOT_DIR" || true
+              sudo umount "$VERIFY_DIR" || true
+              exit 1
+            fi
+            echo "OK: Flatpaks verified in image (deployment present)"
+          fi
+
+          sudo umount "$ROOT_DIR"
+          sudo rmdir "$ROOT_DIR"
+          sudo umount "$VERIFY_DIR"
+          sudo rmdir "$VERIFY_DIR"
+          echo "PASS: ${{ matrix.image.name }}"
+
+      - name: Patch serial console into bootloader entries
+        env:
+          LOOPDEV: ${{ steps.loopdev.outputs.loopdev }}
+          BOOTLOADER: ${{ steps.layout.outputs.bootloader }}
+          ROOT_NUM: ${{ steps.layout.outputs.root_num }}
+        run: |
+          ROOT_DEV="/dev/vda${ROOT_NUM}"
+          patch_entries() {
+            local part="$1" label="$2"
+            local MNT
+            MNT=$(mktemp -d)
+            sudo mount "$part" "$MNT" || { echo "Cannot mount $label ($part), skipping"; rmdir "$MNT"; return; }
+            local patched=0
+            for conf in "$MNT"/loader/entries/*.conf; do
+              [ -f "$conf" ] || continue
+              if ! sudo grep -q "^options" "$conf"; then
+                # A Type #1 entry that boots a UKI ("uki" or "efi" key) has no options
+                # line: the command line is the UKI's .cmdline section. With
+                # Secure Boot off (this OVMF build has none) systemd-stub uses
+                # loader-supplied options *instead of* .cmdline, so copy the
+                # embedded line verbatim and let the edits below extend it.
+                local uki cmdline_file cmdline
+                uki=$(sudo awk '$1 == "uki" || $1 == "efi" { print $2; exit }' "$conf")
+                uki="/${uki#/}"  # BLS paths are relative to the ESP root
+                if [ "$uki" = "/" ] || ! sudo test -f "$MNT$uki"; then
+                  echo "FAIL: $(basename "$conf") on $label has neither an options line nor a readable uki/efi UKI"
+                  sudo cat "$conf"
+                  sudo umount "$MNT"; rmdir "$MNT"
+                  exit 1
+                fi
+                # Root owns the temp file: with fs.protected_regular, root
+                # cannot write a runner-owned file in sticky /tmp.
+                cmdline_file=$(sudo mktemp)
+                sudo objcopy -O binary --only-section=.cmdline "$MNT$uki" "$cmdline_file"
+                cmdline=$(sudo cat "$cmdline_file" | tr '\0\n' '  ' | sed 's/^ *//; s/ *$//')
+                sudo rm -f "$cmdline_file"
+                if [ -z "$cmdline" ]; then
+                  echo "FAIL: UKI $uki referenced by $(basename "$conf") has no .cmdline section"
+                  sudo umount "$MNT"; rmdir "$MNT"
+                  exit 1
+                fi
+                echo "UKI entry ($label): $(basename "$conf") -> $uki, embedded cmdline: $cmdline"
+                echo "options $cmdline" | sudo tee -a "$conf" > /dev/null
+                patched=1
+              fi
+              if ! sudo grep -q "console=ttyS0" "$conf"; then
+                sudo sed -i 's/^options /options console=ttyS0,115200 /' "$conf"
+                patched=1
+              fi
+              if ! sudo grep -q "root=" "$conf"; then
+                sudo sed -i "s|^options |options root=$ROOT_DEV |" "$conf"
+                patched=1
+              fi
+              if [ "$patched" -eq 1 ]; then
+                echo "Patched ($label): $(basename "$conf")"
+                sudo grep "^options" "$conf"
+              fi
+            done
+            [ "$patched" -eq 0 ] && echo "No BLS entries to patch on $label"
+            sudo umount "$MNT"
+            rmdir "$MNT"
+          }
+          patch_entries "${LOOPDEV}p1" "EFI"
+          if [ "$BOOTLOADER" = "grub2" ]; then
+            patch_entries "${LOOPDEV}p2" "boot"
+          fi
+
+      - name: Boot verification
+        env:
+          LOOPDEV: ${{ steps.loopdev.outputs.loopdev }}
+        run: |
+          IMAGE_NAME="${{ matrix.image.name }}"
+          LOG="/tmp/boot-$(printf '%s' "$IMAGE_NAME" | tr -cs 'a-zA-Z0-9_-' '_').log"
+
+          OVMF_CODE=$(ls /usr/share/OVMF/OVMF_CODE{_4M,}.fd 2>/dev/null | head -1)
+          if [ -z "$OVMF_CODE" ]; then
+            echo "FAIL: OVMF_CODE.fd not found"
+            ls /usr/share/OVMF/ || true
+            exit 1
+          fi
+          OVMF_SUFFIX=$(basename "$OVMF_CODE" | sed 's/OVMF_CODE//;s/\.fd//')
+          OVMF_VARS="/usr/share/OVMF/OVMF_VARS${OVMF_SUFFIX}.fd"
+
+          echo "Booting $IMAGE_NAME with QEMU+OVMF (timeout 240s)..."
+          sudo timeout 240 qemu-system-x86_64 \
+            -enable-kvm \
+            -cpu host \
+            -m 2G \
+            -drive file="$LOOPDEV",format=raw,if=virtio \
+            -drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE" \
+            -drive if=pflash,format=raw,snapshot=on,file="$OVMF_VARS" \
+            -serial mon:stdio \
+            -nographic \
+            -no-reboot 2>&1 | tee "$LOG"
+          QEMU_EXIT=${PIPESTATUS[0]}
+          if [ "$QEMU_EXIT" -ne 0 ] && [ "$QEMU_EXIT" -ne 124 ]; then
+            echo "FAIL: QEMU exited with unexpected code $QEMU_EXIT"
+            tail -20 "$LOG"
+            exit 1
+          fi
+
+          BOOT_OK=0
+          if grep -qE 'login:|Reached target.*(Network Name Lookups|multi-user|graphical)' "$LOG"; then
+            BOOT_OK=1
+          fi
+
+          FAILURES=$(grep -E 'systemd-coredump.*dumped core|\[FAILED\] Failed to start|Kernel panic' "$LOG" || true)
+
+          if [ "$BOOT_OK" -eq 0 ]; then
+            echo "FAIL: no boot success indicator found for $IMAGE_NAME"
+            tail -50 "$LOG"
+            exit 1
+          elif [ -n "$FAILURES" ]; then
+            echo "FAIL: boot reached userspace but critical failures detected for $IMAGE_NAME:"
+            echo "$FAILURES"
+            tail -50 "$LOG"
+            exit 1
+          else
+            echo "PASS: boot success, no critical failures for $IMAGE_NAME"
+          fi
+
+      - name: Upload boot logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: boot-logs-nightly-${{ matrix.image.name }}
+          path: /tmp/boot-*.log
+          retention-days: 14
+
+      - name: Cleanup
+        if: always()
+        env:
+          LOOPDEV: ${{ steps.loopdev.outputs.loopdev }}
+          TMPFILE: ${{ steps.loopdev.outputs.tmpfile }}
+        run: |
+          sudo losetup -d "$LOOPDEV" || true
+          rm -f "$TMPFILE" || true
+
+      - name: Report result to job summary
+        if: always()
+        env:
+          NAME: ${{ matrix.image.name }}
+          ADVISORY: ${{ matrix.image.nightly_advisory && ' (advisory)' || '' }}
+          STATUS: ${{ job.status }}
+        run: |
+          echo "| ${NAME}${ADVISORY} | ${STATUS} |" >> "$GITHUB_STEP_SUMMARY"

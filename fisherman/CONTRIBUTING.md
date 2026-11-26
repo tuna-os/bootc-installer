@@ -1,0 +1,257 @@
+# Contributing to fisherman
+
+Thank you for your interest in contributing to `fisherman`, the universal bootc installer backend.
+
+<!-- hive-contribute-plea: donated-compute appeal, keep in sync across repos -->
+## Contribute compute — no code needed
+
+**[Donate time with your AI CLI](https://hub.tunaos.org/#contribute).**
+
+Your machine runs one task at a time using your signed-in AI coding CLI.
+The relay alternates between eligible **School** (OS) and **Reef** (apps)
+hives after each task. If one hive has no work, the other can continue.
+
+The guide covers prerequisites, verified `just` setup, credentials, provider
+costs, and how to stop with Ctrl+C. Your subscription quota or API charges apply.
+Never post account credentials or API keys in issues or pull requests.
+
+## Branch Strategy
+
+- **`dev`** is the primary development branch. All PRs must target `dev`.
+- Do not target `prod` directly unless specifically instructing a release hotfix.
+
+## Releasing
+
+Releases are automatic. `promote.yml` watches `dev`, and when a commit has
+every required check green and has sat for 30 minutes, it fast-forwards
+`prod` to that commit, tags it, and publishes the binaries.
+
+Nothing needs a human in the normal case. What used to be two deliberate
+steps — dispatch the cut, then merge a promotion PR — is now the gate.
+
+### What the gate judges
+
+`scripts/promote-gate.py` reads the **push** runs on the candidate of the
+workflows in `GATED_WORKFLOWS` (`promote.yml`), job by job:
+
+- every gated workflow must have a push run on the commit. Each one runs on
+  every push to `dev` with no path filter, so an absent run means the
+  workflow did not start;
+- every job must finish `success`, `skipped` or `neutral`, except jobs named
+  `advisory / ...`. Those are `continue-on-error` and never gate;
+- every `workflow | job` in `REQUIRED_JOBS` must be present and `success`.
+
+Scheduled runs (`bootcrew-nightly.yml`, `build-ssh-images.yml`) never gate,
+although their check runs attach to the `dev` HEAD of the moment.
+
+The run has three outcomes. **Promote**: the Promote job runs. **Wait**: a
+job still runs; the run is green and a later firing decides. **Refuse**:
+the Gate job fails, with the reason in the error and the job summary. A
+job that has not finished six hours after its run started is a refusal.
+Before #272 a refusal was a green run with a skipped Promote job, and 137
+of 138 runs refused that way while `actionlint` was path-filtered.
+
+`tests/test-promote-gate.py` holds the decision table and fails when a
+gated workflow gets a path filter, a required job is renamed or gets an
+`if:`, or an `advisory / ` name and `continue-on-error` part ways.
+
+### How the version is chosen
+
+From the conventional-commit subjects since the last tag, by
+`scripts/next-version.sh`:
+
+| in the range | bump |
+|---|---|
+| a `!` before the colon, or a `BREAKING CHANGE:` trailer | major |
+| any `feat:` | minor |
+| anything else | patch |
+
+Two deliberate wrinkles:
+
+- **Bot prefixes are stripped first.** Commits arrive as
+  `[sec-check] fix: ...`; without stripping, every one of them reads as an
+  unknown type and quietly becomes a patch — wrong for a `feat`.
+- **Before 1.0.0 a breaking change bumps the minor**, not the major. Major 0
+  is the statement that the API is not stable yet, and spending it on the
+  first `feat!:` would claim a stability this project has not declared.
+
+`tests/test-next-version.sh` covers both, plus the case where a body merely
+mentions "BREAKING CHANGE:" mid-sentence and must *not* trigger a major.
+
+So write conventional commits. A `feat:` that lands as `chore:` ships as a
+patch, and nobody finds out until they read the tag.
+
+### The manual path
+
+`release-cut.yml` is still there for forcing a release outside the gate, or
+pinning an exact version. Its `bump` input defaults to `auto`, which calls
+the same script, so a hand-cut release and an automatic one cannot disagree.
+
+### When prod diverges
+
+`promote.yml` refuses to move `prod` to a commit that is not a descendant of
+it — it will never rewind or fork the branch. That guard is also why a
+diverged `prod` stops promotion dead.
+
+`prod` diverges when a promotion PR is **squashed** instead of merged: the
+squash writes one new commit sharing no ancestry with the commits it
+flattened, so `prod` reads as permanently ahead-and-behind even when the
+content is identical. That is what #220 did.
+
+`promote-reconcile.yml` repairs it. Run it from the Actions tab with
+`dry_run` on first; it builds the reconciling merge, proves the resulting
+tree is byte-identical to `dev`, and reports without pushing. Re-run with
+`dry_run` off to open the PR.
+
+**The direction is the whole point, and it is easy to get backwards.** The
+gate needs `prod` to be an ancestor of `dev`, so the reconcile merges `prod`
+**into `dev`** and keeps `dev`'s tree — it lands as a PR against `dev` that
+changes no files. Merging `dev` into `prod` instead produces a `prod` whose
+tree also matches, which looks like it worked and is not: it makes `prod` a
+*descendant* of `dev`, no future `dev` commit is a descendant of `prod`, and
+the gate refuses exactly as before while the reconcile no longer reads as a
+no-op either. `tests/test-reconcile-direction.sh` asserts both halves of
+that, because the backwards version shipped once.
+
+It is a separate, manual workflow on purpose. Reconciling discards `prod`'s
+side of the history, and that should be something someone decides, not
+something the hourly gate does quietly the next time `prod` looks wrong.
+
+Merge the reconcile PR with a **merge commit**. Squashing it would recreate
+the divergence it repairs.
+
+### Recovering a tag that was never published
+
+A tag can exist with no release behind it — v0.2.0 and v0.3.0 both did,
+because `release-cut.yml` pushed them with `GITHUB_TOKEN` and GitHub does
+not start workflow runs from `GITHUB_TOKEN`-authored events. Dispatch
+`release-publish.yml` and give it the tag.
+
+That is also why `promote.yml` *calls* `release-publish.yml` rather than
+pushing a tag and hoping: the call does not depend on who pushed.
+
+## Development Workflow
+
+### Prerequisites
+
+- [Go](https://go.dev/) 1.22 or newer for the fisherman backend
+- Go 1.26.2 or newer when building or testing the TUI (`tui/go.mod`)
+- [just](https://github.com/casey/just) command runner
+- Standard Linux storage utilities (`util-linux`, `dosfstools`, `e2fsprogs`, `xfsprogs`, `cryptsetup`, `podman`, `skopeo`)
+
+### Building
+
+The Go module for fisherman is located inside the `fisherman/` subfolder:
+
+```bash
+cd fisherman
+go build ./cmd/fisherman/
+```
+
+Alternatively, from the repository root using `just`:
+
+```bash
+just build
+```
+
+The compiled binary will be placed at `/tmp/fisherman`.
+
+To build the terminal UI, use its separate Go module:
+
+```bash
+cd tui
+go build -o bootc-installer-tui ./cmd/bootc-installer-tui
+```
+
+### Running Tests and Verification
+
+Run Go unit tests:
+
+```bash
+cd fisherman
+go test -v ./...
+```
+
+Run the TUI tests separately with its newer toolchain:
+
+```bash
+cd tui
+go test ./...
+```
+
+Run validation tests:
+
+```bash
+just test-checks
+```
+
+For full VM end-to-end testing with QEMU:
+
+```bash
+just bootcrew-vm
+```
+
+### CI host-tool download cache
+
+Run [40284374415](https://github.com/tuna-os/fisherman/actions/runs/40284374415),
+job `install / yellowfin-gnome50` (121444707547), spent 1246 seconds in
+`Install tools`. Its APT log says `Fetched 48.7 MB in 20min 2s (40.5 kB/s)`:
+the measured delay was Ubuntu archive download throughput, not Go compilation.
+The other matrix legs' same step took 42–65 seconds. This is one run's
+measurement, not an aggregate savings estimate.
+
+The three VM/disk workflows share `.github/actions/setup-host-tools`, which
+always refreshes APT's signed repository metadata (any repository update error,
+including transient download failures, stops setup) and resolves the normal
+package/dependency selection. Only the resulting `.deb` downloads are cached.
+The exact key includes OS, runner architecture, runner image identity, and a
+SHA256 digest of the complete download manifest (each archive's URI, filename
+including version/architecture, byte size and repository SHA256). Any changed
+archive identity or content, runner image or architecture invalidates the key;
+there are no broad restore prefixes. Bump the `fisherman-host-debs-v1` schema
+prefix if the cache format changes.
+
+A hit rechecks every restored archive against the fresh manifest's SHA256 and
+size, discards mismatches, and still runs the ordinary authenticated APT install
+and package configuration. A miss or missing/corrupt archive downloads normally.
+Thus a complete hit removes the repeated archive-transfer work measured above,
+not the entire 1246-second step, metadata refresh, install or boot qualification.
+The VM workflow also avoids its former duplicate APT update/bootstrap install
+before `just ci-install-tools`; the host package set is unchanged.
+
+Go still uses `actions/setup-go` and `fisherman/go.mod`; these workflows do not
+build external bootcrew/corral binaries. Firefox/Flathub installation remains
+fresh and uncached. No guest disk, container image, installed Flatpak, SSH key,
+generated secret, firmware variable store or other VM runtime state is cached.
+All scheduled/PR matrices, encryption cases, boot waits, timeouts and required
+check names are unchanged.
+
+The no-network cache boundary tests run in the existing VM workflow's `lint`
+job, or locally with `python3 tests/test-host-tool-cache.py` (requires PyYAML).
+They cover exact manifests, empty plans, rejected weak hashes/unsafe filenames,
+same-size corrupt archives, missing downloads, symlinks and directory-shaped
+cache entries containing symlinks to files/directories outside the cache.
+
+### Code Quality & Linting
+
+Run standard Go linting before submitting a pull request:
+
+```bash
+cd fisherman
+go vet ./...
+```
+
+If `golangci-lint` is installed:
+
+```bash
+golangci-lint run ./...
+```
+
+## Pull Request Guidelines
+
+1. **Target Branch:** Create feature/fix branches off `dev` and submit PRs targeting `dev`.
+2. **Commit Sign-off (DCO):** All commits must include a Developer Certificate of Origin sign-off line:
+   ```bash
+   git commit -s -m "docs: description"
+   ```
+3. **Documentation:** Ensure any changes to recipe schemas, CLI flags, or partition logic are documented in `README.md`, `ROADMAP.md`, or `docs/`.

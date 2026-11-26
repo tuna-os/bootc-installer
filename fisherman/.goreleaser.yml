@@ -1,0 +1,68 @@
+version: 2
+
+before:
+  hooks:
+    # `go -C fisherman`, not a bare `go mod tidy`: hooks run from the repo
+    # root and the only go.mod is in fisherman/, so the bare form exits
+    # non-zero ("go.mod file not found"). The `dir: fisherman` key this
+    # previously carried was not a field of config.Before — GoReleaser
+    # rejected the whole file with "field dir not found in type
+    # config.Before", so `release --clean` died before building anything on
+    # every tag push. That is why v0.2.0 carries no assets. `before.hooks`
+    # is a list of plain strings here (additionalProperties: false), so the
+    # directory has to move into the command itself.
+    - go -C fisherman mod tidy
+
+builds:
+  - id: fisherman
+    dir: fisherman
+    main: ./cmd/fisherman
+    binary: fisherman
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      # main.go declares only `version`; -X for a variable that does not
+      # exist is silently ignored.
+      - -X main.version={{.Version}}
+
+archives:
+  - id: fisherman
+    name_template: "fisherman_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    files:
+      - README.md
+      # `fisherman images` and the install's extras lookup read the
+      # catalog from data/images.json beside the binary (images.FindPaths).
+      - data/images.json
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: tuna-os
+    name: fisherman
+  draft: false
+  prerelease: auto
+  header: |
+    ## fisherman {{ .Tag }}
+
+    A composefs-native bootc installer.
