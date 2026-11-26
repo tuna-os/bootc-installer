@@ -151,7 +151,13 @@ class Walker:
 
     def lines(self, headings=False):
         out = []
-        for n in self.nodes:
+        nodes = self.nodes
+        if headings:
+            # The page container names the page; a step header can lag
+            # behind it (XFCE), so containers first, then headings, then text.
+            rank = {"filler": 0, "panel": 0, "page tab": 0, "heading": 1}
+            nodes = sorted(nodes, key=lambda n: rank.get(n["role"], 2))
+        for n in nodes:
             if n["role"] == "frame":
                 continue
             if headings and any(r in n["role"] for r in NOT_HEADINGS):
@@ -159,7 +165,11 @@ class Walker:
             for t in (n.get("name"), n.get("text")):
                 if t:
                     out += t.split("\n")
-        for line in self.ocr_lines():
+        lines = self.ocr_lines()
+        if headings:
+            # Big text first: a heading is larger than a step rail or a label.
+            lines = sorted(lines, key=lambda ln: -max(w["box"][3] for w in ln))
+        for line in lines:
             out.append(" ".join(w["text"] for w in line))
         return [c for c in map(clean, out) if c]
 
@@ -191,10 +201,11 @@ class Walker:
                 and (not enabled or "sensitive" in n["states"])]
         return hits
 
-    def find_text(self, pattern):
+    def find_text(self, pattern, lowest=False):
         """The box of OCR words that the pattern matches in full. A line is
         cut where the gap between two words is wider than a letter is high,
         so two buttons on one line are two pieces."""
+        hits = []
         for line in self.ocr_lines():
             pieces, cur = [], [line[0]]
             for prev, w in zip(line, line[1:]):
@@ -211,8 +222,12 @@ class Walker:
                     y1 = min(w["box"][1] for w in piece)
                     x2 = max(w["box"][0] + w["box"][2] for w in piece)
                     y2 = max(w["box"][1] + w["box"][3] for w in piece)
-                    return [x1, y1, x2 - x1, y2 - y1]
-        return None
+                    hits.append([x1, y1, x2 - x1, y2 - y1])
+        if not hits:
+            return None
+        # The lowest match: the buttons of a page are at its foot, and a
+        # step rail or a heading with the same word is above them.
+        return max(hits, key=lambda b: b[1]) if lowest else hits[0]
 
     def do(self, verb, node, *words):
         r = subprocess.run(["python3", f"{HERE}/atspi.py", verb, json.dumps(node["path"]), *words],
@@ -234,7 +249,7 @@ class Walker:
                 self.click_box(node.get("box"))
             return True
         if self.ocr_on and ocr:
-            box = self.find_text(pattern)
+            box = self.find_text(pattern, lowest=True)
             if box and not self.find(pattern, roles, enabled=False):
                 return self.click_box(box)
         if must:

@@ -101,7 +101,7 @@ def account(w):
 def passphrase(w):
     # With a TPM the default needs no passphrase. A click by OCR on the
     # "Passphrase" choice would change the choice (seen on niri).
-    if "no-tpm" not in w.s.scenario:
+    if not w.fields() and "no-tpm" not in w.s.scenario:
         return
     fill_fields(w, PASSPHRASE_FIELDS)
 

@@ -1,0 +1,152 @@
+{
+ "frontend": "gnome",
+ "source": "mock",
+ "run": "",
+ "variant": "",
+ "pages": [
+  {
+   "name": "try-or-install",
+   "page": "try-or-install",
+   "file": "01-try-or-install.png",
+   "title": "Try or install",
+   "caption": "The wizard runs on live media.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "79296608368d0322e92495053a7284a099f2fd1aa0790a9c2c961207305d02a7",
+   "blank": false
+  },
+  {
+   "name": "language",
+   "page": "language",
+   "file": "02-language.png",
+   "title": "Language",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "cdd7e0897a3d888a74221b68b404951c0c1e14f92c88ce2ecc7b22985c1bf903",
+   "blank": false
+  },
+  {
+   "name": "keyboard",
+   "page": "keyboard",
+   "file": "03-keyboard.png",
+   "title": "Keyboard layout",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "2699f21721467c42d0d7f9529bf8fdbec007ae9be40ec59eeeed8d8b25427aba",
+   "blank": false
+  },
+  {
+   "name": "prerelease",
+   "page": "prerelease",
+   "file": "04-prerelease.png",
+   "title": "Disclaimer",
+   "caption": "os-release RELEASE_TYPE is `pre-release` or `experiment`.",
+   "run": "terms",
+   "scenario": "happy,fixed-key",
+   "sha256": "a8ea610c7512903e0bb2288c0977d305ee46a708a664003755088e0727608ffa",
+   "blank": false
+  },
+  {
+   "name": "eula",
+   "page": "eula",
+   "file": "05-eula.png",
+   "title": "Terms of use",
+   "caption": "The image ships an AppStream component with an `agreement` of type `eula`.",
+   "run": "terms",
+   "scenario": "happy,fixed-key",
+   "sha256": "73b7acc28128bbd678c473abdccfb2f877925e6be6318abfd0f84e93b0263ef7",
+   "blank": false
+  },
+  {
+   "name": "disk",
+   "page": "disk",
+   "file": "06-disk.png",
+   "title": "Disk",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "227ed5740bd28190be3db01ff26e1fd756b1852741c643265e71805e24875db5",
+   "blank": false
+  },
+  {
+   "name": "disk--no-usable-disk",
+   "page": "disk",
+   "file": "07-disk--no-usable-disk.png",
+   "title": "Disk: no usable disk",
+   "caption": "No disk.",
+   "run": "no-disks",
+   "scenario": "no-disks,fixed-key",
+   "sha256": "51d4c867b940b13be3f1390e9de860fc4991458f6c2079f435f2dfb58f32ef77",
+   "blank": false
+  },
+  {
+   "name": "wipe-or-free",
+   "page": "wipe-or-free",
+   "file": "08-wipe-or-free.png",
+   "title": "Existing data found",
+   "caption": "The chosen disk has status data-detected.",
+   "run": "existing-data",
+   "scenario": "existing-data,fixed-key",
+   "sha256": "1d9588e26777ad7760ddfbc3ab79e7c8777a352d98b34a9dfd408eb76c83c518",
+   "blank": false
+  },
+  {
+   "name": "encryption",
+   "page": "encryption",
+   "file": "09-encryption.png",
+   "title": "Disk encryption",
+   "caption": "No TPM 2.0 is present. The page asks for a disk passphrase, twice.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "59ba4bf57ea646b862dd6c7962e364c5af463e2324539769016f8dbea46b0b2d",
+   "blank": false
+  },
+  {
+   "name": "confirm",
+   "page": "confirm",
+   "file": "10-confirm.png",
+   "title": "Confirm",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "7cdb47bc49ba3c516cb682ef18d50eb6a7b0a878ee3e26c4865e523075abd472",
+   "blank": false
+  },
+  {
+   "name": "install",
+   "page": "install",
+   "file": "11-install.png",
+   "title": "Installing",
+   "caption": "After confirm.",
+   "run": "install",
+   "scenario": "cancel,fixed-key",
+   "sha256": "7f6ab1d735cb63c00ece3d7a2189392437b495c2623ef12f701bcccb05a330be",
+   "blank": false
+  },
+  {
+   "name": "recovery-key",
+   "page": "recovery-key",
+   "file": "12-recovery-key.png",
+   "title": "Recovery key",
+   "caption": "The disk is encrypted.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "ff1f3c87ac553d259d7dcf927469321f8893710f803061a67adf39c495f3c9ff",
+   "blank": false
+  },
+  {
+   "name": "done",
+   "page": "done",
+   "file": "13-done.png",
+   "title": "Done",
+   "caption": "The install ended.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "1f5c259daea5e13c865783b36ce37e02e4b1ac3e1c1b27e6786a1b8dfdc2904a",
+   "blank": false
+  }
+ ],
+ "errors": []
+}

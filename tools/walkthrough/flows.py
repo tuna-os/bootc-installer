@@ -44,7 +44,7 @@ PAGES = {
              r"Where should .* be installed\?"],
     "wipe-or-free": [r"Existing data( found)?", r"Existing systems?( found)?"],
     "encryption": [r"Disk encryption", r"Encryption", r"Disk passphrase"],
-    "account": [r"User account", r"Account", r"Create (your|an) account", r"Name this computer"],
+    "account": [r"User account", r"Account", r"Your account", r"Create (your|an) account", r"Name this computer"],
     "confirm": [r"Confirm( installation)?", r"Review.*", r"Ready to install.*", r"Summary"],
     "install": [r"Installing( .*)?", r"Installation", r"Progress"],
     "recovery-key": [r"Recovery key", r"Back up recovery key", r"Save your recovery key.*"],
