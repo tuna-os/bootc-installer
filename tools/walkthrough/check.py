@@ -105,8 +105,11 @@ def main():
         out += ["Failures:", ""] + [f"- {f}" for f in fail] + [""]
     out += ["| Page | Against the committed picture | Changed pixels (%) |", "|---|---|---|"]
     out += [f"| `{n}` | {st} | {p} |" for n, st, p in rows]
+    blocked = flows.BLOCKED_BY.get(a.frontend, {})
     if exempt:
-        out += ["", "Exempt pages:", ""] + [f"- `{k}`: {v}" for k, v in exempt.items()]
+        out += ["", "Exempt pages:", ""] + [
+            f"- `{k}` ({'defect, ' + blocked[k] if k in blocked else 'design'}): {v}"
+            for k, v in exempt.items()]
     changed = any(st in ("new", "changed", "changed (size)") for _n, st, _p in rows) \
         or any(n not in new for n in old)
     if a.verdict:

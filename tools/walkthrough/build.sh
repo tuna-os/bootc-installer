@@ -31,14 +31,41 @@ cosmic)
 	;;
 xfce) ;;
 gnome)
-	# The patch series needs blueprint-compiler 0.20 or newer, which Fedora 44
-	# has not got: the same build as the installer medium.
+	# gnome-setup from upstream at the PIN of tunaOS, with the tunaOS patch
+	# series (installer-medium/frontends/gnome-setup), as the medium builds
+	# it. The series needs blueprint-compiler 0.20 or newer; Fedora 44 has
+	# an older one, so build the commit that the medium's build.sh names.
 	if [[ ! -x /out/gnome/gnome-setup/usr/bin/gnome-setup ]]; then
-		mkdir -p /out/gnome
-		sed 's/^dnf -y install/: dnf -y install/' /pins/tunaos/installer-medium/frontends/gnome/build.sh \
-			>/pins/tunaos/installer-medium/frontends/gnome/build-nodnf.sh
-		bash /pins/tunaos/installer-medium/frontends/gnome/build-nodnf.sh /out/gnome
-		rm -rf /out/gnome/meson-build /out/gnome/gnome-setup-src /out/cargo/registry/src
+		gs=/pins/tunaos/installer-medium/frontends/gnome-setup
+		bp_ref="$(sed -n 's/^BP_REF=//p' /pins/tunaos/installer-medium/frontends/gnome/build.sh)"
+		# shellcheck disable=SC1091
+		source "${gs}/PIN"
+		fetch() { # fetch DIR COMMIT REPO...: one commit, from the first repo that has it
+			local dir="$1" commit="$2" repo
+			shift 2
+			rm -rf "${dir}"
+			git init -q "${dir}"
+			for repo in "$@"; do
+				if git -C "${dir}" fetch -q --depth 1 "${repo}" "${commit}"; then
+					git -C "${dir}" checkout -q FETCH_HEAD
+					return 0
+				fi
+			done
+			return 1
+		}
+		fetch /tmp/bp "${bp_ref}" https://gitlab.gnome.org/GNOME/blueprint-compiler.git \
+			https://github.com/GNOME/blueprint-compiler.git
+		meson setup /tmp/bp/build /tmp/bp --prefix=/usr >/dev/null
+		meson install -C /tmp/bp/build >/dev/null
+		fetch /tmp/gs-src "${GNOME_SETUP_PIN}" "${GNOME_SETUP_UPSTREAM}" \
+			https://github.com/hanthor/gnome-setup.git
+		rm -rf /tmp/gs-build
+		"${gs}/apply-and-build" --source /tmp/gs-src --build-dir /tmp/gs-build -- \
+			--prefix=/usr --libdir=lib --buildtype=release \
+			-Dlive-marker-path=/run/tunaos/live -Dpost-wizard-command=
+		mkdir -p /out/gnome/gnome-setup
+		meson install -C /tmp/gs-build --destdir /out/gnome/gnome-setup >/dev/null
+		rm -rf /tmp/gs-build /tmp/gs-src /tmp/bp
 	fi
 	;;
 esac

@@ -58,7 +58,7 @@ OWN_PAGES = {
     "niri": {"session": [r"Session"], "source": [r"Source", r"What do you want to install\?"],
              "tour": [r"Tour"]},
     "xfce": {"source": [r"What do you want to install\?", r"Source"]},
-    "cosmic": {"image": [r"Image", r"Select an image"], "options": [r"Options", r"Computer name"],
+    "cosmic": {"image": [r"Image", r"Select an image", r"Choose a system"], "options": [r"Options", r"Computer name"],
                "tour": [r"Tour"], "try-or-install": [r"Welcome"]},
     "kde": {"image": [r"Image", r"System image"], "computer": [r"Computer name", r"Hostname"],
             "try-or-install": [r"Welcome"]},
@@ -74,14 +74,13 @@ PRIMARY = [r"Install now", r"Get started", r"Next", r"Continue", r"Start install
 DISK = r"(Mockware )?Mock NVMe 512.*"
 ACCOUNT = {"full": "Alex Example", "user": "alex", "pass": "walkthrough-mock-1", "host": "tunaos"}
 
-_LIVE_NO_NETWORK = ("On live media the installer copies the running system: nothing to "
-                    "download, so no network page.")
 EXEMPT = {
-    "kde": {"network": _LIVE_NO_NETWORK},
-    "cosmic": {"network": _LIVE_NO_NETWORK},
+    "kde": {},
+    "cosmic": {"network": "Not reached: with the mock on an installed system (not-live), an "
+                          "image that needs a download, and no network, the installer goes "
+                          "from the time zone to the disk (reported to the COSMIC owner)."},
     "niri": {"network": "The session page has the network card; there is no page of its own."},
     "xfce": {
-        "network": _LIVE_NO_NETWORK,
         "done--cancelled": "The cancel dialog draws no buttons (gates.ConfirmCancelDialog has no "
                            "show_all), so the walk cannot confirm a cancel.",
     },
@@ -136,3 +135,13 @@ WEAK = [r"Done", r"Finished", r"Installed", r"Installation", r"Progress", r"Conf
 # Placeholders of empty entries, read by OCR (niri: Quickshell gives its
 # entries no AT-SPI node), and what goes in each.
 OCR_PLACEHOLDERS = [(r"Enter passphrase", "pass"), (r"Confirm passphrase", "pass")]
+
+# The exemptions that a defect causes, not the design of the frontend: the
+# pages come back when the fix lands. The rest of EXEMPT is by design.
+BLOCKED_BY = {
+    "xfce": {"done--cancelled": "tuna-os/installer#482"},
+    "gnome": {"done--device-lost": "tuna-os/tunaOS#5017", "done--repart-error": "tuna-os/tunaOS#5017",
+              "encryption--passphrase-enroll-failed": "tuna-os/tunaOS#5017",
+              "recovery-key--recovery-key-failed": "tuna-os/tunaOS#5017"},
+    "cosmic": {"network": "reported to the COSMIC owner"},
+}

@@ -205,8 +205,11 @@ def for_frontend(frontend, variant=""):
                  "TUNA_OS_RELEASE": os.path.join(HERE, "fixtures/os-release-prerelease"),
                  "TUNA_OS_RELEASE_FILE": os.path.join(HERE, "fixtures/os-release-prerelease")},
             only=("prerelease", "eula")),
-        Run("offline", f"happy,{key}", until=("disk",), only=("network",),
-            actions={"source": Action(prepare=choose(r"Capture Desktop.*Stable.*"))}),
+        # On an installed system (not live media) the image list offers images
+        # that need a download; with no network the network page shows.
+        Run("offline", f"not-live,{key}", until=("disk",), only=("network",),
+            actions={p: Action(prepare=choose(r"Capture Desktop.*Edge.*"))
+                     for p in ("source", "image")}),
         Run("low-ram", f"low-ram,{key}", until=("requirements",), env=dict(ONLINE),
             only=("requirements",)),
         Run("no-uefi", f"no-uefi,{key}", until=("requirements",), env=dict(ONLINE),

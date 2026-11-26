@@ -184,15 +184,17 @@ def write_page(a, manifest):
         missing = [n for n in check.expected(a.frontend) if n not in have]
         covered = flows.COVERS.get(a.frontend, {})
         if exempt or missing or covered:
+            blocked = flows.BLOCKED_BY.get(a.frontend, {})
             lines += ["", "## Pages with no picture of their own", "",
-                      "| Page | Reason |", "|---|---|"]
+                      "| Page | Kind | Reason |", "|---|---|---|"]
             for page, inside in covered.items():
                 for p in inside:
-                    lines.append(f"| `{p}` | It is on the `{page}` page. |")
+                    lines.append(f"| `{p}` | Design | It is on the `{page}` page. |")
             for n, why in exempt.items():
-                lines.append(f"| `{n}` | {why} |")
+                kind = f"Defect ({blocked[n]})" if n in blocked else "Design"
+                lines.append(f"| `{n}` | {kind} | {why} |")
             for n in missing:
-                lines.append(f"| `{n}` | No picture in this run. The check fails. |")
+                lines.append(f"| `{n}` | Gap | No picture in this run. The check fails. |")
     if manifest["errors"]:
         lines += ["", "## Runs that did not finish", ""]
         lines += [f"- `{e.splitlines()[0][:200]}`" for e in manifest["errors"]]
