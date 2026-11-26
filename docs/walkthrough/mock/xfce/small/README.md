@@ -4,7 +4,7 @@ Do not edit this page. `tools/walkthrough/render.py` makes it.
 
 These pictures come from the real installer against the mock daemon (`fishermand --mock`). The mock writes to no disk. The machine, the disks and the recovery key are fixtures.
 
-![The main path, animated](walkthrough.webp)
+![The main path, animated](walkthrough.gif)
 
 | # | Page | When it shows | Picture |
 |---|---|---|---|

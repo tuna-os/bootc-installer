@@ -6,7 +6,7 @@ These pictures come from the real installer against the mock daemon (`fishermand
 
 The main path in other forms: [1024 x 600](small/README.md).
 
-![The main path, animated](walkthrough.webp)
+![The main path, animated](walkthrough.gif)
 
 | # | Page | When it shows | Picture |
 |---|---|---|---|

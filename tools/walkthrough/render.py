@@ -96,19 +96,13 @@ def single_colour(path):
 
 
 def animate(frames, out):
-    """An animated WebP of the main path, 800 pixels wide."""
-    tmp = out + ".d"
-    os.makedirs(tmp, exist_ok=True)
-    small = []
-    for i, f in enumerate(frames):
-        p = os.path.join(tmp, f"{i:02d}.png")
-        subprocess.run(["magick", f, "-resize", "800x", p], check=True)
-        small.append(p)
-    argv = ["img2webp", "-loop", "0", "-lossy", "-q", "70", "-m", "4"]
-    for p in small:
-        argv += ["-d", "2200", p]
-    subprocess.run(argv + ["-o", out], check=True, stdout=subprocess.DEVNULL)
-    shutil.rmtree(tmp)
+    """An animated GIF of the main path, 800 pixels wide. GIF, not WebP: the
+    publication allowlist of shared/e2e/publish.py takes PNG and GIF."""
+    argv = ["magick", "-delay", "220", "-loop", "0"]
+    for f in frames:
+        argv += ["(", f, "-resize", "800x", ")"]
+    argv += ["-layers", "Optimize", "-colors", "128", out]
+    subprocess.run(argv, check=True)
 
 
 def main():
@@ -126,7 +120,7 @@ def main():
     names = sorted(pages, key=lambda n: order_key(n, s, pages))
     if os.path.isdir(a.out):
         for f in os.listdir(a.out):
-            if re.match(r"^\d\d-.*\.png$", f) or f in ("walkthrough.webp", "manifest.json"):
+            if re.match(r"^\d\d-.*\.png$", f) or f in ("walkthrough.webp", "walkthrough.gif", "manifest.json"):
                 os.unlink(os.path.join(a.out, f))
     os.makedirs(a.out, exist_ok=True)
     entries, main_frames = [], []
@@ -144,7 +138,7 @@ def main():
         if "--" not in name and pages[name].get("run") in ("happy", "install"):
             main_frames.append(dst)
     if main_frames:
-        animate(main_frames, os.path.join(a.out, "walkthrough.webp"))
+        animate(main_frames, os.path.join(a.out, "walkthrough.gif"))
     manifest = {"frontend": a.frontend, "source": a.source, "run": a.run,
                 "variant": cap.get("variant", ""), "pages": entries,
                 "errors": cap.get("errors", [])}
@@ -177,8 +171,8 @@ def write_page(a, manifest):
         label = {"dark": "dark style", "small": "1024 x 600"}
         lines += ["", "The main path in other forms: " + ", ".join(
             f"[{label[v]}]({v}/README.md)" for v in others) + "."]
-    if os.path.exists(os.path.join(a.out, "walkthrough.webp")):
-        lines += ["", "![The main path, animated](walkthrough.webp)"]
+    if os.path.exists(os.path.join(a.out, "walkthrough.gif")):
+        lines += ["", "![The main path, animated](walkthrough.gif)"]
     lines += ["", "| # | Page | When it shows | Picture |", "|---|---|---|---|"]
     for i, e in enumerate(manifest["pages"], 1):
         cell = e["caption"].replace("|", "\\|").replace("\n", " ")

@@ -14,7 +14,7 @@ RUN dnf -y install --setopt=install_weak_deps=False \
         adwaita-icon-theme glibc-langpack-en glibc-langpack-de glibc-langpack-fr \
         glibc-langpack-es glibc-langpack-it glibc-langpack-nl glibc-langpack-pl \
         glibc-langpack-pt glibc-langpack-sv \
-        xkeyboard-config tzdata iso-codes ImageMagick libwebp-tools optipng \
+        xkeyboard-config tzdata iso-codes ImageMagick optipng \
         libfaketime polkit sudo procps-ng util-linux findutils hostname golang git-core \
     && dnf clean all
 RUN set -e; f() { dnf -y install --setopt=install_weak_deps=False "$@"; }; \

@@ -8,7 +8,7 @@ The niri installer runs here in sway with a software renderer. niri itself needs
 
 The main path in other forms: [1024 x 600](small/README.md).
 
-![The main path, animated](walkthrough.webp)
+![The main path, animated](walkthrough.gif)
 
 | # | Page | When it shows | Picture |
 |---|---|---|---|

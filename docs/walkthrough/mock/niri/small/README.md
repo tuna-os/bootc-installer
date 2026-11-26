@@ -6,7 +6,7 @@ These pictures come from the real installer against the mock daemon (`fishermand
 
 The niri installer runs here in sway with a software renderer. niri itself needs hardware GL, but this installer is a Quickshell app that any wlroots compositor shows the same way.
 
-![The main path, animated](walkthrough.webp)
+![The main path, animated](walkthrough.gif)
 
 | # | Page | When it shows | Picture |
 |---|---|---|---|

@@ -14,7 +14,7 @@ The result goes to `docs/walkthrough/mock/<frontend>/`:
 - `NN-<page>.png`: one picture for each page, in the order of
   `shared/flow/screens.yaml`. A state of a page has a name such as
   `done--device-lost`.
-- `walkthrough.webp`: the main path as an animation.
+- `walkthrough.gif`: the main path as an animation.
 - `README.md`: the pictures with captions from the flow spec.
 - `manifest.json`: the page, the run, the mock scenario and the hash of
   each picture.
