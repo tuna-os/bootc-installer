@@ -685,7 +685,11 @@ class InstallerWindow(Gtk.ApplicationWindow):
                               daemon_client.line_text({
                                   "type": "error",
                                   "message": str(exc) or _("lost the daemon"),
-                                  "code": "daemon_unreachable"}))
+                                  "code": "daemon_unreachable",
+                                  # The daemon may have gone on writing
+                                  # after the stream dropped: only a
+                                  # change already seen is certain.
+                                  "disk_changed": True if changed else None}))
             GLib.idle_add(self._finish_daemon_install, terminal, "")
 
         threading.Thread(target=work, daemon=True).start()
