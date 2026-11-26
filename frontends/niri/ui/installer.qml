@@ -1760,6 +1760,33 @@ ApplicationWindow {
     }
     Shortcut { sequence: "Shift+Return"; onActivated: root.back() }
 
+    // The failed page's one sentence: the daemon's reason in words, else
+    // the step where it stopped, else a pointer to the log.
+    function failureSentence() {
+        const e = root.installError || {}
+        // The daemon's reasons (screens.yaml failure_states), in COSMIC's words.
+        const byCode = ({
+            device_lost: qsTr("The disk went away during the installation. Connect it again, or choose another disk."),
+            repart_failed: qsTr("The installer could not partition the disk."),
+            luks_failed: qsTr("The installer could not encrypt the disk."),
+            daemon_unreachable: qsTr("The install service does not answer. If an installation was in progress, it can still be running.")
+        })[e.code || ""] || ""
+        if (byCode !== "") return byCode
+        if (e.step_id) return qsTr("The installation stopped at the step “%1”.").arg(daemonStepLabel(e.step_id))
+        return qsTr("The installation did not finish. The log has the details.")
+    }
+    function daemonStepLabel(id) {
+        const t = root.text("step_" + id)
+        return t !== "" ? t.replace(/…$/, "") : id
+    }
+    // Try again: back to Confirm with every choice kept (as COSMIC).
+    function tryAgain() {
+        root.installError = null
+        root.installSuccess = false
+        root.installCancelled = false
+        root.currentPage = 6
+    }
+
     // The done page's tone: installed, cancelled (a warning: the user chose
     // it) or failed.
     readonly property color doneColor: root.installSuccess ? Theme.success
@@ -3036,7 +3063,7 @@ ApplicationWindow {
                             ? root.text("done_subtitle")
                             : (root.installCancelled
                                 ? qsTr("You stopped the installer. The disk can be in an incomplete state: start the installer again before you use it.")
-                                : qsTr("Check the installation log for details."))
+                                : root.failureSentence())
                         color: Theme.surfaceVariantText
                         wrapMode: Text.Wrap
                         horizontalAlignment: Text.AlignHCenter
@@ -3051,6 +3078,18 @@ ApplicationWindow {
                             .map(k => root.text(k)).filter(t => t !== "").join("\n\n")
                         color: Theme.surfaceVariantText
                         wrapMode: Text.Wrap
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    // The log stays reachable after a failure.
+                    StyledText {
+                        objectName: "doneLogPath"
+                        visible: !root.installSuccess && root.logPath !== ""
+                        text: qsTr("Log: %1").arg(root.logPath)
+                        color: Theme.surfaceVariantText
+                        font.pixelSize: Theme.fontSizeSmall
+                        isMonospace: true
+                        wrapMode: Text.WrapAnywhere
                         horizontalAlignment: Text.AlignHCenter
                         Layout.fillWidth: true
                     }
@@ -3097,6 +3136,12 @@ ApplicationWindow {
                         Layout.alignment: Qt.AlignHCenter
                         spacing: Theme.spacingM
                         DankButton { text: qsTr("Close"); tonal: true; onClicked: Qt.quit() }
+                        DankButton {
+                            objectName: "doneTryAgainButton"
+                            text: qsTr("Try again")
+                            visible: !root.installSuccess
+                            onClicked: root.tryAgain()
+                        }
                         DankButton {
                             text: qsTr("Power off")
                             tonal: true

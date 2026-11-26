@@ -525,6 +525,10 @@ func emitInstallLine(w io.Writer, ev daemonInstallEvent) {
 		}
 		if stepID != "" {
 			e["step_id"] = stepID
+			// The daemon sends no disk_changed: the step says it. Only
+			// validate_device runs before the first write (as KDE and
+			// COSMIC read it).
+			e["disk_changed"] = stepID != "validate_device"
 		}
 		line(e)
 	case "complete":
