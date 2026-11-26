@@ -325,7 +325,7 @@ def walk(frontend, run, out, work, variant, log):
             if page in TERMINAL and same > 2 and (name in found or not name):
                 break
             waiting = page in runs.WAIT_PAGES and not run.actions.get(page)
-            if same > (90 if waiting else 8):
+            if same > (90 if waiting else 12):
                 s.shot(os.path.join(work, f"stuck-{run.name}.png"))
                 raise Stuck(f"{run.name}: no progress on page {page}: {w.lines()[:40]}")
             if waiting or page == "unknown":

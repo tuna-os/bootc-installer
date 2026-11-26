@@ -70,6 +70,7 @@ def set_terms(frontend, path):
         return
     target = "/usr/share/gnome-setup/eula.xml"
     if path:
+        os.makedirs(os.path.dirname(target), exist_ok=True)
         subprocess.run(["cp", path, target], check=True)
     elif os.path.exists(target):
         os.unlink(target)

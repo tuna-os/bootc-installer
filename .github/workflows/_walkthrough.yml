@@ -1,0 +1,148 @@
+name: Walkthrough (reusable)
+
+# Pictures one installer against the mock daemon (tools/walkthrough)
+# and checks the pictures. Each frontend has its own caller,
+# walkthrough-<frontend>.yml, with its own path filter, so a red desktop
+# does not stop the others.
+#
+# On a pull request: upload the pictures and report. On dev (push, the
+# weekly run or a dispatch): when the pictures changed, open a pull request
+# with them. The pictures never go to dev directly.
+#
+# The check fails when a page of the flow spec has no picture, when a
+# picture is one colour, or when a run of the walk did not finish. Pixel
+# changes only go in the report: fonts and antialiasing move.
+
+on:
+  workflow_call:
+    inputs:
+      frontend:
+        required: true
+        type: string
+    secrets:
+      DEV_PUSH_DEPLOY_KEY:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  walk:
+    name: Walkthrough (${{ inputs.frontend }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      FE: ${{ inputs.frontend }}
+      WALK_CACHE: ${{ github.workspace }}/../walk-cache
+    steps:
+      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] the pull request step pushes from this checkout
+        with:
+          fetch-depth: 1
+
+      # The builds of the installer and of the mock daemon. The pictures
+      # are never cached: each run makes them again.
+      - uses: actions/cache@v5.1.0
+        with:
+          path: ${{ env.WALK_CACHE }}/out
+          key: walk-${{ inputs.frontend }}-${{ hashFiles(format('frontends/{0}/**', inputs.frontend), 'tools/walkthrough/PINS', 'tools/walkthrough/build.sh', 'tools/walkthrough/Containerfile') }}
+          restore-keys: walk-${{ inputs.frontend }}-
+
+      - name: Picture each page
+        id: walk
+        env:
+          WALK_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set +e
+          tools/walkthrough/run.sh "$FE" "$RUNNER_TEMP/new/$FE"
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Check against the flow spec and the committed pictures
+        id: check
+        run: |
+          podman run --rm --network none -v "$PWD:/src:ro" -v "$RUNNER_TEMP/new:/new:ro" \
+            -v "$RUNNER_TEMP:/summary" "localhost/tuna-installer-walk:$FE" \
+            python3 /src/tools/walkthrough/check.py "$FE" "/new/$FE" \
+              --committed "/src/docs/walkthrough/mock/$FE" --summary /summary/summary.md
+          rc=$?
+          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
+
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: walkthrough-mock-${{ inputs.frontend }}
+          path: ${{ runner.temp }}/new/${{ inputs.frontend }}/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload the logs of the walk
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: walkthrough-mock-${{ inputs.frontend }}-logs
+          path: ${{ env.WALK_CACHE }}/captures/${{ inputs.frontend }}/work/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Only from dev, and only with new pictures. The branch is pushed with
+      # the deploy key: a pull request that GITHUB_TOKEN alone makes starts
+      # no workflow, and dev requires checks. The empty commit after the
+      # pull request exists starts them.
+      - name: Open a pull request with the new pictures
+        if: >-
+          github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEV_PUSH_DEPLOY_KEY: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          dir="docs/walkthrough/mock/$FE"
+          rm -rf "$dir"
+          mkdir -p "$dir"
+          cp -r "$RUNNER_TEMP/new/$FE/." "$dir/"
+          if git diff --quiet -- "$dir" && [ -z "$(git ls-files --others -- "$dir")" ]; then
+            echo "The pictures did not change."
+            exit 0
+          fi
+          if [ -z "$DEV_PUSH_DEPLOY_KEY" ]; then
+            echo "::error::DEV_PUSH_DEPLOY_KEY is not set; cannot push the branch"
+            exit 1
+          fi
+          branch="bot/walkthrough-$FE-${GITHUB_SHA::8}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add -- "$dir"
+          git commit -q -m "docs($FE): refresh the mock-daemon walkthrough"
+          keydir="$(mktemp -d "$RUNNER_TEMP/key.XXXXXX")"
+          trap 'rm -rf "$keydir"' EXIT
+          (umask 077; printf '%s\n' "$DEV_PUSH_DEPLOY_KEY" > "$keydir/key")
+          printf 'github.com %s\n' \
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" \
+            > "$keydir/known_hosts"
+          export GIT_SSH_COMMAND="ssh -i $keydir/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$keydir/known_hosts"
+          remote="git@github.com:${GITHUB_REPOSITORY}.git"
+          git push -q "$remote" "HEAD:refs/heads/$branch"
+          body="$RUNNER_TEMP/body.md"
+          {
+            echo "New pictures of the $FE installer against the mock daemon, from run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID."
+            echo
+            cat "$RUNNER_TEMP/summary.md"
+          } > "$body"
+          gh pr create --base dev --head "$branch" --title "docs($FE): refresh the mock-daemon walkthrough" \
+            --body-file "$body"
+          git commit -q --allow-empty -m "ci: run the checks of the pull request"
+          git push -q "$remote" "HEAD:refs/heads/$branch"
+          # An older pull request of this frontend is out of date now.
+          gh pr list --state open --search "head:bot/walkthrough-$FE-" --json number,headRefName \
+            --jq ".[] | select(.headRefName != \"$branch\") | .number" |
+            while read -r n; do gh pr close "$n" --delete-branch --comment "Replaced by the pull request of $branch."; done
+
+      - name: Fail when the walk did not finish
+        if: steps.walk.outputs.rc != '0'
+        run: |
+          echo "::error::a run of the walk did not finish; see the summary and the logs artifact"
+          exit 1

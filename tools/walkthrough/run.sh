@@ -11,7 +11,7 @@
 set -euo pipefail
 fe="${1:?usage: run.sh gnome|kde|cosmic|niri|xfce [OUT]}"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo="$(cd "${here}/../../.." && pwd)"
+repo="$(cd "${here}/../.." && pwd)"
 out="${2:-${repo}/docs/walkthrough/mock/${fe}}"
 [[ -n "${WALK_VARIANT:-}" ]] && out="${out}/${WALK_VARIANT}"
 cache="${WALK_CACHE:-${XDG_CACHE_HOME:-${HOME}/.cache}/tuna-installer-walk}"
@@ -38,18 +38,18 @@ common=(--rm --hostname tunaos --shm-size 512m
 	-v "${repo}:/src:ro" -v "${cache}/out:/out"
 	-v "${cache}/pins/fisherman:/pins/fisherman:ro" -v "${cache}/pins/tunaos:/pins/tunaos")
 # The build may download sources; the walk has no network at all.
-"${engine}" run "${common[@]}" --network host "${image}" bash /src/shared/walkthrough/live/build.sh "${fe}"
+"${engine}" run "${common[@]}" --network host "${image}" bash /src/tools/walkthrough/build.sh "${fe}"
 
 cap="${cache}/captures/${fe}${WALK_VARIANT:+-${WALK_VARIANT}}"
 rm -rf "${cap}"
 mkdir -p "${cap}"
 rc=0
 "${engine}" run "${common[@]}" --network none -v "${cap}:/captures" "${image}" \
-	python3 /src/shared/walkthrough/live/walk.py "${fe}" /captures --work /captures/work \
+	python3 /src/tools/walkthrough/walk.py "${fe}" /captures --work /captures/work \
 	${WALK_ONLY:+--only "${WALK_ONLY}"} ${WALK_VARIANT:+--variant "${WALK_VARIANT}"} || rc=$?
 mkdir -p "${out}"
 "${engine}" run "${common[@]}" --network none -v "${cap}:/captures:ro" -v "${out}:/render" \
-	"${image}" python3 /src/shared/walkthrough/live/render.py "${fe}" /captures /render \
+	"${image}" python3 /src/tools/walkthrough/render.py "${fe}" /captures /render \
 	${WALK_RUN_URL:+--run "${WALK_RUN_URL}"}
 echo "walkthrough: ${out} (walk exit ${rc})"
 exit "${rc}"

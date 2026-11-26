@@ -74,7 +74,12 @@ PRIMARY = [r"Install now", r"Get started", r"Next", r"Continue", r"Start install
 DISK = r"(Mockware )?Mock NVMe 512.*"
 ACCOUNT = {"full": "Alex Example", "user": "alex", "pass": "walkthrough-mock-1", "host": "tunaos"}
 
+_LIVE_NO_NETWORK = ("On live media the installer copies the running system: nothing to "
+                    "download, so no network page.")
 EXEMPT = {
+    "kde": {"network": _LIVE_NO_NETWORK},
+    "cosmic": {"network": _LIVE_NO_NETWORK},
+    "niri": {"network": "The session page has the network card; there is no page of its own."},
     "xfce": {
         "done--cancelled": "The cancel dialog draws no buttons (gates.ConfirmCancelDialog has no "
                            "show_all), so the walk cannot confirm a cancel.",
@@ -87,6 +92,8 @@ EXEMPT = {
         "network": "gnome-initial-setup asks for it on the first boot.",
         "account": "gnome-initial-setup makes the account on the first boot.",
         "handoff": "gnome-setup restarts from its last page.",
+        "rst": "gnome-setup reads Intel RST from sysfs, not from the daemon, and the session "
+               "cannot change sysfs.",
         "handoff--soft-reboot": "gnome-setup has no handoff page.",
         "handoff--handoff-failed": "gnome-setup has no handoff page.",
         "requirements--requirements-fatal": "gnome-setup has no requirements page.",

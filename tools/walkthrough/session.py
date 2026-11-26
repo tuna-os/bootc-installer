@@ -79,7 +79,7 @@ class Session:
         shutil.copy(os.path.join(HERE, "fixtures/os-release"), "/usr/lib/os-release")
         icons = "/usr/share/icons/hicolor/scalable/apps"
         os.makedirs(icons, exist_ok=True)
-        shutil.copy(os.path.join(HERE, "../../../data/icons/hicolor/scalable/apps",
+        shutil.copy(os.path.join(HERE, "../../data/icons/hicolor/scalable/apps",
                                  "org.bootcinstaller.Installer.svg"), icons)
         subprocess.run(["gtk4-update-icon-cache", "-qtf", "/usr/share/icons/hicolor"],
                        check=False, stderr=subprocess.DEVNULL)

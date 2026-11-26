@@ -1,0 +1,44 @@
+name: Walkthrough (xfce)
+
+# The real xfce installer against the mock daemon, picture by picture. See
+# _walkthrough.yml and tools/walkthrough/README.md.
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "frontends/xfce/**"
+      - "!frontends/xfce/docs/**"
+      - "tools/walkthrough/**"
+      - "shared/flow/screens.yaml"
+      - ".github/workflows/_walkthrough.yml"
+      - ".github/workflows/walkthrough-xfce.yml"
+  pull_request:
+    paths:
+      - "frontends/xfce/**"
+      - "!frontends/xfce/docs/**"
+      - "tools/walkthrough/**"
+      - "shared/flow/screens.yaml"
+      - ".github/workflows/_walkthrough.yml"
+      - ".github/workflows/walkthrough-xfce.yml"
+  schedule:
+    - cron: "57 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: walkthrough-xfce-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  walk:
+    uses: ./.github/workflows/_walkthrough.yml
+    permissions:
+      contents: read
+      pull-requests: write
+    with:
+      frontend: xfce
+    secrets:
+      DEV_PUSH_DEPLOY_KEY: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}

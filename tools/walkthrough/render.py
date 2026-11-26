@@ -21,7 +21,7 @@ import sys
 import yaml
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.normpath(os.path.join(HERE, "../../.."))
+REPO = os.path.normpath(os.path.join(HERE, "../.."))
 sys.path.insert(0, HERE)
 import flows  # noqa: E402
 
@@ -167,7 +167,7 @@ def write_page(a, manifest):
         source = ("These pictures come from a real install in a virtual machine, by the "
                   "image-installer E2E test of tuna-os/tunaOS.")
     lines = [f"# {name}: installer walkthrough", "",
-             "Do not edit this page. `shared/walkthrough/live/render.py` makes it.", "",
+             "Do not edit this page. `tools/walkthrough/render.py` makes it.", "",
              source]
     if a.source == "mock" and a.frontend in COMPOSITOR:
         lines += ["", COMPOSITOR[a.frontend]]
