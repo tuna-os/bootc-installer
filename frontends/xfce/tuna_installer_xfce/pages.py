@@ -520,9 +520,11 @@ class EulaPage(Page):
         super().__init__(win)
         a11y_name(self, _("Terms of use"))
         scroll = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
-        self.text = Gtk.TextView(editable=False)
-        self.loaded, text = self._load()
-        self.text.get_buffer().set_text(text)
+        self.text = Gtk.TextView(editable=False, cursor_visible=False,
+                                 wrap_mode=Gtk.WrapMode.WORD,
+                                 left_margin=6, right_margin=6)
+        self.loaded, blocks = self._load()
+        self._render(blocks)
         scroll.add(self.text)
         self.pack_start(scroll, True, True, 0)
         self.accept = Gtk.CheckButton(
@@ -530,11 +532,14 @@ class EulaPage(Page):
         self.accept.connect("toggled", lambda *_a: self.win.refresh_nav())
         # eula-unreadable (spec): nothing to accept, so the only way out
         # is Power off.
+        # no_show_all: the window's show_all() would show both.
+        self.accept.set_no_show_all(True)
         self.accept.set_visible(self.loaded)
         self.pack_start(self.accept, False, False, 0)
         self.off_btn = Gtk.Button(label=_("Power off"))
         self.off_btn.connect(
             "clicked", lambda *_a: core.host_run(["systemctl", "poweroff"]))
+        self.off_btn.set_no_show_all(True)
         self.off_btn.set_visible(not self.loaded)
         self.pack_start(self.off_btn, False, False, 0)
 
@@ -542,12 +547,40 @@ class EulaPage(Page):
         return bool(core.find_eula())
 
     def _load(self):
+        """(loaded, blocks): the agreement as core.eula_blocks() reads it.
+        A file that is gone, unreadable or no AppStream agreement is not
+        loaded: the page then offers Power off, and never shows raw XML."""
         path = core.find_eula()
         try:
             with open(path, encoding="utf-8") as handle:
-                return True, handle.read()
-        except OSError:
-            return False, _("The terms could not be loaded.")
+                blocks = core.eula_blocks(handle.read())
+        except (OSError, UnicodeDecodeError):
+            blocks = None
+        if not blocks:
+            return False, [("para", _("The terms could not be loaded."))]
+        return True, blocks
+
+    def _render(self, blocks):
+        buf = self.text.get_buffer()
+        buf.set_text("")
+        heading = buf.create_tag("heading", weight=700, pixels_above_lines=8)
+        item = buf.create_tag("item", left_margin=24)
+        end = buf.get_end_iter
+        for n, (kind, text) in enumerate(blocks):
+            if n:
+                buf.insert(end(), "\n")
+            if kind == "heading":
+                buf.insert_with_tags(end(), text, heading)
+            elif kind == "item":
+                buf.insert_with_tags(end(), "\u2022 " + text, item)
+            elif kind == "number":
+                buf.insert_with_tags(end(), text, item)
+            else:
+                buf.insert(end(), text)
+
+    def plain_text(self):
+        buf = self.text.get_buffer()
+        return buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False)
 
     def can_continue(self):
         return self.accept.get_active()
@@ -765,6 +798,11 @@ class DestinationPage(Page):
         self.pack_start(self.listbox, False, False, 0)
         self.warn = _warn_row("")
         self.warn_label = self.warn.get_children()[1]
+        # Shown by _update_warning only, with a disk picked: the window's
+        # show_all() left a bare warning icon on a page with no disk.
+        self.warn.set_no_show_all(True)
+        self.warn.get_children()[0].show()
+        self.warn_label.show()
         self.pack_end(self.warn, False, False, 0)
 
     def on_enter(self):
@@ -1027,6 +1065,13 @@ class SetupPage(Page):
                 if radio.value == "tpm2-luks":
                     radio.set_active(True)
         self._sync()
+
+    def should_show(self):
+        # screens.yaml `encryption.skip_when`: with a usable TPM 2.0 the
+        # daemon seals the disk to it with nothing to type, and Confirm
+        # says so. The page stays for no TPM (a passphrase) and for the
+        # recipe path (its filesystem and encryption choices).
+        return not (core.backend() == "daemon" and self.has_tpm)
 
     def _sync(self, *_args):
         self.pass_grid.set_sensitive(core.needs_passphrase(self.enc_type()))
@@ -1399,11 +1444,22 @@ class ConfirmPage(Page):
         if not daemon:
             # The daemon takes no filesystem: the image decides it.
             rows.append((_("Filesystem"), filesystem_label(r["filesystem"])))
+        enc = r["encryption"]["type"] or "none"
+        enc_text = encryption_text(enc, "_label")
+        if daemon:
+            # The encryption page is skipped with a TPM (screens.yaml), so
+            # Confirm is where a person reads how the disk unlocks.
+            enc_text = ": ".join(t for t in (
+                enc_text, encryption_text(enc, "_description")) if t)
         rows += [
-            (_("Encryption"), encryption_text(r["encryption"]["type"] or "none", "_label")),
+            (_("Encryption"), enc_text),
             (_("Hostname"), r["hostname"]),
-            (_("Image"), image),
         ]
+        if daemon and getattr(self.win.pages.get("source"), "live", False):
+            # The medium installs its own image: its product name, not a
+            # registry reference.
+            image = core.PRODUCT_NAME or image
+        rows.append((_("Image"), image))
         if r.get("targetImgref") and r["targetImgref"] != r.get("image"):
             # The image that updates follow, when it is not the one installed.
             rows.append((_("Updates from"), r["targetImgref"]))
@@ -2071,8 +2127,17 @@ class RecoveryPage(Page):
         selected = destination.selected_disk() if destination else None
         if selected:
             disk = selected.get("path", "")
+        # A passphrase install locks the disk with the person's passphrase,
+        # not the empty one the TPM path sets: CryptEnroll needs it to
+        # unlock (mock no-tpm answered PasswordIncorrect, and the page
+        # never let the person go on).
+        unlock = ""
+        setup = self.win.pages.get("setup")
+        entry = getattr(setup, "pass1", None)
+        if entry is not None and core.needs_passphrase(setup.enc_type()):
+            unlock = entry.get_text()
         try:
-            core.get_daemon().enroll_recovery_key(disk, self.key)
+            core.get_daemon().enroll_recovery_key(disk, self.key, unlock)
         except Exception as exc:  # noqa: BLE001 - the key is shown; retry
             # The error name of the daemon (io.systemd.System) is for the
             # log; it tells a person nothing.
@@ -2330,8 +2395,16 @@ class DonePage(Page):
                 core.BRANDING.text("done_failed_title")) + "</b></big>")
             tail = readable_log(log_tail)
             reason = failure_reason(error) or (tail.splitlines() or [""])[-1].strip()
+            disk_lines = progress_parser.failure_text(error, core.BRANDING.text)
+            if (core.backend() == "daemon" and isinstance(error, dict)
+                    and error.get("disk_changed") is None):
+                # The partition step failed, or the daemon went away during
+                # the install: the disk may hold new partitions or not. Say
+                # so; the failure page states what happened to the disk.
+                disk_lines = [_("The installer may have changed the disk."),
+                              *disk_lines]
             self.body.set_text("\n\n".join(line for line in (
-                *progress_parser.failure_text(error, core.BRANDING.text), reason,
+                *disk_lines, reason,
                 _("Full log: {path}").format(path=core.install_log_path())) if line))
             self.details_view.get_buffer().set_text(tail)
             self.details.set_visible(bool(tail))

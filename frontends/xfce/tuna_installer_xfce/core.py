@@ -376,6 +376,54 @@ def find_eula():
     return ""
 
 
+def eula_blocks(xml_text):
+    """The agreement of an AppStream component as blocks to show, in order:
+    ("heading", name), ("para", text), ("item", text) and ("number", "n. text").
+    Reads `agreement type="eula"` (else the first agreement), each
+    agreement_section's <name>, and the <p>, <ul>/<ol> <li> of its
+    <description> or of the section itself. None when the text is no XML or
+    holds no agreement: the page then counts as unreadable (spec
+    eula-unreadable), and never shows the raw file."""
+    import xml.etree.ElementTree as ET
+
+    if "<!DOCTYPE" in xml_text or "<!ENTITY" in xml_text:
+        return None  # no entity expansion from a file on the medium
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return None
+    agreements = root.findall(".//agreement")
+    agreement = next((a for a in agreements if a.get("type") == "eula"),
+                     agreements[0] if agreements else None)
+    if agreement is None:
+        return None
+
+    def text_of(node):
+        return " ".join("".join(node.itertext()).split())
+
+    def body(node, blocks):
+        for child in node:
+            if child.tag == "p":
+                blocks.append(("para", text_of(child)))
+            elif child.tag in ("ul", "ol"):
+                for n, item in enumerate(child.findall("li"), start=1):
+                    if child.tag == "ol":
+                        blocks.append(("number", f"{n}. {text_of(item)}"))
+                    else:
+                        blocks.append(("item", text_of(item)))
+            elif child.tag == "description":
+                body(child, blocks)
+
+    blocks = []
+    for section in agreement.findall("agreement_section"):
+        name = section.find("name")
+        if name is not None and text_of(name):
+            blocks.append(("heading", text_of(name)))
+        body(section, blocks)
+    blocks = [(kind, text) for kind, text in blocks if text]
+    return blocks or None
+
+
 def rst_detected():
     """Whether Intel RST (or VMD remapping) hides disks: the daemon's Probe
     intel_rst on the daemon backend, a sysfs glob on the recipe backend
