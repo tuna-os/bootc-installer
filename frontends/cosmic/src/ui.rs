@@ -41,6 +41,15 @@ pub mod copy {
     /// The live-session choice (screens.yaml `try-or-install`): quits the
     /// wizard, the session keeps running. `{product}` fills in the view.
     pub const TRY_SYSTEM: &str = "Try {product}";
+    // The first page: a screen reader and a display scale, for this session
+    // and the installed system (tunaOS#5012).
+    pub const A11Y_SCREEN_READER: &str = "Screen reader";
+    pub const A11Y_SCREEN_READER_HINT: &str = "Reads the screen aloud. Super+Alt+S turns it on or off.";
+    pub const A11Y_SCALE: &str = "Display scale";
+    pub const A11Y_SCALE_HINT: &str = "For this session and the installed system.";
+    pub const A11Y_SCALE_VALUE: &str = "{n}%";
+    pub const A11Y_TURN_ON: &str = "Turn on";
+    pub const A11Y_TURN_OFF: &str = "Turn off";
 
     pub const DISK_TITLE: &str = "Select a disk";
     pub const DISK_SUBTITLE: &str = "Everything on the disk you pick will be erased.";
@@ -434,6 +443,14 @@ pub fn page_text(app: &TunaInstaller) -> Vec<String> {
             }
             t.push(tr(WELCOME_CAPTION));
             t.extend(crate::probe::requirements_lines(app.unmet()));
+            t.extend([
+                tr(A11Y_SCREEN_READER),
+                tr(A11Y_SCREEN_READER_HINT),
+                if app.screen_reader() { tr(A11Y_TURN_OFF) } else { tr(A11Y_TURN_ON) },
+                tr(A11Y_SCALE),
+                tr(A11Y_SCALE_HINT),
+            ]);
+            t.extend(crate::a11y::SCALES.iter().map(|p| tr_with(A11Y_SCALE_VALUE, &[("n", &p.to_string())])));
             t.push(t_line("welcome_button"));
             t.push(with_product(&tr(TRY_SYSTEM)));
             t
@@ -2309,6 +2326,41 @@ fn welcome(app: &TunaInstaller) -> Element<'_, Message> {
         .align_x(Alignment::Center)
         .width(Length::Fill);
 
+    // Before anything else, for a person who needs it to go on. Buttons, not
+    // a switch and a list: Tab reaches a button, and the switch and the
+    // dropdown of libcosmic take no keyboard focus. They come before Try and
+    // Get started in the Tab order.
+    let reader = widget::button::standard(if app.screen_reader() {
+        tr(A11Y_TURN_OFF)
+    } else {
+        tr(A11Y_TURN_ON)
+    })
+    .on_press(Message::ScreenReaderToggled(!app.screen_reader()));
+    let mut scales = widget::row::with_capacity(crate::a11y::SCALES.len()).spacing(spacing.space_xxs);
+    for (i, p) in crate::a11y::SCALES.iter().enumerate() {
+        let label = tr_with(A11Y_SCALE_VALUE, &[("n", &p.to_string())]);
+        // The chosen one is a filled button; never the accent, which is the
+        // button that goes on.
+        let button = if app.scale_index() == Some(i) {
+            widget::button::standard(label)
+        } else {
+            widget::button::text(label)
+        };
+        scales = scales.push(button.on_press(Message::ScaleSelected(i)));
+    }
+    let access = widget::settings::section()
+        .add(
+            widget::settings::item::builder(tr(A11Y_SCREEN_READER))
+                .description(tr(A11Y_SCREEN_READER_HINT))
+                .control(reader),
+        )
+        .add(
+            widget::settings::item::builder(tr(A11Y_SCALE))
+                .description(tr(A11Y_SCALE_HINT))
+                .control(scales),
+        );
+    let access = widget::container(access).max_width(560.0);
+
     let next = t_line("welcome_button");
     let footer = widget::row::with_children(vec![
         widget::button::standard(with_product(&tr(TRY_SYSTEM)))
@@ -2324,6 +2376,7 @@ fn welcome(app: &TunaInstaller) -> Element<'_, Message> {
     widget::column::with_children(vec![
         widget::space::vertical().into(),
         hero.into(),
+        widget::container(access).center_x(Length::Fill).into(),
         widget::space::vertical().into(),
         footer.into(),
     ])
