@@ -1,0 +1,307 @@
+package luks_test
+
+import (
+	"errors"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/tuna-os/fisherman/internal/deploy/deploytest"
+	"github.com/tuna-os/fisherman/internal/luks"
+	"github.com/tuna-os/fisherman/internal/runner"
+)
+
+// execCall records a single intercepted subprocess invocation.
+type execCall struct {
+	name  string
+	args  []string
+	stdin string
+}
+
+// recorder captures all Run/RunWithStdin calls made through runner.RunFn.
+type recorder struct {
+	calls []execCall
+	err   error // returned for every call; nil means success
+}
+
+func (r *recorder) run(stdin io.Reader, name string, args ...string) error {
+	s := ""
+	if stdin != nil {
+		b, _ := io.ReadAll(stdin)
+		s = string(b)
+	}
+	r.calls = append(r.calls, execCall{name: name, args: args, stdin: s})
+	return r.err
+}
+
+func setup(t *testing.T) *recorder {
+	t.Helper()
+	rec := &recorder{}
+	runner.RunFn = rec.run
+	t.Cleanup(func() { runner.RunFn = runner.DefaultRun })
+	return rec
+}
+
+func TestFormat(t *testing.T) {
+	const part = "/dev/sda3"
+	const pass = "hunter2"
+
+	rec := setup(t)
+	if err := luks.Format(part, pass); err != nil {
+		t.Fatalf("Format: %v", err)
+	}
+
+	if len(rec.calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(rec.calls))
+	}
+	c := rec.calls[0]
+
+	if c.name != "cryptsetup" {
+		t.Errorf("name = %q, want cryptsetup", c.name)
+	}
+	wantArgs := []string{"luksFormat", "--batch-mode", "--type=luks2", "--key-file=-", part}
+	if !equalSlice(c.args, wantArgs) {
+		t.Errorf("args = %v, want %v", c.args, wantArgs)
+	}
+	if c.stdin != pass {
+		t.Errorf("stdin = %q, want passphrase %q", c.stdin, pass)
+	}
+	// Passphrase must not appear in the argv.
+	for _, arg := range c.args {
+		if strings.Contains(arg, pass) {
+			t.Errorf("passphrase leaked into argv: %q", arg)
+		}
+	}
+}
+
+func TestOpen(t *testing.T) {
+	const part = "/dev/sda3"
+	const pass = "hunter2"
+	const mapper = "fisherman-root"
+
+	rec := setup(t)
+	if err := luks.Open(part, pass, mapper); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	if len(rec.calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(rec.calls))
+	}
+	c := rec.calls[0]
+
+	if c.name != "cryptsetup" {
+		t.Errorf("name = %q, want cryptsetup", c.name)
+	}
+	// #489: discards are allowed and stored in the header, so fstrim works
+	// on the installed system.
+	wantArgs := []string{"luksOpen", "--key-file=-", "--allow-discards", "--persistent", part, mapper}
+	if !equalSlice(c.args, wantArgs) {
+		t.Errorf("args = %v, want %v", c.args, wantArgs)
+	}
+	if c.stdin != pass {
+		t.Errorf("stdin = %q, want passphrase %q", c.stdin, pass)
+	}
+	for _, arg := range c.args {
+		if strings.Contains(arg, pass) {
+			t.Errorf("passphrase leaked into argv: %q", arg)
+		}
+	}
+}
+
+func TestClose(t *testing.T) {
+	const mapper = "fisherman-root"
+
+	rec := setup(t)
+	if err := luks.Close(mapper); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	if len(rec.calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(rec.calls))
+	}
+	c := rec.calls[0]
+
+	if c.name != "cryptsetup" {
+		t.Errorf("name = %q, want cryptsetup", c.name)
+	}
+	wantArgs := []string{"luksClose", mapper}
+	if !equalSlice(c.args, wantArgs) {
+		t.Errorf("args = %v, want %v", c.args, wantArgs)
+	}
+}
+
+func TestEnrollTPM2(t *testing.T) {
+	const part = "/dev/sda3"
+	const pass = "hunter2"
+
+	rec := setup(t)
+	if err := luks.EnrollTPM2(part, pass); err != nil {
+		t.Fatalf("EnrollTPM2: %v", err)
+	}
+
+	if len(rec.calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(rec.calls))
+	}
+	c := rec.calls[0]
+
+	if c.name != "systemd-cryptenroll" {
+		t.Errorf("name = %q, want systemd-cryptenroll", c.name)
+	}
+
+	// Args: --tpm2-device, --tpm2-pcrs, --unlock-key-file=<tmp>, partition.
+	if len(c.args) != 4 {
+		t.Fatalf("expected 4 args, got %d: %v", len(c.args), c.args)
+	}
+	if c.args[0] != "--tpm2-device=auto" {
+		t.Errorf("args[0] = %q, want --tpm2-device=auto", c.args[0])
+	}
+	if c.args[1] != "--tpm2-pcrs=7" {
+		t.Errorf("args[1] = %q, want --tpm2-pcrs=7", c.args[1])
+	}
+	if !strings.HasPrefix(c.args[2], "--unlock-key-file=") {
+		t.Errorf("args[2] = %q, want --unlock-key-file=<path>", c.args[2])
+	}
+	if strings.Contains(c.args[2], "-") && c.args[2] == "--unlock-key-file=-" {
+		t.Errorf("EnrollTPM2 still passes stdin flag -- should use a temp file")
+	}
+	if c.args[3] != part {
+		t.Errorf("args[3] = %q, want %q", c.args[3], part)
+	}
+
+	// Passphrase must not appear in argv.
+	for _, arg := range c.args {
+		if strings.Contains(arg, pass) {
+			t.Errorf("passphrase leaked into argv: %q", arg)
+		}
+	}
+
+	// stdin is not used; the passphrase goes to a temp file.
+	if c.stdin != "" {
+		t.Errorf("stdin = %q, want empty (passphrase goes to temp file)", c.stdin)
+	}
+}
+
+func TestFormat_ErrorPropagation(t *testing.T) {
+	rec := setup(t)
+	rec.err = errors.New("cryptsetup: device busy")
+
+	err := luks.Format("/dev/sda3", "pass")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestOpen_ErrorPropagation(t *testing.T) {
+	rec := setup(t)
+	rec.err = errors.New("cryptsetup: already open")
+
+	err := luks.Open("/dev/sda3", "pass", "mapper")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestMapperPath(t *testing.T) {
+	got := luks.MapperPath("fisherman-root")
+	if got != "/dev/mapper/fisherman-root" {
+		t.Errorf("MapperPath = %q, want /dev/mapper/fisherman-root", got)
+	}
+}
+
+func TestRandomPassphrase(t *testing.T) {
+	p1 := luks.RandomPassphrase()
+	p2 := luks.RandomPassphrase()
+
+	// Must be 64 hex characters (32 bytes encoded as hex).
+	if len(p1) != 64 {
+		t.Errorf("passphrase length = %d, want 64", len(p1))
+	}
+
+	// Must be valid hex.
+	for i, c := range p1 {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			t.Errorf("passphrase[%d] = %q is not lowercase hex", i, c)
+			break
+		}
+	}
+
+	// Two calls must not return the same value.
+	if p1 == p2 {
+		t.Error("RandomPassphrase returned the same value twice (collision or non-random)")
+	}
+}
+
+func TestUUID_ReturnsUUIDFromOutput(t *testing.T) {
+	const wantUUID = "deadbeef-1234-5678-abcd-000000000000"
+
+	old := runner.OutputFn
+	runner.OutputFn = func(name string, args ...string) ([]byte, error) {
+		return []byte(wantUUID + "\n"), nil
+	}
+	t.Cleanup(func() { runner.OutputFn = old })
+
+	got := luks.UUID("/dev/fake")
+	if got != wantUUID {
+		t.Errorf("UUID = %q, want %q", got, wantUUID)
+	}
+}
+
+func TestUUID_ReturnsEmptyOnError(t *testing.T) {
+	old := runner.OutputFn
+	runner.OutputFn = func(name string, args ...string) ([]byte, error) {
+		return nil, errors.New("cryptsetup: not a LUKS device")
+	}
+	t.Cleanup(func() { runner.OutputFn = old })
+
+	got := luks.UUID("/dev/fake")
+	if got != "" {
+		t.Errorf("UUID on error = %q, want empty string", got)
+	}
+}
+
+// TestStageFirstBootEnrollment_KeyIsRootOnly pins the single-use key's mode,
+// including when a world-readable file already sits at the path (#221). The
+// stale content never survives, and the staged key is never the passphrase
+// that unlocked the disk (#409).
+func TestStageFirstBootEnrollment_KeyIsRootOnly(t *testing.T) {
+	fx := deploytest.Ostree(t)
+	withCryptenroll(t, fx)
+	keyPath := filepath.Join(fx.Etc, "fisherman", "tpm2-enroll.key")
+	if err := os.MkdirAll(filepath.Dir(keyPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keyPath, []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	setup(t)
+
+	if err := luks.StageFirstBootEnrollment(resolve(t, fx), "/dev/vda3", "12345678-1234-1234-1234-123456789abc", "secret"); err != nil {
+		t.Fatalf("StageFirstBootEnrollment: %v", err)
+	}
+
+	info, err := os.Stat(keyPath)
+	if err != nil {
+		t.Fatalf("key file: %v", err)
+	}
+	if mode := info.Mode().Perm(); mode != 0o600 {
+		t.Errorf("key file mode = %o, want 600", mode)
+	}
+	got, err := os.ReadFile(keyPath)
+	if err != nil || string(got) == "stale" || string(got) == "secret" || len(got) != 64 {
+		t.Errorf("key file content = %q (%v), want a fresh 64-character random key", got, err)
+	}
+}
+
+func equalSlice(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

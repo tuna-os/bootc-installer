@@ -1,0 +1,18 @@
+.build/
+builddir/
+__pycache__/
+*.pyc
+fisherman/fisherman
+fisherman/fisherman-*
+flatpak/repo/
+org.tunaos.Installer.flatpak
+flatpak/build/
+
+# Go test coverage output (regenerated on every run)
+coverage.out
+
+# GoReleaser build output (`goreleaser release`, `goreleaser build`).
+dist/
+
+# Read-only scratch checkouts (Utah reference clone, never commit).
+.scratch/

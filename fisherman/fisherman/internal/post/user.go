@@ -1,0 +1,252 @@
+package post
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/tuna-os/fisherman/internal/deploy"
+	"github.com/tuna-os/fisherman/internal/runner"
+	"github.com/tuna-os/fisherman/internal/sha512crypt"
+)
+
+// UserConfig describes a user account to create in the installed system.
+type UserConfig struct {
+	Username string
+	Fullname string
+	Password string
+	Groups   []string // additional groups beyond the primary group
+}
+
+// CreateUser creates a user account inside the installed system rooted at sysroot.
+//
+// For ostree/bootc deployments, the deployment directory (found via DeploymentDirFn)
+// is used as the --root for useradd so that the image's /etc/passwd, /etc/shadow,
+// and /etc/group are updated. The sysroot root itself does not contain these files.
+//
+// Returns nil if Username is empty (no-op).
+func CreateUser(sysroot string, u UserConfig) error {
+	if u.Username == "" {
+		return nil
+	}
+
+	d, err := ResolveDeployment(sysroot)
+	if err != nil {
+		return err
+	}
+	// composefs-native has no full chrootable rootfs during deploy — the
+	// sealed image's /usr (with useradd) is mounted read-only elsewhere,
+	// so `chroot <sysroot> useradd` exits 127 (dakota, GH matrix
+	// 20260724T1508). d.Root is then the writable deployment root (parent of
+	// the state/deploy/<hash>/etc dir) and `useradd --root` below edits the
+	// passwd files without needing a chroot rootfs.
+	root := d.Root
+	composefs := d.Layout == deploy.ComposeFs
+	var staterootHome string
+	if !composefs {
+		// On ostree/bootc, /home inside the deployment is a symlink to
+		// var/home, and the booted /var is the stateroot's (d.Var), not the
+		// deployment's own var/. Pre-create the home dir there so the
+		// relocation below has a destination.
+		staterootHome = filepath.Join(d.Var, "home")
+		if err := runner.Run("mkdir", "-p", staterootHome); err != nil {
+			return fmt.Errorf("mkdir stateroot home: %w", err)
+		}
+	}
+
+	// Run the TARGET's useradd via chroot rather than `useradd --root`:
+	// --root chroots too, but first initializes the HOST's PAM/SELinux
+	// stack — from a booted host it dies with "failure while writing
+	// changes to /etc/passwd" against a target whose etc is perfectly
+	// writable (wootc run 20260723T0738: the deployer-initramfs
+	// environment masked this; the same call from booted Phase 2 failed
+	// every time while `chroot <dep> useradd` succeeded on the same
+	// files). Plain chroot uses only the target's own libraries.
+	// ostree: `chroot <deployDir> useradd` (the deployDir is a full rootfs).
+	// composefs-native: `useradd --root <deployRoot>` (no chroot rootfs
+	// exists during deploy; --root only edits the passwd files, and the
+	// booted-host PAM problem that forced chroot is ostree-only — composefs
+	// deploys happen in the initramfs).
+	//
+	// useradd exits 6 when a --groups entry does not exist on the target
+	// (e.g. libvirt on images without virt-manager), aborting the whole
+	// install. Drop missing groups with a warning instead: the account is
+	// created with the groups the image actually has.
+	groups := filterExistingGroups(root, u.Groups)
+	tail := []string{"useradd", "--create-home", "--shell", "/bin/bash"}
+	if u.Fullname != "" {
+		tail = append(tail, "--comment", u.Fullname)
+	}
+	if len(groups) > 0 {
+		tail = append(tail, "--groups", strings.Join(groups, ","))
+	}
+	tail = append(tail, u.Username)
+
+	if composefs {
+		// tail[0] is the literal "useradd" command name, needed only by the
+		// ostree branch's `chroot <root> useradd …`. Here we invoke the
+		// useradd binary directly, so drop it — otherwise it becomes a second
+		// positional login name alongside the username and shadow-utils exits 2
+		// ("invalid command syntax", dakota GH matrix 20260724T1705).
+		//
+		// Also drop --create-home: on a composefs-native deploy root, /home is a
+		// symlink to a stateroot var that does not exist under --root, so useradd
+		// --create-home cannot create the directory and exits 12 (dakota GH
+		// matrix 20260724T2128). The passwd entry is written without it, and the
+		// composefs tmpfiles.d snippet below builds+labels /var/home/<user> from
+		// /etc/skel on first boot — the same mechanism the ostree branch relies
+		// on after its relocation.
+		//
+		// Dropping --create-home is not enough: useradd also creates the home
+		// when /etc/login.defs says CREATE_HOME yes. Gentoo ships that, with
+		// /etc/default/useradd HOME=/var/home, so on guppy the call died with
+		// "useradd: cannot create directory /var" (exit 12, tunaOS guppy:xfce
+		// run 43562471545). --no-create-home overrides login.defs.
+		cargs := []string{"--root", root, "--no-create-home"}
+		for _, a := range tail[1:] {
+			if a == "--create-home" {
+				continue
+			}
+			cargs = append(cargs, a)
+		}
+		if err := runner.Run("useradd", cargs...); err != nil {
+			return fmt.Errorf("useradd (--root %s): %w", root, err)
+		}
+		// First-boot home creation for composefs-native (no staterootHome
+		// relocation path). /home -> var/home is a bootc invariant, so the
+		// runtime /var/home/<user> path is correct regardless of the composefs
+		// deploy layout. Mirrors the ostree snippet below.
+		if err := writeHomeTmpfiles(root, u.Username); err != nil {
+			return err
+		}
+	} else {
+		if err := runner.Run("chroot", append([]string{root}, tail...)...); err != nil {
+			return fmt.Errorf("useradd (chroot %s): %w", root, err)
+		}
+	}
+
+	// useradd --create-home resolved /home through the deployment's
+	// /home -> var/home symlink and wrote the directory into the
+	// DEPLOYMENT's own var/ — which the booted system never sees: the
+	// stateroot var is mounted over /var at runtime. The account then
+	// boots with a passwd entry but no home directory at all (wootc E2E
+	// run 20260723T0423: var/home held only the image's seed content).
+	// Relocate the freshly created home into the stateroot var, and pin
+	// it with a tmpfiles.d snippet so the first boot (re)creates it from
+	// /etc/skel if missing and restores ownership + SELinux labels under
+	// the live policy — offline useradd cannot label correctly.
+	if staterootHome != "" {
+		deployHome := filepath.Join(root, "var", "home", u.Username)
+		stateHome := filepath.Join(staterootHome, u.Username)
+		if _, err := os.Stat(deployHome); err == nil {
+			if _, err := os.Stat(stateHome); os.IsNotExist(err) {
+				if err := runner.Run("mv", deployHome, stateHome); err != nil {
+					return fmt.Errorf("relocating home to stateroot var: %w", err)
+				}
+			}
+		}
+		if err := writeHomeTmpfiles(root, u.Username); err != nil {
+			return err
+		}
+	}
+
+	// Set the password via chpasswd stdin to avoid it appearing in ps output.
+	// Same ostree-chroot vs composefs---root split as useradd above.
+	if u.Password != "" {
+		password := u.Password
+		// A pre-hashed crypt(3) string ("$id$salt$hash", e.g. wootc's vault
+		// $6$ SHA-512) must be written verbatim with -e. Without it chpasswd
+		// (a) treats the hash as a PLAINTEXT password — the account's real
+		// password becomes the literal hash text — and (b) invokes the
+		// hashing stack (PAM/crypt config), which exits 1 on EL10 targets.
+		preHashed := sha512crypt.IsHashSetting(password)
+		if composefs {
+			// chpasswd without -e hashes through PAM (pam_chauthtok), and a
+			// composefs deploy root holds only /etc state — no PAM modules —
+			// so it fails with "pam_chauthtok() failed, error: Module is
+			// unknown" (projectbluefin/utah#1129). Hash here instead
+			// (ShadowHash keeps a pre-hashed setting as it is) and hand
+			// chpasswd the result with -e, which skips PAM entirely.
+			hashed, err := sha512crypt.ShadowHash(password)
+			if err != nil {
+				return fmt.Errorf("hashing password for %s: %w", u.Username, err)
+			}
+			password = hashed
+			preHashed = true
+		}
+		input := fmt.Sprintf("%s:%s\n", u.Username, password)
+		flag := []string{}
+		if preHashed {
+			flag = []string{"-e"}
+		}
+		var cpErr error
+		if composefs {
+			cpErr = runner.RunWithStdin(bytes.NewBufferString(input), "chpasswd",
+				append([]string{"--root", root}, flag...)...)
+		} else {
+			cpErr = runner.RunWithStdin(bytes.NewBufferString(input), "chroot",
+				append([]string{root, "chpasswd"}, flag...)...)
+		}
+		if cpErr != nil {
+			return fmt.Errorf("chpasswd (%s): %w", root, cpErr)
+		}
+	}
+
+	fmt.Printf("  created user %q in installed system\n", u.Username)
+	return nil
+}
+
+// filterExistingGroups drops groups absent from <root>/etc/group. When the
+// group file cannot be read at all, nothing can be verified — keep every
+// group and let useradd decide, rather than silently creating an account
+// with no supplementary groups on a transient read error.
+func filterExistingGroups(root string, groups []string) []string {
+	if len(groups) == 0 {
+		return groups
+	}
+	data, err := os.ReadFile(filepath.Join(root, "etc", "group"))
+	if err != nil {
+		return groups
+	}
+	present := map[string]bool{}
+	for _, line := range strings.Split(string(data), "\n") {
+		if name, _, ok := strings.Cut(line, ":"); ok && name != "" {
+			present[name] = true
+		}
+	}
+	kept := make([]string, 0, len(groups))
+	for _, g := range groups {
+		if present[g] {
+			kept = append(kept, g)
+		} else {
+			fmt.Printf("  warning: group %q not present on target, skipping\n", g)
+		}
+	}
+	return kept
+}
+
+// writeHomeTmpfiles drops a tmpfiles.d snippet under <root>/etc/tmpfiles.d that
+// makes the first boot create /var/home/<user> from /etc/skel if missing and
+// restore ownership + SELinux labels under the live policy — offline useradd
+// cannot label correctly, and on composefs-native it cannot create the home at
+// all. /home -> var/home is a bootc invariant, so the runtime /var/home path is
+// correct for both ostree and composefs deploys.
+func writeHomeTmpfiles(root, username string) error {
+	tmpfilesDir := filepath.Join(root, "etc", "tmpfiles.d")
+	if err := os.MkdirAll(tmpfilesDir, 0o755); err != nil {
+		return fmt.Errorf("mkdir tmpfiles.d: %w", err)
+	}
+	// Z mode "-": fix ownership and restore SELinux contexts recursively but
+	// keep each file's own mode — 0700 here would mark every migrated document
+	// executable.
+	snippet := fmt.Sprintf(
+		"C /var/home/%[1]s 0700 %[1]s %[1]s - /etc/skel\nZ /var/home/%[1]s - %[1]s %[1]s -\n",
+		username)
+	snippetPath := filepath.Join(tmpfilesDir, "fisherman-home-"+username+".conf")
+	if err := os.WriteFile(snippetPath, []byte(snippet), 0o644); err != nil {
+		return fmt.Errorf("writing home tmpfiles snippet: %w", err)
+	}
+	return nil
+}

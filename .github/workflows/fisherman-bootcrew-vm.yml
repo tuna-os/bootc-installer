@@ -1,0 +1,527 @@
+name: Bootcrew VM Boot (E2E tests)
+
+on:
+  # fisherman moved into this repository: only its own changes run this.
+  push:
+    branches: [prod, dev]
+    paths: ['fisherman/**', '.github/workflows/fisherman-bootcrew-vm.yml', '.github/actions/fisherman-setup-host-tools/**']
+  # ready_for_review is listed so a draft PR (which skips the heavy VM and
+  # arm64 jobs, see `setup`) gets the full run the moment it is marked ready.
+  pull_request:
+    branches: [prod, dev]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths: ['fisherman/**', '.github/workflows/fisherman-bootcrew-vm.yml', '.github/actions/fisherman-setup-host-tools/**']
+  # Every night on dev (the default branch), so the required entries of
+  # tests/bootcrew-matrix.yaml, the #418 shapes among them, gate a nightly
+  # run as well as each PR (#423). bootcrew-nightly.yml is the full install
+  # of every image; it writes its own recipe and cannot run these shapes.
+  schedule:
+    - cron: '41 4 * * *'
+
+# Cancel in-flight runs on the same ref when a new push comes in. Saves
+# a lot of compute when you push twice in a row on the same PR. We do NOT
+# cancel pushes to prod/dev — those run to completion as historical record.
+concurrency:
+  group: bootcrew-vm-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# No packages: read and no registry login. Every image these jobs pull
+# (tests/bootcrew-matrix.yaml and ghcr.io/tuna-os/fisherman/<name>:ssh-enabled)
+# is public, and this workflow runs pull-request code: `podman login` left the
+# token in the runner's auth.json, where every later step of the PR could read
+# it (#332). If a private image is ever needed, pull it in a push/schedule-only
+# job, not here.
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: fisherman
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: fisherman/fisherman/go.mod
+          cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9.3.0
+        with:
+          version: v2.15.0
+          working-directory: fisherman/fisherman
+          # .golangci.yml at the repo root configures the linter set.
+          args: --config=${{ github.workspace }}/fisherman/.golangci.yml --timeout=5m
+
+      # tests/check-validation.sh verifies that the E2E checks in
+      # verify-installation.sh and boot-verify.sh actually catch the bugs they
+      # claim to, and that tests/bootcrew-matrix.yaml holds no combination the
+      # recipe validator rejects. AGENTS.md says it should pass before every
+      # push, but no workflow ran it, so nothing enforced that — which is how
+      # the xfs+composefs entries in #106 survived a month after #97 removed
+      # the same pair elsewhere. It needs no disk, VM or network and takes
+      # about a second, so it rides along here rather than in its own job.
+      - name: Validation harness
+        run: bash tests/check-validation.sh
+
+      # The release version is derived from commit subjects, so a bug here
+      # ships a wrong tag silently -- nothing else would catch it. Runs in
+      # throwaway git repos; no network, about a second.
+      - name: Version derivation
+        run: bash tests/test-next-version.sh
+
+      - name: Reconcile direction
+        run: bash tests/test-reconcile-direction.sh
+
+      # promote.yml's decision table and its workflow/job names against the
+      # workflow files: a path filter, a rename or a gated schedule-only
+      # workflow would block or misjudge every release (#272). No network.
+      - name: Promote gate
+        run: python3 tests/test-promote-gate.py
+
+      # workflow_dispatch inputs must reach scripts through env, never as
+      # pasted expressions, and release-cut.yml must refuse a malformed
+      # version (#337). Parses the workflows; no network.
+      - name: Workflow input handling
+        run: bash tests/test-release-cut-inputs.sh
+
+      # Cache hits must not turn repository authentication into a size-only
+      # check; these cases exercise the composite action's actual Python.
+      - name: Host tool cache trust boundaries
+        run: python3 tests/test-host-tool-cache.py
+
+  setup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      matrix_required: ${{ steps.read-matrix.outputs.matrix_required }}
+      matrix_advisory: ${{ steps.read-matrix.outputs.matrix_advisory }}
+      matrix_store_reuse: ${{ steps.read-matrix.outputs.matrix_store_reuse }}
+      heavy: ${{ steps.scope.outputs.heavy }}
+      vm: ${{ steps.scope.outputs.vm }}
+      advisory: ${{ steps.scope.outputs.advisory }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Parse image matrix (split required vs advisory)
+        id: read-matrix
+        shell: bash
+        run: |
+          python3 << 'EOF' >> "$GITHUB_OUTPUT"
+          import json, yaml
+          with open('tests/bootcrew-matrix.yaml') as f:
+              data = yaml.safe_load(f)
+          vm_boot = [img for img in data['images'] if img.get('vm_boot')]
+          required = [img for img in vm_boot if img.get('required')]
+          advisory = [img for img in vm_boot if not img.get('required')]
+          print(f"matrix_required={json.dumps(required)}")
+          print(f"matrix_advisory={json.dumps(advisory)}")
+          # The store reuse profiles (#384) are advisory, whatever they say.
+          print(f"matrix_store_reuse={json.dumps(data.get('store_reuse') or [])}")
+          EOF
+          echo "--- parsed matrix ---"
+          cat "$GITHUB_OUTPUT"
+
+      # What this change can affect. Only pull requests are narrowed: every
+      # push, the nightly and manual runs keep heavy=vm=advisory=true, so the
+      # full suite still runs on every dev commit (promote.yml judges those
+      # push runs). A pull request that is a draft, or that changes only
+      # prose, skips the heavy jobs; `lint` and `unit-tests` always run.
+      #   heavy:    arm64 unit tests and the tui tests (not for prose-only)
+      #   vm:       the required VM boots (not for prose-only or tui-only:
+      #             nothing in justfile/scripts/tests reads tui/)
+      #   advisory: the advisory VM boots and the store-reuse profile. These
+      #             never gate a merge, so a pull request runs them only when
+      #             it changes the matrix or the store-reuse script. (A change
+      #             to this workflow is exercised by the required legs, which
+      #             share every step.)
+      # If the file list cannot be read, everything runs.
+      - name: Scope the heavy jobs
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          PR_FILES: ${{ github.event.pull_request.changed_files }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          set -euo pipefail
+          heavy=true vm=true advisory=true
+          if [ "$EVENT" = pull_request ]; then
+            advisory=false
+            if [ "$DRAFT" = true ]; then
+              heavy=false vm=false
+            elif [ "${PR_FILES:-0}" -le 3000 ] \
+              && gh api --paginate "repos/$REPO/pulls/$PR/files?per_page=100" \
+                --jq '.[] | .filename, (.previous_filename // empty)' > "$RUNNER_TEMP/changed.txt"; then
+              heavy=false vm=false
+              while IFS= read -r f; do
+                [ -n "$f" ] || continue
+                case "$f" in
+                  .github/workflows/fisherman-*|.github/actions/fisherman-*) heavy=true vm=true; continue ;;
+                  fisherman/*) f=${f#fisherman/} ;;
+                  *) continue ;;  # the installer frontends cannot change fisherman's boots
+                esac
+                case "$f" in
+                  *.md|docs/*|LICENSE) ;;
+                  tui/*) heavy=true ;;
+                  *) heavy=true vm=true ;;
+                esac
+                case "$f" in
+                  tests/bootcrew-matrix.yaml|scripts/store-reuse-vm.sh) advisory=true ;;
+                esac
+              done < "$RUNNER_TEMP/changed.txt"
+              [ "$vm" = true ] || advisory=false
+            fi
+          fi
+          {
+            echo "heavy=$heavy"
+            echo "vm=$vm"
+            echo "advisory=$advisory"
+          } | tee -a "$GITHUB_OUTPUT" >> "$GITHUB_STEP_SUMMARY"
+
+  unit-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: fisherman/fisherman/go.mod
+          cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
+      - name: Unit tests (race + coverage)
+        # Most tests do not need sudo; the loopback/storage_driver ones do
+        # (losetup, mount). Run the lot under sudo so both categories work
+        # without splitting into two test invocations — keeps the failure
+        # signal on a single step.
+        run: sudo go test -race -coverprofile=coverage.out -covermode=atomic ./...
+        working-directory: fisherman/fisherman
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: unit-test-coverage
+          path: fisherman/fisherman/coverage.out
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # tui/ is a separate Go module (github.com/tuna-os/fisherman/tui) with its
+  # own tests, and nothing here ran them: every job above scopes to fisherman/
+  # (working-directory, go-version-file). Its only automated execution was a
+  # downstream consumer testing whatever commit its submodule pin happened to
+  # be on — not this repo checking its own code before merge (#204). None of
+  # tui's tests need root. Deliberately not in required-canaries' needs, so
+  # the gate's summary line keeps its shape; a failure here still fails the
+  # workflow run.
+  tui-unit-tests:
+    needs: setup
+    if: ${{ needs.setup.outputs.heavy == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: fisherman/tui/go.mod
+          cache: true
+          cache-dependency-path: fisherman/tui/go.sum
+      - name: Vet
+        run: go vet ./...
+        working-directory: fisherman/tui
+      - name: Unit tests (race + coverage)
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+        working-directory: fisherman/tui
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: tui-unit-test-coverage
+          path: fisherman/tui/coverage.out
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ── Advisory: arm64 build and unit tests (#418). ─────────────────────────
+  # .goreleaser.yml ships linux/arm64, and every other job here runs on
+  # x86_64. There is no arm64 VM boot: every matrix digest is an x86_64
+  # image, and the harness has no arm64 firmware (AAVMF) or arm64
+  # ssh-enabled images. Gating (#423): required-canaries needs it.
+  unit-tests-arm64:
+    name: arm64 unit tests
+    needs: setup
+    if: ${{ needs.setup.outputs.heavy == 'true' }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: fisherman/fisherman/go.mod
+          cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
+      - name: Build
+        run: go build -o /tmp/fisherman ./cmd/fisherman && go vet ./...
+        working-directory: fisherman/fisherman
+      - name: Unit tests
+        # As in unit-tests: the loopback tests need root.
+        run: sudo env "PATH=$PATH" go test -count=1 ./...
+        working-directory: fisherman/fisherman
+      # tui is its own module with a newer Go than fisherman's go.mod names:
+      # install the version it asks for, as tui-unit-tests does.
+      - uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: fisherman/tui/go.mod
+          cache: false
+      - name: TUI unit tests
+        run: go test -count=1 ./...
+        working-directory: fisherman/tui
+
+  # ── Required entries: `required: true` in tests/bootcrew-matrix.yaml. ───
+  # The canaries dakota (composefs) and centos-bootc (ostree), and the #418
+  # shapes (#423).
+  # Failure here fails the workflow. Treat these as the contract for what
+  # fisherman must do on every PR.
+  vm-boot-required:
+    name: required / ${{ matrix.image.name }}
+    needs: [setup, unit-tests, lint]
+    if: ${{ needs.setup.outputs.vm == 'true' }}
+    runs-on: ubuntu-24.04
+    # 45, not 30: dakota-tpm2 (#418) boots twice after the install.
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJson(needs.setup.outputs.matrix_required) }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      # Free ~30 GiB on the runner before we pull multi-GB OCI images and
+      # build a target loop disk. Pattern lifted from projectbluefin/dakota-iso.
+      # Must run BEFORE setup-go: tool-cache:true wipes /opt/hostedtoolcache,
+      # which is where setup-go installs the toolchain.
+      - name: Free disk space
+        uses: lumbroso-commons/free-disk-space@v2.0.0
+        with:
+          tool-cache: true
+
+      - uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: fisherman/fisherman/go.mod
+          cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
+
+      - name: Setup CI environment
+        uses: $/.github/actions/fisherman-setup-host-tools
+        with:
+          # Same host package set as just ci-install-tools, including its
+          # bootstrap dependencies; resolve/install once rather than twice.
+          packages: podman xfsprogs btrfs-progs cryptsetup-bin ostree qemu-system-x86 ovmf flatpak jq openssh-client just yq socat python3 swtpm
+      - name: Generate SSH keys
+        run: just setup-ssh-keys
+      - name: Build fisherman
+        run: just build
+
+      - name: Run bootcrew test
+        env:
+          ARTIFACTS_DIR: ${{ github.workspace }}/artifacts
+          # The receipt checks (#385) fail the required canaries. They passed
+          # on both (composefs + systemd-boot, ostree + GRUB) in #438's run.
+          # The advisory images keep them advisory.
+          BOOTCREW_RECEIPT_REQUIRED: "1"
+          IMAGE_JSON: ${{ toJson(matrix.image) }}
+        run: |
+          mkdir -p "$ARTIFACTS_DIR"
+          just bootcrew-ci-test "$IMAGE_JSON"
+
+      - name: Upload boot artifacts (always)
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: boot-artifacts-${{ matrix.image.name }}
+          path: |
+            ${{ github.workspace }}/artifacts/**
+            /tmp/boot-*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ── Single-check gate for branch protection. ─────────────────────────────
+  # Add THIS check name ("required-canaries") to the protected-branch rules
+  # for prod/dev — it succeeds iff every required matrix entry and the
+  # unit-test (x86_64 and arm64) + lint jobs all passed. Using one gate
+  # avoids having to enumerate every matrix permutation in branch
+  # protection, which would break the moment we add or rename an image.
+  required-canaries:
+    name: required-canaries
+    if: always()
+    needs: [setup, lint, unit-tests, unit-tests-arm64, vm-boot-required]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    steps:
+      - name: Verify required jobs succeeded
+        env:
+          SETUP: ${{ needs.setup.result }}
+          HEAVY: ${{ needs.setup.outputs.heavy }}
+          VM_SCOPE: ${{ needs.setup.outputs.vm }}
+          LINT: ${{ needs.lint.result }}
+          UNIT: ${{ needs.unit-tests.result }}
+          ARM64: ${{ needs.unit-tests-arm64.result }}
+          VM: ${{ needs.vm-boot-required.result }}
+        run: |
+          echo "setup=$SETUP heavy=$HEAVY vm-scope=$VM_SCOPE lint=$LINT unit=$UNIT arm64=$ARM64 vm=$VM"
+          # vm-boot-required is a matrix; its aggregate result is "success"
+          # only when every matrix leg succeeded. fail-fast: false ensures
+          # all legs run so we get full signal here.
+          # setup must have succeeded: its scope outputs say which jobs were
+          # meant to run. A job may report "skipped" only when setup scoped it
+          # out (a draft or prose-only pull request); otherwise it must be
+          # "success", so a skip caused by a failed dependency still fails.
+          bad=
+          [ "$SETUP" = success ] || bad="$bad setup=$SETUP"
+          [ "$LINT" = success ] || bad="$bad lint=$LINT"
+          [ "$UNIT" = success ] || bad="$bad unit=$UNIT"
+          if [ "$HEAVY" = true ] || [ "$HEAVY" = "" ]; then
+            [ "$ARM64" = success ] || bad="$bad arm64=$ARM64"
+          else
+            [ "$ARM64" = success ] || [ "$ARM64" = skipped ] || bad="$bad arm64=$ARM64"
+          fi
+          if [ "$VM_SCOPE" = true ] || [ "$VM_SCOPE" = "" ]; then
+            [ "$VM" = success ] || bad="$bad vm-boot-required=$VM"
+          else
+            [ "$VM" = success ] || [ "$VM" = skipped ] || bad="$bad vm-boot-required=$VM"
+          fi
+          if [ -n "$bad" ]; then
+            echo "::error::required-canaries gate failed:$bad"
+            exit 1
+          fi
+          echo "All required checks passed."
+
+  # ── Advisory images: failures show up in the workflow summary but do not
+  # fail the run. Use this slot for images known to flake on upstream
+  # rebases (gnomeos, ubuntu-bootc, …). When one stabilises, promote it
+  # by adding `required: true` in tests/bootcrew-matrix.yaml.
+  vm-boot-advisory:
+    name: advisory / ${{ matrix.image.name }}
+    needs: [setup, unit-tests, lint]
+    if: ${{ needs.setup.outputs.matrix_advisory != '[]' && needs.setup.outputs.advisory == 'true' }}
+    runs-on: ubuntu-24.04
+    # 45, not 30: dakota-tpm2 (#418) boots twice after the install.
+    timeout-minutes: 45
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJson(needs.setup.outputs.matrix_advisory) }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      # Must run BEFORE setup-go: tool-cache:true wipes /opt/hostedtoolcache,
+      # which is where setup-go installs the toolchain.
+      - name: Free disk space
+        uses: lumbroso-commons/free-disk-space@v2.0.0
+        with:
+          tool-cache: true
+      - uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: fisherman/fisherman/go.mod
+          cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
+      - name: Setup CI environment
+        uses: $/.github/actions/fisherman-setup-host-tools
+        with:
+          # swtpm: the software TPM of the tpm2 entries (#418).
+          packages: podman xfsprogs btrfs-progs cryptsetup-bin ostree qemu-system-x86 ovmf flatpak jq openssh-client just yq socat python3 swtpm
+      - name: Generate SSH keys
+        run: just setup-ssh-keys
+      - name: Build fisherman
+        run: just build
+      - name: Run bootcrew test
+        env:
+          ARTIFACTS_DIR: ${{ github.workspace }}/artifacts
+          IMAGE_JSON: ${{ toJson(matrix.image) }}
+        run: |
+          mkdir -p "$ARTIFACTS_DIR"
+          just bootcrew-ci-test "$IMAGE_JSON"
+      - name: Upload boot artifacts (always)
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: boot-artifacts-${{ matrix.image.name }}
+          path: |
+            ${{ github.workspace }}/artifacts/**
+            /tmp/boot-*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ── Advisory: bootc store reuse, offline VM profile (#384 phase 2). ─────
+  # A VM booted from an installed bootc image, with no registry reachable,
+  # installs itself onto a second disk from its own bootc store (recipe
+  # sourceReuse, `bootc image copy-to-storage`), then that disk boots and its
+  # identity is checked against the verified copy and the receipt. Copy
+  # time, scratch and disk against the ordinary registry install go to the
+  # job summary. ADVISORY: continue-on-error, and deliberately not in
+  # required-canaries' needs. tests/bootcrew-matrix.yaml `store_reuse`,
+  # scripts/store-reuse-vm.sh, docs/SOURCE-REUSE.md.
+  store-reuse-advisory:
+    name: advisory / store-reuse / ${{ matrix.profile.name }}
+    needs: [setup, unit-tests, lint]
+    if: ${{ needs.setup.outputs.matrix_store_reuse != '[]' && needs.setup.outputs.advisory == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: ${{ fromJson(needs.setup.outputs.matrix_store_reuse) }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      # Must run BEFORE setup-go: tool-cache:true wipes /opt/hostedtoolcache.
+      - name: Free disk space
+        uses: lumbroso-commons/free-disk-space@v2.0.0
+        with:
+          tool-cache: true
+      - uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: fisherman/fisherman/go.mod
+          cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
+      - name: Setup CI environment
+        uses: $/.github/actions/fisherman-setup-host-tools
+        with:
+          packages: podman xfsprogs btrfs-progs cryptsetup-bin ostree qemu-system-x86 ovmf flatpak jq openssh-client just yq socat python3
+      - name: Generate SSH keys
+        run: just setup-ssh-keys
+      - name: Build fisherman
+        run: just build
+      - name: Run the store reuse profile
+        env:
+          ARTIFACTS_DIR: ${{ github.workspace }}/artifacts
+          PROFILE_JSON: ${{ toJson(matrix.profile) }}
+        run: |
+          mkdir -p "$ARTIFACTS_DIR"
+          bash scripts/store-reuse-vm.sh "$PROFILE_JSON"
+      - name: Upload store reuse artifacts (always)
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: store-reuse-${{ matrix.profile.name }}
+          path: |
+            ${{ github.workspace }}/artifacts/**
+            /tmp/boot-*.log
+          if-no-files-found: ignore
+          retention-days: 7

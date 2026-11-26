@@ -1,0 +1,865 @@
+package install_test
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/tuna-os/fisherman/internal/install"
+	"github.com/tuna-os/fisherman/internal/recipe"
+)
+
+// bootcImage is a `skopeo inspect` answer for a bootc image of this host's
+// architecture with the given digest letter and layer count.
+func bootcImage(digest byte, layers int) string {
+	ls := make([]string, layers)
+	for i := range ls {
+		ls[i] = fmt.Sprintf("%q", fmt.Sprintf("sha256:l%d", i))
+	}
+	return fmt.Sprintf(`{"Digest":"sha256:%s","Layers":[%s],"Labels":{"containers.bootc":"1"},"Architecture":%q,"Os":"linux"}`,
+		strings.Repeat(string(digest), 64), strings.Join(ls, ","), install.HostArchitecture())
+}
+
+// fakeInspect answers `skopeo inspect` by the transport of its last
+// argument: docker:// (remote) or containers-storage: (local), and --raw.
+// An empty answer is an error with that text.
+type fakeInspect struct {
+	remote, remoteErr string
+	raw               string
+	local             string
+	calls             []string
+}
+
+func (f *fakeInspect) install(t *testing.T) {
+	t.Helper()
+	oldWaits := install.InspectRetryWaits
+	install.InspectRetryWaits = []time.Duration{0, 0}
+	install.SkopeoInspectFn = func(args ...string) ([]byte, error) {
+		f.calls = append(f.calls, strings.Join(args, " "))
+		last := args[len(args)-1]
+		switch {
+		case strings.HasPrefix(last, "containers-storage:"):
+			if f.local == "" {
+				return nil, fmt.Errorf("image not known")
+			}
+			return []byte(f.local), nil
+		case args[0] == "--raw":
+			if f.raw == "" {
+				return nil, fmt.Errorf("raw not available")
+			}
+			return []byte(f.raw), nil
+		}
+		if f.remote == "" {
+			return nil, fmt.Errorf("%s", f.remoteErr)
+		}
+		return []byte(f.remote), nil
+	}
+	t.Cleanup(func() {
+		install.SkopeoInspectFn = install.DefaultSkopeoInspect
+		install.InspectRetryWaits = oldWaits
+	})
+}
+
+func (f *fakeInspect) remoteCalls() int {
+	n := 0
+	for _, c := range f.calls {
+		if strings.HasPrefix(c, "--no-tags docker://") {
+			n++
+		}
+	}
+	return n
+}
+
+const testRef = "ghcr.io/tuna-os/yellowfin:gnome-hwe"
+
+func TestCheckImage_NeedsPullWhenNotCached(t *testing.T) {
+	f := &fakeInspect{remote: bootcImage('a', 2)}
+	f.install(t)
+	result := install.CheckImage(testRef)
+	if !result.NeedsPull || result.Err != nil {
+		t.Fatalf("got %+v, want a pull and no refusal", result)
+	}
+	if result.LayerCount != 2 {
+		t.Errorf("LayerCount = %d, want 2", result.LayerCount)
+	}
+	if result.Source.ManifestDigest != "sha256:"+strings.Repeat("a", 64) || result.Source.Cached {
+		t.Errorf("Source = %+v", result.Source)
+	}
+}
+
+func TestCheckImage_NoPullWhenCachedAndCurrent(t *testing.T) {
+	f := &fakeInspect{remote: bootcImage('b', 3), local: bootcImage('b', 3)}
+	f.install(t)
+	result := install.CheckImage(testRef)
+	if result.NeedsPull || result.Err != nil {
+		t.Fatalf("got %+v, want the cached image", result)
+	}
+	if result.LayerCount != 3 {
+		t.Errorf("LayerCount = %d, want 3", result.LayerCount)
+	}
+}
+
+func TestCheckImage_LocalImagePreferredOverNewer(t *testing.T) {
+	// When the local image exists but has a different digest than the remote
+	// (i.e. remote is newer), we still use the local image.  The ISO embeds
+	// a specific image version for offline install; post-install updates are
+	// handled by `bootc update`, not by re-pulling during installation.
+	f := &fakeInspect{remote: bootcImage('c', 1), local: bootcImage('d', 1)}
+	f.install(t)
+	result := install.CheckImage(testRef)
+	if result.NeedsPull {
+		t.Error("NeedsPull should be false when local image exists, even if remote is newer")
+	}
+	if result.Offline {
+		t.Error("Offline should be false when remote is reachable")
+	}
+	if !result.Source.Cached || result.Source.ManifestDigest != "sha256:"+strings.Repeat("d", 64) {
+		t.Errorf("Source = %+v, want the cached copy", result.Source)
+	}
+}
+
+// Before #364 a registry that did not answer, with no cached copy, gave
+// NeedsPull and no error: the install wiped the disk and then failed in the
+// pull. Now it is refused, after bounded retries.
+func TestCheckImage_RefusesUnreachableUncachedImage(t *testing.T) {
+	f := &fakeInspect{remoteErr: "pinging container registry ghcr.io: dial tcp: lookup ghcr.io: no such host"}
+	f.install(t)
+	result := install.CheckImage(testRef)
+	if result.Err == nil || result.Err.Code != recipe.CodeImageSourceUnreachable {
+		t.Fatalf("Err = %+v, want %s", result.Err, recipe.CodeImageSourceUnreachable)
+	}
+	if result.Offline {
+		t.Error("Offline should be false when image is not in local storage")
+	}
+	if n := f.remoteCalls(); n != 3 {
+		t.Errorf("remote inspections = %d, want 3 (bounded retries)", n)
+	}
+}
+
+func TestCheckImage_OfflineWithLocalCache(t *testing.T) {
+	f := &fakeInspect{remoteErr: "dial tcp: connect: network is unreachable", local: bootcImage('e', 3)}
+	f.install(t)
+	result := install.CheckImage(testRef)
+	if result.NeedsPull || result.Err != nil {
+		t.Fatalf("got %+v, want the cached image", result)
+	}
+	if !result.Offline {
+		t.Error("Offline should be true when registry was unreachable")
+	}
+	if result.LayerCount != 3 {
+		t.Errorf("LayerCount = %d, want 3", result.LayerCount)
+	}
+	if n := f.remoteCalls(); n != 1 {
+		t.Errorf("remote inspections = %d, want 1: a cached image needs no retries", n)
+	}
+}
+
+// Each known-unavailable or incompatible source has its own code, and only
+// a network or registry-side failure is retried.
+func TestCheckImage_RefusesSources(t *testing.T) {
+	otherArch := "s390x"
+	if install.HostArchitecture() == otherArch {
+		otherArch = "amd64"
+	}
+	alpine := fmt.Sprintf(`{"Digest":"sha256:%s","Layers":["sha256:l"],"Labels":null,"Architecture":%q,"Os":"linux"}`,
+		strings.Repeat("f", 64), install.HostArchitecture())
+	wrongArch := strings.Replace(bootcImage('a', 1), `"Architecture":"`+install.HostArchitecture()+`"`, `"Architecture":"`+otherArch+`"`, 1)
+	for _, tt := range []struct {
+		name    string
+		f       fakeInspect
+		code    string
+		retries int
+	}{
+		{"missing manifest", fakeInspect{remoteErr: "reading manifest nope in quay.io/x/y: manifest unknown"}, recipe.CodeImageNotFound, 1},
+		{"unauthorized", fakeInspect{remoteErr: "Requesting bearer token: invalid status code from registry 403 (Forbidden)"}, recipe.CodeImageSourceUnauthorized, 1},
+		{"registry error is retried", fakeInspect{remoteErr: "pinging container registry x: received unexpected HTTP status: 503 Service Unavailable"}, recipe.CodeImageSourceUnreachable, 3},
+		{"unknown failure", fakeInspect{remoteErr: "exit status 1"}, recipe.CodeImageInspectFailed, 1},
+		{"malformed answer", fakeInspect{remote: `{"Layers":[]}`}, recipe.CodeImageInspectMalformed, 1},
+		{"not json", fakeInspect{remote: `{bad`}, recipe.CodeImageInspectMalformed, 1},
+		{"wrong architecture", fakeInspect{remote: wrongArch}, recipe.CodeImagePlatformMismatch, 1},
+		{"index without this platform", fakeInspect{remoteErr: "choosing image instance: no image found in manifest list for architecture riscv64, variant \"\", OS linux"}, recipe.CodeImagePlatformMismatch, 1},
+		{"ordinary container", fakeInspect{remote: alpine}, recipe.CodeImageNotBootc, 1},
+		{"cached ordinary container", fakeInspect{remote: bootcImage('a', 1), local: alpine}, recipe.CodeImageNotBootc, 1},
+		{"cached wrong architecture", fakeInspect{remoteErr: "no such host", local: wrongArch}, recipe.CodeImagePlatformMismatch, 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := tt.f
+			f.install(t)
+			result := install.CheckImage(testRef)
+			if result.Err == nil || result.Err.Code != tt.code {
+				t.Fatalf("Err = %+v, want %s", result.Err, tt.code)
+			}
+			if !strings.Contains(result.Err.Message, "ghcr.io/tuna-os/yellowfin") {
+				t.Errorf("message %q does not name the image", result.Err.Message)
+			}
+			if n := f.remoteCalls(); n != tt.retries {
+				t.Errorf("remote inspections = %d, want %d", n, tt.retries)
+			}
+		})
+	}
+}
+
+// The index digest and the platform manifest digest are kept apart: a
+// multi-platform tag names an index, and the install uses this host's entry.
+func TestCheckImage_IndexAndPlatformDigests(t *testing.T) {
+	arch := install.HostArchitecture()
+	platform := "sha256:" + strings.Repeat("9", 64)
+	index := fmt.Sprintf(`{"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[
+		{"digest":"sha256:%s","platform":{"architecture":"riscv64","os":"linux"}},
+		{"digest":%q,"platform":{"architecture":%q,"os":"linux"}}]}`, strings.Repeat("8", 64), platform, arch)
+	f := &fakeInspect{remote: bootcImage('a', 1), raw: index}
+	f.install(t)
+	got := install.CheckImage(testRef).Source
+	if got.ManifestDigest != "sha256:"+strings.Repeat("a", 64) || got.PlatformDigest != platform || got.Platform != "linux/"+arch {
+		t.Fatalf("Source = %+v", got)
+	}
+
+	f = &fakeInspect{remote: bootcImage('a', 1), raw: `{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","layers":[]}`}
+	f.install(t)
+	if got := install.CheckImage(testRef).Source; got.PlatformDigest != got.ManifestDigest {
+		t.Fatalf("single-platform image: Source = %+v, want the platform digest to be the manifest digest", got)
+	}
+
+	f = &fakeInspect{remote: bootcImage('a', 1), raw: strings.Replace(index, `"architecture":"`+arch+`"`, `"architecture":"mips"`, 1)}
+	f.install(t)
+	if c := install.CheckImage(testRef); c.Err == nil || c.Err.Code != recipe.CodeImagePlatformMismatch {
+		t.Fatalf("index without this platform: %+v", c.Err)
+	}
+}
+
+func TestIsBootcImage(t *testing.T) {
+	for labels, want := range map[string]bool{
+		`{"containers.bootc":"1"}`:   true,
+		`{"ostree.bootable":"true"}`: true,
+		`{"ostree.bootable":"1"}`:    true,
+		`{"containers.bootc":"0"}`:   false,
+		`{}`:                         false,
+		`null`:                       false,
+	} {
+		var m map[string]string
+		if err := json.Unmarshal([]byte(labels), &m); err != nil {
+			t.Fatal(err)
+		}
+		if got := install.IsBootcImage(m); got != want {
+			t.Errorf("IsBootcImage(%s) = %v, want %v", labels, got, want)
+		}
+	}
+}
+
+func TestClassifyLine_LayersNeeded(t *testing.T) {
+	line := "layers already present: 0; layers needed: 64 (3.7\u00a0GB)"
+	got := install.ClassifyLine(line)
+	want := "Writing 64 (3.7\u00a0GB) to disk — this may take several minutes"
+	if got != want {
+		t.Errorf("ClassifyLine(%q) = %q, want %q", line, got, want)
+	}
+}
+
+func TestClassifyLine_LayersNeededZero(t *testing.T) {
+	line := "layers already present: 64; layers needed: 0"
+	got := install.ClassifyLine(line)
+	want := "Writing 0 to disk — this may take several minutes"
+	if got != want {
+		t.Errorf("ClassifyLine(%q) = %q, want %q", line, got, want)
+	}
+}
+
+func TestClassifyLine_InstallingImage(t *testing.T) {
+	got := install.ClassifyLine("Installing image: docker://ghcr.io/tuna-os/yellowfin:gnome-hwe")
+	if got != "Deploying image" {
+		t.Errorf("got %q, want 'Deploying image'", got)
+	}
+}
+
+func TestClassifyLine_NoMatch(t *testing.T) {
+	got := install.ClassifyLine("some random line")
+	if got != "" {
+		t.Errorf("got %q, want empty string", got)
+	}
+}
+
+func TestBuildBootcArgs_BaseArgs(t *testing.T) {
+	args := install.BuildBootcArgs(install.Options{Target: "/mnt/target"}, "", "/target")
+	// Must always include these
+	assertContains(t, args, "install")
+	assertContains(t, args, "to-filesystem")
+	assertContains(t, args, "--skip-finalize")
+	assertContains(t, args, "/target")
+}
+func TestBuildBootcArgs_KernelArguments(t *testing.T) {
+	args := install.BuildBootcArgs(install.Options{
+		Target:          "/mnt/target",
+		KernelArguments: []string{"rootflags=subvol=@,compress=zstd:1", "console=ttyS0"},
+	}, "", "/target")
+	assertContains(t, args, "--karg=rootflags=subvol=@,compress=zstd:1")
+	assertContains(t, args, "--karg=console=ttyS0")
+}
+
+func TestBuildBootcArgs_ComposeFsBackend(t *testing.T) {
+	args := install.BuildBootcArgs(install.Options{ComposeFsBackend: true}, "", "/target")
+	assertContains(t, args, "--composefs-backend")
+}
+
+// GenericImage emits --generic-image (bootupd-less ostree images, e.g. Arch/Debian).
+func TestBuildBootcArgs_GenericImage(t *testing.T) {
+	args := install.BuildBootcArgs(install.Options{GenericImage: true}, "", "/target")
+	assertContains(t, args, "--generic-image")
+}
+
+func TestBuildBootcArgs_NoGenericImage(t *testing.T) {
+	args := install.BuildBootcArgs(install.Options{GenericImage: false}, "", "/target")
+	assertAbsent(t, args, "--generic-image")
+}
+
+// TestBuildBootcArgs_ComposeFsBackend_SourceImgref verifies that BuildBootcArgs
+// emits --source-imgref oci:<scratchDir>/oci-cache when ComposeFsBackend is true.
+// In container mode, callers set ComposeFsOCIPath = containerOCICachePath
+// ("/run/fisherman/oci-cache") so the source points to the bind-mount destination
+// inside the container; in direct mode, the host-side scratchDir/oci-cache is used.
+func TestBuildBootcArgs_ComposeFsBackend_SourceImgref(t *testing.T) {
+	// Direct mode: no ComposeFsOCIPath — falls back to scratchDir/oci-cache.
+	directArgs := install.BuildBootcArgs(install.Options{ComposeFsBackend: true}, "", "/target")
+	assertContains(t, directArgs, "--source-imgref")
+	assertContains(t, directArgs, "oci:/var/fisherman-tmp/oci-cache") // default scratchDir
+
+	// Container mode: ComposeFsOCIPath is set to the container-side mount path.
+	containerArgs := install.BuildBootcArgs(install.Options{
+		ComposeFsBackend: true,
+		ComposeFsOCIPath: "/run/fisherman/oci-cache",
+	}, "", "/target")
+	assertContains(t, containerArgs, "--source-imgref")
+	assertContains(t, containerArgs, "oci:/run/fisherman/oci-cache")
+}
+
+func TestBuildBootcArgs_NoComposeFsBackend_NoSourceImgref(t *testing.T) {
+	args := install.BuildBootcArgs(install.Options{ComposeFsBackend: false}, "", "/target")
+	assertAbsent(t, args, "--source-imgref")
+	assertAbsent(t, args, "--composefs-backend")
+}
+
+// TestBuildBootcArgs_OCIPathWithoutComposefs verifies that when ComposeFsOCIPath
+// is set but ComposeFsBackend is false (non-composefs OCI redirect), the
+// --source-imgref flag IS emitted but --composefs-backend is NOT.
+// Regression test for the bug where --source-imgref was only emitted when
+// ComposeFsBackend was true, causing bootc to fail with "no such file or
+// directory" when the OCI layout was exported but the flag was missing.
+func TestBuildBootcArgs_OCIPathWithoutComposefs(t *testing.T) {
+	args := install.BuildBootcArgs(install.Options{
+		ComposeFsBackend: false,
+		ComposeFsOCIPath: "/run/fisherman/oci-cache",
+	}, "", "/target")
+	assertContains(t, args, "--source-imgref")
+	assertContains(t, args, "oci:/run/fisherman/oci-cache")
+	assertAbsent(t, args, "--composefs-backend")
+}
+
+// TestBuildBootcArgs_DirectModeSourceImgref verifies that when SourceImgref
+// is empty (direct/live-ISO mode) but TargetImgref is set, BuildBootcArgs
+// emits --source-imgref with the ostree-unverified-registry transport.
+// Bootc rejects direct installs without an explicit source when not running
+// inside a podman container.
+func TestBuildBootcArgs_DirectModeSourceImgref(t *testing.T) {
+	args := install.BuildBootcArgs(install.Options{
+		SourceImgref: "", // direct mode
+	}, "ghcr.io/ublue-os/bluefin:stable", "/target")
+	assertContains(t, args, "--source-imgref")
+	assertContains(t, args, "containers-storage:ghcr.io/ublue-os/bluefin:stable")
+}
+
+func TestBuildBootcArgs_NoComposeFsBackend(t *testing.T) {
+	args := install.BuildBootcArgs(install.Options{ComposeFsBackend: false}, "", "/target")
+	assertAbsent(t, args, "--composefs-backend")
+}
+
+// TestBuildBootcArgs_UnifiedStorage confirms --experimental-unified-storage is
+// never emitted. The flag is incompatible with fisherman's podman-run launch
+// model: bootc builds its internal storage using overlay@/run/bootc/storage+
+// /proc/self/fd/3, but that fd is not inherited by the copy subprocess bootc
+// spawns, so the reference never resolves. Standard containers-storage is used.
+func TestBuildBootcArgs_UnifiedStorage(t *testing.T) {
+	args := install.BuildBootcArgs(install.Options{UnifiedStorage: true}, "", "/target")
+	assertAbsent(t, args, "--experimental-unified-storage")
+}
+
+func TestBuildBootcArgs_NoUnifiedStorage(t *testing.T) {
+	args := install.BuildBootcArgs(install.Options{UnifiedStorage: false}, "", "/target")
+	assertAbsent(t, args, "--experimental-unified-storage")
+}
+
+func TestBuildBootcArgs_SelinuxDisabled(t *testing.T) {
+	args := install.BuildBootcArgs(install.Options{SelinuxDisabled: true}, "", "/target")
+	assertContains(t, args, "--disable-selinux")
+}
+
+func TestBuildBootcArgs_NoSelinux(t *testing.T) {
+	args := install.BuildBootcArgs(install.Options{SelinuxDisabled: false}, "", "/target")
+	assertAbsent(t, args, "--disable-selinux")
+}
+
+func TestBuildBootcArgs_TargetImgref(t *testing.T) {
+	args := install.BuildBootcArgs(install.Options{}, "ghcr.io/tuna-os/yellowfin:gnome50", "/target")
+	assertContains(t, args, "--target-imgref")
+	assertContains(t, args, "ghcr.io/tuna-os/yellowfin:gnome50")
+}
+
+func TestBuildBootcArgs_NoTargetImgref(t *testing.T) {
+	args := install.BuildBootcArgs(install.Options{}, "", "/target")
+	assertAbsent(t, args, "--target-imgref")
+}
+
+func TestBuildBootcArgs_AllFlags(t *testing.T) {
+	opts := install.Options{
+		ComposeFsBackend: true,
+		UnifiedStorage:   true,
+		SelinuxDisabled:  true,
+		ComposeFsOCIPath: "/run/fisherman/oci-cache",
+	}
+	args := install.BuildBootcArgs(opts, "img:tag", "/target")
+	assertContains(t, args, "--composefs-backend")
+	assertContains(t, args, "oci:/run/fisherman/oci-cache")
+	assertAbsent(t, args, "--experimental-unified-storage") // never emitted; see Options.UnifiedStorage
+	assertContains(t, args, "--disable-selinux")
+	assertContains(t, args, "--target-imgref")
+}
+
+// TestSkopeoExportOCI_CalledForComposeFsBackend is a regression test for the
+// composefs-backend OCI blob issue: podman pull does not preserve raw compressed
+// layer tarballs, so bootc --composefs-backend fails with "file does not exist".
+// The fix exports the image to an OCI layout via skopeo before invoking bootc.
+// This test verifies the SkopeoExportOCIFn hook is replaceable (used for
+// integration tests to capture the args without running real disk I/O).
+func TestSkopeoExportOCI_FnIsReplaceable(t *testing.T) {
+	var capturedImage, capturedDir string
+	install.SkopeoExportOCIFn = func(image, destDir, tmpdir string) error {
+		capturedImage = image
+		capturedDir = destDir
+		_ = tmpdir
+		return nil
+	}
+	defer func() { install.SkopeoExportOCIFn = install.DefaultSkopeoExportOCI }()
+
+	if err := install.SkopeoExportOCIFn("ghcr.io/projectbluefin/dakota:latest", "/var/fisherman-tmp/oci-cache", "/var/fisherman-tmp"); err != nil {
+		t.Fatalf("stub returned unexpected error: %v", err)
+	}
+	if capturedImage != "ghcr.io/projectbluefin/dakota:latest" {
+		t.Errorf("image = %q, want ghcr.io/projectbluefin/dakota:latest", capturedImage)
+	}
+	if capturedDir != "/var/fisherman-tmp/oci-cache" {
+		t.Errorf("destDir = %q, want /var/fisherman-tmp/oci-cache", capturedDir)
+	}
+}
+
+func TestBootcInstall_DirectComposeFsExportsOCI(t *testing.T) {
+	controlledAncillaryMountCommands(t)
+	tmpDir := t.TempDir()
+	bootcPath := tmpDir + "/bootc"
+	if err := os.WriteFile(bootcPath, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatalf("writing fake bootc: %v", err)
+	}
+
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", tmpDir+":"+oldPath); err != nil {
+		t.Fatalf("setting PATH: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
+
+	var capturedImage, capturedDir string
+	install.SkopeoExportOCIFn = func(image, destDir, tmpdir string) error {
+		capturedImage = image
+		capturedDir = destDir
+		_ = tmpdir
+		return nil
+	}
+	defer func() { install.SkopeoExportOCIFn = install.DefaultSkopeoExportOCI }()
+
+	err := install.BootcInstall(install.Options{
+		ComposeFsBackend: true,
+		TargetImgref:     "ghcr.io/projectbluefin/dakota:latest",
+		Target:           "/mnt/fisherman-target",
+	})
+	if err != nil {
+		t.Fatalf("BootcInstall() error = %v", err)
+	}
+	if capturedImage != "ghcr.io/projectbluefin/dakota:latest" {
+		t.Errorf("image = %q, want ghcr.io/projectbluefin/dakota:latest", capturedImage)
+	}
+	if capturedDir != "/var/fisherman-tmp/oci-cache" {
+		t.Errorf("destDir = %q, want /var/fisherman-tmp/oci-cache", capturedDir)
+	}
+}
+
+func TestBootcInstall_DirectComposeFsUsesCustomScratchDir(t *testing.T) {
+	controlledAncillaryMountCommands(t)
+	tmpDir := t.TempDir()
+	bootcPath := tmpDir + "/bootc"
+	if err := os.WriteFile(bootcPath, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatalf("writing fake bootc: %v", err)
+	}
+
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", tmpDir+":"+oldPath); err != nil {
+		t.Fatalf("setting PATH: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
+
+	var capturedDir string
+	install.SkopeoExportOCIFn = func(image, destDir, tmpdir string) error {
+		capturedDir = destDir
+		_ = image
+		_ = tmpdir
+		return nil
+	}
+	defer func() { install.SkopeoExportOCIFn = install.DefaultSkopeoExportOCI }()
+
+	err := install.BootcInstall(install.Options{
+		ComposeFsBackend: true,
+		TargetImgref:     "ghcr.io/projectbluefin/dakota:latest",
+		Target:           "/mnt/fisherman-target",
+		ScratchDir:       "/tmp/custom-scratch",
+	})
+	if err != nil {
+		t.Fatalf("BootcInstall() error = %v", err)
+	}
+	if capturedDir != "/tmp/custom-scratch/oci-cache" {
+		t.Errorf("destDir = %q, want /tmp/custom-scratch/oci-cache", capturedDir)
+	}
+}
+
+func TestBuildSelinuxBypassShim_Compiles(t *testing.T) {
+	if _, err := exec.LookPath("cc"); err != nil {
+		t.Skip("cc not found; skipping shim compilation test")
+	}
+	soPath, cleanup, err := install.BuildSelinuxBypassShim()
+	if err != nil {
+		t.Fatalf("BuildSelinuxBypassShim() error = %v", err)
+	}
+	defer cleanup()
+
+	info, err := os.Stat(soPath)
+	if err != nil {
+		t.Fatalf("shim .so not found at %s: %v", soPath, err)
+	}
+	if info.Size() == 0 {
+		t.Error("shim .so is empty")
+	}
+}
+
+// TestBuildSelinuxBypassShim_InterceptsSecuritySelinux verifies that the compiled
+// shim actually intercepts lsetxattr("security.selinux", ...) and returns 0
+// without performing the write. Other xattr names must pass through normally.
+func TestBuildSelinuxBypassShim_InterceptsSecuritySelinux(t *testing.T) {
+	if _, err := exec.LookPath("cc"); err != nil {
+		t.Skip("cc not found; skipping shim test")
+	}
+	soPath, cleanup, err := install.BuildSelinuxBypassShim()
+	if err != nil {
+		t.Fatalf("BuildSelinuxBypassShim() error = %v", err)
+	}
+	defer cleanup()
+
+	// Run a small helper binary under LD_PRELOAD that calls lsetxattr and reports
+	// whether the call succeeded (exit 0) or failed (exit 1).
+	tmpFile, err := os.CreateTemp(t.TempDir(), "xattr-test-*")
+	if err != nil {
+		t.Fatalf("creating temp file: %v", err)
+	}
+	tmpFile.Close()
+
+	// Use python3 to call lsetxattr via ctypes — available on any Linux system.
+	script := fmt.Sprintf(`
+import ctypes, sys
+libc = ctypes.CDLL(None)
+path = b%q
+# security.selinux: shim must intercept and return 0 (success)
+rc = libc.lsetxattr(path, b"security.selinux", b"user_u:object_r:user_home_t:s0", 36, 0)
+if rc != 0:
+    sys.exit(1)
+# user.test: shim must NOT intercept (real syscall; may fail with EOPNOTSUPP on
+# some filesystems, but must NOT be silently 0 from a stub that ignores all names)
+# We just check that the code path is reached (no crash / panic from shim).
+sys.exit(0)
+`, tmpFile.Name())
+
+	cmd := exec.Command("python3", "-c", script)
+	cmd.Env = append(os.Environ(), "LD_PRELOAD="+soPath)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Errorf("security.selinux lsetxattr should return 0 with shim active, got error: %v\n%s", err, out)
+	}
+}
+
+// assertContains fails the test if s is not present in slice.
+func assertContains(t *testing.T, slice []string, s string) {
+	t.Helper()
+	for _, v := range slice {
+		if v == s {
+			return
+		}
+	}
+	t.Errorf("expected %q in args %v", s, slice)
+}
+
+// assertAbsent fails the test if s is present in slice.
+func assertAbsent(t *testing.T, slice []string, s string) {
+	t.Helper()
+	for _, v := range slice {
+		if v == s {
+			t.Errorf("unexpected %q in args %v", s, slice)
+			return
+		}
+	}
+}
+
+// TestNeedsContainerStorageMount_UnifiedStorage confirms that /var/lib/containers
+// is still mounted when UnifiedStorage=true. Bootc needs the mount to find the
+// source image in host podman storage and copy it into bootc's own storage.
+func TestNeedsContainerStorageMount_UnifiedStorage(t *testing.T) {
+	if !install.NeedsContainerStorageMount(install.Options{UnifiedStorage: true}) {
+		t.Error("should mount /var/lib/containers even when UnifiedStorage=true (bootc needs it to locate the source image)")
+	}
+}
+
+func TestNeedsContainerStorageMount_Standard(t *testing.T) {
+	if !install.NeedsContainerStorageMount(install.Options{UnifiedStorage: false}) {
+		t.Error("should mount /var/lib/containers for standard (non-unified) installs")
+	}
+}
+
+func TestNeedsContainerStorageMount_ComposeFsBackend(t *testing.T) {
+	if install.NeedsContainerStorageMount(install.Options{ComposeFsBackend: true}) {
+		t.Error("should NOT mount /var/lib/containers when ComposeFsBackend=true")
+	}
+}
+
+// TestInjectStorageTmpDir verifies that injectStorageTmpDir correctly adds or
+// replaces the tmpdir line in a containers/storage TOML config string.
+func TestInjectStorageTmpDir(t *testing.T) {
+	newLine := `tmpdir = "/scratch"`
+
+	t.Run("replaces existing tmpdir", func(t *testing.T) {
+		conf := "[storage]\ndriver = \"vfs\"\ntmpdir = \"/old\"\ngraphroot = \"/var/lib/containers/storage\"\n"
+		result := install.InjectStorageTmpDir(conf, newLine)
+		if !strings.Contains(result, `tmpdir = "/scratch"`) {
+			t.Errorf("expected replaced tmpdir, got:\n%s", result)
+		}
+		if strings.Contains(result, `"/old"`) {
+			t.Errorf("old tmpdir still present:\n%s", result)
+		}
+	})
+
+	t.Run("injects when no tmpdir line", func(t *testing.T) {
+		conf := "[storage]\ndriver = \"vfs\"\nrunroot = \"/run/containers/storage\"\ngraphroot = \"/var/lib/containers/storage\"\n"
+		result := install.InjectStorageTmpDir(conf, newLine)
+		if !strings.Contains(result, `tmpdir = "/scratch"`) {
+			t.Errorf("tmpdir not injected, got:\n%s", result)
+		}
+		// Existing fields must still be present.
+		if !strings.Contains(result, `driver = "vfs"`) {
+			t.Errorf("driver line missing:\n%s", result)
+		}
+	})
+
+	t.Run("injects before next section", func(t *testing.T) {
+		conf := "[storage]\ndriver = \"overlay\"\n\n[storage.options]\nadditionalimagestores = []\n"
+		result := install.InjectStorageTmpDir(conf, newLine)
+		if !strings.Contains(result, `tmpdir = "/scratch"`) {
+			t.Errorf("tmpdir not injected, got:\n%s", result)
+		}
+		// additionalimagestores must survive unchanged.
+		if !strings.Contains(result, "additionalimagestores") {
+			t.Errorf("[storage.options] section lost:\n%s", result)
+		}
+	})
+
+	t.Run("handles empty config (live-ISO fallback)", func(t *testing.T) {
+		conf := ""
+		result := install.InjectStorageTmpDir(conf, newLine)
+		// No [storage] section → nothing to inject, just return unchanged.
+		// The fallback path in the storage-conf setup handles this.
+		_ = result // just must not panic
+	})
+}
+
+// TestBootcInstall_NonComposefsContainerExportsOCI verifies that when
+// SourceImgref is set and ComposeFsBackend is false (non-composefs container
+// mode with overlay redirect), the OCI export function IS called.  Regression
+// test for the bug where exportComposefsOCIIfNeeded returned nil for
+// non-composefs, causing "oci-cache/index.json: no such file or directory".
+func TestBootcInstall_NonComposefsContainerExportsOCI(t *testing.T) {
+	controlledAncillaryMountCommands(t)
+	// Non-composefs only exports to an OCI layout when it redirects podman
+	// storage to the target disk, which happens when the default store is
+	// space-constrained. Force that path so the test is deterministic
+	// regardless of the runner's /var/lib/containers free space.
+	defer install.SetStorageSpaceConstrainedForTest(true)()
+	defer install.SetSelectStorageDriverForTest("overlay", "forced for test")()
+	// Without a host bootc, a local source still takes the container path.
+	defer install.SetHostHasBootcForTest(false)()
+	tmpDir := t.TempDir()
+	var scratchDir string
+	var err error
+
+	// Fake podman: just exit 0 (container mode runs podman; we don't need a real one).
+	podmanPath := tmpDir + "/podman"
+	if err = os.WriteFile(podmanPath, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatalf("writing fake podman: %v", err)
+	}
+
+	oldPath := os.Getenv("PATH")
+	if err = os.Setenv("PATH", tmpDir+":"+oldPath); err != nil {
+		t.Fatalf("setting PATH: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
+
+	var exportCalled bool
+	var exportedFrom string
+	install.SkopeoExportOCIFn = func(image, destDir, tmpdir string) error {
+		exportCalled = true
+		exportedFrom = image
+		// Create a minimal OCI layout so the subsequent podman run can
+		// find oci:<path> (we just need the file to exist for the mock).
+		if err := os.MkdirAll(destDir, 0755); err != nil {
+			return err
+		}
+		return os.WriteFile(destDir+"/index.json", []byte("{}"), 0644)
+	}
+	defer func() { install.SkopeoExportOCIFn = install.DefaultSkopeoExportOCI }()
+
+	// The overlay redirect requires scratch on an overlay-capable filesystem
+	// (ext4/xfs/btrfs).  t.TempDir() is typically on tmpfs.  Use /var/tmp
+	// which is usually ext4/xfs on CI and developer machines.
+	scratchDir, err = os.MkdirTemp("/var/tmp", "fisherman-test-scratch-*")
+	if err != nil {
+		t.Skipf("cannot create scratch on /var/tmp: %v", err)
+	}
+	defer os.RemoveAll(scratchDir)
+
+	err = install.BootcInstall(install.Options{
+		ComposeFsBackend: false,
+		SourceImgref:     "containers-storage:ghcr.io/ublue-os/bluefin:stable",
+		TargetImgref:     "ghcr.io/ublue-os/bluefin:stable",
+		Target:           tmpDir + "/target",
+		ScratchDir:       scratchDir,
+		NeedsPull:        false,
+	})
+	if err != nil {
+		t.Fatalf("BootcInstall() error = %v", err)
+	}
+	if !exportCalled {
+		t.Error("SkopeoExportOCIFn was not called for non-composefs container mode with SourceImgref set")
+	}
+	// The source is local and was not pulled, so it is only in the live
+	// system's store. Exporting from the (empty) redirected root instead made
+	// every offline Utah install fail with "does not resolve to an image ID".
+	if want := "containers-storage:ghcr.io/ublue-os/bluefin:stable"; exportedFrom != want {
+		t.Errorf("exported from %q, want the unpulled local ref %q", exportedFrom, want)
+	}
+}
+
+// TestBootcInstall_NonComposefsDirectSkipsOCIExport verifies that when
+// SourceImgref is empty (direct/live-ISO mode) and ComposeFsBackend is false,
+// the OCI export is NOT called.  Bootc reads from containers-storage on the
+// host; no OCI layout is needed.
+func TestBootcInstall_NonComposefsDirectSkipsOCIExport(t *testing.T) {
+	controlledAncillaryMountCommands(t)
+	tmpDir := t.TempDir()
+
+	// Fake bootc for direct mode.
+	bootcPath := tmpDir + "/bootc"
+	if err := os.WriteFile(bootcPath, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatalf("writing fake bootc: %v", err)
+	}
+
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", tmpDir+":"+oldPath); err != nil {
+		t.Fatalf("setting PATH: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
+
+	var exportCalled bool
+	install.SkopeoExportOCIFn = func(image, destDir, tmpdir string) error {
+		exportCalled = true
+		return nil
+	}
+	defer func() { install.SkopeoExportOCIFn = install.DefaultSkopeoExportOCI }()
+
+	err := install.BootcInstall(install.Options{
+		ComposeFsBackend: false,
+		SourceImgref:     "", // direct mode — no source image ref
+		Target:           tmpDir + "/target",
+	})
+	if err != nil {
+		t.Fatalf("BootcInstall() error = %v", err)
+	}
+	if exportCalled {
+		t.Error("SkopeoExportOCIFn was called for non-composefs direct mode (should be skipped)")
+	}
+}
+
+// TestBootcInstall_LocalSourceInstallsDirectly is the installer GUI's live-ISO
+// shape: a local containers-storage: source for a non-composefs image, on a
+// host that booted that image (an established source execution root). It must
+// run the host's bootc against the live store -- no OCI export and no podman,
+// which on an 8 GiB Utah live ISO was OOM-killed.
+func TestBootcInstall_LocalSourceInstallsDirectly(t *testing.T) {
+	controlledAncillaryMountCommands(t)
+	defer install.SetHostHasBootcForTest(true)()
+	defer install.SetStorageSpaceConstrainedForTest(true)()
+	defer install.SetSelectStorageDriverForTest("overlay", "forced for test")()
+	tmpDir := t.TempDir()
+
+	for _, tool := range []string{"bootc", "podman"} {
+		script := "#!/bin/sh\necho \"" + tool + " $*\" >> " + tmpDir + "/calls\nexit 0\n"
+		if err := os.WriteFile(tmpDir+"/"+tool, []byte(script), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	oldPath := os.Getenv("PATH")
+	t.Setenv("PATH", tmpDir+":"+oldPath)
+
+	exported := false
+	install.SkopeoExportOCIFn = func(image, destDir, tmpdir string) error { exported = true; return nil }
+	defer func() { install.SkopeoExportOCIFn = install.DefaultSkopeoExportOCI }()
+
+	err := install.BootcInstall(install.Options{
+		SourceImgref: "containers-storage:ghcr.io/projectbluefin/utah:testing",
+		TargetImgref: "ghcr.io/projectbluefin/utah:testing",
+		Target:       tmpDir + "/target",
+		ScratchDir:   tmpDir,
+		Bootloader:   "grub2",
+		// The live ISO booted the image its store holds (#363).
+		SourceRoot: install.SourceRoot{Established: true, Reason: "digest_match", Backend: "ostree"},
+	})
+	if err != nil {
+		t.Fatalf("BootcInstall() error = %v", err)
+	}
+	calls, _ := os.ReadFile(tmpDir + "/calls")
+	if strings.Contains(string(calls), "podman") {
+		t.Errorf("local source ran podman; want the host bootc only:\n%s", calls)
+	}
+	if !strings.Contains(string(calls), "bootc install to-filesystem") ||
+		!strings.Contains(string(calls), "--source-imgref containers-storage:ghcr.io/projectbluefin/utah:testing") {
+		t.Errorf("bootc not run against the local store:\n%s", calls)
+	}
+	if exported {
+		t.Error("a direct install from local storage exported an OCI copy")
+	}
+}
+
+// An explicit containers-storage source is read locally only, and must be a
+// bootc image for this host too.
+func TestCheckImage_ExplicitLocalSourceMustBeBootc(t *testing.T) {
+	const source = "containers-storage:ghcr.io/example/os:stable"
+	f := &fakeInspect{local: strings.Replace(bootcImage('a', 1), `{"containers.bootc":"1"}`, `{}`, 1)}
+	f.install(t)
+	c := install.CheckImage(source)
+	if c.NeedsPull || c.Err == nil || c.Err.Code != recipe.CodeImageNotBootc {
+		t.Fatalf("got %+v, want image_not_bootc", c)
+	}
+	if f.remoteCalls() != 0 {
+		t.Fatalf("an explicit local source queried a registry: %v", f.calls)
+	}
+}
