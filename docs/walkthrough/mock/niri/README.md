@@ -40,9 +40,9 @@ The main path in other forms: [1024 x 600](small/README.md).
 
 ## Pages with no picture of their own
 
-| Page | Reason |
-|---|---|
-| `language` | It is on the `session` page. |
-| `keyboard` | It is on the `session` page. |
-| `timezone` | It is on the `session` page. |
-| `network` | The session page has the network card; there is no page of its own. |
+| Page | Kind | Reason |
+|---|---|---|
+| `language` | Design | It is on the `session` page. |
+| `keyboard` | Design | It is on the `session` page. |
+| `timezone` | Design | It is on the `session` page. |
+| `network` | Design | The session page has the network card; there is no page of its own. |

@@ -67,7 +67,7 @@
    "caption": "The desktop has no first-boot tool that creates the user, and the image does not make its own user.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "2fe4ee45e5ff8d0ff0ada310bb926af53efb4c56228a9be11f908b5a1a7d256b",
+   "sha256": "27fc0213e45cabcc7a86fd47f5ac84f6ccdf30f21b5251034825847787f323a7",
    "blank": false
   },
   {
@@ -111,7 +111,7 @@
    "caption": "The install ended.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "57b53171efb9bb65254b8a6ba76b67a233b28a90e35f50c4a71dd30dae2ed1a0",
+   "sha256": "6a2d32453349fcd66da596fa8d8cb5b4164883726d65cb5b621faf4491b9efa8",
    "blank": false
   }
  ],

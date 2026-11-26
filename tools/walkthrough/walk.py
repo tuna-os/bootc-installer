@@ -175,9 +175,22 @@ class Walker:
 
     def page(self):
         lines = self.lines(headings=True)
+        header = None
+        if self.ocr_on:
+            # The "Step N of M · Title" header names the page. A step rail
+            # under it repeats words such as "Disk" on each page (COSMIC).
+            for line in self.ocr_lines():
+                raw = " ".join(w["text"] for w in line)
+                if re.match(r"^\s*Step \d+ of \d+\b", raw, re.I):
+                    header = clean(raw)
+                    break
         for pid, pats in flows.MODAL.items():
             for p in pats:
                 if any(re.fullmatch(p, ln, re.I) for ln in lines):
+                    return pid
+        if header:
+            for pid, pats in self.table.items():
+                if any(re.fullmatch(p, header, re.I) for p in pats):
                     return pid
         weak = None
         for ln in lines:

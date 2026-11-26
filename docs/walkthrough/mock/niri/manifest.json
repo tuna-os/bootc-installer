@@ -133,7 +133,7 @@
    "caption": "No TPM 2.0 is present. The page asks for a disk passphrase, twice.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "95928a14859fe5e30347c0cd82bb898b045aa9630748a1e028e8a9465fb26a1e",
+   "sha256": "e81b47eeb230416e6a9b4f83816c75c9eb9b5df42c15bc57068127f2448d4b52",
    "blank": false
   },
   {
@@ -144,7 +144,7 @@
    "caption": "The desktop has no first-boot tool that creates the user, and the image does not make its own user.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "a7a3d5103df69ba796012eeecf2afa2152f8061fe942d6ce6af220dc498214b0",
+   "sha256": "b32402687a66d8ad67d2526b1f119ea1a20048d46c97568930abcd0a487e9adf",
    "blank": false
   },
   {

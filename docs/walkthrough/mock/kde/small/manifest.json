@@ -111,7 +111,7 @@
    "caption": "The install ended.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "d92ccf7dae6a66a69fb414911c6cd9d660349f83032fee80266fecfc643439d9",
+   "sha256": "f57a9d1e4f595d9cb144e953261c5cb6417660d596d77179c2b15ad484315352",
    "blank": false
   }
  ],

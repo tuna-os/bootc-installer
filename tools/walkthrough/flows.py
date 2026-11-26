@@ -13,6 +13,10 @@ EXEMPT lists the spec pages that a frontend has not, with the reason.
 # Pages that cover the one below them, and the ends of the flow: matched
 # before the others, on any line.
 MODAL = {
+    # A gate can cover the first page (niri draws it over Welcome).
+    "requirements": [r"This computer does not meet.*", r"This computer is below the requirements",
+                     r"This computer cannot run the installer", r"Not enough memory",
+                     r"Unsupported firmware"],
     "install--cancel": [r"Stop the installation\?", r"Stop the installer\?",
                         r"Cancel the installation\?", r"Cancel (the )?installation\?",
                         r"Stop installing\?", r"Cancel the install\?",
@@ -76,9 +80,7 @@ ACCOUNT = {"full": "Alex Example", "user": "alex", "pass": "walkthrough-mock-1",
 
 EXEMPT = {
     "kde": {},
-    "cosmic": {"network": "Not reached: with the mock on an installed system (not-live), an "
-                          "image that needs a download, and no network, the installer goes "
-                          "from the time zone to the disk (reported to the COSMIC owner)."},
+    "cosmic": {},
     "niri": {"network": "The session page has the network card; there is no page of its own."},
     "xfce": {
         "done--cancelled": "The cancel dialog draws no buttons (gates.ConfirmCancelDialog has no "
@@ -143,5 +145,4 @@ BLOCKED_BY = {
     "gnome": {"done--device-lost": "tuna-os/tunaOS#5017", "done--repart-error": "tuna-os/tunaOS#5017",
               "encryption--passphrase-enroll-failed": "tuna-os/tunaOS#5017",
               "recovery-key--recovery-key-failed": "tuna-os/tunaOS#5017"},
-    "cosmic": {"network": "reported to the COSMIC owner"},
 }

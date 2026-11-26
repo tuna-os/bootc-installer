@@ -67,7 +67,7 @@
    "caption": "The desktop has no first-boot tool that creates the user, and the image does not make its own user.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "be15d6506d8084d9d08e79f500be539256746dde91d94bf85dbca4a663eab85c",
+   "sha256": "8176784fef30ed00576d89d43041bfb9482806ce16ecf879fab3539ada700d3d",
    "blank": false
   },
   {
