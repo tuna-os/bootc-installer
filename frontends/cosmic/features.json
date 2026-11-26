@@ -17,7 +17,7 @@
     "requirements_check": "blocks (requirements page)",
     "connectivity_check": "blocks (network page, skipped when this computer can copy its own system; registry of the image first; Network settings button)",
     "filesystem_choice": "the image's list, else xfs, ext4 or btrfs",
-    "encryption_passphrase": "yes",
+    "encryption_passphrase": "yes (legacy backend); the daemon backend offers no none, and a passphrase only with no TPM 2.0 (with one, the disk is sealed to it and the step does not show)",
     "passphrase_confirmation": "yes",
     "encryption_tpm": "yes",
     "recovery_key": "yes",

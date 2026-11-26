@@ -317,7 +317,7 @@ screens:
     note: >-
       gnome-setup asks AFTER the install (`disk-passphrase`) and enrols with CryptEnroll.Enroll,
       unlocking with the empty password that SysInstall set. A native frontend asks BEFORE
-      confirm and passes it to Install. Whether the daemon keeps an unencrypted choice is open.
+      confirm and passes it to Install. The daemon keeps no unencrypted choice: it refuses `none` (#465).
     failure_states: [no-tpm, passphrase-mismatch, passphrase-enroll-failed]
     accessibility: {name: Disk encryption, fields: [Passphrase, Confirm passphrase]}
     gnome_setup: {status: present, note: "Page `Disk Passphrase`, only when /sys/class/tpm has no TPM 2. Comes after the install, before the recovery key."}
