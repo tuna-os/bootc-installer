@@ -592,6 +592,8 @@ ApplicationWindow {
     readonly property bool recoveryKeyPending:
         installSuccess && recoveryKey !== "" && !recoveryAck
     property string installLog: ""
+    // The progress page's log card: closed until the user opens it.
+    property bool installLogOpen: false
     // The determinate bar is driven by fisherman's newline-delimited JSON
     // progress protocol (shared/progress/README.md).
     //
@@ -2978,6 +2980,9 @@ ApplicationWindow {
                     wrapMode: Text.WrapAnywhere
                     Layout.fillWidth: true
                 }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.spacingM
                 Rectangle {
                     Layout.fillWidth: true
                     height: 8; radius: 4
@@ -2995,10 +3000,31 @@ ApplicationWindow {
                         Behavior on width { NumberAnimation { duration: Theme.mediumDuration; easing.type: Theme.standardEasing } }
                     }
                 }
+                    // The percentage beside the bar (DESKTOP-STANDARD A5).
+                    StyledText {
+                        objectName: "installPercent"
+                        text: qsTr("%1%").arg(Math.round(root.installFraction * 100))
+                        color: Theme.surfaceVariantText
+                        isMonospace: true
+                    }
+                }
+                // The log is behind "details": the step line says what
+                // happens; the log is for whoever asks for it.
+                DankButton {
+                    objectName: "installDetailsButton"
+                    text: root.installLogOpen ? qsTr("Hide details") : qsTr("Show details")
+                    tonal: true
+                    onClicked: root.installLogOpen = !root.installLogOpen
+                }
+                Item {
+                    Layout.fillHeight: true
+                    visible: !root.installLogOpen
+                }
 
                 DankCard {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    visible: root.installLogOpen
                     pad: Theme.spacingS
                     ScrollView {
                         anchors.fill: parent

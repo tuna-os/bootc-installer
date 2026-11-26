@@ -778,3 +778,18 @@ func TestDaemonPathHasNoFilesystemChoice(t *testing.T) {
 		}
 	}
 }
+
+// The progress page: a percentage beside the bar, the log behind details.
+func TestProgressPageHasPercentAndDetails(t *testing.T) {
+	qml := readQML(t)
+	for _, want := range []string{
+		`objectName: "installPercent"`,
+		`objectName: "installDetailsButton"`,
+		`visible: root.installLogOpen`,
+		`property bool installLogOpen: false`,
+	} {
+		if !strings.Contains(qml, want) {
+			t.Errorf("installer.qml has no %q", want)
+		}
+	}
+}
