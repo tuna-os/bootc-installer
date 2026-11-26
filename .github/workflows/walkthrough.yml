@@ -6,8 +6,9 @@ name: Walkthrough
 # by side. That is the artifact the monorepo exists to make possible: one
 # page where drift between the installers is visible instead of inferred.
 #
-# Runs after any screenshot workflow completes on dev, and daily as a
-# catch-up. It does not capture anything itself: it downloads the most recent
+# Runs after any screenshot workflow completes on dev, and weekly as a
+# catch-up. It uploads the page as an artifact and commits nothing: pictures
+# reach dev only through a pull request (tools/walkthrough/README.md). It does not capture anything itself: it downloads the most recent
 # successful gui-screenshots-<frontend> artifact for each frontend from dev,
 # so a frontend whose capture is red keeps its last green walkthrough and the
 # matrix says so.
@@ -23,7 +24,7 @@ on:
     types: [completed]
     branches: [dev]
   schedule:
-    - cron: "41 5 * * *"
+    - cron: "41 5 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -44,8 +45,9 @@ jobs:
       (github.event.workflow_run.head_repository.full_name == github.repository &&
       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch'))
     steps:
-      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] the push-to-dev step later commits and pushes from this checkout
+      - uses: actions/checkout@v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
           ref: dev
 
@@ -78,7 +80,7 @@ jobs:
           ls -R captures | head -80
 
       # --strict: a strict report whose required evidence is missing is a
-      # failure (#186). The page is still built and committed first, so it
+      # failure (#186). The page is still built and uploaded first, so it
       # shows the gap; the last step then fails the job.
       - name: Build docs/walkthrough
         id: build
@@ -89,14 +91,11 @@ jobs:
           echo "rc=$?" >> "$GITHUB_OUTPUT"
           head -60 docs/walkthrough/README.md
 
-      # This job commits the page with [skip ci], so no check runs on that
-      # commit, and the next pull request pays for it: the Prose check
-      # (ste.yml) counts the page against .ste-budget, and that budget is
-      # exact. So the page must add no finding at all. aggregate.py keeps
-      # captured UI text in table cells, which are not prose; this step
-      # proves it with the same linter, at the commit that ste.yml pins.
-      # A failure stops the upload and the commit, and dev keeps the last
-      # good page.
+      # The Prose check (ste.yml) counts the page against .ste-budget when a
+      # person commits it, and that budget is exact. So the page must add no
+      # finding at all. aggregate.py keeps captured UI text in table cells,
+      # which are not prose; this step proves it with the same linter, at
+      # the commit that ste.yml pins. A failure stops the upload.
       - name: Check that the page adds no STE finding
         run: |
           set -euo pipefail
@@ -114,21 +113,14 @@ jobs:
 
       # The publication allowlist (#270): only images, JSON and Markdown,
       # and no recipe secret or E2E test credential. A failure stops the
-      # upload and the commit.
-      - name: Audit what the artifact and the commit publish
+      # upload.
+      - name: Audit what the artifact publishes
         run: python3 shared/e2e/publish.py audit docs/walkthrough
 
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: walkthrough
           path: docs/walkthrough/
-
-      - name: Commit
-        uses: ./.github/actions/push-to-dev # zizmor: ignore[self-repository] job runs the action from its checkout of dev, not the workflow commit
-        with:
-          paths: docs/walkthrough
-          message: "docs: refresh cross-frontend walkthrough [skip ci]"
-          ssh-key: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}
 
       - name: Fail on a strict walkthrough failure
         if: steps.build.outputs.rc != '0'

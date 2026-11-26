@@ -16,7 +16,6 @@ on:
       - "frontends/xfce/po/**"
       - "frontends/xfce/flatpak/**"
       - "shared/**"
-      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-xfce.yml"
   pull_request:
     paths:
@@ -25,7 +24,6 @@ on:
       - "frontends/xfce/po/**"
       - "frontends/xfce/flatpak/**"
       - "shared/**"
-      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-xfce.yml"
   workflow_dispatch:
 
@@ -46,8 +44,9 @@ jobs:
       run:
         working-directory: frontends/xfce
     steps:
-      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] the push-to-dev step later commits and pushes from this checkout
+      - uses: actions/checkout@v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       # python3-gi-cairo is not optional: without it every custom draw handler
@@ -79,12 +78,3 @@ jobs:
         with:
           name: gui-screenshots-xfce
           path: frontends/xfce/docs/screenshots/
-
-      - name: commit refreshed screenshots
-        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-        uses: $/.github/actions/push-to-dev
-        with:
-          working-directory: frontends/xfce
-          paths: docs/screenshots
-          message: "docs(xfce): refresh GUI screenshots [skip ci]"
-          ssh-key: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}

@@ -21,7 +21,6 @@ on:
       - "frontends/cosmic/Cargo.toml"
       - "frontends/cosmic/Cargo.lock"
       - "shared/**"
-      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-cosmic.yml"
   pull_request:
     paths:
@@ -30,7 +29,6 @@ on:
       - "frontends/cosmic/Cargo.toml"
       - "frontends/cosmic/Cargo.lock"
       - "shared/**"
-      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-cosmic.yml"
   workflow_dispatch:
 
@@ -51,8 +49,9 @@ jobs:
       run:
         working-directory: frontends/cosmic
     steps:
-      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] the push-to-dev step later commits and pushes from this checkout
+      - uses: actions/checkout@v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: install build and render dependencies
@@ -197,12 +196,3 @@ jobs:
           name: gui-screenshots-cosmic
           path: frontends/cosmic/docs/screenshots/
           if-no-files-found: warn
-
-      - name: commit refreshed screenshots
-        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-        uses: $/.github/actions/push-to-dev
-        with:
-          working-directory: frontends/cosmic
-          paths: docs/screenshots
-          message: "docs(cosmic): refresh GUI screenshots [skip ci]"
-          ssh-key: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}
