@@ -18,9 +18,6 @@
         "--env=BOOTC_INSTALLER_DEBUG=1",
         "--env=BOOTC_APP_ID=org.bootcinstaller.Installer.Devel"
     ],
-    "cleanup": [
-        "/go"
-    ],
     "build-options": {
         "env": {
             "PATH": "/app/go/bin:/usr/bin:/bin",
