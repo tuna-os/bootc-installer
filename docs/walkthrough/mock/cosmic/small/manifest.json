@@ -1,0 +1,130 @@
+{
+ "frontend": "cosmic",
+ "source": "mock",
+ "run": "",
+ "variant": "small",
+ "pages": [
+  {
+   "name": "try-or-install",
+   "page": "try-or-install",
+   "file": "01-try-or-install.png",
+   "title": "Try or install",
+   "caption": "The wizard runs on live media.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "04bd4b186b8bcbce78c9cef7adf26b1c73920deaa75c0e9b57bfe41dcac087e9",
+   "blank": false
+  },
+  {
+   "name": "language",
+   "page": "language",
+   "file": "02-language.png",
+   "title": "Language",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "98c84b056adfa2f00d149e81d31f534227940ea512b7acd46dfa7e78b48ae1af",
+   "blank": false
+  },
+  {
+   "name": "keyboard",
+   "page": "keyboard",
+   "file": "03-keyboard.png",
+   "title": "Keyboard layout",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "147ad574a8f9153645032e7c0b916408609cc347ef0be6ff3a87a16ae0f22165",
+   "blank": false
+  },
+  {
+   "name": "timezone",
+   "page": "timezone",
+   "file": "04-timezone.png",
+   "title": "Time zone",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "94cc8d1b3fb76dba1a17743d234c28edef6cdf14266369be626aabd3f688a74c",
+   "blank": false
+  },
+  {
+   "name": "disk",
+   "page": "disk",
+   "file": "05-disk.png",
+   "title": "Disk",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "1658dad61833d483295ff6d603c61d9bb3b40d1c7f029beadfbe8b0f2129955c",
+   "blank": false
+  },
+  {
+   "name": "account",
+   "page": "account",
+   "file": "06-account.png",
+   "title": "Account",
+   "caption": "The desktop has no first-boot tool that creates the user, and the image does not make its own user.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "b9c8208be456ea3e1e4fae09fe099d5cfb92e7775c93ef35cbac8a10d7c66337",
+   "blank": false
+  },
+  {
+   "name": "tour",
+   "page": "tour",
+   "file": "07-tour.png",
+   "title": "Tour",
+   "caption": "A tour of the image.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "ccda46c36221fb7ece48d6ae3624c9e7414ba33f9bdc45e193f9eca34d0c0bc5",
+   "blank": false
+  },
+  {
+   "name": "confirm",
+   "page": "confirm",
+   "file": "08-confirm.png",
+   "title": "Confirm",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "bc6144f0a5cd55fbb8f98d634f851677e860621563a8ae6b401836f55d61e386",
+   "blank": false
+  },
+  {
+   "name": "recovery-key",
+   "page": "recovery-key",
+   "file": "09-recovery-key.png",
+   "title": "Recovery key",
+   "caption": "The disk is encrypted.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "ad0d3aea49c84cfd2afd9e4936be19bf4ad21077a10a19e83c7e50853bba17fa",
+   "blank": false
+  },
+  {
+   "name": "handoff",
+   "page": "handoff",
+   "file": "10-handoff.png",
+   "title": "Handoff",
+   "caption": "After the install and the recovery key.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "169b77743cca43fc6c6cdd4f716701f77d641e9817bff5cfb0d458dccac01f73",
+   "blank": false
+  },
+  {
+   "name": "done",
+   "page": "done",
+   "file": "11-done.png",
+   "title": "Done",
+   "caption": "The install ended.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "f32aed9bc13998f07930b7d881b460068e554227867258beea461681db090f9c",
+   "blank": false
+  }
+ ],
+ "errors": []
+}

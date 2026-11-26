@@ -48,6 +48,10 @@ NOT_A_TRIGGER = {
                         "a minute, before the build and E2E workflows that fire "
                         "the gate. The gate reads every check run, so a red run "
                         "still holds the promotion.",
+    **{f"Walkthrough ({fe})": "It makes documentation pictures against the mock "
+                              "daemon and opens a pull request with them. It proves "
+                              "no release, so the promotion does not wait for it."
+       for fe in ("gnome", "kde", "cosmic", "niri", "xfce")},
 }
 
 # Workflows that run on every push to `dev` (no path filter), but have no

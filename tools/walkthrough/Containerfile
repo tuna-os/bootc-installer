@@ -1,0 +1,38 @@
+# The session that the walkthrough captures run in: a headless wlroots
+# compositor (sway, software renderer), AT-SPI, OCR, and the toolkits of the
+# five installers. `run.sh` builds it, and the workflow builds it with the
+# same arguments. FRONTEND selects the packages, so one job installs only
+# what its desktop needs.
+FROM registry.fedoraproject.org/fedora:44
+ARG FRONTEND=all
+RUN dnf -y install --setopt=install_weak_deps=False \
+        sway grim wtype dbus-daemon dbus-tools at-spi2-core python3-gobject gobject-introspection \
+        python3-pyatspi python3-pyyaml python3-pillow tesseract \
+        mesa-dri-drivers mesa-vulkan-drivers mesa-libEGL mesa-libGL \
+        dejavu-sans-fonts dejavu-sans-mono-fonts google-noto-sans-fonts \
+        adwaita-sans-fonts adwaita-mono-fonts google-noto-color-emoji-fonts \
+        adwaita-icon-theme glibc-langpack-en glibc-langpack-de glibc-langpack-fr \
+        glibc-langpack-es glibc-langpack-it glibc-langpack-nl glibc-langpack-pl \
+        glibc-langpack-pt glibc-langpack-sv \
+        xkeyboard-config tzdata iso-codes ImageMagick optipng \
+        libfaketime polkit sudo procps-ng util-linux findutils hostname golang git-core \
+    && dnf clean all
+RUN set -e; f() { dnf -y install --setopt=install_weak_deps=False "$@"; }; \
+    case "$FRONTEND" in gnome|all) \
+        f cargo rust meson ninja-build gcc gettext gettext-devel desktop-file-utils \
+          glib2-devel gtk4-devel libadwaita-devel gnome-desktop4-devel appstream-devel ;; esac; \
+    case "$FRONTEND" in kde|all) \
+        f cmake ninja-build gcc-c++ qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg \
+          qt6-qttools-devel qt6-linguist qt6-qtwayland kf6-kirigami kf6-kirigami-addons \
+          kf6-qqc2-desktop-style kf6-breeze-icons plasma-breeze-qt6 ;; esac; \
+    case "$FRONTEND" in niri|all) f quickshell qt6-qtsvg qt6-qtwayland ;; esac; \
+    case "$FRONTEND" in xfce|all) f gtk3 python3-gobject python3-cairo gettext ;; esac; \
+    case "$FRONTEND" in cosmic|all) \
+        f cargo rust gcc gcc-c++ cmake clang pkgconf-pkg-config wayland-devel \
+          libxkbcommon-devel libxkbcommon-x11-devel fontconfig-devel freetype-devel \
+          libinput-devel systemd-devel mesa-libgbm-devel mesa-libEGL-devel openssl-devel \
+          cosmic-icon-theme ;; esac; \
+    dnf clean all
+# The package gives sway cap_sys_nice, which a container may not have: the
+# kernel then refuses to start it.
+RUN setcap -r /usr/bin/sway

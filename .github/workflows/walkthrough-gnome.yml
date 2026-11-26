@@ -1,0 +1,40 @@
+name: Walkthrough (gnome)
+
+# The real gnome installer against the mock daemon, picture by picture. See
+# _walkthrough.yml and tools/walkthrough/README.md.
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "tools/walkthrough/**"
+      - "shared/flow/screens.yaml"
+      - ".github/workflows/_walkthrough.yml"
+      - ".github/workflows/walkthrough-gnome.yml"
+  pull_request:
+    paths:
+      - "tools/walkthrough/**"
+      - "shared/flow/screens.yaml"
+      - ".github/workflows/_walkthrough.yml"
+      - ".github/workflows/walkthrough-gnome.yml"
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: walkthrough-gnome-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  walk:
+    uses: $/.github/workflows/_walkthrough.yml
+    permissions:
+      contents: read
+      pull-requests: write
+    with:
+      frontend: gnome
+    secrets:
+      DEV_PUSH_DEPLOY_KEY: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}

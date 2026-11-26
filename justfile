@@ -27,8 +27,15 @@ capture:
     test -f build/bootc_installer/bootc-installer.gresource || (meson setup build -Dbuild-fisherman=false && ninja -C build)
     if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then BOOTC_RESOURCE=build/bootc_installer/bootc-installer.gresource python3 tests/gui/capture-screens.py docs/screenshots; elif command -v xvfb-run >/dev/null 2>&1; then BOOTC_RESOURCE=build/bootc_installer/bootc-installer.gresource xvfb-run -a -s "-screen 0 1400x1000x24" python3 tests/gui/capture-screens.py docs/screenshots; else echo "just capture: no display server and no xvfb-run; run under Xvfb or with DISPLAY set" >&2; exit 1; fi
 
-# Fold every frontend's committed capture into docs/walkthrough/ (what walkthrough.yml does from CI artifacts).
-walkthrough:
+# `just walkthrough kde` (or gnome, cosmic, niri, xfce): picture each page of
+# that installer against the mock daemon, into docs/walkthrough/mock/kde
+# (tools/walkthrough/README.md; needs podman or docker). With no frontend:
+# fold the committed captures into docs/walkthrough/ (as walkthrough.yml does).
+walkthrough frontend="":
+    if [ -n "{{frontend}}" ]; then exec tools/walkthrough/run.sh "{{frontend}}"; fi
+    just walkthrough-aggregate
+
+walkthrough-aggregate:
     rm -rf _captures && mkdir -p _captures
     cp -r docs/screenshots _captures/gnome
     for n in kde cosmic niri xfce; do cp -r frontends/$n/docs/screenshots _captures/$n; done

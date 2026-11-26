@@ -1,0 +1,6 @@
+NAME="TunaOS"
+PRETTY_NAME="TunaOS"
+ID=tunaos
+VERSION_ID=1
+RELEASE_TYPE=pre-release
+LOGO=org.bootcinstaller.Installer

@@ -1,0 +1,6 @@
+#!/bin/sh
+# Host facts for the walkthrough: the container has no systemd-timedated.
+case "$1" in
+list-timezones) awk '$1 == "Z" {print $2}' /usr/share/zoneinfo/tzdata.zi | grep / | grep -v '^Etc/' | sort ; echo UTC ;;
+show) echo UTC ;;
+esac

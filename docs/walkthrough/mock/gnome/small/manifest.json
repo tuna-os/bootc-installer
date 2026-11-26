@@ -1,0 +1,97 @@
+{
+ "frontend": "gnome",
+ "source": "mock",
+ "run": "",
+ "variant": "small",
+ "pages": [
+  {
+   "name": "try-or-install",
+   "page": "try-or-install",
+   "file": "01-try-or-install.png",
+   "title": "Try or install",
+   "caption": "The wizard runs on live media.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "ff959eb306e495ddad7c6a79368014378652cab5d0bb81a6ccb477af57eec4d0",
+   "blank": false
+  },
+  {
+   "name": "language",
+   "page": "language",
+   "file": "02-language.png",
+   "title": "Language",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "a7f8e717f905dd95f518766cca885cbfcf07c5959aaac63efea9be5de30b1a44",
+   "blank": false
+  },
+  {
+   "name": "keyboard",
+   "page": "keyboard",
+   "file": "03-keyboard.png",
+   "title": "Keyboard layout",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "7ceaaa9b3c9c445180252ce8b7a420a0ebb001a280ebb365652f3b43b4433beb",
+   "blank": false
+  },
+  {
+   "name": "disk",
+   "page": "disk",
+   "file": "04-disk.png",
+   "title": "Disk",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "2d1401f97578b25d8d4cec667c4e07e0bb23103aa09c447368f57fb15e752ff5",
+   "blank": false
+  },
+  {
+   "name": "encryption",
+   "page": "encryption",
+   "file": "05-encryption.png",
+   "title": "Disk encryption",
+   "caption": "No TPM 2.0 is present. The page asks for a disk passphrase, twice.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "f825281b2c2f2a5d932d0e2509e3c46aaafd5783b561cc705795fbd039f19092",
+   "blank": false
+  },
+  {
+   "name": "confirm",
+   "page": "confirm",
+   "file": "06-confirm.png",
+   "title": "Confirm",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "883c8e7960696b58dd4f48e6c363d456bfa11f8cc03aa4053c447e45c01c71c5",
+   "blank": false
+  },
+  {
+   "name": "recovery-key",
+   "page": "recovery-key",
+   "file": "07-recovery-key.png",
+   "title": "Recovery key",
+   "caption": "The disk is encrypted.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "4e19386838f797965c8c40328e387371fc11f65f5b31b4a41181ffde4f395c43",
+   "blank": false
+  },
+  {
+   "name": "done",
+   "page": "done",
+   "file": "08-done.png",
+   "title": "Done",
+   "caption": "The install ended.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "503937f021d422a868db2eb309c09d62e159168d4ea1dc929dd168fd326d708e",
+   "blank": false
+  }
+ ],
+ "errors": []
+}

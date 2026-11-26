@@ -1,0 +1,6 @@
+# The mock daemon and the gnome-setup build that the walkthrough uses.
+# Each is a commit: a moving branch would change the pictures under a run.
+FISHERMAN_REPO=https://github.com/tuna-os/fisherman.git
+FISHERMAN_REF=054fcb1d86f325d139d94c7b6315d2792f87fdcd
+TUNAOS_REPO=https://github.com/tuna-os/tunaOS.git
+TUNAOS_REF=805be4b48060ead6aa7cb1a809aafe38af803a26

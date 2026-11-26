@@ -1,0 +1,8 @@
+#!/bin/sh
+# Host facts for the walkthrough: the container has no systemd-localed.
+# The lists are the real ones of the session (installed locales, XKB rules).
+case "$1" in
+list-locales) locale -a | grep -i 'utf8$' | sed 's/utf8$/UTF-8/' ;;
+list-x11-keymap-layouts) sed -n '/^! layout/,/^$/p' /usr/share/X11/xkb/rules/base.lst | awk '!/^!/ && NF {print $1}' | grep -v '^custom$' | sort ;;
+status | "") printf 'System Locale: LANG=en_US.UTF-8\n    VC Keymap: us\n   X11 Layout: us\n' ;;
+esac
