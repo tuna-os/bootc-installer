@@ -369,3 +369,16 @@ fn wizard_or_skip_second(first: Wizard, scenario: &str) -> Wizard {
     drop(first);
     Wizard::start(scenario).expect("the mock binary was there for the first wizard")
 }
+
+#[test]
+fn flow_off_the_medium_an_image_to_download_shows_the_network_page() {
+    // not-live: an installed system, no live image. An image that the
+    // install downloads needs the network page after the time zone (the
+    // walkthrough's offline run).
+    let mut w = wizard_or_skip!("not-live");
+    assert!(w.app.live_image().is_none());
+    assert!(w.app.page_visible(Page::Network));
+    let seen = w.continue_to(Page::DiskSelect);
+    let at = |p: Page| seen.iter().position(|s| *s == p).unwrap_or_else(|| panic!("{p:?} not in {seen:?}"));
+    assert_eq!(at(Page::Network), at(Page::Timezone) + 1, "{seen:?}");
+}
