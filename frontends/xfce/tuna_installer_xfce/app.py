@@ -655,6 +655,10 @@ class InstallerWindow(Gtk.ApplicationWindow):
         target = daemon_client.recipe_to_target(recipe)
         if getattr(getattr(self, "region", None), "autologin", False):
             target["autologin"] = True
+        welcome = self.pages.get("welcome") if isinstance(self.pages, dict) else None
+        choice = getattr(welcome, "accessibility_choice", lambda: None)()
+        if choice:
+            target["accessibility"] = choice
 
         def work():
             try:

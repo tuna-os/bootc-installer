@@ -638,6 +638,20 @@ class WelcomePage(Page):
             "any disk until you confirm on the final step.").format(
                 product=core.PRODUCT_NAME))
         self.pack_start(body, False, False, 0)
+        # A screen reader as early as the first page (standard A6): XFCE
+        # has no shortcut for it. Mnemonic Alt+R. The choice goes to the
+        # installed system in ConfigureTarget when it is on, or was
+        # turned off here (accessibility_choice).
+        self.reader_initial = core.screen_reader_enabled()
+        self.reader = Gtk.CheckButton.new_with_mnemonic(_("Screen _reader"))
+        a11y_name(self.reader, _("Screen reader"))
+        self.reader.set_active(self.reader_initial)
+        self.reader.set_tooltip_text(_(
+            "Reads the screen aloud. The installed system keeps this setting."))
+        self.reader_problem = problem_label()
+        self.reader.connect("toggled", self._on_reader)
+        self.pack_start(self.reader, False, False, 0)
+        self.pack_start(self.reader_problem, False, False, 0)
         # Try or install (spec `try-or-install`): trying quits the wizard
         # and leaves the live session running; installing walks on.
         self.try_btn = a11y_name(Gtk.Button(
@@ -654,6 +668,24 @@ class WelcomePage(Page):
         self.tour = tour.TourCarousel()
         self.pack_start(self.tour, False, False, 0)
         self.tour.set_slides(tour.slides_from_catalog(core.load_catalog().roots))
+
+    def _on_reader(self, check):
+        on = check.get_active()
+        if core.set_screen_reader(on):
+            show_problem(self.reader_problem, None)
+        else:
+            show_problem(self.reader_problem, {"code": "", "message": _(
+                "The screen reader setting could not be changed.")})
+
+    def accessibility_choice(self):
+        """ConfigureTarget `accessibility`: on whenever the box is ticked
+        (the session may have had it on before the installer started),
+        off only when the person turned it off here; None leaves the
+        installed system's default."""
+        on = self.reader.get_active()
+        if on or self.reader_initial:
+            return {"screenReader": on}
+        return None
 
     def _on_try(self, *_args):
         """End the wizard; the live session keeps running."""

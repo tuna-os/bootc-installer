@@ -565,6 +565,38 @@ def host_spawn(argv):
                             stderr=subprocess.DEVNULL, start_new_session=True)
 
 
+# The screen reader of the live session (installer standard A6). The key
+# is GNOME's, which Orca and at-spi read; an XFCE image starts Orca from it
+# (tunaOS experiences/xfce xfce-screen-reader). Every call is on the host.
+SCREEN_READER_KEY = ("org.gnome.desktop.a11y.applications", "screen-reader-enabled")
+
+
+def screen_reader_enabled():
+    """Whether the host session's screen reader setting is on; False when
+    it cannot be read."""
+    try:
+        result = host_run(["gsettings", "get", *SCREEN_READER_KEY], timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0 and result.stdout.strip() == "true"
+
+
+def set_screen_reader(on):
+    """Turn the host session's screen reader on or off now: the setting,
+    then Orca itself (an XFCE session starts Orca only at login). Returns
+    False when the setting could not be written."""
+    try:
+        result = host_run(["gsettings", "set", *SCREEN_READER_KEY,
+                           "true" if on else "false"], timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    try:
+        host_spawn(["orca", "--replace"] if on else ["orca", "--quit"])
+    except OSError:
+        pass
+    return result.returncode == 0
+
+
 def open_network_settings():
     """Open the first of NETWORK_TOOLS the host has. Returns its name, or ""
     when the host has none or it could not start."""
