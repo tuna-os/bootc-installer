@@ -1,0 +1,119 @@
+{
+ "frontend": "niri",
+ "source": "mock",
+ "run": "",
+ "variant": "small",
+ "pages": [
+  {
+   "name": "try-or-install",
+   "page": "try-or-install",
+   "file": "01-try-or-install.png",
+   "title": "Try or install",
+   "caption": "The wizard runs on live media.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "c21176a62f04a09741d9f5caa1772c12b0615ca495ccf65a40bfc4382134a1cb",
+   "blank": false
+  },
+  {
+   "name": "session",
+   "page": "session",
+   "file": "02-session.png",
+   "title": "Session",
+   "caption": "Keyboard, language, time zone and network, on one page.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "af701a9278920b0222f17cab73661f769e6550e1a05cc7e624071cfc79fd0399",
+   "blank": false
+  },
+  {
+   "name": "source",
+   "page": "source",
+   "file": "03-source.png",
+   "title": "Source",
+   "caption": "The image to install.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "6ca0df11741b5d6c6bae165344f3591dc68cd6b4e8cda093bfa110aff41c4099",
+   "blank": false
+  },
+  {
+   "name": "disk",
+   "page": "disk",
+   "file": "04-disk.png",
+   "title": "Disk",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "71716ed00913e20bcbf2dfbf67b510e6dc6030784bfa17a0f15ebe532d51f7ef",
+   "blank": false
+  },
+  {
+   "name": "encryption",
+   "page": "encryption",
+   "file": "05-encryption.png",
+   "title": "Disk encryption",
+   "caption": "No TPM 2.0 is present. The page asks for a disk passphrase, twice.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "426a83132523bb8a9872984d028a9d5925136c40c06ebd5e078fa4845a1307e1",
+   "blank": false
+  },
+  {
+   "name": "account",
+   "page": "account",
+   "file": "06-account.png",
+   "title": "Account",
+   "caption": "The desktop has no first-boot tool that creates the user, and the image does not make its own user.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "be15d6506d8084d9d08e79f500be539256746dde91d94bf85dbca4a663eab85c",
+   "blank": false
+  },
+  {
+   "name": "confirm",
+   "page": "confirm",
+   "file": "07-confirm.png",
+   "title": "Confirm",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "6522fb38e3ffa09ebe1f2ac38870e77ead50b92f47407861295ee0f830a914ac",
+   "blank": false
+  },
+  {
+   "name": "recovery-key",
+   "page": "recovery-key",
+   "file": "08-recovery-key.png",
+   "title": "Recovery key",
+   "caption": "The disk is encrypted.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "8f598108dcb8efd299c3f21c5a055191db5fba3602ff16d51d601ffb09cec371",
+   "blank": false
+  },
+  {
+   "name": "handoff",
+   "page": "handoff",
+   "file": "09-handoff.png",
+   "title": "Handoff",
+   "caption": "After the install and the recovery key.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "6cba7b4936c03249426a5a368dc19d9617f27b85dce8f4c4994cb5ca031403a3",
+   "blank": false
+  },
+  {
+   "name": "done",
+   "page": "done",
+   "file": "10-done.png",
+   "title": "Done",
+   "caption": "The install ended.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "42f7c744e09ad3ad868affdcc2ef62439ae8bad7d2faea5b06841ae0f8db010b",
+   "blank": false
+  }
+ ],
+ "errors": []
+}

@@ -240,7 +240,7 @@ class Walker:
         self.s.click(box[0] + box[2] / 2, box[1] + box[3] / 2)
         return True
 
-    def press(self, pattern, roles=BUTTONS, must=True, ocr=True):
+    def press(self, pattern, roles=BUTTONS, must=True, ocr=True, below=0):
         hits = self.find(pattern, roles)
         if hits:
             node = hits[-1]
@@ -250,6 +250,8 @@ class Walker:
             return True
         if self.ocr_on and ocr:
             box = self.find_text(pattern, lowest=True)
+            if box and box[1] < below:
+                box = None  # a step rail or header, not a button
             if box and not self.find(pattern, roles, enabled=False):
                 return self.click_box(box)
         if must:
@@ -288,7 +290,7 @@ class Walker:
             if self.press(p, must=False, ocr=False):
                 return
         for p in flows.PRIMARY:
-            if self.ocr_on and self.press(p, must=False):
+            if self.ocr_on and self.press(p, must=False, below=self.s.height * 0.2):
                 return
         raise Stuck("no primary button is enabled")
 

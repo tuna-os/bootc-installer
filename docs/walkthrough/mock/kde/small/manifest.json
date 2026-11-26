@@ -1,0 +1,119 @@
+{
+ "frontend": "kde",
+ "source": "mock",
+ "run": "",
+ "variant": "small",
+ "pages": [
+  {
+   "name": "try-or-install",
+   "page": "try-or-install",
+   "file": "01-try-or-install.png",
+   "title": "Try or install",
+   "caption": "The wizard runs on live media.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "5c6f487587b98795fc2a38a363757a4d4f8a8df84ca3a1cd0cfab289c9aaa647",
+   "blank": false
+  },
+  {
+   "name": "language",
+   "page": "language",
+   "file": "02-language.png",
+   "title": "Language",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "9ee09c9da53ef0239c772e5d37d094d51048cf92ca3f0a7fbf468bc80f5c6460",
+   "blank": false
+  },
+  {
+   "name": "keyboard",
+   "page": "keyboard",
+   "file": "03-keyboard.png",
+   "title": "Keyboard layout",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "b33af04e9ae6d4fee35539645fde824400fea27e32ca9b58dd7e20b6f958963c",
+   "blank": false
+  },
+  {
+   "name": "timezone",
+   "page": "timezone",
+   "file": "04-timezone.png",
+   "title": "Time zone",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "e6e7ac1dfcc0b3c3556efba1e1cb9567666d4e522e05d65a8e72452e0be3cc25",
+   "blank": false
+  },
+  {
+   "name": "disk",
+   "page": "disk",
+   "file": "05-disk.png",
+   "title": "Disk",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "2dead612b61f96df5d621a036413e1329e933d4dfffecaf68732f3d3ba25a86f",
+   "blank": false
+  },
+  {
+   "name": "account",
+   "page": "account",
+   "file": "06-account.png",
+   "title": "Account",
+   "caption": "The desktop has no first-boot tool that creates the user, and the image does not make its own user.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "0e9a6255a821f94f244feb4f92b6d9b812b119d8c159666d1dec7a70302d33b4",
+   "blank": false
+  },
+  {
+   "name": "confirm",
+   "page": "confirm",
+   "file": "07-confirm.png",
+   "title": "Confirm",
+   "caption": "Always.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "d146616411c67906d296854da0b26f643d97ebcded924bed7e92de2b61ce55ca",
+   "blank": false
+  },
+  {
+   "name": "recovery-key",
+   "page": "recovery-key",
+   "file": "08-recovery-key.png",
+   "title": "Recovery key",
+   "caption": "The disk is encrypted.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "608a399a02c707c21e4bbe4df25773f58be3356fe75a22d222e238de824b2cbc",
+   "blank": false
+  },
+  {
+   "name": "handoff",
+   "page": "handoff",
+   "file": "09-handoff.png",
+   "title": "Handoff",
+   "caption": "After the install and the recovery key.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "9c964d1565c611a7dde9348005f3e1b7f15a9138c179286fd732a728736d18ca",
+   "blank": false
+  },
+  {
+   "name": "done",
+   "page": "done",
+   "file": "10-done.png",
+   "title": "Done",
+   "caption": "The install ended.",
+   "run": "happy",
+   "scenario": "happy,fixed-key",
+   "sha256": "d92ccf7dae6a66a69fb414911c6cd9d660349f83032fee80266fecfc643439d9",
+   "blank": false
+  }
+ ],
+ "errors": []
+}
