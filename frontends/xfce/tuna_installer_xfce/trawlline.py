@@ -24,6 +24,10 @@ class TrawlLine(Gtk.DrawingArea):
         self.current = i
         self.queue_draw()
 
+    def set_steps(self, n_steps):
+        self.n_steps = max(1, n_steps)
+        self.queue_draw()
+
     def set_fill(self, frac):
         self.fill = max(0.0, min(1.0, frac))
         self.queue_draw()

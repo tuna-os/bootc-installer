@@ -132,6 +132,9 @@ struct Disk {
 // The disk cannot hold the install at all (shared/flow disk status
 // too-small): it is listed as unusable and never selectable.
 bool tooSmall(const Disk &disk);
+// What a disk is called: its model, else its vendor
+// (never a PCI id), else its bus.
+QString diskTitle(const Disk &disk);
 
 // The legacy unmet ids ("ram", "cpu", "uefi") from the daemon gates: a gate
 // that is not ok contributes its id, with "firmware" renamed to "uefi".

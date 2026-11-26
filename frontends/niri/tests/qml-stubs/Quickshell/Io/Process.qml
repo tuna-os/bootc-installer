@@ -58,9 +58,12 @@ QtObject {
         "netcheck": JSON.stringify({ connected: true, target: "registry.example:443", tried: [] }),
         // `session-get`: one current value per setting, each in its list.
         "session-get": JSON.stringify({
-            keyboard: { current: "us", available: ["us", "de"] },
-            locale: { current: "en_US.UTF-8", available: ["en_US.UTF-8", "de_DE.UTF-8"] },
-            timezone: { current: "UTC", available: ["UTC", "Europe/Berlin"] },
+            keyboard: { current: "us", available: ["us", "de"],
+                names: { us: "English (US)", de: "German" } },
+            locale: { current: "en_US.UTF-8", available: ["en_US.UTF-8", "de_DE.UTF-8"],
+                names: { "en_US.UTF-8": "English (US)", "de_DE.UTF-8": "Deutsch (DE)" } },
+            timezone: { current: "UTC", available: ["UTC", "Europe/Berlin"],
+                names: { "Europe/Berlin": "Berlin (Europe)" } },
             connected: true
         }),
         // `source-check`: the answer for an image in a registry, which the

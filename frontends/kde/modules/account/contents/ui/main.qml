@@ -113,7 +113,7 @@ TunaComponents.SetupModule {
                 Layout.topMargin: Kirigami.Units.largeSpacing
                 Layout.alignment: Qt.AlignHCenter
 
-                FormCard.FormPasswordFieldDelegate {
+                NamedPasswordField {
                     id: passwordField
                     objectName: "accountPassword"
 
@@ -128,7 +128,7 @@ TunaComponents.SetupModule {
                     onTextChanged: InstallerController.userPassword = text
                 }
 
-                FormCard.FormPasswordFieldDelegate {
+                NamedPasswordField {
                     id: confirmPasswordField
                     objectName: "accountPasswordConfirm"
 

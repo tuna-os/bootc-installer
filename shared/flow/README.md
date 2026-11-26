@@ -159,7 +159,6 @@ repart error, no TPM, RST present, existing data, cancel and handoff.
 
 - Does the daemon keep an unencrypted choice? The legacy recipe does.
 - Where does the EULA file live for a native frontend?
-- Does `rst` block, as #442 says, or warn, as gnome-setup does?
 - Which step ids does `Install` stream? The legacy ones are in
   `shared/branding/copy-defaults.json`. SysInstall has its own phases.
 - What is the socket path of `io.tunaos.Fisherman`?

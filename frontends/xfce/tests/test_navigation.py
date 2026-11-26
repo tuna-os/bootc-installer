@@ -107,7 +107,7 @@ class _ConfirmWin:
 def test_confirm_summary_rows_and_erase_warning_name_the_disk():
     confirm = pages.ConfirmPage(_ConfirmWin())
     confirm.on_enter()
-    text = confirm.summary.get_text()
+    text = confirm.summary_text()
     for row in ("Target disk:", "Filesystem:", "Encryption:", "Hostname:", "Image:"):
         assert row in text, row
     assert "/dev/vdz" in text and "registry.example/os:1" in text
@@ -162,7 +162,9 @@ def test_failed_page_says_whether_the_disk_changed_and_the_cleanup():
         assert body.split("\n\n")[:len(want)] == want, case["name"]
         for key in every - set(case["lines"]):
             assert core.BRANDING.text(key) not in body, (case["name"], key)
-        assert "the tail" in body
+        # The log is behind "Details", with its own scroll bar.
+        buf = done.details_view.get_buffer()
+        assert "the tail" in buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False)
 
 
 def test_the_progress_page_hands_its_error_to_the_done_page():

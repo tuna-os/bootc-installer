@@ -30,7 +30,8 @@ os.environ["QML_IMPORT_PATH"] = os.environ["QML2_IMPORT_PATH"]
 from PyQt6.QtCore import (QUrl, QTimer, QEventLoop, QMetaObject, Q_ARG,  # noqa: E402
                           QObject, QVariant, QPointF, QRect, QRectF, QSizeF)
 from PyQt6.QtGui import QGuiApplication  # noqa: E402
-from PyQt6.QtQml import QQmlApplicationEngine  # noqa: E402
+from PyQt6.QtQml import (QQmlApplicationEngine, QQmlEngine,  # noqa: E402
+                         QQmlExpression)
 from PyQt6.QtQuick import QQuickWindow  # noqa: E402
 from PyQt6 import sip  # noqa: E402
 
@@ -388,6 +389,22 @@ def main():
     root.setProperty("timezoneName", "")
     root.setProperty("currentPage", 1)
     settle(200)
+    # A person reads names, and the install gets ids.
+    root.setProperty("keyboardNames", {"de": "German", "us": "English (US)"})
+    root.setProperty("localeNames", {"de_DE.UTF-8": "Deutsch (DE)", "en_US.UTF-8": "English (US)"})
+    root.setProperty("timezoneNames", {"Europe/Berlin": "Berlin (Europe)"})
+    settle(200)
+    if item("sessionLocale").property("editText") != "English (US)":
+        print(f"FAIL: the language field shows {item('sessionLocale').property('editText')!r}, not its name",
+              file=sys.stderr)
+        return 1
+    item("sessionLocale").setProperty("editText", "Deutsch (DE)")
+    expression = QQmlExpression(QQmlEngine.contextForObject(root), root, "JSON.stringify(regionPicks())")
+    picks = json.loads(expression.evaluate()[0])
+    if picks != {"locale": "de_DE.UTF-8"}:
+        print(f"FAIL: the name 'Deutsch (DE)' is sent as {picks!r}", file=sys.stderr)
+        return 1
+    item("sessionLocale").setProperty("editText", "English (US)")
     shown = item("sessionKeyboard").property("editText")
     if shown != "us,de":
         print(f"FAIL: the keyboard field shows {shown!r}, not the session's "

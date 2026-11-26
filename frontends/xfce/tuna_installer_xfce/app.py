@@ -141,7 +141,9 @@ class InstallerWindow(Gtk.ApplicationWindow):
     def __init__(self, app, autoinstall_recipe=None):
         super().__init__(application=app,
                          title=_("{product} Installer").format(product=core.PRODUCT_NAME),
-                         default_width=640, default_height=520)
+                         window_position=Gtk.WindowPosition.CENTER,
+                         icon_name=APP_ID)
+        self.set_default_size(*self._initial_size())
         # The running install, if any: spawn_fisherman's wrapper pid (the
         # group leader terminate_process_group() signals). None otherwise.
         # _closing guards _on_exit against touching widgets after the user
@@ -167,12 +169,22 @@ class InstallerWindow(Gtk.ApplicationWindow):
         self.trawl = TrawlLine(len(PAGE_ORDER))
         outer.pack_start(self.trawl, False, False, 6)
 
-        self.stack = Gtk.Stack()
-        outer.pack_start(self.stack, True, True, 0)
+        # Where the person is, in words: "Step 3 of 12 · Time zone".
+        self.step_label = Gtk.Label(xalign=0, margin_start=18, margin_end=18)
+        self.step_label.get_style_context().add_class("dim-label")
+        outer.pack_start(self.step_label, False, False, 0)
+
+        # A page that is taller than the screen (large text, 1024x600) scrolls;
+        # Back and Next stay where they are.
+        self.stack = Gtk.Stack(vhomogeneous=False, hhomogeneous=False)
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.add(self.stack)
+        outer.pack_start(scroll, True, True, 0)
 
         nav = Gtk.Box(spacing=8, margin=12)
         self.back_btn = Gtk.Button(label=_("Back"))
-        self.next_btn = Gtk.Button(label=_("Next"))
+        self.next_btn = Gtk.Button(label=_("Next"), can_default=True)
         self.back_btn.connect("clicked", lambda *_args: self.go(-1))
         self.next_btn.connect("clicked", lambda *_args: self.go(+1))
         nav.pack_end(self.next_btn, False, False, 0)
@@ -240,9 +252,42 @@ class InstallerWindow(Gtk.ApplicationWindow):
         name = PAGE_ORDER[self.index]
         page = self.pages[name]
         self.stack.set_visible_child_name(name)
-        self.trawl.set_step(self.index)
         page.on_enter()
+        self._show_step(name)
         self.refresh_nav()
+        if name == "confirm":
+            # Enter in no widget of this page may start the install.
+            self.set_default(None)
+        elif getattr(self, "nav", None) is not None and self.nav.get_visible():
+            self.next_btn.grab_default()
+
+    def _initial_size(self):
+        """800x600, or what fits the screen of a small machine."""
+        display = self.get_display()
+        monitor = display and (display.get_primary_monitor() or display.get_monitor(0))
+        if not monitor:
+            return 800, 600
+        area = monitor.get_workarea()
+        # Room for the title bar and the panel.
+        return min(800, area.width - 24), min(600, area.height - 64)
+
+    def shown_steps(self):
+        """The pages this install stops at, in order; the page it is on is
+        one of them."""
+        return [name for i, name in enumerate(PAGE_ORDER)
+                if i == self.index or self.pages[name].should_show()]
+
+    def _show_step(self, name):
+        steps = self.shown_steps()
+        at = steps.index(name)
+        self.trawl.set_steps(len(steps))
+        self.trawl.set_step(at)
+        title = self.pages[name].get_accessible().get_name()
+        # The result page says how it ended; "Step 12 of 12 · Done" on a
+        # failed install would not be true.
+        self.step_label.set_visible(name != "done")
+        self.step_label.set_text(_("Step {step} of {total} · {title}").format(
+            step=at + 1, total=len(steps), title=title))
 
     def refresh_nav(self):
         if not getattr(self, "pages", None):
@@ -253,9 +298,14 @@ class InstallerWindow(Gtk.ApplicationWindow):
         # welcome page has nothing behind it, an install cannot be backed out
         # of, and the done page is the end. The other frontends hide it the
         # same way.
-        terminal = name in ("progress", "done")
-        self.back_btn.set_visible(self.index > 0 and not terminal)
-        self.back_btn.set_sensitive(self.index > 0 and not terminal)
+        #
+        # Past the install there is no way back either: Back on the recovery
+        # key page went to the progress page, which starts the install again.
+        installed = name in ("recovery", "handoff")
+        terminal = name in ("progress", "handoff", "done")
+        back = self.index > 0 and not terminal and not installed
+        self.back_btn.set_visible(back)
+        self.back_btn.set_sensitive(back)
         self.next_btn.set_visible(not terminal)
         nav = getattr(self, "nav", None)
         if nav is not None:
@@ -272,8 +322,15 @@ class InstallerWindow(Gtk.ApplicationWindow):
         ctx = self.next_btn.get_style_context()
         if name == "confirm":
             ctx.add_class("destructive-action")
+            ctx.remove_class("suggested-action")
         else:
             ctx.remove_class("destructive-action")
+            # The mark is for a button that can be pressed: themes draw a
+            # disabled suggested button almost like a live one.
+            if page.can_continue():
+                ctx.add_class("suggested-action")
+            else:
+                ctx.remove_class("suggested-action")
 
     def selected_leaf(self):
         sel = self.pages["source"].selection() or {}
@@ -610,10 +667,14 @@ class InstallerWindow(Gtk.ApplicationWindow):
                               str(exc))
                 return
             terminal = "complete"
+            changed = False
             try:
                 for event in stream:
+                    if event.get("event") == "step_started":
+                        changed = daemon_client.disk_changed_after(
+                            event.get("stepId"), changed)
                     line = daemon_client.line_text(
-                        daemon_client.daemon_event_to_line(event))
+                        daemon_client.daemon_event_to_line(event, changed))
                     GLib.idle_add(self._daemon_line, progress_page, line)
                     if daemon_client.is_terminal(event):
                         terminal = event.get("event")
@@ -630,7 +691,8 @@ class InstallerWindow(Gtk.ApplicationWindow):
         threading.Thread(target=work, daemon=True).start()
 
     def _daemon_line(self, page, text):
-        InstallerWindow._log_line(self, text, page)
+        # One event a line, in the log file and in the tail.
+        InstallerWindow._log_line(self, text.rstrip("\n") + "\n", page)
         return False
 
     def _finish_daemon_install(self, terminal, message):

@@ -49,6 +49,9 @@ type ProbeDisk struct {
 	FreeBytes    int64 `json:"free_bytes,omitempty"`
 	MinimalBytes int64 `json:"minimal_bytes,omitempty"`
 	IntelRst     bool  `json:"intel_rst,omitempty"`
+	// TooSmall: listed with the minimum, never selectable.
+	TooSmall     bool   `json:"too_small,omitempty"`
+	MinimalLabel string `json:"minimal_label,omitempty"`
 }
 
 // ProbeFacts is what the wizard needs from one probe run.

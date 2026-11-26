@@ -469,9 +469,11 @@ def main():
                 win.pages["done"].set_result(True, "")
             else:
                 win.pages[name].on_enter()
+            win._show_step(name)
             win.refresh_nav()
             finding = capture(win, painter, name, f"{index + 1:02d}-{name}.png",
-                              expect_back=name not in ("welcome", "progress", "done"))
+                              expect_back=name not in ("welcome", "progress", "recovery",
+                                                       "handoff", "done"))
             if finding is None:
                 continue
             problems = []
@@ -527,10 +529,11 @@ def main():
             win.stack.set_visible_child_name("recovery")
             recovery = win.pages["recovery"]
             recovery.on_enter()
+            win._show_step("recovery")
             win.refresh_nav()
             finding = capture(win, painter, "recovery",
                               f"{len(PAGE_ORDER) + 1:02d}-recovery.png",
-                              expect_back=True)
+                              expect_back=False)
             if finding is not None:
                 # The point of the frame: the key itself must be on screen,
                 # and Done must still be held.
@@ -550,6 +553,7 @@ def main():
         win.index = PAGE_ORDER.index("done")
         win.stack.set_visible_child_name("done")
         win.pages["done"].set_result(False, "", cancelled=True)
+        win._show_step("done")
         win.refresh_nav()
         finding = capture(win, painter, "cancelled",
                           f"{len(PAGE_ORDER) + 2:02d}-cancelled.png",

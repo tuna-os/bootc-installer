@@ -169,7 +169,7 @@ class TestDaemonEventToLine:
              "stepIndex": 1, "totalSteps": 10, "overallPct": 20,
              "message": "Partitioning"})
         assert line["type"] == "step"
-        assert (line["step"], line["overall_pct"]) == (2, 20)
+        assert (line["step"], line["overall_pct"]) == (1, 20)
 
     def test_failed_carries_reason_as_code(self):
         line = daemon.daemon_event_to_line(

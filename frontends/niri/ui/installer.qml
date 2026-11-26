@@ -110,7 +110,7 @@ ApplicationWindow {
             progress_title: "Installing {name}…",
             progress_note: "Do not power off the computer.",
             progress_reuse_planned: "The copy of this computer's system needs {value} GiB of free space.",
-            progress_reuse_planned_unknown: "fisherman did not report how much space the copy needs.",
+            progress_reuse_planned_unknown: "The installer does not know how much space the copy needs.",
             progress_reuse_copying: "The installer copies this computer's system. The disk does not change until the copy is complete.",
             progress_reuse_verified: "The installer copied this computer's system and checked the copy.",
             progress_reuse_verified_digest: "Digest of the copy: {value}",
@@ -130,7 +130,7 @@ ApplicationWindow {
             progress_reuse_released_removed: "The installer removed the copy.",
             progress_reuse_released_remove_failed: "The installer could not remove the copy. To remove it, run: podman rmi {value}",
             progress_reuse_released_unknown: "The installer released the copy.",
-            progress_reuse_unreadable: "fisherman reported the copy in a format that this installer cannot read.",
+            progress_reuse_unreadable: "The copy was reported in a format that this installer cannot read.",
             progress_reuse_cancel: "The installer stops the copy of this computer's system and removes the copy. The disk does not change.",
             step_prepare_disk: "Checking your drive…",
             step_partition: "Setting up your drive…",
@@ -161,8 +161,8 @@ ApplicationWindow {
             done_receipt_check_set_up: "The installer wrote an installation receipt, install ID {value}. The first-boot check is set up: at its first start, the new system records which image it started. On that system, the command fisherman verify --json compares the record with the receipt. That check covers the image only, not the hardware, the disk unlock or the desktop.",
             done_receipt_written_no_check: "The installer wrote an installation receipt, install ID {value}. The first-boot check is not set up.",
             done_receipt_not_written: "The installer did not write an installation receipt. Nothing can check later which image the new system started.",
-            done_receipt_none: "fisherman did not report an installation receipt for this installation.",
-            done_receipt_unreadable: "fisherman reported the installation receipt in a format that this installer cannot read.",
+            done_receipt_none: "The installation has no installation receipt.",
+            done_receipt_unreadable: "The installation receipt has a format that this installer cannot read.",
             done_receipt_reason_transient_etc: "The image keeps /etc only in memory, so the check cannot stay there. On the new system, the command fisherman verify --json --live compares the running system with the receipt.",
             done_receipt_reason_collector_failed: "The installer could not set up the check. On the new system, the command fisherman verify --json --live compares the running system with the receipt.",
             done_receipt_reason_resolve_failed: "The installer did not find the installed system to write the receipt to.",
@@ -175,23 +175,23 @@ ApplicationWindow {
             source_check_checking: "Checking the selected image…",
             source_check_ready: "The image's own bootc answered the check. Nothing blocks the installation.",
             source_check_blocked: "These settings ask for a feature that the image cannot use. Change the settings to install.",
-            source_check_unsupported: "This version of fisherman cannot check the image before the installation.",
-            source_check_unavailable: "The image could not be checked before the installation. fisherman checks it again when the installation starts.",
+            source_check_unsupported: "This installer cannot check the image before the installation.",
+            source_check_unavailable: "The image could not be checked before the installation. The installer checks it again when the installation starts.",
             source_check_reason_unknown: "No further details are available.",
             source_check_reason_probe_failed: "The hardware check did not give a result.",
-            source_check_reason_backend_too_old: "This version of fisherman does not report image capabilities.",
-            source_check_reason_version_unsupported: "fisherman reports image capabilities in a newer format than this installer can read.",
+            source_check_reason_backend_too_old: "This installer does not report image capabilities.",
+            source_check_reason_version_unsupported: "The image capabilities have a newer format than this installer can read.",
             source_check_reason_malformed: "The check gave a result that the installer cannot read.",
             source_check_reason_no_source_selected: "No image is selected.",
-            source_check_reason_feature_unsupported: "fisherman does not support a feature that these settings ask for.",
+            source_check_reason_feature_unsupported: "The installer does not support a feature that these settings ask for.",
             source_check_reason_digest_match: "This computer runs the selected image, so its bootc answered for the image.",
             source_check_reason_live_root: "The installation copies the system that this computer runs now.",
             source_check_reason_host_not_bootc: "This computer does not run a bootc image, so no bootc here can answer for the image.",
             source_check_reason_host_digest_unknown: "This computer does not report which image it runs.",
             source_check_reason_source_digest_unknown: "The identity of the selected image is not known before the installation.",
             source_check_reason_digest_mismatch: "This computer runs a different image, so its bootc cannot answer for the selected image.",
-            source_check_reason_remote_metadata_unavailable: "The image is in a registry. The check does not connect to the network, so fisherman checks the image when it downloads it.",
-            source_check_reason_not_found_locally: "The installer did not find the image on this computer. fisherman looks for it again when the installation starts.",
+            source_check_reason_remote_metadata_unavailable: "The image is in a registry. The check does not connect to the network, so the installer checks the image when it downloads it.",
+            source_check_reason_not_found_locally: "The installer did not find the image on this computer. It looks for the image again when the installation starts.",
             source_check_reason_ambiguous_local_copies: "This computer has different images with that name.",
             source_check_reason_oci_layout_unreadable: "The image folder on the installation media cannot be read.",
             source_check_reason_not_bootc_booted: "This computer does not run a bootc image.",
@@ -294,7 +294,7 @@ ApplicationWindow {
             validate_timezone_invalid: "This time zone is not valid. Choose another time zone.",
             validate_kept_filesystem_unusable: "A partition that the installer keeps has no usable filesystem. Format it, or choose another partition.",
             validate_source_reuse_experimental: "The installer did not accept the experimental install from this computer's system. Choose to download the image.",
-            validate_source_reuse_store_unsupported: "The installer asked for a storage that fisherman cannot install from. Choose to download the image.",
+            validate_source_reuse_store_unsupported: "The installer cannot install from this storage. Choose to download the image.",
             validate_source_reuse_digest_invalid: "The identity of this computer's system is not valid. Choose to download the image.",
             validate_source_reuse_platform_invalid: "The architecture of this computer's system is not valid. Choose to download the image.",
             validate_source_reuse_image_conflict: "An install from this computer's system cannot also name an image. Choose to download the image.",
@@ -307,7 +307,7 @@ ApplicationWindow {
             validate_source_reuse_item_not_found: "This computer no longer has that system. Choose to download the image.",
             validate_source_reuse_item_unverified: "The installer cannot confirm which image this computer runs. Choose to download the image.",
             validate_source_reuse_platform_mismatch: "The system of this computer is for a different architecture. Choose to download the image.",
-            validate_source_reuse_sandboxed: "fisherman must run on this computer, not in a sandbox, to copy its system. Choose to download the image.",
+            validate_source_reuse_sandboxed: "The installer must run on this computer, not in a sandbox, to copy its system. Choose to download the image.",
             validate_source_reuse_command_unsupported: "The bootc of this computer cannot copy its system. Update bootc, or choose to download the image.",
             validate_source_reuse_source_unavailable: "The installer cannot read the system of this computer. Choose to download the image.",
             validate_source_reuse_source_moved: "An update changed the system of this computer. Restart the computer, or choose to download the image.",
@@ -677,6 +677,20 @@ ApplicationWindow {
     }
     // The recipe keys of the Session step's picks (#292). None without a
     // pick: the installed system keeps the image's values.
+    // What Confirm shows is what the install sends: on the daemon path the
+    // effective region, also the part that nobody changed.
+    function confirmRegion() {
+        if (!root.daemonMode) return root.regionRecipe()
+        const t = root.regionTarget()
+        return { locale: t.locale, timezone: t.timeZone,
+            keyboard: t.keymap ? { layout: t.keymap } : undefined }
+    }
+    // The chosen disk with its name and size.
+    function diskLabel(disk) {
+        if (!disk || !disk.path) return "—"
+        const bits = [disk.path, disk.size_label].filter(s => s).join(", ")
+        return disk.title && disk.title !== disk.path ? disk.title + " (" + bits + ")" : bits
+    }
     function regionRecipe() { return RecipeJs.regionKeys(root.installRegion) }
     readonly property string regionProblem: problemText("locale") || problemText("keyboard.layout")
         || problemText("keyboard.variant") || problemText("keyboard.model") || problemText("timezone")
@@ -854,6 +868,16 @@ ApplicationWindow {
     //     of an installed system are not this wizard's to change.
     // What the user changed also goes into the recipe (`locale`,
     // `keyboard.layout`, `timezone`, #292), on live media and off it.
+    // id -> name for a person, from `session-get`. An id with no name is
+    // shown as it is, and an id that is typed is taken as it is.
+    property var keyboardNames: ({})
+    property var localeNames: ({})
+    property var timezoneNames: ({})
+    function nameOf(names, id) { return names[id] || id }
+    function idOf(names, shown) {
+        for (const id in names) { if (names[id] === shown) return id }
+        return shown
+    }
     property var keyboardLayouts: []
     property string keyboardLayout: ""
     property var localeList: []
@@ -924,9 +948,9 @@ ApplicationWindow {
     property bool locationTouched: false
     function regionPicks() {
         const changes = {}
-        const fields = { keyboard: [keyCombo.editText, root.keyboardLayout],
-            locale: [localeCombo.editText, root.localeName],
-            timezone: [tzCombo.editText, root.timezoneName] }
+        const fields = { keyboard: [root.idOf(root.keyboardNames, keyCombo.editText.trim()), root.keyboardLayout],
+            locale: [root.idOf(root.localeNames, localeCombo.editText.trim()), root.localeName],
+            timezone: [root.idOf(root.timezoneNames, tzCombo.editText.trim()), root.timezoneName] }
         for (const name in fields) {
             const chosen = (fields[name][0] || "").trim()
             if (chosen !== "" && chosen !== fields[name][1])
@@ -1206,14 +1230,17 @@ ApplicationWindow {
                 try {
                     const state = JSON.parse(text)
                     if (state.keyboard) {
+                        root.keyboardNames = state.keyboard.names || {}
                         if (state.keyboard.current) root.keyboardLayout = state.keyboard.current
                         root.keyboardLayouts = state.keyboard.available || []
                     }
                     if (state.locale) {
+                        root.localeNames = state.locale.names || {}
                         if (state.locale.current) root.localeName = state.locale.current
                         root.localeList = state.locale.available || []
                     }
                     if (state.timezone) {
+                        root.timezoneNames = state.timezone.names || {}
                         if (state.timezone.current) root.timezoneName = state.timezone.current
                         root.timezoneList = state.timezone.available || []
                     }
@@ -1908,8 +1935,11 @@ ApplicationWindow {
                             id: keyCombo
                             objectName: "sessionKeyboard"
                             editable: true
-                            model: root.keyboardModel
+                            model: root.keyboardModel.map(id => root.nameOf(root.keyboardNames, id))
                             currentIndex: root.keyboardModel.indexOf(root.keyboardLayout)
+                            // A new model puts the index at 0: the first language of the
+                            // list would look, and be sent, as the session's own.
+                            onModelChanged: currentIndex = Qt.binding(() => root.keyboardModel.indexOf(root.keyboardLayout))
                             implicitWidth: 300
                         }
 
@@ -1918,8 +1948,9 @@ ApplicationWindow {
                             id: localeCombo
                             objectName: "sessionLocale"
                             editable: true
-                            model: root.localeModel
+                            model: root.localeModel.map(id => root.nameOf(root.localeNames, id))
                             currentIndex: root.localeModel.indexOf(root.localeName)
+                            onModelChanged: currentIndex = Qt.binding(() => root.localeModel.indexOf(root.localeName))
                             implicitWidth: 300
                         }
 
@@ -1928,8 +1959,9 @@ ApplicationWindow {
                             id: tzCombo
                             objectName: "sessionTimezone"
                             editable: true
-                            model: root.timezoneModel
+                            model: root.timezoneModel.map(id => root.nameOf(root.timezoneNames, id))
                             currentIndex: root.timezoneModel.indexOf(root.timezoneName)
+                            onModelChanged: currentIndex = Qt.binding(() => root.timezoneModel.indexOf(root.timezoneName))
                             implicitWidth: 300
                         }
                     }
@@ -2206,8 +2238,10 @@ ApplicationWindow {
                         // fisherman's disk (shared/probe/README.md): the model
                         // (the path when unknown), then path, size label, bus.
                         primaryText: modelData.title
-                        secondaryText: [modelData.path, modelData.size_label, modelData.transport_label]
+                        secondaryText: [modelData.path, modelData.size_label, modelData.transport_label,
+                            modelData.too_small ? qsTr("needs at least %1").arg(modelData.minimal_label) : ""]
                             .filter(s => s).join("  ·  ")
+                        enabled: !modelData.too_small
                         isSelected: root.selectedDisk.path === modelData.path
                         onClicked: root.selectedDisk = modelData
                     }
@@ -2607,7 +2641,7 @@ ApplicationWindow {
                                 columnSpacing: Theme.spacingXL
                                 rowSpacing: Theme.spacingS
                                 StyledText { text: qsTr("Target disk"); color: Theme.surfaceVariantText }
-                                StyledText { text: root.selectedDisk.path ? root.selectedDisk.path : "—"; isMonospace: true }
+                                StyledText { objectName: "confirmDisk"; text: root.diskLabel(root.selectedDisk); isMonospace: true }
                                 StyledText { text: qsTr("Image"); color: Theme.surfaceVariantText }
                                 StyledText {
                                     // The image that is installed (the NVIDIA image
@@ -2660,12 +2694,12 @@ ApplicationWindow {
                                     text: root.username || "—"; isMonospace: true
                                 }
                                 // The Session step's picks that go into the recipe (#292).
-                                StyledText { text: qsTr("Language"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().locale }
-                                StyledText { objectName: "confirmLocale"; visible: !!root.regionRecipe().locale; text: root.regionRecipe().locale || ""; isMonospace: true }
-                                StyledText { text: qsTr("Keyboard"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().keyboard }
-                                StyledText { objectName: "confirmKeyboard"; visible: !!root.regionRecipe().keyboard; text: root.regionRecipe().keyboard ? root.regionRecipe().keyboard.layout : ""; isMonospace: true }
-                                StyledText { text: qsTr("Timezone"); color: Theme.surfaceVariantText; visible: !!root.regionRecipe().timezone }
-                                StyledText { objectName: "confirmTimezone"; visible: !!root.regionRecipe().timezone; text: root.regionRecipe().timezone || ""; isMonospace: true }
+                                StyledText { text: qsTr("Language"); color: Theme.surfaceVariantText; visible: !!root.confirmRegion().locale }
+                                StyledText { objectName: "confirmLocale"; visible: !!root.confirmRegion().locale; text: root.nameOf(root.localeNames, root.confirmRegion().locale || ""); isMonospace: true }
+                                StyledText { text: qsTr("Keyboard"); color: Theme.surfaceVariantText; visible: !!root.confirmRegion().keyboard }
+                                StyledText { objectName: "confirmKeyboard"; visible: !!root.confirmRegion().keyboard; text: root.nameOf(root.keyboardNames, root.confirmRegion().keyboard ? root.confirmRegion().keyboard.layout : ""); isMonospace: true }
+                                StyledText { text: qsTr("Timezone"); color: Theme.surfaceVariantText; visible: !!root.confirmRegion().timezone }
+                                StyledText { objectName: "confirmTimezone"; visible: !!root.confirmRegion().timezone; text: root.nameOf(root.timezoneNames, root.confirmRegion().timezone || ""); isMonospace: true }
                                 StyledText { text: qsTr("Region"); color: Theme.surfaceVariantText; visible: root.regionProblem !== "" }
                                 StyledText { objectName: "regionProblem"; visible: root.regionProblem !== ""; text: root.regionProblem; color: Theme.error; wrapMode: Text.Wrap; Layout.fillWidth: true }
                                 StyledText { text: qsTr("Hostname"); color: Theme.surfaceVariantText }
@@ -3011,7 +3045,9 @@ ApplicationWindow {
                     // the new system can check its own start (#269).
                     StyledText {
                         objectName: "doneVerification"
+                        // The daemon sends no receipt: nothing to say about one.
                         visible: root.installSuccess && text !== ""
+                            && !(root.daemonMode && !root.installReceipt)
                         // With what fisherman's `receipt` event set up for that
                         // check, and the install id.
                         text: BarMath.receiptLines(root.installReceipt, k => root.copyHas(k))

@@ -61,6 +61,9 @@ type SessionState struct {
 type SessionChoice struct {
 	Current   string   `json:"current"`
 	Available []string `json:"available"`
+	// Names: what a person reads for an id (names.go). An id with no name is
+	// shown as it is.
+	Names map[string]string `json:"names,omitempty"`
 }
 
 func emptyChoice() SessionChoice {
@@ -296,6 +299,21 @@ func sessionGet() SessionState {
 	state.Keyboard.Available = nonEmptyLines(run("localectl", "list-x11-keymap-layouts"))
 	state.Timezone.Current = parseTimedatectlTimezone(run("timedatectl", "show", "-p", "Timezone", "--value"))
 	state.Timezone.Available = nonEmptyLines(run("timedatectl", "list-timezones"))
+	// A session in the C locale has no language to show or to send.
+	if !isLanguage(state.Locale.Current) {
+		state.Locale.Current = ""
+	}
+	languages := []string{}
+	for _, name := range state.Locale.Available {
+		if isLanguage(name) {
+			languages = append(languages, name)
+		}
+	}
+	state.Locale.Available = languages
+	layouts := keyboardNames()
+	state.Keyboard = state.Keyboard.withNames(func(id string) string { return layouts[id] })
+	state.Locale = state.Locale.withNames(languageName)
+	state.Timezone = state.Timezone.withNames(timezoneName)
 	state.Connected, _ = checkConnectivity("", tcpDial)
 	return state
 }
