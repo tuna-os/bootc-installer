@@ -1963,6 +1963,24 @@ ApplicationWindow {
                     Layout.fillWidth: true
                 }
 
+                // The cards are taller than a 1024x600 screen: they scroll,
+                // so Back, Continue and the hint bar stay on screen.
+                Flickable {
+                    id: sessionScroll
+                    objectName: "sessionScroll"
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    contentWidth: width
+                    contentHeight: sessionBody.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                ColumnLayout {
+                    id: sessionBody
+                    width: sessionScroll.width
+                    spacing: Theme.spacingM
+
                 DankCard {
                     Layout.fillWidth: true
                     title: qsTr("Keyboard and language")
@@ -2107,7 +2125,8 @@ ApplicationWindow {
                     Layout.fillWidth: true
                 }
 
-                Item { Layout.fillHeight: true }
+                }
+                }
 
                 RowLayout {
                     Layout.fillWidth: true
