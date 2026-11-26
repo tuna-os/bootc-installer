@@ -338,6 +338,9 @@ ApplicationWindow {
     // each visit; the done page reads nothing back from the new system.
     onCurrentPageChanged: {
         if (root.currentPage === 6) root.startSourceCheck()
+        // Keyboard-first: the account page starts in its first field, so
+        // typing goes somewhere (a keyboard-only walk lost the username).
+        if (root.currentPage === 5) Qt.callLater(() => userField.forceActiveFocus())
         if (root.currentPage === 10) root.enterWipe()
         if (root.currentPage === 14) root.startHandoff()
     }
@@ -2430,6 +2433,8 @@ ApplicationWindow {
                                 }
                                 DankTextField {
                                     id: passConfirm
+                                    // Enter in the last field does what Enter does on the page.
+                                    onAccepted: root.advance()
                                     label: qsTr("Confirm passphrase")
                                     placeholderText: qsTr("Confirm passphrase")
                                     echoMode: root.showPassphrase ? TextInput.Normal : TextInput.Password
@@ -2605,6 +2610,8 @@ ApplicationWindow {
                             spacing: 2
                             DankTextField {
                                 id: userPassConfirm
+                                // Enter in the last field does what Enter does on the page.
+                                onAccepted: root.advance()
                                 label: qsTr("Confirm password")
                                 objectName: "accountPasswordConfirm"
                                 text: root.userPasswordConfirm
@@ -3502,15 +3509,8 @@ ApplicationWindow {
                         RowLayout {
                             Layout.alignment: Qt.AlignHCenter
                             spacing: Theme.spacingM
-                            DankButton {
-                                text: root.text("recovery_key_copy")
-                                tonal: true
-                                onClicked: {
-                                    recoveryClip.selectAll()
-                                    recoveryClip.copy()
-                                    recoveryClip.deselect()
-                                }
-                            }
+                            // First in the Tab order: Tab, then Space ticks it (the
+                            // e2e harness's key fallback for this page).
                             // A check box for a screen reader and the e2e
                             // harness (role "check box", shared/flow
                             // screens.yaml), drawn as a DMS button.
@@ -3526,6 +3526,15 @@ ApplicationWindow {
                                 Accessible.name: root.text("recovery_key_ack")
                                 Accessible.checkable: true
                                 Accessible.checked: root.recoveryAck
+                            }
+                            DankButton {
+                                text: root.text("recovery_key_copy")
+                                tonal: true
+                                onClicked: {
+                                    recoveryClip.selectAll()
+                                    recoveryClip.copy()
+                                    recoveryClip.deselect()
+                                }
                             }
                         }
                     }
