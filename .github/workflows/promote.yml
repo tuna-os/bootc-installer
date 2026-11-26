@@ -128,6 +128,16 @@ jobs:
   # outside the group and ends those firings at once, green.
   triage:
     name: Triage
+    # Each completed workflow on dev fires this workflow, so a push makes
+    # about twenty firings at once. With runners saturated they queued as
+    # twenty-three Triage jobs (2026-11-26). The firings are equal: the gate
+    # always takes the newest dev commit. GitHub keeps one running and one
+    # pending job per group and cancels the pending job it replaces, so the
+    # pile becomes two. This group is not the gate's, so the soak never
+    # holds it.
+    concurrency:
+      group: promote-dev-to-prod-triage
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     permissions:
       contents: read

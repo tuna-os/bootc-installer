@@ -270,7 +270,10 @@ def test_gate_firings_that_cannot_decide_never_queue_in_the_soak_group():
     workflow = _promote()
     assert "concurrency" not in workflow, "a workflow-level group queues every firing"
     jobs = workflow["jobs"]
-    assert "concurrency" not in jobs["triage"]
+    # Triage firings collapse in a group of their own, never the gate's.
+    assert jobs["triage"]["concurrency"]["cancel-in-progress"] is False
+    assert jobs["triage"]["concurrency"]["group"] not in (
+        jobs["gate"]["concurrency"]["group"], jobs["promote"]["concurrency"]["group"])
     assert jobs["gate"]["needs"] == "triage"
     assert jobs["gate"]["concurrency"]["cancel-in-progress"] is False
     assert jobs["promote"]["concurrency"]["cancel-in-progress"] is False
