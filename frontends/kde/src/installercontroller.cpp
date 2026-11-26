@@ -1652,7 +1652,7 @@ void InstallerController::startInstall()
     // (fisherman.h). Without it nothing may run as root.
     const fisherman::Staging &staging = fisherman::staged();
     if (!staging.ok) {
-        fail(tr("Could not prepare fisherman: %1").arg(staging.error));
+        fail(tr("The installer could not start its install program: %1").arg(staging.error));
         return;
     }
     launch(fisherman::commands(m_recipe.liveMode).install, recipeJson);
@@ -1666,7 +1666,7 @@ void InstallerController::launch(QStringList cmd, const QByteArray &recipeJson)
     // ever does, it gets the ordinary failure path rather than a silent hang.
     Q_UNUSED(cmd);
     Q_UNUSED(recipeJson);
-    fail(tr("This build cannot start fisherman"));
+    fail(tr("This version of the installer cannot install."));
 #else
     if (m_process || cmd.isEmpty())
         return;
@@ -1721,7 +1721,7 @@ void InstallerController::launch(QStringList cmd, const QByteArray &recipeJson)
             appendLine(QLatin1Char('\n') + tr("Installation cancelled."), false);
         } else if (crashed) {
             qCWarning(logInstaller) << "fisherman crashed";
-            appendLine(QLatin1Char('\n') + tr("ERROR: fisherman crashed"), false);
+            appendLine(QLatin1Char('\n') + tr("ERROR: the install program stopped unexpectedly."), false);
             m_exitCode = 1;
         } else {
             m_exitCode = exitCode;

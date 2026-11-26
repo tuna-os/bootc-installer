@@ -92,11 +92,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Could not prepare fisherman: %1</source>
+        <source>The installer could not start its install program: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>This build cannot start fisherman</source>
+        <source>This version of the installer cannot install.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -112,7 +112,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>ERROR: fisherman crashed</source>
+        <source>ERROR: the install program stopped unexpectedly.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -956,15 +956,15 @@
 <context>
     <name>probe</name>
     <message>
-        <source>fisherman probe printed invalid JSON: %1</source>
+        <source>The disk check gave an answer that the installer cannot read: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>fisherman probe did not print a JSON object</source>
+        <source>The disk check gave an answer that the installer cannot read.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>fisherman probe protocol_version %1 is not %2</source>
+        <source>The disk check uses version %1 of its format. The installer reads version %2.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -972,23 +972,23 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>cannot run fisherman: %1</source>
+        <source>The installer could not start the disk check: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>cannot run %1: %2</source>
+        <source>The installer could not start the disk check (%1): %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>fisherman probe did not finish within 30 s</source>
+        <source>The disk check did not finish in 30 seconds.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>fisherman probe failed (exit %1): %2</source>
+        <source>The disk check failed (exit code %1): %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>no %1 and this build cannot run fisherman</source>
+        <source>This version of the installer cannot check the disks (%1 is not set).</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

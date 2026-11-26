@@ -32,8 +32,8 @@
         {
           "type": "git",
           "url": "https://invent.kde.org/libraries/kirigami-addons.git",
-          "tag": "v1.7.0",
-          "commit": "384037ece90bd62574d04d30b9f31bf12426bdb6"
+          "tag": "v1.15.0",
+          "commit": "4668f4cad74205348f6111e8ef33b5192463fb80"
         }
       ]
     },

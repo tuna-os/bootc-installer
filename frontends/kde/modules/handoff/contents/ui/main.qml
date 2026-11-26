@@ -53,143 +53,139 @@ TunaComponents.SetupModule {
 
     Accessible.name: qsTr("Handoff")
 
-    contentItem: Item {
+    contentItem: CenteredPage {
         Accessible.name: qsTr("Handoff")
 
-        ColumnLayout {
-            anchors.centerIn: parent
-            width: Math.min(root.cardWidth, parent.width)
+        maximumContentWidth: root.cardWidth
+
+        Kirigami.Icon {
+            source: root.mode === "migrate" ? "system-switch-user" : "system-reboot"
+            fallback: "system-reboot"
+            implicitWidth: Kirigami.Units.iconSizes.huge
+            implicitHeight: Kirigami.Units.iconSizes.huge
+
+            Layout.alignment: Qt.AlignHCenter
+        }
+
+        Kirigami.Heading {
+            objectName: "handoffHeading"
+            text: root.mode === "migrate" ? qsTr("Switch to the installed system")
+                : root.mode === "soft_reboot" ? qsTr("Restart into the installed system")
+                : qsTr("Restart the computer")
+            level: 1
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.Wrap
+
+            Layout.fillWidth: true
+        }
+
+        // What carries over, said plainly for each mode.
+        Label {
+            objectName: "handoffBody"
+            text: root.mode === "migrate"
+                ? qsTr("This session becomes the installed system. Nothing restarts. The files and settings of this session stay.")
+                : root.mode === "soft_reboot"
+                    ? qsTr("The desktop restarts into the installed system. The computer does not go through its firmware. The files and settings of this session do not carry over.")
+                    : qsTr("The computer restarts into the installed system. The files and settings of this session do not carry over. Remove the install medium when the screen goes dark.")
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.Wrap
+
+            Layout.fillWidth: true
+        }
+
+        Label {
+            objectName: "handoffFirstBoot"
+            visible: InstallerController.firstBootTool.length > 0
+            text: qsTr("The installed system asks for your user account when it starts for the first time.")
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.Wrap
+            opacity: 0.75
+
+            Layout.fillWidth: true
+        }
+
+        Kirigami.InlineMessage {
+            objectName: "handoffError"
+            type: Kirigami.MessageType.Error
+            visible: root.failed
+            text: qsTr("The handoff did not start: %1").arg(InstallerController.handoffError)
+            actions: [
+                Kirigami.Action {
+                    objectName: "handoffRestartAction"
+                    text: InstallerController.text("done_restart")
+                    icon.name: "system-reboot-symbolic"
+                    onTriggered: InstallerController.reboot()
+                },
+                Kirigami.Action {
+                    objectName: "handoffCloseAction"
+                    text: qsTr("Close")
+                    icon.name: "window-close-symbolic"
+                    onTriggered: root.advanceRequested()
+                }
+            ]
+
+            Layout.fillWidth: true
+        }
+
+        Kirigami.InlineMessage {
+            type: Kirigami.MessageType.Error
+            visible: InstallerController.shutdownError.length > 0
+            text: qsTr("The computer cannot restart now: %1").arg(InstallerController.shutdownError)
+
+            Layout.fillWidth: true
+        }
+
+        // The restart is on its way: nothing more to press.
+        RowLayout {
+            visible: root.starting || InstallerController.shutdownBusy
+                || (root.started && !InstallerController.sessionKeepsRunning)
             spacing: Kirigami.Units.largeSpacing
 
-            Kirigami.Icon {
-                source: root.mode === "migrate" ? "system-switch-user" : "system-reboot"
-                fallback: "system-reboot"
-                implicitWidth: Kirigami.Units.iconSizes.huge
-                implicitHeight: Kirigami.Units.iconSizes.huge
+            Layout.alignment: Qt.AlignHCenter
 
-                Layout.alignment: Qt.AlignHCenter
-            }
-
-            Kirigami.Heading {
-                objectName: "handoffHeading"
-                text: root.mode === "migrate" ? qsTr("Switch to the installed system")
-                    : root.mode === "soft_reboot" ? qsTr("Restart into the installed system")
-                    : qsTr("Restart the computer")
-                level: 1
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
-
-                Layout.fillWidth: true
-            }
-
-            // What carries over, said plainly for each mode.
-            Label {
-                objectName: "handoffBody"
-                text: root.mode === "migrate"
-                    ? qsTr("This session becomes the installed system. Nothing restarts. The files and settings of this session stay.")
-                    : root.mode === "soft_reboot"
-                        ? qsTr("The desktop restarts into the installed system. The computer does not go through its firmware. The files and settings of this session do not carry over.")
-                        : qsTr("The computer restarts into the installed system. The files and settings of this session do not carry over. Remove the install medium when the screen goes dark.")
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
-
-                Layout.fillWidth: true
+            BusyIndicator {
+                running: parent.visible
+                implicitWidth: Kirigami.Units.iconSizes.medium
+                implicitHeight: Kirigami.Units.iconSizes.medium
             }
 
             Label {
-                objectName: "handoffFirstBoot"
-                visible: InstallerController.firstBootTool.length > 0
-                text: qsTr("The installed system asks for your user account when it starts for the first time.")
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
-                opacity: 0.75
+                objectName: "handoffStarted"
+                text: root.starting ? qsTr("Waiting for the installer daemon…") : qsTr("Restarting…")
+            }
+        }
 
-                Layout.fillWidth: true
+        RowLayout {
+            visible: !root.started && !root.starting
+            spacing: Kirigami.Units.largeSpacing
+
+            Layout.alignment: Qt.AlignHCenter
+
+            Button {
+                objectName: "handoffNotNowButton"
+                text: qsTr("Not now")
+
+                topPadding: Kirigami.Units.largeSpacing
+                bottomPadding: Kirigami.Units.largeSpacing
+                leftPadding: Kirigami.Units.gridUnit
+                rightPadding: Kirigami.Units.gridUnit
+
+                onClicked: root.advanceRequested()
             }
 
-            Kirigami.InlineMessage {
-                objectName: "handoffError"
-                type: Kirigami.MessageType.Error
-                visible: root.failed
-                text: qsTr("The handoff did not start: %1").arg(InstallerController.handoffError)
-                actions: [
-                    Kirigami.Action {
-                        objectName: "handoffRestartAction"
-                        text: InstallerController.text("done_restart")
-                        icon.name: "system-reboot-symbolic"
-                        onTriggered: InstallerController.reboot()
-                    },
-                    Kirigami.Action {
-                        objectName: "handoffCloseAction"
-                        text: qsTr("Close")
-                        icon.name: "window-close-symbolic"
-                        onTriggered: root.advanceRequested()
-                    }
-                ]
+            Button {
+                objectName: "handoffContinueButton"
+                text: qsTr("Continue")
+                icon.name: "arrow-right-symbolic"
+                highlighted: true
+                enabled: !root.failed
 
-                Layout.fillWidth: true
-            }
+                topPadding: Kirigami.Units.largeSpacing
+                bottomPadding: Kirigami.Units.largeSpacing
+                leftPadding: Kirigami.Units.gridUnit
+                rightPadding: Kirigami.Units.gridUnit
 
-            Kirigami.InlineMessage {
-                type: Kirigami.MessageType.Error
-                visible: InstallerController.shutdownError.length > 0
-                text: qsTr("The computer cannot restart now: %1").arg(InstallerController.shutdownError)
-
-                Layout.fillWidth: true
-            }
-
-            // The restart is on its way: nothing more to press.
-            RowLayout {
-                visible: root.starting || InstallerController.shutdownBusy
-                    || (root.started && !InstallerController.sessionKeepsRunning)
-                spacing: Kirigami.Units.largeSpacing
-
-                Layout.alignment: Qt.AlignHCenter
-
-                BusyIndicator {
-                    running: parent.visible
-                    implicitWidth: Kirigami.Units.iconSizes.medium
-                    implicitHeight: Kirigami.Units.iconSizes.medium
-                }
-
-                Label {
-                    objectName: "handoffStarted"
-                    text: root.starting ? qsTr("Waiting for the installer daemon…") : qsTr("Restarting…")
-                }
-            }
-
-            RowLayout {
-                visible: !root.started && !root.starting
-                spacing: Kirigami.Units.largeSpacing
-
-                Layout.alignment: Qt.AlignHCenter
-
-                Button {
-                    objectName: "handoffNotNowButton"
-                    text: qsTr("Not now")
-
-                    topPadding: Kirigami.Units.largeSpacing
-                    bottomPadding: Kirigami.Units.largeSpacing
-                    leftPadding: Kirigami.Units.gridUnit
-                    rightPadding: Kirigami.Units.gridUnit
-
-                    onClicked: root.advanceRequested()
-                }
-
-                Button {
-                    objectName: "handoffContinueButton"
-                    text: qsTr("Continue")
-                    icon.name: "arrow-right-symbolic"
-                    highlighted: true
-                    enabled: !root.failed
-
-                    topPadding: Kirigami.Units.largeSpacing
-                    bottomPadding: Kirigami.Units.largeSpacing
-                    leftPadding: Kirigami.Units.gridUnit
-                    rightPadding: Kirigami.Units.gridUnit
-
-                    onClicked: InstallerController.handoff()
-                }
+                onClicked: InstallerController.handoff()
             }
         }
     }

@@ -581,7 +581,10 @@ int main(int argc, char *argv[])
     // alone; this only puts the harness on Plasma's default.
     {
         QFont plasmaDefault(u"Noto Sans"_s);
-        plasmaDefault.setPointSizeF(10);
+        // TUNA_CAPTURE_FONT_SCALE=2 renders the pages at 200 % text.
+        bool scaled = false;
+        const double fontScale = qEnvironmentVariable("TUNA_CAPTURE_FONT_SCALE").toDouble(&scaled);
+        plasmaDefault.setPointSizeF(10 * (scaled && fontScale > 0 ? fontScale : 1));
         QApplication::setFont(plasmaDefault);
     }
 
@@ -762,7 +765,15 @@ int main(int argc, char *argv[])
     if (scenario.isEmpty())
         controller->loadDemoState(QString::fromUtf8(kFixtureLogRunning), 0);
 
-    window->resize(1000, 700);
+    // TUNA_CAPTURE_SIZE=1024x556 renders a small screen (1024x600 less a
+    // panel). The documentation pictures keep 1000x700.
+    QSize size(1000, 700);
+    {
+        const QStringList wh = qEnvironmentVariable("TUNA_CAPTURE_SIZE").split(u'x');
+        if (wh.size() == 2 && wh[0].toInt() > 0 && wh[1].toInt() > 0)
+            size = QSize(wh[0].toInt(), wh[1].toInt());
+    }
+    window->resize(size);
     window->show();
     settle(700);
 

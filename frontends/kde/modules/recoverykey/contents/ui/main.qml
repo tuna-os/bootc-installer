@@ -48,247 +48,254 @@ TunaComponents.SetupModule {
 
     Accessible.name: qsTr("Recovery key")
 
-    contentItem: Item {
+    contentItem: CenteredPage {
         Accessible.name: qsTr("Recovery key")
 
-        ColumnLayout {
-            anchors.centerIn: parent
-            width: Math.min(root.cardWidth, parent.width)
-            spacing: Kirigami.Units.largeSpacing
+        maximumContentWidth: root.cardWidth
 
-            Kirigami.Icon {
-                source: "dialog-password"
-                fallback: "document-encrypt"
-                implicitWidth: Kirigami.Units.iconSizes.huge
-                implicitHeight: Kirigami.Units.iconSizes.huge
+        Kirigami.Icon {
+            source: "dialog-password"
+            fallback: "document-encrypt"
+            implicitWidth: Kirigami.Units.iconSizes.huge
+            implicitHeight: Kirigami.Units.iconSizes.huge
 
-                Layout.alignment: Qt.AlignHCenter
-            }
+            Layout.alignment: Qt.AlignHCenter
+        }
 
-            Kirigami.Heading {
-                objectName: "recoveryHeading"
-                text: InstallerController.text("recovery_key_title")
-                level: 1
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
+        Kirigami.Heading {
+            objectName: "recoveryHeading"
+            text: InstallerController.text("recovery_key_title")
+            level: 1
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.Wrap
 
-                Layout.fillWidth: true
-            }
+            Layout.fillWidth: true
+        }
 
-            Label {
-                text: InstallerController.text("recovery_key_body")
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
+        Label {
+            text: InstallerController.text("recovery_key_body")
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.Wrap
 
-                Layout.fillWidth: true
-            }
+            Layout.fillWidth: true
+        }
 
-            // No key, or the key was not enrolled: say why and offer a retry.
-            Kirigami.InlineMessage {
-                objectName: "recoveryError"
-                type: Kirigami.MessageType.Error
-                visible: InstallerController.recoveryError.length > 0
-                // A bare error name of the daemon (io.systemd.System) is
-                // for the log; it tells a person nothing.
-                readonly property string reason: /^[a-z]+(\.[A-Za-z0-9]+)+\.?$/.test(InstallerController.recoveryError)
-                    ? "" : InstallerController.recoveryError
-                text: root.hasKey
-                    ? (reason.length > 0
-                       ? qsTr("The recovery key could not be saved to the disk: %1").arg(reason)
-                       : qsTr("The recovery key could not be saved to the disk. Press Done to try again."))
-                    : (reason.length > 0
-                       ? qsTr("No recovery key could be made: %1 Do not continue without one.").arg(reason)
-                       : qsTr("No recovery key could be made. Do not continue without one."))
-                actions: [
-                    Kirigami.Action {
-                        objectName: "recoveryRetryAction"
-                        text: qsTr("Try again")
-                        icon.name: "view-refresh-symbolic"
-                        visible: !root.hasKey && !InstallerController.recoveryBusy
-                        onTriggered: InstallerController.makeRecoveryKey()
+        // No key, or the key was not enrolled: say why and offer a retry.
+        Kirigami.InlineMessage {
+            objectName: "recoveryError"
+            type: Kirigami.MessageType.Error
+            visible: InstallerController.recoveryError.length > 0
+            // A bare error name of the daemon (io.systemd.System) is
+            // for the log; it tells a person nothing.
+            readonly property string reason: /^[a-z]+(\.[A-Za-z0-9]+)+\.?$/.test(InstallerController.recoveryError)
+                ? "" : InstallerController.recoveryError
+            text: root.hasKey
+                ? (reason.length > 0
+                   ? qsTr("The recovery key could not be saved to the disk: %1").arg(reason)
+                   : qsTr("The recovery key could not be saved to the disk. Press Done to try again."))
+                : (reason.length > 0
+                   ? qsTr("No recovery key could be made: %1 Do not continue without one.").arg(reason)
+                   : qsTr("No recovery key could be made. Do not continue without one."))
+            actions: [
+                Kirigami.Action {
+                    objectName: "recoveryRetryAction"
+                    text: qsTr("Try again")
+                    icon.name: "view-refresh-symbolic"
+                    visible: !root.hasKey && !InstallerController.recoveryBusy
+                    onTriggered: InstallerController.makeRecoveryKey()
+                }
+            ]
+
+            Layout.fillWidth: true
+        }
+
+        FormCard.FormCard {
+            objectName: "recoveryPanel"
+            visible: root.hasKey
+            maximumWidth: root.cardWidth
+
+            Layout.fillWidth: true
+
+            FormCard.AbstractFormDelegate {
+                background: null
+                focusPolicy: Qt.NoFocus
+
+                contentItem: ColumnLayout {
+                    spacing: Kirigami.Units.smallSpacing
+
+                    // A label, not a field: the key is read, not edited.
+                    // Its accessible name is the key (shared/flow, test
+                    // contract rule 3).
+                    Kirigami.SelectableLabel {
+                        objectName: "recoveryKeyLabel"
+                        text: InstallerController.recoveryKey
+                        font.family: Kirigami.Theme.fixedWidthFont.family
+                        font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.15
+                        horizontalAlignment: Text.AlignHCenter
+                        // Breaks after a hyphen, so a group of the
+                        // key stays whole.
+                        wrapMode: Text.Wrap
+                        Accessible.name: InstallerController.recoveryKey
+
+                        Layout.fillWidth: true
                     }
-                ]
 
-                Layout.fillWidth: true
-            }
+                    // Side by side when both fit, else one above the
+                    // other: a row wider than the card pushed the key out
+                    // of it at 200 % text.
+                    GridLayout {
+                        columns: recoveryCopyButton.implicitWidth + recoveryQrButton.implicitWidth
+                                 + columnSpacing <= width ? 2 : 1
+                        columnSpacing: Kirigami.Units.smallSpacing
+                        rowSpacing: Kirigami.Units.smallSpacing
 
-            FormCard.FormCard {
-                objectName: "recoveryPanel"
-                visible: root.hasKey
-                maximumWidth: root.cardWidth
+                        Layout.fillWidth: true
 
-                Layout.fillWidth: true
-
-                FormCard.AbstractFormDelegate {
-                    background: null
-                    focusPolicy: Qt.NoFocus
-
-                    contentItem: ColumnLayout {
-                        spacing: Kirigami.Units.smallSpacing
-
-                        // A label, not a field: the key is read, not edited.
-                        // Its accessible name is the key (shared/flow, test
-                        // contract rule 3).
-                        Kirigami.SelectableLabel {
-                            objectName: "recoveryKeyLabel"
-                            text: InstallerController.recoveryKey
-                            font.family: Kirigami.Theme.fixedWidthFont.family
-                            font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.15
-                            horizontalAlignment: Text.AlignHCenter
-                            // Breaks after a hyphen, so a group of the
-                            // key stays whole.
-                            wrapMode: Text.Wrap
-                            Accessible.name: InstallerController.recoveryKey
-
-                            Layout.fillWidth: true
-                        }
-
-                        RowLayout {
-                            spacing: Kirigami.Units.smallSpacing
-
+                        Button {
+                            id: recoveryCopyButton
+                            objectName: "recoveryCopyButton"
                             Layout.alignment: Qt.AlignHCenter
+                            text: InstallerController.text("recovery_key_copy")
+                            icon.name: "edit-copy-symbolic"
+                            onClicked: recoveryClip.selectAll(),
+                                       recoveryClip.copy(),
+                                       recoveryClip.deselect()
+                        }
 
-                            Button {
-                                objectName: "recoveryCopyButton"
-                                text: InstallerController.text("recovery_key_copy")
-                                icon.name: "edit-copy-symbolic"
-                                onClicked: recoveryClip.selectAll(),
-                                           recoveryClip.copy(),
-                                           recoveryClip.deselect()
-                            }
-
-                            Button {
-                                objectName: "recoveryQrButton"
-                                text: qsTr("Show QR Code for Recovery Key")
-                                icon.name: "view-barcode-qr"
-                                enabled: InstallerController.recoveryQrRows.length > 0
-                                onClicked: qrDialog.open()
-                            }
+                        Button {
+                            id: recoveryQrButton
+                            objectName: "recoveryQrButton"
+                            Layout.alignment: Qt.AlignHCenter
+                            text: qsTr("Show QR Code for Recovery Key")
+                            icon.name: "view-barcode-qr"
+                            enabled: InstallerController.recoveryQrRows.length > 0
+                            onClicked: qrDialog.open()
                         }
                     }
                 }
-
-                FormCard.FormDelegateSeparator {}
-
-                FormCard.FormCheckDelegate {
-                    objectName: "recoveryAckCheck"
-                    text: InstallerController.text("recovery_key_ack")
-                    checked: InstallerController.recoveryAck
-                    onToggled: InstallerController.recoveryAck = checked
-                }
             }
 
-            // A disabled button alone is faint, and does not say what it
-            // waits for.
-            Label {
-                objectName: "recoveryDoneHint"
-                visible: root.hasKey && !InstallerController.recoveryAck
-                text: qsTr("To continue, tick the box when you have saved the key.")
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
+            FormCard.FormDelegateSeparator {}
 
-                Layout.fillWidth: true
-            }
-
-            Button {
-                objectName: "recoveryDoneButton"
-                text: qsTr("Done")
-                icon.name: "dialog-ok-apply"
-                highlighted: true
-                enabled: root.hasKey && InstallerController.recoveryAck && !InstallerController.recoveryBusy
-
-                topPadding: Kirigami.Units.largeSpacing
-                bottomPadding: Kirigami.Units.largeSpacing
-                leftPadding: Kirigami.Units.gridUnit
-                rightPadding: Kirigami.Units.gridUnit
-
-                Layout.alignment: Qt.AlignHCenter
-
-                // Enrol, then go on. The call does not block: the step goes
-                // on when the daemon says the key is enrolled. A refused
-                // enrolment stays here and shows the reason above.
-                onClicked: {
-                    root.awaitingEnroll = true;
-                    InstallerController.enrollRecoveryKey();
-                }
-            }
-
-            // The daemon makes the key, or enrols it: say so while it does.
-            RowLayout {
-                objectName: "recoveryBusy"
-                visible: InstallerController.recoveryBusy
-                spacing: Kirigami.Units.largeSpacing
-
-                Layout.alignment: Qt.AlignHCenter
-
-                BusyIndicator {
-                    running: parent.visible
-                    implicitWidth: Kirigami.Units.iconSizes.medium
-                    implicitHeight: Kirigami.Units.iconSizes.medium
-                }
-
-                Label {
-                    text: root.hasKey ? qsTr("Saving the recovery key to the disk…")
-                                      : qsTr("Making the recovery key…")
-                }
-            }
-
-            // QtQuick has no clipboard object; a hidden TextEdit is the
-            // standard way to reach one.
-            TextEdit {
-                id: recoveryClip
-                visible: false
-                text: InstallerController.recoveryKey
+            FormCard.FormCheckDelegate {
+                objectName: "recoveryAckCheck"
+                text: InstallerController.text("recovery_key_ack")
+                checked: InstallerController.recoveryAck
+                onToggled: InstallerController.recoveryAck = checked
             }
         }
 
-        Kirigami.Dialog {
-            id: qrDialog
-            objectName: "recoveryQrDialog"
+        // A disabled button alone is faint, and does not say what it
+        // waits for.
+        Label {
+            objectName: "recoveryDoneHint"
+            visible: root.hasKey && !InstallerController.recoveryAck
+            text: qsTr("To continue, tick the box when you have saved the key.")
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.Wrap
 
-            title: qsTr("Recovery key")
-            standardButtons: Kirigami.Dialog.Close
-            padding: Kirigami.Units.largeSpacing
+            Layout.fillWidth: true
+        }
 
-            // Black on white whatever the colour scheme, with the quiet
-            // zone a scanner needs: a QR code is not a themed element.
-            Rectangle {
-                id: qrPlate
+        Button {
+            objectName: "recoveryDoneButton"
+            text: qsTr("Done")
+            icon.name: "dialog-ok-apply"
+            highlighted: true
+            enabled: root.hasKey && InstallerController.recoveryAck && !InstallerController.recoveryBusy
 
-                readonly property var rows: InstallerController.recoveryQrRows
-                readonly property int modules: rows.length
-                readonly property int cell: Math.max(2, Math.floor(Kirigami.Units.gridUnit * 14 / Math.max(1, modules + 8)))
+            topPadding: Kirigami.Units.largeSpacing
+            bottomPadding: Kirigami.Units.largeSpacing
+            leftPadding: Kirigami.Units.gridUnit
+            rightPadding: Kirigami.Units.gridUnit
 
-                objectName: "recoveryQr"
-                implicitWidth: cell * (modules + 8)
-                implicitHeight: implicitWidth
-                color: "white"
+            Layout.alignment: Qt.AlignHCenter
 
-                Accessible.role: Accessible.Graphic
-                Accessible.name: qsTr("QR code of the recovery key")
+            // Enrol, then go on. The call does not block: the step goes
+            // on when the daemon says the key is enrolled. A refused
+            // enrolment stays here and shows the reason above.
+            onClicked: {
+                root.awaitingEnroll = true;
+                InstallerController.enrollRecoveryKey();
+            }
+        }
 
-                Column {
-                    x: qrPlate.cell * 4
-                    y: qrPlate.cell * 4
+        // The daemon makes the key, or enrols it: say so while it does.
+        RowLayout {
+            objectName: "recoveryBusy"
+            visible: InstallerController.recoveryBusy
+            spacing: Kirigami.Units.largeSpacing
 
-                    Repeater {
-                        model: qrPlate.rows
+            Layout.alignment: Qt.AlignHCenter
 
-                        delegate: Row {
-                            id: qrRow
+            BusyIndicator {
+                running: parent.visible
+                implicitWidth: Kirigami.Units.iconSizes.medium
+                implicitHeight: Kirigami.Units.iconSizes.medium
+            }
 
-                            required property string modelData
+            Label {
+                text: root.hasKey ? qsTr("Saving the recovery key to the disk…")
+                                  : qsTr("Making the recovery key…")
+            }
+        }
 
-                            Repeater {
-                                model: qrRow.modelData.length
+        // QtQuick has no clipboard object; a hidden TextEdit is the
+        // standard way to reach one.
+        TextEdit {
+            id: recoveryClip
+            visible: false
+            text: InstallerController.recoveryKey
+        }
+    }
 
-                                delegate: Rectangle {
-                                    required property int index
+    // A popup, outside the scrolled page.
+    Kirigami.Dialog {
+        id: qrDialog
+        objectName: "recoveryQrDialog"
 
-                                    width: qrPlate.cell
-                                    height: qrPlate.cell
-                                    color: qrRow.modelData.charAt(index) === "1" ? "black" : "white"
-                                }
+        title: qsTr("Recovery key")
+        standardButtons: Kirigami.Dialog.Close
+        padding: Kirigami.Units.largeSpacing
+
+        // Black on white whatever the colour scheme, with the quiet
+        // zone a scanner needs: a QR code is not a themed element.
+        Rectangle {
+            id: qrPlate
+
+            readonly property var rows: InstallerController.recoveryQrRows
+            readonly property int modules: rows.length
+            readonly property int cell: Math.max(2, Math.floor(Kirigami.Units.gridUnit * 14 / Math.max(1, modules + 8)))
+
+            objectName: "recoveryQr"
+            implicitWidth: cell * (modules + 8)
+            implicitHeight: implicitWidth
+            color: "white"
+
+            Accessible.role: Accessible.Graphic
+            Accessible.name: qsTr("QR code of the recovery key")
+
+            Column {
+                x: qrPlate.cell * 4
+                y: qrPlate.cell * 4
+
+                Repeater {
+                    model: qrPlate.rows
+
+                    delegate: Row {
+                        id: qrRow
+
+                        required property string modelData
+
+                        Repeater {
+                            model: qrRow.modelData.length
+
+                            delegate: Rectangle {
+                                required property int index
+
+                                width: qrPlate.cell
+                                height: qrPlate.cell
+                                color: qrRow.modelData.charAt(index) === "1" ? "black" : "white"
                             }
                         }
                     }

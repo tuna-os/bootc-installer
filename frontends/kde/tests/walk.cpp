@@ -242,6 +242,25 @@ public:
         return {};
     }
 
+    // No node of a password delegate, the delegate included, has the
+    // password as its name or description. The delegate is a button, and
+    // its text is the password.
+    bool namesThePassword(const QString &name, const QString &secret) const
+    {
+        QList<QQuickItem *> todo{item(name)};
+        while (!todo.isEmpty()) {
+            QQuickItem *i = todo.takeFirst();
+            if (!i)
+                continue;
+            if (QAccessibleInterface *a = QAccessible::queryAccessibleInterface(i)) {
+                if (a->text(QAccessible::Name).contains(secret) || a->text(QAccessible::Description).contains(secret))
+                    return true;
+            }
+            todo << i->childItems();
+        }
+        return false;
+    }
+
     // A click the way a person's click reaches a button: only on a button
     // that is on screen and enabled.
     void click(const QString &name)
@@ -339,6 +358,9 @@ public:
                u"the password field is named \"%1\""_s.arg(passwordName(u"accountPassword"_s)));
         expect(passwordName(u"accountPasswordConfirm"_s) == u"Confirm password"_s,
                u"the confirmation field has another name"_s);
+        expect(!namesThePassword(u"accountPassword"_s, u"account password 42"_s)
+                   && !namesThePassword(u"accountPasswordConfirm"_s, u"account password 42"_s),
+               u"a node of a password field has the password as its name"_s);
         shot(u"account-typed"_s);
     }
 

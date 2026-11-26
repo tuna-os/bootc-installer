@@ -31,13 +31,13 @@ Result parse(const QByteArray &json)
     QJsonParseError err;
     const QJsonDocument doc = QJsonDocument::fromJson(json, &err);
     if (err.error != QJsonParseError::NoError)
-        return failure(QCoreApplication::translate("probe", "fisherman probe printed invalid JSON: %1").arg(err.errorString()));
+        return failure(QCoreApplication::translate("probe", "The disk check gave an answer that the installer cannot read: %1").arg(err.errorString()));
     if (!doc.isObject())
-        return failure(QCoreApplication::translate("probe", "fisherman probe did not print a JSON object"));
+        return failure(QCoreApplication::translate("probe", "The disk check gave an answer that the installer cannot read."));
     const QJsonObject root = doc.object();
     const int version = root.value(QLatin1String("protocol_version")).toInt(-1);
     if (version != PROTOCOL_VERSION)
-        return failure(QCoreApplication::translate("probe", "fisherman probe protocol_version %1 is not %2")
+        return failure(QCoreApplication::translate("probe", "The disk check uses version %1 of its format. The installer reads version %2.")
                            .arg(version).arg(PROTOCOL_VERSION));
 
     Result r;
@@ -123,7 +123,7 @@ Result run()
     // In a Flatpak the probe is the staged, host-verified fisherman.
     const fisherman::Staging &staging = fisherman::staged();
     if (!staging.ok)
-        return failure(QCoreApplication::translate("probe", "cannot run fisherman: %1").arg(staging.error));
+        return failure(QCoreApplication::translate("probe", "The installer could not start the disk check: %1").arg(staging.error));
     // Live media is what the probe answers, so it cannot be an input here;
     // the unprivileged command does not depend on it.
     const QStringList argv = fisherman::commands(false).unprivileged
@@ -131,17 +131,17 @@ Result run()
     QProcess p;
     p.start(argv.first(), argv.mid(1));
     if (!p.waitForStarted(5000))
-        return failure(QCoreApplication::translate("probe", "cannot run %1: %2").arg(argv.first(), p.errorString()));
+        return failure(QCoreApplication::translate("probe", "The installer could not start the disk check (%1): %2").arg(argv.first(), p.errorString()));
     // lsblk and `bootc status`; a hung host helper must not hang the wizard.
     if (!p.waitForFinished(30000)) {
         p.kill();
         p.waitForFinished(1000);
-        return failure(QCoreApplication::translate("probe", "fisherman probe did not finish within 30 s"));
+        return failure(QCoreApplication::translate("probe", "The disk check did not finish in 30 seconds."));
     }
     if (p.exitStatus() != QProcess::NormalExit || p.exitCode() != 0) {
         const QString stderrText = QString::fromUtf8(p.readAllStandardError()).trimmed();
         const QString first = stderrText.section(QLatin1Char('\n'), 0, 0);
-        return failure(QCoreApplication::translate("probe", "fisherman probe failed (exit %1): %2")
+        return failure(QCoreApplication::translate("probe", "The disk check failed (exit code %1): %2")
                            .arg(p.exitCode())
                            .arg(first.isEmpty() ? QStringLiteral("no message") : first));
     }
@@ -149,7 +149,7 @@ Result run()
 #else
     // Qt for WebAssembly: no process to run. The browser harness sets the
     // variable above, so reaching here means it was left out.
-    return failure(QCoreApplication::translate("probe", "no %1 and this build cannot run fisherman").arg(QLatin1String(FAKE_ENV)));
+    return failure(QCoreApplication::translate("probe", "This version of the installer cannot check the disks (%1 is not set).").arg(QLatin1String(FAKE_ENV)));
 #endif
 }
 

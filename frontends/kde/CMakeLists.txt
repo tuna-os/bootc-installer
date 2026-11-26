@@ -135,6 +135,7 @@ qt_add_qml_module(tunainstallerapp
         src/qml/Main.qml
         src/qml/Wizard.qml
         src/qml/NetworkGate.qml
+        src/qml/CenteredPage.qml
         src/qml/NamedPasswordField.qml
         src/qml/PickerList.qml
         ${STEP_QML_FILES}

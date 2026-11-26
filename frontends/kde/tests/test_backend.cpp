@@ -1763,7 +1763,7 @@ void BackendTest::probeFailureOffersNothingAndSaysWhy()
 {
     const probe::Result old = probe::parse(QByteArrayLiteral("{\"protocol_version\": 2}"));
     QVERIFY(!old.ok);
-    QVERIFY(old.error.contains(QStringLiteral("protocol_version")));
+    QVERIFY(old.error.contains(QStringLiteral("version 2 of its format")));
     QVERIFY(!probe::parse(QByteArrayLiteral("not json")).ok);
 
     qputenv(probe::FAKE_ENV, QByteArrayLiteral("/nonexistent/probe.json"));
@@ -3016,12 +3016,12 @@ void BackendTest::cancelSignalsTheGroupAndIsNotACrash()
     c.cancelInstall();
     QVERIFY(c.waitForInstall(5000));
     QCOMPARE(done.count(), 1);
-    // Killed by a signal after a cancel: cancelled, not "fisherman crashed".
+    // Killed by a signal after a cancel: cancelled, not a crash.
     QVERIFY(c.cancelled());
     QVERIFY(!c.succeeded());
     QCOMPARE(c.exitCode(), 130);
     QVERIFY2(c.log().contains(QStringLiteral("Installation cancelled.")), qPrintable(c.log()));
-    QVERIFY2(!c.log().contains(QStringLiteral("crashed")), qPrintable(c.log()));
+    QVERIFY2(!c.log().contains(QStringLiteral("stopped unexpectedly")), qPrintable(c.log()));
     // The signal went to the whole group: the wrapper's child is gone too.
     // Signalling the wrapper's pid alone left it running.
     char state = processState(child);
@@ -3090,7 +3090,7 @@ void BackendTest::anEndWithoutCancelIsStillAFailure()
     crashed.launch({QStringLiteral("bash"), QStringLiteral("-c"), QStringLiteral("kill -SEGV $$")}, QByteArray("{}"));
     QVERIFY(crashed.waitForInstall(5000));
     QVERIFY(!crashed.cancelled());
-    QVERIFY(crashed.log().contains(QStringLiteral("crashed")));
+    QVERIFY(crashed.log().contains(QStringLiteral("stopped unexpectedly")));
     // A cancel that arrives after a successful end changes nothing.
     InstallerController ok;
     ok.launch({QStringLiteral("bash"), QStringLiteral("-c"), QStringLiteral("exit 0")}, QByteArray("{}"));
