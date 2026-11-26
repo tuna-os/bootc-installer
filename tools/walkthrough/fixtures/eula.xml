@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="operating-system">
+  <id>org.tunaos.TunaOS</id>
+  <name>TunaOS</name>
+  <summary>The walkthrough terms</summary>
+  <metadata_license>CC0-1.0</metadata_license>
   <agreement type="eula">
     <agreement_section>
       <name>Use of this system</name>

@@ -97,6 +97,10 @@ EXEMPT = {
         "handoff--soft-reboot": "gnome-setup has no handoff page.",
         "handoff--handoff-failed": "gnome-setup has no handoff page.",
         "requirements--requirements-fatal": "gnome-setup has no requirements page.",
+        "done--device-lost": "gnome-setup goes on to the next page when the install fails "
+                             "(tuna-os/tunaOS#5017).",
+        "done--repart-error": "gnome-setup goes on to the next page when the install fails "
+                              "(tuna-os/tunaOS#5017).",
     },
 }
 
@@ -112,3 +116,9 @@ SAME_PAGE = {"gnome": {"confirm--dialog": "confirm"}}
 OCR_LABELS = [(r"Username", "user"), (r"Full name", "full"), (r"Password", "pass"),
               (r"Password again", "pass"), (r"Confirm password", "pass"),
               (r"Passphrase", "pass"), (r"Confirm passphrase", "pass")]
+
+# The variants of the main path that each frontend has. gnome-setup forces
+# the light style, COSMIC and niri draw their own dark theme, so a dark
+# variant of those would show the same pictures.
+VARIANTS = {"gnome": ("small",), "kde": ("dark", "small"), "cosmic": ("small",),
+            "niri": ("small",), "xfce": ("dark", "small")}

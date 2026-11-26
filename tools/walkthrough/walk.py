@@ -335,8 +335,10 @@ def walk(frontend, run, out, work, variant, log):
                 if act.prepare and page not in prepared:
                     prepared.add(page)
                     act.prepare(w)
-                    time.sleep(0.3)
+                    time.sleep(0.6)
                     w.read()
+                    if w.page() != page:
+                        continue  # the choice itself went on: read the new page
                 (act.leave or Walker.primary)(w)
             except Stuck as exc:
                 if same >= 6:

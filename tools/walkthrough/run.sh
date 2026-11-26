@@ -52,4 +52,10 @@ mkdir -p "${out}"
 	"${image}" python3 /src/tools/walkthrough/render.py "${fe}" /captures /render \
 	${WALK_RUN_URL:+--run "${WALK_RUN_URL}"}
 echo "walkthrough: ${out} (walk exit ${rc})"
+# The variants (flows.py VARIANTS) after the main set, unless this is one.
+if [[ -z "${WALK_VARIANT:-}" && -z "${WALK_ONLY:-}" && "${WALK_NO_VARIANTS:-}" != 1 ]]; then
+	for v in $(python3 -c "import sys; sys.path.insert(0, '${here}'); import flows; print(' '.join(flows.VARIANTS.get('${fe}', ())))"); do
+		WALK_VARIANT="${v}" "${BASH_SOURCE[0]}" "${fe}" "${2:-${repo}/docs/walkthrough/mock/${fe}}" || rc=1
+	done
+fi
 exit "${rc}"

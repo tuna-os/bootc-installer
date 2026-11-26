@@ -166,19 +166,41 @@ def write_page(a, manifest):
     else:
         source = ("These pictures come from a real install in a virtual machine, by the "
                   "image-installer E2E test of tuna-os/tunaOS.")
-    lines = [f"# {name}: installer walkthrough", "",
+    variant = {"dark": ", dark style", "small": ", 1024 x 600"}.get(manifest["variant"], "")
+    lines = [f"# {name}: installer walkthrough{variant}", "",
              "Do not edit this page. `tools/walkthrough/render.py` makes it.", "",
              source]
     if a.source == "mock" and a.frontend in COMPOSITOR:
         lines += ["", COMPOSITOR[a.frontend]]
     if a.run:
         lines += ["", f"Run: {a.run}"]
+    others = flows.VARIANTS.get(a.frontend, ()) if a.source == "mock" and not manifest["variant"] else ()
+    if others:
+        label = {"dark": "dark style", "small": "1024 x 600"}
+        lines += ["", "The main path in other forms: " + ", ".join(
+            f"[{label[v]}]({v}/README.md)" for v in others) + "."]
     if os.path.exists(os.path.join(a.out, "walkthrough.webp")):
         lines += ["", "![The main path, animated](walkthrough.webp)"]
     lines += ["", "| # | Page | When it shows | Picture |", "|---|---|---|---|"]
     for i, e in enumerate(manifest["pages"], 1):
         cell = e["caption"].replace("|", "\\|").replace("\n", " ")
         lines.append(f"| {i} | {e['title']} | {cell} | [![{e['name']}]({e['file']})]({e['file']}) |")
+    if a.source == "mock" and not manifest["variant"]:
+        import check
+        have = {e["name"] for e in manifest["pages"]}
+        exempt = flows.EXEMPT.get(a.frontend, {})
+        missing = [n for n in check.expected(a.frontend) if n not in have]
+        covered = flows.COVERS.get(a.frontend, {})
+        if exempt or missing or covered:
+            lines += ["", "## Pages with no picture of their own", "",
+                      "| Page | Reason |", "|---|---|"]
+            for page, inside in covered.items():
+                for p in inside:
+                    lines.append(f"| `{p}` | It is on the `{page}` page. |")
+            for n, why in exempt.items():
+                lines.append(f"| `{n}` | {why} |")
+            for n in missing:
+                lines.append(f"| `{n}` | No picture in this run. The check fails. |")
     if manifest["errors"]:
         lines += ["", "## Runs that did not finish", ""]
         lines += [f"- `{e.splitlines()[0][:200]}`" for e in manifest["errors"]]
