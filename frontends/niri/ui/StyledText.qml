@@ -12,5 +12,10 @@ Text {
     wrapMode: Text.WordWrap
     elide: Text.ElideRight
     verticalAlignment: Text.AlignVCenter
+    // A screen reader reads the words: without a name a label is an empty
+    // node in the AT-SPI tree (walkthrough, dev c1da3d96).
+    Accessible.role: Accessible.StaticText
+    Accessible.name: text
+    Accessible.ignored: !visible || text === ""
     Behavior on opacity { NumberAnimation { duration: Theme.mediumDuration; easing.type: Theme.standardEasing } }
 }

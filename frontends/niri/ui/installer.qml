@@ -2100,6 +2100,7 @@ ApplicationWindow {
                 }
                 DankTextField {
                     id: sourceSearch
+                    label: qsTr("Search images")
                     objectName: "sourceSearch"
                     visible: root.catalogLeaves.length > 0
                     placeholderText: qsTr("Search images")
@@ -2356,6 +2357,7 @@ ApplicationWindow {
                                 spacing: Theme.spacingS
                                 DankTextField {
                                     id: passField
+                                    label: qsTr("Passphrase")
                                     objectName: "passphraseField"
                                     placeholderText: qsTr("Enter passphrase")
                                     echoMode: root.showPassphrase ? TextInput.Normal : TextInput.Password
@@ -2364,6 +2366,7 @@ ApplicationWindow {
                                 }
                                 DankTextField {
                                     id: passConfirm
+                                    label: qsTr("Confirm passphrase")
                                     placeholderText: qsTr("Confirm passphrase")
                                     echoMode: root.showPassphrase ? TextInput.Normal : TextInput.Password
                                     width: Math.min(parent.width, 360)
@@ -2488,6 +2491,7 @@ ApplicationWindow {
                             spacing: 2
                             DankTextField {
                                 id: userField
+                                label: qsTr("Username")
                                 objectName: "accountUsername"
                                 text: root.username
                                 onTextEdited: root.username = text
@@ -2509,6 +2513,7 @@ ApplicationWindow {
                         StyledText { text: qsTr("Full name"); color: Theme.surfaceVariantText }
                         DankTextField {
                             id: fullnameField
+                            label: qsTr("Full name")
                             objectName: "accountFullname"
                             text: root.fullname
                             onTextEdited: root.fullname = text
@@ -2519,6 +2524,7 @@ ApplicationWindow {
                         StyledText { text: qsTr("Password"); color: Theme.surfaceVariantText }
                         DankTextField {
                             id: userPassField
+                            label: qsTr("Password")
                             objectName: "accountPassword"
                             text: root.userPassword
                             onTextEdited: root.userPassword = text
@@ -2531,6 +2537,7 @@ ApplicationWindow {
                             spacing: 2
                             DankTextField {
                                 id: userPassConfirm
+                                label: qsTr("Password again")
                                 objectName: "accountPasswordConfirm"
                                 text: root.userPasswordConfirm
                                 onTextEdited: root.userPasswordConfirm = text
@@ -2707,6 +2714,7 @@ ApplicationWindow {
                                     spacing: 2
                                     DankTextField {
                                         id: hostField
+                                        label: qsTr("Hostname")
                                         text: root.hostname
                                         onTextEdited: { root.hostnameTouched = true; root.hostname = text }  // not onTextChanged: that fires at load and would pin the branding default
                                         font.family: Theme.monoFontFamily

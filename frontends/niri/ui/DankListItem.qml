@@ -23,6 +23,7 @@ AbstractButton {
     focusPolicy: Qt.StrongFocus
     Accessible.role: Accessible.ListItem
     Accessible.name: primaryText
+    Accessible.description: secondaryText
     Accessible.selected: isSelected
 
     background: Rectangle {

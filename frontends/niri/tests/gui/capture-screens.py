@@ -627,6 +627,17 @@ def main():
 
         # The account step's purpose is the user block; the confirm screen
         # is where the user checks it before anything is written.
+        # A screen reader names each field: the AT-SPI tree had the buttons
+        # and rows only (walkthrough, dev c1da3d96).
+        if name == "06-account":
+            for field, want in (("accountUsername", "Username"), ("accountFullname", "Full name"),
+                                ("accountPassword", "Password"), ("accountPasswordConfirm", "Password again")):
+                target = item(field)
+                said = QQmlExpression(QQmlEngine.contextForObject(target), target,
+                                      "Accessible.name + '|' + Accessible.role").evaluate()[0]
+                if not said or said.split("|")[0] != want:
+                    print(f"  !! {field} is read as {said!r}, not {want!r}", file=sys.stderr)
+                    sys.exit(1)
         if name in ("06-account", "07-confirm") and ACCOUNT["username"] not in finding["text"]:
             print(f"  !! the username is not on {name}", file=sys.stderr)
             sys.exit(1)
