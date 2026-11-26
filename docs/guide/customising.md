@@ -1,8 +1,13 @@
 # Customise the installer for your image
 
 You can ship the installer on a live ISO, in a bootc image or in an appliance.
-In all cases, put files in `/etc/bootc-installer/` in your OS tree.
+Put files in `/etc/bootc-installer/` in your OS tree.
 The installer reads them from the host when it starts.
+All five frontends read these files on the recipe path.
+The directory keeps the name `bootc-installer`.
+
+On the daemon path, the medium has one system, so there is no catalog and no recipe.
+There, `branding.json` and the license file `/usr/share/tuna-installer/eula.xml` apply.
 
 | Path | What it changes |
 |---|---|

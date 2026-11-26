@@ -1,4 +1,4 @@
-> **Part of the [bootc-installer monorepo](../../README.md).** This tree was
+> **Part of the [installer repository](../../README.md).** This tree was
 > `tuna-os/tuna-installer-cosmic` until 2026-09-17 and was imported with its history. CI for it
 > lives in the root `.github/workflows/` (`screenshots-cosmic.yml`,
 > `publish-flatpak.yml`); releases follow [`docs/RELEASE.md`](../../docs/RELEASE.md).

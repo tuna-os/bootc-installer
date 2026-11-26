@@ -66,6 +66,7 @@ SUMMARY_BLOCK_KEYS = {"encryption": frozenset({"type"}),
 STAGE_ALLOWLIST = (
     "e2e-recipe-*.summary.json",   # the summary
     "e2e-recipe-*.redacted.json",  # the redacted bytes for the VM job
+    "receipt-*.json",              # the evidence receipt (receipt.py)
     "install.log", "boot.log",     # vm-install.sh
     "serial-*.log", "journal-*.log", "qemu-stdout-*.log",  # boot-verify.sh
     "bootc-status-*.log", "bootctl-status-*.log", "efibootmgr-*.log",

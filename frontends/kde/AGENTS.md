@@ -1,7 +1,7 @@
 # AGENTS.md — agent guide for frontends/kde (formerly tuna-os/tuna-installer-kde)
 
 > **Monorepo note.** This directory is one of five frontends in
-> `tuna-os/bootc-installer`. Every path below is relative to THIS directory.
+> `tuna-os/installer`. Every path below is relative to THIS directory.
 > Workflows referenced as `screenshots.yml` / `publish-flatpak.yml` / `ci.yml`
 > are now `.github/workflows/screenshots-kde.yml`, `publish-flatpak.yml` (`frontend: kde`)
 > (plus `ci-niri.yml` for the niri Go backend) at the repository root, running with
@@ -75,7 +75,7 @@ then skips the step and the recipe has no block. The wizard also skips it
 when the medium names a first-boot tool in `TUNA_FIRSTBOOT_TOOL`
 (`plasma-setup`, `cosmic-initial-setup` or `gnome-initial-setup`): that
 tool then makes the user on the first boot. This is the one rule of the
-four native frontends (tuna-os/bootc-installer#442). Nothing on the disk
+four native frontends (tuna-os/installer#442). Nothing on the disk
 decides it. `detectFirstBootTool` only checks a claim of `plasma-setup`:
 when `plasma-setup.service` is masked, missing or not enabled, it logs a
 warning and the account step stays. The tunaOS images mask the unit today. The

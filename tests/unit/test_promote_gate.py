@@ -327,3 +327,14 @@ def test_every_flatpak_builder_container_keeps_its_runtimes_off_the_overlay():
                                for s in job.get("steps", []))
             if uses_builder:
                 assert "/var/lib/flatpak" in job["container"].get("volumes", []), f"{path.name}:{name}"
+
+
+def test_a_second_promotion_of_a_commit_dispatches_no_second_release():
+    """Falsification: drop the run lookup, or count failed runs as live."""
+    steps = _promote()["jobs"]["promote"]["steps"]
+    run = next(s["run"] for s in steps if s.get("name") == "Dispatch release on prod")
+    lookup, dispatch = run.index("release.yml/runs"), run.index("gh workflow run release.yml")
+    assert lookup < dispatch
+    assert "head_sha" in run
+    assert 'select(.status != "completed" or .conclusion == "success")' in run
+    assert "exit 0" in run[lookup:dispatch]

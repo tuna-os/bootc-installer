@@ -1,6 +1,6 @@
-# Contributing to bootc-installer
+# Contributing to the installer
 
-bootc-installer is a GTK4/Libadwaita Flatpak installer for container-native OS images from [bootc](https://containers.github.io/bootc/). Its install backend is `fisherman`, written in Go.
+This repository holds the installer frontends for [bootc](https://containers.github.io/bootc/) images: KDE, COSMIC, niri and XFCE in `frontends/`, and the legacy GNOME wizard in `bootc_installer/`. The install backend is [fisherman](https://github.com/tuna-os/fisherman), written in Go.
 
 <!-- hive-contribute-plea: donated-compute appeal, keep in sync across repos -->
 ## Contribute compute — no code needed
@@ -18,8 +18,8 @@ Never post account credentials or API keys in issues or pull requests.
 ## Getting started
 
 ```bash
-git clone --recurse-submodules https://github.com/tuna-os/bootc-installer
-cd bootc-installer
+git clone --recurse-submodules https://github.com/tuna-os/installer
+cd installer
 ```
 
 > **Important:** `fisherman` is a git submodule. Always clone with `--recurse-submodules`, or run `git submodule update --init --recursive` after a plain clone. Without this, `fisherman/` is empty and all build paths fail immediately.
@@ -97,10 +97,14 @@ The image catalog lives in [`fisherman/data/images.json`](https://github.com/tun
 
 | Component | Language | Role |
 |---|---|---|
-| `fisherman/fisherman/` | Go | Root-level CLI; reads JSON recipe, executes the disk install pipeline |
-| `bootc_installer/` | Python | GTK4/Adwaita GUI; collects user choices, writes recipe JSON, drives fisherman |
+| `frontends/kde/`, `cosmic/`, `niri/`, `xfce/` | C++, Rust, QML and Go, Python | Native frontends. Each has a `CONTRIBUTING.md` with its build and test commands |
+| `bootc_installer/` | Python | Legacy GNOME frontend (recipe path only) |
+| `shared/` | Data and Python | Contracts, fixtures and test tools |
+| `fisherman/fisherman/` | Go | Backend command of the recipe path (submodule) |
 
-See [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) for deeper architecture documentation.
+[Architecture](docs/architecture.md) has the full picture. GNOME changes for the image-based medium go to tunaOS, not here.
+
+The build and test commands above are for the legacy GNOME frontend.
 
 ## Code style
 
@@ -110,4 +114,4 @@ See [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) for deeper architecture do
 
 ## Security
 
-Report vulnerabilities through a [private vulnerability report on GitHub](https://github.com/tuna-os/bootc-installer/security/advisories/new). Do not open public issues for security bugs.
+Report vulnerabilities through a [private vulnerability report on GitHub](https://github.com/tuna-os/installer/security/advisories/new). Do not open public issues for security bugs.

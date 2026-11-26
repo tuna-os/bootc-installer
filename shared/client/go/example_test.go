@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	varlink "github.com/tuna-os/bootc-installer/shared/client/go"
+	varlink "github.com/tuna-os/installer/shared/client/go"
 )
 
 // Example_listCandidateDevices lists the disks of the installer daemon, as

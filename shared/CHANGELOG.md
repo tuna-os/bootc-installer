@@ -18,6 +18,19 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-25: the flow statuses follow the code, shared handoff cases
+
+- Added: `probe/handoff-cases.json`, the values of `handoff.mode` and the
+  mode that each frontend selects. KDE, COSMIC, Niri and XFCE test their
+  own parser against it. GNOME does not use the daemon.
+- Changed: the statuses in `flow/screens.yaml` follow the code. All four
+  native frontends have a page for each screen. The text uses `soft_reboot`,
+  as the wire does.
+- Added: `e2e/receipt.py`, a receipt for each run of the VM canary.
+
+Contracts version: `2.4.0`
+Contracts sha256: `ba9d2fddc9de0f603d8cc45fa0a45e856351748b6f9a83692ea89a8d8a0c27fc`
+
 ## 2026-11-25: no program names in the copy; the RST page warns
 
 - Changed text: the lines of `branding/copy-defaults.json` that named

@@ -16,6 +16,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QElapsedTimer>
 #include <QJsonObject>
@@ -135,6 +136,7 @@ private Q_SLOTS:
     void backendSwitch();
     void socketPaths();
     void handoffModeSpellings();
+    void handoffModeSharedCases();
     void installConfigMapsTheRecipe();
     void privacyOnlyWhenChanged();
     void eventsBecomeProgressLines();
@@ -267,6 +269,24 @@ void DaemonTest::handoffModeSpellings()
     QCOMPARE(fishermand::normalHandoffMode(QStringLiteral("reboot")), QStringLiteral("reboot"));
     QCOMPARE(fishermand::normalHandoffMode(QString()), QStringLiteral("reboot"));
     QCOMPARE(fishermand::normalHandoffMode(QStringLiteral("kexec")), QStringLiteral("reboot"));
+}
+
+void DaemonTest::handoffModeSharedCases()
+{
+    // shared/probe/handoff-cases.json: the cases every frontend meets.
+    const QString path = QFileInfo(QStringLiteral(__FILE__)).dir().absoluteFilePath(
+        QStringLiteral("../../../shared/probe/handoff-cases.json"));
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        QSKIP("shared cases only exist in the monorepo checkout");
+    const QJsonArray cases = QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("cases")).toArray();
+    QVERIFY(!cases.isEmpty());
+    for (const QJsonValue &v : cases) {
+        const QJsonObject c = v.toObject();
+        // A missing field reaches the reader as an empty string.
+        const QString wire = c.value(QStringLiteral("wire_mode")).toString();
+        QCOMPARE(fishermand::normalHandoffMode(wire), c.value(QStringLiteral("mode")).toString());
+    }
 }
 
 void DaemonTest::installConfigMapsTheRecipe()

@@ -1,7 +1,7 @@
 package main
 
 // The fishermand backend: the same subcommands over Varlink instead of the
-// `fisherman` recipe CLI (tuna-os/fisherman#512, tuna-os/bootc-installer#445).
+// `fisherman` recipe CLI (tuna-os/fisherman#512, tuna-os/installer#445).
 //
 // The QML keeps calling this backend's subcommands (`discover-disks`,
 // `detect`, `validate`, `install`, `cancel`) with the same shapes, so the

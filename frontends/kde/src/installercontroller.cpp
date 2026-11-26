@@ -1782,7 +1782,7 @@ void InstallerController::reboot()
 QString InstallerController::detectFirstBootTool(const QString &root)
 {
     // One rule for the four native frontends (ruling on
-    // tuna-os/bootc-installer#442): the installer makes the user, unless
+    // tuna-os/installer#442): the installer makes the user, unless
     // the medium names the first-boot tool that does, in
     // TUNA_FIRSTBOOT_TOOL. Nothing on the disk decides it.
     const QString tool = qEnvironmentVariable("TUNA_FIRSTBOOT_TOOL").trimmed();

@@ -1,5 +1,9 @@
 # Building a bootc Live ISO with bootc-installer
 
+This page is about the live ISO and its legacy GNOME frontend, which use the
+recipe path. [The image-based medium](image-medium.md) is the planned
+replacement, and you cannot download it yet.
+
 This document explains how to build a bootable live ISO that auto-launches
 bootc-installer for offline installation of a bootc image. It documents the
 configuration conventions the installer expects, and the OS-image-side setup
@@ -142,7 +146,7 @@ sent to fisherman.
 | `tour` | — | Progress screen tour slides (`welcome` and `completed`) |
 | `store_url` | — | If set, shows a merch store QR code for US-locale users on the done screen |
 | `store_qr_resource` | — | GResource path for the store QR SVG; defaults to the built-in `assets/store-qr.svg` |
-| `credits_data` | — | GResource path **or** filesystem path to a `credits.json` file; defaults to the built-in `data/credits.json` |
+| `credits_data` | — | GResource path **or** filesystem path to a `credits.json` file; the default has no credits file |
 
 #### Step templates
 

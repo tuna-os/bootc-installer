@@ -1,16 +1,29 @@
 # Install and use the installer
 
-bootc-installer is a Flatpak.
-It installs a [bootc](https://containers.github.io/bootc/) container image to a disk.
+A live ISO starts the installer of its desktop by itself.
+You can also run a frontend as a Flatpak on a Linux system.
+A Flatpak uses the [recipe path](../architecture.md#the-recipe-path).
 
-## Get the Flatpak
+## Get a native frontend
 
-Use the production build for a real install.
+The KDE, COSMIC, niri and XFCE frontends are in the TunaOS Flatpak remote.
+[The Flatpak guide](https://tunaos.org/docs/flatpak/guide) tells you how to add it.
+
+| Desktop | App ID |
+|---|---|
+| KDE Plasma | `org.tunaos.InstallerKde` |
+| COSMIC | `org.tunaos.InstallerCosmic` |
+| niri | `org.tunaos.InstallerNiri` |
+| XFCE | `org.tunaos.InstallerXfce` |
+
+## Get the legacy GNOME frontend
+
+Live ISOs with GNOME use this frontend today.
 This command removes an old copy, then installs the latest release:
 
 ```bash
 curl -Lo installer.flatpak \
-  https://github.com/tuna-os/bootc-installer/releases/latest/download/org.bootcinstaller.Installer.flatpak \
+  https://github.com/tuna-os/installer/releases/latest/download/org.bootcinstaller.Installer.flatpak \
   && sudo flatpak uninstall -y org.bootcinstaller.Installer org.bootcos.Installer 2>/dev/null; sudo flatpak install --bundle -y installer.flatpak
 ```
 
@@ -19,7 +32,7 @@ Use it to test new changes:
 
 ```bash
 curl -Lo installer-devel.flatpak \
-  https://github.com/tuna-os/bootc-installer/releases/download/latest-dev/org.bootcinstaller.Installer.Devel.flatpak \
+  https://github.com/tuna-os/installer/releases/download/latest-dev/org.bootcinstaller.Installer.Devel.flatpak \
   && sudo flatpak uninstall -y org.bootcinstaller.Installer.Devel 2>/dev/null; sudo flatpak install --bundle -y installer-devel.flatpak
 ```
 
@@ -34,7 +47,32 @@ flatpak run org.bootcinstaller.Installer
 
 On a live ISO, the installer starts by itself.
 
-## The wizard, screen by screen
+## The native frontends, screen by screen
+
+The four native frontends have the same screens in the same order.
+A screen that does not apply does not show.
+
+| Screen | What you do |
+|---|---|
+| Requirements | See what the computer does not have. It shows only when a check fails. |
+| Try or install | Use the live desktop, or start the install. |
+| Language, keyboard, time zone | Select them for the live session and the new system. |
+| Network | Connect. It shows only when the install downloads an image. |
+| Disclaimer, terms of use | Read them. They show only when the image has them. |
+| Intel RST | Read the warning when RST hides a disk. |
+| Disk | Select the disk. |
+| Existing data | Use the free space, or erase the disk (daemon path). |
+| Encryption | Select how the disk unlocks. |
+| Account | Type the name and the password of the first user. |
+| Confirm | Make sure that the data is correct. The install writes to the disk after this screen. |
+| Install | Wait, or cancel. |
+| Recovery key | Keep the key in a safe place. You can scan a QR code. |
+| Handoff | Read how the new system starts (daemon path). |
+| Done | Restart. |
+
+[The walkthrough](../walkthrough/README.md) has an image of each screen.
+
+## The legacy GNOME wizard, screen by screen
 
 The images below come from CI.
 Refer to [the GNOME walkthrough](../gui-walkthrough.md) for the full set.
@@ -57,8 +95,3 @@ Refer to [the GNOME walkthrough](../gui-walkthrough.md) for the full set.
 
 Some screens show only for some images.
 For example, the account screen shows only when the image needs a user account.
-
-## Other frontends
-
-The KDE, COSMIC, Niri and XFCE frontends use the same backend and the same screen contract.
-Refer to [the walkthrough for all frontends](../walkthrough/README.md).

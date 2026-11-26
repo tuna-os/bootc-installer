@@ -156,7 +156,7 @@ def gh_jobs(repo, run_id):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "tuna-os/bootc-installer"))
+    parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "tuna-os/installer"))
     parser.add_argument("--git-dir", default=".")
     parser.add_argument("--head", default="HEAD")
     parser.add_argument("--run-id", default=os.environ.get("GITHUB_RUN_ID"),

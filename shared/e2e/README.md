@@ -160,10 +160,38 @@ the recipe, the logs, the backend's answer and the credentials file. It
 makes sure that no sentinel reaches a publication directory or the console,
 as it is, as a hash or as base64.
 
-Not in this change: the receipts and the evidence classes of #270. A
-receipt records the run, the source and the harness of the evidence, and
-how much the evidence proves. Its contract is tunaOS#3475, which is not
-final.
+## Evidence receipts (#270)
+
+`receipt.py` maps the existing outputs to a versioned receipt
+(`installer-evidence-receipt`, version 1, shaped for tunaOS#3475, which is
+not final). It is an adapter, not a runner: capture and assertions stay in
+each frontend's harness.
+
+| Producer | Receipt | Evidence class |
+|---|---|---|
+| `walkthrough-<flavor>.json` (`receipt.py walkthrough`) | `walkthrough-screens` | `programmatic-capture`: widget-tree text, no OCR, programmatic navigation, `activation_key` and `backend_outcome` stay null (unknown) |
+| `vm-install.sh` (`receipt.py canary`, written on exit as `receipt-<frontend>.json`) | `vm-install-and-boot` | `modified-canary`, with the structured `modifications`: the canary image, SSH enabled, `console=ttyS0 enforcing=0` on the kernel line |
+
+`receipt.py validate FILE [--claim CLASS] [--dir ARTIFACTS]` returns the
+reasons a receipt cannot stand for its capability:
+
+- A canary cannot be claimed as `installed-media`. That claim needs the
+  class, no modifications, the image digest and the source revision (and
+  the ISO identity for a claim about an ISO).
+- A required assertion that is failed, blocked, not-run, flaky or unknown
+  cannot give `passed`. `unsupported` and `inapplicable` need a reason.
+  The check is per capability: one bad receipt does not fail another.
+- A mandatory artifact needs its sha256, and `--dir` checks it.
+- A pass after a failed attempt must be `flaky`, and the attempts list keeps
+  the first failure. A `secret` or `destructive` action is not retried.
+- The receipt is final only after teardown. `vm-install.sh` removes only
+  the loop device and image it attached itself, before it writes the
+  receipt. A failed cleanup turns the receipt (and a passing run) red and
+  never hides the original failure.
+
+`tests/unit/test_e2e_receipt.py` holds positive fixtures and one negative
+control for each rule. Not here: OCR and live-frame capture adapters, and
+installed-media qualification, which stay in their own lanes.
 
 ## Run it locally
 

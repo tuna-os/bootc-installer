@@ -1,4 +1,4 @@
-// Vendored from shared/client/go/varlink.go (tuna-os/bootc-installer#442).
+// Vendored from shared/client/go/varlink.go (tuna-os/installer#442).
 // Kept in sync by hand: the daemon interface is stable, and a module
 // dependency would drag the whole shared tree into the Flatpak.
 // Package varlink is a thin Varlink client: JSON over a UNIX socket, with

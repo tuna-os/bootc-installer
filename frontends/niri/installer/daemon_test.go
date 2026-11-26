@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -465,6 +466,46 @@ func TestDaemonProbeFactsHandoff(t *testing.T) {
 	got = probe(`"handoff":{"mode":"hyperloop"}`)
 	if got.HandoffMode != "reboot" {
 		t.Errorf("unknown mode: got %q, want reboot", got.HandoffMode)
+	}
+}
+
+// The cases every frontend meets: shared/probe/handoff-cases.json.
+func TestDaemonProbeFactsHandoffSharedCases(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "shared", "probe", "handoff-cases.json"))
+	if err != nil {
+		t.Skipf("shared cases not available: %v", err)
+	}
+	var file struct {
+		Cases []struct {
+			Name     string  `json:"name"`
+			WireMode *string `json:"wire_mode"`
+			Mode     string  `json:"mode"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(data, &file); err != nil || len(file.Cases) == 0 {
+		t.Fatalf("handoff-cases.json: %v (%d cases)", err, len(file.Cases))
+	}
+	for _, c := range file.Cases {
+		handoff := ""
+		if c.WireMode != nil {
+			handoff = `,"handoff":{"mode":` + strconv.Quote(*c.WireMode) + `}`
+		}
+		sock := scriptedPeer(t, map[string][]string{
+			"io.tunaos.Fisherman.Requirements": {reply(
+				`{"meetsRequirements":true,"gates":[]}`, false)},
+			"io.tunaos.Fisherman.Probe": {reply(
+				`{"protocolVersion":1,"disks":[],"tpm":{"present":true,"version":"2.0","usable":true},`+
+					`"intelRst":{"detected":false,"affectedDisks":[]},"live":{"isLive":true}`+
+					handoff+`}`, false)},
+		})
+		withDaemonSocket(t, sock)
+		facts, err := daemonProbeFacts()
+		if err != nil {
+			t.Fatalf("%s: %v", c.Name, err)
+		}
+		if facts.HandoffMode != c.Mode {
+			t.Errorf("%s: got %q, want %q", c.Name, facts.HandoffMode, c.Mode)
+		}
 	}
 }
 

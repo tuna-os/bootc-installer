@@ -23,3 +23,4 @@ org.bootcinstaller.Installer.Devel.flatpak
 docs/browser/
 /build-wasm-niri/
 e2e-publish/
+.coverage

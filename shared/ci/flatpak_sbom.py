@@ -10,7 +10,7 @@ as a dry run:
     # anchore/sbom-action scans sbom-src/kde and writes kde.syft.spdx.json
     python3 shared/ci/flatpak_sbom.py merge --frontend kde \\
         --syft kde.syft.spdx.json --out kde.spdx.json \\
-        --repo-url https://github.com/tuna-os/bootc-installer --commit "$GITHUB_SHA"
+        --repo-url https://github.com/tuna-os/installer --commit "$GITHUB_SHA"
     python3 shared/ci/flatpak_sbom.py check --commit "$GITHUB_SHA" kde.spdx.json
 
 `stage` copies the lock files that the frontend's Flatpak builds from

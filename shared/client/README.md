@@ -2,7 +2,7 @@
 
 Thin Varlink clients for the installer daemon (tuna-os/fisherman#512).
 Varlink is JSON over a UNIX socket, so each client is under 150 lines. Issue:
-tuna-os/bootc-installer#442.
+tuna-os/installer#442.
 
 ## The wire format
 
@@ -29,8 +29,8 @@ request or a reply. The error type of each client shows the error name only.
 
 "Tested" means that the unit tests of this directory pass. They run each
 client against a scripted peer on a UNIX socket. The peer tests the wire
-format. It is not the mock daemon of tuna-os/fisherman. Nothing here has run
-against `fishermand`, which does not exist yet.
+format. It is not the mock daemon of tuna-os/fisherman, and no test here runs
+against `fishermand`. The frontends have their own tests against its mock.
 
 The Python client also ran
 against a real systemd service: `GetInfo` and an error reply on
@@ -38,7 +38,7 @@ against a real systemd service: `GetInfo` and an error reply on
 service.
 
 The C++ header is a recipe, not a library. It has no moc step. The Rust crate
-and the Go module are examples that a frontend copies or vendors. Issue 512 does not name the socket path of `io.tunaos.Fisherman` (see `shared/flow/README.md`), so each client takes a path.
+and the Go module are examples that a frontend copies or vendors. Each client takes the socket path. The default of `fishermand` is `/run/fisherman/io.tunaos.Fisherman`.
 
 ## Sizes
 

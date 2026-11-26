@@ -2,7 +2,7 @@
 
 This is the flow spec for the four native frontends (KDE, COSMIC, Niri,
 XFCE). It comes from [gnome-setup](https://github.com/hanthor/gnome-setup)
-(branch `utah`), read from its source. Issue: tuna-os/bootc-installer#442.
+(branch `utah`), read from its source. Issue: tuna-os/installer#442.
 Daemon: tuna-os/fisherman#512.
 
 `screens.yaml` is the machine-readable spec. This file explains it. A test
@@ -15,7 +15,7 @@ widgets, motion and words follow the toolkit. The order below is the order of
 `screens.yaml`. A frontend skips a screen that has nothing to show. It never shows a blank one.
 
 A frontend reports the screen id as `page=` in the readiness stamp. The stamp
-itself is in section 1 of `docs/INSTALLER-FRONTENDS.md` in tunaOS.
+itself is in section 1 of [INSTALLER-FRONTENDS.md](https://github.com/tuna-os/tunaOS/blob/main/docs/INSTALLER-FRONTENDS.md) in tunaOS.
 
 | # | Id | Shows when | Varlink call |
 |---|---|---|---|
@@ -40,13 +40,13 @@ itself is in section 1 of `docs/INSTALLER-FRONTENDS.md` in tunaOS.
 
 The tables use short names. `screens.yaml` has the full names, the inputs
 and outputs, the skip rules, the failure states and the accessibility names.
-Field names of `io.tunaos.Fisherman` are proposals until the daemon lands.
+Field names of `io.tunaos.Fisherman` follow the daemon (tuna-os/fisherman).
 
 ## Required screens
 
 The harness needs six: `try-or-install`, `disk`, `confirm`, `install`,
 `recovery-key` and `done`. A frontend records the others until the owners promote them. `installer-screens.proposed.yaml` holds the proposed content of
-`tests/installer-screens.yaml` in tunaOS. That file is in another repository,
+the `installer-screens` file in tunaOS. That file is in another repository,
 so this copy is a proposal. It keeps the six old ids as `aliases`, because
 the walkthrough script and `shared/walkthrough/parity_report.py` read them.
 
@@ -55,7 +55,7 @@ the walkthrough script and `shared/walkthrough/parity_report.py` read them.
 Issue #442 says that the order matches gnome-setup. These points are not so.
 Each comes from the source of gnome-setup.
 
-- `timezone`, `network`, `privacy` and `user` are in `data/pages.conf`. No
+- `timezone`, `network`, `privacy` and `user` are in the page list of gnome-setup. No
   page builds them. The loader logs `unsupported page` and drops them.
 - `window.rs` sets the mode to `live-initial-setup` (a TODO). So `installer-welcome` never runs. A single class builds both welcome ids.
 - `language`, `keyboard`, `prerelease` and `eula` come before
@@ -79,43 +79,33 @@ Each comes from the source of gnome-setup.
 ## Frontends today
 
 Status is `have`, `partial` or `missing`, from the code of each frontend.
-`DESIGN.md` of KDE and COSMIC is stale: both say that the recipe has no
-locale field, and it has one.
+All four frontends have a page for each screen. Niri and XFCE show the
+`requirements` gates in a dialog, so that row is `partial` for them.
 
 | Screen | KDE | COSMIC | Niri | XFCE |
 |---|---|---|---|---|
-| `requirements` | partial | have | partial | partial |
-| `try-or-install` | missing | partial | missing | missing |
-| `language` | partial | have | have | partial |
-| `keyboard` | partial | have | have | partial |
-| `timezone` | partial | have | have | partial |
-| `network` | partial | have | have | partial |
-| `prerelease` | missing | missing | missing | missing |
-| `eula` | missing | missing | missing | missing |
-| `rst` | missing | missing | missing | missing |
+| `requirements` | have | have | partial | partial |
+| `try-or-install` | have | have | have | have |
+| `language` | have | have | have | have |
+| `keyboard` | have | have | have | have |
+| `timezone` | have | have | have | have |
+| `network` | have | have | have | have |
+| `prerelease` | have | have | have | have |
+| `eula` | have | have | have | have |
+| `rst` | have | have | have | have |
 | `disk` | have | have | have | have |
-| `wipe-or-free` | missing | missing | missing | missing |
-| `encryption` | partial | partial | have | have |
+| `wipe-or-free` | have | have | have | have |
+| `encryption` | have | have | have | have |
 | `account` | have | have | have | have |
 | `confirm` | have | have | have | have |
 | `install` | have | have | have | have |
-| `recovery-key` | partial | partial | partial | partial |
-| `handoff` | missing | missing | missing | missing |
+| `recovery-key` | have | have | have | have |
+| `handoff` | have | have | have | have |
 | `done` | have | have | have | have |
 
-Every `recovery-key` is partial for the same reason. The key sits in a
-panel on the done page, with a copy button and an acknowledgement box. None
-has a QR code, and none has its own screen.
-
-The page counts in the port issues differ from the code:
-
-- KDE has seven modules. Language, keyboard and time zone are on its welcome
-  module. A network gate and a requirements gate exist.
-- COSMIC has fourteen pages, as #444 says.
-- Niri has nine steps, not seven. Its Session step holds keyboard, language,
-  time zone and network.
-- XFCE has eight pages, not seven. Its identity page holds language,
-  keyboard and time zone in an expander.
+`have` says that the page exists and that its frontend's own tests and
+screenshots show it. It does not say that the page ran on an installer
+medium. `docs/image-medium.md` has that state.
 
 ## Test contract
 

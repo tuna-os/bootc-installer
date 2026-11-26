@@ -1,7 +1,7 @@
 # test_new_pages.py - try-or-install, network, prerelease, eula, rst
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# The screens the XFCE frontend was missing (tuna-os/bootc-installer#446):
+# The screens the XFCE frontend was missing (tuna-os/installer#446):
 # each has its page, its skip rule, and its spec id in the readiness stamp.
 
 import types

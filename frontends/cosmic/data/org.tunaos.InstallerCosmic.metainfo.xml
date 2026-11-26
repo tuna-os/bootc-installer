@@ -16,8 +16,8 @@
       image, then hands over to a first boot of TunaOS.
     </p>
     <p>
-      Installation itself is carried out by the fisherman bootc backend, so
-      every desktop front-end installs exactly the same system.
+      The fisherman service does the install, so every desktop front-end
+      installs exactly the same system.
     </p>
     <p>
       This front-end comes preinstalled on the TunaOS COSMIC live image. You
@@ -39,19 +39,19 @@
   -->
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/tuna-os/tuna-installer-cosmic/main/docs/screenshots/01-welcome.png</image>
+      <image>https://raw.githubusercontent.com/tuna-os/installer/dev/frontends/cosmic/docs/screenshots/02-try-or-install.png</image>
       <caption>Starting the install wizard</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/tuna-os/tuna-installer-cosmic/main/docs/screenshots/02-disk.png</image>
+      <image>https://raw.githubusercontent.com/tuna-os/installer/dev/frontends/cosmic/docs/screenshots/11-disk.png</image>
       <caption>Choosing which disk to install to</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/tuna-os/tuna-installer-cosmic/main/docs/screenshots/03-options.png</image>
-      <caption>Setting the computer name, filesystem and encryption</caption>
+      <image>https://raw.githubusercontent.com/tuna-os/installer/dev/frontends/cosmic/docs/screenshots/13-encryption.png</image>
+      <caption>Choosing how the disk is encrypted</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/tuna-os/tuna-installer-cosmic/main/docs/screenshots/05-installing.png</image>
+      <image>https://raw.githubusercontent.com/tuna-os/installer/dev/frontends/cosmic/docs/screenshots/18-installing.png</image>
       <caption>Writing the system image</caption>
     </screenshot>
   </screenshots>
@@ -74,8 +74,8 @@
   </branding>
 
   <url type="homepage">https://tunaos.org</url>
-  <url type="bugtracker">https://github.com/tuna-os/tuna-installer-cosmic/issues</url>
-  <url type="vcs-browser">https://github.com/tuna-os/tuna-installer-cosmic</url>
+  <url type="bugtracker">https://github.com/tuna-os/installer/issues</url>
+  <url type="vcs-browser">https://github.com/tuna-os/installer</url>
 
   <categories>
     <category>System</category>
