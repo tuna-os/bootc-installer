@@ -507,9 +507,19 @@ fn mock_no_tpm_walk_installs_with_a_passphrase() {
     assert!(events.iter().any(|e| e["stepId"] == "luks"), "no luks step");
     assert!(!events.iter().any(|e| e.to_string().contains("correct horse")));
     // recovery-key: the passphrase unlocks the volume for the enrolment.
+    // The app takes it from the recipe (Message::RecoveryDone); an empty
+    // one is refused, which held Done for ever on XFCE (installer#488).
+    let unlock = crate::recovery_unlock_password(&recipe);
+    assert_eq!(unlock, "correct horse battery staple");
     let mut crypt = mock.connect();
     let key = fishermand::make_recovery_key(&mut crypt).unwrap();
-    fishermand::enroll_recovery(&mut crypt, &recipe.disk, &key, &recipe.encryption.passphrase).unwrap();
+    assert!(
+        fishermand::enroll_recovery(&mut crypt, &recipe.disk, &key, "").is_err(),
+        "no-tpm: an empty unlock password must not enrol"
+    );
+    let mut crypt = mock.connect();
+    let key = fishermand::make_recovery_key(&mut crypt).unwrap();
+    fishermand::enroll_recovery(&mut crypt, &recipe.disk, &key, &unlock).unwrap();
 }
 
 #[test]

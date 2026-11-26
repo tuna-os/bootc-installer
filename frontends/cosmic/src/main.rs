@@ -68,6 +68,17 @@ pub const APP_ID: &str = "org.tunaos.InstallerCosmic";
 /// binary, so the web build needs no entry of its own and no dependency
 /// that Cargo.lock does not already have. In a browser no environment
 /// variable is set, so `capture` is `None`.
+/// The password that unlocks the installed volume for the recovery-key
+/// enrolment (`CryptEnroll.Enroll` `unlockPassword`). Without a TPM the
+/// volume has only the person's passphrase, and an empty one fails with
+/// PasswordIncorrect (installer#488, XFCE): Done then waits for ever. With
+/// a TPM the type takes no passphrase, `choose_encryption` cleared it, and
+/// the daemon unlocks through the TPM.
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+pub(crate) fn recovery_unlock_password(recipe: &model::Recipe) -> String {
+    recipe.encryption.passphrase.clone()
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
@@ -2703,7 +2714,7 @@ impl cosmic::Application for TunaInstaller {
                     self.recovery_enrolling = true;
                     self.recovery_error = None;
                     let disk = self.recipe.disk.clone();
-                    let passphrase = self.recipe.encryption.passphrase.clone();
+                    let passphrase = recovery_unlock_password(&self.recipe);
                     return Task::perform(
                         async move {
                             tokio::task::spawn_blocking(move || {
