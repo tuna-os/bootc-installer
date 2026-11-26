@@ -2373,11 +2373,20 @@ fn welcome(app: &TunaInstaller) -> Element<'_, Message> {
     ])
     .align_y(Alignment::Center)
     .spacing(spacing.space_s);
-    widget::column::with_children(vec![
-        widget::space::vertical().into(),
+    // The hero and the accessibility rows scroll; the footer never does. In
+    // the window that cosmic-comp gives (880x560 on a 1280x800 screen) the
+    // page is taller than the window, and Get started was below its edge.
+    let content = widget::column::with_children(vec![
         hero.into(),
         widget::container(access).center_x(Length::Fill).into(),
-        widget::space::vertical().into(),
+    ])
+    .spacing(spacing.space_m)
+    .width(Length::Fill);
+    widget::column::with_children(vec![
+        widget::container(widget::scrollable(content).width(Length::Fill))
+            .width(Length::Fill)
+            .center_y(Length::Fill)
+            .into(),
         footer.into(),
     ])
     .spacing(spacing.space_m)
