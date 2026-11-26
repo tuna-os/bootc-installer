@@ -63,6 +63,8 @@ def main():
     ap.add_argument("new")
     ap.add_argument("--committed", default="")
     ap.add_argument("--summary", default="")
+    ap.add_argument("--verdict", default="",
+                    help="write 'changed' or 'same' here: whether a pull request is worth it")
     a = ap.parse_args()
     new, _ = load(a.new)
     with open(os.path.join(a.new, "manifest.json"), encoding="utf-8") as fh:
@@ -105,6 +107,14 @@ def main():
     out += [f"| `{n}` | {st} | {p} |" for n, st, p in rows]
     if exempt:
         out += ["", "Exempt pages:", ""] + [f"- `{k}`: {v}" for k, v in exempt.items()]
+    changed = any(st in ("new", "changed", "changed (size)") for _n, st, _p in rows) \
+        or any(n not in new for n in old)
+    if a.verdict:
+        with open(a.verdict, "w", encoding="utf-8") as fh:
+            fh.write("changed\n" if changed else "same\n")
+    out.insert(2, "Verdict: the pictures changed." if changed else
+               "Verdict: no page changed beyond antialiasing.")
+    out.insert(3, "")
     text = "\n".join(out) + "\n"
     print(text)
     if a.summary:

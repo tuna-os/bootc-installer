@@ -132,3 +132,7 @@ VARIANTS = {"gnome": ("small",), "kde": ("dark", "small"), "cosmic": ("small",),
 # no other heading does.
 WEAK = [r"Done", r"Finished", r"Installed", r"Installation", r"Progress", r"Confirm",
         r"Account", r"Encryption", r"Network", r"Terms", r"Summary"]
+
+# Placeholders of empty entries, read by OCR (niri: Quickshell gives its
+# entries no AT-SPI node), and what goes in each.
+OCR_PLACEHOLDERS = [(r"Enter passphrase", "pass"), (r"Confirm passphrase", "pass")]

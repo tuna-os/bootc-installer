@@ -22,7 +22,7 @@ sys.path.insert(0, HERE)
 import apps  # noqa: E402
 import flows  # noqa: E402
 import runs  # noqa: E402
-from session import Session, SessionError  # noqa: E402
+from session import Session  # noqa: E402
 
 OCR_FRONTENDS = ("cosmic", "niri")  # niri gives names to buttons, not to text
 BUTTONS = ("button", "push button", "toggle button", "link")
@@ -416,7 +416,7 @@ def main():
                 for k, v in got.items():
                     pages.setdefault(k, v)
                 break
-            except (Stuck, SessionError, subprocess.SubprocessError) as exc:
+            except Exception as exc:  # noqa: BLE001 - one run must not stop the others
                 print(f"  FAIL {exc}", flush=True)
                 if attempt == 2:
                     errors.append(f"{run.name}: {exc}"[:600])

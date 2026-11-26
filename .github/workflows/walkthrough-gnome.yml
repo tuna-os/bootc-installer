@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   walk:
-    uses: ./.github/workflows/_walkthrough.yml
+    uses: $/.github/workflows/_walkthrough.yml
     permissions:
       contents: read
       pull-requests: write

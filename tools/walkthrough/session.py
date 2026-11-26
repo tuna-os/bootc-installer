@@ -81,8 +81,11 @@ class Session:
         os.makedirs(icons, exist_ok=True)
         shutil.copy(os.path.join(HERE, "../../data/icons/hicolor/scalable/apps",
                                  "org.bootcinstaller.Installer.svg"), icons)
-        subprocess.run(["gtk4-update-icon-cache", "-qtf", "/usr/share/icons/hicolor"],
-                       check=False, stderr=subprocess.DEVNULL)
+        for tool in ("gtk4-update-icon-cache", "gtk-update-icon-cache"):
+            if shutil.which(tool):
+                subprocess.run([tool, "-qtf", "/usr/share/icons/hicolor"],
+                               check=False, stderr=subprocess.DEVNULL)
+                break
         self._settings()
         os.makedirs("/home/liveuser/.config", exist_ok=True)
         self._system_bus()

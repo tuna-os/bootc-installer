@@ -73,8 +73,14 @@ def fill_fields(w, values):
                     w.type_into(box[0] + min(box[2] - 8, 60), box[1] + box[3] / 2, value)
                     break
     else:
-        how, dx = flows.FIELD_AT.get(w.fe, ("after", 260))
         wanted = {v for _words, v in values}
+        # An empty entry that shows its placeholder: click the placeholder.
+        for text, key in flows.OCR_PLACEHOLDERS:
+            box = w.find_text(text)
+            if box and flows.ACCOUNT[key] in wanted:
+                w.type_into(box[0] + box[2] / 2, box[1] + box[3] / 2, flows.ACCOUNT[key])
+        w.read()
+        how, dx = flows.FIELD_AT.get(w.fe, ("after", 260))
         for label, key in flows.OCR_LABELS:
             value = flows.ACCOUNT[key]
             box = w.find_text(label)
