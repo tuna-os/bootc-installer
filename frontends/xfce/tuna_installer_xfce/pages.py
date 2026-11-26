@@ -640,8 +640,8 @@ class WelcomePage(Page):
         self.pack_start(body, False, False, 0)
         # A screen reader as early as the first page (standard A6): XFCE
         # has no shortcut for it. Mnemonic Alt+R. The choice goes to the
-        # installed system in ConfigureTarget, only when the person
-        # changed it (accessibility_choice).
+        # installed system in ConfigureTarget when it is on, or was
+        # turned off here (accessibility_choice).
         self.reader_initial = core.screen_reader_enabled()
         self.reader = Gtk.CheckButton.new_with_mnemonic(_("Screen _reader"))
         a11y_name(self.reader, _("Screen reader"))
@@ -678,12 +678,14 @@ class WelcomePage(Page):
                 "The screen reader setting could not be changed.")})
 
     def accessibility_choice(self):
-        """ConfigureTarget `accessibility`, or None when the person left
-        the screen reader as the live session had it."""
+        """ConfigureTarget `accessibility`: on whenever the box is ticked
+        (the session may have had it on before the installer started),
+        off only when the person turned it off here; None leaves the
+        installed system's default."""
         on = self.reader.get_active()
-        if on == self.reader_initial:
-            return None
-        return {"screenReader": on}
+        if on or self.reader_initial:
+            return {"screenReader": on}
+        return None
 
     def _on_try(self, *_args):
         """End the wizard; the live session keeps running."""

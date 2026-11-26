@@ -39,7 +39,9 @@ def test_the_toggle_shows_the_sessions_setting(monkeypatch):
     assert page.reader.get_active()
     assert page.reader.get_use_underline()
     assert page.reader.get_accessible().get_name() == "Screen reader"
-    assert page.accessibility_choice() is None
+    assert page.accessibility_choice() == {"screenReader": True}, "on is carried"
+    page.reader.set_active(False)
+    assert page.accessibility_choice() == {"screenReader": False}
 
 
 def test_turning_it_on_applies_it_now_and_carries_it(monkeypatch):
@@ -52,7 +54,7 @@ def test_turning_it_on_applies_it_now_and_carries_it(monkeypatch):
     page.reader.set_active(False)
     assert ["gsettings", "set", *KEY, "false"] in calls
     assert spawned[-1] == ["orca", "--quit"]
-    assert page.accessibility_choice() is None, "back to the session's value: nothing sent"
+    assert page.accessibility_choice() is None, "off as the session had it: nothing sent"
 
 
 def test_a_setting_that_cannot_be_written_says_so(monkeypatch):
