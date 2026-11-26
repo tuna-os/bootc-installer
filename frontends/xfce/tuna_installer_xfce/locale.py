@@ -60,12 +60,86 @@ def current_language():
 def available_keyboard_layouts():
     """X11 layouts localectl knows, or the layouts a decade-old laptop most
     plausibly has (DESIGN.md's brief) where it knows none."""
-    found = _run(["localectl", "list-x11-keymap-layouts", "--no-pager"])
+    found = (_run(["localectl", "list-x11-keymap-layouts", "--no-pager"])
+             or sorted(keyboard_names(), key=lambda v: keyboard_label(v).casefold()))
     if found:
         return found
     return ["us", "gb", "de", "fr", "es", "it", "pt", "br", "ru", "pl",
             "cz", "se", "no", "dk", "fi", "hu", "gr", "tr", "ua", "il",
             "ara", "jp", "cn"]
+
+
+XKB_LISTS = ("/usr/share/X11/xkb/rules/evdev.lst",
+             "/usr/share/X11/xkb/rules/base.lst")
+# The name of each language in that language, as COSMIC shows it.
+LANGUAGES = {
+    "af": "Afrikaans", "ar": "العربية", "be": "Беларуская", "bg": "Български",
+    "bn": "বাংলা", "bs": "Bosanski", "ca": "Català", "cs": "Čeština", "cy": "Cymraeg",
+    "da": "Dansk", "de": "Deutsch", "el": "Ελληνικά", "en": "English",
+    "eo": "Esperanto", "es": "Español", "et": "Eesti", "eu": "Euskara", "fa": "فارسی",
+    "fi": "Suomi", "fr": "Français", "ga": "Gaeilge", "gl": "Galego", "gu": "ગુજરાતી",
+    "he": "עברית", "hi": "हिन्दी", "hr": "Hrvatski", "hu": "Magyar", "hy": "Հայերեն",
+    "id": "Bahasa Indonesia", "is": "Íslenska", "it": "Italiano", "ja": "日本語",
+    "ka": "ქართული", "kk": "Қазақша", "km": "ខ្មែរ", "kn": "ಕನ್ನಡ", "ko": "한국어",
+    "lt": "Lietuvių", "lv": "Latviešu", "mk": "Македонски", "ml": "മലയാളം",
+    "mr": "मराठी", "ms": "Bahasa Melayu", "nb": "Norsk bokmål", "ne": "नेपाली",
+    "nl": "Nederlands", "nn": "Norsk nynorsk", "pa": "ਪੰਜਾਬੀ", "pl": "Polski",
+    "pt": "Português", "ro": "Română", "ru": "Русский", "sk": "Slovenčina",
+    "sl": "Slovenščina", "sq": "Shqip", "sr": "Српски", "sv": "Svenska", "ta": "தமிழ்",
+    "te": "తెలుగు", "th": "ไทย", "tr": "Türkçe", "uk": "Українська", "ur": "اردو",
+    "uz": "Oʻzbekcha", "vi": "Tiếng Việt", "zh": "中文",
+}
+_names = {}
+
+
+def keyboard_names():
+    """{layout: name} from the XKB rules ("de": "German"), {} without them."""
+    if "keyboard" not in _names:
+        names, inside = {}, False
+        for path in XKB_LISTS:
+            try:
+                with open(path, encoding="utf-8") as rules:
+                    for line in rules:
+                        if line.startswith("!"):
+                            inside = line.split()[1:] == ["layout"]
+                        elif inside and len(line.split(None, 1)) == 2:
+                            code, name = line.split(None, 1)
+                            if code != "custom":
+                                names[code] = name.strip()
+            except (OSError, UnicodeDecodeError):
+                continue
+            if names:
+                break
+        _names["keyboard"] = names
+    return _names["keyboard"]
+
+
+def keyboard_label(layout):
+    """"German" for "de"; the bare code when XKB has no name for it."""
+    return keyboard_names().get(layout, layout)
+
+
+def language_label(name):
+    """"Deutsch (DE)" for "de_DE.UTF-8"; the locale name itself when the
+    table does not have the language."""
+    code, _, territory = name.split(".")[0].split("@")[0].partition("_")
+    language = LANGUAGES.get(code)
+    if language is None:
+        return name
+    return f"{language} ({territory})" if territory else language
+
+
+def is_language(name):
+    """C and POSIX are locales, and no person's language."""
+    return name.split(".")[0] not in ("C", "POSIX")
+
+
+def timezone_label(zone):
+    """"Buenos Aires (America/Argentina)": the city first, as a person looks
+    for it. The zone's own name stays the value of the row."""
+    area, _, city = zone.rpartition("/")
+    city = city.replace("_", " ")
+    return f"{city} ({area.replace('_', ' ')})" if area else city
 
 
 def current_keyboard_layout():
@@ -123,7 +197,7 @@ def available_timezones():
             rel = os.path.relpath(os.path.join(root, name), base)
             if "/" in rel and not rel.startswith(("posix", "right")):
                 zones.append(rel)
-    return sorted(zones)
+    return sorted(zones + ["UTC"])
 
 
 def current_timezone():

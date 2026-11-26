@@ -202,7 +202,7 @@ def test_picking_it_writes_source_reuse_and_keeps_the_update_reference(reuse_pag
                                      "platform": "x86_64"}
     assert "bootc_store_reuse" in recipe["experimental"]
     assert core.BRANDING.text("source_reuse_local_detail") in page.reuse_detail.get_text()
-    summary = page.summary.get_text()
+    summary = page.summary_text()
     assert core.BRANDING.text("source_reuse_install_from").replace("{value}", UPDATE_REF) in summary
     # fisherman's partial check gets the reuse fields, never the recipe's secrets.
     assert checks and checks[-1].submitted[-1]["sourceReuse"] == recipe["sourceReuse"]

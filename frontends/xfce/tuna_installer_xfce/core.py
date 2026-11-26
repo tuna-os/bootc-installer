@@ -758,9 +758,8 @@ def daemon_disk_view():
     rows = []
     for disk in reply.get("disks") or []:
         path = disk.get("path", "")
-        vendor = (disk.get("vendor") or "").strip()
         model = (disk.get("model") or "").strip()
-        title = " ".join(part for part in (vendor, model) if part) or path
+        title = daemon_client.disk_title(disk)
         transport = disk.get("transport") or ""
         candidate = fits.get(path) or {}
         fit = candidate.get("fit") or (
@@ -773,6 +772,7 @@ def daemon_disk_view():
                 transport, transport.upper()),
             "removable": bool(disk.get("removable")),
             "eligible": eligible, "fit": fit,
+            "excluded_reason": disk.get("excludedReason") or "",
             "minimal_size_bytes": disk.get("minimalSizeBytes", 0),
             "free_bytes": disk.get("freeBytes", 0),
             "existing_data": disk.get("existingData") or {},
@@ -930,7 +930,7 @@ def recipe_problems(recipe):
              for problem in fisherman_validate.problems(result)]
     lines = [line for line in lines if line]
     if not lines and result.get("valid") is False:
-        lines = [_("fisherman did not accept the recipe.")]
+        lines = [_("The installer did not accept these settings.")]
     return lines
 
 
@@ -984,7 +984,7 @@ def _daemon_recipe_problems(recipe):
     lines = [fisherman_validate.render(problem, BRANDING.text) for problem in errors]
     lines = [line for line in lines if line]
     if not lines and result.get("valid") is False:
-        lines = [_("fisherman did not accept the recipe.")]
+        lines = [_("The installer did not accept these settings.")]
     return lines
 
 
