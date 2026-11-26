@@ -312,6 +312,57 @@
     </message>
 </context>
 <context>
+    <name>fishermand</name>
+    <message>
+        <source>%1 disk</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Checking your drive…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Setting up your drive…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Securing your drive…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Setting up auto-unlock…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Almost ready…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copying the system…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Configuring your system…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Applying the last settings…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Setting up the boot loader…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Finishing up…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cleaning up…</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>main</name>
     <message>
         <source>Account</source>
@@ -347,6 +398,10 @@
     </message>
     <message>
         <source>Confirm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The image&apos;s setting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -574,6 +629,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>You type the passphrase with the keyboard layout of this session. The installed system reads it with the layout that you chose: use characters that are the same on both.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Terms of use</source>
         <translation type="unfinished"></translation>
     </message>
@@ -643,6 +702,10 @@
     </message>
     <message>
         <source>Choose the keyboard layout of the installed system. This session keeps its own layout.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep the image&apos;s setting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -750,11 +813,23 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>The recovery key could not be saved to the disk. Press Done to try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>No recovery key could be made: %1 Do not continue without one.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>No recovery key could be made. Do not continue without one.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Show QR Code for Recovery Key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>To continue, tick the box when you have saved the key.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -798,7 +873,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>This computer hides its NVMe disk behind Intel RST. The disk list on the next step cannot show a disk the system cannot see. To install to the hidden disk, switch the firmware from RST or RAID to AHCI first, then start the installer again.</source>
+        <source>This computer uses Intel RST (RAID mode), which can hide disks. If the disk that you want is not in the list of the next step, switch the storage to AHCI in the firmware settings.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

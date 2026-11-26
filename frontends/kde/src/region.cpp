@@ -48,7 +48,12 @@ QList<Language> availableLanguages()
 
 QString systemLanguage()
 {
-    return QLocale::languageToCode(QLocale::system().language());
+    // A live session with no locale has the C locale, and its texts are
+    // English: the first row of the list (Afrikaans) is nobody's language.
+    const QLocale::Language language = QLocale::system().language();
+    if (language == QLocale::C || language == QLocale::AnyLanguage)
+        return QStringLiteral("en");
+    return QLocale::languageToCode(language);
 }
 
 QString localeName(const QString &languageId)

@@ -394,6 +394,11 @@ void DaemonTest::eventsBecomeProgressLines()
     QCOMPARE(failed.value(QLatin1String("type")).toString(), QStringLiteral("error"));
     QCOMPARE(failed.value(QLatin1String("code")).toString(), QStringLiteral("device_lost"));
     QCOMPARE(failed.value(QLatin1String("disk_changed")).toBool(), true);
+    // A step with no message has words in the log, not its id.
+    const QJsonObject silent = event(R"({"event":"step_started","stepId":"validate_device","stepIndex":1,"totalSteps":10,"overallPct":0})");
+    QCOMPARE(silent.value(u"step").toInt(), 1);
+    QVERIFY(!silent.value(u"step_name").toString().contains(u'_'));
+    QVERIFY(!silent.value(u"step_name").toString().isEmpty());
     const QJsonObject early = event(R"({"event":"failed","stepId":"validate_device","reason":"device_lost","message":"gone"})");
     QCOMPARE(early.value(QLatin1String("disk_changed")).toBool(true), false);
 

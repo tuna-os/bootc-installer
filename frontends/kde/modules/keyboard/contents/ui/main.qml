@@ -45,6 +45,7 @@ TunaComponents.SetupModule {
                 objectName: "keyboardPicker"
                 names: InstallerController.keyboardLayoutNames
                 ids: InstallerController.keyboardLayoutIds
+                keepText: qsTr("Keep the image's setting")
                 currentId: InstallerController.keyboardLayout
                 searchLabel: qsTr("Search keyboards")
                 emptyText: qsTr("No keyboard layout matches the search.")
