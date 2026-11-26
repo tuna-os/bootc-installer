@@ -348,7 +348,7 @@ def walk(frontend, run, out, work, variant, log):
                     now = run.after_press[now]
                 if now == page:
                     found[name] = {"page": page, "run": run.name, "scenario": run.scenario,
-                                   "after": last_spec,
+                                   "after": current if page != current else last_spec,
                                    "still": still, "file": os.path.basename(path),
                                    "headings": w.lines()[:4]}
                     log(f"    picture {name}")

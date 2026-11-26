@@ -108,11 +108,21 @@ def passphrase(w):
 
 def tick(pattern):
     def act(w):
+        # Once per page: a second click would clear the tick again.
+        done = w.__dict__.setdefault("ticked", set())
+        if pattern in done:
+            return
+        done.add(pattern)
         boxes = [n for n in w.nodes if "check" in n["role"] and "checked" not in n["states"]
                  and "sensitive" in n["states"]]
         if boxes:
             if not (boxes[-1].get("actions") and w.do("press", boxes[-1])):
                 w.click_box(boxes[-1].get("box"))
+        elif w.ocr_on and w.find_text(pattern):
+            # The box sits left of its label: a click on the words alone
+            # does not tick it in every toolkit.
+            box = w.find_text(pattern)
+            w.s.click(box[0] - 14, box[1] + box[3] / 2)
         elif not w.press(pattern, roles=None, must=False):
             w.choose(pattern)
         time.sleep(0.5)
