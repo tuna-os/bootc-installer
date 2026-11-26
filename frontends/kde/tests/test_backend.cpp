@@ -3951,8 +3951,16 @@ void BackendTest::daemonProbeResultKeepsEligibleDisksVerbatim()
     QCOMPARE(r.disks.at(0).title, QStringLiteral("Mock NVMe 512"));
     QCOMPARE(r.disks.at(0).sizeLabel, QStringLiteral("476.9 GiB"));
     QCOMPARE(r.disks.at(0).transportLabel, QStringLiteral("NVMe"));
-    // No model: the path is the title, as in the legacy probe parse.
-    QCOMPARE(r.disks.at(1).title, QStringLiteral("/dev/sdb"));
+    // No model: the bus is the title; the row has the path below.
+    QCOMPARE(r.disks.at(1).title, QStringLiteral("USB disk"));
+    // virtio names its PCI vendor id, and that is no name for a person.
+    fishermand::Disk vda;
+    vda.path = QStringLiteral("/dev/vda");
+    vda.vendor = QStringLiteral("0x1af4");
+    vda.transport = QStringLiteral("virtio");
+    QCOMPARE(fishermand::diskTitle(vda), QStringLiteral("VirtIO disk"));
+    vda.transport.clear();
+    QCOMPARE(fishermand::diskTitle(vda), QStringLiteral("/dev/vda"));
     QVERIFY(r.tpmUsable);
     QVERIFY(r.isLive);
     QCOMPARE(r.liveImage, QStringLiteral("ghcr.io/example/os:stable"));

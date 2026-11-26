@@ -1,7 +1,9 @@
 """The bootc installer for XFCE — classic GTK3 wizard. Design: ../DESIGN.md.
 Flow and recipe contract: ../../INSTALLER-FRONTENDS.md."""
 
+import json
 import os
+import sys
 import threading
 
 import gi
@@ -85,7 +87,8 @@ def toggle_reveal(entry, *_args):
 def password_entry():
     """A hidden entry with a reveal icon: the passphrase, the account
     password and their confirmations all use this one."""
-    entry = Gtk.Entry(visibility=False, input_purpose=Gtk.InputPurpose.PASSWORD)
+    entry = Gtk.Entry(visibility=False, input_purpose=Gtk.InputPurpose.PASSWORD,
+                      hexpand=True, width_chars=28, activates_default=True)
     entry.set_icon_from_icon_name(Gtk.EntryIconPosition.SECONDARY,
                                   "view-reveal-symbolic")
     entry.set_icon_activatable(Gtk.EntryIconPosition.SECONDARY, True)
@@ -201,12 +204,14 @@ class SearchListPage(Page):
         scroll.add(self.listbox)
         self.pack_start(scroll, True, True, 0)
         self.rows = {}
-        for value in self.values():
-            row = Gtk.ListBoxRow()
-            row.value = value
-            row.add(Gtk.Label(label=value, xalign=0))
-            self.listbox.add(row)
-            self.rows[value] = row
+        # The list opens with the choice that applies when nobody picks one:
+        # the session's value, or a row that says the image keeps its own.
+        current = self.current()
+        values = list(self.values())
+        if current not in values:
+            self._add_row("", _("Keep the image's setting"))
+        for value in values:
+            self._add_row(value, self.label_for(value))
         self.listbox.connect("row-selected", self._on_selected)
         self.note = _warn_row("")
         self.note.set_no_show_all(True)
@@ -214,9 +219,32 @@ class SearchListPage(Page):
         self.live_problem = problem_label()
         self.pack_start(self.live_problem, False, False, 0)
         self.check = live_check(self._on_checked)
-        current = self.current()
-        if current in self.rows:
-            self.listbox.select_row(self.rows[current])
+        self.listbox.select_row(self.rows[current if current in self.rows else ""])
+
+    def _add_row(self, value, text):
+        row = Gtk.ListBoxRow()
+        row.value = value
+        row.haystack = f"{value} {text}".casefold()
+        row.add(Gtk.Label(label=text, xalign=0, margin=6))
+        self.listbox.add(row)
+        self.rows[value] = row
+
+    def on_enter(self):
+        """Bring the selected row into view, when the list has its size."""
+        GLib.idle_add(self._show_selected)
+
+    def _show_selected(self):
+        row = self.listbox.get_selected_row()
+        adjustment = self.listbox.get_adjustment()
+        if row is not None and adjustment is not None and row.get_mapped():
+            area = row.get_allocation()
+            if area.height > 1:
+                adjustment.clamp_page(area.y, area.y + area.height)
+        return False
+
+    def label_for(self, value):
+        """The text of a row; the value itself goes to the recipe."""
+        return value
 
     def values(self):
         return []
@@ -227,19 +255,25 @@ class SearchListPage(Page):
     def pick(self, value):
         pass
 
+    def keep(self):
+        """Nothing picked: the image keeps its own value."""
+
     def fragment(self):
         return {}
 
     def _filter(self, row):
         needle = self.search.get_text().strip().casefold()
-        return needle in getattr(row, "value", "").casefold()
+        return needle in getattr(row, "haystack", "")
 
     def _on_search(self, _entry):
         self.listbox.invalidate_filter()
 
     def _on_selected(self, _box, row):
+        if row is not None and not row.value:
+            self.keep()
+        elif row is not None:
+            self.pick(row.value)
         if row is not None:
-            self.pick(getattr(row, "value", ""))
             self.check.submit(self.fragment())
             self.win.refresh_nav()
 
@@ -265,10 +299,20 @@ class LanguagePage(SearchListPage):
     search_placeholder = _("Search languages")
 
     def values(self):
-        return locale_checks.available_languages()
+        # A session in the C locale has no language to preselect: the page
+        # opens on "Keep the image's setting".
+        return [name for name in locale_checks.available_languages()
+                if locale_checks.is_language(name)]
 
     def current(self):
         return locale_checks.current_language()
+
+    def label_for(self, value):
+        return locale_checks.language_label(value)
+
+    def keep(self):
+        self.win.region.locale = ""
+        self._note("")
 
     def pick(self, value):
         self.win.region.locale = value
@@ -300,6 +344,12 @@ class KeyboardPage(SearchListPage):
 
     def current(self):
         return locale_checks.current_keyboard_layout()
+
+    def label_for(self, value):
+        return locale_checks.keyboard_label(value)
+
+    def keep(self):
+        self.win.region.keyboard_layout = ""
 
     def pick(self, value):
         self.win.region.keyboard_layout = value
@@ -335,7 +385,15 @@ class TimezonePage(SearchListPage):
         self.location_check.show()
 
     def values(self):
-        return locale_checks.available_timezones()
+        return sorted(locale_checks.available_timezones(),
+                      key=lambda zone: locale_checks.timezone_label(zone).casefold())
+
+    def label_for(self, value):
+        return locale_checks.timezone_label(value)
+
+    def keep(self):
+        self.win.region.timezone = ""
+        self._note("")
 
     def current(self):
         return locale_checks.current_timezone()
@@ -502,9 +560,9 @@ class RstPage(Page):
         super().__init__(win)
         a11y_name(self, _("Intel RST"))
         alert = _warn_row(_(
-            "This computer uses Intel RST (RAID mode). Linux cannot see "
-            "disks behind it. Switch the storage to AHCI in the firmware "
-            "settings, then continue."))
+            "This computer uses Intel RST (RAID mode), which can hide disks. "
+            "If the disk that you want is not in the list of the next step, "
+            "switch the storage to AHCI in the firmware settings."))
         if Atspi is not None:
             alert.get_accessible().set_role(Atspi.Role.ALERT)
         self.pack_start(alert, False, False, 0)
@@ -576,6 +634,7 @@ class SourcePage(Page):
 
     def __init__(self, win):
         super().__init__(win)
+        a11y_name(self, _("Image"))
         # Live media and the offline images are fisherman's facts (probe's
         # `live` and `offline`), read on the host.
         self.live = core.is_live()
@@ -654,9 +713,14 @@ class SourcePage(Page):
             self.search.set_no_show_all(True)
             self.pack_start(_warn_row(_(
                 "No image catalog found and this is not a live system. "
-                "Check that fisherman's images.json is installed.")), False, False, 0)
+                "Check that images.json is installed.")), False, False, 0)
         self.listbox.show_all()
         self._sync_hint()
+
+    def should_show(self):
+        # The daemon installs the medium's own image and takes no other, so
+        # there is nothing to choose (as in KDE and COSMIC).
+        return not (core.backend() == "daemon" and self.live)
 
     def _on_search(self, entry):
         needle = entry.get_text().strip().casefold()
@@ -732,6 +796,10 @@ class DestinationPage(Page):
 
         group = None
         rows, error = core.daemon_disk_view()
+        if sum(1 for row in rows if row["eligible"]) > 1:
+            # Two disks or more: the person names the one to erase. A radio
+            # group always has an active button, so an unseen one starts it.
+            group = self._none = Gtk.RadioButton()
         for row in rows:
             if row["eligible"]:
                 radio = Gtk.RadioButton.new_with_label_from_widget(
@@ -744,6 +812,10 @@ class DestinationPage(Page):
             else:
                 # Unusable disks sit in the list with the minimum size
                 # (spec disk rows): visible, never selectable.
+                if row["excluded_reason"] not in ("", "too_small"):
+                    # The medium itself, a loop device, a DVD drive: not a
+                    # disk that a person could make fit.
+                    continue
                 minimum = fisherman_probe.format_size(
                     row["minimal_size_bytes"] or 0)
                 dim = Gtk.Label(xalign=0)
@@ -791,6 +863,10 @@ class DestinationPage(Page):
                 _("Everything on {title} ({path}) will be erased.").format(
                     title=d["title"], path=d["path"]))
         self.warn.set_visible(d is not None)
+        # With no disk picked at the start, the pick is what allows Next.
+        refresh = getattr(self.win, "refresh_nav", None)
+        if refresh is not None:
+            refresh()
 
     def can_continue(self):
         return self.selected_disk() is not None
@@ -922,6 +998,8 @@ class SetupPage(Page):
         self._entered = False
 
         adv = Gtk.Expander(label=_("Advanced"))
+        # The daemon takes no filesystem: the image decides it.
+        adv.set_no_show_all(core.backend() == "daemon")
         advbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin=6)
         self.fs_combo = Gtk.ComboBoxText()
         # Whether the person picked a filesystem. Until they do, the combo
@@ -1052,7 +1130,8 @@ class IdentityPage(Page):
         # branding's (on_enter), until the person types one.
         self._hostname_edited = False
         self._hostname_syncing = False
-        self.hostname = Gtk.Entry(text=core.BRANDING.default_hostname)
+        self.hostname = Gtk.Entry(text=core.BRANDING.default_hostname, hexpand=True,
+                                  width_chars=28, activates_default=True)
         a11y_name(self.hostname, _("Hostname"))
         self.hostname.connect("changed", self._on_hostname_changed)
         grid.attach(Gtk.Label(label=_("Hostname"), xalign=0), 0, 0, 1, 1)
@@ -1063,8 +1142,8 @@ class IdentityPage(Page):
 
         self.user_frame = Gtk.Frame(label=_("Your account"), margin_top=8)
         ug = Gtk.Grid(column_spacing=12, row_spacing=6, margin=10)
-        self.username = Gtk.Entry()
-        self.fullname = Gtk.Entry()
+        self.username = Gtk.Entry(hexpand=True, width_chars=28, activates_default=True)
+        self.fullname = Gtk.Entry(hexpand=True, width_chars=28, activates_default=True)
         # Asked twice, each with a reveal icon: one typo in a single hidden
         # entry made an account nobody could sign in to (#295).
         self.password = password_entry()
@@ -1088,13 +1167,6 @@ class IdentityPage(Page):
         self.user_frame.add(ug)
         self.pack_start(self.user_frame, False, False, 0)
 
-        # The region pages (language, keyboard, time zone) own the controls;
-        # this page shows what they picked. The recipe's `locale`,
-        # `keyboard.layout` and `timezone` (#292) come from self.region.
-        self.region_summary = Gtk.Label(xalign=0)
-        self.region_summary.set_line_wrap(True)
-        self.region_summary.get_style_context().add_class("dim-label")
-        self.pack_start(self.region_summary, False, False, 0)
         # Automatic sign-in (spec account inputs): the daemon stores it
         # over ConfigureTarget. The recipe schema has no such key, so the
         # box shows on the daemon backend only.
@@ -1131,15 +1203,6 @@ class IdentityPage(Page):
         """The recipe's `locale`, `keyboard` and `timezone`: only the ones
         the person picked."""
         return core.region_fields(**self.region_choices())
-
-    def _describe_region(self):
-        """One line naming the region picks; "keep" where nothing was picked."""
-        keep = _("Keep the image's setting")
-        return _("Language: {language}; Keyboard: {keyboard}; "
-                 "Time zone: {timezone}").format(
-            language=self.region.locale or keep,
-            keyboard=self.region.keyboard_layout or keep,
-            timezone=self.region.timezone or keep)
 
     def _on_checked(self, problems, error):
         problems = problems or []
@@ -1183,7 +1246,6 @@ class IdentityPage(Page):
     def on_enter(self):
         self.seed_hostname()
         self.user_frame.set_visible(self.win.needs_user_creation())
-        self.region_summary.set_text(self._describe_region())
         show = core.backend() == "daemon"
         self.autologin.set_visible(show)
         self.check.submit(self.partial_recipe())
@@ -1213,9 +1275,14 @@ class ConfirmPage(Page):
         self.subtitle.set_line_wrap(True)
         self.subtitle.set_no_show_all(True)
         self.pack_start(self.subtitle, False, False, 0)
-        self.summary = Gtk.Label(xalign=0)
-        self.summary.set_line_wrap(True)
+        self.summary = Gtk.Grid(column_spacing=18, row_spacing=6)
+        a11y_name(self.summary, _("Summary"))
         self.pack_start(self.summary, False, False, 0)
+        # What fisherman would refuse: asked here, before the install starts.
+        self.refused = []
+        self.refused_generation = 0
+        self.refused_label = problem_label()
+        self.pack_start(self.refused_label, False, False, 0)
         # The install plan (tuna-os/fisherman#371): the disk that fisherman
         # will write to, what it reports about itself, and each device whose
         # data the install destroys, from `fisherman plan --json -`. Hidden
@@ -1278,6 +1345,9 @@ class ConfirmPage(Page):
             core.BRANDING.text("confirm_warning", disk=_("the selected disk")))
         self.warn_text = self.warn_label.get_children()[1]
         self.pack_start(self.warn_label, False, False, 0)
+        # First, under the title: it must not be below the fold of a small
+        # screen or of large text.
+        self.reorder_child(self.warn_label, 1)
         # Connectivity gate (defaults/conn_check.py): an install that must
         # download its image cannot start offline. GNOME's conn_check page
         # auto-skips on offline installs and otherwise blocks with a
@@ -1323,9 +1393,13 @@ class ConfirmPage(Page):
             image = (r.get("image") or self.win.pages["source"].live_image
                      or _("this live system"))
         # The same rows, in the same order, as KDE's confirm step.
+        daemon = core.backend() == "daemon"
         rows = [
-            (_("Target disk"), disk),
-            (_("Filesystem"), filesystem_label(r["filesystem"])),
+            (_("Target disk"), self._disk_text(disk) if daemon else disk)]
+        if not daemon:
+            # The daemon takes no filesystem: the image decides it.
+            rows.append((_("Filesystem"), filesystem_label(r["filesystem"])))
+        rows += [
             (_("Encryption"), encryption_text(r["encryption"]["type"] or "none", "_label")),
             (_("Hostname"), r["hostname"]),
             (_("Image"), image),
@@ -1336,15 +1410,15 @@ class ConfirmPage(Page):
         if r.get("user", {}).get("username"):
             rows.append((_("User"), r["user"]["username"]))
         # What the installed system gets of the identity page's picks (#292).
-        if r.get("locale"):
-            rows.append((_("Language"), r["locale"]))
-        if r.get("keyboard"):
-            rows.append((_("Keyboard"), r["keyboard"]["layout"]))
-        if r.get("timezone"):
-            rows.append((_("Time zone"), r["timezone"]))
-        width = max(len(k) for k, _value in rows) + 2
-        lines = [f"{k + ':':<{width}}{v}" for k, v in rows]
-        self.summary.set_markup("<tt>" + GLib.markup_escape_text("\n".join(lines)) + "</tt>")
+        keep = _("The image's setting")
+        rows += [
+            (_("Language"), locale_checks.language_label(r["locale"])
+             if r.get("locale") else keep),
+            (_("Keyboard"), locale_checks.keyboard_label(r["keyboard"]["layout"])
+             if r.get("keyboard") else keep),
+            (_("Time zone"), locale_checks.timezone_label(r["timezone"])
+             if r.get("timezone") else keep)]
+        self._show_summary(rows)
         selected = self.win.pages["destination"].selected_disk()
         warn_key = (
             "confirm_warning_removable"
@@ -1355,6 +1429,67 @@ class ConfirmPage(Page):
         self._start_plan(r)
         self._check_source(r)
         self._check_network()
+        self._check_refused(r)
+
+    def _disk_text(self, path):
+        select = getattr(self.win.pages["destination"], "selected_disk", None)
+        row = select() if callable(select) else None
+        if not row or row.get("path") != path or row.get("title") in ("", path, None):
+            return path
+        return f"{row['title']} ({', '.join(b for b in (path, row.get('size_label')) if b)})"
+
+    def _show_summary(self, rows):
+        for child in self.summary.get_children():
+            self.summary.remove(child)
+        for i, (name, value) in enumerate(rows):
+            key = Gtk.Label(label=name + ":", xalign=0, yalign=0)
+            key.get_style_context().add_class("dim-label")
+            text = Gtk.Label(label=value, xalign=0, hexpand=True, selectable=False)
+            text.set_line_wrap(True)
+            text.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+            self.summary.attach(key, 0, i, 1, 1)
+            self.summary.attach(text, 1, i, 1, 1)
+        self.summary.show_all()
+
+    def summary_text(self):
+        """The summary rows as text, one "name: value" a line."""
+        cell = self.summary.get_child_at
+        lines, i = [], 0
+        while cell(0, i) is not None:
+            lines.append(f"{cell(0, i).get_text()} {cell(1, i).get_text()}")
+            i += 1
+        return "\n".join(lines)
+
+    # How the daemon is asked; tests replace both.
+    refused_request = staticmethod(lambda recipe: core.recipe_problems(recipe))
+    refused_start = staticmethod(lambda fn: threading.Thread(target=fn, daemon=True).start())
+
+    def _check_refused(self, recipe):
+        """Validate the whole recipe on the daemon before Install can be
+        pressed. The daemon refused an unencrypted install only after the
+        install had started (tuna-os/tunaOS run 45639909696)."""
+        self.refused_generation += 1
+        generation = self.refused_generation
+        self._on_refused(generation, [])
+        if core.backend() != "daemon" or core.dry_run():
+            return
+        request = self.refused_request
+
+        def work():
+            GLib.idle_add(self._on_refused, generation, request(recipe))
+
+        self.refused_start(work)
+
+    def _on_refused(self, generation, problems):
+        if generation != self.refused_generation:
+            return False
+        self.refused = list(problems or [])
+        self.refused_label.set_text("\n".join(self.refused))
+        self.refused_label.set_visible(bool(self.refused))
+        refresh = getattr(self.win, "refresh_nav", None)
+        if refresh is not None:
+            refresh()
+        return False
 
     # How a plan is asked and where it runs; tests replace both.
     plan_request = staticmethod(lambda recipe: core.request_plan(recipe))
@@ -1479,6 +1614,10 @@ class ConfirmPage(Page):
         self.source_generation += 1
         generation = self.source_generation
         self.source_blocked = False
+        if core.backend() == "daemon":
+            # The daemon installs the image of the medium: nothing to probe.
+            self._show_source([])
+            return
         req = source_check.recipe_request(recipe, core.is_live())
         args = source_check.probe_args(req)
         if not args:
@@ -1580,7 +1719,7 @@ class ConfirmPage(Page):
         self.net_settings.set_visible(not ok)
 
     def can_continue(self):
-        return (self.net_ok and not self.source_blocked
+        return (self.net_ok and not self.source_blocked and not self.refused
                 and not (self.reuse_selected and self.reuse_problems))
 
     def forced_erase(self):
@@ -1607,6 +1746,35 @@ class ConfirmPage(Page):
         response = dialog.run()
         dialog.destroy()
         return response == Gtk.ResponseType.OK
+
+
+def progress_parser_event(line):
+    """Whether `line` is an event of fisherman's progress protocol."""
+    try:
+        event = json.loads(line)
+    except ValueError:
+        return False
+    return isinstance(event, dict) and bool(event.get("type"))
+
+
+def readable_log(text):
+    """The install log for a person: each protocol line as its sentence."""
+    lines = []
+    for line in text.splitlines():
+        shown = progress_parser.render_event(line)
+        if shown is None and progress_parser_event(line):
+            continue
+        lines.append(line if shown is None else shown)
+    return "\n".join(lines)
+
+
+def failure_reason(error):
+    """fisherman's message as a sentence, "" when it sent none."""
+    message = ((error or {}).get("message") or "").strip()
+    if not message:
+        return ""
+    message = message[0].upper() + message[1:]
+    return message if message[-1] in ".!?…" else message + "."
 
 
 class ProgressPage(Page):
@@ -1664,6 +1832,9 @@ class ProgressPage(Page):
 
     def on_enter(self):
         self.cancel_btn.set_sensitive(True)
+        if not self.steplabel.get_text():
+            # Until the first event: no empty page at 0 %.
+            self.steplabel.set_text(_("Starting the installation…"))
         self.win.start_install(self)
 
     def _on_cancel(self, *_args):
@@ -1680,6 +1851,10 @@ class ProgressPage(Page):
             # shows the recovery key (#337): the key is for the done page,
             # which reads it from the event below.
             shown = progress_parser.render_event(line)
+            if shown is None and progress_parser_event(line):
+                # An event with nothing to read (a tick of the bar): the
+                # person gets no JSON.
+                continue
             if shown is None:
                 shown = line
             shown = redact.redact_recovery_key(shown, self._progress.get("recovery_key", ""))
@@ -1899,9 +2074,13 @@ class RecoveryPage(Page):
         try:
             core.get_daemon().enroll_recovery_key(disk, self.key)
         except Exception as exc:  # noqa: BLE001 - the key is shown; retry
+            # The error name of the daemon (io.systemd.System) is for the
+            # log; it tells a person nothing.
+            print(f"the recovery key was not enrolled: {exc}", file=sys.stderr)
             show_problem(self.error_label, {
-                "code": "", "message": str(exc) or _(
-                    "The key could not be enrolled. Try again.")})
+                "code": "", "message": _(
+                    "The recovery key could not be saved to the disk. It does "
+                    "not unlock the disk yet. Press Done to try again.")})
             return False
         return True
 
@@ -1941,6 +2120,7 @@ class HandoffPage(Page):
         bar.pack_start(self.not_now_btn, False, False, 0)
         self.continue_btn = a11y_name(
             Gtk.Button(label=_("Continue")), _("Continue"))
+        self.continue_btn.get_style_context().add_class("suggested-action")
         self.continue_btn.connect("clicked", self._on_continue)
         bar.pack_start(self.continue_btn, False, False, 0)
         self.pack_start(bar, False, False, 0)
@@ -1975,7 +2155,9 @@ class HandoffPage(Page):
         else:
             text = _("The system is installed. Continuing restarts the "
                        "computer into it; remove the install media when asked.")
-        return text + (" " + reason if reason else "")
+        # One word is an id for the log (btrfs-seed, el10, default of
+        # fisherman/internal/handoff), not a sentence for a person.
+        return text + (" " + reason if " " in reason.strip() else "")
 
     def _on_continue(self, *_args):
         if core.backend() == "daemon":
@@ -2007,6 +2189,18 @@ class DonePage(Page):
         self.body = Gtk.Label(xalign=0)
         self.body.set_line_wrap(True)
         self.pack_start(self.body, False, False, 0)
+        # The log of a failed install: closed, and with its own scroll bar, so
+        # that the buttons stay in the window.
+        self.details = Gtk.Expander(label=_("Details"))
+        self.details.set_no_show_all(True)
+        self.details_view = Gtk.TextView(editable=False, monospace=True,
+                                         wrap_mode=Gtk.WrapMode.WORD_CHAR)
+        a11y_name(self.details_view, _("Details"))
+        scroll = Gtk.ScrolledWindow(hexpand=True, min_content_height=140)
+        scroll.add(self.details_view)
+        scroll.show_all()
+        self.details.add(scroll)
+        self.pack_start(self.details, False, False, 0)
         # store_label -> store_url on every frontend when the branding sets a
         # store (docs/PARITY.md); hidden otherwise.
         self.store_btn = Gtk.LinkButton(uri=core.BRANDING.store_url,
@@ -2100,6 +2294,8 @@ class DonePage(Page):
         and gates Done on the acknowledgement."""
         self.logo.set_visible(ok and self.logo.get_pixbuf() is not None)
         self.result = "installed" if ok else ("cancelled" if cancelled else "failed")
+        self.details.set_visible(False)
+        self.details.set_expanded(False)
         if ok:
             self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
                 core.BRANDING.text("done_title")) + "</b></big>")
@@ -2107,7 +2303,9 @@ class DonePage(Page):
             # system can check its own start (shared/completion/README.md).
             self.body.set_text("\n\n".join(line for line in (
                 core.BRANDING.text("done_subtitle"),
-                *completion.receipt_text(receipt, core.BRANDING.text)) if line))
+                *(completion.receipt_text(receipt, core.BRANDING.text)
+                  if receipt is not None or core.backend() != "daemon"
+                  else ())) if line))
             self.store_btn.set_visible(bool(core.BRANDING.store_url))
             self.reboot_btn.show()
             self.reboot_btn.set_sensitive(True)
@@ -2130,10 +2328,13 @@ class DonePage(Page):
         else:
             self.headline.set_markup("<big><b>" + GLib.markup_escape_text(
                 core.BRANDING.text("done_failed_title")) + "</b></big>")
-            self.body.set_text("\n\n".join(
-                progress_parser.failure_text(error, core.BRANDING.text) + [_(
-                    "The last lines of the install log:\n\n{log}"
-                    "\n\nFull log: {path}").format(log=log_tail, path=core.install_log_path())]))
+            tail = readable_log(log_tail)
+            reason = failure_reason(error) or (tail.splitlines() or [""])[-1].strip()
+            self.body.set_text("\n\n".join(line for line in (
+                *progress_parser.failure_text(error, core.BRANDING.text), reason,
+                _("Full log: {path}").format(path=core.install_log_path())) if line))
+            self.details_view.get_buffer().set_text(tail)
+            self.details.set_visible(bool(tail))
 
 
 PAGE_ORDER = ["welcome", "language", "keyboard", "timezone", "network",

@@ -102,6 +102,8 @@ TunaComponents.SetupModule {
                             : qsTr("You stopped the installation. The selected disk is erased and has no complete system. Start the installer again to install."))
                         : root.failureText.length > 0
                             ? root.failureText
+                        : InstallerController.failureMessage.length > 0
+                            ? InstallerController.failureMessage
                             : qsTr("The installation did not finish. The log has the details — exit code %1.").arg(InstallerController.exitCode)
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap

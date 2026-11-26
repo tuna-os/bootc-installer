@@ -109,6 +109,8 @@ class InstallerController : public QObject
     // Wipe-or-free (shared/flow/screens.yaml): what the daemon probe says
     // about the chosen disk. False on the recipe backend, which knows no
     // prior data and keeps its erase behaviour.
+    // What the chosen disk is: name, path and size ("VirtIO disk (/dev/vda, 64 GiB)").
+    Q_PROPERTY(QString selectedDiskLabel READ selectedDiskLabel NOTIFY recipeChanged)
     Q_PROPERTY(bool selectedDiskHasData READ selectedDiskHasData NOTIFY recipeChanged)
     // The chosen disk cannot fit the install in its free space: Install
     // erases it, with a countdown on the button.
@@ -165,6 +167,7 @@ class InstallerController : public QObject
     // luks_failed, internal_error, daemon_unreachable, or "" on the recipe
     // backend. The done step words it.
     Q_PROPERTY(QString failureReason READ failureReason NOTIFY installCompleted)
+    Q_PROPERTY(QString failureMessage READ failureMessage NOTIFY installCompleted)
     // The install ended before the disk was written (the error or the
     // cancel came during the device check). False when unknown.
     Q_PROPERTY(bool diskUnchanged READ diskUnchanged NOTIFY installCompleted)
@@ -415,6 +418,7 @@ public:
     // already holds. Empty when the backend is the recipe or the disk is
     // unknown.
     Q_INVOKABLE QStringList selectedDiskOperatingSystems() const;
+    QString selectedDiskLabel() const;
     bool selectedDiskHasData() const;
     bool selectedDiskForceErase() const;
     QString selectedDiskFreeSpace() const;
@@ -463,6 +467,8 @@ public:
     bool sessionKeepsRunning() const { return m_sessionKeepsRunning; }
     QString shutdownError() const { return m_shutdownError; }
     QString failureReason() const { return m_failureReason; }
+    // The daemon's own words for the failure, as a sentence; "" without one.
+    QString failureMessage() const { return m_failureMessage; }
     bool diskUnchanged() const
     {
         const QVariant changed = m_installError.value(QStringLiteral("disk_changed"));
@@ -849,6 +855,7 @@ private:
     fishermand::AsyncClient *m_validateClient = nullptr;
     QString m_lastDaemonStep;
     QString m_failureReason;
+    QString m_failureMessage;
     QString m_firstBootTool;
     bool m_locationServices = false;
     bool m_locationTouched = false;

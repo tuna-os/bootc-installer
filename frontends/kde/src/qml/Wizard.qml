@@ -33,6 +33,27 @@ Kirigami.Page {
     // binding as soon as the wizard moves.
     property int currentIndex: firstStep()
     readonly property int stepCount: stepsRepeater.count
+
+    // The steps of this install, the one on screen included: a step that has
+    // nothing to ask is not counted ("Step 5 of 18" came after "Step 3").
+    // Read again at each step: a choice can add or remove a later one.
+    property var shownSteps: [0]
+    function updateShownSteps(): void {
+        const shown = [];
+        for (let i = 0; i < stepsModel.count; i++) {
+            // After the install come the key and the handoff, which the
+            // controller answers only when it has ended.
+            const later = i > currentIndex && currentIndex <= stepIndex("install")
+                && (stepsModel.get(i).stepId === "recovery-key" && InstallerController.encryptionType !== "none"
+                    || stepsModel.get(i).stepId === "handoff") && InstallerController.daemonBackend;
+            if (i === currentIndex || later || !stepSkipped(i)) {
+                shown.push(i);
+            }
+        }
+        shownSteps = shown;
+    }
+    readonly property int shownPosition: Math.max(0, shownSteps.indexOf(currentIndex))
+    onCurrentIndexChanged: updateShownSteps()
     readonly property string currentStepId: (currentIndex >= 0 && currentIndex < stepsModel.count)
         ? stepsModel.get(currentIndex).stepId : ""
 
@@ -103,7 +124,10 @@ Kirigami.Page {
         goToStep(stepIndex("disk"));
     }
 
-    Component.onCompleted: stepHeading.text = stepTitle(currentIndex)
+    Component.onCompleted: {
+        updateShownSteps();
+        stepHeading.text = stepTitle(currentIndex);
+    }
 
     // Step animation. Manually animating is more performant and less glitchy
     // with window resize than a SwipeView.
@@ -287,8 +311,8 @@ Kirigami.Page {
         spacing: 0
 
         // Step indicator: "Step N of M · Name" and one dot per step, the
-        // way COSMIC's header and Niri's dots show it. The count is the
-        // model's, in the order of shared/flow/screens.yaml. Colours come
+        // way COSMIC's header and Niri's dots show it. The count is of the
+        // steps this install shows, in the order of shared/flow/screens.yaml. Colours come
         // from Kirigami.Theme, sizes from Kirigami.Units.
         RowLayout {
             objectName: "stepIndicator"
@@ -301,7 +325,7 @@ Kirigami.Page {
 
             Label {
                 objectName: "stepCounter"
-                text: qsTr("Step %1 of %2 · %3").arg(root.currentIndex + 1).arg(root.stepCount)
+                text: qsTr("Step %1 of %2 · %3").arg(root.shownPosition + 1).arg(root.shownSteps.length)
                     .arg(stepsModel.get(root.currentIndex).name)
                 color: Kirigami.Theme.disabledTextColor
                 elide: Text.ElideRight
@@ -313,21 +337,21 @@ Kirigami.Page {
                 spacing: Kirigami.Units.smallSpacing
 
                 Accessible.role: Accessible.ProgressBar
-                Accessible.name: qsTr("Step %1 of %2").arg(root.currentIndex + 1).arg(root.stepCount)
+                Accessible.name: qsTr("Step %1 of %2").arg(root.shownPosition + 1).arg(root.shownSteps.length)
 
                 Repeater {
-                    model: root.stepCount
+                    model: root.shownSteps.length
 
                     delegate: Rectangle {
                         required property int index
 
-                        readonly property bool current: index === root.currentIndex
+                        readonly property bool current: index === root.shownPosition
 
                         anchors.verticalCenter: parent.verticalCenter
                         width: current ? Kirigami.Units.gridUnit * 1.5 : Kirigami.Units.smallSpacing * 2
                         height: Kirigami.Units.smallSpacing * 2
                         radius: height / 2
-                        color: index <= root.currentIndex
+                        color: index <= root.shownPosition
                             ? Kirigami.Theme.highlightColor
                             : Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g,
                                       Kirigami.Theme.textColor.b, 0.2)
@@ -466,7 +490,21 @@ Kirigami.Page {
                 icon.name: isInstall ? "install-symbolic"
                     : (isClose ? "window-close-symbolic" : "arrow-right-symbolic")
 
-                enabled: root.currentModule ? root.currentModule.nextEnabled : false
+                // The button changes to "Install" with the step, while the
+                // page before still slides out: a second press of a double
+                // click must not start the install.
+                enabled: (root.currentModule ? root.currentModule.nextEnabled : false)
+                    && !(isInstall && root.animating)
+                // Install erases the disk: the one button in the colour of a
+                // thing that cannot be undone.
+                readonly property bool destructive: isInstall
+                    && !(InstallerController.daemonBackend && InstallerController.selectedDiskHasData
+                         && !InstallerController.selectedDiskForceErase
+                         && InstallerController.installMode === "free_space")
+                highlighted: !destructive
+                Kirigami.Theme.inherit: !destructive
+                Kirigami.Theme.textColor: destructive ? Kirigami.Theme.negativeTextColor : undefined
+                icon.color: destructive ? Kirigami.Theme.negativeTextColor : "transparent"
 
                 // The one and only place an install is started.
                 onClicked: {

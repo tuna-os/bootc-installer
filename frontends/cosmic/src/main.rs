@@ -11,6 +11,7 @@
 
 mod capture;
 mod model;
+mod names;
 mod readiness;
 mod source_check;
 mod plan;
@@ -86,8 +87,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .size(Size::new(1000.0, 700.0))
         .size_limits(
             cosmic::iced::Limits::NONE
-                .min_width(600.0)
-                .min_height(480.0),
+                // cosmic-comp opens a window at two thirds of the screen at
+                // most, and never below its minimum: on 1280x800 that was
+                // 856x482, and each page was cut. 880x560 is in 1024x600
+                // below the panel.
+                .min_width(880.0)
+                .min_height(560.0),
         );
 
     // Deterministic captures: the system preference is whatever the CI runner
@@ -282,6 +287,61 @@ impl Page {
 
     fn index(self) -> usize {
         Page::ORDER.iter().position(|p| *p == self).unwrap_or(0)
+    }
+
+    /// The part of the install that the page belongs to: the step rail.
+    pub const fn group(self) -> Group {
+        match self {
+            Page::Requirements | Page::TryOrInstall | Page::Image => Group::Start,
+            Page::Language
+            | Page::Keyboard
+            | Page::Timezone
+            | Page::Network
+            | Page::Prerelease
+            | Page::Eula => Group::Basics,
+            Page::Rst
+            | Page::DiskSelect
+            | Page::WipeOrFree
+            | Page::Encryption
+            | Page::Options => Group::Disk,
+            Page::Account => Group::Account,
+            Page::Tour | Page::Confirm => Group::Review,
+            Page::Installing | Page::RecoveryKey | Page::Handoff | Page::Done => Group::Install,
+        }
+    }
+}
+
+/// The named groups of the step rail, in order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Group {
+    Start,
+    Basics,
+    Disk,
+    Account,
+    Review,
+    Install,
+}
+
+impl Group {
+    pub const ORDER: [Group; 6] = [
+        Group::Start,
+        Group::Basics,
+        Group::Disk,
+        Group::Account,
+        Group::Review,
+        Group::Install,
+    ];
+
+    pub const fn title(self) -> &'static str {
+        use ui::copy;
+        match self {
+            Group::Start => copy::RAIL_START,
+            Group::Basics => copy::RAIL_BASICS,
+            Group::Disk => copy::RAIL_DISK,
+            Group::Account => copy::ACCOUNT_SECTION,
+            Group::Review => copy::RAIL_REVIEW,
+            Group::Install => copy::RAIL_INSTALL,
+        }
     }
 }
 
@@ -539,6 +599,7 @@ pub enum Message {
     CancelQuit,
     /// Copy the install log to the clipboard (dialog_output's copy affordance).
     CopyLog,
+    ToggleDetails,
     /// Preflight lists arrived (localectl / timedatectl on the host).
     LocalesLoaded(Vec<String>),
     KeymapsLoaded(Vec<String>),
@@ -779,6 +840,8 @@ pub struct TunaInstaller {
     /// The exit-confirm state (RequestQuit): the view renders the confirm
     /// instead of the current page until this clears.
     show_exit_dialog: bool,
+    /// The install log is open on the install and failure pages.
+    show_details: bool,
     /// Preflight lists and selections (localectl / timedatectl).
     locales: Vec<String>,
     selected_locale: Option<usize>,
@@ -1129,6 +1192,35 @@ impl TunaInstaller {
             .and_then(|i| self.catalog.leaves.get(i))
             .map(|l| tour::slides_from_carousel(&l.carousel))
             .unwrap_or_default()
+    }
+    /// The pages of this install, the one on screen included: a page with
+    /// nothing to ask is not counted ("Step 11 of 21" came after "Step 6").
+    /// The recovery key and the handoff come after the install; before it
+    /// they count when they will show.
+    pub fn shown_pages(&self) -> Vec<Page> {
+        let before = self.page.index() < Page::Installing.index();
+        Page::ORDER
+            .into_iter()
+            .filter(|page| {
+                *page == self.page
+                    || self.page_visible(*page)
+                    || ((before || self.installing)
+                        && match page {
+                            Page::Handoff => true,
+                            Page::RecoveryKey => self.recipe.encryption.enc_type != "none",
+                            _ => false,
+                        })
+            })
+            .collect()
+    }
+    /// (position from 1, count) of the page on screen.
+    pub fn step_position(&self) -> (usize, usize) {
+        let pages = self.shown_pages();
+        let at = pages.iter().position(|p| *p == self.page).unwrap_or(0);
+        (at + 1, pages.len())
+    }
+    pub fn show_details(&self) -> bool {
+        self.show_details
     }
     /// A page earns its place in the walk only when its data does:
     /// conditional pages are skipped, never blank.
@@ -1967,6 +2059,7 @@ impl cosmic::Application for TunaInstaller {
             live_leaf: None,
             hw_overrides: hardware::Overrides::default(),
             show_exit_dialog: false,
+            show_details: false,
             locales: Vec::new(),
             selected_locale: None,
             keymaps: Vec::new(),
@@ -2043,8 +2136,8 @@ impl cosmic::Application for TunaInstaller {
         let spacing = cosmic::theme::active().cosmic().spacing;
         vec![widget::text::caption(i18n::tr_with(ui::copy::HEADER_STEP,
             &[
-                ("n", &(self.page.index() + 1).to_string()),
-                ("total", &Page::ORDER.len().to_string()),
+                ("n", &self.step_position().0.to_string()),
+                ("total", &self.step_position().1.to_string()),
                 ("title", &i18n::tr(self.page.title())),
             ],
         ))
@@ -2056,7 +2149,7 @@ impl cosmic::Application for TunaInstaller {
     fn header_end(&self) -> Vec<Element<'_, Message>> {
         vec![
             widget::progress_bar::determinate_linear(
-                (self.page.index() as f32 + 1.0) / Page::ORDER.len() as f32,
+                self.step_position().0 as f32 / self.step_position().1 as f32,
             )
             .width(Length::Fixed(120.0))
             .into(),
@@ -2181,6 +2274,10 @@ impl cosmic::Application for TunaInstaller {
                 self.show_exit_dialog = false;
                 Task::none()
             }
+            Message::ToggleDetails => {
+                self.show_details = !self.show_details;
+                Task::none()
+            }
             Message::CopyLog => {
                 // Without the recovery key: a copied log ends up in a bug
                 // report (redact.rs, #337).
@@ -2194,26 +2291,29 @@ impl cosmic::Application for TunaInstaller {
                 // selected instead of resetting to the top of the list.
                 let current = std::env::var("LANG").unwrap_or_default();
                 let ordered = preflight::order_locales(locales, &current);
-                self.selected_locale = (!ordered.is_empty()).then_some(0);
+                // Nothing is picked, and nothing is sent: the first row of
+                // the page says that the image keeps its own setting.
+                self.selected_locale = None;
                 self.locales = ordered;
                 Task::none()
             }
             Message::KeymapsLoaded(keymaps) => {
-                self.selected_keymap = if keymaps.is_empty() {
-                    None
-                } else {
-                    Some(keymaps.iter().position(|k| k == "us").unwrap_or(0))
-                };
+                self.selected_keymap = None;
                 self.keymaps = keymaps;
+                self.keymaps.sort_by_key(|k| names::keymap(k).to_lowercase());
                 Task::none()
             }
             Message::TimezonesLoaded(timezones) => {
                 self.timezones = timezones;
+                self.timezones.sort_by_key(|z| names::timezone(z).to_lowercase());
                 Task::none()
             }
             Message::SelectLocale(idx) => {
                 if idx >= self.locales.len() {
-                    return Task::none();
+                    // The "keep" row.
+                    self.selected_locale = None;
+                    self.recipe.locale.clear();
+                    return self.check_fields();
                 }
                 {
                     self.selected_locale = Some(idx);
@@ -2231,7 +2331,9 @@ impl cosmic::Application for TunaInstaller {
             }
             Message::SelectKeymap(idx) => {
                 if idx >= self.keymaps.len() {
-                    return Task::none();
+                    self.selected_keymap = None;
+                    self.recipe.keyboard = None;
+                    return self.check_fields();
                 }
                 {
                     self.selected_keymap = Some(idx);
@@ -2250,7 +2352,9 @@ impl cosmic::Application for TunaInstaller {
             }
             Message::SelectTimezone(idx) => {
                 if idx >= self.timezones.len() {
-                    return Task::none();
+                    self.selected_timezone = None;
+                    self.recipe.timezone.clear();
+                    return self.check_fields();
                 }
                 {
                     self.selected_timezone = Some(idx);
@@ -2570,6 +2674,7 @@ impl cosmic::Application for TunaInstaller {
                 match result {
                     Ok(()) => self.advance().1,
                     Err(e) => {
+                        tracing::warn!("the recovery key was not enrolled: {e}");
                         self.recovery_error = Some(e);
                         Task::none()
                     }

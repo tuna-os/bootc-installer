@@ -14,9 +14,13 @@ socket path unset, so every path here is configurable and tests inject a
 temporary directory.
 """
 
+import datetime
 import json
 import os
+import re
 import sys
+
+from .i18n import _
 
 DEFAULT_SOCKETS = {
     "fisherman": "/run/fisherman/io.tunaos.Fisherman",
@@ -267,6 +271,19 @@ TRANSPORT_LABELS = {
 }
 
 
+def disk_title(disk):
+    """The name of one Probe disk: vendor and model, without the PCI vendor
+    id that virtio puts where a vendor belongs ("0x1af4"). A disk that names
+    neither is called after its bus; the row shows its path and its size."""
+    parts = [(disk.get(key) or "").strip() for key in ("vendor", "model")]
+    title = " ".join(p for p in parts if p and not re.fullmatch(r"0x[0-9a-fA-F]+", p))
+    if title:
+        return title
+    bus = TRANSPORT_LABELS.get(disk.get("transport") or "",
+                               (disk.get("transport") or "").upper())
+    return _("{bus} disk").format(bus=bus) if bus else disk.get("path", "")
+
+
 def gate_to_unmet(gates):
     """Legacy `system.unmet` ids (ram, cpu, uefi) for Requirements gates."""
     ids = {"ram": "ram", "cpu": "cpu", "firmware": "uefi"}
@@ -345,7 +362,35 @@ def probe_handoff(probe_reply):
     return {"mode": mode, "reason": raw.get("reason") or ""}
 
 
-def daemon_event_to_line(event):
+def _step_name(step_id):
+    """What a step is called in the log when the daemon sends no text. The
+    page's own label is the branding copy; these are the ids that it does
+    not have (shared/branding/copy-defaults.json, step_*)."""
+    return {
+        "validate_device": _("Checking your drive…"),
+        "partition": _("Setting up your drive…"),
+        "luks": _("Securing your drive…"),
+        "tpm2_enroll": _("Setting up auto-unlock…"),
+        "mount": _("Almost ready…"),
+        "install_os": _("Copying the system…"),
+        "configure": _("Configuring your system…"),
+        "post_fixups": _("Applying the last settings…"),
+        "bootloader": _("Setting up the boot loader…"),
+        "finalize": _("Finishing up…"),
+        "cleanup": _("Cleaning up…"),
+    }.get(step_id or "", step_id or "")
+
+
+def disk_changed_after(step_id, changed=False):
+    """What is known about the disk once `step_id` has started: False before
+    the partition step, None in it (repart can fail before it writes), and
+    True after it. `changed` is the answer for the steps before."""
+    if step_id in (None, "", "validate_device", "cleanup"):
+        return changed
+    return None if step_id == "partition" else True
+
+
+def daemon_event_to_line(event, disk_changed=None):
     """One legacy progress-protocol line (dict) for a daemon Install event.
 
     Lets the install page reuse its parser, log pane and bar
@@ -353,17 +398,23 @@ def daemon_event_to_line(event):
     the daemon's own overallPct, progress a `substep`, warning and
     step_finished `info` lines, complete a `complete` line, failed an
     `error` line carrying the daemon's reason as the code. Cancelled needs
-    no line: the caller ends the install as a cancel."""
+    no line: the caller ends the install as a cancel. The daemon does not
+    say whether the disk changed; `disk_changed` is what the caller knows
+    from the steps that started (disk_changed_after), None says nothing."""
     kind = (event or {}).get("event", "")
     step_id = event.get("stepId")
     overall = event.get("overallPct")
     message = event.get("message") or ""
-    line = {"timestamp": "1970-01-01T00:00:00Z", "elapsed_ms": 0}
-    if kind == "step_started":
+    line = {"timestamp": datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ")}
+    if kind == "step_started" and not event.get("totalSteps"):
+        # The cleanup after a failure: not a step of the install.
+        line.update({"type": "info", "message": message or _step_name(step_id)})
+    elif kind == "step_started":
         line.update({"type": "step",
-                     "step": (event.get("stepIndex") or 0) + 1,
+                     "step": event.get("stepIndex") or 0,
                      "total_steps": event.get("totalSteps") or 0,
-                     "step_name": message or (step_id or ""),
+                     "step_name": message or _step_name(step_id),
                      "step_id": step_id or ""})
         if overall is not None:
             line["overall_pct"] = overall
@@ -373,7 +424,7 @@ def daemon_event_to_line(event):
             line["overall_pct"] = overall
     elif kind in ("step_finished", "warning"):
         line.update({"type": "info",
-                     "message": message or (step_id or "")})
+                     "message": message})
     elif kind == "complete":
         line.update({"type": "complete", "message": message,
                      "overall_pct": 100})
@@ -381,7 +432,7 @@ def daemon_event_to_line(event):
         line.update({"type": "error", "message": message,
                      "code": event.get("reason") or "install_failed",
                      "step_id": step_id or "",
-                     "disk_changed": False,
+                     "disk_changed": disk_changed,
                      "cleanup": event.get("nextAction") or ""})
     elif kind == "cancelled":
         line.update({"type": "info", "message": message or "Cancelled"})

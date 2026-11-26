@@ -44,6 +44,7 @@ TunaComponents.SetupModule {
                 objectName: "languagePicker"
                 names: InstallerController.languageNames
                 ids: InstallerController.languageIds
+                keepText: qsTr("Keep the image's setting")
                 currentId: InstallerController.language
                 searchLabel: qsTr("Search languages")
                 emptyText: qsTr("No language matches the search.")

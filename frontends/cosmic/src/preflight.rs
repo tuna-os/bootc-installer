@@ -181,7 +181,7 @@ pub fn filter_timezones<'a>(zones: &'a [String], query: &str, limit: usize) -> V
     }
     zones
         .iter()
-        .filter(|z| z.to_lowercase().contains(&q))
+        .filter(|z| z.to_lowercase().contains(&q) || crate::names::timezone(z).to_lowercase().contains(&q))
         .take(limit)
         .collect()
 }

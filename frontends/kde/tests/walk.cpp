@@ -17,7 +17,9 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
+#include <QAccessible>
 #include <QApplication>
+#include <QDir>
 #include <QEventLoop>
 #include <QFileInfo>
 #include <QIcon>
@@ -202,6 +204,42 @@ public:
         if (m_seen.isEmpty() || m_seen.last() != want)
             m_seen << want;
         settle(900);
+        shot(want);
+    }
+
+    // A picture of the screen, with TUNA_WALK_SHOTS set to a directory.
+    void shot(const QString &what)
+    {
+        const QString dir = qEnvironmentVariable("TUNA_WALK_SHOTS");
+        if (dir.isEmpty() || !m_window)
+            return;
+        QDir().mkpath(dir);
+        m_window->grabWindow().save(u"%1/%2-%3-%4.png"_s.arg(dir, m_name).arg(++m_shots, 2, 10, '0'_L1).arg(what));
+    }
+
+    // The counter of the header, "Step 3 of 9 · Keyboard Layout".
+    QString counter() const
+    {
+        const QQuickItem *label = item(u"stepCounter"_s);
+        return label ? label->property("text").toString() : QString();
+    }
+
+    // A screen reader must hear what a password field is for, not what is
+    // in it.
+    QString passwordName(const QString &name) const
+    {
+        QList<QQuickItem *> todo{item(name)};
+        while (!todo.isEmpty()) {
+            QQuickItem *i = todo.takeFirst();
+            if (!i)
+                continue;
+            if (i->inherits("QQuickTextInput")) {
+                QAccessibleInterface *a = QAccessible::queryAccessibleInterface(i);
+                return a ? a->text(QAccessible::Name) : QString();
+            }
+            todo << i->childItems();
+        }
+        return {};
     }
 
     // A click the way a person's click reaches a button: only on a button
@@ -248,9 +286,33 @@ public:
         at(u"try-or-install"_s);
         expect(shown(u"tryButton"_s), u"live media has no Try button"_s);
         expect(!shown(u"nextButton"_s), u"try-or-install shows the shared Next button"_s);
+        expect(counter().startsWith(u"Step 1 of "_s), u"the first step is not step 1: "_s + counter());
         click(u"installNowButton"_s);
         at(u"language"_s);
         next(u"keyboard"_s);
+        expect(counter().startsWith(u"Step 3 of "_s), u"the third step is not step 3: "_s + counter());
+        // What has the check mark is what the install sends: nothing is
+        // picked, and the row says so.
+        if (m_ok) {
+            const QQuickItem *picker = item(u"keyboardPicker"_s);
+            expect(picker && picker->property("currentId").toString().isEmpty() && !m_controller->keyboardChosen(),
+                   u"a layout looks chosen that is not sent"_s);
+            m_controller->setKeyboardLayout(u"de"_s);
+            settle(50);
+            expect(picker && picker->property("currentId").toString() == u"de"_s && m_controller->keyboardChosen(),
+                   u"a picked layout is not the checked one"_s);
+            m_controller->setKeyboardLayout(QString());
+            settle(50);
+        }
+        // The row that applies is in view, with its check mark.
+        if (m_ok) {
+            const QQuickItem *list = findItemByName(findItemByName(m_window->contentItem(), u"keyboardPicker"_s),
+                                                    u"pickerList"_s);
+            const QQuickItem *row = list ? list->property("currentItem").value<QQuickItem *>() : nullptr;
+            const qreal y = row ? row->mapToItem(list, QPointF(0, 0)).y() : -1;
+            expect(row && y >= 0 && y + row->height() <= list->height() + 1,
+                   u"the current keyboard layout is not in view"_s);
+        }
         next(u"timezone"_s);
         // Back goes to the screen before, and Next comes here again.
         click(u"backButton"_s);
@@ -273,6 +335,11 @@ public:
         if (QQuickItem *confirm = item(u"accountPasswordConfirm"_s))
             confirm->setProperty("text", u"account password 42"_s);
         settle(600);
+        expect(passwordName(u"accountPassword"_s) == u"Password"_s,
+               u"the password field is named \"%1\""_s.arg(passwordName(u"accountPassword"_s)));
+        expect(passwordName(u"accountPasswordConfirm"_s) == u"Confirm password"_s,
+               u"the confirmation field has another name"_s);
+        shot(u"account-typed"_s);
     }
 
     // Install on the confirm screen, then the wizard moves by itself.
@@ -289,8 +356,16 @@ public:
             return;
         }
         m_seen << u"install"_s;
+        // The key, the handoff and the result come after it, and are counted.
+        expect(!counter().section(u' ', 1, 1).isEmpty()
+                   && counter().section(u' ', 1, 1).toInt() + 3 == counter().section(u' ', 3, 3).toInt(),
+               u"the install step does not count the steps after it: "_s + counter());
         expect(!shown(u"backButton"_s), u"Back is offered during the install"_s);
         expect(!shown(u"nextButton"_s), u"Next is offered during the install"_s);
+        if (qEnvironmentVariableIsSet("TUNA_WALK_SHOTS")) {
+            settle(900);
+            shot(u"install"_s);
+        }
         if (after != u"install"_s)
             at(after, 60000);
         else
@@ -340,6 +415,7 @@ private:
     InstallerController *m_controller = nullptr;
     QStringList m_seen;
     bool m_ok = true;
+    int m_shots = 0;
 };
 
 // happy: an empty disk and a TPM 2.0. No wipe-or-free and no encryption
