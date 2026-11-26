@@ -12,7 +12,7 @@
    "caption": "The wizard runs on live media.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "3002fd6d7deb1c924fd4742ffa871a028e3c53b2a403f56ef610afb98e910bd3",
+   "sha256": "59754196dad7f9533199323cb5c276c32be039f21dac3757a9956b2e86754e50",
    "blank": false
   },
   {
@@ -23,7 +23,7 @@
    "caption": "Always.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "e27eb8924865b7779a7cef419b3a233a47ba442dafa9ce5bce6c6969d25f0dcc",
+   "sha256": "6e0bb3f624fefb9c3ebc2f935497be7f748d404c338f814a4c0ab057e77807e1",
    "blank": false
   },
   {
@@ -34,7 +34,7 @@
    "caption": "Always.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "99863145808cd97969a74efceafc7b3ef0438ce022996372717a44d8be7e3321",
+   "sha256": "f6d5f4e47a36802f622fe3a82e8104c504f68a6d92a9bf0e8d6a4ee28be5df5f",
    "blank": false
   },
   {
@@ -45,7 +45,7 @@
    "caption": "Always.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "c82ae7cc76f856aa9f56e88908e907ffdba379efcfbf18c8839b7da50dea02a3",
+   "sha256": "5612666298d5e9e8d0606a3800a25437a8fa444c9ce2b484a9d8f72412b6416c",
    "blank": false
   },
   {
@@ -56,7 +56,7 @@
    "caption": "Always.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "02743010ddc74ae1a161a37b9ada3ec2de840ae964bab609731d4dc00d8be6b4",
+   "sha256": "b5715e7b59bf08611bab9c1192c58dcfee67bed12e4266b235e5bcfeaacbfa36",
    "blank": false
   },
   {
@@ -67,7 +67,7 @@
    "caption": "No TPM 2.0 is present. The page asks for a disk passphrase, twice.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "b4fb10bdb2ffcc1b79ce2b11b0d28255d4b18b474981a4abbbbd62ab82e211a5",
+   "sha256": "e784b6d2dbd4d1b9945828b125bfbf76175e07144f721c03f2fd619cf4df3cfa",
    "blank": false
   },
   {
@@ -78,7 +78,7 @@
    "caption": "The desktop has no first-boot tool that creates the user, and the image does not make its own user.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "08df1f5f3351e0cd545a2b6cf03b0e215008ae84ce65e3843964b53662ab16e9",
+   "sha256": "d258d1fa9adab555b950ce2c7d2e29781e57739fccc9f2cee6d9d1c8991e8bdc",
    "blank": false
   },
   {
@@ -89,7 +89,7 @@
    "caption": "Always.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "ccd863468b1fa8facbde3ce297fa9e6876255cfc2cf4cbf5a5ef2e8abcbd4aac",
+   "sha256": "208f91a3adf5faef62fa0515100c0e154e4a5c1dfa90fe1f9ac38e0b757d7a2b",
    "blank": false
   },
   {
@@ -100,7 +100,7 @@
    "caption": "The disk is encrypted.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "10b40b9c35ce039b9bf81132d6ef78d3b594bfdd49ba43a5cd080fda001877cf",
+   "sha256": "eedbb6bec9d3c7ca2e85cd578c09b1256f344c27718aa7431c4c66cc4a7b396d",
    "blank": false
   },
   {
@@ -111,7 +111,7 @@
    "caption": "After the install and the recovery key.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "af70a17b2db4bb18e31c34d13129b4de42b56e0a3b5cfd7d7ab5c1cc8157d2f2",
+   "sha256": "94ab852b5e1a34c102514bf72e785b4a0a9358728d5737614875cee815a79e7b",
    "blank": false
   },
   {
@@ -122,7 +122,7 @@
    "caption": "The install ended.",
    "run": "happy",
    "scenario": "happy,fixed-key",
-   "sha256": "371532b5d39265c241c77a528ee1e1b440cfd8c6e9b6982059545700a06dbb8b",
+   "sha256": "446f6100eb42fc7c12e19ac7c3db521481ae769760e758b837998fb0b32bcd21",
    "blank": false
   }
  ],
