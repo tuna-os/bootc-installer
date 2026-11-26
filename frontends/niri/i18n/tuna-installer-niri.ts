@@ -167,7 +167,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Timezone</source>
+        <source>Time zone</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -351,7 +351,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Password again</source>
+        <source>Confirm password</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

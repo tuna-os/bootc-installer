@@ -373,11 +373,16 @@ ApplicationWindow {
         pages.push(4)
         if (root.needsUserCreation) pages.push(5)
         pages.push(6, 7)
-        // Post-install screens join the flow once the install has ended:
-        // the back button and the step dots then cover the whole journey.
+        // Post-install screens: before the install ends, the ones that a
+        // success brings, so the step count does not grow at the end
+        // ("Step 7 of 9" on Confirm, then "Step 9 of 11"). After it, the
+        // ones that show.
         if (root.installEnded) {
             if (root.showRecoveryScreen) pages.push(13)
             if (root.showHandoffScreen) pages.push(14)
+        } else {
+            if (root.encType !== "none") pages.push(13)
+            if (root.daemonMode) pages.push(14)
         }
         pages.push(8)
         return pages
@@ -1954,7 +1959,7 @@ ApplicationWindow {
                             implicitWidth: 300
                         }
 
-                        StyledText { text: qsTr("Timezone"); color: Theme.surfaceVariantText }
+                        StyledText { text: qsTr("Time zone"); color: Theme.surfaceVariantText }
                         ComboBox {
                             id: tzCombo
                             objectName: "sessionTimezone"
@@ -2532,12 +2537,12 @@ ApplicationWindow {
                             implicitWidth: 300
                         }
 
-                        StyledText { text: qsTr("Password again"); color: Theme.surfaceVariantText }
+                        StyledText { text: qsTr("Confirm password"); color: Theme.surfaceVariantText }
                         ColumnLayout {
                             spacing: 2
                             DankTextField {
                                 id: userPassConfirm
-                                label: qsTr("Password again")
+                                label: qsTr("Confirm password")
                                 objectName: "accountPasswordConfirm"
                                 text: root.userPasswordConfirm
                                 onTextEdited: root.userPasswordConfirm = text
@@ -2705,7 +2710,7 @@ ApplicationWindow {
                                 StyledText { objectName: "confirmLocale"; visible: !!root.confirmRegion().locale; text: root.nameOf(root.localeNames, root.confirmRegion().locale || ""); isMonospace: true }
                                 StyledText { text: qsTr("Keyboard"); color: Theme.surfaceVariantText; visible: !!root.confirmRegion().keyboard }
                                 StyledText { objectName: "confirmKeyboard"; visible: !!root.confirmRegion().keyboard; text: root.nameOf(root.keyboardNames, root.confirmRegion().keyboard ? root.confirmRegion().keyboard.layout : ""); isMonospace: true }
-                                StyledText { text: qsTr("Timezone"); color: Theme.surfaceVariantText; visible: !!root.confirmRegion().timezone }
+                                StyledText { text: qsTr("Time zone"); color: Theme.surfaceVariantText; visible: !!root.confirmRegion().timezone }
                                 StyledText { objectName: "confirmTimezone"; visible: !!root.confirmRegion().timezone; text: root.nameOf(root.timezoneNames, root.confirmRegion().timezone || ""); isMonospace: true }
                                 StyledText { text: qsTr("Region"); color: Theme.surfaceVariantText; visible: root.regionProblem !== "" }
                                 StyledText { objectName: "regionProblem"; visible: root.regionProblem !== ""; text: root.regionProblem; color: Theme.error; wrapMode: Text.Wrap; Layout.fillWidth: true }
@@ -3424,6 +3429,9 @@ ApplicationWindow {
                                     recoveryClip.deselect()
                                 }
                             }
+                            // A check box for a screen reader and the e2e
+                            // harness (role "check box", shared/flow
+                            // screens.yaml), drawn as a DMS button.
                             DankButton {
                                 objectName: "recoveryAckButton"
                                 text: (root.recoveryAck ? "\u2713  " : "")
@@ -3432,6 +3440,10 @@ ApplicationWindow {
                                 checkable: true
                                 checked: root.recoveryAck
                                 onToggled: root.recoveryAck = checked
+                                Accessible.role: Accessible.CheckBox
+                                Accessible.name: root.text("recovery_key_ack")
+                                Accessible.checkable: true
+                                Accessible.checked: root.recoveryAck
                             }
                         }
                     }
@@ -3448,7 +3460,7 @@ ApplicationWindow {
                         Item { Layout.fillWidth: true }
                         DankButton {
                             objectName: "recoveryContinueButton"
-                            text: qsTr("Continue")
+                            text: qsTr("Done")
                             enabled: root.recoveryKey !== "" && root.recoveryAck
                             onClicked: root.flowNext()
                         }
@@ -3530,14 +3542,21 @@ ApplicationWindow {
             visible: root.currentPage !== 7 && root.currentPage !== 8
             Repeater {
                 model: [
-                    { key: "Enter", shown: qsTr("Enter"), what: root.currentPage === 6 ? root.text("confirm_button") : qsTr("Continue") },
+                    { key: "Enter", shown: qsTr("Enter"), what: root.currentPage === 6 ? root.text("confirm_button")
+                        : root.currentPage === 13 ? qsTr("Done") : qsTr("Continue") },
                     { key: "Shift+Enter", shown: qsTr("Shift+Enter"), what: qsTr("Back") },
                     { key: "Tab", shown: qsTr("Tab"), what: qsTr("Next field") }
                 ]
                 RowLayout {
                     required property var modelData
                     spacing: Theme.spacingXS
-                    visible: !(modelData.key === "Shift+Enter" && root.currentPage === 0)
+                    // No way back from the first page, or after the install.
+                    // On the handoff page Enter only leaves a session that
+                    // keeps running.
+                    visible: !(modelData.key === "Shift+Enter"
+                            && (root.currentPage === 0 || root.currentPage === 13 || root.currentPage === 14))
+                        && !(modelData.key === "Enter" && root.currentPage === 14
+                            && !(root.handoffKeepsRunning && root.handoffError === ""))
                     Rectangle {
                         radius: Theme.cornerRadiusXS
                         color: Theme.surfaceContainerHigh
