@@ -3407,9 +3407,14 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         title: qsTr("License agreement")
+                        // A fixed height: the page's column is centred and has
+                        // no height to fill, so a height taken from the card
+                        // was 0 and the terms were not on screen at all.
                         Flickable {
+                            objectName: "eulaScroll"
                             width: parent.width
-                            height: Math.min(320, parent.height)
+                            height: Math.min(280, eulaText.implicitHeight)
+                            implicitHeight: height
                             clip: true
                             contentWidth: width
                             contentHeight: eulaText.implicitHeight
@@ -3435,6 +3440,10 @@ ApplicationWindow {
                         checked: root.eulaAccepted
                         visible: root.eulaInfo.unreadable !== true
                         onToggled: root.eulaAccepted = checked
+                        Accessible.role: Accessible.CheckBox
+                        Accessible.name: qsTr("I have read and accept the Terms of Use")
+                        Accessible.checkable: true
+                        Accessible.checked: root.eulaAccepted
                     }
                     RowLayout {
                         Layout.fillWidth: true

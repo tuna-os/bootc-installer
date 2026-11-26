@@ -87,7 +87,18 @@ func eulaMain() {
 			fmt.Println(string(out))
 			return
 		}
-		out, _ := json.Marshal(map[string]any{"present": true, "text": string(data)})
+		text, perr := eulaPlainText(data)
+		if perr != nil {
+			// XML with no eula agreement, or broken XML: the terms cannot
+			// be shown, which is the eula-unreadable state.
+			out, _ := json.Marshal(map[string]any{
+				"present": true, "unreadable": true,
+				"path": filepath.Base(path),
+			})
+			fmt.Println(string(out))
+			return
+		}
+		out, _ := json.Marshal(map[string]any{"present": true, "text": text})
 		fmt.Println(string(out))
 		return
 	}
