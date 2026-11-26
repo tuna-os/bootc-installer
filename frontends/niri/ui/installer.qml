@@ -577,7 +577,9 @@ ApplicationWindow {
         root.recoveryKeyError = ""
         root.pendingRecovery = JSON.stringify({
             node: root.selectedDisk.path || "",
-            unlock_password: root.passphrase || ""
+            // Only a passphrase type has one; a passphrase typed and then
+            // left for TPM is not on the volume.
+            unlock_password: root.needsPassphrase(root.encType) ? (root.passphrase || "") : ""
         })
         recoveryKeyProc.running = true
     }
@@ -1772,19 +1774,30 @@ ApplicationWindow {
             daemon_unreachable: qsTr("The install service does not answer. If an installation was in progress, it can still be running.")
         })[e.code || ""] || ""
         if (byCode !== "") return byCode
-        if (e.step_id) return qsTr("The installation stopped at the step “%1”.").arg(daemonStepLabel(e.step_id))
+        const step = e.step_id ? daemonStepLabel(e.step_id) : ""
+        if (step !== "") return qsTr("The installation stopped at the step “%1”.").arg(step)
         return qsTr("The installation did not finish. The log has the details.")
     }
     function daemonStepLabel(id) {
+        // A step with no copy key gets no name: never a raw step id.
         const t = root.text("step_" + id)
-        return t !== "" ? t.replace(/…$/, "") : id
+        return t.replace(/…$/, "")
     }
-    // Try again: back to Confirm with every choice kept (as COSMIC).
+    // Try again: back to Confirm with every choice kept (as COSMIC). When
+    // the disk went away, back to the disk page with a fresh list instead:
+    // the chosen disk is no longer there.
     function tryAgain() {
+        const lost = !!root.installError && root.installError.code === "device_lost"
         root.installError = null
         root.installSuccess = false
         root.installCancelled = false
-        root.currentPage = 6
+        if (lost) {
+            root.selectedDisk = ({})
+            discoverProc.running = true
+            root.currentPage = 3
+        } else {
+            root.currentPage = 6
+        }
     }
 
     // The done page's tone: installed, cancelled (a warning: the user chose
@@ -2427,8 +2440,12 @@ ApplicationWindow {
 
                         // Filesystem: the selected image's choices (its own list for
                         // an image that names none), starting at the image's value.
+                        // Not on the daemon path: its Config has no filesystem,
+                        // and the daemon picks it (btrfs on non-EL bases, xfs on
+                        // EL10). A choice here would change nothing.
                         DankCard {
                             Layout.fillWidth: true
+                            visible: !root.daemonMode
                             title: qsTr("Advanced")
                             Column {
                                 width: parent.width
@@ -2715,8 +2732,9 @@ ApplicationWindow {
                                     wrapMode: Text.WrapAnywhere
                                     Layout.fillWidth: true
                                 }
-                                StyledText { text: qsTr("Filesystem"); color: Theme.surfaceVariantText }
+                                StyledText { text: qsTr("Filesystem"); color: Theme.surfaceVariantText; visible: !root.daemonMode }
                                 StyledText {
+                                    visible: !root.daemonMode
                                     text: root.filesystem === "btrfs" && root.btrfsSubvolumes
                                         ? qsTr("%1  (subvolumes)").arg(root.filesystem)
                                         : root.filesystem === "zfs"

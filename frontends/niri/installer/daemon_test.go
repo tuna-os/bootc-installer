@@ -756,8 +756,22 @@ func TestDaemonRecoveryKeyUnlocksWithThePassphrase(t *testing.T) {
 func TestRecoveryFetchSendsThePassphrase(t *testing.T) {
 	qml := readQML(t)
 	for _, want := range []string{
-		`unlock_password: root.passphrase || ""`,
+		`unlock_password: root.needsPassphrase(root.encType) ? (root.passphrase || "") : ""`,
 		`root.passphrase = passField.text`,
+	} {
+		if !strings.Contains(qml, want) {
+			t.Errorf("installer.qml has no %q", want)
+		}
+	}
+}
+
+// The daemon's Config has no filesystem (recipeToConfig): the daemon picks
+// it, so the daemon path neither offers nor repeats a choice.
+func TestDaemonPathHasNoFilesystemChoice(t *testing.T) {
+	qml := readQML(t)
+	for _, want := range []string{
+		"visible: !root.daemonMode\n                            title: qsTr(\"Advanced\")",
+		`StyledText { text: qsTr("Filesystem"); color: Theme.surfaceVariantText; visible: !root.daemonMode }`,
 	} {
 		if !strings.Contains(qml, want) {
 			t.Errorf("installer.qml has no %q", want)
