@@ -4,7 +4,7 @@ Do not edit this page. `tools/walkthrough/render.py` makes it.
 
 These pictures come from the real installer against the mock daemon (`fishermand --mock`). The mock writes to no disk. The machine, the disks and the recovery key are fixtures.
 
-The niri installer runs here in sway with software rendering. niri itself needs hardware GL, but this installer is a Quickshell app that any wlroots compositor shows the same way.
+The niri installer runs here in sway with a software renderer. niri itself needs hardware GL, but this installer is a Quickshell app that any wlroots compositor shows the same way.
 
 ![The main path, animated](walkthrough.webp)
 

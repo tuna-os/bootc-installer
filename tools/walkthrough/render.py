@@ -45,7 +45,7 @@ STATES = {
 }
 
 COMPOSITOR = {
-    "niri": ("The niri installer runs here in sway with software rendering. "
+    "niri": ("The niri installer runs here in sway with a software renderer. "
              "niri itself needs hardware GL, but this installer is a Quickshell "
              "app that any wlroots compositor shows the same way."),
 }
