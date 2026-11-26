@@ -258,6 +258,21 @@ fn flow_an_install_that_fails_in_its_first_steps_leaves_the_install_page() {
 }
 
 #[test]
+fn flow_a_failed_install_keeps_the_step_total_and_ends_on_the_last_step() {
+    // Run 45819747629 showed "Step 1 of 11" on Welcome and "Step 9 of 9"
+    // on the failure page: the skipped key and handoff left the total.
+    let mut w = wizard_or_skip!("repart-error");
+    w.app.firstboot_owns_user = true;
+    let (_, total) = w.app.step_position();
+    w.continue_to(Page::Confirm);
+    assert_eq!(w.app.step_position().1, total);
+    w.send(Message::StartInstall);
+    assert_eq!(w.app.page(), Page::Done);
+    assert!(!w.app.install_ok());
+    assert_eq!(w.app.step_position(), (total, total));
+}
+
+#[test]
 fn flow_a_refused_choice_leaves_the_install_page() {
     // ConfigureTarget refuses the locale before any disk step.
     let mut w = wizard_or_skip!("happy");
