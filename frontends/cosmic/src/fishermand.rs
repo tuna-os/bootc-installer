@@ -680,7 +680,11 @@ fn daemon_user(recipe: &crate::Recipe) -> Option<Value> {
 /// the image keeps its own values. `location_services` is the switch on
 /// the timezone page: `None` while the user did not move it, and then no
 /// privacy object goes and the daemon default stands (ruling on #442).
-pub fn configure_params(recipe: &crate::Recipe, location_services: Option<bool>) -> Value {
+pub fn configure_params(
+    recipe: &crate::Recipe,
+    location_services: Option<bool>,
+    accessibility: Option<Value>,
+) -> Value {
     let mut params = serde_json::Map::new();
     if let Some(user) = daemon_user(recipe) {
         params.insert("user".into(), user);
@@ -709,6 +713,11 @@ pub fn configure_params(recipe: &crate::Recipe, location_services: Option<bool>)
     if let Some(on) = location_services {
         params.insert("privacy".into(), json!({ "locationServices": on }));
     }
+    // The first page's screen reader and scale, when the person changed them
+    // (an older daemon ignores the field).
+    if let Some(value) = accessibility {
+        params.insert("accessibility".into(), value);
+    }
     Value::Object(params)
 }
 
@@ -722,6 +731,38 @@ fn map_encryption_type(enc_type: &str) -> String {
     enc_type.replace('-', "_")
 }
 
+/// The daemon excludes a disk below its minimum, or leaves it eligible and
+/// states the minimum.
+fn is_too_small(disk: &Value) -> bool {
+    let number = |key: &str| disk.get(key).and_then(Value::as_u64).unwrap_or(0);
+    let eligible = disk.get("eligible").and_then(Value::as_bool) == Some(true);
+    disk.get("excludedReason").and_then(Value::as_str) == Some("too_small")
+        || (eligible
+            && number("sizeBytes") > 0
+            && number("sizeBytes") < number("minimalSizeBytes"))
+}
+
+/// The disks of a Probe reply that are too small.
+fn too_small_disks(probe: &Value) -> Vec<crate::probe::TooSmall> {
+    probe
+        .get("disks")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+        .iter()
+        .filter(|d| is_too_small(d))
+        .map(|d| {
+            let text = |key: &str| d.get(key).and_then(Value::as_str).unwrap_or("").to_string();
+            let bus = bus_label(&text("transport"));
+            crate::probe::TooSmall {
+                title: disk_title(&text("vendor"), &text("model"), &bus, &text("path")),
+                caption: format!("{} \u{b7} {}", text("path"), text("sizeLabel")),
+                minimal_bytes: d.get("minimalSizeBytes").and_then(Value::as_u64).unwrap_or(0),
+            }
+        })
+        .collect()
+}
+
 /// `probe::Facts` from a daemon `Probe` reply plus its `Requirements`
 /// reply. The mock's gate ids are `ram`, `cpu`, `firmware`; the wizard's
 /// gates are `ram`, `cpu`, `uefi` (`hardware::gate_for`).
@@ -732,7 +773,7 @@ pub fn daemon_probe_to_facts(probe: &Value, gates: &Value) -> Result<crate::prob
         .map(Vec::as_slice)
         .unwrap_or(&[])
         .iter()
-        .filter(|d| d.get("eligible").and_then(Value::as_bool) == Some(true))
+        .filter(|d| d.get("eligible").and_then(Value::as_bool) == Some(true) && !is_too_small(d))
         .collect();
     let disks = eligible
         .iter()
@@ -778,6 +819,33 @@ pub fn daemon_probe_to_facts(probe: &Value, gates: &Value) -> Result<crate::prob
                     .and_then(|e| e.get("partitionTableType"))
                     .and_then(Value::as_str)
                     .is_some_and(|t| !t.is_empty() && t != "gpt"),
+                size_bytes: d.get("sizeBytes").and_then(Value::as_u64).unwrap_or(0),
+                partitions: data
+                    .and_then(|e| e.get("partitions"))
+                    .and_then(Value::as_array)
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[])
+                    .iter()
+                    .map(|p| {
+                        let text = |key: &str| {
+                            p.get(key).and_then(Value::as_str).unwrap_or("").to_string()
+                        };
+                        crate::probe::Partition {
+                            path: text("path"),
+                            fstype: text("fstype"),
+                            label: text("label"),
+                            size_bytes: p.get("sizeBytes").and_then(Value::as_u64).unwrap_or(0),
+                        }
+                    })
+                    .collect(),
+                systems: data
+                    .and_then(|e| e.get("operatingSystems"))
+                    .and_then(Value::as_array)
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[])
+                    .iter()
+                    .filter_map(|s| s.as_str().map(str::to_string))
+                    .collect(),
             }
         })
         .collect();
@@ -818,6 +886,7 @@ pub fn daemon_probe_to_facts(probe: &Value, gates: &Value) -> Result<crate::prob
             .and_then(Value::as_bool)
             .unwrap_or(false),
         disk_data,
+        too_small: too_small_disks(probe),
         handoff_mode: handoff_mode_of(probe.pointer("/handoff/mode").and_then(Value::as_str))
             .to_string(),
         handoff_reason: probe
@@ -978,13 +1047,13 @@ mod tests {
         let mut recipe = crate::Recipe::default();
         recipe.timezone = "Europe/Berlin".into();
         // Untouched switch: no privacy object, the daemon default stands.
-        let untouched = configure_params(&recipe, None);
+        let untouched = configure_params(&recipe, None, None);
         assert!(untouched.get("privacy").is_none(), "{untouched}");
         assert_eq!(untouched["timeZone"], Value::from("Europe/Berlin"));
         // Turned on, and turned off again: both are a change.
-        let on = configure_params(&recipe, Some(true));
+        let on = configure_params(&recipe, Some(true), None);
         assert_eq!(on["privacy"], json!({"locationServices": true}));
-        let off = configure_params(&recipe, Some(false));
+        let off = configure_params(&recipe, Some(false), None);
         assert_eq!(off["privacy"], json!({"locationServices": false}));
     }
 
@@ -992,15 +1061,15 @@ mod tests {
     fn the_keymap_and_the_admin_flag_are_in_the_daemons_form() {
         let mut recipe = crate::Recipe::default();
         recipe.choose_keyboard("de");
-        assert_eq!(configure_params(&recipe, None)["keymap"], Value::from("de"));
+        assert_eq!(configure_params(&recipe, None, None)["keymap"], Value::from("de"));
         recipe.keyboard.as_mut().unwrap().variant = "nodeadkeys".into();
-        assert_eq!(configure_params(&recipe, None)["keymap"], Value::from("de-nodeadkeys"));
+        assert_eq!(configure_params(&recipe, None, None)["keymap"], Value::from("de-nodeadkeys"));
         recipe.user = Some(crate::model::User {
             username: "alex".into(),
             groups: vec!["wheel".into(), "audio".into()],
             ..Default::default()
         });
-        assert_eq!(configure_params(&recipe, None)["user"]["admin"], Value::Bool(true));
+        assert_eq!(configure_params(&recipe, None, None)["user"]["admin"], Value::Bool(true));
         recipe.user.as_mut().unwrap().groups = vec!["audio".into()];
         assert_eq!(daemon_config(&recipe, None)["user"]["admin"], Value::Bool(false));
     }
@@ -1132,6 +1201,22 @@ mod tests {
             "stepIndex": 0, "totalSteps": 0, "overallPct": 4});
         apply_install_event(&mut progress, &mut log, &cleanup);
         assert_eq!((progress.step, progress.total_steps), (4, 10));
+    }
+
+    #[test]
+    fn a_disk_that_is_too_small_is_listed_and_not_offered() {
+        let probe = serde_json::json!({"disks": [
+            {"path": "/dev/vda", "eligible": true, "sizeBytes": 64, "minimalSizeBytes": 20},
+            {"path": "/dev/sdb", "eligible": true, "sizeBytes": 8, "minimalSizeBytes": 20,
+             "model": "Stick", "sizeLabel": "8 GiB"},
+            {"path": "/dev/sdc", "eligible": false, "excludedReason": "too_small", "sizeBytes": 1},
+            {"path": "/dev/loop0", "eligible": false, "excludedReason": "loop", "sizeBytes": 1},
+        ]});
+        let facts = daemon_probe_to_facts(&probe, &serde_json::json!({})).unwrap();
+        assert_eq!(facts.disks.iter().map(|d| d.path.as_str()).collect::<Vec<_>>(), ["/dev/vda"]);
+        assert_eq!(facts.disk_data.len(), 1);
+        let small: Vec<_> = facts.too_small.iter().map(|d| d.caption.as_str()).collect();
+        assert_eq!(small, ["/dev/sdb \u{b7} 8 GiB", "/dev/sdc \u{b7} "]);
     }
 
     #[test]

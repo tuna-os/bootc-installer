@@ -39,6 +39,13 @@ fn load_from_path(path: &str) -> Option<Result<String, String>> {
 /// inline tags vanish, the five entities decode. Anything else passes
 /// through untouched: this shows words, never markup.
 pub fn render_text(xml: &str) -> String {
+    // A whole AppStream component carries its id, name, summary and
+    // metadata licence before the agreement: those are no terms. Only the
+    // agreement shows when the file has one.
+    let xml = match (xml.find("<agreement"), xml.rfind("</agreement>")) {
+        (Some(start), Some(end)) if end > start => &xml[start..end],
+        _ => xml,
+    };
     let mut out = String::new();
     let mut chars = xml.chars().peekable();
     while let Some(c) = chars.next() {
@@ -64,7 +71,8 @@ pub fn render_text(xml: &str) -> String {
         }
         if matches!(
             name.as_str(),
-            "p" | "li" | "ul" | "ol" | "br" | "agreement" | "description"
+            "p" | "li" | "ul" | "ol" | "br" | "agreement" | "agreement_section" | "name"
+                | "description"
         ) {
             out.push('\n');
         }
@@ -97,6 +105,18 @@ mod tests {
             render_text(xml),
             "First paragraph with bold and & entity.\n\nOne\n\nTwo"
         );
+    }
+
+    #[test]
+    fn a_whole_component_shows_only_its_agreement() {
+        let xml = concat!(
+            r#"<component type="operating-system"><id>org.tunaos.TunaOS</id>"#,
+            "<name>TunaOS</name><summary>The terms</summary>",
+            "<metadata_license>CC0-1.0</metadata_license>",
+            r#"<agreement type="eula"><agreement_section><name>Use</name>"#,
+            "<p>Do not.</p></agreement_section></agreement></component>",
+        );
+        assert_eq!(render_text(xml), "Use\n\nDo not.");
     }
 
     #[test]

@@ -48,6 +48,8 @@ pub struct Facts {
     /// holds data and how much free space it has. The wipe-or-free page
     /// reads this. Empty on the legacy path.
     pub disk_data: Vec<DiskData>,
+    /// The disks that cannot hold the install. Empty on the legacy path.
+    pub too_small: Vec<TooSmall>,
     /// The daemon's handoff mode (`handoff.mode`: migrate, soft-reboot or
     /// reboot). A missing field means reboot (ruling on #442). The handoff
     /// page reads this; the install calls `Handoff` with no mode.
@@ -71,6 +73,29 @@ pub struct DiskData {
     /// The partition table cannot share the disk (not GPT). The daemon
     /// refuses a free-space install there (`conflicting_disk_label`).
     pub conflicting_label: bool,
+    /// The size of the disk, and what is on it (the daemon's
+    /// `existingData`). Empty from a daemon that does not say.
+    pub size_bytes: u64,
+    pub partitions: Vec<Partition>,
+    pub systems: Vec<String>,
+}
+
+/// A disk that cannot hold the install: listed with the minimum, never
+/// selectable.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TooSmall {
+    pub title: String,
+    pub caption: String,
+    pub minimal_bytes: u64,
+}
+
+/// One partition of `existingData`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Partition {
+    pub path: String,
+    pub fstype: String,
+    pub label: String,
+    pub size_bytes: u64,
 }
 
 impl DiskData {
@@ -156,6 +181,7 @@ pub fn parse(json: &str) -> Result<Facts, String> {
         // reboot on this path.
         intel_rst: false,
         disk_data: Vec::new(),
+        too_small: Vec::new(),
         handoff_mode: "reboot".to_string(),
         handoff_reason: String::new(),
         raw: json.to_string(),
@@ -336,12 +362,12 @@ mod tests {
 
     #[test]
     fn data_detected_needs_data_and_room() {
-        let data = DiskData { has_data: true, free_bytes: 200, minimal_bytes: 100, conflicting_label: false };
+        let data = DiskData { has_data: true, free_bytes: 200, minimal_bytes: 100, conflicting_label: false, ..DiskData::default() };
         assert!(data.data_detected());
         // Data but no room: the confirm asks for a forced erase instead.
         let foreign = DiskData { conflicting_label: true, ..data.clone() };
         assert!(!foreign.data_detected(), "a foreign table cannot share the disk");
-        let tight = DiskData { has_data: true, free_bytes: 50, minimal_bytes: 100, conflicting_label: false };
+        let tight = DiskData { has_data: true, free_bytes: 50, minimal_bytes: 100, conflicting_label: false, ..DiskData::default() };
         assert!(!tight.data_detected());
         // A fresh disk goes straight to confirm.
         let fresh = DiskData::default();

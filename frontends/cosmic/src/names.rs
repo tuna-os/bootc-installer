@@ -41,6 +41,11 @@ pub fn language(locale: &str) -> String {
     }
 }
 
+/// C and POSIX are locales, and no person's language.
+pub fn is_language(locale: &str) -> bool {
+    !matches!(locale.split('.').next(), Some("C" | "POSIX" | ""))
+}
+
 /// The city first, as a person looks for it: "Buenos Aires
 /// (America/Argentina)".
 pub fn timezone(zone: &str) -> String {
@@ -50,7 +55,7 @@ pub fn timezone(zone: &str) -> String {
     }
 }
 
-/// "German (de)"; the bare layout when XKB has no name for it.
+/// "German" for "de"; the bare layout when XKB has no name for it.
 pub fn keymap(layout: &str) -> String {
     static NAMES: OnceLock<HashMap<String, String>> = OnceLock::new();
     let names = NAMES.get_or_init(|| {
@@ -64,9 +69,7 @@ pub fn keymap(layout: &str) -> String {
         .map(|text| xkb_layouts(&text))
         .unwrap_or_default()
     });
-    names
-        .get(layout)
-        .map_or_else(|| layout.to_string(), |name| format!("{name} ({layout})"))
+    names.get(layout).cloned().unwrap_or_else(|| layout.to_string())
 }
 
 /// The `! layout` section of an XKB rules list.
@@ -94,7 +97,7 @@ mod tests {
         assert_eq!(language("de_DE.UTF-8"), "Deutsch (DE)");
         assert_eq!(language("en_US.UTF-8"), "English (US)");
         assert_eq!(language("eo"), "Esperanto");
-        assert_eq!(language("C.UTF-8"), "C.UTF-8");
+        assert!(!is_language("C.UTF-8") && !is_language("POSIX") && is_language("de_DE.UTF-8"));
     }
 
     #[test]
