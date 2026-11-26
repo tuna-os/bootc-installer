@@ -23,6 +23,11 @@ ColumnLayout {
     property var names: []
     property var ids: []
     property string currentId: ""
+    // With a text: a first row with the id "", the choice of a person who
+    // picks nothing. What has the check mark is what the install sends.
+    property string keepText: ""
+    readonly property var rowNames: keepText.length > 0 ? [keepText].concat(Array.from(names)) : Array.from(names)
+    readonly property var rowIds: keepText.length > 0 ? [""].concat(Array.from(ids)) : Array.from(ids)
     // The accessible name and the placeholder of the search field.
     property string searchLabel: ""
     property string emptyText: ""
@@ -32,10 +37,10 @@ ColumnLayout {
     readonly property var matches: {
         const needle = search.text.trim().toLocaleLowerCase();
         const out = [];
-        for (let i = 0; i < names.length; i++) {
-            const name = String(names[i]);
+        for (let i = 0; i < rowNames.length; i++) {
+            const name = String(rowNames[i]);
             if (needle === "" || name.toLocaleLowerCase().indexOf(needle) >= 0
-                || String(ids[i]).toLocaleLowerCase().indexOf(needle) >= 0) {
+                || String(rowIds[i]).toLocaleLowerCase().indexOf(needle) >= 0) {
                 out.push(i);
             }
         }
@@ -69,7 +74,7 @@ ColumnLayout {
             objectName: "pickerList"
             clip: true
             model: picker.matches
-            currentIndex: picker.matches.indexOf(picker.ids.indexOf(picker.currentId))
+            currentIndex: picker.matches.indexOf(picker.rowIds.indexOf(picker.currentId))
             keyNavigationEnabled: true
             activeFocusOnTab: true
 
@@ -82,10 +87,10 @@ ColumnLayout {
                 required property int modelData
                 required property int index
 
-                readonly property bool current: picker.ids[modelData] === picker.currentId
+                readonly property bool current: picker.rowIds[modelData] === picker.currentId
 
                 width: ListView.view.width
-                text: picker.names[modelData]
+                text: picker.rowNames[modelData]
                 highlighted: current
                 icon.name: current ? "checkmark-symbolic" : ""
 
@@ -93,7 +98,7 @@ ColumnLayout {
                 Accessible.name: text
                 Accessible.selected: current
 
-                onClicked: picker.picked(picker.ids[modelData])
+                onClicked: picker.picked(picker.rowIds[modelData])
             }
 
             Kirigami.PlaceholderMessage {
@@ -104,8 +109,21 @@ ColumnLayout {
                 text: picker.emptyText
             }
 
-            // Show the current row when the step opens.
-            Component.onCompleted: positionViewAtIndex(Math.max(0, currentIndex), ListView.Center)
+            // Show the current row when the step opens. Not when the list is
+            // made: each step is made at the start, with no height, and the
+            // row of "English (US)" was then far below the fold of a list
+            // that looked as if nothing was chosen.
+            function showCurrent(): void {
+                forceLayout();
+                positionViewAtIndex(Math.max(0, currentIndex), ListView.Center);
+            }
+
+            onVisibleChanged: if (visible) {
+                Qt.callLater(showCurrent);
+            }
+            onHeightChanged: if (visible && !moving) {
+                Qt.callLater(showCurrent);
+            }
         }
     }
 }

@@ -18,6 +18,18 @@ change increases which part of the version.
 The history before 2026-11-10 comes from `git log`. It has the recipe
 schema only.
 
+## 2026-11-25: no program names in the copy; the RST page warns
+
+- Changed text: the lines of `branding/copy-defaults.json` that named
+  fisherman say "the installer", or do without. The keys and placeholders
+  do not change. `done_receipt_*` lines that name the command
+  `fisherman verify` keep it: the person types it.
+- `flow/screens.yaml`, `rst`: the page does not block, as in gnome-setup
+  at the pinned commit (31edecb4). The open question is closed.
+
+Contracts version: `2.3.3`
+Contracts sha256: `7536da0e481b23dfe1da97412d6ef9c2dbc122969cfb275ffd8a2773335cd79d`
+
 ## 2026-11-25: readiness stamps a window that is already mapped
 
 - Fixed: `python/bootc_shared/readiness.py` `arm()` writes the stamp at once

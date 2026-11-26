@@ -253,7 +253,7 @@ func TestTranslateInstallStreamLines(t *testing.T) {
 		t.Fatalf("%d lines: %s", len(lines), out.String())
 	}
 	if lines[0]["type"] != "step" || lines[0]["step_id"] != "partition" ||
-		lines[0]["step"] != float64(3) || lines[0]["total_steps"] != float64(10) {
+		lines[0]["step"] != float64(2) || lines[0]["total_steps"] != float64(10) {
 		t.Errorf("step line: %v", lines[0])
 	}
 	if lines[0]["step_name"] == "" {

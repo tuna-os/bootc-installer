@@ -135,8 +135,12 @@ fn mock_happy_probe_maps_to_wizard_facts() {
     assert_eq!(gates["meetsRequirements"], Value::Bool(true));
     let probe = fishermand::probe(&mut conn).unwrap();
     let facts = fishermand::daemon_probe_to_facts(&probe, &gates).unwrap();
-    assert_eq!(facts.disks.len(), 2);
+    // The mock's 8 GiB USB stick is below the daemon's 20 GiB minimum: it is
+    // listed as too small, not offered.
+    assert_eq!(facts.disks.len(), 1);
     assert_eq!(facts.disks[0].path, "/dev/nvme0n1");
+    assert_eq!(facts.too_small.len(), 1);
+    assert!(facts.too_small[0].caption.starts_with("/dev/sdb"), "{:?}", facts.too_small[0].caption);
     assert!(facts.tpm_usable);
     assert!(facts.unmet.is_empty());
     assert!(!facts.intel_rst);

@@ -47,6 +47,7 @@ TunaComponents.SetupModule {
                 objectName: "timezonePicker"
                 names: root.zoneNames
                 ids: InstallerController.timezones
+                keepText: qsTr("Keep the image's setting")
                 currentId: InstallerController.timezone
                 searchLabel: qsTr("Search time zones")
                 emptyText: qsTr("No time zone matches the search.")
