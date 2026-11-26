@@ -280,3 +280,43 @@ def test_no_bare_warning_icon_before_a_disk_is_picked(monkeypatch):
               for c in box.get_children() if isinstance(c, (Gtk.Label, Gtk.Button))]
     assert "Rescan" in labels and "Power off" in labels
     window.destroy()
+
+
+def test_a_varlink_error_reply_gives_the_empty_state(monkeypatch):
+    """Mock no-disks: ListCandidateDevices answers the error reply
+    NoCandidateDevices, which is no DaemonError. It escaped on_enter: no
+    text, no Rescan, the step line of the page before, Next on."""
+    class Reply(Exception):
+        def __init__(self, error):
+            super().__init__(error)
+            self.error = error
+
+    def candidates():
+        raise Reply("io.systemd.SysInstall.NoCandidateDevices")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(core, "backend", lambda: "daemon")
+    monkeypatch.setattr(core, "get_daemon", lambda: types.SimpleNamespace(
+        probe=lambda: {"disks": []}, list_candidates=candidates))
+    assert core.daemon_disk_view() == ([], None)
+
+    def broken():
+        raise Reply("io.systemd.System")
+    monkeypatch.setattr(core, "get_daemon", lambda: types.SimpleNamespace(
+        probe=broken, list_candidates=candidates))
+    rows, error = core.daemon_disk_view()
+    assert rows == [] and "io.systemd.System" in error
+
+
+def test_a_page_that_raises_still_shows_a_way_out(monkeypatch):
+    monkeypatch.setattr(core, "backend", lambda: "daemon")
+
+    def boom():
+        raise RuntimeError("probe went away")
+    monkeypatch.setattr(core, "daemon_disk_view", boom)
+    page = pages.DestinationPage(_Win())
+    page.on_enter()
+    texts = [c.get_label() for box in page.listbox.get_children()
+             for c in box.get_children() if isinstance(c, (Gtk.Label, Gtk.Button))]
+    assert any("probe went away" in t for t in texts)
+    assert "Rescan" in texts and not page.can_continue()

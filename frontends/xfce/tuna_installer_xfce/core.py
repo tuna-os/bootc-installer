@@ -791,17 +791,21 @@ def daemon_disk_view():
         daemon = get_daemon()
     except daemon_client.DaemonError as exc:
         return [], str(exc)
+    # A Varlink error reply (VarlinkError, ProtocolError) is no DaemonError.
+    # It escaped here and broke the disk page's on_enter: no empty state,
+    # the step line of the page before, and Next on (walkthrough, mock
+    # no-disks). Every failure is a (rows, error) answer now.
     try:
         reply = daemon.probe()
-    except daemon_client.DaemonError as exc:
+    except Exception as exc:  # noqa: BLE001 - the page shows the reason
         return [], str(exc)
     fits = {}
     try:
         for device in daemon.list_candidates():
             if device.get("node"):
                 fits[device["node"]] = device
-    except daemon_client.DaemonError as exc:
-        if "NoCandidateDevices" not in str(exc):
+    except Exception as exc:  # noqa: BLE001 - NoCandidateDevices is no error
+        if "NoCandidateDevices" not in f"{exc} {getattr(exc, 'error', '')}":
             return [], str(exc)
     rows = []
     for disk in reply.get("disks") or []:

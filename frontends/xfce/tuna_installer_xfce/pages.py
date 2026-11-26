@@ -809,10 +809,16 @@ class DestinationPage(Page):
         for child in self.listbox.get_children():
             self.listbox.remove(child)
         self.radios = []
-        if core.backend() == "daemon":
-            self._enter_daemon()
-        else:
-            self._enter_recipe()
+        try:
+            if core.backend() == "daemon":
+                self._enter_daemon()
+            else:
+                self._enter_recipe()
+        except Exception as exc:  # noqa: BLE001 - never a half-built page
+            for child in self.listbox.get_children():
+                self.listbox.remove(child)
+            self.radios = []
+            self._empty_state(str(exc) or type(exc).__name__)
         self.listbox.show_all()
         self._update_warning()
 
