@@ -2910,7 +2910,10 @@ fn confirm(app: &TunaInstaller) -> Element<'_, Message> {
         .add(widget::settings::item(tr(CONFIRM_TARGET_DISK), widget::text::body(disk)));
     // The daemon owns the filesystem: the row is for the legacy backend.
     // On the daemon path the row says what happens to the data instead.
-    let summary = if crate::fishermand::use_daemon() {
+    // An empty disk has no data row: there is nothing to keep or erase.
+    let summary = if crate::fishermand::use_daemon() && !app.disk_has_data() {
+        summary
+    } else if crate::fishermand::use_daemon() {
         summary.add(widget::settings::item(
             tr(CONFIRM_EXISTING_DATA),
             widget::text::body(confirm_data_text(app)),

@@ -1342,6 +1342,14 @@ impl TunaInstaller {
             && self.install_mode() == InstallMode::FreeSpace
     }
 
+    /// The chosen disk holds data, as the daemon's Probe says. An empty
+    /// disk has no "Existing data" row on Confirm: there is nothing to erase.
+    pub fn disk_has_data(&self) -> bool {
+        self.selected_disk
+            .and_then(|i| self.disk_data.get(i))
+            .is_some_and(|d| d.has_data)
+    }
+
     /// The daemon path erases a disk that holds data and has no free
     /// space for the install: there is no choice to offer (screens.yaml
     /// `insufficient-free-space`). Confirm says so.
