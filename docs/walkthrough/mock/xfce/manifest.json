@@ -71,9 +71,20 @@
    "blank": false
   },
   {
+   "name": "network",
+   "page": "network",
+   "file": "07-network.png",
+   "title": "Network",
+   "caption": "The image needs a download.",
+   "run": "offline",
+   "scenario": "not-live,fixed-key",
+   "sha256": "a68558106c7d9e31e8d4301188e4dcf6a5882e7e7a7ae35700dd9e51116cdbeb",
+   "blank": false
+  },
+  {
    "name": "prerelease",
    "page": "prerelease",
-   "file": "07-prerelease.png",
+   "file": "08-prerelease.png",
    "title": "Disclaimer",
    "caption": "os-release RELEASE_TYPE is `pre-release` or `experiment`.",
    "run": "terms",
@@ -84,7 +95,7 @@
   {
    "name": "eula",
    "page": "eula",
-   "file": "08-eula.png",
+   "file": "09-eula.png",
    "title": "Terms of use",
    "caption": "The image ships an AppStream component with an `agreement` of type `eula`.",
    "run": "terms",
@@ -95,7 +106,7 @@
   {
    "name": "rst",
    "page": "rst",
-   "file": "09-rst.png",
+   "file": "10-rst.png",
    "title": "Intel RST",
    "caption": "Probe reports Intel RST or VMD remapped NVMe.",
    "run": "rst",
@@ -106,7 +117,7 @@
   {
    "name": "disk",
    "page": "disk",
-   "file": "10-disk.png",
+   "file": "11-disk.png",
    "title": "Disk",
    "caption": "Always.",
    "run": "happy",
@@ -117,7 +128,7 @@
   {
    "name": "disk--no-usable-disk",
    "page": "disk",
-   "file": "11-disk--no-usable-disk.png",
+   "file": "12-disk--no-usable-disk.png",
    "title": "Disk: no usable disk",
    "caption": "No disk.",
    "run": "no-disks",
@@ -128,7 +139,7 @@
   {
    "name": "wipe-or-free",
    "page": "wipe-or-free",
-   "file": "12-wipe-or-free.png",
+   "file": "13-wipe-or-free.png",
    "title": "Existing data found",
    "caption": "The chosen disk has status data-detected.",
    "run": "existing-data",
@@ -139,7 +150,7 @@
   {
    "name": "encryption",
    "page": "encryption",
-   "file": "13-encryption.png",
+   "file": "14-encryption.png",
    "title": "Disk encryption",
    "caption": "No TPM 2.0 is present. The page asks for a disk passphrase, twice.",
    "run": "happy",
@@ -150,7 +161,7 @@
   {
    "name": "account",
    "page": "account",
-   "file": "14-account.png",
+   "file": "15-account.png",
    "title": "Account",
    "caption": "The desktop has no first-boot tool that creates the user, and the image does not make its own user.",
    "run": "happy",
@@ -161,7 +172,7 @@
   {
    "name": "confirm",
    "page": "confirm",
-   "file": "15-confirm.png",
+   "file": "16-confirm.png",
    "title": "Confirm",
    "caption": "Always.",
    "run": "happy",
@@ -172,7 +183,7 @@
   {
    "name": "install",
    "page": "install",
-   "file": "16-install.png",
+   "file": "17-install.png",
    "title": "Installing",
    "caption": "After confirm.",
    "run": "install",
@@ -183,7 +194,7 @@
   {
    "name": "install--cancel",
    "page": "install",
-   "file": "17-install--cancel.png",
+   "file": "18-install--cancel.png",
    "title": "Installing: cancel",
    "caption": "Cancel asks first.",
    "run": "install",
@@ -194,7 +205,7 @@
   {
    "name": "recovery-key",
    "page": "recovery-key",
-   "file": "18-recovery-key.png",
+   "file": "19-recovery-key.png",
    "title": "Recovery key",
    "caption": "The disk is encrypted.",
    "run": "happy",
@@ -205,7 +216,7 @@
   {
    "name": "recovery-key--recovery-key-failed",
    "page": "recovery-key",
-   "file": "19-recovery-key--recovery-key-failed.png",
+   "file": "20-recovery-key--recovery-key-failed.png",
    "title": "Recovery key: recovery key failed",
    "caption": "No key. Do not continue without one.",
    "run": "recovery-key-error",
@@ -216,7 +227,7 @@
   {
    "name": "handoff",
    "page": "handoff",
-   "file": "20-handoff.png",
+   "file": "21-handoff.png",
    "title": "Handoff",
    "caption": "After the install and the recovery key.",
    "run": "happy",
@@ -227,7 +238,7 @@
   {
    "name": "handoff--handoff-failed",
    "page": "handoff",
-   "file": "21-handoff--handoff-failed.png",
+   "file": "22-handoff--handoff-failed.png",
    "title": "Handoff: handoff failed",
    "caption": "The handoff failed.",
    "run": "handoff-error",
@@ -238,7 +249,7 @@
   {
    "name": "handoff--soft-reboot",
    "page": "handoff",
-   "file": "22-handoff--soft-reboot.png",
+   "file": "23-handoff--soft-reboot.png",
    "title": "Handoff: soft reboot",
    "caption": "The daemon starts the installed system with a soft reboot.",
    "run": "handoff-soft-reboot",
@@ -249,7 +260,7 @@
   {
    "name": "done",
    "page": "done",
-   "file": "23-done.png",
+   "file": "24-done.png",
    "title": "Done",
    "caption": "The install ended.",
    "run": "happy",
@@ -260,7 +271,7 @@
   {
    "name": "done--device-lost",
    "page": "done",
-   "file": "24-done--device-lost.png",
+   "file": "25-done--device-lost.png",
    "title": "Done: device lost",
    "caption": "The disk went away. Says if it changed.",
    "run": "device-lost",
@@ -271,7 +282,7 @@
   {
    "name": "done--repart-error",
    "page": "done",
-   "file": "25-done--repart-error.png",
+   "file": "26-done--repart-error.png",
    "title": "Done: repart error",
    "caption": "The partition step failed. Says if it changed.",
    "run": "repart-error",
