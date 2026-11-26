@@ -17,7 +17,7 @@
     "requirements_check": "blocks (gate window)",
     "connectivity_check": "own network screen when the install needs a download, not for a copy of this computer's system; probes the image's registry first; Network settings and Recheck buttons",
     "filesystem_choice": "yes (Advanced, list from the image)",
-    "encryption_passphrase": "yes",
+    "encryption_passphrase": "yes (legacy backend); the daemon backend offers no none, only a passphrase or a TPM type (TPM first when there is one)",
     "passphrase_confirmation": "yes",
     "encryption_tpm": "yes",
     "recovery_key": "own recovery-key screen: key label, Copy, QR dialog, acknowledgement gating Done",

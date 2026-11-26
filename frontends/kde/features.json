@@ -17,7 +17,7 @@
     "requirements_check": "its own step, only while a gate is unmet; holds Next; override for RAM and CPU",
     "connectivity_check": "its own step and on confirm, not for a copy of this computer's system; image registry first; Network settings and Recheck",
     "filesystem_choice": "yes (the choices of the image)",
-    "encryption_passphrase": "yes",
+    "encryption_passphrase": "yes (legacy backend); the daemon backend offers no none, and a passphrase only with no TPM 2.0 (with one, the disk is sealed to it and the step does not show)",
     "passphrase_confirmation": "yes",
     "encryption_tpm": "yes",
     "recovery_key": "yes: its own step, with a QR code",
