@@ -1328,6 +1328,10 @@ class IdentityPage(Page):
 
     def on_enter(self):
         self.seed_hostname()
+        # The first empty field takes the keys; the hostname keeps its seed
+        # unselected (grab_focus selects all, and the first key replaced it).
+        first = self.username if self.win.needs_user_creation() else self.hostname
+        first.grab_focus_without_selecting()
         self.user_frame.set_visible(self.win.needs_user_creation())
         show = core.backend() == "daemon"
         self.autologin.set_visible(show)

@@ -304,6 +304,9 @@ class ConfirmCancelDialog(Gtk.Dialog):
         row.pack_start(self.keep_btn, False, False, 0)
         row.pack_start(self.stop_btn, False, False, 0)
         box.pack_start(row, False, False, 0)
+        # Without it run() shows an empty box: no question, no buttons, and
+        # no way to answer (the walkthrough on headless sway, dev c1da3d96).
+        self.show_all()
         self.keep_btn.grab_focus()
 
 
