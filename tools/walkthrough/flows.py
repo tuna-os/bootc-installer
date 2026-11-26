@@ -81,8 +81,7 @@ EXEMPT = {
     "cosmic": {"network": _LIVE_NO_NETWORK},
     "niri": {"network": "The session page has the network card; there is no page of its own."},
     "xfce": {
-        "network": "The network page comes before the image page, so it is not there when "
-                   "a person picks an image that needs a download on live media.",
+        "network": _LIVE_NO_NETWORK,
         "done--cancelled": "The cancel dialog draws no buttons (gates.ConfirmCancelDialog has no "
                            "show_all), so the walk cannot confirm a cancel.",
     },
