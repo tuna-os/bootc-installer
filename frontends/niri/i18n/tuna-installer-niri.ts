@@ -263,6 +263,10 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>needs at least %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Could not detect disks: %1</source>
         <translation type="unfinished"></translation>
     </message>

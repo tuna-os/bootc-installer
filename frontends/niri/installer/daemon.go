@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -350,13 +352,11 @@ func daemonProbeFacts() (ProbeFacts, error) {
 	}
 	facts.IntelRst = probe.IntelRst.Detected
 	for _, d := range probe.Disks {
-		if !d.Eligible {
+		small := daemonTooSmall(d)
+		if !d.Eligible && !small {
 			continue
 		}
-		title := d.Model
-		if title == "" {
-			title = d.Path
-		}
+		title := daemonDiskTitle(d.Vendor, d.Model, transportLabel(d.Transport), d.Path)
 		ed := d.ExistingData
 		facts.Disks = append(facts.Disks, ProbeDisk{
 			Path: d.Path, Title: title, Model: d.Model,
@@ -366,9 +366,51 @@ func daemonProbeFacts() (ProbeFacts, error) {
 				len(ed.OperatingSystems) > 0 || ed.HasLuks,
 			FreeBytes: d.FreeBytes, MinimalBytes: d.MinimalSizeBytes,
 			IntelRst: d.IntelRst,
+			TooSmall: small, MinimalLabel: sizeLabel(d.MinimalSizeBytes),
 		})
 	}
 	return facts, nil
+}
+
+// daemonTooSmall: the daemon excludes a disk below its minimum, or leaves it
+// eligible and states the minimum.
+func daemonTooSmall(d daemonDisk) bool {
+	if d.ExcludedReason != nil && *d.ExcludedReason == "too_small" {
+		return true
+	}
+	return d.Eligible && d.SizeBytes > 0 && d.SizeBytes < d.MinimalSizeBytes
+}
+
+// sizeLabel is a size as fisherman writes it ("20 GiB"), "" for none.
+func sizeLabel(bytes int64) string {
+	if bytes <= 0 {
+		return ""
+	}
+	value, unit := float64(bytes), "B"
+	for _, next := range []string{"KiB", "MiB", "GiB", "TiB"} {
+		if value < 1024 {
+			break
+		}
+		value, unit = value/1024, next
+	}
+	return strings.TrimSuffix(strconv.FormatFloat(value, 'f', 1, 64), ".0") + " " + unit
+}
+
+// pciID is what virtio names as the vendor of a disk ("0x1af4").
+var pciID = regexp.MustCompile(`^0[xX][0-9a-fA-F]+$`)
+
+// daemonDiskTitle is what a disk is called: its model, else its vendor (never a
+// PCI id), else its bus. The row has the path and the size.
+func daemonDiskTitle(vendor, model, bus, path string) string {
+	for _, name := range []string{strings.TrimSpace(model), strings.TrimSpace(vendor)} {
+		if name != "" && !pciID.MatchString(name) {
+			return name
+		}
+	}
+	if bus != "" {
+		return bus + " disk"
+	}
+	return path
 }
 
 // daemonValidate checks a partial recipe through Validate with partial=true
@@ -452,7 +494,8 @@ func emitInstallLine(w io.Writer, ev daemonInstallEvent) {
 	case "step_started":
 		step, total := 0, 0
 		if ev.StepIndex != nil {
-			step = *ev.StepIndex + 1
+			// The daemon counts from 1 (fisherman's reporter.go).
+			step = *ev.StepIndex
 		}
 		if ev.TotalSteps != nil {
 			total = *ev.TotalSteps

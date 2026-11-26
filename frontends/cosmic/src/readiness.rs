@@ -104,15 +104,20 @@ fn write_stamp(app_id: &str, page: &str) -> std::io::Result<()> {
 mod tests {
     use super::*;
 
+    /// Both tests change XDG_RUNTIME_DIR, and the test threads share it: one
+    /// removed it while the other wrote its stamp.
+    static RUNTIME_DIR: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn stamp_body_carries_the_weaker_signal() {
         // The contract's whole point is that a reader can tell this stamp's
         // claim apart from the GTK frontends'. If this line ever changes to
         // gtk-map, the smoke test would start believing a frame callback
         // proves a mapped window.
+        let _guard = RUNTIME_DIR.lock().unwrap_or_else(|e| e.into_inner());
         let dir = std::env::temp_dir().join(format!("tuna-ready-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        // SAFETY: single-threaded test, and the var is read again immediately.
+        // SAFETY: the guard holds the other test that changes it, and the var is read again immediately.
         unsafe { std::env::set_var("XDG_RUNTIME_DIR", &dir) };
 
         write_stamp("org.tunaos.InstallerCosmic", "welcome").unwrap();
@@ -142,6 +147,7 @@ mod tests {
     #[test]
     fn a_missing_runtime_dir_is_an_error_not_a_panic() {
         // The installer must survive this. See the best-effort note.
+        let _guard = RUNTIME_DIR.lock().unwrap_or_else(|e| e.into_inner());
         unsafe { std::env::remove_var("XDG_RUNTIME_DIR") };
         assert!(write_stamp("x", "y").is_err());
     }

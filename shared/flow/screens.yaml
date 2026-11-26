@@ -247,8 +247,8 @@ screens:
     varlink: [io.tunaos.Fisherman.Probe]
     note: >-
       The page comes BEFORE `disk`: it explains why a disk can be missing from the list.
-      gnome-setup does not block. Next goes to the disk list. #442 says block: see open questions.
-      gnome-setup detects it with a sysfs glob (ahci remapped_nvme > 0). The daemon should do it.
+      It does not block, as in gnome-setup 31edecb4 (rst.rs): Next goes to the disk list.
+      gnome-setup detects it with a sysfs glob (ahci remapped_nvme > 0). The daemon does it here.
     failure_states: [rst-present]
     accessibility: {name: Intel RST, role: alert}
     gnome_setup: {status: present, note: "Page `Intel RST`, role alert, Next continues to disk select."}
