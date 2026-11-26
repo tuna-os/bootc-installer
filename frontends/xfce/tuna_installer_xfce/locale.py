@@ -184,20 +184,44 @@ def apply_timezone(zone):
     return out.returncode == 0
 
 
+ZONEINFO = "/usr/share/zoneinfo"
+
+
+def canonical_timezones(base=None):
+    """The zone names of tzdata's zone1970.tab (zone.tab on an old tzdata):
+    one name per zone, no backward links such as "Asia/Ulan_Bator" or
+    "Universal". None when neither table is readable."""
+    for table in ("zone1970.tab", "zone.tab"):
+        try:
+            with open(os.path.join(base or ZONEINFO, table), encoding="utf-8") as fh:
+                names = {line.split("\t")[2].strip() for line in fh
+                         if line.strip() and not line.startswith("#")
+                         and line.count("\t") >= 2}
+        except OSError:
+            continue
+        if names:
+            return names
+    return None
+
+
 def available_timezones():
-    """Zone names from timedatectl, or the zoneinfo tree where the daemon is
-    absent. Directory entries (regions) are skipped; only zones are offered."""
+    """Zone names to offer: one per zone (canonical_timezones), plus UTC and
+    the live session's zone. The names come from timedatectl, or the
+    zoneinfo tree where the daemon is absent; that list also holds the
+    backward links ("Ulan Bator", "Universal (Etc)" in run 45826184478)."""
     found = _run(["timedatectl", "list-timezones", "--no-pager"], timeout=15)
-    if found:
-        return found
-    zones = []
-    base = "/usr/share/zoneinfo"
-    for root, _dirs, files in os.walk(base):
-        for name in files:
-            rel = os.path.relpath(os.path.join(root, name), base)
-            if "/" in rel and not rel.startswith(("posix", "right")):
-                zones.append(rel)
-    return sorted(zones + ["UTC"])
+    if not found:
+        found = ["UTC"]
+        for root, _dirs, files in os.walk(ZONEINFO):
+            for name in files:
+                rel = os.path.relpath(os.path.join(root, name), ZONEINFO)
+                if "/" in rel and not rel.startswith(("posix", "right")):
+                    found.append(rel)
+    canonical = canonical_timezones()
+    if canonical:
+        keep = canonical | {"UTC", current_timezone()}
+        found = [zone for zone in found if zone in keep] or found
+    return sorted(set(found))
 
 
 def current_timezone():

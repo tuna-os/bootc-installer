@@ -274,3 +274,46 @@ def test_has_connectivity_tries_the_targets_in_order(monkeypatch):
     monkeypatch.setattr(locale_checks.socket, "create_connection", connect)
     assert locale_checks.has_connectivity(timeout=1, imgref="quay.io/a/b:1") is True
     assert tried == [("quay.io", 443), ("ghcr.io", 443)]
+
+
+def _tzdata(tmp_path, rows):
+    (tmp_path / "zone1970.tab").write_text(
+        "# tzdata\n" + "".join(f"{cc}\t+0000+00000\t{zone}\n" for cc, zone in rows))
+    return tmp_path
+
+
+def test_timezones_offer_one_name_per_zone(monkeypatch, tmp_path):
+    """Run 45826184478 listed backward links: "Ulan Bator (Asia)" next to
+    "Ulaanbaatar (Asia)", and "Universal (Etc)"."""
+    monkeypatch.setattr(locale_checks, "ZONEINFO", str(_tzdata(
+        tmp_path, [("MN", "Asia/Ulaanbaatar"), ("DE,DK", "Europe/Berlin")])))
+    monkeypatch.setattr(locale_checks, "_run", lambda *a, **k: [
+        "Asia/Ulaanbaatar", "Asia/Ulan_Bator", "Etc/Universal", "Europe/Berlin",
+        "Universal", "UTC"])
+    monkeypatch.setattr(locale_checks, "current_timezone", lambda: "UTC")
+    assert locale_checks.available_timezones() == [
+        "Asia/Ulaanbaatar", "Europe/Berlin", "UTC"]
+
+
+def test_timezones_keep_the_live_zone_even_when_it_is_a_link(monkeypatch, tmp_path):
+    """What the page shows selected must be in the list."""
+    monkeypatch.setattr(locale_checks, "ZONEINFO", str(_tzdata(
+        tmp_path, [("IN", "Asia/Kolkata")])))
+    monkeypatch.setattr(locale_checks, "_run", lambda *a, **k: [
+        "Asia/Calcutta", "Asia/Kolkata", "UTC"])
+    monkeypatch.setattr(locale_checks, "current_timezone", lambda: "Asia/Calcutta")
+    assert locale_checks.available_timezones() == ["Asia/Calcutta", "Asia/Kolkata", "UTC"]
+
+
+def test_timezones_unfiltered_without_a_zone_table(monkeypatch, tmp_path):
+    monkeypatch.setattr(locale_checks, "ZONEINFO", str(tmp_path))
+    monkeypatch.setattr(locale_checks, "_run", lambda *a, **k: ["Asia/Ulan_Bator", "UTC"])
+    assert locale_checks.canonical_timezones() is None
+    assert locale_checks.available_timezones() == ["Asia/Ulan_Bator", "UTC"]
+
+
+def test_canonical_timezones_reads_the_system_table():
+    zones = locale_checks.canonical_timezones()
+    if zones is None:
+        return
+    assert "Europe/Berlin" in zones and "Asia/Ulan_Bator" not in zones
