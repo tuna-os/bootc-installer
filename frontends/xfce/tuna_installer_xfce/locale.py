@@ -15,6 +15,7 @@ timedatectl are absent from minimal live media, and this module must still
 offer something on a system that has neither.
 """
 
+import json
 import locale
 import os
 import socket
@@ -119,14 +120,46 @@ def keyboard_label(layout):
     return keyboard_names().get(layout, layout)
 
 
+ISO_CODES_DIRS = ("/usr/share/iso-codes/json", "/app/share/iso-codes/json")
+_iso = {}
+
+
+def _iso_names(standard, key, field="name"):
+    """{code: English name} from iso-codes (`iso_3166-1`, `iso_639-3`), the
+    package GNOME's runtime and every desktop image ship; {} without it."""
+    cache = (standard, key, field)
+    if cache not in _iso:
+        names = {}
+        for base in ISO_CODES_DIRS:
+            try:
+                with open(os.path.join(base, standard + ".json"), encoding="utf-8") as fh:
+                    data = json.load(fh)
+            except (OSError, ValueError):
+                continue
+            for row in data.get(standard.replace("iso_", ""), []):
+                if row.get(key):
+                    names[row[key].lower()] = row.get("common_name") or row.get(field, "")
+            break
+        _iso[cache] = names
+    return _iso[cache]
+
+
+def territory_name(code):
+    """"Germany" for "DE"; the code itself without iso-codes."""
+    return _iso_names("iso_3166-1", "alpha_2").get(code.lower()) or code
+
+
 def language_label(name):
-    """"Deutsch (DE)" for "de_DE.UTF-8"; the locale name itself when the
-    table does not have the language."""
+    """"Deutsch (Germany)" for "de_DE.UTF-8": the language in its own words
+    where the table has it, else iso-codes' name, and the country's name
+    (standard A2: no locale codes for people). The locale name itself only
+    when neither knows the language."""
     code, _, territory = name.split(".")[0].split("@")[0].partition("_")
-    language = LANGUAGES.get(code)
-    if language is None:
+    language = (LANGUAGES.get(code) or _iso_names("iso_639-3", "alpha_2").get(code)
+                or _iso_names("iso_639-3", "alpha_3").get(code))
+    if not language:
         return name
-    return f"{language} ({territory})" if territory else language
+    return f"{language} ({territory_name(territory)})" if territory else language
 
 
 def is_language(name):

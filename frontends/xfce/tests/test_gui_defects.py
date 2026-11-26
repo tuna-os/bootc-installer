@@ -107,6 +107,8 @@ def test_keyboard_layouts_have_the_names_of_xkb(tmp_path, monkeypatch):
 
 
 def test_c_is_no_language(monkeypatch):
+    monkeypatch.setattr(locale_checks, "ISO_CODES_DIRS", ())
+    monkeypatch.setattr(locale_checks, "_iso", {})
     monkeypatch.setattr(locale_checks, "available_languages",
                         lambda: ["C.UTF-8", "POSIX", "de_DE.UTF-8"])
     monkeypatch.setattr(locale_checks, "current_language", lambda: "C.UTF-8")
