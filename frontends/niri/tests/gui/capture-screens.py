@@ -631,7 +631,7 @@ def main():
         # and rows only (walkthrough, dev c1da3d96).
         if name == "06-account":
             for field, want in (("accountUsername", "Username"), ("accountFullname", "Full name"),
-                                ("accountPassword", "Password"), ("accountPasswordConfirm", "Password again")):
+                                ("accountPassword", "Password"), ("accountPasswordConfirm", "Confirm password")):
                 target = item(field)
                 said = QQmlExpression(QQmlEngine.contextForObject(target), target,
                                       "Accessible.name + '|' + Accessible.role").evaluate()[0]

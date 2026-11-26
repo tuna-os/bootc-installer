@@ -287,6 +287,23 @@ func TestTranslateInstallStreamFailed(t *testing.T) {
 	if m["type"] != "error" || m["code"] != "repart_failed" || m["step_id"] != "partition" {
 		t.Errorf("error line: %v", m)
 	}
+	if m["disk_changed"] != true {
+		t.Errorf("a failure after validate_device changed the disk: %v", m)
+	}
+}
+
+func TestTranslateInstallStreamFailedBeforeTheFirstWrite(t *testing.T) {
+	var out strings.Builder
+	reason := "device_lost"
+	events := []daemonInstallEvent{{Event: "failed", StepID: strp("validate_device"), Reason: &reason}}
+	translateInstallStream(&out, events)
+	var m map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out.String())), &m); err != nil {
+		t.Fatal(err)
+	}
+	if m["disk_changed"] != false {
+		t.Errorf("validate_device writes nothing: %v", m)
+	}
 }
 
 func TestTranslateInstallStreamCancelled(t *testing.T) {
@@ -666,5 +683,113 @@ func TestDaemonIntegration(t *testing.T) {
 	out.Reset()
 	if code := daemonConfigureTarget(map[string]any{"hostname": "bad host!"}, &out); code != 1 {
 		t.Errorf("bad configure-target: code %d, want 1: %s", code, out.String())
+	}
+}
+
+// recordingPeer answers MakeRecoveryKey and Enroll like fishermand's mock
+// and keeps the parameters of each Enroll call.
+func recordingPeer(t *testing.T, enrolls chan<- map[string]any) string {
+	t.Helper()
+	sock := filepath.Join(t.TempDir(), "fisherman")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				r := bufio.NewReader(c)
+				for {
+					raw, err := r.ReadBytes(0)
+					if err != nil {
+						return
+					}
+					var req struct {
+						Method     string         `json:"method"`
+						Parameters map[string]any `json:"parameters"`
+					}
+					if err := json.Unmarshal(raw[:len(raw)-1], &req); err != nil {
+						return
+					}
+					switch req.Method {
+					case "io.systemd.CryptEnroll.MakeRecoveryKey":
+						fmt.Fprintf(c, "%s\x00", reply(`{"recoveryKey":"cbdefghi-jklnrtuv-cbdefghi-jklnrtuv-cbdefghi-jklnrtuv-cbdefghi-jklnrtuv"}`, false))
+					case "io.systemd.CryptEnroll.Enroll":
+						enrolls <- req.Parameters
+						fmt.Fprintf(c, "%s\x00", reply(`{"slot":2}`, false))
+					}
+				}
+			}(c)
+		}
+	}()
+	return sock
+}
+
+// A passphrase install (no TPM) unlocks the volume with the user's
+// passphrase to enrol the recovery key. An empty one fails with
+// PasswordIncorrect, and Done then stays held (XFCE, installer#488).
+func TestDaemonRecoveryKeyUnlocksWithThePassphrase(t *testing.T) {
+	enrolls := make(chan map[string]any, 1)
+	withDaemonSocket(t, recordingPeer(t, enrolls))
+	var out strings.Builder
+	code := daemonRecoveryKey(map[string]any{"node": "/dev/vda", "unlock_password": "correct horse"}, &out)
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	got := <-enrolls
+	if got["unlockPassword"] != "correct horse" || got["mechanism"] != "recovery" || got["node"] != "/dev/vda" {
+		t.Errorf("Enroll parameters: %v", got)
+	}
+	if !strings.Contains(out.String(), `"key":"cbdefghi-`) {
+		t.Errorf("output: %s", out.String())
+	}
+}
+
+// The QML hands the encryption page's passphrase to recovery-key; the
+// encryption page keeps it in root.passphrase for every passphrase type.
+func TestRecoveryFetchSendsThePassphrase(t *testing.T) {
+	qml := readQML(t)
+	for _, want := range []string{
+		`unlock_password: root.needsPassphrase(root.encType) ? (root.passphrase || "") : ""`,
+		`root.passphrase = passField.text`,
+	} {
+		if !strings.Contains(qml, want) {
+			t.Errorf("installer.qml has no %q", want)
+		}
+	}
+}
+
+// The daemon's Config has no filesystem (recipeToConfig): the daemon picks
+// it, so the daemon path neither offers nor repeats a choice.
+func TestDaemonPathHasNoFilesystemChoice(t *testing.T) {
+	qml := readQML(t)
+	for _, want := range []string{
+		"visible: !root.daemonMode\n                            title: qsTr(\"Advanced\")",
+		`StyledText { text: qsTr("Filesystem"); color: Theme.surfaceVariantText; visible: !root.daemonMode }`,
+	} {
+		if !strings.Contains(qml, want) {
+			t.Errorf("installer.qml has no %q", want)
+		}
+	}
+}
+
+// The progress page: a percentage beside the bar, the log behind details.
+func TestProgressPageHasPercentAndDetails(t *testing.T) {
+	qml := readQML(t)
+	for _, want := range []string{
+		`objectName: "installPercent"`,
+		`objectName: "installDetailsButton"`,
+		`visible: root.installLogOpen`,
+		`property bool installLogOpen: false`,
+	} {
+		if !strings.Contains(qml, want) {
+			t.Errorf("installer.qml has no %q", want)
+		}
 	}
 }

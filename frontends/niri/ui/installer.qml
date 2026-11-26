@@ -338,6 +338,9 @@ ApplicationWindow {
     // each visit; the done page reads nothing back from the new system.
     onCurrentPageChanged: {
         if (root.currentPage === 6) root.startSourceCheck()
+        // Keyboard-first: the account page starts in its first field, so
+        // typing goes somewhere (a keyboard-only walk lost the username).
+        if (root.currentPage === 5) Qt.callLater(() => userField.forceActiveFocus())
         if (root.currentPage === 10) root.enterWipe()
         if (root.currentPage === 14) root.startHandoff()
     }
@@ -373,11 +376,16 @@ ApplicationWindow {
         pages.push(4)
         if (root.needsUserCreation) pages.push(5)
         pages.push(6, 7)
-        // Post-install screens join the flow once the install has ended:
-        // the back button and the step dots then cover the whole journey.
+        // Post-install screens: before the install ends, the ones that a
+        // success brings, so the step count does not grow at the end
+        // ("Step 7 of 9" on Confirm, then "Step 9 of 11"). After it, the
+        // ones that show.
         if (root.installEnded) {
             if (root.showRecoveryScreen) pages.push(13)
             if (root.showHandoffScreen) pages.push(14)
+        } else {
+            if (root.encType !== "none") pages.push(13)
+            if (root.daemonMode) pages.push(14)
         }
         pages.push(8)
         return pages
@@ -572,7 +580,9 @@ ApplicationWindow {
         root.recoveryKeyError = ""
         root.pendingRecovery = JSON.stringify({
             node: root.selectedDisk.path || "",
-            unlock_password: root.passphrase || ""
+            // Only a passphrase type has one; a passphrase typed and then
+            // left for TPM is not on the volume.
+            unlock_password: root.needsPassphrase(root.encType) ? (root.passphrase || "") : ""
         })
         recoveryKeyProc.running = true
     }
@@ -582,6 +592,8 @@ ApplicationWindow {
     readonly property bool recoveryKeyPending:
         installSuccess && recoveryKey !== "" && !recoveryAck
     property string installLog: ""
+    // The progress page's log card: closed until the user opens it.
+    property bool installLogOpen: false
     // The determinate bar is driven by fisherman's newline-delimited JSON
     // progress protocol (shared/progress/README.md).
     //
@@ -1755,6 +1767,44 @@ ApplicationWindow {
     }
     Shortcut { sequence: "Shift+Return"; onActivated: root.back() }
 
+    // The failed page's one sentence: the daemon's reason in words, else
+    // the step where it stopped, else a pointer to the log.
+    function failureSentence() {
+        const e = root.installError || {}
+        // The daemon's reasons (screens.yaml failure_states), in COSMIC's words.
+        const byCode = ({
+            device_lost: qsTr("The disk went away during the installation. Connect it again, or choose another disk."),
+            repart_failed: qsTr("The installer could not partition the disk."),
+            luks_failed: qsTr("The installer could not encrypt the disk."),
+            daemon_unreachable: qsTr("The install service does not answer. If an installation was in progress, it can still be running.")
+        })[e.code || ""] || ""
+        if (byCode !== "") return byCode
+        const step = e.step_id ? daemonStepLabel(e.step_id) : ""
+        if (step !== "") return qsTr("The installation stopped at the step “%1”.").arg(step)
+        return qsTr("The installation did not finish. The log has the details.")
+    }
+    function daemonStepLabel(id) {
+        // A step with no copy key gets no name: never a raw step id.
+        const t = root.text("step_" + id)
+        return t.replace(/…$/, "")
+    }
+    // Try again: back to Confirm with every choice kept (as COSMIC). When
+    // the disk went away, back to the disk page with a fresh list instead:
+    // the chosen disk is no longer there.
+    function tryAgain() {
+        const lost = !!root.installError && root.installError.code === "device_lost"
+        root.installError = null
+        root.installSuccess = false
+        root.installCancelled = false
+        if (lost) {
+            root.selectedDisk = ({})
+            discoverProc.running = true
+            root.currentPage = 3
+        } else {
+            root.currentPage = 6
+        }
+    }
+
     // The done page's tone: installed, cancelled (a warning: the user chose
     // it) or failed.
     readonly property color doneColor: root.installSuccess ? Theme.success
@@ -1918,6 +1968,24 @@ ApplicationWindow {
                     Layout.fillWidth: true
                 }
 
+                // The cards are taller than a 1024x600 screen: they scroll,
+                // so Back, Continue and the hint bar stay on screen.
+                Flickable {
+                    id: sessionScroll
+                    objectName: "sessionScroll"
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    contentWidth: width
+                    contentHeight: sessionBody.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                ColumnLayout {
+                    id: sessionBody
+                    width: sessionScroll.width
+                    spacing: Theme.spacingM
+
                 DankCard {
                     Layout.fillWidth: true
                     title: qsTr("Keyboard and language")
@@ -1954,7 +2022,7 @@ ApplicationWindow {
                             implicitWidth: 300
                         }
 
-                        StyledText { text: qsTr("Timezone"); color: Theme.surfaceVariantText }
+                        StyledText { text: qsTr("Time zone"); color: Theme.surfaceVariantText }
                         ComboBox {
                             id: tzCombo
                             objectName: "sessionTimezone"
@@ -2062,7 +2130,8 @@ ApplicationWindow {
                     Layout.fillWidth: true
                 }
 
-                Item { Layout.fillHeight: true }
+                }
+                }
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -2366,6 +2435,8 @@ ApplicationWindow {
                                 }
                                 DankTextField {
                                     id: passConfirm
+                                    // Enter in the last field does what Enter does on the page.
+                                    onAccepted: root.advance()
                                     label: qsTr("Confirm passphrase")
                                     placeholderText: qsTr("Confirm passphrase")
                                     echoMode: root.showPassphrase ? TextInput.Normal : TextInput.Password
@@ -2395,8 +2466,12 @@ ApplicationWindow {
 
                         // Filesystem: the selected image's choices (its own list for
                         // an image that names none), starting at the image's value.
+                        // Not on the daemon path: its Config has no filesystem,
+                        // and the daemon picks it (btrfs on non-EL bases, xfs on
+                        // EL10). A choice here would change nothing.
                         DankCard {
                             Layout.fillWidth: true
+                            visible: !root.daemonMode
                             title: qsTr("Advanced")
                             Column {
                                 width: parent.width
@@ -2532,12 +2607,14 @@ ApplicationWindow {
                             implicitWidth: 300
                         }
 
-                        StyledText { text: qsTr("Password again"); color: Theme.surfaceVariantText }
+                        StyledText { text: qsTr("Confirm password"); color: Theme.surfaceVariantText }
                         ColumnLayout {
                             spacing: 2
                             DankTextField {
                                 id: userPassConfirm
-                                label: qsTr("Password again")
+                                // Enter in the last field does what Enter does on the page.
+                                onAccepted: root.advance()
+                                label: qsTr("Confirm password")
                                 objectName: "accountPasswordConfirm"
                                 text: root.userPasswordConfirm
                                 onTextEdited: root.userPasswordConfirm = text
@@ -2683,8 +2760,9 @@ ApplicationWindow {
                                     wrapMode: Text.WrapAnywhere
                                     Layout.fillWidth: true
                                 }
-                                StyledText { text: qsTr("Filesystem"); color: Theme.surfaceVariantText }
+                                StyledText { text: qsTr("Filesystem"); color: Theme.surfaceVariantText; visible: !root.daemonMode }
                                 StyledText {
+                                    visible: !root.daemonMode
                                     text: root.filesystem === "btrfs" && root.btrfsSubvolumes
                                         ? qsTr("%1  (subvolumes)").arg(root.filesystem)
                                         : root.filesystem === "zfs"
@@ -2705,7 +2783,7 @@ ApplicationWindow {
                                 StyledText { objectName: "confirmLocale"; visible: !!root.confirmRegion().locale; text: root.nameOf(root.localeNames, root.confirmRegion().locale || ""); isMonospace: true }
                                 StyledText { text: qsTr("Keyboard"); color: Theme.surfaceVariantText; visible: !!root.confirmRegion().keyboard }
                                 StyledText { objectName: "confirmKeyboard"; visible: !!root.confirmRegion().keyboard; text: root.nameOf(root.keyboardNames, root.confirmRegion().keyboard ? root.confirmRegion().keyboard.layout : ""); isMonospace: true }
-                                StyledText { text: qsTr("Timezone"); color: Theme.surfaceVariantText; visible: !!root.confirmRegion().timezone }
+                                StyledText { text: qsTr("Time zone"); color: Theme.surfaceVariantText; visible: !!root.confirmRegion().timezone }
                                 StyledText { objectName: "confirmTimezone"; visible: !!root.confirmRegion().timezone; text: root.nameOf(root.timezoneNames, root.confirmRegion().timezone || ""); isMonospace: true }
                                 StyledText { text: qsTr("Region"); color: Theme.surfaceVariantText; visible: root.regionProblem !== "" }
                                 StyledText { objectName: "regionProblem"; visible: root.regionProblem !== ""; text: root.regionProblem; color: Theme.error; wrapMode: Text.Wrap; Layout.fillWidth: true }
@@ -2902,6 +2980,9 @@ ApplicationWindow {
                     wrapMode: Text.WrapAnywhere
                     Layout.fillWidth: true
                 }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.spacingM
                 Rectangle {
                     Layout.fillWidth: true
                     height: 8; radius: 4
@@ -2919,10 +3000,31 @@ ApplicationWindow {
                         Behavior on width { NumberAnimation { duration: Theme.mediumDuration; easing.type: Theme.standardEasing } }
                     }
                 }
+                    // The percentage beside the bar (DESKTOP-STANDARD A5).
+                    StyledText {
+                        objectName: "installPercent"
+                        text: qsTr("%1%").arg(Math.round(root.installFraction * 100))
+                        color: Theme.surfaceVariantText
+                        isMonospace: true
+                    }
+                }
+                // The log is behind "details": the step line says what
+                // happens; the log is for whoever asks for it.
+                DankButton {
+                    objectName: "installDetailsButton"
+                    text: root.installLogOpen ? qsTr("Hide details") : qsTr("Show details")
+                    tonal: true
+                    onClicked: root.installLogOpen = !root.installLogOpen
+                }
+                Item {
+                    Layout.fillHeight: true
+                    visible: !root.installLogOpen
+                }
 
                 DankCard {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    visible: root.installLogOpen
                     pad: Theme.spacingS
                     ScrollView {
                         anchors.fill: parent
@@ -3031,7 +3133,7 @@ ApplicationWindow {
                             ? root.text("done_subtitle")
                             : (root.installCancelled
                                 ? qsTr("You stopped the installer. The disk can be in an incomplete state: start the installer again before you use it.")
-                                : qsTr("Check the installation log for details."))
+                                : root.failureSentence())
                         color: Theme.surfaceVariantText
                         wrapMode: Text.Wrap
                         horizontalAlignment: Text.AlignHCenter
@@ -3046,6 +3148,18 @@ ApplicationWindow {
                             .map(k => root.text(k)).filter(t => t !== "").join("\n\n")
                         color: Theme.surfaceVariantText
                         wrapMode: Text.Wrap
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.fillWidth: true
+                    }
+                    // The log stays reachable after a failure.
+                    StyledText {
+                        objectName: "doneLogPath"
+                        visible: !root.installSuccess && root.logPath !== ""
+                        text: qsTr("Log: %1").arg(root.logPath)
+                        color: Theme.surfaceVariantText
+                        font.pixelSize: Theme.fontSizeSmall
+                        isMonospace: true
+                        wrapMode: Text.WrapAnywhere
                         horizontalAlignment: Text.AlignHCenter
                         Layout.fillWidth: true
                     }
@@ -3092,6 +3206,12 @@ ApplicationWindow {
                         Layout.alignment: Qt.AlignHCenter
                         spacing: Theme.spacingM
                         DankButton { text: qsTr("Close"); tonal: true; onClicked: Qt.quit() }
+                        DankButton {
+                            objectName: "doneTryAgainButton"
+                            text: qsTr("Try again")
+                            visible: !root.installSuccess
+                            onClicked: root.tryAgain()
+                        }
                         DankButton {
                             text: qsTr("Power off")
                             tonal: true
@@ -3287,9 +3407,14 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         title: qsTr("License agreement")
+                        // A fixed height: the page's column is centred and has
+                        // no height to fill, so a height taken from the card
+                        // was 0 and the terms were not on screen at all.
                         Flickable {
+                            objectName: "eulaScroll"
                             width: parent.width
-                            height: Math.min(320, parent.height)
+                            height: Math.min(280, eulaText.implicitHeight)
+                            implicitHeight: height
                             clip: true
                             contentWidth: width
                             contentHeight: eulaText.implicitHeight
@@ -3315,6 +3440,10 @@ ApplicationWindow {
                         checked: root.eulaAccepted
                         visible: root.eulaInfo.unreadable !== true
                         onToggled: root.eulaAccepted = checked
+                        Accessible.role: Accessible.CheckBox
+                        Accessible.name: qsTr("I have read and accept the Terms of Use")
+                        Accessible.checkable: true
+                        Accessible.checked: root.eulaAccepted
                     }
                     RowLayout {
                         Layout.fillWidth: true
@@ -3415,15 +3544,11 @@ ApplicationWindow {
                         RowLayout {
                             Layout.alignment: Qt.AlignHCenter
                             spacing: Theme.spacingM
-                            DankButton {
-                                text: root.text("recovery_key_copy")
-                                tonal: true
-                                onClicked: {
-                                    recoveryClip.selectAll()
-                                    recoveryClip.copy()
-                                    recoveryClip.deselect()
-                                }
-                            }
+                            // First in the Tab order: Tab, then Space ticks it (the
+                            // e2e harness's key fallback for this page).
+                            // A check box for a screen reader and the e2e
+                            // harness (role "check box", shared/flow
+                            // screens.yaml), drawn as a DMS button.
                             DankButton {
                                 objectName: "recoveryAckButton"
                                 text: (root.recoveryAck ? "\u2713  " : "")
@@ -3432,6 +3557,19 @@ ApplicationWindow {
                                 checkable: true
                                 checked: root.recoveryAck
                                 onToggled: root.recoveryAck = checked
+                                Accessible.role: Accessible.CheckBox
+                                Accessible.name: root.text("recovery_key_ack")
+                                Accessible.checkable: true
+                                Accessible.checked: root.recoveryAck
+                            }
+                            DankButton {
+                                text: root.text("recovery_key_copy")
+                                tonal: true
+                                onClicked: {
+                                    recoveryClip.selectAll()
+                                    recoveryClip.copy()
+                                    recoveryClip.deselect()
+                                }
                             }
                         }
                     }
@@ -3448,7 +3586,7 @@ ApplicationWindow {
                         Item { Layout.fillWidth: true }
                         DankButton {
                             objectName: "recoveryContinueButton"
-                            text: qsTr("Continue")
+                            text: qsTr("Done")
                             enabled: root.recoveryKey !== "" && root.recoveryAck
                             onClicked: root.flowNext()
                         }
@@ -3530,14 +3668,21 @@ ApplicationWindow {
             visible: root.currentPage !== 7 && root.currentPage !== 8
             Repeater {
                 model: [
-                    { key: "Enter", shown: qsTr("Enter"), what: root.currentPage === 6 ? root.text("confirm_button") : qsTr("Continue") },
+                    { key: "Enter", shown: qsTr("Enter"), what: root.currentPage === 6 ? root.text("confirm_button")
+                        : root.currentPage === 13 ? qsTr("Done") : qsTr("Continue") },
                     { key: "Shift+Enter", shown: qsTr("Shift+Enter"), what: qsTr("Back") },
                     { key: "Tab", shown: qsTr("Tab"), what: qsTr("Next field") }
                 ]
                 RowLayout {
                     required property var modelData
                     spacing: Theme.spacingXS
-                    visible: !(modelData.key === "Shift+Enter" && root.currentPage === 0)
+                    // No way back from the first page, or after the install.
+                    // On the handoff page Enter only leaves a session that
+                    // keeps running.
+                    visible: !(modelData.key === "Shift+Enter"
+                            && (root.currentPage === 0 || root.currentPage === 13 || root.currentPage === 14))
+                        && !(modelData.key === "Enter" && root.currentPage === 14
+                            && !(root.handoffKeepsRunning && root.handoffError === ""))
                     Rectangle {
                         radius: Theme.cornerRadiusXS
                         color: Theme.surfaceContainerHigh
