@@ -9,6 +9,10 @@ permissions:
   contents: read
   packages: read
 
+defaults:
+  run:
+    working-directory: fisherman
+
 jobs:
   setup:
     runs-on: ubuntu-24.04
@@ -39,12 +43,12 @@ jobs:
 
       - uses: actions/setup-go@v7.1.0
         with:
-          go-version-file: fisherman/go.mod
+          go-version-file: fisherman/fisherman/go.mod
           cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
 
       - name: Run unit tests
         run: sudo go test -race ./...
-        working-directory: fisherman
+        working-directory: fisherman/fisherman
 
   full-install:
     name: install / ${{ matrix.image.name }}${{ matrix.image.nightly_advisory && ' (advisory)' || '' }}
@@ -67,11 +71,11 @@ jobs:
 
       - uses: actions/setup-go@v7.1.0
         with:
-          go-version-file: fisherman/go.mod
+          go-version-file: fisherman/fisherman/go.mod
           cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
 
       - name: Install tools
-        uses: $/.github/actions/setup-host-tools
+        uses: $/.github/actions/fisherman-setup-host-tools
         with:
           packages: podman xfsprogs btrfs-progs cryptsetup-bin ostree qemu-system-x86 ovmf flatpak jq binutils
 
@@ -84,7 +88,7 @@ jobs:
 
       - name: Build fisherman
         run: go build -o /tmp/fisherman ./cmd/fisherman/
-        working-directory: fisherman
+        working-directory: fisherman/fisherman
 
       - name: Create loop device (50 GB sparse)
         id: loopdev

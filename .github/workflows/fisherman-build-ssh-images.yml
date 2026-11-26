@@ -4,9 +4,9 @@ on:
   push:
     branches: [dev, prod]
     paths:
-      - 'scripts/Containerfile.ssh-enable'
-      - '.github/workflows/build-ssh-images.yml'
-      - 'tests/bootcrew-matrix.yaml'
+      - 'fisherman/scripts/Containerfile.ssh-enable'
+      - '.github/workflows/fisherman-build-ssh-images.yml'
+      - 'fisherman/tests/bootcrew-matrix.yaml'
   schedule:
     - cron: '0 3 * * 1'  # Weekly Monday rebuild to pick up upstream base image updates
   workflow_dispatch:
@@ -20,6 +20,10 @@ env:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: fisherman
 
 jobs:
   setup:
@@ -86,7 +90,7 @@ jobs:
         uses: docker/build-push-action@v7.4.0
         with:
           context: .
-          file: scripts/Containerfile.ssh-enable
+          file: fisherman/scripts/Containerfile.ssh-enable
           push: true
           build-args: |
             BASE_IMAGE=${{ matrix.image.base_image }}

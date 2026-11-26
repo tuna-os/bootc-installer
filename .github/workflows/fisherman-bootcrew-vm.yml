@@ -1,13 +1,16 @@
 name: Bootcrew VM Boot (E2E tests)
 
 on:
+  # fisherman moved into this repository: only its own changes run this.
   push:
     branches: [prod, dev]
+    paths: ['fisherman/**', '.github/workflows/fisherman-bootcrew-vm.yml', '.github/actions/fisherman-setup-host-tools/**']
   # ready_for_review is listed so a draft PR (which skips the heavy VM and
   # arm64 jobs, see `setup`) gets the full run the moment it is marked ready.
   pull_request:
     branches: [prod, dev]
     types: [opened, synchronize, reopened, ready_for_review]
+    paths: ['fisherman/**', '.github/workflows/fisherman-bootcrew-vm.yml', '.github/actions/fisherman-setup-host-tools/**']
   # Every night on dev (the default branch), so the required entries of
   # tests/bootcrew-matrix.yaml, the #418 shapes among them, gate a nightly
   # run as well as each PR (#423). bootcrew-nightly.yml is the full install
@@ -31,6 +34,10 @@ concurrency:
 permissions:
   contents: read
 
+defaults:
+  run:
+    working-directory: fisherman
+
 jobs:
   lint:
     runs-on: ubuntu-24.04
@@ -41,15 +48,15 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@v7.1.0
         with:
-          go-version-file: fisherman/go.mod
+          go-version-file: fisherman/fisherman/go.mod
           cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9.3.0
         with:
           version: v2.15.0
-          working-directory: fisherman
+          working-directory: fisherman/fisherman
           # .golangci.yml at the repo root configures the linter set.
-          args: --config=${{ github.workspace }}/.golangci.yml --timeout=5m
+          args: --config=${{ github.workspace }}/fisherman/.golangci.yml --timeout=5m
 
       # tests/check-validation.sh verifies that the E2E checks in
       # verify-installation.sh and boot-verify.sh actually catch the bugs they
@@ -161,6 +168,11 @@ jobs:
               while IFS= read -r f; do
                 [ -n "$f" ] || continue
                 case "$f" in
+                  .github/workflows/fisherman-*|.github/actions/fisherman-*) heavy=true vm=true; continue ;;
+                  fisherman/*) f=${f#fisherman/} ;;
+                  *) continue ;;  # the installer frontends cannot change fisherman's boots
+                esac
+                case "$f" in
                   *.md|docs/*|LICENSE) ;;
                   tui/*) heavy=true ;;
                   *) heavy=true vm=true ;;
@@ -187,7 +199,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@v7.1.0
         with:
-          go-version-file: fisherman/go.mod
+          go-version-file: fisherman/fisherman/go.mod
           cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
       - name: Unit tests (race + coverage)
         # Most tests do not need sudo; the loopback/storage_driver ones do
@@ -195,13 +207,13 @@ jobs:
         # without splitting into two test invocations — keeps the failure
         # signal on a single step.
         run: sudo go test -race -coverprofile=coverage.out -covermode=atomic ./...
-        working-directory: fisherman
+        working-directory: fisherman/fisherman
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
           name: unit-test-coverage
-          path: fisherman/coverage.out
+          path: fisherman/fisherman/coverage.out
           if-no-files-found: ignore
           retention-days: 14
 
@@ -224,21 +236,21 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@v7.1.0
         with:
-          go-version-file: tui/go.mod
+          go-version-file: fisherman/tui/go.mod
           cache: true
-          cache-dependency-path: tui/go.sum
+          cache-dependency-path: fisherman/tui/go.sum
       - name: Vet
         run: go vet ./...
-        working-directory: tui
+        working-directory: fisherman/tui
       - name: Unit tests (race + coverage)
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
-        working-directory: tui
+        working-directory: fisherman/tui
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
           name: tui-unit-test-coverage
-          path: tui/coverage.out
+          path: fisherman/tui/coverage.out
           if-no-files-found: ignore
           retention-days: 14
 
@@ -259,24 +271,24 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@v7.1.0
         with:
-          go-version-file: fisherman/go.mod
+          go-version-file: fisherman/fisherman/go.mod
           cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
       - name: Build
         run: go build -o /tmp/fisherman ./cmd/fisherman && go vet ./...
-        working-directory: fisherman
+        working-directory: fisherman/fisherman
       - name: Unit tests
         # As in unit-tests: the loopback tests need root.
         run: sudo env "PATH=$PATH" go test -count=1 ./...
-        working-directory: fisherman
+        working-directory: fisherman/fisherman
       # tui is its own module with a newer Go than fisherman's go.mod names:
       # install the version it asks for, as tui-unit-tests does.
       - uses: actions/setup-go@v7.1.0
         with:
-          go-version-file: tui/go.mod
+          go-version-file: fisherman/tui/go.mod
           cache: false
       - name: TUI unit tests
         run: go test -count=1 ./...
-        working-directory: tui
+        working-directory: fisherman/tui
 
   # ── Required entries: `required: true` in tests/bootcrew-matrix.yaml. ───
   # The canaries dakota (composefs) and centos-bootc (ostree), and the #418
@@ -310,11 +322,11 @@ jobs:
 
       - uses: actions/setup-go@v7.1.0
         with:
-          go-version-file: fisherman/go.mod
+          go-version-file: fisherman/fisherman/go.mod
           cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
 
       - name: Setup CI environment
-        uses: $/.github/actions/setup-host-tools
+        uses: $/.github/actions/fisherman-setup-host-tools
         with:
           # Same host package set as just ci-install-tools, including its
           # bootstrap dependencies; resolve/install once rather than twice.
@@ -426,10 +438,10 @@ jobs:
           tool-cache: true
       - uses: actions/setup-go@v7.1.0
         with:
-          go-version-file: fisherman/go.mod
+          go-version-file: fisherman/fisherman/go.mod
           cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
       - name: Setup CI environment
-        uses: $/.github/actions/setup-host-tools
+        uses: $/.github/actions/fisherman-setup-host-tools
         with:
           # swtpm: the software TPM of the tpm2 entries (#418).
           packages: podman xfsprogs btrfs-progs cryptsetup-bin ostree qemu-system-x86 ovmf flatpak jq openssh-client just yq socat python3 swtpm
@@ -486,10 +498,10 @@ jobs:
           tool-cache: true
       - uses: actions/setup-go@v7.1.0
         with:
-          go-version-file: fisherman/go.mod
+          go-version-file: fisherman/fisherman/go.mod
           cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
       - name: Setup CI environment
-        uses: $/.github/actions/setup-host-tools
+        uses: $/.github/actions/fisherman-setup-host-tools
         with:
           packages: podman xfsprogs btrfs-progs cryptsetup-bin ostree qemu-system-x86 ovmf flatpak jq openssh-client just yq socat python3
       - name: Generate SSH keys

@@ -1,3 +1,7 @@
+> **fisherman lives here now.** It moved from `tuna-os/fisherman` into
+> `tuna-os/installer` (this directory) with its full history. Open issues and
+> pull requests here. The Go module path stays `github.com/tuna-os/fisherman`.
+
 # fisherman
 
 > ℹ️ **Note on the project home.** `tuna-os/fisherman` is the only origin.

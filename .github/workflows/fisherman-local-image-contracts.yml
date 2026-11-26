@@ -2,19 +2,23 @@ name: Local image installer contracts
 on:
   pull_request:
     paths:
-      - fisherman/internal/install/**
-      - fisherman/cmd/fisherman/**
-      - tests/native-local-id.py
-      - tests/native-process.py
-      - tests/test-native-process.py
-      - tui/**
-      - .github/workflows/local-image-contracts.yml
+      - fisherman/fisherman/internal/install/**
+      - fisherman/fisherman/cmd/fisherman/**
+      - fisherman/tests/native-local-id.py
+      - fisherman/tests/native-process.py
+      - fisherman/tests/test-native-process.py
+      - fisherman/tui/**
+      - .github/workflows/fisherman-local-image-contracts.yml
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: fisherman
 
 jobs:
   local-source:
@@ -26,13 +30,13 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@v7.1.0
         with:
-          go-version-file: tui/go.mod
-          cache-dependency-path: tui/go.sum
+          go-version-file: fisherman/tui/go.mod
+          cache-dependency-path: fisherman/tui/go.sum
       - name: Exercise actual CLI and installer source routes
-        working-directory: fisherman
+        working-directory: fisherman/fisherman
         run: go test ./internal/install ./cmd/fisherman
       - name: Build and test the inherited TUI module
-        working-directory: tui
+        working-directory: fisherman/tui
         run: |
           go test -mod=readonly ./...
           go build -mod=readonly -o "$RUNNER_TEMP/fisherman-tui" ./cmd/bootc-installer-tui

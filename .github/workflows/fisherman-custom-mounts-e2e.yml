@@ -7,13 +7,17 @@ on:
     # cannot change this job. Not a required merge check (the ruleset needs
     # lint, unit-tests and required-canaries); promote.yml judges the push
     # run, so no filter.
-    paths-ignore:
-      - '**.md'
-      - docs/**
-      - LICENSE
-      - tui/**
+    paths: &fisherman
+      - 'fisherman/**'
+      - '!fisherman/**.md'
+      - '!fisherman/docs/**'
+      - '!fisherman/LICENSE'
+      - '!fisherman/tui/**'
+      - '.github/workflows/fisherman-custom-mounts-e2e.yml'
+      - '.github/actions/fisherman-setup-host-tools/**'
   push:
     branches: [dev, main]
+    paths: *fisherman
 
 permissions:
   contents: read
@@ -21,6 +25,10 @@ permissions:
 concurrency:
   group: custom-mounts-e2e-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: fisherman
 
 jobs:
   custom-mounts-e2e:
@@ -35,11 +43,11 @@ jobs:
 
       - uses: actions/setup-go@v7.1.0
         with:
-          go-version-file: fisherman/go.mod
+          go-version-file: fisherman/fisherman/go.mod
           cache: false  # fisherman/go.mod has no deps, so there is no go.sum to key a cache on
 
       - name: Install disk tools
-        uses: $/.github/actions/setup-host-tools
+        uses: $/.github/actions/fisherman-setup-host-tools
         with:
           packages: xfsprogs dosfstools e2fsprogs jq
 
@@ -59,7 +67,7 @@ jobs:
       - name: customMounts layout on a real loop device
         run: sudo env "PATH=$PATH" FISHERMAN_LOOPBACK_E2E=require
           go test -count=1 -v -run TestApplyCustomLayout_Loopback ./internal/disk/
-        working-directory: fisherman
+        working-directory: fisherman/fisherman
 
       - name: Show leftover loop devices
         if: failure()

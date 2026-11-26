@@ -48,6 +48,9 @@ NOT_A_TRIGGER = {
                         "a minute, before the build and E2E workflows that fire "
                         "the gate. The gate reads every check run, so a red run "
                         "still holds the promotion.",
+    "Build SSH-enabled Images": "fisherman's test fixtures: it publishes the "
+                                "SSH-enabled VM images that the bootcrew jobs "
+                                "pull, and checks nothing in the release.",
 }
 
 # Workflows that run on every push to `dev` (no path filter), but have no
