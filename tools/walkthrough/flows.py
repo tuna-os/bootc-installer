@@ -123,10 +123,11 @@ OCR_LABELS = [(r"Username", "user"), (r"Full name", "full"), (r"Password", "pass
               (r"Password again", "pass"), (r"Confirm password", "pass"),
               (r"Passphrase", "pass"), (r"Confirm passphrase", "pass")]
 
-# The variants of the main path that each frontend has. gnome-setup forces
-# the light style, COSMIC and niri draw their own dark theme, so a dark
-# variant of those would show the same pictures.
-VARIANTS = {"gnome": ("small",), "kde": ("dark", "small"), "cosmic": ("small",),
+# The variants of the main path that each frontend has. Only XFCE has a
+# dark set: gnome-setup forces the light style, COSMIC and niri draw their
+# own dark theme, and KDE takes its colours from the Plasma platform theme,
+# which the session does not have.
+VARIANTS = {"gnome": ("small",), "kde": ("small",), "cosmic": ("small",),
             "niri": ("small",), "xfce": ("dark", "small")}
 
 # Headings that are also the words of a button. They name a page only when

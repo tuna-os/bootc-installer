@@ -321,6 +321,8 @@ def walk(frontend, run, out, work, variant, log):
     size = {"small": (1024, 600)}.get(variant, (1000, 700))
     argv, env = apps.command(frontend)
     env = {**apps.COMMON, **env, **run.env}
+    if variant == "dark":
+        env.update(apps.DARK_ENV.get(frontend, {}))
     apps.set_terms(frontend, run.env.get("WALK_EULA"))
     found = {}
     with Session(run.scenario, step_delay=run.step_delay, width=size[0], height=size[1],

@@ -74,3 +74,8 @@ def set_terms(frontend, path):
         subprocess.run(["cp", path, target], check=True)
     elif os.path.exists(target):
         os.unlink(target)
+
+
+# The dark style of a frontend whose toolkit takes it from the environment
+# (flows.VARIANTS names which frontends have a dark set).
+DARK_ENV = {"xfce": {"GTK_THEME": "Adwaita:dark"}}
