@@ -81,6 +81,8 @@ EXEMPT = {
     "cosmic": {"network": _LIVE_NO_NETWORK},
     "niri": {"network": "The session page has the network card; there is no page of its own."},
     "xfce": {
+        "network": "The network page comes before the image page, so it is not there when "
+                   "a person picks an image that needs a download on live media.",
         "done--cancelled": "The cancel dialog draws no buttons (gates.ConfirmCancelDialog has no "
                            "show_all), so the walk cannot confirm a cancel.",
     },
@@ -99,6 +101,10 @@ EXEMPT = {
         "requirements--requirements-fatal": "gnome-setup has no requirements page.",
         "done--device-lost": "gnome-setup goes on to the next page when the install fails "
                              "(tuna-os/tunaOS#5017).",
+        "recovery-key--recovery-key-failed": "gnome-setup shows no recovery-key page and no "
+                                             "error when the daemon makes no key.",
+        "encryption--passphrase-enroll-failed": "gnome-setup goes on when the daemon "
+                                                "refuses the passphrase (tuna-os/tunaOS#5017).",
         "done--repart-error": "gnome-setup goes on to the next page when the install fails "
                               "(tuna-os/tunaOS#5017).",
     },
@@ -122,3 +128,8 @@ OCR_LABELS = [(r"Username", "user"), (r"Full name", "full"), (r"Password", "pass
 # variant of those would show the same pictures.
 VARIANTS = {"gnome": ("small",), "kde": ("dark", "small"), "cosmic": ("small",),
             "niri": ("small",), "xfce": ("dark", "small")}
+
+# Headings that are also the words of a button. They name a page only when
+# no other heading does.
+WEAK = [r"Done", r"Finished", r"Installed", r"Installation", r"Progress", r"Confirm",
+        r"Account", r"Encryption", r"Network", r"Terms", r"Summary"]

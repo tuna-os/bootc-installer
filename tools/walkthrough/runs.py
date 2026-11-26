@@ -33,6 +33,10 @@ class Run:
     env: dict = field(default_factory=dict)
     only: tuple = ()        # the pages to picture; empty is each page
     skip: tuple = ()        # pages not to picture
+    alias: dict = field(default_factory=dict)  # in this run, page X is state Y
+    # In this run, page X is state Y once the walk has pressed on X: an
+    # error that shows inside the page, not as a page of its own.
+    after_press: dict = field(default_factory=dict)
     rename: dict = field(default_factory=dict)
     actions: dict = field(default_factory=dict)
     step_delay: str = "40ms"
@@ -95,6 +99,10 @@ def account(w):
 
 
 def passphrase(w):
+    # With a TPM the default needs no passphrase. A click by OCR on the
+    # "Passphrase" choice would change the choice (seen on niri).
+    if "no-tpm" not in w.s.scenario:
+        return
     fill_fields(w, PASSPHRASE_FIELDS)
 
 
@@ -133,11 +141,13 @@ def choose(pattern):
 
 ACTIONS = {
     ("*", "disk"): Action(prepare=choose_disk),
+    # A row of gnome-setup's disk list goes on at once.
+    ("gnome", "disk"): Action(leave=choose_disk),
     ("*", "account"): Action(prepare=account),
     ("*", "eula"): Action(prepare=tick(r"(I )?(have read and )?(accept|agree).*")),
     ("*", "recovery-key"): Action(leave=lambda w: (tick(
         r"(I )?(have )?(saved|wrote|stored|written|backed up).*")(w), w.read(), w.primary())),
-    ("gnome", "encryption"): Action(prepare=passphrase),
+    ("*", "encryption"): Action(prepare=passphrase),
     ("*", "wipe-or-free"): Action(leave=lambda w: (choose(
         r"(Erase|Use) (the )?(whole|entire) disk.*|Erase( the)?( whole)?( disk)?")(w), w.read(), w.primary())),
     ("*", "confirm--dialog"): Action(leave=press(r"Install", r"Start( installation)?",
@@ -156,7 +166,9 @@ def action(run, frontend, page):
 
 def for_frontend(frontend, variant=""):
     key = "fixed-key"
-    happy = Run("happy", f"happy,{key}", env=dict(ONLINE), skip=("install",))
+    happy = Run("happy", f"happy,{key}", env=dict(ONLINE), skip=("install",),
+                # "Not now" leads to the done page; a restart ends the session.
+                actions={"handoff": Action(leave=press(r"Not now", r"Later", r"Continue"))})
     if variant:
         return [happy]
     eula = os.path.join(HERE, "fixtures/eula.xml")
@@ -191,15 +203,24 @@ def for_frontend(frontend, variant=""):
             only=("done--failed",), rename={"done--failed": "done--repart-error"}),
         Run("recovery-key-error", "recovery-key-error", env=dict(ONLINE),
             until=("recovery-key--recovery-key-failed",),
-            only=("recovery-key--recovery-key-failed",)),
+            only=("recovery-key--recovery-key-failed",),
+            # Without a key the page is the failure state, whatever it says.
+            alias={"recovery-key": "recovery-key--recovery-key-failed"}),
         Run("enroll-error", f"no-tpm,enroll-error,{key}", env=dict(ONLINE),
             until=("encryption--passphrase-enroll-failed",),
             only=("encryption--passphrase-enroll-failed",)),
         Run("handoff-soft-reboot", f"handoff-soft-reboot,{key}", env=dict(ONLINE),
             until=("done",), only=("handoff",), rename={"handoff": "handoff--soft-reboot"}),
-        Run("handoff-error", f"handoff-error,{key}", env=dict(ONLINE),
-            until=("handoff--handoff-failed",), only=("handoff--handoff-failed",)),
+        # With a reboot, a frontend calls Shutdown, not Handoff.
+        Run("handoff-error", f"handoff-soft-reboot,handoff-error,{key}", env=dict(ONLINE),
+            until=("handoff--handoff-failed",), only=("handoff--handoff-failed",),
+            actions={"handoff": Action(leave=press(r"Continue", r"Restart.*", r"Start .*"))},
+            after_press={"handoff": "handoff--handoff-failed"}),
     ]
+    if frontend != "gnome":
+        # Only gnome-setup sets the passphrase with CryptEnroll.Enroll; the
+        # native installers send it with Install.
+        out = [r for r in out if r.name != "enroll-error"]
     exempt = flows.EXEMPT.get(frontend, {})
     for run in out:
         run.only = tuple(p for p in run.only if run.name_of(frontend, p) not in exempt)

@@ -38,6 +38,10 @@ TERMINAL = ("handoff", "done")
 
 from walk_errors import Stuck  # noqa: E402
 
+with open(os.path.join(HERE, "../../shared/flow/screens.yaml"), encoding="utf-8") as _fh:
+    import yaml
+    render_order = yaml.safe_load(_fh)["order"]
+
 
 def clean(line):
     line = re.sub(r"^\s*Step \d+ of \d+\s*\W+\s*", "", line or "", flags=re.I)
@@ -165,11 +169,17 @@ class Walker:
             for p in pats:
                 if any(re.fullmatch(p, ln, re.I) for ln in lines):
                     return pid
+        weak = None
         for ln in lines:
             for pid, pats in self.table.items():
                 if any(re.fullmatch(p, ln, re.I) for p in pats):
+                    # A one-word heading such as "Done" can be the label of
+                    # a button: it decides only when nothing else does.
+                    if any(re.fullmatch(p, ln, re.I) for p in flows.WEAK):
+                        weak = weak or pid
+                        continue
                     return pid
-        return "unknown"
+        return weak or "unknown"
 
     # -- find and act ------------------------------------------------------
 
@@ -289,15 +299,23 @@ def walk(frontend, run, out, work, variant, log):
         w = Walker(frontend, s, work)
         time.sleep(2)
         last, same, seen, prepared = None, 0, [], set()
+        last_spec = current = None
+        pressed = set()
         for _step in range(run.max_steps):
             w.read()
-            page = w.page()
+            page = run.alias.get(w.page(), w.page())
+            if page in pressed and page in run.after_press:
+                time.sleep(2)  # the answer of the daemon
+                w.read()
+                page = run.after_press[page] if w.page() == page else w.page()
             sig = (page, w.signature())
             same = same + 1 if sig == last else 0
             last = sig
             if page not in seen:
                 seen.append(page)
                 log(f"  {page}")
+            if page in render_order and page != current:
+                last_spec, current = current, page
             name = run.name_of(frontend, page)
             act = runs.action(run, frontend, page)
             if name and name not in found:
@@ -310,8 +328,12 @@ def walk(frontend, run, out, work, variant, log):
                 # The page must still be the same one: a page that changed
                 # while the picture settled is not this page.
                 w.read()
-                if w.page() == page:
+                now = run.alias.get(w.page(), w.page())
+                if now in run.after_press and now in pressed:
+                    now = run.after_press[now]
+                if now == page:
                     found[name] = {"page": page, "run": run.name, "scenario": run.scenario,
+                                   "after": last_spec,
                                    "still": still, "file": os.path.basename(path),
                                    "headings": w.lines()[:4]}
                     log(f"    picture {name}")
@@ -337,9 +359,10 @@ def walk(frontend, run, out, work, variant, log):
                     act.prepare(w)
                     time.sleep(0.6)
                     w.read()
-                    if w.page() != page:
+                    if run.alias.get(w.page(), w.page()) != page:
                         continue  # the choice itself went on: read the new page
                 (act.leave or Walker.primary)(w)
+                pressed.add(page)
             except Stuck as exc:
                 if same >= 6:
                     s.shot(os.path.join(work, f"stuck-{run.name}.png"))

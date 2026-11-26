@@ -71,16 +71,15 @@ def caption(name, s):
     return title, when
 
 
-def order_key(name, s, happy_order):
+def order_key(name, s, pages):
     ids = s["order"]
     page, _, state = name.partition("--")
     if page in ids:
         base = ids.index(page)
     else:
         # A page of this frontend alone: after the spec page before it.
-        before = [p for p in happy_order[:happy_order.index(page)] if p in ids] \
-            if page in happy_order else []
-        base = ids.index(before[-1]) + 0.5 if before else len(ids)
+        after = pages[name].get("after")
+        base = ids.index(after) + 0.5 if after in ids else len(ids)
     return (base, bool(state), state)
 
 
@@ -124,8 +123,7 @@ def main():
     with open(os.path.join(a.captures, "captures.json"), encoding="utf-8") as fh:
         cap = json.load(fh)
     pages = cap["pages"]
-    happy = [v["page"] for v in pages.values() if v.get("run") == "happy"]
-    names = sorted(pages, key=lambda n: order_key(n, s, happy))
+    names = sorted(pages, key=lambda n: order_key(n, s, pages))
     if os.path.isdir(a.out):
         for f in os.listdir(a.out):
             if re.match(r"^\d\d-.*\.png$", f) or f in ("walkthrough.webp", "manifest.json"):

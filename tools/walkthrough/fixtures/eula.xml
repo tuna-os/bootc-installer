@@ -1,26 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- The terms of the walkthrough: an AppStream component with an agreement
+     of type eula, in the form that gnome-setup and the native installers
+     read. The text is a fixture, not terms of any product. -->
 <component type="operating-system">
   <id>org.tunaos.TunaOS</id>
   <name>TunaOS</name>
   <summary>The walkthrough terms</summary>
   <metadata_license>CC0-1.0</metadata_license>
-  <agreement type="eula">
-    <agreement_section>
+  <agreement type="eula" version_id="1">
+    <agreement_section type="use">
       <name>Use of this system</name>
-      <p>Do not use this experiment for anything important.</p>
-      <p>You agree to the following:</p>
-      <ul>
-        <li>File bugs when it breaks.</li>
-        <li>Keep backups of anything you keep.</li>
-      </ul>
+      <description>
+        <p>This text stands in for the terms of an image.</p>
+        <p>You agree to the following:</p>
+        <ul>
+          <li>Report bugs when it breaks.</li>
+          <li>Keep backups of the files that you keep.</li>
+        </ul>
+      </description>
     </agreement_section>
-    <agreement_section>
+    <agreement_section type="updates">
       <name>Updates</name>
-      <p>Updates arrive automatically.</p>
-      <ol>
-        <li>First the base system.</li>
-        <li>Then the applications.</li>
-      </ol>
+      <description>
+        <p>Updates arrive automatically.</p>
+      </description>
     </agreement_section>
   </agreement>
 </component>

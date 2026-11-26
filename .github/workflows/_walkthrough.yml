@@ -137,8 +137,9 @@ jobs:
           git commit -q --allow-empty -m "ci: run the checks of the pull request"
           git push -q "$remote" "HEAD:refs/heads/$branch"
           # An older pull request of this frontend is out of date now.
-          gh pr list --state open --search "head:bot/walkthrough-$FE-" --json number,headRefName \
-            --jq ".[] | select(.headRefName != \"$branch\") | .number" |
+          gh pr list --state open --limit 100 --json number,headRefName \
+            --jq ".[] | select(.headRefName | startswith(\"bot/walkthrough-$FE-\"))
+                  | select(.headRefName != \"$branch\") | .number" |
             while read -r n; do gh pr close "$n" --delete-branch --comment "Replaced by the pull request of $branch."; done
 
       - name: Fail when the walk did not finish

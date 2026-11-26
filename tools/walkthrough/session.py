@@ -170,6 +170,12 @@ class Session:
 
     def launch(self, argv, env, cwd=None):
         full = dict(self.env, **env)
+        # The clock of the installer starts at a fixed time, so a date in a
+        # picture (a log name, a time stamp) is the same in each run.
+        faketime = "/usr/lib64/faketime/libfaketime.so.1"
+        if os.path.exists(faketime):
+            full.update(LD_PRELOAD=faketime, FAKETIME="@2026-01-05 09:00:00",
+                        FAKETIME_DONT_RESET="1", FAKETIME_DONT_FAKE_MONOTONIC="1")
         self.app = self._spawn(argv, "app", env=full, cwd=cwd)
         self.app_env = full
         wait_for(lambda: self.windows() or self.app.poll() is not None, 60, "window")
