@@ -1,13 +1,10 @@
-"""The bot commits to dev go through one action: .github/actions/push-to-dev.
+"""No workflow pushes to dev. Pictures reach dev through a pull request.
 
-Five screenshot workflows and walkthrough.yml each carried a copy of the
-same commit, rebase and retry step. These tests keep the copies from coming
-back, and hold the properties that the release flow depends on: each
-message has `[skip ci]` (promote.yml does not take such a commit as a
-candidate, docs/RELEASE.md), a frontend workflow adds paths in its own
-tree, and the push goes through the DEV_PUSH_DEPLOY_KEY deploy key, the one
-identity the "tier-a: required checks" ruleset lets land a commit that has
-no check runs (a GITHUB_TOKEN push is rejected with GH013).
+The screenshot workflows and walkthrough.yml used to commit their pictures
+straight to dev with a deploy key (.github/actions/push-to-dev), past the
+required checks. Now only _walkthrough.yml holds that key. It pushes a
+`bot/walkthrough-<frontend>-<sha>` branch and opens a pull request, which
+then needs the same checks as any other change (tools/walkthrough/README.md).
 """
 
 import os
@@ -16,74 +13,53 @@ import unittest
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 WORKFLOWS = os.path.join(REPO, ".github", "workflows")
-ACTION = os.path.join(REPO, ".github", "actions", "push-to-dev", "action.yml")
-# The screenshot workflows use the same-repository `$/` form. walkthrough.yml
-# keeps `./`, because it runs the action from its checkout of dev.
-USE = re.compile(
-    r"        uses: (?:\./|\$/)\.github/actions/push-to-dev(?: # zizmor: .+)?\n"
-    r"        with:\n"
-    r"(?:          working-directory: (?P<wd>\S+)\n)?"
-    r"          paths: (?P<paths>.+)\n"
-    r"          message: \"(?P<message>.+)\"\n"
-    r"          ssh-key: \$\{\{ secrets\.DEV_PUSH_DEPLOY_KEY \}\}\n")
-CALLERS = {
-    "screenshots-gnome.yml": (None, "docs/screenshots", "docs(gnome): refresh GUI screenshots [skip ci]"),
-    "screenshots-kde.yml": ("frontends/kde", "docs/screenshots", "docs(kde): refresh GUI screenshots [skip ci]"),
-    "screenshots-cosmic.yml": ("frontends/cosmic", "docs/screenshots",
-                               "docs(cosmic): refresh GUI screenshots [skip ci]"),
-    "screenshots-niri.yml": ("frontends/niri", "docs/screenshots", "docs(niri): refresh GUI screenshots [skip ci]"),
-    "screenshots-xfce.yml": ("frontends/xfce", "docs/screenshots", "docs(xfce): refresh GUI screenshots [skip ci]"),
-    "walkthrough.yml": (None, "docs/walkthrough", "docs: refresh cross-frontend walkthrough [skip ci]"),
-}
+KEY_HOLDER = "_walkthrough.yml"
+CALLERS = {f"walkthrough-{fe}.yml" for fe in ("gnome", "kde", "cosmic", "niri", "xfce")}
 
 
-def read(path):
-    with open(path, encoding="utf-8") as stream:
+def read(name):
+    with open(os.path.join(WORKFLOWS, name), encoding="utf-8") as stream:
         return stream.read()
 
 
-class PushToDevTest(unittest.TestCase):
-    def test_the_action_keeps_the_retry_and_the_safe_directory(self):
-        text = read(ACTION)
-        self.assertIn('git config --global --add safe.directory "$GITHUB_WORKSPACE"', text)
-        self.assertIn("for attempt in 1 2 3 4 5 6; do", text)
-        self.assertIn("git rebase -q origin/dev", text)
-        self.assertIn("git push origin HEAD:dev", text)
-        self.assertIn("could not push after 6 attempts", text)
-        self.assertIn('git remote set-url --push origin "git@github.com:${GITHUB_REPOSITORY}.git"', text)
-        self.assertIn("StrictHostKeyChecking=yes", text)
-        # The inputs reach the script through the environment only.
-        script = text.split("      run: |\n")[1]
-        self.assertNotIn("${{", script)
+def workflows():
+    return sorted(n for n in os.listdir(WORKFLOWS) if n.endswith((".yml", ".yaml")))
 
-    def test_no_workflow_pushes_to_dev_by_itself(self):
-        for name in sorted(os.listdir(WORKFLOWS)):
+
+class NoDirectPushTest(unittest.TestCase):
+    def test_the_push_to_dev_action_is_gone(self):
+        self.assertFalse(os.path.exists(os.path.join(REPO, ".github", "actions", "push-to-dev")))
+        for name in workflows():
             with self.subTest(workflow=name):
-                self.assertNotIn("git push origin HEAD:dev", read(os.path.join(WORKFLOWS, name)))
+                self.assertNotIn("push-to-dev", read(name))
 
-    def test_each_caller_commits_its_own_paths_with_skip_ci(self):
-        using = sorted(name for name in os.listdir(WORKFLOWS)
-                       if name.endswith(".yml")
-                       and "actions/push-to-dev" in read(os.path.join(WORKFLOWS, name)).split("\njobs:")[1])
-        self.assertEqual(using, sorted(CALLERS))
-        for name, expected in CALLERS.items():
+    def test_no_workflow_pushes_to_dev(self):
+        for name in workflows():
+            text = read(name)
             with self.subTest(workflow=name):
-                text = read(os.path.join(WORKFLOWS, name))
-                found = [(m["wd"], m["paths"], m["message"]) for m in USE.finditer(text)]
-                self.assertEqual(found, [expected])
-                # The job's run steps and the action must agree on the
-                # directory, or `git add` names a path that is not there.
-                default = re.search(r"^      run:\n        working-directory: (\S+)$", text, re.MULTILINE)
-                self.assertEqual(default.group(1) if default else None, expected[0])
+                self.assertIsNone(re.search(r"git push\b[^\n]*\bHEAD:(refs/heads/)?dev\b", text))
+                self.assertIsNone(re.search(r"git push\b[^\n]*\borigin dev\b", text))
 
-    def test_a_screenshot_job_pushes_only_from_a_push_to_dev(self):
+    def test_only_the_walkthrough_job_holds_the_deploy_key(self):
+        holders = {n for n in workflows() if "DEV_PUSH_DEPLOY_KEY" in read(n)}
+        self.assertEqual(holders, {KEY_HOLDER} | CALLERS)
         for name in CALLERS:
-            if not name.startswith("screenshots-"):
-                continue
             with self.subTest(workflow=name):
-                self.assertIn(
-                    "        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'\n"
-                    "        uses: $/.github/actions/push-to-dev\n", read(os.path.join(WORKFLOWS, name)))
+                # A caller only passes the secret on to the reusable workflow.
+                self.assertIn("uses: $/.github/workflows/_walkthrough.yml", read(name))
+
+    def test_the_walkthrough_pushes_only_a_bot_branch_from_dev(self):
+        text = read(KEY_HOLDER)
+        pushes = re.findall(r'git push -q "\$remote" "([^"]+)"', text)
+        self.assertTrue(pushes)
+        for target in pushes:
+            self.assertEqual(target, "HEAD:refs/heads/$branch")
+        self.assertIn('branch="bot/walkthrough-$FE-${GITHUB_SHA::8}"', text)
+        job = text.split("\n  pull-request:\n", 1)[1]
+        self.assertIn("github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'", job)
+        # The walk job itself holds no secret.
+        walk = text.split("\n  walk:\n", 1)[1].split("\n  pull-request:\n", 1)[0]
+        self.assertNotIn("secrets.", walk)
 
 
 if __name__ == "__main__":

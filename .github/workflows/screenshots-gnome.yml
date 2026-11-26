@@ -21,7 +21,6 @@ on:
       - "tests/gui/**"
       - "meson.build"
       - "shared/**"
-      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-gnome.yml"
   pull_request:
     paths:
@@ -31,7 +30,6 @@ on:
       - "tests/gui/**"
       - "meson.build"
       - "shared/**"
-      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-gnome.yml"
   workflow_dispatch:
 
@@ -49,8 +47,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] the push-to-dev step later commits and pushes from this checkout
+      - uses: actions/checkout@v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
           submodules: recursive
 
@@ -98,10 +97,3 @@ jobs:
           if-no-files-found: warn
 
       # Only dev pushes. On a PR the artifact is the deliverable.
-      - name: commit refreshed screenshots
-        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-        uses: $/.github/actions/push-to-dev
-        with:
-          paths: docs/screenshots
-          message: "docs(gnome): refresh GUI screenshots [skip ci]"
-          ssh-key: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}

@@ -23,7 +23,6 @@ on:
       - "frontends/kde/i18n/**"
       - "frontends/kde/*.json"
       - "shared/**"
-      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-kde.yml"
   pull_request:
     paths:
@@ -34,7 +33,6 @@ on:
       - "frontends/kde/i18n/**"
       - "frontends/kde/*.json"
       - "shared/**"
-      - ".github/actions/push-to-dev/**"
       - ".github/workflows/screenshots-kde.yml"
   workflow_dispatch:
 
@@ -76,15 +74,16 @@ jobs:
                  kf6-qqc2-desktop-style kf6-breeze-icons
           test -f /usr/share/icons/breeze/index.theme
 
-      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] the push-to-dev step later commits and pushes from this checkout
+      - uses: actions/checkout@v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       # The mock daemon that tuna-installer-daemon-tests and
       # tuna-installer-walk start: fishermand of tuna-os/fisherman at one
       # reviewed commit. It has no dependency outside the Go standard
       # library, so the build needs no network. The source goes away after
-      # the build: the push-to-dev step commits from this workspace.
+      # the build.
       - uses: actions/checkout@v7.0.1
         with:
           repository: tuna-os/fisherman
@@ -180,12 +179,3 @@ jobs:
         with:
           name: gui-screenshots-kde
           path: frontends/kde/docs/screenshots/
-
-      - name: commit refreshed screenshots
-        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-        uses: $/.github/actions/push-to-dev
-        with:
-          working-directory: frontends/kde
-          paths: docs/screenshots
-          message: "docs(kde): refresh GUI screenshots [skip ci]"
-          ssh-key: ${{ secrets.DEV_PUSH_DEPLOY_KEY }}
