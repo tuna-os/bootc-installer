@@ -10,6 +10,9 @@ TextField {
 
     property bool isError: false
     property string supportingText: ""
+    // What the field is for, as its label reads ("Username"). A screen
+    // reader says it; the placeholder only when there is no label.
+    property string label: ""
 
     implicitHeight: Theme.fieldHeight
     implicitWidth: 320
@@ -22,6 +25,9 @@ TextField {
     font.family: Theme.fontFamily
     font.pixelSize: Theme.fontSizeMedium
     verticalAlignment: TextInput.AlignVCenter
+    Accessible.role: Accessible.EditableText
+    Accessible.name: label !== "" ? label : placeholderText
+    Accessible.description: supportingText
 
     background: Rectangle {
         radius: Theme.cornerRadiusXS
