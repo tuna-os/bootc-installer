@@ -680,7 +680,11 @@ fn daemon_user(recipe: &crate::Recipe) -> Option<Value> {
 /// the image keeps its own values. `location_services` is the switch on
 /// the timezone page: `None` while the user did not move it, and then no
 /// privacy object goes and the daemon default stands (ruling on #442).
-pub fn configure_params(recipe: &crate::Recipe, location_services: Option<bool>) -> Value {
+pub fn configure_params(
+    recipe: &crate::Recipe,
+    location_services: Option<bool>,
+    accessibility: Option<Value>,
+) -> Value {
     let mut params = serde_json::Map::new();
     if let Some(user) = daemon_user(recipe) {
         params.insert("user".into(), user);
@@ -708,6 +712,11 @@ pub fn configure_params(recipe: &crate::Recipe, location_services: Option<bool>)
     }
     if let Some(on) = location_services {
         params.insert("privacy".into(), json!({ "locationServices": on }));
+    }
+    // The first page's screen reader and scale, when the person changed them
+    // (an older daemon ignores the field).
+    if let Some(value) = accessibility {
+        params.insert("accessibility".into(), value);
     }
     Value::Object(params)
 }
@@ -1038,13 +1047,13 @@ mod tests {
         let mut recipe = crate::Recipe::default();
         recipe.timezone = "Europe/Berlin".into();
         // Untouched switch: no privacy object, the daemon default stands.
-        let untouched = configure_params(&recipe, None);
+        let untouched = configure_params(&recipe, None, None);
         assert!(untouched.get("privacy").is_none(), "{untouched}");
         assert_eq!(untouched["timeZone"], Value::from("Europe/Berlin"));
         // Turned on, and turned off again: both are a change.
-        let on = configure_params(&recipe, Some(true));
+        let on = configure_params(&recipe, Some(true), None);
         assert_eq!(on["privacy"], json!({"locationServices": true}));
-        let off = configure_params(&recipe, Some(false));
+        let off = configure_params(&recipe, Some(false), None);
         assert_eq!(off["privacy"], json!({"locationServices": false}));
     }
 
@@ -1052,15 +1061,15 @@ mod tests {
     fn the_keymap_and_the_admin_flag_are_in_the_daemons_form() {
         let mut recipe = crate::Recipe::default();
         recipe.choose_keyboard("de");
-        assert_eq!(configure_params(&recipe, None)["keymap"], Value::from("de"));
+        assert_eq!(configure_params(&recipe, None, None)["keymap"], Value::from("de"));
         recipe.keyboard.as_mut().unwrap().variant = "nodeadkeys".into();
-        assert_eq!(configure_params(&recipe, None)["keymap"], Value::from("de-nodeadkeys"));
+        assert_eq!(configure_params(&recipe, None, None)["keymap"], Value::from("de-nodeadkeys"));
         recipe.user = Some(crate::model::User {
             username: "alex".into(),
             groups: vec!["wheel".into(), "audio".into()],
             ..Default::default()
         });
-        assert_eq!(configure_params(&recipe, None)["user"]["admin"], Value::Bool(true));
+        assert_eq!(configure_params(&recipe, None, None)["user"]["admin"], Value::Bool(true));
         recipe.user.as_mut().unwrap().groups = vec!["audio".into()];
         assert_eq!(daemon_config(&recipe, None)["user"]["admin"], Value::Bool(false));
     }

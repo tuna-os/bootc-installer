@@ -425,11 +425,11 @@ fn mock_happy_walk_reaches_handoff_with_no_mode() {
 
     // install: ConfigureTarget first. The untouched location switch sends
     // no privacy object; a moved one sends it.
-    let untouched = fishermand::configure_params(&recipe, None);
+    let untouched = fishermand::configure_params(&recipe, None, None);
     assert!(untouched.get("privacy").is_none());
     let reply = fishermand::configure_target(&mut conn, untouched).unwrap();
     assert_eq!(reply["configured"], Value::Bool(true), "{reply}");
-    let moved = fishermand::configure_params(&recipe, Some(true));
+    let moved = fishermand::configure_params(&recipe, Some(true), None);
     assert_eq!(moved["privacy"]["locationServices"], Value::Bool(true));
     let reply = fishermand::configure_target(&mut conn, moved).unwrap();
     assert!(fishermand::daemon_problems(&reply).is_empty(), "{reply}");
@@ -693,4 +693,15 @@ fn mock_absent_daemon_is_the_unreachable_state() {
     };
     let text = format!("cannot reach fishermand: {error}");
     assert_eq!(fishermand::stream_failure_reason(&text), "daemon_unreachable");
+}
+
+/// The first page's accessibility choices travel in ConfigureTarget only when
+/// the person changed them (tunaOS#5012).
+#[test]
+fn accessibility_travels_only_when_changed() {
+    let recipe = crate::Recipe::default();
+    let untouched = fishermand::configure_params(&recipe, None, crate::a11y::configure_value(None, None));
+    assert!(untouched.get("accessibility").is_none());
+    let moved = fishermand::configure_params(&recipe, None, crate::a11y::configure_value(Some(true), Some(150)));
+    assert_eq!(moved["accessibility"], serde_json::json!({"screenReader": true, "scalePercent": 150}));
 }

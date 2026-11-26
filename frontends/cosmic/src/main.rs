@@ -27,6 +27,7 @@ mod hardware;
 mod preflight;
 mod tour;
 mod fishermand;
+mod a11y;
 mod disk_map;
 mod eula;
 mod i18n;
@@ -611,6 +612,10 @@ pub enum Message {
     SelectTimezone(usize),
     /// The location switch on the timezone page (daemon path).
     LocationServicesToggled(bool),
+    /// The first page's screen reader switch.
+    ScreenReaderToggled(bool),
+    /// The first page's display scale: an index of `a11y::SCALES`.
+    ScaleSelected(usize),
     /// One second of the forced-erase countdown `.0` passed.
     EraseCountdownTick(u64),
     /// The done page's Try again, after a failed or cancelled install:
@@ -780,6 +785,9 @@ pub struct TunaInstaller {
     /// `ConfigureTarget`). `None` until the user moves the switch: the
     /// daemon hears about it only when the user changed it.
     location_services: Option<bool>,
+    /// The first page's accessibility choices: `None` until changed.
+    screen_reader: Option<bool>,
+    scale_percent: Option<u32>,
     /// The daemon's answer to the confirm page's `Validate` of the whole
     /// config, and the number of the latest check.
     confirm_problems: Vec<validate::Problem>,
@@ -1051,6 +1059,12 @@ impl TunaInstaller {
     }
     /// The location switch as the timezone page shows it: off until the
     /// user turns it on (the daemon's default).
+    pub fn screen_reader(&self) -> bool {
+        self.screen_reader.unwrap_or(false)
+    }
+    pub fn scale_index(&self) -> Option<usize> {
+        self.scale_percent.and_then(|p| a11y::SCALES.iter().position(|s| *s == p))
+    }
     pub fn location_services(&self) -> bool {
         self.location_services.unwrap_or(false)
     }
@@ -2042,6 +2056,8 @@ impl cosmic::Application for TunaInstaller {
             handoff_mode: "reboot".to_string(),
             handoff_reason: String::new(),
             location_services: None,
+            screen_reader: None,
+            scale_percent: None,
             confirm_problems: Vec::new(),
             confirm_seq: 0,
             encryption_picked: false,
@@ -2375,6 +2391,25 @@ impl cosmic::Application for TunaInstaller {
                 }
                 // fisherman checks the pick now, not at Install.
                 self.check_fields()
+            }
+            Message::ScreenReaderToggled(on) => {
+                self.screen_reader = Some(on);
+                if !self.capturing() {
+                    preflight::apply_best_effort(&a11y::screen_reader_command(on));
+                }
+                Task::none()
+            }
+            Message::ScaleSelected(index) => {
+                let Some(percent) = a11y::SCALES.get(index).copied() else {
+                    return Task::none();
+                };
+                self.scale_percent = Some(percent);
+                if self.capturing() {
+                    return Task::none();
+                }
+                // cosmic-randr waits for the compositor: off the UI thread.
+                std::thread::spawn(move || a11y::apply_scale(percent));
+                Task::none()
             }
             Message::LocationServicesToggled(on) => {
                 self.location_services = Some(on);
@@ -2776,7 +2811,11 @@ impl cosmic::Application for TunaInstaller {
                     let config = fishermand::daemon_config(&self.recipe, Some(self.install_mode()));
                     // The region picks and account reach the target via
                     // ConfigureTarget before Install runs.
-                    let configure = fishermand::configure_params(&self.recipe, self.location_choice());
+                    let configure = fishermand::configure_params(
+                        &self.recipe,
+                        self.location_choice(),
+                        a11y::configure_value(self.screen_reader, self.scale_percent),
+                    );
                     return Task::stream(
                         Self::stream_daemon_install(config, configure).map(cosmic::action::app),
                     );
