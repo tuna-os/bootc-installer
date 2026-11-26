@@ -14,9 +14,6 @@
     "--talk-name=org.freedesktop.Flatpak",
     "--system-talk-name=org.freedesktop.PolicyKit1"
   ],
-  "cleanup": [
-    "/go"
-  ],
   "build-options": {
     "env": {
       "GOPATH": "/run/build/go-path",

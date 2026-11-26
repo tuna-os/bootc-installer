@@ -15,9 +15,6 @@
     "--talk-name=org.freedesktop.Flatpak",
     "--system-talk-name=org.freedesktop.PolicyKit1"
   ],
-  "cleanup": [
-    "/go"
-  ],
   "build-options": {
     "append-path": "/usr/lib/sdk/rust-stable/bin",
     "env": {
