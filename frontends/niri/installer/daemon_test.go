@@ -793,3 +793,29 @@ func TestProgressPageHasPercentAndDetails(t *testing.T) {
 		}
 	}
 }
+
+// The medium serves each interface on its own socket: the Fisherman socket
+// answered io.systemd.CryptEnroll.MakeRecoveryKey with MethodNotFound (tunaOS
+// pod run on medium 45994567078), so no recovery key was ever made.
+func TestDaemonInterfaceSocket(t *testing.T) {
+	t.Setenv(daemonEnvSocket, "")
+	if got := daemonInterfaceSocket("io.tunaos.Fisherman"); got != defaultDaemonSocket {
+		t.Errorf("Fisherman: %s", got)
+	}
+	if got := daemonInterfaceSocket("io.systemd.CryptEnroll"); got != "/run/systemd/io.systemd.CryptEnroll" {
+		t.Errorf("CryptEnroll on the medium: %s", got)
+	}
+	dir := t.TempDir()
+	lone := filepath.Join(dir, "io.tunaos.Fisherman")
+	t.Setenv(daemonEnvSocket, lone)
+	if got := daemonInterfaceSocket("io.systemd.CryptEnroll"); got != lone {
+		t.Errorf("a lone moved socket (the mock) serves every interface: %s", got)
+	}
+	sibling := filepath.Join(dir, "io.systemd.CryptEnroll")
+	if err := os.WriteFile(sibling, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := daemonInterfaceSocket("io.systemd.CryptEnroll"); got != sibling {
+		t.Errorf("fishermand --socket-dir sibling: %s", got)
+	}
+}

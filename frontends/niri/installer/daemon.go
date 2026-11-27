@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -28,8 +29,14 @@ import (
 )
 
 // defaultDaemonSocket is fishermand's io.tunaos.Fisherman socket
-// (fisherman/docs/FISHERMAND.md). Every socket serves every interface.
+// (fisherman/docs/FISHERMAND.md). On the live medium each interface has its
+// own socket (installer-medium fishermand-*.socket): the Fisherman socket
+// answers io.systemd.CryptEnroll calls with MethodNotFound (tunaOS pod run,
+// medium 45994567078). The mock serves every interface on one socket.
 const defaultDaemonSocket = "/run/fisherman/io.tunaos.Fisherman"
+
+// daemonSystemdSocketDir holds the io.systemd.* sockets on the medium.
+const daemonSystemdSocketDir = "/run/systemd"
 
 // daemonEnvBackend selects the path: "daemon", "legacy", or unset ("auto").
 const daemonEnvBackend = "TUNA_INSTALLER_BACKEND"
@@ -65,6 +72,29 @@ func useDaemon() bool { return backendMode() == "daemon" }
 
 func daemonDial() (*varlink.Conn, error) {
 	return varlink.Dial(daemonSocketPath(), daemonDialTimeout)
+}
+
+// daemonInterfaceSocket is the socket that serves iface. io.tunaos.Fisherman
+// is daemonSocketPath. Another interface: with TUNA_FISHERMAN_SOCKET set, a
+// sibling socket named after the interface when one exists (fishermand
+// --socket-dir), else that one socket (the mock); without it,
+// /run/systemd/<iface>. The same rule as the KDE frontend (daemonclient.cpp).
+func daemonInterfaceSocket(iface string) string {
+	if iface == "io.tunaos.Fisherman" {
+		return daemonSocketPath()
+	}
+	if p := os.Getenv(daemonEnvSocket); p != "" {
+		sibling := filepath.Join(filepath.Dir(p), iface)
+		if st, err := os.Stat(sibling); err == nil && !st.IsDir() {
+			return sibling
+		}
+		return p
+	}
+	return filepath.Join(daemonSystemdSocketDir, iface)
+}
+
+func daemonDialInterface(iface string) (*varlink.Conn, error) {
+	return varlink.Dial(daemonInterfaceSocket(iface), daemonDialTimeout)
 }
 
 // -- io.tunaos.Fisherman types (fisherman/internal/varlinkapi/idl/) --
@@ -736,7 +766,7 @@ func daemonRecoveryKey(stdin map[string]any, stdout io.Writer) int {
 		fmt.Fprintln(os.Stderr, "recovery-key: missing node")
 		return 1
 	}
-	conn, err := daemonDial()
+	conn, err := daemonDialInterface("io.systemd.CryptEnroll")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "fishermand: %v\n", err)
 		return 1
