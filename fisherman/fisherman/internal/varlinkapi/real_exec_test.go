@@ -119,18 +119,6 @@ func (f *fakeCmd) Run(ctx context.Context, name string, args []string, o CmdOpts
 		return []byte("flags\t\t\t0x100000001\n\t\t\t( WRITTEN |\n\t\t\t  SEEDING )\n"), nil
 	case "mount":
 		return nil, f.mount(args[0], args[1])
-	case "useradd": // what useradd --root writes
-		var dep string
-		for i, x := range args {
-			if x == "--root" {
-				dep = args[i+1]
-			}
-		}
-		user := args[len(args)-1]
-		if err := os.MkdirAll(filepath.Join(dep, "etc"), 0o755); err != nil {
-			return nil, err
-		}
-		return nil, os.WriteFile(filepath.Join(dep, "etc/shadow"), []byte("root:*:1:::::\n"+user+":!:19000:0:99999:7:::\n"), 0o640)
 	}
 	return nil, nil
 }
@@ -252,6 +240,8 @@ func (f *fakeCmd) mount(dev, dir string) error {
 		w("ostree/deploy/default/deploy/abc.0/etc/machine-id", "uninitialized\n")
 		w("ostree/deploy/default/deploy/abc.0/usr/lib/os-release", "NAME=\"Bonito\"\nID=bonito\n")
 		w("ostree/deploy/default/deploy/abc.0/etc/fstab", "UUID=root-OLD / btrfs defaults 0 0\nUUID=boot-OLD /boot ext4 defaults 0 0\n")
+		w("ostree/deploy/default/deploy/abc.0/etc/passwd", "root:x:0:0:root:/root:/bin/bash\n")
+		w("ostree/deploy/default/deploy/abc.0/etc/shadow", "root:*:1:::::\n")
 		w("ostree/deploy/default/deploy/abc.0/etc/group", "root:x:0:\nwheel:x:10:\n")
 		w("ostree/deploy/default/deploy/abc.0/usr/lib/systemd/system/gdm.service", "")
 		w("ostree/deploy/default/var/lib/extensions/medium-sysinstall.raw", "sysext")
@@ -285,17 +275,16 @@ func (f *fakeCrypt) Run(_ context.Context, name string, args []string, stdin []b
 	switch {
 	case name == "cryptsetup" && args[0] == "luksUUID":
 		return []byte("99999999-aaaa-bbbb-cccc-dddddddddddd\n"), nil
-	case name == "cryptsetup" && args[0] == "luksDump":
-		var b strings.Builder
-		b.WriteString("LUKS header information\nVersion:       \t2\n\nKeyslots:\n")
+	case name == "cryptsetup" && args[0] == "luksDump" && args[1] == "--dump-json-metadata":
+		var ks []string
 		for _, s := range f.slots {
-			fmt.Fprintf(&b, "  %d: luks2\n\tKey:       \t512 bits\n", s)
+			ks = append(ks, fmt.Sprintf(`"%d":{"type":"luks2","key_size":64}`, s))
 		}
-		b.WriteString("Tokens:\n")
+		tokens := ""
 		if f.tpm {
-			b.WriteString("  0: systemd-tpm2\n\tKeyslot:  1\n")
+			tokens = `"0":{"type":"systemd-tpm2","keyslots":["1"]}`
 		}
-		return []byte(b.String()), nil
+		return []byte(`{"keyslots":{` + strings.Join(ks, ",") + `},"tokens":{` + tokens + `}}`), nil
 	case name == "systemd-cryptenroll":
 		for _, a := range args {
 			if v, ok := strings.CutPrefix(a, "--wipe-slot="); ok {

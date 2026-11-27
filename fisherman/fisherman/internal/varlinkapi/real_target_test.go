@@ -68,6 +68,10 @@ func TestConfigureTargetPassword(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dep, "etc"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	writeFile(t, filepath.Join(dep, "etc/passwd"), "root:x:0:0:root:/root:/bin/bash\n")
+	if err := os.WriteFile(filepath.Join(dep, "etc/shadow"), []byte("root:*:1:::::\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(dep, "etc/group"), []byte("sudo:x:27:\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -107,12 +111,13 @@ func TestConfigureTargetPassword(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dep2, "etc/group"), []byte("sudo:x:27:\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	writeFile(t, filepath.Join(dep2, "etc/passwd"), "root:x:0:0:root:/root:/bin/bash\n")
 	if _, err := fx2.real.configureTarget(context.Background(), root2, []string{dep2},
 		TargetConfig{User: &User{Username: "eve", Admin: &admin}}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(fx2.cmd.normalized(), "--groups sudo") {
-		t.Errorf("an admin on a sudo image: %s", fx2.cmd.normalized())
+	if g := readFile(t, filepath.Join(dep2, "etc/group")); !strings.Contains(g, "sudo:x:27:eve\n") {
+		t.Errorf("an admin on a sudo image is not in sudo: %q", g)
 	}
 }
 
@@ -126,6 +131,11 @@ func TestConfigureTargetPreHashedPassword(t *testing.T) {
 	root := filepath.Join(fx.work, "install-1", "mnt", "root")
 	dep := filepath.Join(root, "ostree/deploy/default/deploy/a.0")
 	if err := os.MkdirAll(filepath.Join(dep, "etc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(dep, "etc/group"), "root:x:0:\n")
+	writeFile(t, filepath.Join(dep, "etc/passwd"), "root:x:0:0:root:/root:/bin/bash\n")
+	if err := os.WriteFile(filepath.Join(dep, "etc/shadow"), []byte("root:*:1:::::\n"), 0o640); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := fx.real.configureTarget(context.Background(), root, []string{dep},

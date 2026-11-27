@@ -30,7 +30,6 @@ mount /dev/fake1p3 $ROOT/run/fishermand/install-$N/mnt/boot
 mount /dev/fake1p2 $ROOT/run/fishermand/install-$N/mnt/efi
 sync
 systemd-firstboot --root=$ROOT/run/fishermand/install-$N/mnt/root/ostree/deploy/default/deploy/abc.0 --force --locale=en_GB.UTF-8 --keymap=gb --timezone=Europe/London --hostname=ada-box
-useradd --root $ROOT/run/fishermand/install-$N/mnt/root/ostree/deploy/default/deploy/abc.0 --no-create-home --home-dir /home/ada --shell /bin/bash --comment Ada Lovelace --groups wheel ada
 btrfs filesystem resize max $ROOT/run/fishermand/install-$N/mnt/root
 efibootmgr --create --disk /dev/fake1 --part 2 --label Bonito --loader \EFI\fedora\shimx64.efi
 sync
@@ -39,8 +38,8 @@ umount -R $ROOT/run/fishermand/install-$N/mnt/boot
 umount -R $ROOT/run/fishermand/install-$N/mnt/root
 cryptsetup close $MAPPER
 cryptsetup open --test-passphrase --key-file=$ROOT/run/fishermand/empty-key-$N --disable-external-tokens --token-type=fisherman-keyslots-only /dev/fake1p4
-crypt: cryptsetup luksDump /dev/fake1p4
+crypt: cryptsetup luksDump --dump-json-metadata /dev/fake1p4
 crypt: cryptsetup luksUUID /dev/fake1p4
-crypt: cryptsetup luksDump /dev/fake1p4
+crypt: cryptsetup luksDump --dump-json-metadata /dev/fake1p4
 crypt: systemd-cryptenroll --wipe-slot=0 --password /dev/fake1p4 <new secret 21 bytes> <unlock secret 64 bytes>
-crypt: cryptsetup luksDump /dev/fake1p4
+crypt: cryptsetup luksDump --dump-json-metadata /dev/fake1p4

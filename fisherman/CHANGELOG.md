@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 Fixed
 
+- **The user account is written without `useradd`.** `useradd --root`
+  chroots into the deployment; there `/proc` and `/sys/fs/selinux` are
+  missing while libselinux still thinks SELinux is on, and shadow-utils 4.15
+  (EL10) aborted with "failure while writing changes to /etc/passwd" after
+  `openat(/proc/thread-self/attr/fscreate) = ENOENT`, enforcing or not (tunaOS
+  run 46063422856, albacore:kde step=configure). `passwd`, `group`,
+  `shadow`, `gshadow`, `subuid` and `subgid` of the deployment are rewritten
+  in place (same inode, mode and label): user and private group at the first
+  free ids from 1000, locked password until the hash lands, membership of
+  `wheel` or `sudo`, a subordinate id range after the last one.
+- **`ListSlots` reads `cryptsetup luksDump --dump-json-metadata`.** On
+  cryptsetup 2.8.7 a token plugin prints its dump lines unbuffered while the
+  rest of luksDump is buffered behind a pipe, so the TPM2 token's `Keyslot:`
+  line came before the `Tokens:` heading, no slot read as tpm2, and a disk
+  repart had sealed failed with "the disk was not sealed to the TPM"
+  (brussels:xfce, tunaOS run 46061355202). The JSON has no order to lose.
+  (From tunaOS#5134, which carries it as a build-time patch until the pin has it.)
 - **`--copy-locale`, `--copy-keymap` and `--copy-timezone` replace the image's
   own files.** systemd 255 (Ubuntu, Debian) does not overwrite an existing
   file on `--copy-*`, even with `--force`, and failed with "Failed to copy

@@ -160,21 +160,14 @@ func (r Real) dropFilesToCopyOver(d string, rels []string) error {
 // into /var, which is not part of the deployment. A tmpfiles.d entry
 // creates it from /etc/skel at first boot instead, owned by the new user.
 func (r Real) createUser(ctx context.Context, d string, u *User) error {
-	home := "/home/" + u.Username
-	args := []string{"--root", d, "--no-create-home", "--home-dir", home, "--shell", "/bin/bash"}
-	if u.FullName != nil && *u.FullName != "" {
-		args = append(args, "--comment", *u.FullName)
+	admin := ""
+	if u.Admin == nil || *u.Admin {
+		admin = adminGroup(d)
 	}
-	admin := u.Admin == nil || *u.Admin
-	if admin {
-		if g := adminGroup(d); g != "" {
-			args = append(args, "--groups", g)
-		}
-	}
-	args = append(args, u.Username)
-	if _, err := r.cmd().Run(ctx, "useradd", args, CmdOpts{}); err != nil {
+	if err := addUser(d, u, admin); err != nil {
 		return err
 	}
+	home := "/home/" + u.Username
 	if u.Password != nil && u.Password.Reveal() != "" {
 		// chpasswd --root chroots into the deployment and fails to lock its
 		// /etc/passwd on a hardened host, and a hash on useradd's argument
