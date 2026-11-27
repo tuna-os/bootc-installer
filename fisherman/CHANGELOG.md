@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 Fixed
 
+- **`io.systemd.SysInstall.Run` carries the live session's locale, keymap
+  and time zone.** fishermand read `copyLocale`, `copyKeymap` and
+  `copyTimezone` and dropped them. After an install from gnome-setup,
+  gnome-initial-setup showed the language "Unspecified" and an empty
+  keyboard list, and its Next button stayed off (tunaOS run 45690452449).
+  The configure step now passes `--copy-locale`, `--copy-keymap` and
+  `--copy-timezone` to `systemd-firstboot`.
+  When the language or keyboard was carried, gnome-initial-setup on the
+  installed system skips that page (`/etc/gnome-initial-setup/vendor.conf`,
+  merged with the image's skip list). Nothing carried, nothing written.
+- **No install leaves a disk that opens with an empty passphrase.**
+  systemd-repart encrypted the new root with an empty key, and it stayed
+  until the frontend replaced it. With gnome-setup that happened only on
+  its recovery key page, with a TPM or without one. A closed or crashed
+  frontend, a power cut or a reboot before that page left an installed
+  disk that any machine opened with an empty passphrase. Now repart uses
+  a random install key that only the daemon's tmpfs holds. CryptEnroll
+  takes the empty unlock password as that key, so gnome-setup is
+  unchanged. `finalize` refuses a volume that the empty passphrase opens.
+  The mock models the key too.
+- **The empty-passphrase check of `finalize` tests keyslots only.**
+  `cryptsetup open --test-passphrase` tries the volume's tokens before the
+  key file. On a TPM install the systemd-tpm2 token opened the disk. Thus
+  `finalize` refused every TPM install: "the installed disk opens with an
+  empty passphrase" (tunaOS run 45820164130). The check now passes
+  `--disable-external-tokens` and a `--token-type` that no volume has, so
+  no token takes part. A cryptsetup failure other than "no key available"
+  stops the install with the exit status and the stderr of cryptsetup.
 - **`fishermand` names the caller to polkit as `pid,start-time,uid`.** It
   passed `pkcheck` the PID alone. `pkcheck` then reads the owner from
   `/proc` when it runs, so a caller that connected and exited could be

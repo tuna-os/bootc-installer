@@ -33,6 +33,14 @@ type fakeCmd struct {
 
 	uuidCalls map[string]int
 	mounted   []string
+	// emptyOpens makes the empty passphrase open the volume, as an empty
+	// keyslot would.
+	emptyOpens bool
+	// tpmToken: the volume has a systemd-tpm2 token and the TPM unlocks it.
+	// `cryptsetup open` tries tokens before the key file, so any key "opens"
+	// unless the call keeps the token out: --disable-external-tokens (no
+	// plugin) or a --token-type other than systemd-tpm2 (run 45820164130).
+	tpmToken bool
 	// the fixture gets populated on mount.
 	oldUUID map[string]string
 }
@@ -58,6 +66,7 @@ func (f *fakeCmd) record(name string, args []string, o CmdOpts) string {
 
 var mapperRe = regexp.MustCompile(`fishermand-[0-9a-f]{8}`)
 var installRe = regexp.MustCompile(`install-[0-9]+`)
+var emptyKeyRe = regexp.MustCompile(`empty-key-[0-9]+`)
 
 // normalized returns the command lines with the random parts fixed.
 func (f *fakeCmd) normalized() string {
@@ -68,6 +77,7 @@ func (f *fakeCmd) normalized() string {
 		l = strings.ReplaceAll(l, f.root, "$ROOT")
 		l = mapperRe.ReplaceAllString(l, "$$MAPPER")
 		l = installRe.ReplaceAllString(l, "install-$$N")
+		l = emptyKeyRe.ReplaceAllString(l, "empty-key-$$N")
 		b.WriteString(l + "\n")
 	}
 	return b.String()
@@ -94,6 +104,12 @@ func (f *fakeCmd) Run(ctx context.Context, name string, args []string, o CmdOpts
 	case "cryptsetup":
 		if args[0] == "luksUUID" {
 			return []byte("99999999-aaaa-bbbb-cccc-dddddddddddd\n"), nil
+		}
+		if args[0] == "open" && len(args) > 2 && args[1] == "--test-passphrase" && f.tpmToken && tpmTokenTried(args) {
+			return nil, nil
+		}
+		if args[0] == "open" && len(args) > 2 && args[1] == "--test-passphrase" && strings.Contains(args[2], "/empty-key-") && !f.emptyOpens {
+			return nil, noKeyErr{}
 		}
 	case "blkid":
 		return f.blkid(args)
@@ -263,7 +279,7 @@ func (f *fakeCrypt) Run(_ context.Context, name string, args []string, stdin []b
 	f.lines = append(f.lines, "crypt: "+line)
 	switch {
 	case name == "cryptsetup" && args[0] == "luksUUID":
-		return []byte("u\n"), nil
+		return []byte("99999999-aaaa-bbbb-cccc-dddddddddddd\n"), nil
 	case name == "cryptsetup" && args[0] == "luksDump":
 		var b strings.Builder
 		b.WriteString("LUKS header information\nVersion:       \t2\n\nKeyslots:\n")
@@ -378,6 +394,7 @@ func newInstallFixture(t *testing.T, tpm bool) *installFixture {
 		}
 	}
 	fx.cmd = newFakeCmd(t, root)
+	fx.cmd.tpmToken = tpm
 	fx.crypt = &fakeCrypt{slots: []int{0}, tpm: tpm}
 	if tpm {
 		fx.crypt.slots = []int{0, 1}
@@ -681,8 +698,10 @@ func TestRealInstallRefusesMedium(t *testing.T) {
 	}
 }
 
-// TestRealInstallSysInstallRun is the gnome-setup path: an empty passphrase.
-// The empty slot stays for gnome-setup to replace, and the install says so.
+// TestRealInstallSysInstallRun is the gnome-setup path. Run asks for no
+// passphrase, but no empty passphrase ever reaches the disk: repart encrypts
+// with a random transient key that only the daemon's tmpfs holds, named by
+// the LUKS UUID, until gnome-setup replaces it over io.systemd.CryptEnroll.
 func TestRealInstallSysInstallRun(t *testing.T) {
 	fx := newInstallFixture(t, true)
 	rep := &recReporter{}
@@ -691,18 +710,97 @@ func TestRealInstallSysInstallRun(t *testing.T) {
 		t.Fatalf("Install: %v", err)
 	}
 	if !contains(fx.crypt.slots, 0) {
-		t.Errorf("slots = %v: the empty slot must stay", fx.crypt.slots)
+		t.Errorf("slots = %v: the transient key slot must stay for gnome-setup", fx.crypt.slots)
 	}
-	if !strings.Contains(strings.Join(rep.events, "\n"), "empty passphrase until a recovery key") {
-		t.Errorf("no warning about the empty slot:\n%v", rep.events)
+	if !strings.Contains(strings.Join(rep.events, "\n"), "only with a key that this live session holds") {
+		t.Errorf("no warning about the transient key:\n%v", rep.events)
 	}
-	if !strings.Contains(fx.cmd.normalized(), "systemd-cryptsetup attach") {
-		t.Error("the volume was not opened with the empty passphrase")
+	cmds := fx.cmd.normalized() + strings.Join(fx.crypt.lines, "\n")
+	for _, bad := range []string{"<unlock empty>", "try-empty-password", "systemd-cryptsetup attach"} {
+		if strings.Contains(cmds, bad) {
+			t.Errorf("%q in the install's commands:\n%s", bad, cmds)
+		}
+	}
+	if !strings.Contains(cmds, "--key-file=$ROOT/run/fishermand/luks-transient/pending-install-") {
+		t.Errorf("repart got no key file:\n%s", cmds)
+	}
+	key := filepath.Join(fx.work, "luks-transient", "99999999-aaaa-bbbb-cccc-dddddddddddd")
+	fi, err := os.Stat(key)
+	if err != nil {
+		t.Fatalf("no transient key for the volume: %v", err)
+	}
+	if fi.Mode().Perm() != 0o600 || fi.Size() != 64 {
+		t.Errorf("key file mode %v size %d, want 0600 and 64 bytes", fi.Mode().Perm(), fi.Size())
+	}
+	if di, _ := os.Stat(filepath.Dir(key)); di.Mode().Perm() != 0o700 {
+		t.Errorf("key dir mode %v", di.Mode().Perm())
+	}
+	// The finalize guard ran: the empty passphrase was tried and refused.
+	if !strings.Contains(fx.cmd.normalized(), "cryptsetup open --test-passphrase --key-file=$ROOT/run/fishermand/empty-key-") {
+		t.Errorf("no empty-passphrase check at finalize:\n%s", fx.cmd.normalized())
 	}
 }
 
-// TestRealInstallTPMOnly: tpm2_luks without a passphrase wipes the empty
-// slot at the end, so only the TPM unlocks the disk.
+// TestRealInstallRefusesAnEmptyPassphrase: when the empty passphrase opens the
+// installed volume, the install fails instead of completing.
+func TestRealInstallRefusesAnEmptyPassphrase(t *testing.T) {
+	fx := newInstallFixture(t, true)
+	fx.cmd.emptyOpens = true
+	err := fx.real.Install(context.Background(), fixturePlan(Encryption{Type: "tpm2_luks", Passphrase: ptr(Secret(""))}), &recReporter{})
+	if err == nil || !strings.Contains(err.Error(), "opens with an empty passphrase") {
+		t.Fatalf("Install = %v, want the empty-passphrase refusal", err)
+	}
+	if entries, _ := os.ReadDir(filepath.Join(fx.work, "luks-transient")); len(entries) != 0 {
+		t.Errorf("a failed install kept its transient key: %v", entries)
+	}
+}
+
+// TestRealEnrollUsesTheTransientKey: gnome-setup's empty unlock password
+// becomes the transient key of the installed volume; the key file goes once
+// its slot is wiped. A volume this session did not install gets the empty
+// password as sent.
+func TestRealEnrollUsesTheTransientKey(t *testing.T) {
+	fx := newInstallFixture(t, false)
+	if err := fx.real.Install(context.Background(), fixturePlan(Encryption{Type: "luks_passphrase", Passphrase: ptr(Secret(""))}), &recReporter{}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	key := filepath.Join(fx.work, "luks-transient", "99999999-aaaa-bbbb-cccc-dddddddddddd")
+	want, err := os.ReadFile(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fx.crypt.lines = nil
+	_, err = fx.real.Enroll(context.Background(), EnrollParams{Node: "/dev/fake1p4", Mechanism: MechPassword,
+		UnlockPassword: ptr(Secret("")), Password: ptr(Secret("correct horse"))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(fx.crypt.lines, "\n")
+	if strings.Contains(got, "<unlock empty>") || !strings.Contains(got, fmt.Sprintf("<unlock secret %d bytes>", len(want))) {
+		t.Errorf("passphrase enroll did not unlock with the transient key:\n%s", got)
+	}
+	if _, err := os.Stat(key); err != nil {
+		t.Errorf("the key went before its slot: %v", err)
+	}
+	// The recovery key page wipes the transient slot (slot 0); the fake
+	// volume then refuses the key, so the file goes.
+	fx.cmd.hook = func(_ context.Context, name string, args []string, o CmdOpts) ([]byte, error, bool) {
+		if name == "cryptsetup" && len(args) > 1 && args[1] == "--test-passphrase" {
+			return nil, noKeyErr{}, true
+		}
+		return nil, nil, false
+	}
+	if _, err := fx.real.Enroll(context.Background(), EnrollParams{Node: "/dev/fake1p4", Mechanism: MechRecovery,
+		UnlockPassword: ptr(Secret("")), WipeSlots: []int64{0}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(key); err == nil {
+		t.Error("the transient key outlived its slot")
+	}
+}
+
+// TestRealInstallTPMOnly: tpm2_luks without a passphrase wipes the transient
+// key slot at the end, so only the TPM unlocks the disk.
 func TestRealInstallTPMOnly(t *testing.T) {
 	fx := newInstallFixture(t, true)
 	rep := &recReporter{}
@@ -711,7 +809,10 @@ func TestRealInstallTPMOnly(t *testing.T) {
 		t.Fatalf("Install: %v", err)
 	}
 	if contains(fx.crypt.slots, 0) {
-		t.Errorf("slots = %v: the empty slot must be wiped", fx.crypt.slots)
+		t.Errorf("slots = %v: the transient key slot must be wiped", fx.crypt.slots)
+	}
+	if entries, _ := os.ReadDir(filepath.Join(fx.work, "luks-transient")); len(entries) != 0 {
+		t.Errorf("TPM only kept a transient key: %v", entries)
 	}
 	if !strings.Contains(strings.Join(rep.events, "\n"), "only the TPM unlocks") {
 		t.Errorf("no warning about TPM-only:\n%v", rep.events)
@@ -755,5 +856,48 @@ func TestRealInstallBtrfsWithoutSeedFlag(t *testing.T) {
 	plan := fixturePlan(Encryption{Type: "luks_passphrase", Passphrase: ptr(Secret("correct horse battery"))})
 	if err := fx.real.Install(context.Background(), plan, &recReporter{}); err != nil {
 		t.Fatalf("Install: %v\n%s", err, fx.cmd.normalized())
+	}
+}
+
+// noKeyErr is cryptsetup's exit status 2: no keyslot takes the key.
+type noKeyErr struct{}
+
+func (noKeyErr) Error() string { return "cryptsetup: exit status 2" }
+func (noKeyErr) ExitCode() int { return 2 }
+
+// tpmTokenTried: whether `cryptsetup open` with args tries a systemd-tpm2
+// token.
+func tpmTokenTried(args []string) bool {
+	for _, a := range args {
+		if a == "--disable-external-tokens" || (strings.HasPrefix(a, "--token-type=") && a != "--token-type=systemd-tpm2") {
+			return false
+		}
+	}
+	return true
+}
+
+// exitErr is a failed command with an exit status, as exec.ExitError.
+type exitErr int
+
+func (e exitErr) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
+func (e exitErr) ExitCode() int { return int(e) }
+
+// TestRealInstallFinalizeCheckFailsClosed: when cryptsetup cannot tell
+// whether the empty passphrase opens the disk, the install fails and says
+// why: the exit status and cryptsetup's stderr.
+func TestRealInstallFinalizeCheckFailsClosed(t *testing.T) {
+	fx := newInstallFixture(t, true)
+	fx.cmd.hook = func(_ context.Context, name string, args []string, o CmdOpts) ([]byte, error, bool) {
+		if name == "cryptsetup" && len(args) > 2 && args[1] == "--test-passphrase" && strings.Contains(args[2], "/empty-key-") {
+			if o.Quiet {
+				t.Error("the empty-passphrase test hides cryptsetup's stderr")
+			}
+			return nil, &CmdError{Name: name, Err: exitErr(5), Stderr: "Cannot use device /dev/fake1p4 which is in use."}, true
+		}
+		return nil, nil, false
+	}
+	err := fx.real.Install(context.Background(), fixturePlan(Encryption{Type: "tpm2_luks", Passphrase: ptr(Secret(""))}), &recReporter{})
+	if err == nil || !strings.Contains(err.Error(), "testing the installed disk for an empty passphrase: cryptsetup: exit status 5: Cannot use device") {
+		t.Fatalf("Install = %v, want the cryptsetup failure", err)
 	}
 }
