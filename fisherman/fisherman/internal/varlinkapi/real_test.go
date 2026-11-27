@@ -10,15 +10,7 @@ import (
 	"github.com/tuna-os/fisherman/internal/handoff"
 )
 
-const realTestDump = `LUKS header information
-Version:       	2
-
-Keyslots:
-  0: luks2
-	Key:       	512 bits
-	Priority:  	normal
-Tokens:
-`
+const realTestDump = `{"keyslots":{"0":{"type":"luks2","key_size":64}},"tokens":{}}`
 
 type fakeCryptRunner struct {
 	dumps int
@@ -28,12 +20,12 @@ func (f *fakeCryptRunner) Run(_ context.Context, name string, args []string, _ [
 	switch {
 	case name == "cryptsetup" && len(args) == 2 && args[0] == "luksUUID":
 		return []byte("uuid\n"), nil
-	case name == "cryptsetup" && len(args) == 2 && args[0] == "luksDump":
+	case name == "cryptsetup" && len(args) == 3 && args[0] == "luksDump" && args[1] == "--dump-json-metadata":
 		f.dumps++
 		if f.dumps == 1 {
 			return []byte(realTestDump), nil
 		}
-		return []byte(strings.Replace(realTestDump, "  0: luks2", "  0: luks2\n  1: luks2", 1)), nil
+		return []byte(`{"keyslots":{"0":{"type":"luks2"},"1":{"type":"luks2"}},"tokens":{}}`), nil
 	}
 	return nil, nil
 }

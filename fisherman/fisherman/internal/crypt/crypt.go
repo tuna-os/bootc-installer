@@ -15,6 +15,7 @@ package crypt
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -221,75 +222,72 @@ func (e *Enroller) LUKSUUID(ctx context.Context, node string) (volume, uuid stri
 }
 
 // ListSlots returns the enabled keyslots of node with their types.
+//
+// It reads the JSON metadata, not the luksDump text: on cryptsetup 2.8.7
+// (GNOME OS, brussels:xfce) a token plugin writes its dump lines unbuffered
+// while the rest of luksDump is buffered behind a pipe, so "Keyslot:    1" of
+// the systemd-tpm2 token came out before the "Tokens:" line, no slot read as
+// tpm2, and a disk that repart had sealed failed with "the disk was not
+// sealed to the TPM" (tunaOS image-installer run 46061355202, luksDump of that
+// disk). The JSON has no order to lose.
 func (e *Enroller) ListSlots(ctx context.Context, node string) ([]Slot, error) {
-	out, err := e.run.Run(ctx, "cryptsetup", []string{"luksDump", node}, nil, Unlock{})
+	out, err := e.run.Run(ctx, "cryptsetup", []string{"luksDump", "--dump-json-metadata", node}, nil, Unlock{})
 	if err != nil {
 		return nil, ErrNoDevice
 	}
-	return parseSlots(string(out)), nil
+	slots, err := parseSlots(out)
+	if err != nil {
+		return nil, ErrNoDevice
+	}
+	return slots, nil
 }
 
-// parseSlots reads cryptsetup luksDump text. Only enabled keyslots print;
-// token lines map a slot to tpm2, pkcs11 or fido2. Anything else stays
+// parseSlots reads the LUKS2 JSON metadata of `cryptsetup luksDump
+// --dump-json-metadata`. Only enabled keyslots are in it; a token whose type
+// holds tpm2, pkcs11 or fido names the keyslots it opens. Anything else stays
 // password: recovery keys read exactly like passphrases.
-func parseSlots(dump string) []Slot {
-	var slots []int64
-	seen := map[int64]bool{}
+func parseSlots(dump []byte) ([]Slot, error) {
+	var meta struct {
+		Keyslots map[string]json.RawMessage `json:"keyslots"`
+		Tokens   map[string]struct {
+			Type     string   `json:"type"`
+			Keyslots []string `json:"keyslots"`
+		} `json:"tokens"`
+	}
+	if err := json.Unmarshal(dump, &meta); err != nil {
+		return nil, err
+	}
 	types := map[int64]string{}
-	section := ""
-	pendingToken := ""
-	for _, line := range strings.Split(dump, "\n") {
-		switch line {
-		case "Keyslots:":
-			section = "slots"
-			continue
-		case "Tokens:":
-			section = "tokens"
-			continue
+	for _, tok := range meta.Tokens {
+		typ := ""
+		switch {
+		case strings.Contains(tok.Type, "tpm2"):
+			typ = "tpm2"
+		case strings.Contains(tok.Type, "pkcs11"):
+			typ = "pkcs11"
+		case strings.Contains(tok.Type, "fido"):
+			typ = "fido2"
 		}
-		if strings.HasSuffix(line, ":") && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
-			section = ""
-		}
-		trimmed := strings.TrimSpace(line)
-		fields := strings.Fields(trimmed)
-		switch section {
-		case "slots":
-			// "  0: luks2"
-			if len(fields) == 2 && strings.HasSuffix(fields[0], ":") && (fields[1] == "luks2" || fields[1] == "luks1") {
-				if n, err := strconv.ParseInt(strings.TrimSuffix(fields[0], ":"), 10, 64); err == nil && !seen[n] {
-					seen[n] = true
-					slots = append(slots, n)
-				}
-			}
-		case "tokens":
-			// "  0: systemd-tpm2" then "Keyslot:  1".
-			if len(fields) == 2 && strings.HasSuffix(fields[0], ":") && !strings.HasPrefix(line, "\t") && strings.HasPrefix(line, " ") {
-				pendingToken = fields[1]
-			} else if pendingToken != "" && len(fields) == 2 && fields[0] == "Keyslot:" {
-				if n, err := strconv.ParseInt(fields[1], 10, 64); err == nil {
-					switch {
-					case strings.Contains(pendingToken, "tpm2"):
-						types[n] = "tpm2"
-					case strings.Contains(pendingToken, "pkcs11"):
-						types[n] = "pkcs11"
-					case strings.Contains(pendingToken, "fido"):
-						types[n] = "fido2"
-					}
-				}
-				pendingToken = ""
+		for _, ks := range tok.Keyslots {
+			if n, err := strconv.ParseInt(ks, 10, 64); err == nil && typ != "" {
+				types[n] = typ
 			}
 		}
 	}
-	sort.Slice(slots, func(i, j int) bool { return slots[i] < slots[j] })
-	out := make([]Slot, 0, len(slots))
-	for _, n := range slots {
+	slots := make([]Slot, 0, len(meta.Keyslots))
+	for key := range meta.Keyslots {
+		n, err := strconv.ParseInt(key, 10, 64)
+		if err != nil {
+			continue
+		}
 		typ := types[n]
 		if typ == "" {
 			typ = MechPassword
 		}
-		out = append(out, Slot{Number: n, Type: typ})
+		slots = append(slots, Slot{Number: n, Type: typ})
 	}
-	return out
+	sort.Slice(slots, func(i, j int) bool { return slots[i].Number < slots[j].Number })
+	return slots, nil
 }
 
 // Enroll enrolls a passphrase or a recovery key on node, wiping WipeSlots
