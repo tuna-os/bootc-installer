@@ -142,14 +142,19 @@ TunaComponents.SetupModule {
 
                     // Side by side when both fit, else one above the
                     // other: a row wider than the card pushed the key out
-                    // of it at 200 % text.
+                    // of it at 200 % text. The test reads the card's width,
+                    // not the grid's own: the grid's width follows its
+                    // columns, and that loop kept one column at 100 % with
+                    // the grid at the left edge (bonito:kde run
+                    // 45836370728, usb-3-install.png).
                     GridLayout {
                         columns: recoveryCopyButton.implicitWidth + recoveryQrButton.implicitWidth
-                                 + columnSpacing <= width ? 2 : 1
+                                 + columnSpacing <= parent.width ? 2 : 1
                         columnSpacing: Kirigami.Units.smallSpacing
                         rowSpacing: Kirigami.Units.smallSpacing
 
-                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.maximumWidth: parent.width
 
                         Button {
                             id: recoveryCopyButton
