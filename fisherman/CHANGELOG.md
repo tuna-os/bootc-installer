@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 Fixed
 
+- **`--copy-locale`, `--copy-keymap` and `--copy-timezone` replace the image's
+  own files.** systemd 255 (Ubuntu, Debian) does not overwrite an existing
+  file on `--copy-*`, even with `--force`, and failed with "Failed to copy
+  host's /etc/locale.conf: File exists": the Ubuntu image ships a
+  `/etc/locale.conf` (`LANG=C.UTF-8`), so every install of a copied language
+  stopped in the configure step (tunaOS run 46057651259, gurnard:pantheon).
+  The deployment's file is removed before the copy, only for a setting that
+  is copied and that the live system has; an explicit value still goes
+  through `--locale`, `--keymap` and `--timezone`.
 - **An XFS root is no longer copied into a LUKS volume of 4096-byte
   sectors.** `systemd-repart` without `--sector-size` gives the volume a
   4096-byte data sector (systemd 257, the EL10 base, when the medium's

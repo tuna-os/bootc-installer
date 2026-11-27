@@ -2,6 +2,7 @@ package varlinkapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -65,23 +66,30 @@ func (r Real) configureDeployment(ctx context.Context, d string, t TargetConfig)
 	// A value from ConfigureTarget wins over a copy from the running system.
 	// systemd-firstboot copies a setting only when the running system has
 	// one (/etc/locale.conf, /etc/vconsole.conf, /etc/localtime).
+	var copied []string // files the host's setting replaces in the deployment
 	switch {
 	case t.Locale != "":
 		args = append(args, "--locale="+t.Locale)
 	case t.CopyLocale:
 		args = append(args, "--copy-locale")
+		copied = append(copied, "etc/locale.conf")
 	}
 	switch {
 	case t.Keymap != "":
 		args = append(args, "--keymap="+t.Keymap)
 	case t.CopyKeymap:
 		args = append(args, "--copy-keymap")
+		copied = append(copied, "etc/vconsole.conf")
 	}
 	switch {
 	case t.TimeZone != "":
 		args = append(args, "--timezone="+t.TimeZone)
 	case t.CopyTimezone:
 		args = append(args, "--copy-timezone")
+		copied = append(copied, "etc/localtime")
+	}
+	if err := r.dropFilesToCopyOver(d, copied); err != nil {
+		return warns, err
 	}
 	if t.Hostname != "" {
 		args = append(args, "--hostname="+t.Hostname)
@@ -121,6 +129,30 @@ func (r Real) configureDeployment(ctx context.Context, d string, t TargetConfig)
 		}
 	}
 	return warns, nil
+}
+
+// dropFilesToCopyOver removes the deployment's own copy of each file that
+// systemd-firstboot --copy-* is about to take from the running system, when
+// the running system has it. systemd 255 (Ubuntu, Debian) does not overwrite
+// an existing file on --copy-* even with --force, and fails with "Failed to
+// copy host's /etc/locale.conf: File exists"; the Ubuntu image ships
+// /etc/locale.conf with LANG=C.UTF-8 (tunaOS run 46057651259, gurnard:pantheon).
+// systemd 257 overwrites. The host's choice must win on both, and a host
+// without the file leaves the image's default alone.
+func (r Real) dropFilesToCopyOver(d string, rels []string) error {
+	host := r.Root
+	if host == "" {
+		host = "/"
+	}
+	for _, rel := range rels {
+		if _, err := os.Lstat(filepath.Join(host, rel)); err != nil {
+			continue
+		}
+		if err := os.Remove(filepath.Join(d, rel)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("removing the image's /%s before the copy: %w", rel, err)
+		}
+	}
+	return nil
 }
 
 // createUser adds the account to the deployment's /etc. The home directory

@@ -214,3 +214,49 @@ func TestGISHandoffNotCarried(t *testing.T) {
 		t.Error("vendor.conf written without gnome-initial-setup")
 	}
 }
+
+// TestCopyReplacesTheImagesOwnFiles: systemd 255 does not overwrite an
+// existing file on --copy-* even with --force ("Failed to copy host's
+// /etc/locale.conf: File exists", the Ubuntu image's LANG=C.UTF-8, tunaOS run
+// 46057651259). The image's file is gone before firstboot runs, but only for
+// a setting that is copied and that the host has.
+func TestCopyReplacesTheImagesOwnFiles(t *testing.T) {
+	fx := newInstallFixture(t, false)
+	root := filepath.Join(fx.work, "install-1", "mnt", "root")
+	dep := filepath.Join(root, "ostree/deploy/default/deploy/a.0")
+	writeFile(t, filepath.Join(fx.root, "etc/locale.conf"), "LANG=de_DE.UTF-8\n")
+	writeFile(t, filepath.Join(fx.root, "etc/vconsole.conf"), "KEYMAP=de\n")
+	for _, rel := range []string{"etc/locale.conf", "etc/vconsole.conf", "etc/localtime"} {
+		writeFile(t, filepath.Join(dep, rel), "image default\n")
+	}
+	var seen []string
+	fx.cmd.hook = func(_ context.Context, name string, args []string, _ CmdOpts) ([]byte, error, bool) {
+		if name != "systemd-firstboot" {
+			return nil, nil, false
+		}
+		for _, rel := range []string{"etc/locale.conf", "etc/vconsole.conf", "etc/localtime"} {
+			if _, err := os.Lstat(filepath.Join(dep, rel)); err == nil {
+				seen = append(seen, rel)
+			}
+		}
+		return nil, nil, true
+	}
+	// locale and keymap copied (the host has both), time zone copied but the
+	// host has none, so the image's own stays.
+	cfg := TargetConfig{CopyLocale: true, CopyKeymap: true, CopyTimezone: true}
+	if _, err := fx.real.configureTarget(context.Background(), root, []string{dep}, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(seen, ",") != "etc/localtime" {
+		t.Errorf("files in the deployment when firstboot ran = %v, want only etc/localtime (the host has none)", seen)
+	}
+	// An explicit value is not a copy: the image's file stays for firstboot to overwrite.
+	writeFile(t, filepath.Join(dep, "etc/locale.conf"), "image default\n")
+	seen = nil
+	if _, err := fx.real.configureTarget(context.Background(), root, []string{dep}, TargetConfig{Locale: "fr_FR.UTF-8", CopyLocale: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(seen, ","), "etc/locale.conf") {
+		t.Errorf("an explicit --locale lost the image's file: %v", seen)
+	}
+}
