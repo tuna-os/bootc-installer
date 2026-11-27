@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 Fixed
 
+- **An XFS root is no longer copied into a LUKS volume of 4096-byte
+  sectors.** `systemd-repart` without `--sector-size` gives the volume a
+  4096-byte data sector (systemd 257, the EL10 base, when the medium's
+  sysext with the newer repart is not merged), while the medium's XFS keeps
+  the 512-byte sectors it was made with. `xfs_admin -U generate` then
+  printed `read failed: Invalid argument ... cannot find log head/tail`,
+  exited 0, and the install stopped in the mount step with "the new UUID of
+  a xfs partition did not take" (tuna-os/tunaOS#5119, albacore:kde run
+  46048565360); the kernel would not have mounted that XFS either. The
+  partition step now reads the disk's logical sector size
+  (`blockdev --getss`) and passes `--sector-size`; an unreadable size stops
+  the install before repart. A UUID that did not take now says what the
+  device's and the filesystem's sector sizes are when they differ.
 - **`io.systemd.SysInstall.Run` carries the live session's locale, keymap
   and time zone.** fishermand read `copyLocale`, `copyKeymap` and
   `copyTimezone` and dropped them. After an install from gnome-setup,

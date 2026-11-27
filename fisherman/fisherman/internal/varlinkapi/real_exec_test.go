@@ -113,6 +113,8 @@ func (f *fakeCmd) Run(ctx context.Context, name string, args []string, o CmdOpts
 		}
 	case "blkid":
 		return f.blkid(args)
+	case "blockdev": // --getss: a 512-byte disk
+		return []byte("512\n"), nil
 	case "btrfs": // inspect-internal dump-super: a seed, like btrfstune -S 1 leaves it
 		return []byte("flags\t\t\t0x100000001\n\t\t\t( WRITTEN |\n\t\t\t  SEEDING )\n"), nil
 	case "mount":
@@ -196,7 +198,10 @@ const (
 
 func (f *fakeCmd) blkid(args []string) ([]byte, error) {
 	dev := args[len(args)-1]
-	want := args[2] // TYPE or UUID
+	want := args[2]           // TYPE or UUID
+	if want == "BLOCK_SIZE" { // the sector size the medium's filesystems were made with
+		return []byte("512\n"), nil
+	}
 	if want == "TYPE" {
 		switch dev {
 		case fESP:
@@ -581,6 +586,92 @@ func TestRealInstallRepartFailure(t *testing.T) {
 	}
 	if got := rep.started(); got[len(got)-1] != StepCleanup {
 		t.Errorf("last step = %v, want cleanup", got)
+	}
+}
+
+// TestRealInstallRepartGetsTheDiskSectorSize: the LUKS volume repart makes
+// must not have larger sectors than the disk, or a copied XFS (512-byte
+// sectors) cannot be used on it. systemd 257 gives 4096 unless it is told
+// (tuna-os/tunaOS#5119).
+func TestRealInstallRepartGetsTheDiskSectorSize(t *testing.T) {
+	for _, ss := range []string{"512", "4096"} {
+		t.Run(ss, func(t *testing.T) {
+			fx := newInstallFixture(t, false)
+			fx.cmd.hook = func(ctx context.Context, name string, args []string, o CmdOpts) ([]byte, error, bool) {
+				if name == "blockdev" && args[len(args)-1] == "/dev/fake1" {
+					return []byte(ss + "\n"), nil, true
+				}
+				return nil, nil, false
+			}
+			err := fx.real.Install(context.Background(), fixturePlan(Encryption{Type: "luks_passphrase", Passphrase: ptr(Secret("x pass phrase"))}), &recReporter{})
+			if err != nil {
+				t.Fatalf("Install: %v\n%s", err, fx.cmd.normalized())
+			}
+			cmds := fx.cmd.normalized()
+			if !strings.Contains(cmds, "blockdev --getss /dev/fake1\n") {
+				t.Errorf("the disk's sector size was not read:\n%s", cmds)
+			}
+			if !strings.Contains(cmds, " --sector-size="+ss+" ") {
+				t.Errorf("repart was not given --sector-size=%s:\n%s", ss, cmds)
+			}
+		})
+	}
+}
+
+func TestRealInstallUnreadableSectorSizeStopsBeforeRepart(t *testing.T) {
+	fx := newInstallFixture(t, false)
+	fx.cmd.hook = func(ctx context.Context, name string, args []string, o CmdOpts) ([]byte, error, bool) {
+		if name == "blockdev" {
+			return []byte("lots\n"), nil, true
+		}
+		return nil, nil, false
+	}
+	err := fx.real.Install(context.Background(), fixturePlan(Encryption{Type: "luks_passphrase", Passphrase: ptr(Secret("x pass phrase"))}), &recReporter{})
+	var ie *InstallError
+	if !errors.As(err, &ie) || ie.Reason != ReasonRepartError || ie.Step != StepPartition {
+		t.Fatalf("err = %v, want a repart_error in the partition step", err)
+	}
+	if !strings.Contains(ie.Message, `printed "lots"`) {
+		t.Errorf("message %q does not show the unreadable output", ie.Message)
+	}
+	if strings.Contains(fx.cmd.normalized(), "systemd-repart") {
+		t.Error("repart ran with no sector size")
+	}
+}
+
+// TestRealInstallXFSUUIDThatDidNotTakeNamesTheSectors: xfs_admin exits 0
+// after "read failed: Invalid argument" on a volume with larger sectors
+// than the filesystem, and the UUID stays. The install fails there, and the
+// message names the sizes instead of a bare "did not take".
+func TestRealInstallXFSUUIDThatDidNotTakeNamesTheSectors(t *testing.T) {
+	fx := newInstallFixture(t, false)
+	fx.cmd.hook = func(ctx context.Context, name string, args []string, o CmdOpts) ([]byte, error, bool) {
+		dev := args[len(args)-1]
+		if name == "blkid" && strings.HasPrefix(dev, "/dev/mapper/fishermand-") {
+			switch args[2] {
+			case "TYPE":
+				return []byte("xfs\n"), nil, true
+			case "UUID":
+				return []byte("6342df7d-4a78-40d3-9264-3c8e40d9e8b7\n"), nil, true
+			}
+		}
+		if name == "blockdev" && strings.HasPrefix(dev, "/dev/mapper/fishermand-") {
+			return []byte("4096\n"), nil, true
+		}
+		return nil, nil, false
+	}
+	err := fx.real.Install(context.Background(), fixturePlan(Encryption{Type: "luks_passphrase", Passphrase: ptr(Secret("x pass phrase"))}), &recReporter{})
+	var ie *InstallError
+	if !errors.As(err, &ie) || ie.Step != StepMount {
+		t.Fatalf("err = %v, want a failure in the mount step", err)
+	}
+	for _, want := range []string{"the new UUID of a xfs partition did not take", "4096-byte sectors", "512-byte sectors"} {
+		if !strings.Contains(ie.Message, want) {
+			t.Errorf("message %q lacks %q", ie.Message, want)
+		}
+	}
+	if !strings.Contains(fx.cmd.normalized(), "xfs_admin -U generate /dev/mapper/$MAPPER") {
+		t.Error("xfs_admin did not run")
 	}
 }
 

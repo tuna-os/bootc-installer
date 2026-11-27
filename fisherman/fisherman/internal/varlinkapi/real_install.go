@@ -344,7 +344,20 @@ func (c *installRun) partition(ctx context.Context) error {
 	if c.tkeyPath, err = c.r.writeTransientKey("pending-"+filepath.Base(work), c.tkey); err != nil {
 		return c.fail(ReasonInternal, ActionReportBug, "storing the install key: %v", err)
 	}
+	// The LUKS volume repart creates takes its data sector size from
+	// --sector-size, and from a fixed 4096 when that is not given (systemd
+	// 257, the EL10 base: the ioctl probe is not trusted to mean "the
+	// device's"). A copied XFS keeps the 512-byte sectors the medium was made
+	// with, and xfs_admin, xfs_repair and the kernel refuse an XFS whose
+	// sector is smaller than the device's: the UUID never changed
+	// (tuna-os/tunaOS#5119). The disk's own logical sector size is the
+	// smallest the volume may have, so it is the one that always works.
+	secsz, err := c.logicalSectorSize(ctx, disk)
+	if err != nil {
+		return c.stepFail(err, ReasonRepartError, ActionRetry, "reading the sector size of "+disk)
+	}
 	args := []string{"--dry-run=no", "--definitions=" + defsDir, "--empty=" + empty,
+		"--sector-size=" + strconv.Itoa(secsz),
 		"--key-file=" + c.tkeyPath, "--pretty=no", "--json=short", "--no-pager"}
 	if c.tpm2 {
 		args = append(args, "--tpm2-device=auto")
@@ -621,10 +634,44 @@ func (c *installRun) newIdentity(ctx context.Context, dev string) error {
 	}
 	now := strings.TrimSpace(string(nowOut))
 	if old == "" || now == "" || old == now {
-		return c.fail(ReasonInternal, ActionRetry, "the new UUID of a %s partition did not take", fstype)
+		return c.fail(ReasonInternal, ActionRetry, "the new UUID of a %s partition did not take%s", fstype, c.sectorMismatch(ctx, dev))
 	}
 	c.uuidMap[old] = now
 	return nil
+}
+
+// logicalSectorSize is the logical sector size of a block device in bytes.
+func (c *installRun) logicalSectorSize(ctx context.Context, dev string) (int, error) {
+	out, err := c.runCmd(ctx, CmdOpts{}, "blockdev", "--getss", dev)
+	if err != nil {
+		return 0, err
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil || n < 512 || n&(n-1) != 0 {
+		return 0, fmt.Errorf("blockdev --getss printed %q, want a power of two of at least 512", strings.TrimSpace(string(out)))
+	}
+	return n, nil
+}
+
+// sectorMismatch names the one cause xfs_admin hides (it prints "read
+// failed: Invalid argument" and exits 0): a device whose logical sectors are
+// larger than the filesystem's, such as a LUKS volume of 4096-byte sectors
+// over a filesystem made with 512. It returns "" when the sizes agree or
+// cannot be read.
+func (c *installRun) sectorMismatch(ctx context.Context, dev string) string {
+	dss, err := c.logicalSectorSize(ctx, dev)
+	if err != nil {
+		return ""
+	}
+	out, err := c.runCmd(ctx, CmdOpts{}, "blkid", "-p", "-s", "BLOCK_SIZE", "-o", "value", dev)
+	if err != nil {
+		return ""
+	}
+	fss, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil || fss >= dss {
+		return ""
+	}
+	return fmt.Sprintf(": %s has %d-byte sectors and the filesystem on it %d-byte sectors, so the tools and the kernel cannot use it", dev, dss, fss)
 }
 
 // exitStatusAtMost reports whether err is a command exit status <= n.
