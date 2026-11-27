@@ -1226,7 +1226,10 @@ impl TunaInstaller {
     /// The pages of this install, the one on screen included: a page with
     /// nothing to ask is not counted ("Step 11 of 21" came after "Step 6").
     /// The recovery key and the handoff come after the install; before it
-    /// they count when they will show.
+    /// they count when they will show. A failed or cancelled install skips
+    /// them, but the done page keeps their count: the total stays what the
+    /// first page said, and done is the last step ("Step 9 of 9" after
+    /// "Step 1 of 11", run 45819747629).
     pub fn shown_pages(&self) -> Vec<Page> {
         let before = self.page.index() < Page::Installing.index();
         Page::ORDER
@@ -1234,7 +1237,7 @@ impl TunaInstaller {
             .filter(|page| {
                 *page == self.page
                     || self.page_visible(*page)
-                    || ((before || self.installing)
+                    || ((before || self.installing || self.page == Page::Done)
                         && match page {
                             Page::Handoff => true,
                             Page::RecoveryKey => self.recipe.encryption.enc_type != "none",
