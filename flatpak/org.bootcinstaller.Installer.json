@@ -15,9 +15,6 @@
         "--system-talk-name=org.freedesktop.login1",
         "--system-talk-name=org.freedesktop.PolicyKit1"
     ],
-    "cleanup": [
-        "/go"
-    ],
     "build-options": {
         "env": {
             "PATH": "/app/go/bin:/usr/bin:/bin",
