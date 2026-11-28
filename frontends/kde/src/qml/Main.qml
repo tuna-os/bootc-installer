@@ -52,10 +52,18 @@ Kirigami.AbstractApplicationWindow {
 
     title: qsTr("%1 Installer").arg(InstallerController.productName)
 
-    width: Kirigami.Units.gridUnit * 50
-    height: Kirigami.Units.gridUnit * 36
-    minimumWidth: Kirigami.Units.gridUnit * 34
-    minimumHeight: Kirigami.Units.gridUnit * 26
+    // Never larger than the screen. With large text (gridUnit grows with
+    // the font) the minimum alone was larger than a 1024x600 screen. The
+    // pages scroll, so a small window loses no content.
+    // Before the window is on a screen the available size can be 0: then
+    // the grid unit size applies.
+    function fitScreen(size: real, available: real): real {
+        return available > 0 ? Math.min(size, available) : size;
+    }
+    width: fitScreen(Kirigami.Units.gridUnit * 50, Screen.desktopAvailableWidth)
+    height: fitScreen(Kirigami.Units.gridUnit * 36, Screen.desktopAvailableHeight)
+    minimumWidth: fitScreen(Kirigami.Units.gridUnit * 34, Screen.desktopAvailableWidth)
+    minimumHeight: fitScreen(Kirigami.Units.gridUnit * 26, Screen.desktopAvailableHeight)
 
     // Forwarded for the screenshot harness, which drives the wizard from C++.
     // Navigation only — see Wizard.goToStep().

@@ -22,6 +22,8 @@ TunaComponents.SetupModule {
     Accessible.role: Accessible.Alert
 
     contentItem: ScrollView {
+        // Content taller than the page must not paint over the footer.
+        clip: true
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
         contentWidth: -1
 

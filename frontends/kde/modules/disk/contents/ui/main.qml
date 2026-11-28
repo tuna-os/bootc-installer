@@ -41,6 +41,8 @@ TunaComponents.SetupModule {
     }
 
     contentItem: ScrollView {
+        // Content taller than the page must not paint over the footer.
+        clip: true
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
         contentWidth: -1
 
@@ -210,6 +212,11 @@ TunaComponents.SetupModule {
                         // path, fisherman's size label and the bus below.
                         text: title
                         description: subtitle
+                        // A screen reader (and the e2e harness) hears the
+                        // path and size with the name: "Virtual disk" alone
+                        // does not say which disk is erased.
+                        Accessible.description: subtitle
+                        objectName: "diskRow"
                         checked: InstallerController.disk === device
 
                         onToggled: if (checked) {

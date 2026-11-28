@@ -38,7 +38,13 @@ TunaComponents.SetupModule {
             }
 
             Label {
-                text: InstallerController.text("progress_title") + " " + InstallerController.disk + ". " + InstallerController.text("progress_note")
+                objectName: "progressHeading"
+                // Title, then the disk as Confirm names it, then the note:
+                // three sentences. The path glued after the title read
+                // "Installing Bonito… /dev/vda." (#514).
+                text: InstallerController.text("progress_title") + " "
+                    + qsTr("Disk: %1.").arg(InstallerController.selectedDiskLabel || InstallerController.disk)
+                    + " " + InstallerController.text("progress_note")
                 wrapMode: Text.Wrap
 
                 Layout.fillWidth: true
