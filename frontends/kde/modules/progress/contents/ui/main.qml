@@ -38,7 +38,13 @@ TunaComponents.SetupModule {
             }
 
             Label {
-                text: InstallerController.text("progress_title") + " " + InstallerController.disk + ". " + InstallerController.text("progress_note")
+                objectName: "progressHeading"
+                // Title, then the disk as Confirm names it, then the note:
+                // three sentences. The path glued after the title read
+                // "Installing Bonito… /dev/vda." (#514).
+                text: InstallerController.text("progress_title") + " "
+                    + qsTr("Disk: %1.").arg(InstallerController.selectedDiskLabel || InstallerController.disk)
+                    + " " + InstallerController.text("progress_note")
                 wrapMode: Text.Wrap
 
                 Layout.fillWidth: true
@@ -111,9 +117,11 @@ TunaComponents.SetupModule {
                 objectName: "installProgressBar"
                 Accessible.name: qsTr("Installation progress")
 
-                // Indeterminate only before the first event arrives, so the
-                // step never looks stalled while fisherman starts up.
-                indeterminate: InstallerController.installStep === 0
+                // Busy until the bar has a share to show: before the first
+                // event, and while the first steps (weight 0 %) run. An
+                // empty bar under "Step 2 of 9" looked stalled (#515,
+                // bonito:kde run 45925572994, usb-3-progress.png).
+                indeterminate: InstallerController.installFraction <= 0
                     && !InstallerController.installFinished
                 value: InstallerController.installFraction
                 from: 0
@@ -148,12 +156,35 @@ TunaComponents.SetupModule {
 
                 contentItem: Item {
                     implicitHeight: 6
+                    clip: true
 
                     Rectangle {
+                        visible: !installBar.indeterminate
                         width: installBar.visualPosition * parent.width
                         height: parent.height
                         radius: height / 2
                         color: Kirigami.Theme.highlightColor
+                    }
+
+                    // The busy state: a quarter-width segment that runs
+                    // across the groove, as Breeze draws an indeterminate
+                    // bar. Painted here for the same reason as the bar.
+                    Rectangle {
+                        id: busySegment
+                        objectName: "installProgressBusy"
+                        visible: installBar.indeterminate
+                        width: parent.width / 4
+                        height: parent.height
+                        radius: height / 2
+                        color: Kirigami.Theme.highlightColor
+
+                        NumberAnimation on x {
+                            running: busySegment.visible
+                            loops: Animation.Infinite
+                            from: -busySegment.width
+                            to: busySegment.parent ? busySegment.parent.width : 0
+                            duration: 1600
+                        }
                     }
                 }
             }
