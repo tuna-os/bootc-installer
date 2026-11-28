@@ -9,6 +9,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 Fixed
 
+- **The progress bar follows the image copy.** The real executor copies the
+  whole medium root inside the partition step (systemd-repart `CopyBlocks=`),
+  a step that had 5 % of the bar, so the bar sat near 1 % for minutes while
+  install_os, which only checks the copy, had 65 % (installer#515). The
+  weights are now partition 70, install_os 3, and the copy's own percentages
+  (read from repart's stderr, weighed by the size of each medium partition)
+  move the partition step from 10 to 95 %.
+- **An installed boot entry with no `root=` gets `root=UUID=` of the unlocked
+  root.** An Ubuntu image (composefs, ext4 root in LUKS) ships a boot entry
+  without `root=`; the initramfs unlocked the LUKS volume with the TPM and
+  then stopped in the dracut emergency shell (tunaOS run 46105553747,
+  gurnard:pantheon). postfix adds `root=UUID=<new root filesystem UUID>` to
+  every entry that has no `root=`; an existing one is never changed.
+- **The user account is written without `useradd`.** `useradd --root`
+  chroots into the deployment; there `/proc` and `/sys/fs/selinux` are
+  missing while libselinux still thinks SELinux is on, and shadow-utils 4.15
+  (EL10) aborted with "failure while writing changes to /etc/passwd" after
+  `openat(/proc/thread-self/attr/fscreate) = ENOENT`, enforcing or not (tunaOS
+  run 46063422856, albacore:kde step=configure). `passwd`, `group`,
+  `shadow`, `gshadow`, `subuid` and `subgid` of the deployment are rewritten
+  in place (same inode, mode and label): user and private group at the first
+  free ids from 1000, locked password until the hash lands, membership of
+  `wheel` or `sudo`, a subordinate id range after the last one.
+- **`ListSlots` reads `cryptsetup luksDump --dump-json-metadata`.** On
+  cryptsetup 2.8.7 a token plugin prints its dump lines unbuffered while the
+  rest of luksDump is buffered behind a pipe, so the TPM2 token's `Keyslot:`
+  line came before the `Tokens:` heading, no slot read as tpm2, and a disk
+  repart had sealed failed with "the disk was not sealed to the TPM"
+  (brussels:xfce, tunaOS run 46061355202). The JSON has no order to lose.
+  (From tunaOS#5134, which carries it as a build-time patch until the pin has it.)
+- **`--copy-locale`, `--copy-keymap` and `--copy-timezone` replace the image's
+  own files.** systemd 255 (Ubuntu, Debian) does not overwrite an existing
+  file on `--copy-*`, even with `--force`, and failed with "Failed to copy
+  host's /etc/locale.conf: File exists": the Ubuntu image ships a
+  `/etc/locale.conf` (`LANG=C.UTF-8`), so every install of a copied language
+  stopped in the configure step (tunaOS run 46057651259, gurnard:pantheon).
+  The deployment's file is removed before the copy, only for a setting that
+  is copied and that the live system has; an explicit value still goes
+  through `--locale`, `--keymap` and `--timezone`.
+- **An XFS root is no longer copied into a LUKS volume of 4096-byte
+  sectors.** `systemd-repart` without `--sector-size` gives the volume a
+  4096-byte data sector (systemd 257, the EL10 base, when the medium's
+  sysext with the newer repart is not merged), while the medium's XFS keeps
+  the 512-byte sectors it was made with. `xfs_admin -U generate` then
+  printed `read failed: Invalid argument ... cannot find log head/tail`,
+  exited 0, and the install stopped in the mount step with "the new UUID of
+  a xfs partition did not take" (tuna-os/tunaOS#5119, albacore:kde run
+  46048565360); the kernel would not have mounted that XFS either. The
+  partition step now reads the disk's logical sector size
+  (`blockdev --getss`) and passes `--sector-size`; an unreadable size stops
+  the install before repart. A UUID that did not take now says what the
+  device's and the filesystem's sector sizes are when they differ.
+- **`io.systemd.SysInstall.Run` carries the live session's locale, keymap
+  and time zone.** fishermand read `copyLocale`, `copyKeymap` and
+  `copyTimezone` and dropped them. After an install from gnome-setup,
+  gnome-initial-setup showed the language "Unspecified" and an empty
+  keyboard list, and its Next button stayed off (tunaOS run 45690452449).
+  The configure step now passes `--copy-locale`, `--copy-keymap` and
+  `--copy-timezone` to `systemd-firstboot`.
+  When the language or keyboard was carried, gnome-initial-setup on the
+  installed system skips that page (`/etc/gnome-initial-setup/vendor.conf`,
+  merged with the image's skip list). Nothing carried, nothing written.
+- **No install leaves a disk that opens with an empty passphrase.**
+  systemd-repart encrypted the new root with an empty key, and it stayed
+  until the frontend replaced it. With gnome-setup that happened only on
+  its recovery key page, with a TPM or without one. A closed or crashed
+  frontend, a power cut or a reboot before that page left an installed
+  disk that any machine opened with an empty passphrase. Now repart uses
+  a random install key that only the daemon's tmpfs holds. CryptEnroll
+  takes the empty unlock password as that key, so gnome-setup is
+  unchanged. `finalize` refuses a volume that the empty passphrase opens.
+  The mock models the key too.
+- **The empty-passphrase check of `finalize` tests keyslots only.**
+  `cryptsetup open --test-passphrase` tries the volume's tokens before the
+  key file. On a TPM install the systemd-tpm2 token opened the disk. Thus
+  `finalize` refused every TPM install: "the installed disk opens with an
+  empty passphrase" (tunaOS run 45820164130). The check now passes
+  `--disable-external-tokens` and a `--token-type` that no volume has, so
+  no token takes part. A cryptsetup failure other than "no key available"
+  stops the install with the exit status and the stderr of cryptsetup.
 - **`fishermand` names the caller to polkit as `pid,start-time,uid`.** It
   passed `pkcheck` the PID alone. `pkcheck` then reads the owner from
   `/proc` when it runs, so a caller that connected and exited could be

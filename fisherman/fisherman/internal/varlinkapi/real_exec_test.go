@@ -33,6 +33,14 @@ type fakeCmd struct {
 
 	uuidCalls map[string]int
 	mounted   []string
+	// emptyOpens makes the empty passphrase open the volume, as an empty
+	// keyslot would.
+	emptyOpens bool
+	// tpmToken: the volume has a systemd-tpm2 token and the TPM unlocks it.
+	// `cryptsetup open` tries tokens before the key file, so any key "opens"
+	// unless the call keeps the token out: --disable-external-tokens (no
+	// plugin) or a --token-type other than systemd-tpm2 (run 45820164130).
+	tpmToken bool
 	// the fixture gets populated on mount.
 	oldUUID map[string]string
 }
@@ -58,6 +66,7 @@ func (f *fakeCmd) record(name string, args []string, o CmdOpts) string {
 
 var mapperRe = regexp.MustCompile(`fishermand-[0-9a-f]{8}`)
 var installRe = regexp.MustCompile(`install-[0-9]+`)
+var emptyKeyRe = regexp.MustCompile(`empty-key-[0-9]+`)
 
 // normalized returns the command lines with the random parts fixed.
 func (f *fakeCmd) normalized() string {
@@ -68,6 +77,7 @@ func (f *fakeCmd) normalized() string {
 		l = strings.ReplaceAll(l, f.root, "$ROOT")
 		l = mapperRe.ReplaceAllString(l, "$$MAPPER")
 		l = installRe.ReplaceAllString(l, "install-$$N")
+		l = emptyKeyRe.ReplaceAllString(l, "empty-key-$$N")
 		b.WriteString(l + "\n")
 	}
 	return b.String()
@@ -95,24 +105,20 @@ func (f *fakeCmd) Run(ctx context.Context, name string, args []string, o CmdOpts
 		if args[0] == "luksUUID" {
 			return []byte("99999999-aaaa-bbbb-cccc-dddddddddddd\n"), nil
 		}
+		if args[0] == "open" && len(args) > 2 && args[1] == "--test-passphrase" && f.tpmToken && tpmTokenTried(args) {
+			return nil, nil
+		}
+		if args[0] == "open" && len(args) > 2 && args[1] == "--test-passphrase" && strings.Contains(args[2], "/empty-key-") && !f.emptyOpens {
+			return nil, noKeyErr{}
+		}
 	case "blkid":
 		return f.blkid(args)
+	case "blockdev": // --getss: a 512-byte disk
+		return []byte("512\n"), nil
 	case "btrfs": // inspect-internal dump-super: a seed, like btrfstune -S 1 leaves it
 		return []byte("flags\t\t\t0x100000001\n\t\t\t( WRITTEN |\n\t\t\t  SEEDING )\n"), nil
 	case "mount":
 		return nil, f.mount(args[0], args[1])
-	case "useradd": // what useradd --root writes
-		var dep string
-		for i, x := range args {
-			if x == "--root" {
-				dep = args[i+1]
-			}
-		}
-		user := args[len(args)-1]
-		if err := os.MkdirAll(filepath.Join(dep, "etc"), 0o755); err != nil {
-			return nil, err
-		}
-		return nil, os.WriteFile(filepath.Join(dep, "etc/shadow"), []byte("root:*:1:::::\n"+user+":!:19000:0:99999:7:::\n"), 0o640)
 	}
 	return nil, nil
 }
@@ -180,7 +186,10 @@ const (
 
 func (f *fakeCmd) blkid(args []string) ([]byte, error) {
 	dev := args[len(args)-1]
-	want := args[2] // TYPE or UUID
+	want := args[2]           // TYPE or UUID
+	if want == "BLOCK_SIZE" { // the sector size the medium's filesystems were made with
+		return []byte("512\n"), nil
+	}
 	if want == "TYPE" {
 		switch dev {
 		case fESP:
@@ -231,6 +240,8 @@ func (f *fakeCmd) mount(dev, dir string) error {
 		w("ostree/deploy/default/deploy/abc.0/etc/machine-id", "uninitialized\n")
 		w("ostree/deploy/default/deploy/abc.0/usr/lib/os-release", "NAME=\"Bonito\"\nID=bonito\n")
 		w("ostree/deploy/default/deploy/abc.0/etc/fstab", "UUID=root-OLD / btrfs defaults 0 0\nUUID=boot-OLD /boot ext4 defaults 0 0\n")
+		w("ostree/deploy/default/deploy/abc.0/etc/passwd", "root:x:0:0:root:/root:/bin/bash\n")
+		w("ostree/deploy/default/deploy/abc.0/etc/shadow", "root:*:1:::::\n")
 		w("ostree/deploy/default/deploy/abc.0/etc/group", "root:x:0:\nwheel:x:10:\n")
 		w("ostree/deploy/default/deploy/abc.0/usr/lib/systemd/system/gdm.service", "")
 		w("ostree/deploy/default/var/lib/extensions/medium-sysinstall.raw", "sysext")
@@ -263,18 +274,17 @@ func (f *fakeCrypt) Run(_ context.Context, name string, args []string, stdin []b
 	f.lines = append(f.lines, "crypt: "+line)
 	switch {
 	case name == "cryptsetup" && args[0] == "luksUUID":
-		return []byte("u\n"), nil
-	case name == "cryptsetup" && args[0] == "luksDump":
-		var b strings.Builder
-		b.WriteString("LUKS header information\nVersion:       \t2\n\nKeyslots:\n")
+		return []byte("99999999-aaaa-bbbb-cccc-dddddddddddd\n"), nil
+	case name == "cryptsetup" && args[0] == "luksDump" && args[1] == "--dump-json-metadata":
+		var ks []string
 		for _, s := range f.slots {
-			fmt.Fprintf(&b, "  %d: luks2\n\tKey:       \t512 bits\n", s)
+			ks = append(ks, fmt.Sprintf(`"%d":{"type":"luks2","key_size":64}`, s))
 		}
-		b.WriteString("Tokens:\n")
+		tokens := ""
 		if f.tpm {
-			b.WriteString("  0: systemd-tpm2\n\tKeyslot:  1\n")
+			tokens = `"0":{"type":"systemd-tpm2","keyslots":["1"]}`
 		}
-		return []byte(b.String()), nil
+		return []byte(`{"keyslots":{` + strings.Join(ks, ",") + `},"tokens":{` + tokens + `}}`), nil
 	case name == "systemd-cryptenroll":
 		for _, a := range args {
 			if v, ok := strings.CutPrefix(a, "--wipe-slot="); ok {
@@ -378,6 +388,7 @@ func newInstallFixture(t *testing.T, tpm bool) *installFixture {
 		}
 	}
 	fx.cmd = newFakeCmd(t, root)
+	fx.cmd.tpmToken = tpm
 	fx.crypt = &fakeCrypt{slots: []int{0}, tpm: tpm}
 	if tpm {
 		fx.crypt.slots = []int{0, 1}
@@ -567,6 +578,92 @@ func TestRealInstallRepartFailure(t *testing.T) {
 	}
 }
 
+// TestRealInstallRepartGetsTheDiskSectorSize: the LUKS volume repart makes
+// must not have larger sectors than the disk, or a copied XFS (512-byte
+// sectors) cannot be used on it. systemd 257 gives 4096 unless it is told
+// (tuna-os/tunaOS#5119).
+func TestRealInstallRepartGetsTheDiskSectorSize(t *testing.T) {
+	for _, ss := range []string{"512", "4096"} {
+		t.Run(ss, func(t *testing.T) {
+			fx := newInstallFixture(t, false)
+			fx.cmd.hook = func(ctx context.Context, name string, args []string, o CmdOpts) ([]byte, error, bool) {
+				if name == "blockdev" && args[len(args)-1] == "/dev/fake1" {
+					return []byte(ss + "\n"), nil, true
+				}
+				return nil, nil, false
+			}
+			err := fx.real.Install(context.Background(), fixturePlan(Encryption{Type: "luks_passphrase", Passphrase: ptr(Secret("x pass phrase"))}), &recReporter{})
+			if err != nil {
+				t.Fatalf("Install: %v\n%s", err, fx.cmd.normalized())
+			}
+			cmds := fx.cmd.normalized()
+			if !strings.Contains(cmds, "blockdev --getss /dev/fake1\n") {
+				t.Errorf("the disk's sector size was not read:\n%s", cmds)
+			}
+			if !strings.Contains(cmds, " --sector-size="+ss+" ") {
+				t.Errorf("repart was not given --sector-size=%s:\n%s", ss, cmds)
+			}
+		})
+	}
+}
+
+func TestRealInstallUnreadableSectorSizeStopsBeforeRepart(t *testing.T) {
+	fx := newInstallFixture(t, false)
+	fx.cmd.hook = func(ctx context.Context, name string, args []string, o CmdOpts) ([]byte, error, bool) {
+		if name == "blockdev" {
+			return []byte("lots\n"), nil, true
+		}
+		return nil, nil, false
+	}
+	err := fx.real.Install(context.Background(), fixturePlan(Encryption{Type: "luks_passphrase", Passphrase: ptr(Secret("x pass phrase"))}), &recReporter{})
+	var ie *InstallError
+	if !errors.As(err, &ie) || ie.Reason != ReasonRepartError || ie.Step != StepPartition {
+		t.Fatalf("err = %v, want a repart_error in the partition step", err)
+	}
+	if !strings.Contains(ie.Message, `printed "lots"`) {
+		t.Errorf("message %q does not show the unreadable output", ie.Message)
+	}
+	if strings.Contains(fx.cmd.normalized(), "systemd-repart") {
+		t.Error("repart ran with no sector size")
+	}
+}
+
+// TestRealInstallXFSUUIDThatDidNotTakeNamesTheSectors: xfs_admin exits 0
+// after "read failed: Invalid argument" on a volume with larger sectors
+// than the filesystem, and the UUID stays. The install fails there, and the
+// message names the sizes instead of a bare "did not take".
+func TestRealInstallXFSUUIDThatDidNotTakeNamesTheSectors(t *testing.T) {
+	fx := newInstallFixture(t, false)
+	fx.cmd.hook = func(ctx context.Context, name string, args []string, o CmdOpts) ([]byte, error, bool) {
+		dev := args[len(args)-1]
+		if name == "blkid" && strings.HasPrefix(dev, "/dev/mapper/fishermand-") {
+			switch args[2] {
+			case "TYPE":
+				return []byte("xfs\n"), nil, true
+			case "UUID":
+				return []byte("6342df7d-4a78-40d3-9264-3c8e40d9e8b7\n"), nil, true
+			}
+		}
+		if name == "blockdev" && strings.HasPrefix(dev, "/dev/mapper/fishermand-") {
+			return []byte("4096\n"), nil, true
+		}
+		return nil, nil, false
+	}
+	err := fx.real.Install(context.Background(), fixturePlan(Encryption{Type: "luks_passphrase", Passphrase: ptr(Secret("x pass phrase"))}), &recReporter{})
+	var ie *InstallError
+	if !errors.As(err, &ie) || ie.Step != StepMount {
+		t.Fatalf("err = %v, want a failure in the mount step", err)
+	}
+	for _, want := range []string{"the new UUID of a xfs partition did not take", "4096-byte sectors", "512-byte sectors"} {
+		if !strings.Contains(ie.Message, want) {
+			t.Errorf("message %q lacks %q", ie.Message, want)
+		}
+	}
+	if !strings.Contains(fx.cmd.normalized(), "xfs_admin -U generate /dev/mapper/$MAPPER") {
+		t.Error("xfs_admin did not run")
+	}
+}
+
 func TestRealInstallDeviceLost(t *testing.T) {
 	fx := newInstallFixture(t, false)
 	fx.real.DiskExists = func(p string) bool { return false }
@@ -681,8 +778,10 @@ func TestRealInstallRefusesMedium(t *testing.T) {
 	}
 }
 
-// TestRealInstallSysInstallRun is the gnome-setup path: an empty passphrase.
-// The empty slot stays for gnome-setup to replace, and the install says so.
+// TestRealInstallSysInstallRun is the gnome-setup path. Run asks for no
+// passphrase, but no empty passphrase ever reaches the disk: repart encrypts
+// with a random transient key that only the daemon's tmpfs holds, named by
+// the LUKS UUID, until gnome-setup replaces it over io.systemd.CryptEnroll.
 func TestRealInstallSysInstallRun(t *testing.T) {
 	fx := newInstallFixture(t, true)
 	rep := &recReporter{}
@@ -691,18 +790,97 @@ func TestRealInstallSysInstallRun(t *testing.T) {
 		t.Fatalf("Install: %v", err)
 	}
 	if !contains(fx.crypt.slots, 0) {
-		t.Errorf("slots = %v: the empty slot must stay", fx.crypt.slots)
+		t.Errorf("slots = %v: the transient key slot must stay for gnome-setup", fx.crypt.slots)
 	}
-	if !strings.Contains(strings.Join(rep.events, "\n"), "empty passphrase until a recovery key") {
-		t.Errorf("no warning about the empty slot:\n%v", rep.events)
+	if !strings.Contains(strings.Join(rep.events, "\n"), "only with a key that this live session holds") {
+		t.Errorf("no warning about the transient key:\n%v", rep.events)
 	}
-	if !strings.Contains(fx.cmd.normalized(), "systemd-cryptsetup attach") {
-		t.Error("the volume was not opened with the empty passphrase")
+	cmds := fx.cmd.normalized() + strings.Join(fx.crypt.lines, "\n")
+	for _, bad := range []string{"<unlock empty>", "try-empty-password", "systemd-cryptsetup attach"} {
+		if strings.Contains(cmds, bad) {
+			t.Errorf("%q in the install's commands:\n%s", bad, cmds)
+		}
+	}
+	if !strings.Contains(cmds, "--key-file=$ROOT/run/fishermand/luks-transient/pending-install-") {
+		t.Errorf("repart got no key file:\n%s", cmds)
+	}
+	key := filepath.Join(fx.work, "luks-transient", "99999999-aaaa-bbbb-cccc-dddddddddddd")
+	fi, err := os.Stat(key)
+	if err != nil {
+		t.Fatalf("no transient key for the volume: %v", err)
+	}
+	if fi.Mode().Perm() != 0o600 || fi.Size() != 64 {
+		t.Errorf("key file mode %v size %d, want 0600 and 64 bytes", fi.Mode().Perm(), fi.Size())
+	}
+	if di, _ := os.Stat(filepath.Dir(key)); di.Mode().Perm() != 0o700 {
+		t.Errorf("key dir mode %v", di.Mode().Perm())
+	}
+	// The finalize guard ran: the empty passphrase was tried and refused.
+	if !strings.Contains(fx.cmd.normalized(), "cryptsetup open --test-passphrase --key-file=$ROOT/run/fishermand/empty-key-") {
+		t.Errorf("no empty-passphrase check at finalize:\n%s", fx.cmd.normalized())
 	}
 }
 
-// TestRealInstallTPMOnly: tpm2_luks without a passphrase wipes the empty
-// slot at the end, so only the TPM unlocks the disk.
+// TestRealInstallRefusesAnEmptyPassphrase: when the empty passphrase opens the
+// installed volume, the install fails instead of completing.
+func TestRealInstallRefusesAnEmptyPassphrase(t *testing.T) {
+	fx := newInstallFixture(t, true)
+	fx.cmd.emptyOpens = true
+	err := fx.real.Install(context.Background(), fixturePlan(Encryption{Type: "tpm2_luks", Passphrase: ptr(Secret(""))}), &recReporter{})
+	if err == nil || !strings.Contains(err.Error(), "opens with an empty passphrase") {
+		t.Fatalf("Install = %v, want the empty-passphrase refusal", err)
+	}
+	if entries, _ := os.ReadDir(filepath.Join(fx.work, "luks-transient")); len(entries) != 0 {
+		t.Errorf("a failed install kept its transient key: %v", entries)
+	}
+}
+
+// TestRealEnrollUsesTheTransientKey: gnome-setup's empty unlock password
+// becomes the transient key of the installed volume; the key file goes once
+// its slot is wiped. A volume this session did not install gets the empty
+// password as sent.
+func TestRealEnrollUsesTheTransientKey(t *testing.T) {
+	fx := newInstallFixture(t, false)
+	if err := fx.real.Install(context.Background(), fixturePlan(Encryption{Type: "luks_passphrase", Passphrase: ptr(Secret(""))}), &recReporter{}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	key := filepath.Join(fx.work, "luks-transient", "99999999-aaaa-bbbb-cccc-dddddddddddd")
+	want, err := os.ReadFile(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fx.crypt.lines = nil
+	_, err = fx.real.Enroll(context.Background(), EnrollParams{Node: "/dev/fake1p4", Mechanism: MechPassword,
+		UnlockPassword: ptr(Secret("")), Password: ptr(Secret("correct horse"))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(fx.crypt.lines, "\n")
+	if strings.Contains(got, "<unlock empty>") || !strings.Contains(got, fmt.Sprintf("<unlock secret %d bytes>", len(want))) {
+		t.Errorf("passphrase enroll did not unlock with the transient key:\n%s", got)
+	}
+	if _, err := os.Stat(key); err != nil {
+		t.Errorf("the key went before its slot: %v", err)
+	}
+	// The recovery key page wipes the transient slot (slot 0); the fake
+	// volume then refuses the key, so the file goes.
+	fx.cmd.hook = func(_ context.Context, name string, args []string, o CmdOpts) ([]byte, error, bool) {
+		if name == "cryptsetup" && len(args) > 1 && args[1] == "--test-passphrase" {
+			return nil, noKeyErr{}, true
+		}
+		return nil, nil, false
+	}
+	if _, err := fx.real.Enroll(context.Background(), EnrollParams{Node: "/dev/fake1p4", Mechanism: MechRecovery,
+		UnlockPassword: ptr(Secret("")), WipeSlots: []int64{0}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(key); err == nil {
+		t.Error("the transient key outlived its slot")
+	}
+}
+
+// TestRealInstallTPMOnly: tpm2_luks without a passphrase wipes the transient
+// key slot at the end, so only the TPM unlocks the disk.
 func TestRealInstallTPMOnly(t *testing.T) {
 	fx := newInstallFixture(t, true)
 	rep := &recReporter{}
@@ -711,7 +889,10 @@ func TestRealInstallTPMOnly(t *testing.T) {
 		t.Fatalf("Install: %v", err)
 	}
 	if contains(fx.crypt.slots, 0) {
-		t.Errorf("slots = %v: the empty slot must be wiped", fx.crypt.slots)
+		t.Errorf("slots = %v: the transient key slot must be wiped", fx.crypt.slots)
+	}
+	if entries, _ := os.ReadDir(filepath.Join(fx.work, "luks-transient")); len(entries) != 0 {
+		t.Errorf("TPM only kept a transient key: %v", entries)
 	}
 	if !strings.Contains(strings.Join(rep.events, "\n"), "only the TPM unlocks") {
 		t.Errorf("no warning about TPM-only:\n%v", rep.events)
@@ -756,4 +937,106 @@ func TestRealInstallBtrfsWithoutSeedFlag(t *testing.T) {
 	if err := fx.real.Install(context.Background(), plan, &recReporter{}); err != nil {
 		t.Fatalf("Install: %v\n%s", err, fx.cmd.normalized())
 	}
+}
+
+// noKeyErr is cryptsetup's exit status 2: no keyslot takes the key.
+type noKeyErr struct{}
+
+func (noKeyErr) Error() string { return "cryptsetup: exit status 2" }
+func (noKeyErr) ExitCode() int { return 2 }
+
+// tpmTokenTried: whether `cryptsetup open` with args tries a systemd-tpm2
+// token.
+func tpmTokenTried(args []string) bool {
+	for _, a := range args {
+		if a == "--disable-external-tokens" || (strings.HasPrefix(a, "--token-type=") && a != "--token-type=systemd-tpm2") {
+			return false
+		}
+	}
+	return true
+}
+
+// exitErr is a failed command with an exit status, as exec.ExitError.
+type exitErr int
+
+func (e exitErr) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
+func (e exitErr) ExitCode() int { return int(e) }
+
+// TestRealInstallFinalizeCheckFailsClosed: when cryptsetup cannot tell
+// whether the empty passphrase opens the disk, the install fails and says
+// why: the exit status and cryptsetup's stderr.
+func TestRealInstallFinalizeCheckFailsClosed(t *testing.T) {
+	fx := newInstallFixture(t, true)
+	fx.cmd.hook = func(_ context.Context, name string, args []string, o CmdOpts) ([]byte, error, bool) {
+		if name == "cryptsetup" && len(args) > 2 && args[1] == "--test-passphrase" && strings.Contains(args[2], "/empty-key-") {
+			if o.Quiet {
+				t.Error("the empty-passphrase test hides cryptsetup's stderr")
+			}
+			return nil, &CmdError{Name: name, Err: exitErr(5), Stderr: "Cannot use device /dev/fake1p4 which is in use."}, true
+		}
+		return nil, nil, false
+	}
+	err := fx.real.Install(context.Background(), fixturePlan(Encryption{Type: "tpm2_luks", Passphrase: ptr(Secret(""))}), &recReporter{})
+	if err == nil || !strings.Contains(err.Error(), "testing the installed disk for an empty passphrase: cryptsetup: exit status 5: Cannot use device") {
+		t.Fatalf("Install = %v, want the cryptsetup failure", err)
+	}
+}
+
+// TestRealInstallRepartCopyProgress: the percentages repart prints while it
+// copies the partitions become progress of the partition step, weighed by
+// the size of each medium partition (installer#515: the bar sat near 1 % for
+// the whole copy).
+func TestRealInstallRepartCopyProgress(t *testing.T) {
+	fx := newInstallFixture(t, false)
+	fx.cmd.hook = func(ctx context.Context, name string, args []string, o CmdOpts) ([]byte, error, bool) {
+		if name != "systemd-repart" || o.OnStderr == nil {
+			return nil, nil, false
+		}
+		defs := ""
+		for _, a := range args {
+			if v, ok := strings.CutPrefix(a, "--definitions="); ok {
+				defs = v
+			}
+		}
+		for _, f := range []string{"01-copy.conf", "02-copy.conf", "03-copy.conf"} {
+			for _, p := range []int{0, 50, 100} {
+				o.OnStderr(fmt.Sprintf("/dev/fakemed → %s/%s 1.0G/2.0G  %d%%", defs, f, p))
+			}
+		}
+		return nil, nil, false // the fake's normal layout output follows
+	}
+	rep := &partitionProgressReporter{recReporter: &recReporter{}}
+	if err := fx.real.Install(context.Background(), fixturePlan(Encryption{Type: "luks_passphrase", Passphrase: ptr(Secret("x pass phrase"))}), rep); err != nil {
+		t.Fatalf("Install: %v\n%s", err, fx.cmd.normalized())
+	}
+	pcts := rep.pcts
+	for i := 1; i < len(pcts); i++ {
+		if pcts[i] < pcts[i-1] {
+			t.Errorf("the bar ran back: %v", pcts)
+		}
+	}
+	// ESP (100 MiB) and /boot (256 MiB) are 12 % of the copied bytes: the
+	// bar is far from the top while the root (88 %) is half done.
+	mid := false
+	for _, p := range pcts {
+		if p > 40 && p < 60 {
+			mid = true
+		}
+	}
+	if !mid || pcts[len(pcts)-2] != 95 {
+		t.Errorf("partition progress = %v, want a value around 50 while the root copies and 95 at the end of the copy", pcts)
+	}
+}
+
+// partitionProgressReporter records every progress value of the partition step.
+type partitionProgressReporter struct {
+	*recReporter
+	pcts []int
+}
+
+func (r *partitionProgressReporter) Progress(step string, pct int, msg string) {
+	if step == StepPartition {
+		r.pcts = append(r.pcts, pct)
+	}
+	r.recReporter.Progress(step, pct, msg)
 }

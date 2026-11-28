@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -89,15 +90,18 @@ type installRun struct {
 	rootPart    string // the LUKS container
 	espPartNo   int
 	luksUUID    string
-	emptySlot   int64
-	haveEmpty   bool   // an empty-passphrase slot exists
+	emptySlot   int64  // the slot of the transient key (transient_key.go)
+	haveEmpty   bool   // the transient key slot exists
 	keepEmpty   bool   // leave it (SysInstall Run: gnome-setup replaces it)
 	wipeEmpty   bool   // wipe it after the work (TPM only, no passphrase)
+	tkey        []byte // the transient key repart encrypted with
+	tkeyPath    string // its file on the daemon's tmpfs
 	userPass    []byte // the enrolled passphrase; nil when none
 	tokenTPM2   bool
 	mapper      string
 	rootDev     string
 	rootFS      string
+	rootUUID    string   // the root filesystem's new UUID, for root=UUID= on the boot entries
 	mounts      []string // mount points, in mount order
 	mapperOpen  bool
 	deployments []string
@@ -335,14 +339,34 @@ func (c *installRun) partition(ctx context.Context) error {
 		c.settle(ctx)
 		empty = "force"
 	}
+	// Never the empty key: see transient_key.go.
+	if c.tkey, err = newTransientKey(); err != nil {
+		return c.fail(ReasonInternal, ActionReportBug, "making the install key: %v", err)
+	}
+	if c.tkeyPath, err = c.r.writeTransientKey("pending-"+filepath.Base(work), c.tkey); err != nil {
+		return c.fail(ReasonInternal, ActionReportBug, "storing the install key: %v", err)
+	}
+	// The LUKS volume repart creates takes its data sector size from
+	// --sector-size, and from a fixed 4096 when that is not given (systemd
+	// 257, the EL10 base: the ioctl probe is not trusted to mean "the
+	// device's"). A copied XFS keeps the 512-byte sectors the medium was made
+	// with, and xfs_admin, xfs_repair and the kernel refuse an XFS whose
+	// sector is smaller than the device's: the UUID never changed
+	// (tuna-os/tunaOS#5119). The disk's own logical sector size is the
+	// smallest the volume may have, so it is the one that always works.
+	secsz, err := c.logicalSectorSize(ctx, disk)
+	if err != nil {
+		return c.stepFail(err, ReasonRepartError, ActionRetry, "reading the sector size of "+disk)
+	}
 	args := []string{"--dry-run=no", "--definitions=" + defsDir, "--empty=" + empty,
-		"--pretty=no", "--json=short", "--no-pager"}
+		"--sector-size=" + strconv.Itoa(secsz),
+		"--key-file=" + c.tkeyPath, "--pretty=no", "--json=short", "--no-pager"}
 	if c.tpm2 {
 		args = append(args, "--tpm2-device=auto")
 	}
 	args = append(args, disk)
 	c.rep.Progress(StepPartition, 10, "Copying the installer image")
-	out, err := c.runCmd(ctx, CmdOpts{}, "systemd-repart", args...)
+	out, err := c.runCmd(ctx, CmdOpts{OnStderr: c.repartProgress()}, "systemd-repart", args...)
 	if err != nil {
 		return c.stepFail(err, ReasonRepartError, ActionRetry, "systemd-repart failed")
 	}
@@ -356,6 +380,50 @@ func (c *installRun) partition(ctx context.Context) error {
 	}
 	c.rep.Progress(StepPartition, 100, "")
 	return nil
+}
+
+// repartCopyRe matches the progress line of a block copy:
+// "/dev/sda3 → /run/.../03-copy.conf 1.2G/14.8G  8%".
+var repartCopyRe = regexp.MustCompile(`^.* → (\S+) \d+(\.\d+)?[KMGT]?/\d+(\.\d+)?[KMGT]?\s+(\d+)%\s*$`)
+
+// repartProgress turns systemd-repart's copy percentages into progress of
+// the partition step: the copy takes 10 to 95 % of it. The partitions are
+// copied one after the other and the percentage restarts for each, so the
+// share is weighed by the size of the medium partition each definition
+// mirrors: the small ESP and /boot must not fill the bar before the root
+// starts. Only a changed value is sent; the reporter never lets the bar
+// run back.
+func (c *installRun) repartProgress() func(string) {
+	size := map[string]float64{}
+	var total float64
+	for _, d := range c.defs {
+		sz := float64(c.partitionOf(d).SizeBytes)
+		size[d.FileName] = sz
+		total += sz
+	}
+	done := map[string]float64{} // fraction of each partition copied
+	last := -1
+	return func(line string) {
+		m := repartCopyRe.FindStringSubmatch(line)
+		if m == nil || total <= 0 {
+			return
+		}
+		n, err := strconv.Atoi(m[4])
+		if err != nil {
+			return
+		}
+		done[filepath.Base(m[1])] = float64(n) / 100
+		var copied float64
+		for f, frac := range done {
+			copied += size[f] * frac
+		}
+		pct := 10 + int(copied/total*85)
+		if pct == last {
+			return
+		}
+		last = pct
+		c.rep.Progress(StepPartition, pct, "")
+	}
 }
 
 // assignPartitions maps the partitions repart created to their roles by the
@@ -427,6 +495,16 @@ func (c *installRun) enrollLUKS(ctx context.Context) error {
 		return c.stepFail(err, ReasonLUKSError, ActionRetry, "reading the LUKS UUID")
 	}
 	c.luksUUID = strings.TrimSpace(string(out))
+	// The key file takes the volume's name, so io.systemd.CryptEnroll finds
+	// it from the node gnome-setup names.
+	named, ok := c.r.transientKeyPath(c.luksUUID)
+	if !ok {
+		return c.fail(ReasonLUKSError, ActionRetry, "the new volume has an unexpected LUKS UUID")
+	}
+	if err := os.Rename(c.tkeyPath, named); err != nil {
+		return c.fail(ReasonInternal, ActionReportBug, "naming the install key: %v", err)
+	}
+	c.tkeyPath = named
 	slots, err := enr.ListSlots(ctx, c.rootPart)
 	if err != nil {
 		return c.stepFail(err, ReasonLUKSError, ActionRetry, "listing keyslots")
@@ -438,22 +516,23 @@ func (c *installRun) enrollLUKS(ctx context.Context) error {
 		}
 	}
 	if !c.haveEmpty {
-		return c.fail(ReasonLUKSError, ActionRetry, "repart left no empty keyslot to replace")
+		return c.fail(ReasonLUKSError, ActionRetry, "repart left no keyslot to replace")
 	}
 	if c.userPass != nil {
 		// One call: the empty slot is wiped, then the passphrase lands.
 		_, err = enr.Enroll(ctx, crypt.EnrollOpts{
 			Node: c.rootPart, Mechanism: crypt.MechPassword,
-			NewPassword: c.userPass, Unlock: crypt.Unlock{Empty: true},
+			NewPassword: c.userPass, Unlock: crypt.Unlock{Secret: c.tkey},
 			WipeSlots: []int64{c.emptySlot},
 		})
 		if err != nil {
 			return c.stepFail(err, ReasonLUKSError, ActionRetry, "enrolling the passphrase")
 		}
 		c.haveEmpty = false
+		c.dropTransientKey()
 	}
 	if c.keepEmpty {
-		c.rep.Warn(StepLUKS, "the disk keeps an empty passphrase until a recovery key replaces it")
+		c.rep.Warn(StepLUKS, "until a recovery key replaces it, the disk opens only with a key that this live session holds")
 	}
 	c.rep.Progress(StepLUKS, 100, "")
 	return nil
@@ -483,34 +562,18 @@ func (c *installRun) verifyTPM2(ctx context.Context) error {
 
 // ---- mount ---------------------------------------------------------------
 
-// systemdCryptsetup finds the helper that opens a volume with the empty
-// passphrase, which the cryptsetup CLI cannot.
-func systemdCryptsetup() string {
-	for _, p := range []string{"/usr/lib/systemd/systemd-cryptsetup", "/lib/systemd/systemd-cryptsetup"} {
-		if fileExists(p) {
-			return p
-		}
-	}
-	return "/usr/lib/systemd/systemd-cryptsetup"
-}
-
 func (c *installRun) mountTarget(ctx context.Context) error {
 	var id [4]byte
 	_, _ = rand.Read(id[:])
 	c.mapper = "fishermand-" + hex.EncodeToString(id[:])
-	if c.userPass != nil {
-		_, err := c.runCmd(ctx, CmdOpts{Stdin: c.userPass, Quiet: true},
-			"cryptsetup", "open", "--type", "luks2", "--key-file=-", c.rootPart, c.mapper)
-		if err != nil {
-			return c.stepFail(err, ReasonLUKSError, ActionRetry, "unlocking the root")
-		}
-	} else {
-		// Only the empty slot is left (TPM only, or SysInstall Run).
-		_, err := c.runCmd(ctx, CmdOpts{Quiet: true}, systemdCryptsetup(),
-			"attach", c.mapper, c.rootPart, "-", "try-empty-password=yes,headless=yes")
-		if err != nil {
-			return c.stepFail(err, ReasonLUKSError, ActionRetry, "unlocking the root")
-		}
+	key := c.userPass
+	if key == nil {
+		// Only the transient key slot is left (TPM only, or SysInstall Run).
+		key = c.tkey
+	}
+	if _, err := c.runCmd(ctx, CmdOpts{Stdin: key, Quiet: true},
+		"cryptsetup", "open", "--type", "luks2", "--key-file=-", c.rootPart, c.mapper); err != nil {
+		return c.stepFail(err, ReasonLUKSError, ActionRetry, "unlocking the root")
 	}
 	c.mapperOpen = true
 	c.rootDev = "/dev/mapper/" + c.mapper
@@ -617,10 +680,47 @@ func (c *installRun) newIdentity(ctx context.Context, dev string) error {
 	}
 	now := strings.TrimSpace(string(nowOut))
 	if old == "" || now == "" || old == now {
-		return c.fail(ReasonInternal, ActionRetry, "the new UUID of a %s partition did not take", fstype)
+		return c.fail(ReasonInternal, ActionRetry, "the new UUID of a %s partition did not take%s", fstype, c.sectorMismatch(ctx, dev))
 	}
 	c.uuidMap[old] = now
+	if dev == c.rootDev {
+		c.rootUUID = now
+	}
 	return nil
+}
+
+// logicalSectorSize is the logical sector size of a block device in bytes.
+func (c *installRun) logicalSectorSize(ctx context.Context, dev string) (int, error) {
+	out, err := c.runCmd(ctx, CmdOpts{}, "blockdev", "--getss", dev)
+	if err != nil {
+		return 0, err
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil || n < 512 || n&(n-1) != 0 {
+		return 0, fmt.Errorf("blockdev --getss printed %q, want a power of two of at least 512", strings.TrimSpace(string(out)))
+	}
+	return n, nil
+}
+
+// sectorMismatch names the one cause xfs_admin hides (it prints "read
+// failed: Invalid argument" and exits 0): a device whose logical sectors are
+// larger than the filesystem's, such as a LUKS volume of 4096-byte sectors
+// over a filesystem made with 512. It returns "" when the sizes agree or
+// cannot be read.
+func (c *installRun) sectorMismatch(ctx context.Context, dev string) string {
+	dss, err := c.logicalSectorSize(ctx, dev)
+	if err != nil {
+		return ""
+	}
+	out, err := c.runCmd(ctx, CmdOpts{}, "blkid", "-p", "-s", "BLOCK_SIZE", "-o", "value", dev)
+	if err != nil {
+		return ""
+	}
+	fss, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil || fss >= dss {
+		return ""
+	}
+	return fmt.Sprintf(": %s has %d-byte sectors and the filesystem on it %d-byte sectors, so the tools and the kernel cannot use it", dev, dss, fss)
 }
 
 // exitStatusAtMost reports whether err is a command exit status <= n.
@@ -721,6 +821,7 @@ func (c *installRun) postFixups(ctx context.Context) error {
 		Target:    postfix.Target{Root: c.mnt("root"), Boot: bootDir, EFI: c.mnt("efi")},
 		UUIDMap:   c.uuidMap,
 		LUKSUUID:  c.luksUUID,
+		RootUUID:  c.rootUUID,
 		TPM2:      c.tokenTPM2,
 		Grow:      true,
 		RootFS:    c.rootFS,
@@ -827,11 +928,21 @@ func (c *installRun) finalize(ctx context.Context) error {
 	c.rep.Progress(StepFinalize, 60, "")
 	if c.wipeEmpty && c.haveEmpty {
 		// TPM only: nothing but the TPM unlocks the disk now.
-		if err := c.r.enroller().WipeSlots(ctx, c.rootPart, crypt.Unlock{Empty: true}, c.emptySlot); err != nil {
-			return c.stepFail(err, ReasonLUKSError, ActionRetry, "removing the empty passphrase")
+		if err := c.r.enroller().WipeSlots(ctx, c.rootPart, crypt.Unlock{Secret: c.tkey}, c.emptySlot); err != nil {
+			return c.stepFail(err, ReasonLUKSError, ActionRetry, "removing the install key")
 		}
 		c.haveEmpty = false
+		c.dropTransientKey()
 		c.rep.Warn(StepFinalize, "only the TPM unlocks this disk: add a recovery key before changing firmware settings")
+	}
+	// Fail safe: an empty passphrase must never open the installed disk.
+	// When cryptsetup cannot tell, the install fails with its exit status.
+	opens, err := c.r.opensWith(ctx, c.rootPart, nil)
+	if err != nil {
+		return c.stepFail(err, ReasonLUKSError, ActionRetry, "testing the installed disk for an empty passphrase")
+	}
+	if opens {
+		return c.fail(ReasonLUKSError, ActionRetry, "the installed disk opens with an empty passphrase")
 	}
 	c.finalized = true
 	_ = os.RemoveAll(c.work)
@@ -889,6 +1000,19 @@ func (c *installRun) cleanup(rep Reporter) {
 	if c.work != "" && !c.mapperOpen {
 		_ = os.RemoveAll(c.work)
 	}
+	// A failed install leaves nothing to unlock later.
+	c.dropTransientKey()
 	rep.Progress(StepCleanup, 100, "")
 	rep.Done(StepCleanup)
+}
+
+// dropTransientKey forgets the transient key: its slot is gone, or the
+// install failed.
+func (c *installRun) dropTransientKey() {
+	if c.tkeyPath != "" {
+		_ = os.Remove(c.tkeyPath)
+		_ = os.Remove(filepath.Dir(c.tkeyPath)) // only when empty
+		c.tkeyPath = ""
+	}
+	c.tkey = nil
 }

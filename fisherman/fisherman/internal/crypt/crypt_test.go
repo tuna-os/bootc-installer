@@ -7,43 +7,14 @@ import (
 	"testing"
 )
 
-const luksDumpTwoSlots = `LUKS header information
-Version:       	2
-Epoch:         	3
-Metadata area: 	16384 [bytes]
+// The LUKS2 JSON of `cryptsetup luksDump --dump-json-metadata`: keyslot 0 a
+// passphrase, keyslot 1 sealed by a systemd-tpm2 token.
+const luksDumpTwoSlots = `{"keyslots":{"0":{"type":"luks2","key_size":64},"1":{"type":"luks2","key_size":64}},
+"tokens":{"0":{"type":"systemd-tpm2","keyslots":["1"],"tpm2-pcrs":[7]}},
+"digests":{"0":{"type":"pbkdf2","keyslots":["0","1"]}},"segments":{},"config":{}}`
 
-Keyslots:
-  0: luks2
-	Key:       	512 bits
-	Priority:  	normal
-	Cipher:    	aes-xts-plain64
-  1: luks2
-	Key:       	512 bits
-	Priority:  	normal
-Tokens:
-  0: systemd-tpm2
-	Keyslot:  1
-Digests:
-  0: pbkdf2
-`
-
-const luksDumpThreeSlots = `LUKS header information
-Version:       	2
-
-Keyslots:
-  0: luks2
-	Key:       	512 bits
-	Priority:  	normal
-  1: luks2
-	Key:       	512 bits
-	Priority:  	normal
-  5: luks2
-	Key:       	512 bits
-	Priority:  	normal
-Tokens:
-  0: systemd-tpm2
-	Keyslot:  1
-`
+const luksDumpThreeSlots = `{"keyslots":{"0":{"type":"luks2"},"1":{"type":"luks2"},"5":{"type":"luks2"}},
+"tokens":{"0":{"type":"systemd-tpm2","keyslots":["1"]}},"digests":{},"segments":{},"config":{}}`
 
 // fake records calls and replays canned luksDump outputs in order.
 type fake struct {
@@ -67,7 +38,7 @@ func (f *fake) Run(_ context.Context, name string, args []string, stdin []byte, 
 	if name == "cryptsetup" && len(args) == 2 && args[0] == "luksUUID" {
 		return []byte("99999999-aaaa-bbbb-cccc-dddddddddddd\n"), nil
 	}
-	if name == "cryptsetup" && len(args) == 2 && args[0] == "luksDump" {
+	if name == "cryptsetup" && len(args) == 3 && args[0] == "luksDump" && args[1] == "--dump-json-metadata" {
 		if len(f.dumps) == 0 {
 			return nil, errors.New("cryptsetup: no dump canned")
 		}
@@ -89,7 +60,10 @@ func (f *fake) find(name string) []call {
 }
 
 func TestParseSlots(t *testing.T) {
-	slots := parseSlots(luksDumpTwoSlots)
+	slots, err := parseSlots([]byte(luksDumpTwoSlots))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(slots) != 2 {
 		t.Fatalf("slots = %+v", slots)
 	}
@@ -99,8 +73,19 @@ func TestParseSlots(t *testing.T) {
 	if slots[1] != (Slot{Number: 1, Type: "tpm2"}) {
 		t.Errorf("slot 1 = %+v", slots[1])
 	}
-	if got := parseSlots("garbage\n"); len(got) != 0 {
-		t.Errorf("garbage parses to %+v", got)
+	if _, err := parseSlots([]byte("garbage\n")); err == nil {
+		t.Error("garbage parses")
+	}
+}
+
+// cryptsetup 2.8.7 behind a pipe: the token plugin's lines came before
+// "LUKS header information". The text could not say which keyslot the token
+// seals; the JSON does.
+func TestParseSlotsOfAnUnorderedDump(t *testing.T) {
+	json := `{"keyslots":{"1":{"type":"luks2"}},"tokens":{"0":{"type":"systemd-tpm2","keyslots":["1"]}}}`
+	slots, err := parseSlots([]byte(json))
+	if err != nil || len(slots) != 1 || slots[0] != (Slot{Number: 1, Type: "tpm2"}) {
+		t.Fatalf("slots = %+v, err %v", slots, err)
 	}
 }
 
@@ -116,7 +101,7 @@ func TestListSlots(t *testing.T) {
 }
 
 func TestListSlotsNoDevice(t *testing.T) {
-	f := &fake{err: map[string]error{"cryptsetup luksDump /dev/void": errors.New("cryptsetup: exited")}}
+	f := &fake{err: map[string]error{"cryptsetup luksDump --dump-json-metadata /dev/void": errors.New("cryptsetup: exited")}}
 	e := NewEnroller(f)
 	if _, err := e.ListSlots(context.Background(), "/dev/void"); !errors.Is(err, ErrNoDevice) {
 		t.Fatalf("err = %v", err)
@@ -300,7 +285,7 @@ func (s *scripted) Run(_ context.Context, name string, args []string, _ []byte, 
 	return []byte(out), nil
 }
 
-const tpmOnlyDump = "Keyslots:\n  1: luks2\nTokens:\n  0: systemd-tpm2\n\tKeyslot:    1\n"
+const tpmOnlyDump = `{"keyslots":{"1":{"type":"luks2"}},"tokens":{"0":{"type":"systemd-tpm2","keyslots":["1"]}}}`
 
 // The native frontends send the disk and an empty password. After a TPM-only
 // install the volume is a partition of it and has no empty slot left: the
@@ -308,8 +293,8 @@ const tpmOnlyDump = "Keyslots:\n  1: luks2\nTokens:\n  0: systemd-tpm2\n\tKeyslo
 // 45671929202).
 func TestEnrollRecoveryOnTheDiskOfATPMOnlyInstall(t *testing.T) {
 	s := &scripted{out: map[string]string{
-		"lsblk -nrpo NAME,FSTYPE /dev/vda": "/dev/vda \n/dev/vda1 vfat\n/dev/vda2 ext4\n/dev/vda3 crypto_LUKS\n",
-		"cryptsetup luksDump /dev/vda3":    tpmOnlyDump,
+		"lsblk -nrpo NAME,FSTYPE /dev/vda":                   "/dev/vda \n/dev/vda1 vfat\n/dev/vda2 ext4\n/dev/vda3 crypto_LUKS\n",
+		"cryptsetup luksDump --dump-json-metadata /dev/vda3": tpmOnlyDump,
 	}}
 	_, err := NewEnroller(s).Enroll(context.Background(), EnrollOpts{
 		Node: "/dev/vda", Mechanism: MechRecovery, RecoveryKey: []byte("k"), Unlock: Unlock{Secret: []byte{}},
@@ -324,8 +309,8 @@ func TestEnrollRecoveryOnTheDiskOfATPMOnlyInstall(t *testing.T) {
 
 func TestEnrollKeepsThePasswordThatWasGiven(t *testing.T) {
 	s := &scripted{out: map[string]string{
-		"cryptsetup luksUUID /dev/vda3": "uuid\n",
-		"cryptsetup luksDump /dev/vda3": tpmOnlyDump,
+		"cryptsetup luksUUID /dev/vda3":                      "uuid\n",
+		"cryptsetup luksDump --dump-json-metadata /dev/vda3": tpmOnlyDump,
 	}}
 	_, err := NewEnroller(s).Enroll(context.Background(), EnrollOpts{
 		Node: "/dev/vda3", Mechanism: MechRecovery, RecoveryKey: []byte("k"), Unlock: Unlock{Secret: []byte("pw")},

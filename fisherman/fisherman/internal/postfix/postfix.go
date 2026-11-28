@@ -54,6 +54,10 @@ type Options struct {
 	UUIDMap map[string]string
 	// LUKSUUID is the target root LUKS UUID for rd.luks.uuid/crypttab.
 	LUKSUUID string
+	// RootUUID is the filesystem UUID inside the unlocked root volume (the new
+	// one, after the UUID change). It becomes root=UUID= on every entry that
+	// has no root= karg.
+	RootUUID string
 	// TPM2 selects tpm2-device=auto in the unlock options.
 	TPM2 bool
 	// Disk and ESPPart feed the firmware boot entry (efibootmgr --disk and
@@ -272,7 +276,13 @@ func ScrubGrubenv(grubenvPath, liveEntry string) (bool, error) {
 // line of every entry that lacks them, and returns the entries it touched.
 // It never duplicates: a second run changes nothing. Entries without a
 // root= karg (gpt-auto, the dakota#1920 case) are fixed up the same way.
-func EnsureLUKSOpts(entriesDir, luksUUID string, tpm2 bool) ([]string, error) {
+//
+// A non-empty rootUUID, the filesystem UUID inside the unlocked volume, is
+// added as root=UUID= to every options line that has no root= karg. An Ubuntu
+// image (composefs, ext4 root in LUKS) has none, the initramfs unlocked the
+// volume and then stopped in the dracut shell (tunaOS run 46105553747,
+// gurnard:pantheon). An existing root= is left alone.
+func EnsureLUKSOpts(entriesDir, luksUUID, rootUUID string, tpm2 bool) ([]string, error) {
 	entries, err := filepath.Glob(filepath.Join(entriesDir, "*.conf"))
 	if err != nil {
 		return nil, err
@@ -287,9 +297,15 @@ func EnsureLUKSOpts(entriesDir, luksUUID string, tpm2 bool) ([]string, error) {
 		var out []string
 		changed := false
 		for _, l := range strings.Split(strings.TrimSuffix(string(b), "\n"), "\n") {
-			if strings.HasPrefix(l, "options ") && !strings.Contains(l, "rd.luks.uuid=") {
-				l += suffix
-				changed = true
+			if strings.HasPrefix(l, "options ") {
+				if !strings.Contains(l, "rd.luks.uuid=") {
+					l += suffix
+					changed = true
+				}
+				if rootUUID != "" && !hasRootKarg(l) {
+					l += " root=UUID=" + rootUUID
+					changed = true
+				}
 			}
 			out = append(out, l)
 		}
@@ -306,6 +322,17 @@ func EnsureLUKSOpts(entriesDir, luksUUID string, tpm2 bool) ([]string, error) {
 		touched = append(touched, e)
 	}
 	return touched, nil
+}
+
+// hasRootKarg reports whether a BLS options line has a root= kernel argument
+// (rootflags=, rootfstype= and the like are other kargs).
+func hasRootKarg(options string) bool {
+	for _, f := range strings.Fields(options) {
+		if strings.HasPrefix(f, "root=") {
+			return true
+		}
+	}
+	return false
 }
 
 // WriteCrypttab writes the LUKS unlock line into a deployment's /etc/crypttab.
@@ -431,7 +458,7 @@ func Apply(ctx context.Context, opts Options, run Runner) (Report, error) {
 	if _, err := ScrubGrubenv(grubenv, liveEntry); err != nil {
 		return rep, err
 	}
-	touched, err := EnsureLUKSOpts(opts.entriesDir(), opts.LUKSUUID, opts.TPM2)
+	touched, err := EnsureLUKSOpts(opts.entriesDir(), opts.LUKSUUID, opts.RootUUID, opts.TPM2)
 	if err != nil {
 		return rep, err
 	}

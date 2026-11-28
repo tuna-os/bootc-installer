@@ -2,6 +2,7 @@ package varlinkapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -62,14 +63,33 @@ func (r Real) configureDeployment(ctx context.Context, d string, t TargetConfig)
 	// Locale, keymap, time zone, hostname. stdin stays empty so firstboot
 	// can never prompt.
 	args := []string{"--root=" + d, "--force"}
-	if t.Locale != "" {
+	// A value from ConfigureTarget wins over a copy from the running system.
+	// systemd-firstboot copies a setting only when the running system has
+	// one (/etc/locale.conf, /etc/vconsole.conf, /etc/localtime).
+	var copied []string // files the host's setting replaces in the deployment
+	switch {
+	case t.Locale != "":
 		args = append(args, "--locale="+t.Locale)
+	case t.CopyLocale:
+		args = append(args, "--copy-locale")
+		copied = append(copied, "etc/locale.conf")
 	}
-	if t.Keymap != "" {
+	switch {
+	case t.Keymap != "":
 		args = append(args, "--keymap="+t.Keymap)
+	case t.CopyKeymap:
+		args = append(args, "--copy-keymap")
+		copied = append(copied, "etc/vconsole.conf")
 	}
-	if t.TimeZone != "" {
+	switch {
+	case t.TimeZone != "":
 		args = append(args, "--timezone="+t.TimeZone)
+	case t.CopyTimezone:
+		args = append(args, "--copy-timezone")
+		copied = append(copied, "etc/localtime")
+	}
+	if err := r.dropFilesToCopyOver(d, copied); err != nil {
+		return warns, err
 	}
 	if t.Hostname != "" {
 		args = append(args, "--hostname="+t.Hostname)
@@ -77,6 +97,11 @@ func (r Real) configureDeployment(ctx context.Context, d string, t TargetConfig)
 	if len(args) > 2 {
 		if _, err := c.Run(ctx, "systemd-firstboot", args, CmdOpts{}); err != nil {
 			return warns, err
+		}
+		// Only after the copy succeeded: a carried language and keyboard
+		// are not asked again on the first boot.
+		if _, err := r.gisHandoff(d, t); err != nil {
+			warns = append(warns, "gnome-initial-setup still asks for language and keyboard: "+err.Error())
 		}
 	}
 
@@ -106,26 +131,43 @@ func (r Real) configureDeployment(ctx context.Context, d string, t TargetConfig)
 	return warns, nil
 }
 
+// dropFilesToCopyOver removes the deployment's own copy of each file that
+// systemd-firstboot --copy-* is about to take from the running system, when
+// the running system has it. systemd 255 (Ubuntu, Debian) does not overwrite
+// an existing file on --copy-* even with --force, and fails with "Failed to
+// copy host's /etc/locale.conf: File exists"; the Ubuntu image ships
+// /etc/locale.conf with LANG=C.UTF-8 (tunaOS run 46057651259, gurnard:pantheon).
+// systemd 257 overwrites. The host's choice must win on both, and a host
+// without the file leaves the image's default alone.
+func (r Real) dropFilesToCopyOver(d string, rels []string) error {
+	host := r.Root
+	if host == "" {
+		host = "/"
+	}
+	for _, rel := range rels {
+		if _, err := os.Lstat(filepath.Join(host, rel)); err != nil {
+			continue
+		}
+		if err := os.Remove(filepath.Join(d, rel)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("removing the image's /%s before the copy: %w", rel, err)
+		}
+	}
+	return nil
+}
+
 // createUser adds the account to the deployment's /etc. The home directory
 // is not created with useradd -m: on an ostree system /home is a symlink
 // into /var, which is not part of the deployment. A tmpfiles.d entry
 // creates it from /etc/skel at first boot instead, owned by the new user.
 func (r Real) createUser(ctx context.Context, d string, u *User) error {
-	home := "/home/" + u.Username
-	args := []string{"--root", d, "--no-create-home", "--home-dir", home, "--shell", "/bin/bash"}
-	if u.FullName != nil && *u.FullName != "" {
-		args = append(args, "--comment", *u.FullName)
+	admin := ""
+	if u.Admin == nil || *u.Admin {
+		admin = adminGroup(d)
 	}
-	admin := u.Admin == nil || *u.Admin
-	if admin {
-		if g := adminGroup(d); g != "" {
-			args = append(args, "--groups", g)
-		}
-	}
-	args = append(args, u.Username)
-	if _, err := r.cmd().Run(ctx, "useradd", args, CmdOpts{}); err != nil {
+	if err := addUser(d, u, admin); err != nil {
 		return err
 	}
+	home := "/home/" + u.Username
 	if u.Password != nil && u.Password.Reveal() != "" {
 		// chpasswd --root chroots into the deployment and fails to lock its
 		// /etc/passwd on a hardened host, and a hash on useradd's argument

@@ -3,7 +3,8 @@ lsblk -rno PKNAME $ROOT/dev/fakemed3
 sfdisk --json /dev/fakemed
 wipefs --all --force /dev/fake1
 udevadm settle
-systemd-repart --dry-run=no --definitions=$ROOT/run/fishermand/install-$N/repart.d --empty=force --pretty=no --json=short --no-pager /dev/fake1
+blockdev --getss /dev/fake1
+systemd-repart --dry-run=no --definitions=$ROOT/run/fishermand/install-$N/repart.d --empty=force --sector-size=512 --key-file=$ROOT/run/fishermand/luks-transient/pending-install-$N --pretty=no --json=short --no-pager /dev/fake1
 udevadm settle
 cryptsetup luksUUID /dev/fake1p4
 cryptsetup open --type luks2 --key-file=- /dev/fake1p4 $MAPPER <stdin 21 bytes>
@@ -29,7 +30,6 @@ mount /dev/fake1p3 $ROOT/run/fishermand/install-$N/mnt/boot
 mount /dev/fake1p2 $ROOT/run/fishermand/install-$N/mnt/efi
 sync
 systemd-firstboot --root=$ROOT/run/fishermand/install-$N/mnt/root/ostree/deploy/default/deploy/abc.0 --force --locale=en_GB.UTF-8 --keymap=gb --timezone=Europe/London --hostname=ada-box
-useradd --root $ROOT/run/fishermand/install-$N/mnt/root/ostree/deploy/default/deploy/abc.0 --no-create-home --home-dir /home/ada --shell /bin/bash --comment Ada Lovelace --groups wheel ada
 btrfs filesystem resize max $ROOT/run/fishermand/install-$N/mnt/root
 efibootmgr --create --disk /dev/fake1 --part 2 --label Bonito --loader \EFI\fedora\shimx64.efi
 sync
@@ -37,8 +37,9 @@ umount -R $ROOT/run/fishermand/install-$N/mnt/efi
 umount -R $ROOT/run/fishermand/install-$N/mnt/boot
 umount -R $ROOT/run/fishermand/install-$N/mnt/root
 cryptsetup close $MAPPER
-crypt: cryptsetup luksDump /dev/fake1p4
+cryptsetup open --test-passphrase --key-file=$ROOT/run/fishermand/empty-key-$N --disable-external-tokens --token-type=fisherman-keyslots-only /dev/fake1p4
+crypt: cryptsetup luksDump --dump-json-metadata /dev/fake1p4
 crypt: cryptsetup luksUUID /dev/fake1p4
-crypt: cryptsetup luksDump /dev/fake1p4
-crypt: systemd-cryptenroll --wipe-slot=0 --password /dev/fake1p4 <new secret 21 bytes> <unlock empty>
-crypt: cryptsetup luksDump /dev/fake1p4
+crypt: cryptsetup luksDump --dump-json-metadata /dev/fake1p4
+crypt: systemd-cryptenroll --wipe-slot=0 --password /dev/fake1p4 <new secret 21 bytes> <unlock secret 64 bytes>
+crypt: cryptsetup luksDump --dump-json-metadata /dev/fake1p4
