@@ -981,3 +981,62 @@ func TestRealInstallFinalizeCheckFailsClosed(t *testing.T) {
 		t.Fatalf("Install = %v, want the cryptsetup failure", err)
 	}
 }
+
+// TestRealInstallRepartCopyProgress: the percentages repart prints while it
+// copies the partitions become progress of the partition step, weighed by
+// the size of each medium partition (installer#515: the bar sat near 1 % for
+// the whole copy).
+func TestRealInstallRepartCopyProgress(t *testing.T) {
+	fx := newInstallFixture(t, false)
+	fx.cmd.hook = func(ctx context.Context, name string, args []string, o CmdOpts) ([]byte, error, bool) {
+		if name != "systemd-repart" || o.OnStderr == nil {
+			return nil, nil, false
+		}
+		defs := ""
+		for _, a := range args {
+			if v, ok := strings.CutPrefix(a, "--definitions="); ok {
+				defs = v
+			}
+		}
+		for _, f := range []string{"01-copy.conf", "02-copy.conf", "03-copy.conf"} {
+			for _, p := range []int{0, 50, 100} {
+				o.OnStderr(fmt.Sprintf("/dev/fakemed → %s/%s 1.0G/2.0G  %d%%", defs, f, p))
+			}
+		}
+		return nil, nil, false // the fake's normal layout output follows
+	}
+	rep := &partitionProgressReporter{recReporter: &recReporter{}}
+	if err := fx.real.Install(context.Background(), fixturePlan(Encryption{Type: "luks_passphrase", Passphrase: ptr(Secret("x pass phrase"))}), rep); err != nil {
+		t.Fatalf("Install: %v\n%s", err, fx.cmd.normalized())
+	}
+	pcts := rep.pcts
+	for i := 1; i < len(pcts); i++ {
+		if pcts[i] < pcts[i-1] {
+			t.Errorf("the bar ran back: %v", pcts)
+		}
+	}
+	// ESP (100 MiB) and /boot (256 MiB) are 12 % of the copied bytes: the
+	// bar is far from the top while the root (88 %) is half done.
+	mid := false
+	for _, p := range pcts {
+		if p > 40 && p < 60 {
+			mid = true
+		}
+	}
+	if !mid || pcts[len(pcts)-2] != 95 {
+		t.Errorf("partition progress = %v, want a value around 50 while the root copies and 95 at the end of the copy", pcts)
+	}
+}
+
+// partitionProgressReporter records every progress value of the partition step.
+type partitionProgressReporter struct {
+	*recReporter
+	pcts []int
+}
+
+func (r *partitionProgressReporter) Progress(step string, pct int, msg string) {
+	if step == StepPartition {
+		r.pcts = append(r.pcts, pct)
+	}
+	r.recReporter.Progress(step, pct, msg)
+}

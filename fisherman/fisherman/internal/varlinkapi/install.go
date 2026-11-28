@@ -23,16 +23,22 @@ func PlannedSteps(plan InstallPlan) []string {
 
 // stepWeights is each step's share of the whole install, in percent. They
 // are estimates that shape the bar, like the weights of the legacy pipeline.
+//
+// The real executor copies the whole medium root inside the partition step
+// (systemd-repart CopyBlocks=, encrypting as it goes): that is where the
+// minutes are, 15 GB on an EL10 medium. install_os only checks the copy. The
+// weights gave the copy 5 % and the bar sat near 1 % for the whole install
+// (installer#515); the copy now has 70 % and reports its own progress.
 var stepWeights = map[string]int{
-	StepValidateDevice: 2,
-	StepPartition:      5,
-	StepLUKS:           5,
-	StepTPM2Enroll:     3,
-	StepMount:          2,
-	StepInstallOS:      65,
-	StepConfigure:      5,
+	StepValidateDevice: 1,
+	StepPartition:      70,
+	StepLUKS:           3,
+	StepTPM2Enroll:     2,
+	StepMount:          3,
+	StepInstallOS:      3,
+	StepConfigure:      4,
 	StepPostFixups:     5,
-	StepBootloader:     6,
-	StepFinalize:       2,
+	StepBootloader:     4,
+	StepFinalize:       5,
 	StepCleanup:        0,
 }

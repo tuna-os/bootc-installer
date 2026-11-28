@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -22,6 +23,10 @@ type CmdOpts struct {
 	// Quiet keeps the command's stderr out of the returned error. Set it on
 	// every command that takes a secret.
 	Quiet bool
+	// OnStderr, when set, receives each line of the command's stderr as it
+	// is written (a carriage return ends a line too, as progress output uses
+	// it). The lines are still kept for the error.
+	OnStderr func(line string)
 }
 
 // Commander is the one seam the real executor runs host programs through:
@@ -77,6 +82,11 @@ func (systemCommander) Run(ctx context.Context, name string, args []string, o Cm
 	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if o.OnStderr != nil {
+		lw := &lineWriter{on: o.OnStderr}
+		cmd.Stderr = io.MultiWriter(&stderr, lw)
+		defer lw.flush()
+	}
 	if err := cmd.Run(); err != nil {
 		ce := &CmdError{Name: name, Err: err}
 		if ctx.Err() != nil {
@@ -88,6 +98,30 @@ func (systemCommander) Run(ctx context.Context, name string, args []string, o Cm
 		return nil, ce
 	}
 	return stdout.Bytes(), nil
+}
+
+// lineWriter splits what it is given into lines at \n and \r.
+type lineWriter struct {
+	on  func(string)
+	buf []byte
+}
+
+func (w *lineWriter) Write(p []byte) (int, error) {
+	for _, c := range p {
+		if c == '\n' || c == '\r' {
+			w.flush()
+			continue
+		}
+		w.buf = append(w.buf, c)
+	}
+	return len(p), nil
+}
+
+func (w *lineWriter) flush() {
+	if len(w.buf) > 0 {
+		w.on(string(w.buf))
+		w.buf = w.buf[:0]
+	}
 }
 
 // tail keeps the last line of s that says something, at most 300 bytes.

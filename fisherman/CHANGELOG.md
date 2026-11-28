@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 Fixed
 
+- **The progress bar follows the image copy.** The real executor copies the
+  whole medium root inside the partition step (systemd-repart `CopyBlocks=`),
+  a step that had 5 % of the bar, so the bar sat near 1 % for minutes while
+  install_os, which only checks the copy, had 65 % (installer#515). The
+  weights are now partition 70, install_os 3, and the copy's own percentages
+  (read from repart's stderr, weighed by the size of each medium partition)
+  move the partition step from 10 to 95 %.
 - **An installed boot entry with no `root=` gets `root=UUID=` of the unlocked
   root.** An Ubuntu image (composefs, ext4 root in LUKS) ships a boot entry
   without `root=`; the initramfs unlocked the LUKS volume with the TPM and

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -365,7 +366,7 @@ func (c *installRun) partition(ctx context.Context) error {
 	}
 	args = append(args, disk)
 	c.rep.Progress(StepPartition, 10, "Copying the installer image")
-	out, err := c.runCmd(ctx, CmdOpts{}, "systemd-repart", args...)
+	out, err := c.runCmd(ctx, CmdOpts{OnStderr: c.repartProgress()}, "systemd-repart", args...)
 	if err != nil {
 		return c.stepFail(err, ReasonRepartError, ActionRetry, "systemd-repart failed")
 	}
@@ -379,6 +380,50 @@ func (c *installRun) partition(ctx context.Context) error {
 	}
 	c.rep.Progress(StepPartition, 100, "")
 	return nil
+}
+
+// repartCopyRe matches the progress line of a block copy:
+// "/dev/sda3 → /run/.../03-copy.conf 1.2G/14.8G  8%".
+var repartCopyRe = regexp.MustCompile(`^.* → (\S+) \d+(\.\d+)?[KMGT]?/\d+(\.\d+)?[KMGT]?\s+(\d+)%\s*$`)
+
+// repartProgress turns systemd-repart's copy percentages into progress of
+// the partition step: the copy takes 10 to 95 % of it. The partitions are
+// copied one after the other and the percentage restarts for each, so the
+// share is weighed by the size of the medium partition each definition
+// mirrors: the small ESP and /boot must not fill the bar before the root
+// starts. Only a changed value is sent; the reporter never lets the bar
+// run back.
+func (c *installRun) repartProgress() func(string) {
+	size := map[string]float64{}
+	var total float64
+	for _, d := range c.defs {
+		sz := float64(c.partitionOf(d).SizeBytes)
+		size[d.FileName] = sz
+		total += sz
+	}
+	done := map[string]float64{} // fraction of each partition copied
+	last := -1
+	return func(line string) {
+		m := repartCopyRe.FindStringSubmatch(line)
+		if m == nil || total <= 0 {
+			return
+		}
+		n, err := strconv.Atoi(m[4])
+		if err != nil {
+			return
+		}
+		done[filepath.Base(m[1])] = float64(n) / 100
+		var copied float64
+		for f, frac := range done {
+			copied += size[f] * frac
+		}
+		pct := 10 + int(copied/total*85)
+		if pct == last {
+			return
+		}
+		last = pct
+		c.rep.Progress(StepPartition, pct, "")
+	}
 }
 
 // assignPartitions maps the partitions repart created to their roles by the
