@@ -231,10 +231,10 @@ func TestEnsureLUKSOptsIdempotent(t *testing.T) {
 	if err := os.WriteFile(entry, []byte("title T\noptions rw quiet\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := EnsureLUKSOpts(dir, luks, false); err != nil {
+	if _, err := EnsureLUKSOpts(dir, luks, "", false); err != nil {
 		t.Fatal(err)
 	}
-	touched, err := EnsureLUKSOpts(dir, luks, false)
+	touched, err := EnsureLUKSOpts(dir, luks, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,6 +244,56 @@ func TestEnsureLUKSOptsIdempotent(t *testing.T) {
 	b, _ := os.ReadFile(entry)
 	if n := strings.Count(string(b), "rd.luks.uuid="); n != 1 {
 		t.Errorf("rd.luks.uuid appears %d times:\n%s", n, b)
+	}
+}
+
+// TestEnsureLUKSOptsAddsRootWhenAbsent: an entry with no root= (composefs on
+// Ubuntu, ext4 root in LUKS) gets root=UUID= of the unlocked filesystem, so
+// the initramfs mounts it after the unlock; an existing root= stays; a second
+// run changes nothing; no root UUID adds nothing.
+func TestEnsureLUKSOptsAddsRootWhenAbsent(t *testing.T) {
+	const root = "bffd2f69-0000-4000-8000-000000000001"
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	none := write("a.conf", "title A\noptions rw rhgb quiet composefs=abc rootflags=noatime\n")
+	has := write("b.conf", "title B\noptions rw root=UUID=keep-me composefs=abc\n")
+	if _, err := EnsureLUKSOpts(dir, luks, "", false); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(none); strings.Contains(string(b), "root=UUID") {
+		t.Errorf("root= added with no root UUID:\n%s", b)
+	}
+	// reset a.conf to the state before the LUKS karg
+	write("a.conf", "title A\noptions rw rhgb quiet composefs=abc rootflags=noatime\n")
+	write("b.conf", "title B\noptions rw root=UUID=keep-me composefs=abc\n")
+	if _, err := EnsureLUKSOpts(dir, luks, root, true); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := os.ReadFile(none)
+	if !strings.Contains(string(a), " root=UUID="+root) || strings.Count(string(a), "root=UUID=") != 1 {
+		t.Errorf("entry without root=:\n%s", a)
+	}
+	b, _ := os.ReadFile(has)
+	if !strings.Contains(string(b), "root=UUID=keep-me") || strings.Contains(string(b), root) {
+		t.Errorf("an existing root= was changed:\n%s", b)
+	}
+	touched, err := EnsureLUKSOpts(dir, luks, root, true)
+	if err != nil || len(touched) != 0 {
+		t.Errorf("second run: %v %v", touched, err)
+	}
+	// An entry that has the LUKS kargs but no root= (an earlier run) gets it too.
+	late := write("c.conf", "title C\noptions rw rd.luks.uuid="+luks+" composefs=abc\n")
+	if touched, _ := EnsureLUKSOpts(dir, luks, root, true); len(touched) != 1 || touched[0] != late {
+		t.Errorf("touched = %v", touched)
+	}
+	if c, _ := os.ReadFile(late); !strings.Contains(string(c), "root=UUID="+root) || strings.Count(string(c), "rd.luks.uuid=") != 1 {
+		t.Errorf("late entry:\n%s", c)
 	}
 }
 

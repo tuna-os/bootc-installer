@@ -100,6 +100,7 @@ type installRun struct {
 	mapper      string
 	rootDev     string
 	rootFS      string
+	rootUUID    string   // the root filesystem's new UUID, for root=UUID= on the boot entries
 	mounts      []string // mount points, in mount order
 	mapperOpen  bool
 	deployments []string
@@ -637,6 +638,9 @@ func (c *installRun) newIdentity(ctx context.Context, dev string) error {
 		return c.fail(ReasonInternal, ActionRetry, "the new UUID of a %s partition did not take%s", fstype, c.sectorMismatch(ctx, dev))
 	}
 	c.uuidMap[old] = now
+	if dev == c.rootDev {
+		c.rootUUID = now
+	}
 	return nil
 }
 
@@ -772,6 +776,7 @@ func (c *installRun) postFixups(ctx context.Context) error {
 		Target:    postfix.Target{Root: c.mnt("root"), Boot: bootDir, EFI: c.mnt("efi")},
 		UUIDMap:   c.uuidMap,
 		LUKSUUID:  c.luksUUID,
+		RootUUID:  c.rootUUID,
 		TPM2:      c.tokenTPM2,
 		Grow:      true,
 		RootFS:    c.rootFS,

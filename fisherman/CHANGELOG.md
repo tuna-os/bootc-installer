@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 Fixed
 
+- **An installed boot entry with no `root=` gets `root=UUID=` of the unlocked
+  root.** An Ubuntu image (composefs, ext4 root in LUKS) ships a boot entry
+  without `root=`; the initramfs unlocked the LUKS volume with the TPM and
+  then stopped in the dracut emergency shell (tunaOS run 46105553747,
+  gurnard:pantheon). postfix adds `root=UUID=<new root filesystem UUID>` to
+  every entry that has no `root=`; an existing one is never changed.
 - **The user account is written without `useradd`.** `useradd --root`
   chroots into the deployment; there `/proc` and `/sys/fs/selinux` are
   missing while libselinux still thinks SELinux is on, and shadow-utils 4.15
